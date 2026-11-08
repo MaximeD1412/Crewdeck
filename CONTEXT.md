@@ -123,7 +123,9 @@ one **Runner**; it is online or « hors ligne ».
 _Avoid_: agent (it runs agents), daemon, worker
 
 **Moteur** (`Engine`):
-An official agent program the **Runner** drives: Claude Code or Codex.
+An agent program the **Runner** drives: Claude Code and Codex at the MVP,
+the other agents of the moment, paid or open source, later (`next`). A
+**Moteur** offers models, sometimes the **Pilote**'s own.
 _Avoid_: provider, harness, IA, modèle (a **Moteur** offers several models)
 
 **Compte IA** (`AiAccount`):
@@ -162,6 +164,11 @@ _Avoid_: zone, slot (in the UI), conteneur
 The **Composant** that lays out the whole page: where the menu, the page and
 « À toi » go.
 _Avoid_: layout, shell (in the UI), gabarit
+
+**Connecteur** (`Connector`):
+The link between Crewdeck and an outside tool (Penpot, Pencil, Figma,
+Slack, an issue tracker, a host for previews), turned on per **Projet**.
+_Avoid_: intégration, plugin, extension
 
 **Marketplace** (`Marketplace`):
 Where a **Pilote** finds and installs **Skins** and **Skills**: the official

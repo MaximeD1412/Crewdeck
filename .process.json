@@ -1,0 +1,11 @@
+{
+  "projectName": "Crewdeck",
+  "repo": "MaximeD1412/Crewdeck",
+  "branches": {
+    "integration": "develop",
+    "release": "main"
+  },
+  "agentLoop": {
+    "conventionsFile": "AGENTS.md"
+  }
+}

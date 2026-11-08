@@ -32,7 +32,7 @@ stage. The same for every **Pilote** (it is adaptable only `later`).
 _Avoid_: workflow, pipeline, méthode
 
 **Projet** (`Project`):
-One GitHub repository followed by the product and prepared for the
+One repository (on GitHub at the MVP) followed by the product and prepared for the
 **Process**; a **Pilote** has one or more **Projets**.
 _Avoid_: repo, dépôt (in the UI), app
 
@@ -166,8 +166,10 @@ The **Composant** that lays out the whole page: where the menu, the page and
 _Avoid_: layout, shell (in the UI), gabarit
 
 **Connecteur** (`Connector`):
-The link between Crewdeck and an outside tool (Penpot, Pencil, Figma,
-Slack, an issue tracker, a host for previews), turned on per **Projet**.
+The link between a module of the **Process** and the outside tool that
+serves it (GitHub, GitLab or Gitea as code host; Penpot, Pencil or Figma for
+design; Slack; an issue tracker; a host for previews; or an MCP server of
+the **Pilote**), chosen per **Projet**.
 _Avoid_: intégration, plugin, extension
 
 **Marketplace** (`Marketplace`):

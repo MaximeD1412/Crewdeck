@@ -28,6 +28,10 @@
 
 - **The Process is the product.** Idée → Conception → Tickets → Boucle,
   with their gates: the stages and gates are ours, the same for every **Pilote**.
+- **Every outside tool is behind a Connecteur.** The Process knows what a
+  module needs (a code host, a ticket tracker, a design tool, a channel),
+  never a brand: GitHub, Figma or Slack can be swapped for another tool or
+  an MCP server the Pilote chooses.
 - **Real time.** A change on GitHub or from an agent is on screen in under
   2 s.
 - **The frame of the Process is ours, the method can be yours.** Each
@@ -178,7 +182,8 @@ The Pilote sets their account once, and each Projet differs where it needs.
 - **US-85** (next) As a Pilote, I want to connect Penpot, Pencil (pen.dev) or Figma to a Projet, the mockups made there feeding the Conception and each visual review comparing the delivered screens with them, so that I design in my usual tool.
 - **US-86** (next) As a Pilote, I want to use the coding agents of the moment as Moteurs, paid or open source (Gemini CLI, OpenCode, Cursor, Copilot, Amp and the next ones), each with the Comptes IA its provider allows, so that I am never locked into two providers.
 - **US-87** (next) As a Pilote, I want to add a model of my own (a local model, or any compatible endpoint) to a Moteur that accepts it and give it a Rôle, so that I use open or cheaper models where they are good enough.
-- **US-88** (next) As a Pilote, I want a catalogue of Connecteurs (design tools, messaging, issue trackers, hosting for previews) that I turn on per Projet, so that Crewdeck works with the tools I already use.
+- **US-88** (next) As a Pilote, I want to bind each module of a Projet (code host, Idées and Tickets, CI, design, notifications, previews) to the Connecteur of my choice from a catalogue, or to an MCP server of mine, so that Crewdeck works with the tools I already use.
+- **US-90** (next) As a Pilote, I want to follow a Projet hosted on GitLab or Gitea instead of GitHub, with the same Process (Tickets, PRs, reviews, checks, merges), so that my code host is my choice.
 - **US-64** (next) As a Pilote, I want the architecture plans, the risk register and the release checklist of each Projet, so that I steer it like a project, not only a backlog.
 - **US-69** (next) As a Pilote, I want the dependency update PRs (Dependabot) taken up by the Boucle like Tickets, so that dependencies stay up to date without me.
 - **US-79** (next) As a Pilote, I want each Skill of the Marketplace rated on its real results (share of outputs that meet the Contrat, share of Tickets merged without a request for changes), so that I choose on facts, not on stars.
@@ -199,11 +204,10 @@ The Pilote sets their account once, and each Projet differs where it needs.
 |---|---|---|
 | MVP (`MVP`) | US-1 to US-21, US-23, US-26, US-36, US-38 to US-40, US-48, US-55 to US-57, US-60 to US-63, US-68, US-82, US-83: the founder's own use. One-person account, existing GitHub repositories, **Runner** with the **Pilote**'s **Comptes IA** and a **Moteur** per **Rôle**; Idées (dictated or typed, straight to a Ticket when small), Conception, Tickets, Boucle, « À toi »; limits and **Planifications**; statistics, planning and ticket tree; real time, end-to-end encryption; the default sober **Skin** built on the library of **Composants**; every **Étape** checked against its **Contrat**; **Paramètres** and **Étapes optionnelles** | the founder drives the Process of all their projects, from the Idée to the merged PR, with Crewdeck instead of the dotfiles console for 4 weeks |
 | Bêta (`next`) | US-22, US-24, US-25, US-27 to US-29, US-41 to US-46, US-65 to US-67, US-70 to US-78, US-80, US-84: what external testers need. **Thèmes**, **Skins** (inheritance, **Emplacements**, versioned contracts), the **Marketplace** with the isometric and « Terminal » **Skins**, private **Skins**; French and English; client feedback, reports and **Lien de suivi**, **Journal des Décisions**; user tests, visual audit, previews; **Runner** on a server; Slack, Discord, Telegram; MCP servers; **Plafonds**; the demonstration **Projet** | 5 external beta testers are active every week; the three official **Skins** use the public library only |
-| Lancement (`next`) | US-30, US-31, US-34, US-49 to US-54, US-58, US-64, US-69, US-79, US-85 to US-88: acceptance, release and operations, a paid plan, third-party **Skins** and **Skills** after review, the **Pilote**'s own **Skills**, parallel **Boucles**, progression, architecture and risks, dependency PRs, **Skill** ratings, design tools (Penpot, Pencil, Figma), more **Moteurs** and own models, **Connecteurs** | a first paying **Pilote**; a first **Skin** and a first **Skill** published by someone outside the team |
+| Lancement (`next`) | US-30, US-31, US-34, US-49 to US-54, US-58, US-64, US-69, US-79, US-85 to US-88, US-90: acceptance, release and operations, a paid plan, third-party **Skins** and **Skills** after review, the **Pilote**'s own **Skills**, parallel **Boucles**, progression, architecture and risks, dependency PRs, **Skill** ratings, design tools (Penpot, Pencil, Figma), more **Moteurs** and own models, **Connecteurs** for every module (GitLab and Gitea included) | a first paying **Pilote**; a first **Skin** and a first **Skill** published by someone outside the team |
 | later | US-32, US-33, US-35, US-37, US-47, US-59, US-81, US-89: agents in our cloud, teams, optional **Étapes** added to the **Process**, self-hosting, paid **Skins**, agents' learnings by PR, project templates, third-party **Connecteurs** | — |
 
 **Out**:
-- GitLab and other code hosts: the **Process** is built on GitHub.
 - Reselling AI usage: the **Pilote** brings their own **Comptes IA**.
 - A free-form Process, without its **Étapes**, **Contrats** or gates: the
   Process is the product, and agents without a process is what the
@@ -232,7 +236,9 @@ The Pilote sets their account once, and each Projet differs where it needs.
 
 ## Constraints
 
-- GitHub only (MVP).
+- GitHub is the only code host of the MVP and the Bêta; it is a
+  **Connecteur** like the others, GitLab and Gitea come at the Lancement
+  (US-90).
 - AI providers' terms, read on 2026-11-08 (sources and matrix in
   `docs/research/2026-11-08-ai-providers-and-competitors.md`, added by
   PR #3):

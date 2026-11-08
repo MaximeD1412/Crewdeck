@@ -17,6 +17,11 @@ The person who has an account and drives their **Projets** and their agents
 through the **Process**; one account is one **Pilote**.
 _Avoid_: utilisateur, client, propriétaire, owner
 
+**Visiteur** (`Visitor`):
+Someone who discovers Crewdeck before signing up, on the demonstration
+**Projet**; not yet a **Pilote**.
+_Avoid_: prospect, invité, utilisateur anonyme
+
 **Moddeur** (`Modder`):
 A **Pilote** who writes their own **Skin** with the SDK, or their own
 **Skill** for an **Étape**.
@@ -73,7 +78,8 @@ a technical design, each one approved by the **Pilote**.
 _Avoid_: spec, cadrage
 
 **Ticket** (`Ticket`):
-One unit of work an agent implements in one reviewed PR; a GitHub issue.
+One unit of work an agent implements in one reviewed PR; an issue of the
+**Projet**'s code host (GitHub at the MVP).
 _Avoid_: tâche, issue (in the UI), story
 
 **Boucle** (`AgentLoop`):
@@ -185,8 +191,9 @@ _Avoid_: skin, style, palette
 **Action sensible** (`SensitiveAction`):
 An action a **Skin** may ask for but that the product always confirms in its
 own dialog: merge, start the **Boucle**, approve a **Conception** (and later
-release). Starting the **Boucle** also confirms the merges it does itself,
-for the Tickets that pass their review, until it is stopped.
+release). Starting the **Boucle**, or creating its **Planification**, also
+confirms the merges it does itself, for the Tickets that pass their review,
+until it is stopped or the **Planification** paused or deleted.
 _Avoid_: action critique, action protégée
 
 **Resynchronisation** (`Resync`):

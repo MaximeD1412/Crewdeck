@@ -22,6 +22,7 @@
 | Role | Who | What they come for |
 |---|---|---|
 | **Pilote** | A solo developer with a GitHub account and their own Claude or Codex account, driving several Projets with agents; the first one is the founder | Follow Idées, Conceptions, Tickets and agents in real time, and decide at the Process's gates, from the PC or the phone |
+| **Visiteur** | Someone who discovers Crewdeck before signing up | Understand what the product does in five minutes, without connecting anything |
 | **Moddeur** | A **Pilote** who writes their own **Skin** with the SDK, or their own **Skill** for an **Étape** | Change the look of the product, or how its agents work, a little or completely, while keeping its logic and its gates |
 
 ## Principles
@@ -44,8 +45,10 @@
   actions from the core and never decides alone.
 - **An Action sensible is always confirmed by the core** (merge, start the
   Boucle, approve a Conception, and later release), whatever the **Skin**.
-  Starting the **Boucle** is the one confirmation that covers its own work:
-  the merges of the Tickets that pass their review, until it is stopped.
+  Starting the **Boucle**, or creating its **Planification**, is the one
+  confirmation that covers its own work: the merges of the Tickets that pass
+  their review, until it is stopped (or the **Planification** paused or
+  deleted).
 - **The code, the agents and the AI accounts stay with the Pilote.** Agents
   run on the **Pilote**'s machine through the **Runner**, on the official
   agent programs the **Pilote** signs in to themselves, with their own
@@ -68,7 +71,7 @@ prepares them for the **Process**.
 - **US-4** (MVP) As a Pilote, I want to see for each Projet what is still missing to run the Process, so that I know what to fix before the agents start.
 - **US-68** (MVP) As a Pilote, I want to bring in a repository that already has code, the product drafting its glossary, its decisions and an inventory for me to approve before the Process starts, so that an existing project gets the same Process as a new one.
 - **US-70** (next) As a Pilote, I want to install the Runner on a server of mine with no screen (a VPS, a home server), so that agents work when my PC is off.
-- **US-80** (next) As a visitor, I want a demonstration Projet already filled (Idées, a PRD, a Boucle at work, Décisions), so that I understand Crewdeck in five minutes without connecting my repositories.
+- **US-80** (next) As a Visiteur, I want a demonstration Projet already filled (Idées, a PRD, a Boucle at work, Décisions), so that I understand Crewdeck in five minutes without connecting my repositories.
 - **US-38** (MVP) As a Pilote, I want to connect my Comptes IA on my Runner (my Claude or Codex sign-in where the provider allows it, else my API key) and see which Moteurs and models I can really use, and why one is not (connexion requise, quota atteint, indisponible avec cet abonnement), so that I never pick an agent that cannot run.
 
 ### Idées
@@ -95,7 +98,7 @@ second agent and the checks pass; it stops for the Pilote only on a visual
 review or a blocked Ticket.
 - **US-12** (MVP) As a Pilote, I want an approved Conception split into Tickets that I validate in one pass, so that the agents know exactly what to build.
 - **US-13** (MVP) As a Pilote, I want to start and stop the Boucle of a Projet, starting it being my explicit consent to background work on my Comptes IA and to the merge of each Ticket that passes its review, until I stop it, so that I decide when my machine and my accounts work.
-- **US-62** (MVP) As a Pilote, I want to schedule a Boucle (at a time, every night, or when a Compte IA's window resets), so that agents work when my limits allow it.
+- **US-62** (MVP) As a Pilote, I want to schedule a Boucle (at a time, every night, or when a Compte IA's window resets), creating the Planification being confirmed like starting the Boucle and covering each scheduled start and its merges until I pause or delete it, stopping one run leaving the next ones planned, so that agents work when my limits allow it.
 - **US-73** (next) As a Pilote, I want to choose the MCP servers the agents of a Projet may use, so that they get the tools that Projet needs and nothing more.
 - **US-74** (next) As a Pilote, I want a spending cap per Projet and per month for my API keys, the Boucle stopping with a Décision when it is reached, so that a bill never surprises me.
 - **US-14** (MVP) As a Pilote, I want to see which ticket each agent is on and at which step (coding, waiting for checks, in review), so that I know what my agents are doing right now.
@@ -161,8 +164,8 @@ What the Pilote and their clients see of the work, beyond the agents.
 
 ### Settings
 The Pilote sets their account once, and each Projet differs where it needs.
-- **US-82** (MVP) As a Pilote, I want complete Paramètres for my account (Rôles and models, Skins, notifications and their channels, Planifications, Plafonds, Optional Étapes) and for each Projet, a Projet inheriting my account's Paramètres and changing only what it needs, so that I set things once and adapt per Projet.
-- **US-83** (MVP) As a Pilote, I want to turn the Étapes optionnelles on or off per Projet (mockups, visual review, visual audit, user tests, preview, cross review of a Conception), the Idée analysis, the Tickets, the Code, the Review and the checks staying mandatory, so that a Projet without screens does not wait for a visual review.
+- **US-82** (MVP) As a Pilote, I want complete Paramètres for my account (Rôles and models, notifications, Planifications, Étapes optionnelles at the MVP; the Skins, channels and Plafonds join them when the Bêta brings them) and for each Projet, a Projet inheriting my account's Paramètres and changing only what it needs, so that I set things once and adapt per Projet.
+- **US-83** (MVP) As a Pilote, I want to turn the Étapes optionnelles on or off per Projet (at the MVP the mockups, the visual review and the cross review of a Conception; the visual audit, the user tests and the preview join them with the Bêta), the Idée analysis, the Tickets, the Code, the Review and the checks staying mandatory, so that a Projet without screens does not wait for a visual review.
 - **US-84** (next) As a Pilote, I want to show, hide and reorder the Composants of my Skin from the Paramètres, without code, so that I see only what I use.
 
 ### Language
@@ -232,7 +235,7 @@ The Pilote sets their account once, and each Projet differs where it needs.
   measured from the event to the screen.
 - Bêta: the three official **Skins** are built with the public library of
   **Composants** only, with no private access to the core, checked at the
-  MVP's review.
+  Bêta's review.
 
 ## Constraints
 
@@ -253,7 +256,8 @@ The Pilote sets their account once, and each Projet differs where it needs.
     allowed.
   - So the MVP works with API keys for every **Moteur**; a subscription is
     offered only where the provider allows it.
-- UI in French and English from the MVP.
+- UI in French at the MVP (the founder's use), French and English from the
+  Bêta (US-28).
 - Hosted by us (SaaS) in the MVP and next; self-hosting is `later` (US-37).
 
 ## Open questions

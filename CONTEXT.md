@@ -49,6 +49,13 @@ use it (an analysed **Idée** has its summary, impact, effort; a PRD has its
 stories), and its gates. Kept by the core; a **Skill** never changes it.
 _Avoid_: schéma, spec, format
 
+**Étape optionnelle** (`OptionalStep`):
+An **Étape** a **Pilote** may turn off for a **Projet**: the mockups, the
+visual review, the visual audit, the user tests, the preview, the cross
+review of a **Conception**. The analysis of an **Idée**, the **Tickets**, the
+Code, the Review and the checks always run.
+_Avoid_: option, module, plugin
+
 **Skill** (`Skill`):
 The instructions (and scripts) an agent follows to do an **Étape**, in the
 `SKILL.md` format Claude Code and Codex read: the official one, or the
@@ -79,6 +86,33 @@ Something that waits for the **Pilote** (a blocked **Ticket**, a document to
 review, a visual review, an interrupted **Ticket**, « Runner hors ligne »);
 every **Décision** is in « À toi ».
 _Avoid_: tâche, alerte, notification
+
+**Paramètres** (`Settings`):
+Everything a **Pilote** sets: on their account, as the defaults, and on each
+**Projet**, which inherits the account's **Paramètres** and changes only
+what it needs.
+_Avoid_: configuration, réglages, préférences
+
+**Planification** (`Schedule`):
+When a **Boucle** starts by itself: at a time, every night, or when a
+**Compte IA**'s window resets.
+_Avoid_: cron, tâche planifiée, programmation
+
+**Plafond** (`SpendingCap`):
+The most a **Projet** may spend on the **Pilote**'s API keys in a month;
+reaching it stops the **Boucle** with a **Décision**.
+_Avoid_: budget, limite (a **Compte IA** has limits, a **Projet** has a
+**Plafond**)
+
+**Journal des Décisions** (`DecisionLog`):
+Every **Décision** the **Pilote** took (approval, refusal, answer), with its
+reason and date, kept and searchable.
+_Avoid_: historique, audit log
+
+**Lien de suivi** (`ShareLink`):
+A read-only, revocable address a **Pilote** gives a client to follow a
+**Projet**: planning, progress, what is ready to try.
+_Avoid_: portail client, lien public
 
 ### Machine
 

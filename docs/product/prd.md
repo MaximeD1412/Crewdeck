@@ -33,7 +33,8 @@
 - **The frame of the Process is ours, the method can be yours.** Each
   **Étape** has a **Contrat** (what it must produce) and its gates, kept by
   the core; the **Skill** that does the work can be replaced, never the
-  **Contrat** nor the gates.
+  **Contrat** nor the gates. The **Étapes optionnelles** can be
+  turned off per **Projet**; the others always run.
 - **The core keeps the logic, the Skin only draws.** Everything on screen is
   a **Composant** a **Skin** may replace; a **Composant** gets its data and
   actions from the core and never decides alone.
@@ -61,6 +62,9 @@ prepares them for the **Process**.
 - **US-2** (MVP) As a Pilote, I want to install the Runner on Linux, macOS or Windows (WSL) with one command and link it to my account, so that agents run on my machine with my own Comptes IA.
 - **US-3** (MVP) As a Pilote, I want to pick the GitHub repositories the product follows, so that each one is prepared for the Process (labels, branches, configuration) without manual setup.
 - **US-4** (MVP) As a Pilote, I want to see for each Projet what is still missing to run the Process, so that I know what to fix before the agents start.
+- **US-68** (MVP) As a Pilote, I want to bring in a repository that already has code, the product drafting its glossary, its decisions and an inventory for me to approve before the Process starts, so that an existing project gets the same Process as a new one.
+- **US-70** (MVP) As a Pilote, I want to install the Runner on a server of mine with no screen (a VPS, a home server), so that agents work when my PC is off.
+- **US-80** (MVP) As a visitor, I want a demonstration Projet already filled (Idées, a PRD, a Boucle at work, Décisions), so that I understand Crewdeck in five minutes without connecting my repositories.
 - **US-38** (MVP) As a Pilote, I want to connect my Comptes IA on my Runner (my Claude or Codex sign-in where the provider allows it, else my API key) and see which Moteurs and models I can really use, and why one is not (connexion requise, quota atteint, indisponible avec cet abonnement), so that I never pick an agent that cannot run.
 
 ### Idées
@@ -87,6 +91,9 @@ second agent and the checks pass; it stops for the Pilote only on a visual
 review or a blocked Ticket.
 - **US-12** (MVP) As a Pilote, I want an approved Conception split into Tickets that I validate in one pass, so that the agents know exactly what to build.
 - **US-13** (MVP) As a Pilote, I want to start and stop the Boucle of a Projet, starting it being my explicit consent to background work on my Comptes IA and to the merge of each Ticket that passes its review, until I stop it, so that I decide when my machine and my accounts work.
+- **US-62** (MVP) As a Pilote, I want to schedule a Boucle (at a time, every night, or when a Compte IA's window resets), so that agents work when my limits allow it.
+- **US-73** (MVP) As a Pilote, I want to choose the MCP servers the agents of a Projet may use, so that they get the tools that Projet needs and nothing more.
+- **US-74** (MVP) As a Pilote, I want a spending cap per Projet and per month for my API keys, the Boucle stopping with a Décision when it is reached, so that a bill never surprises me.
 - **US-14** (MVP) As a Pilote, I want to see which ticket each agent is on and at which step (coding, waiting for checks, in review), so that I know what my agents are doing right now.
 - **US-15** (MVP) As a Pilote, I want each Ticket delivered as a PR that a second agent and the checks review, and that the Boucle merges itself once they pass, unless the Ticket needs a visual review or is blocked, so that I only look at what needs my eyes.
 - **US-16** (MVP) As a Pilote, I want the planning of each Projet (what is next, what is blocked, by what), so that I see when a milestone will be done.
@@ -99,6 +106,7 @@ when they are away.
 - **US-17** (MVP) As a Pilote, I want every Décision that waits for me (a blocked Ticket, a Conception to review, a visual review, an interrupted Ticket) in « À toi », so that I never look for them.
 - **US-18** (MVP) As a Pilote, I want a notification on my phone when a Décision waits and I am away, so that the agents do not stay stuck for hours.
 - **US-19** (MVP) As a Pilote, I want to see « Runner hors ligne » in « À toi », with a notification, when work waits and my Runner is off, so that I do not believe agents are working when nothing runs.
+- **US-71** (MVP) As a Pilote, I want my Décisions in Slack, Discord or Telegram, and to answer them there, so that I decide from where I already am.
 - **US-40** (MVP) As a Pilote, I want a Décision in « À toi » when a Ticket stops because a Compte IA reached its limit or got disconnected, saying what to do (wait for the reset, reconnect, switch the Rôle to another Moteur), so that a quota never silently stops the Boucle.
 - **US-55** (MVP) As a Pilote, I want to see the usage of each Compte IA against its limits (the 5-hour and weekly windows where the provider has them) and when it will run out at the current pace, so that I start the Boucle when it can finish.
 
@@ -132,6 +140,27 @@ later the Pilote's own; the product checks every output against the
 Étape's Contrat.
 - **US-48** (MVP) As a Pilote, I want the output of every Étape (an analysed Idée, a PRD, mockups, a technical design, Tickets, a PR, a review) checked against its Contrat, and a Décision in « À toi » when it is incomplete, so that no Étape passes half done.
 
+### Pilotage and reports
+What the Pilote and their clients see of the work, beyond the agents.
+- **US-61** (MVP) As a Pilote, I want the statistics of each Projet and of all of them (lead time from Idée to merge, Boucle success rate, share of blocked Tickets, cost per Ticket), so that I know what the agents really bring.
+- **US-63** (MVP) As a Pilote, I want the tree of the open Tickets of a Projet, with what blocks what, next to its planning, so that I see the critical path at a glance.
+- **US-65** (MVP) As a Pilote, I want to paste a client's feedback and get it split into Idées, each analysed and linked to that client, so that no request is lost.
+- **US-66** (MVP) As a Pilote, I want a summary of what was delivered since a date, written for my client in plain words, so that I report without rewriting commits.
+- **US-76** (MVP) As a Pilote, I want a read-only Lien de suivi for a client (planning, progress, what is ready to try), which I can revoke, so that the client sees progress without asking.
+- **US-77** (MVP) As a Pilote, I want a weekly report of all my Projets (delivered, blocked, cost), in the product and by email, so that I keep the big picture.
+- **US-78** (MVP) As a Pilote, I want a searchable Journal des Décisions (every approval, refusal and answer, with its reason and date), so that months later I know why something was done.
+
+### Quality
+- **US-67** (MVP) As a Pilote, I want an agent to test the delivered app as a user would (journeys of the PRD, on the phone and the PC) and report what fails as Idées or Tickets, so that bugs are found before my client finds them.
+- **US-72** (MVP) As a Pilote, I want an automatic visual audit of a Ticket's screens (contrast, states, layout) with a score before its visual review, the Boucle fixing what fails, so that I only review screens that already pass.
+- **US-75** (MVP) As a Pilote, I want a preview address for each PR of a Projet that has a preview deployment, so that I try the change on my phone before I approve it.
+
+### Settings
+The Pilote sets their account once, and each Projet differs where it needs.
+- **US-82** (MVP) As a Pilote, I want complete Paramètres for my account (Rôles and models, Skins, notifications and their channels, Planifications, Plafonds, Optional Étapes) and for each Projet, a Projet inheriting my account's Paramètres and changing only what it needs, so that I set things once and adapt per Projet.
+- **US-83** (MVP) As a Pilote, I want to turn the Étapes optionnelles on or off per Projet (mockups, visual review, visual audit, user tests, preview, cross review of a Conception), the Idée analysis, the Tickets, the Code, the Review and the checks staying mandatory, so that a Projet without screens does not wait for a visual review.
+- **US-84** (MVP) As a Pilote, I want to show, hide and reorder the Composants of my Skin from the Paramètres, without code, so that I see only what I use.
+
 ### Language
 - **US-28** (MVP) As a Pilote, I want the product in French or English, so that I use it in my language.
 
@@ -146,6 +175,9 @@ later the Pilote's own; the product checks every output against the
 - **US-53** (next) As a Moddeur, I want to publish my Skill in the Marketplace after a security review, stricter than a Skin's since a Skill runs on the Pilote's machine, so that others can use it safely.
 - **US-54** (next) As a Pilote, I want several Boucles on one Projet at once, each taking Tickets that do not depend on those in progress, within a limit per Moteur, so that independent work goes faster.
 - **US-58** (next) As a Pilote, I want a progression (experience earned by the Tickets actually merged, levels, rewards) shown by a Composant any Skin can place, the isometric office growing with it, so that shipping is rewarding.
+- **US-64** (next) As a Pilote, I want the architecture plans, the risk register and the release checklist of each Projet, so that I steer it like a project, not only a backlog.
+- **US-69** (next) As a Pilote, I want the dependency update PRs (Dependabot) taken up by the Boucle like Tickets, so that dependencies stay up to date without me.
+- **US-79** (next) As a Pilote, I want each Skill of the Marketplace rated on its real results (share of outputs that meet the Contrat, share of Tickets merged without a request for changes), so that I choose on facts, not on stars.
 
 ### Later
 - **US-32** (later) As a Pilote, I want agents to run in the product's cloud instead of my machine, so that they work when my PC is off.
@@ -154,14 +186,15 @@ later the Pilote's own; the product checks every output against the
 - **US-37** (later) As a Pilote, I want to host the product on my own server, so that my Projets' state never leaves my infrastructure.
 - **US-47** (later) As a Moddeur, I want to sell my Skin in the Marketplace, the product taking a commission, so that my work pays.
 - **US-59** (later) As a Pilote, I want agents to propose what they learnt about a Projet (glossary terms, decisions, notes) as a PR to its repository that I review, so that the next agents start from it and the memory stays versioned.
+- **US-81** (later) As a Pilote, I want a new Projet created from a template (web, API, mobile) with its stack, CI and deployment ready, so that a retained Idée becomes a working repository in minutes.
 
 ## Scope
 
 | Version | Contains | Done when |
 |---|---|---|
-| MVP | US-1 to US-29, US-36, US-38 to US-46, US-48, US-55 to US-57, US-60: one-person account, GitHub repositories, **Runner** on the **Pilote**'s machine with their **Comptes IA** and a **Moteur** per **Rôle**; Idées, Conception, Tickets, Boucle, « À toi »; real-time state; **Thèmes**, the library of **Composants**, **Skins** that inherit and rearrange; the **Marketplace** with three official **Skins** (sober by default, isometric open space, « Terminal ») and private **Skins**; every **Étape** done by an official **Skill** and checked against its **Contrat**; French and English; free beta | the founder drives all their projects with it for 4 weeks, then 5 external beta testers are active every week |
-| next | US-30, US-31, US-34, US-49 to US-53, US-54, US-58: acceptance, release and operations, a paid plan, third-party **Skins** published in the **Marketplace** after review; the **Pilote**'s own **Skills** per **Étape**, and **Skills** in the **Marketplace** after a security review | a first paying **Pilote**; a first **Skin** and a first **Skill** published by someone outside the team |
-| later | US-32, US-33, US-35, US-37, US-47, US-59: agents in our cloud, teams, optional **Étapes** added to the **Process**, self-hosting, paid **Skins** | — |
+| MVP | US-1 to US-29, US-36, US-38 to US-46, US-48, US-55 to US-57, US-60 to US-63, US-65 to US-68, US-70 to US-78, US-80, US-82 to US-84: one-person account, GitHub repositories, **Runner** on the **Pilote**'s machine with their **Comptes IA** and a **Moteur** per **Rôle**; Idées, Conception, Tickets, Boucle, « À toi »; real-time state; **Thèmes**, the library of **Composants**, **Skins** that inherit and rearrange; the **Marketplace** with three official **Skins** (sober by default, isometric open space, « Terminal ») and private **Skins**; every **Étape** done by an official **Skill** and checked against its **Contrat**; French and English; statistics, ticket tree, client feedback and reports, Lien de suivi, Journal des Décisions; user tests, visual audit, previews; Planifications, Plafonds, MCP servers, Slack, Discord and Telegram; existing repositories, a Runner on a server, a demonstration Projet; complete **Paramètres** of the account and of each **Projet**; free beta | the founder drives all their projects with it for 4 weeks, then 5 external beta testers are active every week |
+| next | US-30, US-31, US-34, US-49 to US-53, US-54, US-58, US-64, US-69, US-79: acceptance, release and operations, a paid plan, third-party **Skins** published in the **Marketplace** after review; the **Pilote**'s own **Skills** per **Étape**, and **Skills** in the **Marketplace** after a security review | a first paying **Pilote**; a first **Skin** and a first **Skill** published by someone outside the team |
+| later | US-32, US-33, US-35, US-37, US-47, US-59, US-81: agents in our cloud, teams, optional **Étapes** added to the **Process**, self-hosting, paid **Skins** | — |
 
 **Out**:
 - GitLab and other code hosts: the **Process** is built on GitHub.

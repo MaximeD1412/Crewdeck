@@ -45,6 +45,9 @@
   run on the **Pilote**'s machine through the **Runner**, on the official
   agent programs the **Pilote** signs in to themselves, with their own
   **Comptes IA**; the product never holds an AI credential.
+  Conversations, code and diffs travel encrypted end to end between the
+  **Runner** and the **Pilote**'s browser; our servers keep only the state
+  of the **Process** (titles, states, **Décisions**).
 - **Everything that waits for the Pilote is in « À toi »**, with a
   notification when they are away; every default screen works at 390 px.
 
@@ -66,6 +69,8 @@ triage it.
 - **US-5** (MVP) As a Pilote, I want to note an Idée in one sentence from the PC or the phone, so that nothing is lost.
 - **US-6** (MVP) As a Pilote, I want each Idée analysed (summary, target Projet, impact, effort, possible duplicates), so that I triage in seconds.
 - **US-7** (MVP) As a Pilote, I want to retain, merge or reject an Idée, so that only what is worth it goes to Conception.
+- **US-56** (MVP) As a Pilote, I want to turn an Idée straight into a Ticket, without a Conception, when it is a small fix, so that small things do not wait for a PRD.
+- **US-57** (MVP) As a Pilote, I want to dictate an Idée or a message to an agent, on the PC or the phone, so that I capture and answer without typing.
 
 ### Conception
 A retained Idée goes through product design, mockups and technical design,
@@ -95,11 +100,13 @@ when they are away.
 - **US-18** (MVP) As a Pilote, I want a notification on my phone when a Décision waits and I am away, so that the agents do not stay stuck for hours.
 - **US-19** (MVP) As a Pilote, I want to see « Runner hors ligne » in « À toi », with a notification, when work waits and my Runner is off, so that I do not believe agents are working when nothing runs.
 - **US-40** (MVP) As a Pilote, I want a Décision in « À toi » when a Ticket stops because a Compte IA reached its limit or got disconnected, saying what to do (wait for the reset, reconnect, switch the Rôle to another Moteur), so that a quota never silently stops the Boucle.
+- **US-55** (MVP) As a Pilote, I want to see the usage of each Compte IA against its limits (the 5-hour and weekly windows where the provider has them) and when it will run out at the current pace, so that I start the Boucle when it can finish.
 
 ### Real time
 What the Pilote sees is the state of now.
 - **US-20** (MVP) As a Pilote, I want a change on GitHub or from an agent on screen in under 2 s, without reloading, so that I can trust what I see.
 - **US-21** (MVP) As a Pilote, I want to see « resynchronisation… » after a lost connection until the state is sure again, with the Actions sensibles unavailable until then, so that I never act on a stale state.
+- **US-60** (MVP) As a Pilote, I want my conversations, code and diffs to travel encrypted end to end between my Runner and my browser, the product's servers keeping only the state of the Process, so that my code never sits on someone else's server.
 
 ### Skins
 The Pilote chooses how the product looks, in the Marketplace or with a
@@ -137,6 +144,8 @@ later the Pilote's own; the product checks every output against the
 - **US-51** (next) As a Pilote, I want to go back to the official Skill of an Étape in one click, from its settings or from the Décision raised when my Skill missed the Contrat, so that a bad Skill never blocks a Projet.
 - **US-52** (next) As a Pilote, I want to find and install Skills in the Marketplace (the official ones, and those of Moddeurs that passed the product's security review), so that I reuse what others made.
 - **US-53** (next) As a Moddeur, I want to publish my Skill in the Marketplace after a security review, stricter than a Skin's since a Skill runs on the Pilote's machine, so that others can use it safely.
+- **US-54** (next) As a Pilote, I want several Boucles on one Projet at once, each taking Tickets that do not depend on those in progress, within a limit per Moteur, so that independent work goes faster.
+- **US-58** (next) As a Pilote, I want a progression (experience earned by the Tickets actually merged, levels, rewards) shown by a Composant any Skin can place, the isometric office growing with it, so that shipping is rewarding.
 
 ### Later
 - **US-32** (later) As a Pilote, I want agents to run in the product's cloud instead of my machine, so that they work when my PC is off.
@@ -144,14 +153,15 @@ later the Pilote's own; the product checks every output against the
 - **US-35** (later) As a Pilote, I want to add optional Étapes to the Process of my Projets (a security review after the Code, for instance), each with its Contrat, so that it fits how I work.
 - **US-37** (later) As a Pilote, I want to host the product on my own server, so that my Projets' state never leaves my infrastructure.
 - **US-47** (later) As a Moddeur, I want to sell my Skin in the Marketplace, the product taking a commission, so that my work pays.
+- **US-59** (later) As a Pilote, I want agents to propose what they learnt about a Projet (glossary terms, decisions, notes) as a PR to its repository that I review, so that the next agents start from it and the memory stays versioned.
 
 ## Scope
 
 | Version | Contains | Done when |
 |---|---|---|
-| MVP | US-1 to US-29, US-36, US-38 to US-46, US-48: one-person account, GitHub repositories, **Runner** on the **Pilote**'s machine with their **Comptes IA** and a **Moteur** per **Rôle**; Idées, Conception, Tickets, Boucle, « À toi »; real-time state; **Thèmes**, the library of **Composants**, **Skins** that inherit and rearrange; the **Marketplace** with three official **Skins** (sober by default, isometric open space, « Terminal ») and private **Skins**; every **Étape** done by an official **Skill** and checked against its **Contrat**; French and English; free beta | the founder drives all their projects with it for 4 weeks, then 5 external beta testers are active every week |
-| next | US-30, US-31, US-34, US-49 to US-53: acceptance, release and operations, a paid plan, third-party **Skins** published in the **Marketplace** after review; the **Pilote**'s own **Skills** per **Étape**, and **Skills** in the **Marketplace** after a security review | a first paying **Pilote**; a first **Skin** and a first **Skill** published by someone outside the team |
-| later | US-32, US-33, US-35, US-37, US-47: agents in our cloud, teams, optional **Étapes** added to the **Process**, self-hosting, paid **Skins** | — |
+| MVP | US-1 to US-29, US-36, US-38 to US-46, US-48, US-55 to US-57, US-60: one-person account, GitHub repositories, **Runner** on the **Pilote**'s machine with their **Comptes IA** and a **Moteur** per **Rôle**; Idées, Conception, Tickets, Boucle, « À toi »; real-time state; **Thèmes**, the library of **Composants**, **Skins** that inherit and rearrange; the **Marketplace** with three official **Skins** (sober by default, isometric open space, « Terminal ») and private **Skins**; every **Étape** done by an official **Skill** and checked against its **Contrat**; French and English; free beta | the founder drives all their projects with it for 4 weeks, then 5 external beta testers are active every week |
+| next | US-30, US-31, US-34, US-49 to US-53, US-54, US-58: acceptance, release and operations, a paid plan, third-party **Skins** published in the **Marketplace** after review; the **Pilote**'s own **Skills** per **Étape**, and **Skills** in the **Marketplace** after a security review | a first paying **Pilote**; a first **Skin** and a first **Skill** published by someone outside the team |
+| later | US-32, US-33, US-35, US-37, US-47, US-59: agents in our cloud, teams, optional **Étapes** added to the **Process**, self-hosting, paid **Skins** | — |
 
 **Out**:
 - GitLab and other code hosts: the **Process** is built on GitHub.

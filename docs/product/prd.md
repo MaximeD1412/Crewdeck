@@ -35,6 +35,8 @@
   actions from the core and never decides alone.
 - **An Action sensible is always confirmed by the core** (merge, start the
   Boucle, approve a Conception, and later release), whatever the **Skin**.
+  Starting the **Boucle** is the one confirmation that covers its own work:
+  the merges of the Tickets that pass their review, until it is stopped.
 - **The code, the agents and the AI accounts stay with the Pilote.** Agents
   run on the **Pilote**'s machine through the **Runner**, on the official
   agent programs the **Pilote** signs in to themselves, with their own
@@ -75,7 +77,7 @@ one on the Runner, each through a reviewed PR that it merges itself once the
 second agent and the checks pass; it stops for the Pilote only on a visual
 review or a blocked Ticket.
 - **US-12** (MVP) As a Pilote, I want an approved Conception split into Tickets that I validate in one pass, so that the agents know exactly what to build.
-- **US-13** (MVP) As a Pilote, I want to start and stop the Boucle of a Projet, starting it being my explicit consent to background work on my Comptes IA, so that I decide when my machine and my accounts work.
+- **US-13** (MVP) As a Pilote, I want to start and stop the Boucle of a Projet, starting it being my explicit consent to background work on my Comptes IA and to the merge of each Ticket that passes its review, until I stop it, so that I decide when my machine and my accounts work.
 - **US-14** (MVP) As a Pilote, I want to see which ticket each agent is on and at which step (coding, waiting for checks, in review), so that I know what my agents are doing right now.
 - **US-15** (MVP) As a Pilote, I want each Ticket delivered as a PR that a second agent and the checks review, and that the Boucle merges itself once they pass, unless the Ticket needs a visual review or is blocked, so that I only look at what needs my eyes.
 - **US-16** (MVP) As a Pilote, I want the planning of each Projet (what is next, what is blocked, by what), so that I see when a milestone will be done.
@@ -163,7 +165,8 @@ replacing Composants.
 
 - GitHub only (MVP).
 - AI providers' terms, read on 2026-11-08 (sources and matrix in
-  `docs/research/2026-11-08-ai-providers-and-competitors.md`):
+  `docs/research/2026-11-08-ai-providers-and-competitors.md`, added by
+  PR #3):
   - Anthropic does not allow a third-party product to offer Claude.ai login
     or route requests through a user's subscription, Agent SDK included,
     unless previously approved; it allows an end user to sign in to the
@@ -183,7 +186,7 @@ replacing Composants.
 - Anthropic: may our **Runner** drive the unmodified Claude Code binary,
   signed in by the **Pilote** with their own subscription, in a paid
   product? Written answer asked by the founder (draft in
-  `docs/research/provider-letters.md`), before the beta.
+  `docs/research/provider-letters.md`, added by PR #3), before the beta.
 - OpenAI: access to « Sign in with ChatGPT » for Crewdeck, and what must
   stay free to respect its plan-usage terms (which we could not read on
   2026-11-08: the page refused automated access). Asked by the founder,

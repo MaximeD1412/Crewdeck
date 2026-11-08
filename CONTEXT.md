@@ -121,7 +121,8 @@ _Avoid_: skin, style, palette
 **Action sensible** (`SensitiveAction`):
 An action a **Skin** may ask for but that the product always confirms in its
 own dialog: merge, start the **Boucle**, approve a **Conception** (and later
-release).
+release). Starting the **Boucle** also confirms the merges it does itself,
+for the Tickets that pass their review, until it is stopped.
 _Avoid_: action critique, action protégée
 
 **Resynchronisation** (`Resync`):

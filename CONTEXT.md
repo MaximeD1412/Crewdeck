@@ -18,7 +18,8 @@ through the **Process**; one account is one **Pilote**.
 _Avoid_: utilisateur, client, propriétaire, owner
 
 **Moddeur** (`Modder`):
-A **Pilote** who writes their own **Skin** with the SDK.
+A **Pilote** who writes their own **Skin** with the SDK, or their own
+**Skill** for an **Étape**.
 _Avoid_: développeur, créateur, thémeur
 
 ### Work
@@ -34,6 +35,25 @@ _Avoid_: workflow, pipeline, méthode
 One GitHub repository followed by the product and prepared for the
 **Process**; a **Pilote** has one or more **Projets**.
 _Avoid_: repo, dépôt (in the UI), app
+
+**Étape** (`Step`):
+One piece of work of the **Process** that an agent does in one **Rôle** with
+one **Skill**: the analysis of an **Idée**, the PRD, the mockups, the
+technical design, the split into **Tickets**, the Code, the Review. Each
+**Étape** has one **Contrat**.
+_Avoid_: tâche, job, phase (the **Process** has stages, an **Étape** is finer)
+
+**Contrat** (`StepContract`):
+What an **Étape** must produce for the product and the next **Étapes** to
+use it (an analysed **Idée** has its summary, impact, effort; a PRD has its
+stories), and its gates. Kept by the core; a **Skill** never changes it.
+_Avoid_: schéma, spec, format
+
+**Skill** (`Skill`):
+The instructions (and scripts) an agent follows to do an **Étape**, in the
+`SKILL.md` format Claude Code and Codex read: the official one, or the
+**Pilote**'s own (`next`).
+_Avoid_: méthode, prompt, recette, plugin
 
 **Idée** (`Idea`):
 Something the **Pilote** wants, noted in a sentence, analysed, then retained,
@@ -110,8 +130,9 @@ The **Composant** that lays out the whole page: where the menu, the page and
 _Avoid_: layout, shell (in the UI), gabarit
 
 **Marketplace** (`Marketplace`):
-Where a **Pilote** finds and installs **Skins**: the official ones, and
-later those published by **Moddeurs** after review.
+Where a **Pilote** finds and installs **Skins** and **Skills**: the official
+ones, and later those published by **Moddeurs** after review (a security
+review for a **Skill**, which runs on the **Pilote**'s machine).
 _Avoid_: store, boutique, galerie
 
 **Thème** (`Theme`):
@@ -136,6 +157,8 @@ _Avoid_: rechargement, refresh
   the AI is an agent, the program is the **Runner**.
 - "skin" and "thème" were used for the same thing: a **Thème** only changes
   colours and type of the default **Skin**; a **Skin** is a whole interface.
+- "skin" and "skill" sound alike: a **Skin** changes what the **Pilote**
+  sees, a **Skill** changes how an agent works.
 - "abonnement" was used for every way of paying the AI: the **Compte IA**
   is the general term; a subscription sign-in is only one kind of it, and
   only where the provider allows it.

@@ -22,7 +22,7 @@
 | Role | Who | What they come for |
 |---|---|---|
 | **Pilote** | A solo developer with a GitHub account and their own Claude or Codex account, driving several Projets with agents; the first one is the founder | Follow Idées, Conceptions, Tickets and agents in real time, and decide at the Process's gates, from the PC or the phone |
-| **Moddeur** | A **Pilote** who writes their own **Skin** with the SDK | Change the look of the product, a little or completely, while keeping its logic |
+| **Moddeur** | A **Pilote** who writes their own **Skin** with the SDK, or their own **Skill** for an **Étape** | Change the look of the product, or how its agents work, a little or completely, while keeping its logic and its gates |
 
 ## Principles
 
@@ -30,6 +30,10 @@
   with their gates: the stages and gates are ours, the same for every **Pilote**.
 - **Real time.** A change on GitHub or from an agent is on screen in under
   2 s.
+- **The frame of the Process is ours, the method can be yours.** Each
+  **Étape** has a **Contrat** (what it must produce) and its gates, kept by
+  the core; the **Skill** that does the work can be replaced, never the
+  **Contrat** nor the gates.
 - **The core keeps the logic, the Skin only draws.** Everything on screen is
   a **Composant** a **Skin** may replace; a **Composant** gets its data and
   actions from the core and never decides alone.
@@ -115,6 +119,12 @@ replacing Composants.
 - **US-45** (MVP) As a Pilote, I want the official « Terminal » Skin, dense and driven from the keyboard, so that I work fast without the mouse.
 - **US-46** (MVP) As a Moddeur, I want to keep my Skin private to my account, so that I use it without publishing it.
 
+### Skills
+Each Étape of the Process is done by a Skill: the official one by default,
+later the Pilote's own; the product checks every output against the
+Étape's Contrat.
+- **US-48** (MVP) As a Pilote, I want the output of every Étape (an analysed Idée, a PRD, mockups, a technical design, Tickets, a PR, a review) checked against its Contrat, and a Décision in « À toi » when it is incomplete, so that no Étape passes half done.
+
 ### Language
 - **US-28** (MVP) As a Pilote, I want the product in French or English, so that I use it in my language.
 
@@ -122,11 +132,16 @@ replacing Composants.
 - **US-30** (next) As a Pilote, I want the acceptance, release and operations stages (candidate, release button, prod watch), so that the Process goes to prod from the product.
 - **US-31** (next) As a Pilote, I want to subscribe to a paid plan, so that I keep using the product after the beta.
 - **US-34** (next) As a Moddeur, I want to publish my Skin in the Marketplace, after the product's review, so that the community shares its Skins.
+- **US-49** (next) As a Pilote, I want to import my own Skill (a `SKILL.md`, the format Claude Code and Codex read) for an Étape, for all my Projets or for one, so that the agents work my way while the Process keeps its frame.
+- **US-50** (next) As a Pilote, I want to see what a Skill contains (its instructions, its scripts, what it may run) and confirm before it is imported, so that I never run an unknown Skill blindly.
+- **US-51** (next) As a Pilote, I want to go back to the official Skill of an Étape in one click, from its settings or from the Décision raised when my Skill missed the Contrat, so that a bad Skill never blocks a Projet.
+- **US-52** (next) As a Pilote, I want to find and install Skills in the Marketplace (the official ones, and those of Moddeurs that passed the product's security review), so that I reuse what others made.
+- **US-53** (next) As a Moddeur, I want to publish my Skill in the Marketplace after a security review, stricter than a Skin's since a Skill runs on the Pilote's machine, so that others can use it safely.
 
 ### Later
 - **US-32** (later) As a Pilote, I want agents to run in the product's cloud instead of my machine, so that they work when my PC is off.
 - **US-33** (later) As a Pilote, I want to invite teammates with roles, so that a team drives its Projets together.
-- **US-35** (later) As a Pilote, I want to adapt the Process (stages, gates) to my Projets, so that it fits how I work.
+- **US-35** (later) As a Pilote, I want to add optional Étapes to the Process of my Projets (a security review after the Code, for instance), each with its Contrat, so that it fits how I work.
 - **US-37** (later) As a Pilote, I want to host the product on my own server, so that my Projets' state never leaves my infrastructure.
 - **US-47** (later) As a Moddeur, I want to sell my Skin in the Marketplace, the product taking a commission, so that my work pays.
 
@@ -134,13 +149,17 @@ replacing Composants.
 
 | Version | Contains | Done when |
 |---|---|---|
-| MVP | US-1 to US-29, US-36, US-38 to US-46: one-person account, GitHub repositories, **Runner** on the **Pilote**'s machine with their **Comptes IA** and a **Moteur** per **Rôle**; Idées, Conception, Tickets, Boucle, « À toi »; real-time state; **Thèmes**, the library of **Composants**, **Skins** that inherit and rearrange; the **Marketplace** with three official **Skins** (sober by default, isometric open space, « Terminal ») and private **Skins**; French and English; free beta | the founder drives all their projects with it for 4 weeks, then 5 external beta testers are active every week |
-| next | US-30, US-31, US-34: acceptance, release and operations, a paid plan, third-party **Skins** published in the **Marketplace** after review | a first paying **Pilote**; a first **Skin** published by someone outside the team |
-| later | US-32, US-33, US-35, US-37, US-47: agents in our cloud, teams, an adaptable **Process**, self-hosting, paid **Skins** | — |
+| MVP | US-1 to US-29, US-36, US-38 to US-46, US-48: one-person account, GitHub repositories, **Runner** on the **Pilote**'s machine with their **Comptes IA** and a **Moteur** per **Rôle**; Idées, Conception, Tickets, Boucle, « À toi »; real-time state; **Thèmes**, the library of **Composants**, **Skins** that inherit and rearrange; the **Marketplace** with three official **Skins** (sober by default, isometric open space, « Terminal ») and private **Skins**; every **Étape** done by an official **Skill** and checked against its **Contrat**; French and English; free beta | the founder drives all their projects with it for 4 weeks, then 5 external beta testers are active every week |
+| next | US-30, US-31, US-34, US-49 to US-53: acceptance, release and operations, a paid plan, third-party **Skins** published in the **Marketplace** after review; the **Pilote**'s own **Skills** per **Étape**, and **Skills** in the **Marketplace** after a security review | a first paying **Pilote**; a first **Skin** and a first **Skill** published by someone outside the team |
+| later | US-32, US-33, US-35, US-37, US-47: agents in our cloud, teams, optional **Étapes** added to the **Process**, self-hosting, paid **Skins** | — |
 
 **Out**:
 - GitLab and other code hosts: the **Process** is built on GitHub.
 - Reselling AI usage: the **Pilote** brings their own **Comptes IA**.
+- A free-form Process, without its **Étapes**, **Contrats** or gates: the
+  Process is the product, and agents without a process is what the
+  competitors already offer; a **Pilote** changes the method (**Skills**),
+  not the frame.
 - Switching or rotating between several AI accounts to go past a limit
   (offered by some competitors): the providers' terms forbid getting around
   their limits; a quota is a **Décision** (US-40), never a silent switch.

@@ -64,17 +64,55 @@ _Avoid_: tâche, alerte, notification
 
 **Runner** (`Runner`):
 The program installed on the **Pilote**'s machine, linked to their account,
-that runs the agents with the **Pilote**'s own AI subscriptions. A
-**Pilote** has one **Runner**; it is online or « hors ligne ».
+that runs the agents on the **Pilote**'s **Comptes IA**. A **Pilote** has
+one **Runner**; it is online or « hors ligne ».
 _Avoid_: agent (it runs agents), daemon, worker
+
+**Moteur** (`Engine`):
+An official agent program the **Runner** drives: Claude Code or Codex.
+_Avoid_: provider, harness, IA, modèle (a **Moteur** offers several models)
+
+**Compte IA** (`AiAccount`):
+How the **Pilote** pays for a **Moteur**: their own sign-in to it, where the
+provider allows it, or their own API key. It stays on the **Runner**; the
+product never holds it.
+_Avoid_: abonnement (one kind of **Compte IA** only), clé, credentials
+
+**Rôle** (`AgentRole`):
+What an agent is asked to do in the **Process**: « Idée », « Conception »,
+« Code » or « Review »; each **Rôle** has one **Moteur** and one model.
+_Avoid_: profil, mode, persona
 
 ### Interface
 
 **Skin** (`Skin`):
-A complete interface of the product, drawn on the state and the actions the
-SDK gives; it says whether it works on the PC, the phone or both. The
-default **Skin** is the sober one.
+A complete interface of the product: a set of **Composants**, starting from
+a parent **Skin** whose **Composants** it does not replace. It says whether
+it works on the PC, the phone or both. The default **Skin** is the sober
+one.
 _Avoid_: thème, template, UI, mod
+
+**Composant** (`Component`):
+One named, replaceable piece of the screen, from the **Cadre** to a status
+badge, with its data and actions from the core and its versioned contract;
+a **Composant** may hold others in its **Emplacements**.
+_Avoid_: widget, bloc, élément, brique
+
+**Emplacement** (`Slot`):
+A named place inside a **Composant** that other **Composants** fill (a
+page's list, a card's badges, the **Cadre**'s menu); a **Skin** may fill,
+reorder or empty it.
+_Avoid_: zone, slot (in the UI), conteneur
+
+**Cadre** (`Shell`):
+The **Composant** that lays out the whole page: where the menu, the page and
+« À toi » go.
+_Avoid_: layout, shell (in the UI), gabarit
+
+**Marketplace** (`Marketplace`):
+Where a **Pilote** finds and installs **Skins**: the official ones, and
+later those published by **Moddeurs** after review.
+_Avoid_: store, boutique, galerie
 
 **Thème** (`Theme`):
 The colours and type of the default **Skin**, chosen without code.
@@ -97,6 +135,9 @@ _Avoid_: rechargement, refresh
   the AI is an agent, the program is the **Runner**.
 - "skin" and "thème" were used for the same thing: a **Thème** only changes
   colours and type of the default **Skin**; a **Skin** is a whole interface.
+- "abonnement" was used for every way of paying the AI: the **Compte IA**
+  is the general term; a subscription sign-in is only one kind of it, and
+  only where the provider allows it.
 
 ## Example dialogue
 

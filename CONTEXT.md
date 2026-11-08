@@ -24,9 +24,10 @@ _Avoid_: développeur, créateur, thémeur
 ### Work
 
 **Process** (`Process`):
-The fixed sequence of stages and gates every **Projet** follows: **Idée**,
-**Conception**, **Tickets**, **Boucle**, « À toi ». The same for every
-**Pilote** (it is adaptable only `later`).
+The fixed sequence of stages every **Projet** follows, **Idée**,
+**Conception**, **Tickets**, **Boucle**, with the gates where the **Pilote**
+decides. « À toi » is not a stage: it gathers the **Décisions** of every
+stage. The same for every **Pilote** (it is adaptable only `later`).
 _Avoid_: workflow, pipeline, méthode
 
 **Projet** (`Project`):

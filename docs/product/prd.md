@@ -71,8 +71,8 @@ technical design's.
 - **US-1** (MVP) As a Pilote, I want to sign up with my GitHub account, so that I do not create yet another password.
 - **US-2** (MVP) As a Pilote, I want to install the Runner on Linux, macOS or Windows (WSL) with one command and link it to my account, a failed link saying why and giving the command again, so that agents run on my machine with my own Comptes IA.
 - **US-3** (MVP) As a Pilote, I want to pick the GitHub repositories the product follows, so that each one is prepared for the Process (labels, branches, configuration) without manual setup.
-- **US-4** (MVP) As a Pilote, I want to see for each Projet what is still missing to run the Process (the Runner linked, a usable Moteur for each Rôle, the labels, the integration and release branches, the Process's settings in the repository, and for an existing repository its approved inventory), the product fixing in the repository what it can on one click of mine, so that I know what to fix before the agents start.
-- **US-68** (MVP) As a Pilote, I want to bring in a repository that already has code, the product drafting its glossary, its technical choices and an inventory, which a Décision in « À toi » asks me to approve at once or to send back with my changes, so that an existing project gets the same Process as a new one.
+- **US-4** (MVP) As a Pilote, I want to see for each Projet what is still missing to run the Process (the Runner linked, a usable Moteur for each Rôle, the labels, the integration and release branches, the Process's settings in the repository, and for an existing repository its approved inventory), the product fixing in the repository what it can on one click of mine, each fix visible on GitHub, so that I know what to fix before the agents start.
+- **US-68** (MVP) As a Pilote, I want to bring in a repository that already has code, the product drafting its glossary, its technical choices and an inventory, which a Décision in « À toi » asks me to approve at once or to send back with my changes, what I approve being written to the repository visibly on GitHub, so that an existing project gets the same Process as a new one.
 - **US-70** (next) As a Pilote, I want to install the Runner on a server of mine with no screen (a VPS, a home server), so that agents work when my PC is off.
 - **US-80** (next) As a Visiteur, I want a demonstration Projet already filled (Idées, a PRD, a Boucle at work, Décisions), so that I understand Crewdeck in five minutes without connecting my repositories.
 - **US-38** (MVP) As a Pilote, I want to connect my Comptes IA on my Runner (my Claude or Codex sign-in where the provider allows it, else my API key) and see which Moteurs and models I can really use, and why one is not (connexion requise, quota atteint, indisponible avec cet abonnement), getting started needing at least one usable Moteur, so that I never pick an agent that cannot run.
@@ -83,13 +83,15 @@ triage it.
 - **US-5** (MVP) As a Pilote, I want to note an Idée in one sentence from the PC or the phone, choosing its Projet if I want to, so that nothing is lost.
 - **US-6** (MVP) As a Pilote, I want each Idée analysed (summary, target Projet, which I can correct, impact, effort, possible duplicates), so that I triage in seconds.
 - **US-7** (MVP) As a Pilote, I want to retain, merge or reject an Idée, so that only what is worth it goes to Conception.
-- **US-56** (MVP) As a Pilote, I want to turn an Idée straight into a Ticket, without a Conception, when it is a small fix, the agent of the Rôle Idée drafting the Ticket from the Idée and its analysis and I validating it like the Tickets of a Conception, so that small things do not wait for a PRD.
+- **US-56** (MVP) As a Pilote, I want to turn an Idée straight into a Ticket, without a Conception, when it is a small fix, the agent of the Rôle Idée drafting the Ticket from the Idée and its analysis and I validating it like the Tickets of a Conception, or sending it back with a comment the agent takes up, the validated Ticket joining the ready Tickets of its Projet, so that small things do not wait for a PRD.
 - **US-57** (MVP) As a Pilote, I want to dictate an Idée or a message to an agent, on the PC or the phone, the transcript filling the field so that I correct it before sending, so that I capture and answer without typing.
-- **US-91** (MVP) As a Pilote, I want to put a merged or rejected Idée back to triage, so that a wrong click is never final.
+- **US-91** (MVP) As a Pilote, I want to put a merged or rejected Idée back to triage, keeping its analysis, which I can run again, so that a wrong click is never final.
 
 ### Conception
 A retained Idée goes through product design, mockups and technical design,
-each one a conversation with an agent, each one approved by the Pilote.
+each one a conversation with an agent, each one approved by the Pilote. The
+cross review (an Étape optionnelle) reads the PRD and the technical design,
+each just before the Pilote approves it.
 - **US-8** (MVP) As a Pilote, I want to start the Conception of a retained Idée in one click, so that an agent runs the product design with me.
 - **US-9** (MVP) As a Pilote, I want to drive an agent session from the product (read it as it streams, write to it, answer its questions and permission requests, stop and resume it), so that I never need a terminal to talk to an agent.
 - **US-10** (MVP) As a Pilote, I want to follow each Conception from the Idée to its Tickets (PRD, mockups, technical design), an Étape optionnelle turned off for its Projet shown as such, so that I know where each one stands.
@@ -125,7 +127,7 @@ when they are away.
 What the Pilote sees is the state of now.
 - **US-20** (MVP) As a Pilote, I want a change on GitHub or from an agent on screen in under 2 s, without reloading, so that I can trust what I see.
 - **US-21** (MVP) As a Pilote, I want to see « resynchronisation… » after a lost connection until the state is sure again, with the Actions sensibles unavailable until then, so that I never act on a stale state.
-- **US-60** (MVP) As a Pilote, I want my conversations, code and diffs to travel encrypted end to end between my Runner and my browser, the product's servers keeping only the state of the Process, a session showing only its title and state while the Runner is offline, so that my code never sits on someone else's server.
+- **US-60** (MVP) As a Pilote, I want my conversations, code and diffs to travel encrypted end to end between my Runner and my browser, the product's servers keeping only the state of the Process, a session showing only its title and state while the Runner is offline, interrupted until I resume it once the Runner is back, so that my code never sits on someone else's server.
 
 ### Skins
 The Pilote chooses how the product looks, in the Marketplace or with a
@@ -149,7 +151,7 @@ replacing Composants.
 Each Étape of the Process is done by a Skill: the official one by default,
 later the Pilote's own; the product checks every output against the
 Étape's Contrat.
-- **US-48** (MVP) As a Pilote, I want the output of every Étape (an analysed Idée, a PRD, mockups, a technical design, Tickets, a PR, a review) checked against its Contrat, and a Décision in « À toi » to run it again when it is incomplete or fails, so that no Étape passes half done.
+- **US-48** (MVP) As a Pilote, I want the output of every Étape (an analysed Idée, a PRD, mockups, a technical design, Tickets, a PR, a review) checked against its Contrat, and a Décision in « À toi » to run it again when it is incomplete or fails, an Idée whose analysis failed staying open to triage, so that no Étape passes half done.
 
 ### Pilotage and reports
 What the Pilote and their clients see of the work, beyond the agents. The
@@ -158,7 +160,8 @@ it led to; the Boucle's success rate is the share of the Tickets it took
 that it merged without the Pilote stepping in; the share of blocked Tickets
 counts those blocked at least once among the Tickets taken; the cost per
 Ticket is the spend for an API key, and the share of the window used for a
-subscription.
+subscription. Spends are estimates in euros, converted from the provider's
+bill.
 - **US-61** (MVP) As a Pilote, I want the statistics of each Projet and of all of them (lead time from Idée to merge, Boucle success rate, share of blocked Tickets, cost per Ticket), so that I know what the agents really bring.
 - **US-63** (MVP) As a Pilote, I want the tree of the open Tickets of a Projet, with what blocks what, next to its planning, so that I see the critical path at a glance.
 - **US-65** (next) As a Pilote, I want to paste a client's feedback and get it split into Idées, each analysed and linked to that client, so that no request is lost.

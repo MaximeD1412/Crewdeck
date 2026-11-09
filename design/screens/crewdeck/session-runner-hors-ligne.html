@@ -27,8 +27,6 @@
     .shell--with-panel .chips { flex-wrap: wrap; }
     .shell--with-panel .c-track .track { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
-  /* Runner hors ligne: nothing to stop or resume from here */
-  .session-head-actions > ui-button { display: none; }
 </style>
 </head>
 <body>
@@ -92,8 +90,8 @@
     Ton Runner ne répond plus depuis 14:02. Les sessions reprendront quand il sera de nouveau en ligne. Relance-le sur ta machine.
     <ui-button slot="actions" size="sm" icon="server">Voir le Runner</ui-button>
   </ui-banner>
-  <ui-session slot="panel" title="Concevoir · Agenda partagé" meta="Runner hors ligne · Personal OS · Conception · Claude Code" state="stopped">
-    <ui-empty icon="lock" title="Conversation sur ton Runner">Elle est chiffrée de bout en bout et n’est gardée que sur ton Runner : elle s’affiche de nouveau dès qu’il est en ligne.<ui-button slot="actions" icon="server">Voir le Runner</ui-button></ui-empty>
+  <ui-session slot="panel" title="Concevoir · Agenda partagé" meta="Runner hors ligne · Personal OS · Conception · Claude Code" state="interrupted" resume-disabled>
+    <ui-empty icon="lock" title="Conversation sur ton Runner">Elle est chiffrée de bout en bout et n’est gardée que sur ton Runner : elle s’affiche de nouveau dès qu’il est en ligne. La session est interrompue : « Reprendre » s’active quand ton Runner revient.<ui-button slot="actions" icon="server">Voir le Runner</ui-button></ui-empty>
     <ui-composer state="disabled" placeholder="Disponible quand ton Runner est en ligne"></ui-composer>
   </ui-session>
 </ui-app-shell>

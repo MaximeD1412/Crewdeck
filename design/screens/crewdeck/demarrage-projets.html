@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Premiers pas — Projets</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+.steps .track { flex-direction: row; gap: var(--space-2); }
+.steps .track-step { flex: 1; padding-bottom: 0; grid-template-columns: var(--icon-box) minmax(0, 1fr); gap: var(--space-2); }
+.steps .track-step::before { display: none; }
+.steps .track-text > span { display: none; }
+.onboard { gap: var(--space-5); }
+.onboard-actions { display: flex; flex-direction: column; gap: var(--space-2); }
+@media (min-width: 1280px) {
+  .onboard-actions { flex-direction: row; justify-content: flex-end; }
+}
+
+.repos { display: flex; flex-direction: column; padding: 0 var(--space-4) var(--space-2); }
+.repos ui-checkbox + ui-checkbox .check-input { border-top: 1px solid var(--line); }
+.repos .check-input { padding: var(--space-2) 0; }
+@media (min-width: 1280px) { .repos { padding: 0 var(--space-5) var(--space-2); } }
+</style>
+</head>
+<body>
+<!-- exemple : dépôts GitHub fictifs -->
+<ui-app-shell variant="bare" screen="Premiers pas">
+  <nav class="steps" aria-label="Premiers pas / Étapes" data-name="Premiers pas / Étapes">
+    <ui-process-track>
+      <ui-step state="done" label="Runner"></ui-step>
+      <ui-step state="done" label="Comptes IA"></ui-step>
+      <ui-step state="current" label="Projets"></ui-step>
+    </ui-process-track>
+  </nav>
+  <ui-page-header title="Choisis tes Projets" screen="Premiers pas">
+    <span slot="sub">Chaque dépôt GitHub que tu choisis devient un Projet, préparé pour le Process : labels, branches et fichier .process.json.</span>
+  </ui-page-header>
+  <section class="stack onboard" aria-label="Premiers pas / Dépôts" data-name="Premiers pas / Dépôts">
+    <ui-text-field placeholder="Chercher un dépôt GitHub"></ui-text-field>
+    <ui-card flush title="Tes dépôts GitHub" count="4">
+      <div class="repos">
+        <ui-checkbox checked>MaximeD1412/personal-os<small>déjà du code · un inventaire sera proposé</small></ui-checkbox>
+        <ui-checkbox checked>MaximeD1412/site-mairie<small>déjà du code · un inventaire sera proposé</small></ui-checkbox>
+        <ui-checkbox>MaximeD1412/tennis-manager<small>déjà du code · un inventaire sera proposé</small></ui-checkbox>
+        <ui-checkbox>MaximeD1412/sandbox-vue3<small>vide</small></ui-checkbox>
+      </div>
+    </ui-card>
+    <div class="onboard-actions">
+      <ui-button variant="primary" wide>Suivre 2 Projets</ui-button>
+    </div>
+    <p class="text-sm muted">Pour un dépôt GitHub qui a déjà du code, Crewdeck rédige son glossaire, ses choix techniques et un inventaire ; tu les approuves avant que le Process démarre.</p>
+  </section>
+</ui-app-shell>
+</body>
+</html>

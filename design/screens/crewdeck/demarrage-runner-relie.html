@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Premiers pas — Runner relié</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+.steps .track { flex-direction: row; gap: var(--space-2); }
+.steps .track-step { flex: 1; padding-bottom: 0; grid-template-columns: var(--icon-box) minmax(0, 1fr); gap: var(--space-2); }
+.steps .track-step::before { display: none; }
+.steps .track-text > span { display: none; }
+.onboard { gap: var(--space-5); }
+.onboard-actions { display: flex; flex-direction: column; gap: var(--space-2); }
+@media (min-width: 1280px) {
+  .onboard-actions { flex-direction: row; justify-content: flex-end; }
+}
+</style>
+</head>
+<body>
+<!-- exemple : nom de machine et version fictifs -->
+<ui-app-shell variant="bare" screen="Premiers pas">
+  <nav class="steps" aria-label="Premiers pas / Étapes" data-name="Premiers pas / Étapes">
+    <ui-process-track>
+      <ui-step state="done" label="Runner"></ui-step>
+      <ui-step state="current" label="Comptes IA"></ui-step>
+      <ui-step state="todo" label="Projets"></ui-step>
+    </ui-process-track>
+  </nav>
+  <ui-page-header title="Runner relié" screen="Premiers pas">
+    <span slot="sub">Ton Runner est en ligne et relié à ton compte maximed1412.</span>
+  </ui-page-header>
+  <section class="stack onboard" aria-label="Premiers pas / Runner" data-name="Premiers pas / Runner">
+    <ui-banner tone="go" icon="check" title="Runner en ligne">Il a répondu il y a quelques secondes.</ui-banner>
+    <ui-card title="Ta machine">
+      <ui-key-value>
+        <ui-kv label="Machine">atelier-pc</ui-kv>
+        <ui-kv label="Système">Windows 11 · WSL Ubuntu 24.04</ui-kv>
+        <ui-kv label="Version">Runner 0.4.2</ui-kv>
+        <ui-kv label="Chiffrement">de bout en bout avec ce navigateur</ui-kv>
+      </ui-key-value>
+    </ui-card>
+    <div class="onboard-actions">
+      <ui-button variant="primary" wide>Continuer</ui-button>
+    </div>
+  </section>
+</ui-app-shell>
+</body>
+</html>

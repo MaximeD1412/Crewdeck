@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Découpage en Tickets — Agenda partagé</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* Review pages: « Demander des changements » then « Approuver … », in the page header on the PC, in a bar at the bottom on the phone */
+  .review-head-actions { display: none; }
+  .review-bar {
+    position: sticky; bottom: var(--tab-bar); z-index: 2; display: flex; gap: var(--space-2);
+    margin: 0 calc(var(--space-4) * -1) calc(var(--space-8) * -1); padding: var(--space-3) var(--space-4);
+    background: var(--side); border-top: 1px solid var(--line);
+  }
+  .review-bar .button { flex: 1 1 0; min-width: 0; height: auto; min-height: var(--touch); padding: var(--space-2) var(--space-3); white-space: normal; text-align: center; }
+  @media (min-width: 1280px) {
+    .review-head-actions { display: flex; gap: var(--space-2); }
+    .review-bar { display: none; }
+  }
+</style>
+</head><body>
+<!-- exemple : Tickets, tailles, écrans et remarque fictifs -->
+<ui-app-shell screen="Découpage en Tickets" current="conceptions" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="Découpage · Agenda partagé" back="Agenda partagé" screen="Découpage en Tickets">
+    <span slot="sub" class="mono">Personal OS · 6 Tickets</span>
+    <span class="review-head-actions"><ui-button>Demander des changements</ui-button><ui-button variant="primary">Approuver les 6 Tickets</ui-button></span>
+  </ui-page-header>
+  <div class="layout">
+    <ui-card title="Tickets proposés" count="6" label="Découpage en Tickets / Tickets proposés" flush>
+      <ui-list-row title="1 · Modèle des agendas partagés et de leurs membres" meta="aucune dépendance · 3 critères"><ui-status-badge>S</ui-status-badge><ui-icon-button icon="pen" label="Remarque sur ce Ticket"></ui-icon-button></ui-list-row>
+      <ui-list-row title="2 · Inviter un membre dans un agenda" meta="dépend de 1 · écran agenda-membres · 4 critères"><ui-status-badge>M</ui-status-badge><ui-icon-button icon="pen" label="Remarque sur ce Ticket"></ui-icon-button></ui-list-row>
+      <ui-list-row title="3 · Événements partagés dans l’agenda" meta="dépend de 1 · écran agenda · 4 critères"><ui-status-badge>M</ui-status-badge><ui-icon-button icon="pen" label="Remarque sur ce Ticket"></ui-icon-button></ui-list-row>
+      <ui-list-row title="4 · Modifier un événement partagé" meta="dépend de 3 · écran agenda-evenement · 3 critères"><ui-status-badge>S</ui-status-badge><ui-icon-button icon="pen" label="Remarque sur ce Ticket"></ui-icon-button></ui-list-row>
+      <ui-list-row title="5 · Événements récurrents partagés" meta="dépend de 3 · écran agenda-evenement · 5 critères"><ui-status-badge>M</ui-status-badge><ui-icon-button icon="pen" label="Remarque sur ce Ticket"></ui-icon-button>
+        <div slot="below"><ui-text-field label="Ta remarque" value="Garde les exceptions d’une série pour un Ticket à part." multiline rows="2"></ui-text-field></div>
+      </ui-list-row>
+      <ui-list-row title="6 · Quitter un agenda partagé" meta="dépend de 2 · écran agenda-membres · 3 critères"><ui-status-badge>S</ui-status-badge><ui-icon-button icon="pen" label="Remarque sur ce Ticket"></ui-icon-button></ui-list-row>
+    </ui-card>
+    <div class="layout-aside">
+      <ui-card title="Vérifications" label="Découpage en Tickets / Vérifications">
+        <ui-check-row name="Contrat du découpage" state="passed" detail="6 sur 6"></ui-check-row>
+      </ui-card>
+      <ui-card title="Résumé" label="Découpage en Tickets / Résumé">
+        <ui-key-value>
+          <ui-kv label="Tickets">6</ui-kv>
+          <ui-kv label="Tailles">3 S · 3 M</ui-kv>
+          <ui-kv label="Chemin critique">1 → 3 → 5</ui-kv>
+          <ui-kv label="Remarques">1</ui-kv>
+        </ui-key-value>
+      </ui-card>
+    </div>
+  </div>
+  <div class="review-bar"><ui-button>Demander des changements</ui-button><ui-button variant="primary">Approuver les 6 Tickets</ui-button></div>
+</ui-app-shell>
+</body>
+</html>

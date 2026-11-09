@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boucle — Planifier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .loop-state { display: flex; align-items: center; gap: var(--space-2); }
+  .loop-state b { font: var(--font-title-weight) var(--font-title-size)/var(--font-title-line-height) var(--font-title-family), sans-serif; color: var(--ink); }
+</style>
+</head>
+<body>
+<!-- exemple : Projets, Tickets, heures et Planifications fictifs -->
+<ui-app-shell screen="Boucle" current="boucle" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="Boucle" count="Site mairie · arrêtée">
+    <ui-button variant="primary" icon="play">Démarrer la Boucle</ui-button>
+  </ui-page-header>
+  <ui-project-filter>
+    <ui-chip selected>Site mairie</ui-chip>
+    <ui-chip count="3">Tous les Projets</ui-chip>
+    <ui-chip>Crewdeck</ui-chip>
+    <ui-chip>Personal OS</ui-chip>
+  </ui-project-filter>
+  <div class="layout">
+    <div class="layout-main">
+      <ui-card title="Site mairie" label="Boucle / Site mairie">
+        <div class="loop-state"><ui-status-dot tone="neutral"></ui-status-dot><b>Arrêtée</b><span class="mono muted">· par toi, hier à 19:05</span></div>
+        <p class="text-sm">Aucun agent ne travaille sur ce Projet. Démarre la Boucle pour que les agents prennent ses Tickets prêts un par un sur ton Runner.</p>
+      </ui-card>
+      <ui-card title="Tickets prêts" count="3" label="Boucle / Tickets prêts" flush>
+        <ui-ticket-row number="48" title="Agenda des conseils municipaux" meta="jalon Actualités" state="pret"></ui-ticket-row>
+        <ui-ticket-row number="49" title="Archive des comptes rendus" meta="jalon Actualités" state="pret"></ui-ticket-row>
+        <ui-ticket-row number="50" title="Pied de page et mentions" meta="jalon Actualités" state="pret"></ui-ticket-row>
+      </ui-card>
+      <ui-card title="Interrompu" count="1" label="Boucle / Interrompu" flush>
+        <ui-ticket-row number="47" title="Actualités en page d’accueil" meta="Code · le Runner s’est arrêté" state="interrompu"><ui-button slot="actions" size="sm">Reprendre</ui-button></ui-ticket-row>
+      </ui-card>
+    </div>
+    <div class="layout-aside">
+      <ui-card title="Planification" count="1" label="Boucle / Planification" flush>
+        <ui-button slot="actions" size="sm" variant="ghost" icon="plus">Ajouter</ui-button>
+        <ui-list-row icon="refresh" title="Quand la fenêtre de Claude se réinitialise" meta="active · prochaine à 16:40"><div slot="below" class="cluster"><ui-button size="sm">Mettre en pause</ui-button><ui-button size="sm" variant="danger">Supprimer</ui-button></div></ui-list-row>
+      </ui-card>
+      <ui-card title="Rôles de ce Projet" label="Boucle / Rôles">
+        <ui-key-value>
+          <ui-kv label="Code">Codex</ui-kv>
+          <ui-kv label="Review">Claude Code</ui-kv>
+        </ui-key-value>
+      </ui-card>
+    </div>
+  </div>
+  <ui-confirm-dialog slot="overlay" title="Planifier la Boucle de Site mairie" action="Créer la Planification" icon="calendar">
+    <div class="stack-sm" role="radiogroup" aria-label="Quand démarrer">
+      <span class="field-label">Quand démarrer</span>
+      <ui-radio>À une heure<small>une seule fois</small></ui-radio>
+      <ui-radio>Chaque nuit<small>à l’heure choisie</small></ui-radio>
+      <ui-radio checked>Quand la fenêtre d’un Compte IA se réinitialise<small>dès que la limite le permet</small></ui-radio>
+    </div>
+    <ui-select label="Compte IA" value="Claude · fenêtre de 5 h"></ui-select>
+    <p>En créant cette Planification, tu acceptes, pour chaque démarrage prévu et jusqu’à ce que tu la mettes en pause ou la supprimes :</p>
+    <ul>
+      <li><b>du travail en arrière-plan sur tes Comptes IA</b>, sur ton Runner : Code sur Codex, Review sur Claude Code ;</li>
+      <li><b>le merge de chaque Ticket qui passe sa review</b> et ses checks, par la Boucle elle-même.</li>
+    </ul>
+    <p>Arrêter une exécution laisse les suivantes prévues.</p>
+  </ui-confirm-dialog>
+</ui-app-shell>
+</body>
+</html>

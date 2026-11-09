@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Idées</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+.preview { display: none; }
+ui-idea-row .row { grid-template-columns: var(--rail) var(--icon-box) minmax(0, 1fr) auto; }
+ui-idea-row .row-actions { grid-column: 4; margin-top: 0; align-self: center; }
+ui-idea-row .row-context, ui-idea-row .row-facts { display: none; }
+@media (min-width: 1280px) {
+  .preview { display: flex; }
+  ui-idea-row .row-facts { display: flex; }
+  ui-idea-row .row-context { display: -webkit-box; }
+}
+</style>
+</head>
+<body>
+<!-- exemple : Idées et Projets fictifs -->
+<ui-app-shell screen="Idées" current="idees" decisions="7" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Idées" count="4 à trier">
+    <ui-button variant="primary" icon="plus">Noter une Idée</ui-button>
+  </ui-page-header>
+  <ui-project-filter>
+    <ui-chip selected count="4">Tous les Projets</ui-chip>
+    <ui-chip count="1">Crewdeck</ui-chip>
+    <ui-chip count="2">Personal OS</ui-chip>
+    <ui-chip count="1">Site mairie</ui-chip>
+    <ui-chip>Tennis Manager</ui-chip>
+  </ui-project-filter>
+  <ui-tabs>
+    <ui-tab selected count="4">À trier</ui-tab>
+    <ui-tab count="3">Retenues</ui-tab>
+    <ui-tab count="1">Fusionnées</ui-tab>
+    <ui-tab count="2">Rejetées</ui-tab>
+  </ui-tabs>
+  <div class="layout">
+    <ui-card title="À trier" count="4" label="Idées / Liste" flush>
+      <ui-idea-row state="en-analyse" title="Prévenir quand une Planification démarre la Boucle" meta="#64 · Crewdeck · il y a 5 min">L’analyse est en cours.</ui-idea-row>
+      <ui-idea-row selected state="analysee" title="Exporter le planning en PDF pour le client" meta="#63 · Personal OS · il y a 2 h" impact="moyen" effort="faible" duplicates="doublon possible : #58">Un bouton qui produit le planning de la semaine en PDF, à envoyer au client.</ui-idea-row>
+      <ui-idea-row state="analysee" title="Corriger la date des actualités sur le téléphone" meta="#62 · Site mairie · hier" impact="faible" effort="faible">La date des actualités s’affiche en anglais sur le téléphone.</ui-idea-row>
+      <ui-idea-row state="analysee" title="Chercher dans les recettes par ingrédient" meta="#61 · Personal OS · il y a 3 j" impact="moyen" effort="moyen">Une recherche des recettes qui contiennent un ingrédient donné.</ui-idea-row>
+    </ui-card>
+    <div class="layout-aside preview">
+      <ui-card title="Analyse · #63" label="Idées / Analyse">
+        <b>Exporter le planning en PDF pour le client</b>
+        <p class="text-sm">Un bouton qui produit le planning de la semaine en PDF, à envoyer au client.</p>
+        <ui-key-value>
+          <ui-kv label="Projet visé">Personal OS</ui-kv>
+          <ui-kv label="Impact">moyen</ui-kv>
+          <ui-kv label="Effort">faible</ui-kv>
+          <ui-kv label="Doublon possible"><a href="#">#58 Imprimer le planning de la semaine</a></ui-kv>
+        </ui-key-value>
+        <div class="cluster">
+        <ui-button variant="primary" icon="check" size="sm">Retenir</ui-button>
+        <ui-button size="sm">Fusionner…</ui-button>
+        <ui-button size="sm">En faire un Ticket</ui-button>
+        <ui-button variant="ghost" size="sm">Rejeter</ui-button>
+        </div>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

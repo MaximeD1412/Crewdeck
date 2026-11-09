@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Idées — Aucune Idée</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+</head>
+<body>
+<!-- exemple : Projets fictifs -->
+<ui-app-shell screen="Idées" current="idees" decisions="7" designs="2" loops="2">
+  <ui-page-header title="Idées" count="0"></ui-page-header>
+  <ui-card label="Idées / Liste">
+    <ui-empty icon="bulb" title="Aucune Idée pour l’instant">Note une Idée en une phrase, au clavier ou à la voix, depuis le PC ou le téléphone. L’analyse la résume et propose le Projet visé, l’impact, l’effort et les doublons possibles ; tu n’as plus qu’à trier.
+      <ui-button slot="actions" variant="primary" icon="plus">Noter une Idée</ui-button>
+    </ui-empty>
+  </ui-card>
+</ui-app-shell>
+</body>
+</html>

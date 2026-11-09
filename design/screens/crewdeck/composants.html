@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bibliothèque de Composants</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+.lib { display: flex; flex-direction: column; gap: var(--space-4); }
+.catalog { display: flex; flex-direction: column; gap: var(--space-3); }
+.groups, .wide-only { display: none; }
+.contract .table code { white-space: nowrap; }
+@media (min-width: 1280px) {
+  .lib { display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); gap: var(--space-6); align-items: start; }
+  .groups { display: flex; flex-direction: column; gap: var(--space-3); }
+  .wide-only { display: block; }
+  .phone-only { display: none; }
+}
+</style>
+</head>
+<body>
+<!-- exemple : données et actions de Composant illustratives -->
+<ui-app-shell screen="Bibliothèque de Composants" current="parametres" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="Bibliothèque de Composants" back="Paramètres" count="DecisionRow"></ui-page-header>
+  <div class="lib">
+    <nav class="catalog" aria-label="Bibliothèque de Composants / Catalogue" data-name="Bibliothèque de Composants / Catalogue">
+      <div class="wide-only"><ui-text-field placeholder="Chercher un Composant"></ui-text-field></div>
+      <div class="phone-only"><ui-select label="Composant" value="DecisionRow · Parties de page"></ui-select></div>
+      <div class="groups">
+        <ui-card title="Cadre et menu" flush>
+          <ui-list-row title="AppShell" meta="le Cadre"></ui-list-row>
+          <ui-list-row title="PageHeader"></ui-list-row>
+          <ui-list-row title="ProjectFilter"></ui-list-row>
+        </ui-card>
+        <ui-card title="Pages" flush>
+          <ui-list-row title="À toi"></ui-list-row>
+          <ui-list-row title="Idées"></ui-list-row>
+          <ui-list-row title="Boucle"></ui-list-row>
+        </ui-card>
+        <ui-card title="Parties de page" flush>
+          <ui-list-row title="DecisionRow" tone="accent" icon="layers"><ui-status-badge tone="accent">ouvert</ui-status-badge></ui-list-row>
+          <ui-list-row title="TicketRow"></ui-list-row>
+          <ui-list-row title="Session"></ui-list-row>
+        </ui-card>
+        <ui-card title="Signaux et contrôles" flush>
+          <ui-list-row title="StatusBadge"></ui-list-row>
+          <ui-list-row title="Button"></ui-list-row>
+          <ui-list-row title="ConfirmDialog" meta="fourni par le produit, non remplaçable"></ui-list-row>
+        </ui-card>
+      </div>
+    </nav>
+    <section class="stack contract" aria-label="Bibliothèque de Composants / Données et actions" data-name="Bibliothèque de Composants / Données et actions">
+      <ui-card title="Aperçu" flush>
+        <ui-decision-row tone="halt" icon="block" kind="Ticket bloqué" title="#42 Connexion GitHub" meta="Crewdeck · Code · il y a 4 min">L’agent ne trouve pas comment tester le renouvellement du jeton.<ui-button slot="actions" size="sm">Ouvrir</ui-button></ui-decision-row>
+      </ui-card>
+      <ui-card title="DecisionRow">
+        <p class="text-sm">Une Décision qui attend le Pilote, dans « À toi ». Le Composant affiche ses données et demande ses actions au cœur ; il ne décide jamais seul.</p>
+        <ui-key-value>
+          <ui-kv label="Placé dans">Page « À toi », Emplacement « liste »</ui-kv>
+        </ui-key-value>
+      </ui-card>
+      <ui-card title="Données" flush>
+        <div class="scroll-x">
+          <table class="table">
+            <thead><tr><th>Nom</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>kind</code></td><td><code>DecisionKind</code></td><td>Ticket bloqué, Conception à relire, revue visuelle, Ticket interrompu, Runner hors ligne…</td></tr>
+              <tr><td><code>title</code></td><td><code>string</code></td><td>L’objet de la Décision</td></tr>
+              <tr><td><code>project</code></td><td><code>Project</code></td><td>Le Projet concerné</td></tr>
+              <tr><td><code>since</code></td><td><code>Date</code></td><td>Depuis quand elle attend</td></tr>
+              <tr><td><code>context</code></td><td><code>string</code></td><td>Ce qu’il faut faire</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </ui-card>
+      <ui-card title="Actions" flush>
+        <ui-list-row title="open()" meta="ouvre la Décision"><ui-status-badge>libre</ui-status-badge></ui-list-row>
+        <ui-list-row title="merge()" meta="demandée par la Skin, confirmée dans le dialogue du produit"><ui-status-badge tone="accent">Action sensible</ui-status-badge></ui-list-row>
+      </ui-card>
+      <ui-card title="Emplacements" flush>
+        <ui-list-row title="actions" meta="les boutons de la Décision"></ui-list-row>
+        <ui-list-row title="badges" meta="les signaux à côté du titre"></ui-list-row>
+      </ui-card>
+    </section>
+  </div>
+</ui-app-shell>
+</body>
+</html>

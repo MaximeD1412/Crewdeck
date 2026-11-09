@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ticket #53 Export du planning</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .ticket-track { order: -1; }
+  @media (min-width: 1280px) { .ticket-track { order: 0; } }
+</style>
+</head>
+<body>
+<!-- exemple : Ticket, branche, checks, durées et review fictifs -->
+<ui-app-shell screen="Ticket" current="boucle" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="#53 Export du planning" count="Personal OS" back="Boucle" screen="Ticket">
+    <ui-button variant="secondary" icon="terminal">Ouvrir la session</ui-button>
+  </ui-page-header>
+  <div class="layout">
+    <div class="layout-main">
+      <ui-card title="Avancement" label="Ticket / Avancement" class="ticket-track">
+        <ui-process-track>
+          <ui-step state="done" label="Code" meta="Claude Code · 24 min"></ui-step>
+          <ui-step state="done" label="Checks" meta="4 sur 4 passés"></ui-step>
+          <ui-step state="current" label="Review" meta="Codex · depuis 6 min"></ui-step>
+          <ui-step state="todo" label="Merge" meta="par la Boucle, dès que la review passe"></ui-step>
+        </ui-process-track>
+      </ui-card>
+      <ui-card title="Review du second agent" label="Ticket / Review">
+        <ui-status-badge slot="actions" tone="accent">en cours · Codex</ui-status-badge>
+        <div class="doc">
+          <p>Premier passage : 2 remarques, corrigées par l’agent de Code.</p>
+          <ul>
+            <li>Le fichier exporté n’indiquait pas le fuseau horaire : ajouté dans l’en-tête.</li>
+            <li>Un test couvrait seulement une semaine vide : un cas avec des événements récurrents ajouté.</li>
+          </ul>
+          <p>Second passage en cours sur le nouveau commit.</p>
+        </div>
+      </ui-card>
+      <ui-card title="Checks" count="4" label="Ticket / Checks">
+        <ui-check-row name="Tests" state="passed" detail="186 tests · 1 min 52 s"></ui-check-row>
+        <ui-check-row name="Lint" state="passed" detail="18 s"></ui-check-row>
+        <ui-check-row name="Types" state="passed" detail="41 s"></ui-check-row>
+        <ui-check-row name="Build" state="passed" detail="1 min 05 s"></ui-check-row>
+      </ui-card>
+    </div>
+    <div class="layout-aside">
+      <ui-card title="Pull request" label="Ticket / Pull request">
+        <ui-key-value>
+          <ui-kv label="PR"><span class="mono">#212</span></ui-kv>
+          <ui-kv label="Branche"><span class="mono">feat/53-export-du-planning</span></ui-kv>
+          <ui-kv label="Fichiers">7 modifiés · <span class="mono">+214 −38</span></ui-kv>
+          <ui-kv label="Vers"><span class="mono">develop</span></ui-kv>
+        </ui-key-value>
+        <div class="cluster"><ui-button variant="ghost" size="sm" icon="external">Voir sur GitHub</ui-button></div>
+      </ui-card>
+      <ui-banner tone="accent" icon="merge" title="Merge par la Boucle">La Boucle le merge elle-même dès que la review et les checks passent : tu l’as accepté en la démarrant. Ce Ticket n’a pas de revue visuelle.</ui-banner>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

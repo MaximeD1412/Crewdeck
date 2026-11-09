@@ -1,0 +1,594 @@
+{
+  "version": 1,
+  "tool": "code",
+  "library": "design/components.js",
+  "screens": [
+    {
+      "id": "connexion",
+      "title": "Connexion",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-1"
+      ],
+      "html": "design/screens/crewdeck/connexion.html",
+      "captures": {
+        "390": "design/screens/crewdeck/connexion-390.png",
+        "1280": "design/screens/crewdeck/connexion-1280.png"
+      }
+    },
+    {
+      "id": "demarrage",
+      "title": "Premiers pas : installer le Runner",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-2"
+      ],
+      "html": "design/screens/crewdeck/demarrage.html",
+      "captures": {
+        "390": "design/screens/crewdeck/demarrage-390.png",
+        "1280": "design/screens/crewdeck/demarrage-1280.png"
+      },
+      "states": [
+        {
+          "id": "runner-relie",
+          "title": "Runner relié",
+          "html": "design/screens/crewdeck/demarrage-runner-relie.html",
+          "captures": {
+            "390": "design/screens/crewdeck/demarrage-runner-relie-390.png",
+            "1280": "design/screens/crewdeck/demarrage-runner-relie-1280.png"
+          }
+        },
+        {
+          "id": "comptes-ia",
+          "title": "Comptes IA du Runner",
+          "html": "design/screens/crewdeck/demarrage-comptes-ia.html",
+          "captures": {
+            "390": "design/screens/crewdeck/demarrage-comptes-ia-390.png",
+            "1280": "design/screens/crewdeck/demarrage-comptes-ia-1280.png"
+          }
+        },
+        {
+          "id": "projets",
+          "title": "Choix des dépôts",
+          "html": "design/screens/crewdeck/demarrage-projets.html",
+          "captures": {
+            "390": "design/screens/crewdeck/demarrage-projets-390.png",
+            "1280": "design/screens/crewdeck/demarrage-projets-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "projets",
+      "title": "Projets",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-3",
+        "US-4",
+        "US-68"
+      ],
+      "html": "design/screens/crewdeck/projets.html",
+      "captures": {
+        "390": "design/screens/crewdeck/projets-390.png",
+        "1280": "design/screens/crewdeck/projets-1280.png"
+      },
+      "states": [
+        {
+          "id": "vide",
+          "title": "Aucun Projet",
+          "html": "design/screens/crewdeck/projets-vide.html",
+          "captures": {
+            "390": "design/screens/crewdeck/projets-vide-390.png",
+            "1280": "design/screens/crewdeck/projets-vide-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "projet",
+      "title": "Un Projet : préparation",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-4",
+        "US-68"
+      ],
+      "html": "design/screens/crewdeck/projet.html",
+      "captures": {
+        "390": "design/screens/crewdeck/projet-390.png",
+        "1280": "design/screens/crewdeck/projet-1280.png"
+      },
+      "states": [
+        {
+          "id": "inventaire-a-approuver",
+          "title": "Inventaire d’un dépôt existant à approuver",
+          "html": "design/screens/crewdeck/projet-inventaire-a-approuver.html",
+          "captures": {
+            "390": "design/screens/crewdeck/projet-inventaire-a-approuver-390.png",
+            "1280": "design/screens/crewdeck/projet-inventaire-a-approuver-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "a-toi",
+      "title": "« À toi »",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-17",
+        "US-19",
+        "US-20",
+        "US-21",
+        "US-40",
+        "US-48",
+        "US-55"
+      ],
+      "html": "design/screens/crewdeck/a-toi.html",
+      "captures": {
+        "390": "design/screens/crewdeck/a-toi-390.png",
+        "1280": "design/screens/crewdeck/a-toi-1280.png"
+      },
+      "states": [
+        {
+          "id": "vide",
+          "title": "Rien ne t’attend",
+          "html": "design/screens/crewdeck/a-toi-vide.html",
+          "captures": {
+            "390": "design/screens/crewdeck/a-toi-vide-390.png",
+            "1280": "design/screens/crewdeck/a-toi-vide-1280.png"
+          }
+        },
+        {
+          "id": "runner-hors-ligne",
+          "title": "Runner hors ligne",
+          "html": "design/screens/crewdeck/a-toi-runner-hors-ligne.html",
+          "captures": {
+            "390": "design/screens/crewdeck/a-toi-runner-hors-ligne-390.png",
+            "1280": "design/screens/crewdeck/a-toi-runner-hors-ligne-1280.png"
+          }
+        },
+        {
+          "id": "resynchronisation",
+          "title": "Resynchronisation",
+          "html": "design/screens/crewdeck/a-toi-resynchronisation.html",
+          "captures": {
+            "390": "design/screens/crewdeck/a-toi-resynchronisation-390.png",
+            "1280": "design/screens/crewdeck/a-toi-resynchronisation-1280.png"
+          }
+        },
+        {
+          "id": "menu-plus",
+          "title": "Menu « Plus » du téléphone",
+          "html": "design/screens/crewdeck/a-toi-menu-plus.html",
+          "captures": {
+            "390": "design/screens/crewdeck/a-toi-menu-plus-390.png",
+            "1280": "design/screens/crewdeck/a-toi-menu-plus-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "idees",
+      "title": "Idées",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-5",
+        "US-6",
+        "US-57"
+      ],
+      "html": "design/screens/crewdeck/idees.html",
+      "captures": {
+        "390": "design/screens/crewdeck/idees-390.png",
+        "1280": "design/screens/crewdeck/idees-1280.png"
+      },
+      "states": [
+        {
+          "id": "nouvelle",
+          "title": "Noter une idée",
+          "html": "design/screens/crewdeck/idees-nouvelle.html",
+          "captures": {
+            "390": "design/screens/crewdeck/idees-nouvelle-390.png",
+            "1280": "design/screens/crewdeck/idees-nouvelle-1280.png"
+          }
+        },
+        {
+          "id": "dictee",
+          "title": "Dictée en cours",
+          "html": "design/screens/crewdeck/idees-dictee.html",
+          "captures": {
+            "390": "design/screens/crewdeck/idees-dictee-390.png",
+            "1280": "design/screens/crewdeck/idees-dictee-1280.png"
+          }
+        },
+        {
+          "id": "vide",
+          "title": "Aucune Idée",
+          "html": "design/screens/crewdeck/idees-vide.html",
+          "captures": {
+            "390": "design/screens/crewdeck/idees-vide-390.png",
+            "1280": "design/screens/crewdeck/idees-vide-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "idee",
+      "title": "Une Idée : analyse et tri",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-6",
+        "US-7",
+        "US-8",
+        "US-56"
+      ],
+      "html": "design/screens/crewdeck/idee.html",
+      "captures": {
+        "390": "design/screens/crewdeck/idee-390.png",
+        "1280": "design/screens/crewdeck/idee-1280.png"
+      },
+      "states": [
+        {
+          "id": "fusion",
+          "title": "Fusionner dans une autre Idée",
+          "html": "design/screens/crewdeck/idee-fusion.html",
+          "captures": {
+            "390": "design/screens/crewdeck/idee-fusion-390.png",
+            "1280": "design/screens/crewdeck/idee-fusion-1280.png"
+          }
+        },
+        {
+          "id": "retenue",
+          "title": "Idée retenue : lancer la Conception",
+          "html": "design/screens/crewdeck/idee-retenue.html",
+          "captures": {
+            "390": "design/screens/crewdeck/idee-retenue-390.png",
+            "1280": "design/screens/crewdeck/idee-retenue-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "session",
+      "title": "Session d’agent",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-9",
+        "US-57",
+        "US-60"
+      ],
+      "html": "design/screens/crewdeck/session.html",
+      "captures": {
+        "390": "design/screens/crewdeck/session-390.png",
+        "1280": "design/screens/crewdeck/session-1280.png"
+      },
+      "states": [
+        {
+          "id": "question",
+          "title": "Question de l’agent",
+          "html": "design/screens/crewdeck/session-question.html",
+          "captures": {
+            "390": "design/screens/crewdeck/session-question-390.png",
+            "1280": "design/screens/crewdeck/session-question-1280.png"
+          }
+        },
+        {
+          "id": "permission",
+          "title": "Demande de permission",
+          "html": "design/screens/crewdeck/session-permission.html",
+          "captures": {
+            "390": "design/screens/crewdeck/session-permission-390.png",
+            "1280": "design/screens/crewdeck/session-permission-1280.png"
+          }
+        },
+        {
+          "id": "arretee",
+          "title": "Session arrêtée",
+          "html": "design/screens/crewdeck/session-arretee.html",
+          "captures": {
+            "390": "design/screens/crewdeck/session-arretee-390.png",
+            "1280": "design/screens/crewdeck/session-arretee-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "conceptions",
+      "title": "Conceptions",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-10"
+      ],
+      "html": "design/screens/crewdeck/conceptions.html",
+      "captures": {
+        "390": "design/screens/crewdeck/conceptions-390.png",
+        "1280": "design/screens/crewdeck/conceptions-1280.png"
+      },
+      "states": [
+        {
+          "id": "vide",
+          "title": "Aucune Conception",
+          "html": "design/screens/crewdeck/conceptions-vide.html",
+          "captures": {
+            "390": "design/screens/crewdeck/conceptions-vide-390.png",
+            "1280": "design/screens/crewdeck/conceptions-vide-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "conception",
+      "title": "Une Conception",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-10",
+        "US-48"
+      ],
+      "html": "design/screens/crewdeck/conception.html",
+      "captures": {
+        "390": "design/screens/crewdeck/conception-390.png",
+        "1280": "design/screens/crewdeck/conception-1280.png"
+      },
+      "states": [
+        {
+          "id": "contrat-incomplet",
+          "title": "Contrat incomplet",
+          "html": "design/screens/crewdeck/conception-contrat-incomplet.html",
+          "captures": {
+            "390": "design/screens/crewdeck/conception-contrat-incomplet-390.png",
+            "1280": "design/screens/crewdeck/conception-contrat-incomplet-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "relecture",
+      "title": "Relecture d’un document",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-11",
+        "US-26"
+      ],
+      "html": "design/screens/crewdeck/relecture.html",
+      "captures": {
+        "390": "design/screens/crewdeck/relecture-390.png",
+        "1280": "design/screens/crewdeck/relecture-1280.png"
+      },
+      "states": [
+        {
+          "id": "confirmation",
+          "title": "Confirmer l’approbation",
+          "html": "design/screens/crewdeck/relecture-confirmation.html",
+          "captures": {
+            "390": "design/screens/crewdeck/relecture-confirmation-390.png",
+            "1280": "design/screens/crewdeck/relecture-confirmation-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "revue-maquettes",
+      "title": "Revue des maquettes",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-11"
+      ],
+      "html": "design/screens/crewdeck/revue-maquettes.html",
+      "captures": {
+        "390": "design/screens/crewdeck/revue-maquettes-390.png",
+        "1280": "design/screens/crewdeck/revue-maquettes-1280.png"
+      }
+    },
+    {
+      "id": "decoupage",
+      "title": "Découpage en Tickets",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-12"
+      ],
+      "html": "design/screens/crewdeck/decoupage.html",
+      "captures": {
+        "390": "design/screens/crewdeck/decoupage-390.png",
+        "1280": "design/screens/crewdeck/decoupage-1280.png"
+      }
+    },
+    {
+      "id": "boucle",
+      "title": "Boucle",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-13",
+        "US-14",
+        "US-62"
+      ],
+      "html": "design/screens/crewdeck/boucle.html",
+      "captures": {
+        "390": "design/screens/crewdeck/boucle-390.png",
+        "1280": "design/screens/crewdeck/boucle-1280.png"
+      },
+      "states": [
+        {
+          "id": "arretee",
+          "title": "Boucle arrêtée",
+          "html": "design/screens/crewdeck/boucle-arretee.html",
+          "captures": {
+            "390": "design/screens/crewdeck/boucle-arretee-390.png",
+            "1280": "design/screens/crewdeck/boucle-arretee-1280.png"
+          }
+        },
+        {
+          "id": "confirmation-demarrage",
+          "title": "Confirmer le démarrage",
+          "html": "design/screens/crewdeck/boucle-confirmation-demarrage.html",
+          "captures": {
+            "390": "design/screens/crewdeck/boucle-confirmation-demarrage-390.png",
+            "1280": "design/screens/crewdeck/boucle-confirmation-demarrage-1280.png"
+          }
+        },
+        {
+          "id": "planification",
+          "title": "Planifier la Boucle",
+          "html": "design/screens/crewdeck/boucle-planification.html",
+          "captures": {
+            "390": "design/screens/crewdeck/boucle-planification-390.png",
+            "1280": "design/screens/crewdeck/boucle-planification-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ticket",
+      "title": "Un Ticket",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-15"
+      ],
+      "html": "design/screens/crewdeck/ticket.html",
+      "captures": {
+        "390": "design/screens/crewdeck/ticket-390.png",
+        "1280": "design/screens/crewdeck/ticket-1280.png"
+      },
+      "states": [
+        {
+          "id": "bloque",
+          "title": "Ticket bloqué",
+          "html": "design/screens/crewdeck/ticket-bloque.html",
+          "captures": {
+            "390": "design/screens/crewdeck/ticket-bloque-390.png",
+            "1280": "design/screens/crewdeck/ticket-bloque-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "revue-visuelle",
+      "title": "Revue visuelle d’un Ticket",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-36",
+        "US-26"
+      ],
+      "html": "design/screens/crewdeck/revue-visuelle.html",
+      "captures": {
+        "390": "design/screens/crewdeck/revue-visuelle-390.png",
+        "1280": "design/screens/crewdeck/revue-visuelle-1280.png"
+      },
+      "states": [
+        {
+          "id": "confirmation-merge",
+          "title": "Confirmer le merge",
+          "html": "design/screens/crewdeck/revue-visuelle-confirmation-merge.html",
+          "captures": {
+            "390": "design/screens/crewdeck/revue-visuelle-confirmation-merge-390.png",
+            "1280": "design/screens/crewdeck/revue-visuelle-confirmation-merge-1280.png"
+          }
+        },
+        {
+          "id": "changements",
+          "title": "Demander des changements",
+          "html": "design/screens/crewdeck/revue-visuelle-changements.html",
+          "captures": {
+            "390": "design/screens/crewdeck/revue-visuelle-changements-390.png",
+            "1280": "design/screens/crewdeck/revue-visuelle-changements-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "planning",
+      "title": "Planning et arbre des Tickets",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-16",
+        "US-63"
+      ],
+      "html": "design/screens/crewdeck/planning.html",
+      "captures": {
+        "390": "design/screens/crewdeck/planning-390.png",
+        "1280": "design/screens/crewdeck/planning-1280.png"
+      }
+    },
+    {
+      "id": "statistiques",
+      "title": "Statistiques",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-61"
+      ],
+      "html": "design/screens/crewdeck/statistiques.html",
+      "captures": {
+        "390": "design/screens/crewdeck/statistiques-390.png",
+        "1280": "design/screens/crewdeck/statistiques-1280.png"
+      }
+    },
+    {
+      "id": "runner",
+      "title": "Runner et Comptes IA",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-38",
+        "US-55",
+        "US-60"
+      ],
+      "html": "design/screens/crewdeck/runner.html",
+      "captures": {
+        "390": "design/screens/crewdeck/runner-390.png",
+        "1280": "design/screens/crewdeck/runner-1280.png"
+      },
+      "states": [
+        {
+          "id": "hors-ligne",
+          "title": "Runner hors ligne",
+          "html": "design/screens/crewdeck/runner-hors-ligne.html",
+          "captures": {
+            "390": "design/screens/crewdeck/runner-hors-ligne-390.png",
+            "1280": "design/screens/crewdeck/runner-hors-ligne-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "parametres",
+      "title": "Paramètres du compte",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-82",
+        "US-39",
+        "US-18",
+        "US-62",
+        "US-83"
+      ],
+      "html": "design/screens/crewdeck/parametres.html",
+      "captures": {
+        "390": "design/screens/crewdeck/parametres-390.png",
+        "1280": "design/screens/crewdeck/parametres-1280.png"
+      }
+    },
+    {
+      "id": "parametres-projet",
+      "title": "Paramètres d’un Projet",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-82",
+        "US-83",
+        "US-39"
+      ],
+      "html": "design/screens/crewdeck/parametres-projet.html",
+      "captures": {
+        "390": "design/screens/crewdeck/parametres-projet-390.png",
+        "1280": "design/screens/crewdeck/parametres-projet-1280.png"
+      }
+    },
+    {
+      "id": "composants",
+      "title": "Bibliothèque de Composants",
+      "prd": "docs/product/prd.md",
+      "stories": [
+        "US-23"
+      ],
+      "html": "design/screens/crewdeck/composants.html",
+      "captures": {
+        "390": "design/screens/crewdeck/composants-390.png",
+        "1280": "design/screens/crewdeck/composants-1280.png"
+      }
+    }
+  ]
+}

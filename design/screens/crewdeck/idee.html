@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Une Idée</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+.said { color: var(--ink); font: var(--font-title-weight) var(--font-title-size)/var(--font-title-line-height) var(--font-title-family), sans-serif; }
+</style>
+</head>
+<body>
+<!-- exemple : Idée, Projet et analyse fictifs -->
+<ui-app-shell screen="Une Idée" current="idees" decisions="7" ideas="4" designs="2" loops="2">
+  <ui-page-header screen="Une Idée" back="Idées" title="Exporter le planning en PDF pour le client" count="#63 · Analysée">
+    <ui-button variant="primary" icon="check">Retenir</ui-button>
+        <ui-button>Fusionner…</ui-button>
+        <ui-button>En faire un Ticket</ui-button>
+        <ui-button variant="ghost">Rejeter</ui-button>
+    <span slot="sub">Un petit correctif peut devenir un Ticket directement, sans Conception.</span>
+  </ui-page-header>
+  <div class="layout">
+    <div class="layout-main">
+      <ui-card title="Notée" label="Une Idée / Notée">
+        <p class="said">« Pouvoir exporter le planning en PDF pour l’envoyer au client. »</p>
+        <span class="mono muted">par toi · au téléphone, dictée · il y a 2 h</span>
+      </ui-card>
+      <ui-card title="Analyse" label="Une Idée / Analyse">
+        <p class="text-sm">Un bouton dans le planning de Personal OS qui produit la semaine affichée en PDF, prêt à envoyer au client.</p>
+        <ui-key-value>
+          <ui-kv label="Projet visé">Personal OS</ui-kv>
+          <ui-kv label="Impact">moyen : le client le demande à chaque fin de semaine</ui-kv>
+          <ui-kv label="Effort">faible : le planning existe déjà, seul l’export manque</ui-kv>
+        </ui-key-value>
+        <span class="mono muted">Rôle Idée · Claude Code · il y a 2 h</span>
+      </ui-card>
+    </div>
+    <div class="layout-aside">
+      <ui-card title="Doublons possibles" count="1" label="Une Idée / Doublons possibles" flush>
+        <ui-list-row icon="bulb" link title="#58 Imprimer le planning de la semaine" meta="Personal OS · à trier · il y a 9 j"><ui-status-badge tone="accent">Analysée</ui-status-badge></ui-list-row>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

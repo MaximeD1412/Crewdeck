@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ticket #42 Connexion GitHub — Bloqué</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .answer-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+</style>
+</head>
+<body>
+<!-- exemple : Ticket, raison du blocage, branche et durées fictifs -->
+<ui-app-shell screen="Ticket" current="boucle" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="#42 Connexion GitHub" count="Crewdeck" back="Boucle" screen="Ticket">
+    <ui-button variant="secondary" icon="terminal">Ouvrir la session</ui-button>
+  </ui-page-header>
+  <ui-banner tone="halt" icon="block" title="Ticket bloqué pendant le Code">L’agent ne trouve pas comment tester le renouvellement du jeton GitHub sans compte de test. Il attend ta réponse ; ce Ticket est dans « À toi ».</ui-banner>
+  <div class="layout">
+    <div class="layout-main">
+      <ui-card title="Ce que l’agent te demande" label="Ticket / Question de l’agent">
+        <ui-message from="agent">Pour tester le renouvellement du jeton, j’ai besoin soit d’un compte GitHub de test avec une application autorisée, soit de ton accord pour simuler l’API de GitHub dans les tests. Laquelle préfères-tu ?</ui-message>
+        <ui-text-field label="Ta réponse" multiline rows="3" placeholder="Réponds à l’agent, il reprend le Ticket"><button type="button" class="composer-mic" aria-label="Dicter"><ui-icon name="mic"></ui-icon></button></ui-text-field>
+        <div class="answer-actions">
+          <ui-button variant="primary" icon="send">Répondre à l’agent</ui-button>
+        </div>
+      </ui-card>
+      <ui-card title="Avancement" label="Ticket / Avancement">
+        <ui-process-track>
+          <ui-step state="halt" label="Code" meta="Claude Code · bloqué depuis 4 min"></ui-step>
+          <ui-step state="todo" label="Checks" meta="après le Code"></ui-step>
+          <ui-step state="todo" label="Review" meta="Codex, le second agent"></ui-step>
+          <ui-step state="todo" label="Merge" meta="par la Boucle"></ui-step>
+        </ui-process-track>
+      </ui-card>
+    </div>
+    <div class="layout-aside">
+      <ui-card title="Pull request" label="Ticket / Pull request">
+        <ui-key-value>
+          <ui-kv label="Branche"><span class="mono">feat/42-connexion-github</span></ui-kv>
+          <ui-kv label="PR">pas encore ouverte</ui-kv>
+          <ui-kv label="Commits">3</ui-kv>
+        </ui-key-value>
+        <div class="cluster"><ui-button variant="ghost" size="sm" icon="external">Voir le Ticket sur GitHub</ui-button></div>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

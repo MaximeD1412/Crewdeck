@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paramètres — Site mairie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .settings { display: flex; flex-direction: column; gap: var(--space-4); }
+  .settings-nav { display: flex; gap: var(--space-2); overflow-x: auto; margin: 0 calc(var(--space-4) * -1); padding: 0 var(--space-4); scrollbar-width: none; }
+  .settings-nav a { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--control-sm); padding: 0 var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--ink-2); white-space: nowrap; font: var(--font-label-weight) var(--font-body-sm-size)/var(--font-label-line-height) var(--font-label-family), sans-serif; }
+  .settings-nav a[aria-current] { color: var(--accent-text); border-color: var(--accent); background: var(--accent-soft); }
+  .settings-nav .n { font: var(--font-meta-weight) var(--font-meta-size)/var(--font-meta-line-height) var(--font-meta-family), monospace; color: var(--accent-text); }
+  .settings-body { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+  .settings-body > ui-card:not(.is-current) { display: none; }
+  .always { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  @media (min-width: 1280px) {
+    .settings { display: grid; grid-template-columns: var(--capture-w) minmax(0, 1fr); gap: var(--space-8); align-items: start; }
+    .settings-nav { flex-direction: column; margin: 0; padding: 0; position: sticky; top: var(--space-8); gap: var(--space-1); }
+    .settings-nav a { border: 0; border-radius: var(--radius); min-height: var(--control); justify-content: space-between; }
+    .settings-nav a[aria-current] { box-shadow: inset var(--stroke) 0 0 var(--accent); }
+    .settings-body { gap: var(--space-6); }
+    .settings-body > ui-card:not(.is-current) { display: block; }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : modèles, Planification et choix du Projet fictifs -->
+<ui-app-shell screen="Paramètres du Projet" current="parametres" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="Site mairie" count="Paramètres du Projet · 3 modifiés" back="Paramètres" screen="Paramètres du Projet"></ui-page-header>
+  <ui-banner tone="accent" icon="info" title="Ce Projet hérite de ton compte">Il reprend les Paramètres de ton compte et ne change que ce qui est marqué « Modifié pour ce Projet ». Un changement sur ton compte s’applique ici sauf là.</ui-banner>
+  <div class="settings">
+    <nav class="settings-nav" aria-label="Paramètres du Projet / Sections" data-name="Paramètres du Projet / Sections">
+      <a href="#roles" aria-current="true">Rôles et modèles <span class="n">2</span></a>
+      <a href="#etapes">Étapes optionnelles <span class="n">1</span></a>
+      <a href="#planifications">Planifications</a>
+      <a href="#notifications">Notifications</a>
+    </nav>
+    <div class="settings-body">
+      <ui-card class="is-current" title="Rôles et modèles" label="Paramètres du Projet / Rôles et modèles" id="roles">
+        <ui-setting-row label="Idée" origin="compte"><ui-select value="Claude Code · Sonnet 5.5"></ui-select></ui-setting-row>
+        <ui-setting-row label="Conception" origin="compte"><ui-select value="Claude Code · Opus 5.5"></ui-select></ui-setting-row>
+        <ui-setting-row label="Code" origin="projet"><ui-select value="Codex · GPT-5.5"></ui-select></ui-setting-row>
+        <ui-setting-row label="Review" help="Sur un autre Moteur que le Code." origin="projet"><ui-select value="Claude Code · Opus 5.5"></ui-select></ui-setting-row>
+      </ui-card>
+      <ui-card title="Étapes optionnelles" label="Paramètres du Projet / Étapes optionnelles" id="etapes">
+        <ui-setting-row label="Maquettes" origin="compte"><ui-toggle checked aria="Maquettes"></ui-toggle></ui-setting-row>
+        <ui-setting-row label="Revue visuelle" origin="compte"><ui-toggle checked aria="Revue visuelle"></ui-toggle></ui-setting-row>
+        <ui-setting-row label="Revue croisée d’une Conception" origin="projet"><ui-toggle aria="Revue croisée d’une Conception"></ui-toggle></ui-setting-row>
+        <div class="stack-sm">
+          <span class="field-label">Toujours actives</span>
+          <div class="always"><ui-status-badge>Analyse d’Idée</ui-status-badge><ui-status-badge>Tickets</ui-status-badge><ui-status-badge>Code</ui-status-badge><ui-status-badge>Review</ui-status-badge><ui-status-badge>Checks</ui-status-badge></div>
+        </div>
+      </ui-card>
+      <ui-card title="Planifications" count="1" label="Paramètres du Projet / Planifications" id="planifications" flush>
+        <ui-button slot="actions" size="sm" variant="ghost" icon="plus">Ajouter</ui-button>
+        <ui-list-row icon="refresh" title="Quand la fenêtre de Claude se réinitialise" meta="active · prochaine à 16:40"><div slot="below" class="cluster"><ui-button size="sm">Mettre en pause</ui-button><ui-button size="sm" variant="danger">Supprimer</ui-button></div></ui-list-row>
+      </ui-card>
+      <ui-card title="Notifications" label="Paramètres du Projet / Notifications" id="notifications">
+        <ui-setting-row label="Notifications push" help="Quand une Décision de ce Projet t’attend." origin="compte"><ui-toggle checked aria="Notifications push"></ui-toggle></ui-setting-row>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

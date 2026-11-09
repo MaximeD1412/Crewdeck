@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>À toi — Rien ne t’attend</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+</head>
+<body>
+<!-- exemple : Projets, Tickets et usages fictifs -->
+<ui-app-shell screen="À toi" current="a-toi" ideas="3" designs="2" loops="1">
+  <ui-page-header title="À toi" count="0 Décision">
+    <ui-button variant="primary" icon="plus">Noter une Idée</ui-button>
+  </ui-page-header>
+  <ui-project-filter>
+    <ui-chip selected count="0">Tous les Projets</ui-chip>
+    <ui-chip count="0">Crewdeck</ui-chip>
+    <ui-chip count="0">Personal OS</ui-chip>
+    <ui-chip count="0">Site mairie</ui-chip>
+    <ui-chip count="0">Tennis Manager</ui-chip>
+  </ui-project-filter>
+  <div class="layout">
+    <ui-card title="Décisions" count="0" label="À toi / Décisions">
+      <ui-empty icon="inbox" title="Rien ne t’attend">Les agents travaillent. Une Décision apparaîtra ici dès qu’un Ticket bloque, qu’une Conception ou une revue visuelle attend ta relecture, ou qu’un Compte IA atteint sa limite.</ui-empty>
+    </ui-card>
+    <div class="layout-aside">
+      <ui-card title="Boucles en cours" count="1" label="À toi / Boucles en cours">
+        <ui-agent-row projet="Personal OS" ticket="#53 Export du planning" step="en review" engine="Codex" since="depuis 6 min"></ui-agent-row>
+      </ui-card>
+      <ui-card title="Comptes IA" label="À toi / Comptes IA">
+        <ui-usage-meter label="Claude · 5 h" value="100" detail="16:40"></ui-usage-meter>
+        <ui-usage-meter label="Claude · semaine" value="62">Au rythme actuel, la semaine de Claude tient jusqu’à jeudi.</ui-usage-meter>
+
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

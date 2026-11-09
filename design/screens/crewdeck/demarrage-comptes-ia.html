@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Premiers pas — Comptes IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+.steps .track { flex-direction: row; gap: var(--space-2); }
+.steps .track-step { flex: 1; padding-bottom: 0; grid-template-columns: var(--icon-box) minmax(0, 1fr); gap: var(--space-2); }
+.steps .track-step::before { display: none; }
+.steps .track-text > span { display: none; }
+.onboard { gap: var(--space-5); }
+.onboard-actions { display: flex; flex-direction: column; gap: var(--space-2); }
+@media (min-width: 1280px) {
+  .onboard-actions { flex-direction: row; justify-content: flex-end; }
+}
+
+.connect { padding: 0 var(--space-4) var(--space-3); }
+@media (min-width: 1280px) { .connect { padding: 0 var(--space-5) var(--space-3); } }
+</style>
+</head>
+<body>
+<!-- exemple : modèles et états fictifs, tels que le Runner les rapporte -->
+<ui-app-shell variant="bare" screen="Premiers pas">
+  <nav class="steps" aria-label="Premiers pas / Étapes" data-name="Premiers pas / Étapes">
+    <ui-process-track>
+      <ui-step state="done" label="Runner"></ui-step>
+      <ui-step state="current" label="Comptes IA"></ui-step>
+      <ui-step state="todo" label="Projets"></ui-step>
+    </ui-process-track>
+  </nav>
+  <ui-page-header title="Connecte tes Comptes IA" screen="Premiers pas">
+    <span slot="sub">Tu les connectes sur le Runner, jamais dans le navigateur. Voici ce qu’il voit, Moteur par Moteur.</span>
+  </ui-page-header>
+  <section class="stack onboard" aria-label="Premiers pas / Moteurs" data-name="Premiers pas / Moteurs">
+    <ui-card title="Claude Code" flush>
+      <ui-status-badge slot="actions" tone="go">connecté · abonnement</ui-status-badge>
+      <ui-list-row title="claude-opus-5-5"><ui-status-badge tone="go">disponible</ui-status-badge></ui-list-row>
+      <ui-list-row title="claude-sonnet-5-5"><ui-status-badge tone="go">disponible</ui-status-badge></ui-list-row>
+      <ui-list-row title="claude-fable-5-1" meta="indisponible avec cet abonnement"><ui-status-badge tone="halt">indisponible</ui-status-badge></ui-list-row>
+    </ui-card>
+    <ui-card title="Codex" flush>
+      <ui-status-badge slot="actions" tone="caution">connexion requise</ui-status-badge>
+      <div class="connect stack-sm">
+        <p class="text-sm">Lance cette commande sur ta machine pour connecter ta clé API :</p>
+        <ui-code-block>crewdeck-runner login codex</ui-code-block>
+      </div>
+      <ui-list-row title="Modèles de Codex" meta="le Runner les liste une fois la clé API connectée"><ui-status-badge tone="caution">connexion requise</ui-status-badge></ui-list-row>
+    </ui-card>
+    <div class="onboard-actions">
+      <ui-button variant="primary" wide>Continuer</ui-button>
+    </div>
+    <p class="text-sm muted">Tu peux continuer avec un seul Moteur ; chaque Rôle n’utilise qu’un Moteur disponible.</p>
+  </section>
+</ui-app-shell>
+</body>
+</html>

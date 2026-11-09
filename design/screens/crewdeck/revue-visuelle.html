@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revue visuelle — #38 Page Planning</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* Review pages: the decision buttons in a bar at the bottom on the phone, in the header on the PC */
+  .review-head-actions { display: none; }
+  .review-bar {
+    position: sticky; bottom: var(--tab-bar); z-index: 2; display: flex; gap: var(--space-2);
+    margin: 0 calc(var(--space-4) * -1) calc(var(--space-8) * -1); padding: var(--space-3) var(--space-4);
+    background: var(--side); border-top: 1px solid var(--line);
+  }
+  .review-bar .button { flex: 1; min-width: 0; height: auto; min-height: var(--touch); white-space: normal; text-align: center; padding-top: var(--space-1); padding-bottom: var(--space-1); }
+  .review { display: flex; flex-direction: column; gap: var(--space-4); }
+  .review-facts { order: 2; }
+  .viewer { display: flex; flex-direction: column; gap: var(--space-3); }
+  .viewer-switch { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+  .viewer-switch ui-tabs .tabs { margin: 0; padding: 0; border-bottom: 0; }
+  .viewer-widths { display: flex; gap: var(--space-2); }
+  .pairs { display: none; }
+  .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+  @media (min-width: 1280px) {
+    .review-head-actions { display: flex; gap: var(--space-2); }
+    .review-bar { display: none; }
+    .review { gap: var(--space-6); }
+    .review-facts { order: 0; }
+    .viewer { display: none; }
+    .pairs { display: flex; flex-direction: column; gap: var(--space-6); }
+    .pair--phone { grid-template-columns: repeat(2, var(--capture-w-lg)); justify-content: start; gap: var(--space-6); }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : Ticket, écrans, captures et durées fictifs -->
+<ui-app-shell screen="Revue visuelle" current="a-toi" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="#38 Page Planning" count="Personal OS · revue visuelle" back="À toi" screen="Revue visuelle">
+    <div class="review-head-actions">
+      <ui-button variant="secondary" icon="pen">Demander des changements</ui-button>
+      <ui-button variant="primary" icon="merge">Approuver et merger</ui-button>
+    </div>
+  </ui-page-header>
+  <ui-banner tone="accent" icon="loop" title="La Boucle continue sans toi">Pendant ta revue, la Boucle avance sur les Tickets de Personal OS qui ne dépendent pas de #38.</ui-banner>
+  <ui-tabs>
+    <ui-tab selected>Planning</ui-tab>
+    <ui-tab>Planning · vide</ui-tab>
+  </ui-tabs>
+  <div class="review">
+    <div class="grid-2 review-facts">
+      <ui-card title="Avant toi" label="Revue visuelle / Avant toi">
+        <ui-check-row name="Checks" state="passed" detail="4 sur 4"></ui-check-row>
+        <ui-check-row name="Review" state="passed" detail="Codex · aucune remarque"></ui-check-row>
+      </ui-card>
+      <ui-card title="Pull request" label="Revue visuelle / Pull request">
+        <ui-key-value>
+          <ui-kv label="PR"><span class="mono">#208</span></ui-kv>
+          <ui-kv label="Branche"><span class="mono">feat/38-page-planning</span></ui-kv>
+          <ui-kv label="Captures">2 écrans · 4 captures</ui-kv>
+        </ui-key-value>
+        <div class="cluster"><ui-button variant="ghost" size="sm" icon="external">Voir sur GitHub</ui-button></div>
+      </ui-card>
+    </div>
+    <section class="viewer" aria-label="Revue visuelle / Capture" data-name="Revue visuelle / Capture">
+      <div class="viewer-switch">
+        <ui-tabs><ui-tab>Maquette</ui-tab><ui-tab selected>Livré</ui-tab></ui-tabs>
+        <div class="viewer-widths" role="group" aria-label="Largeur"><ui-chip selected>390</ui-chip><ui-chip>1280</ui-chip></div>
+      </div>
+      <ui-capture src="../../assets/capture-planning-livre-390.svg" label="Livré · 390 · Planning"></ui-capture>
+    </section>
+    <div class="pairs">
+      <ui-card title="Téléphone · 390" label="Revue visuelle / Téléphone">
+        <div class="pair pair--phone">
+          <ui-capture src="../../assets/capture-planning-maquette-390.svg" label="Maquette"></ui-capture>
+          <ui-capture src="../../assets/capture-planning-livre-390.svg" label="Livré"></ui-capture>
+        </div>
+      </ui-card>
+      <ui-card title="PC · 1280" label="Revue visuelle / PC">
+        <div class="pair">
+          <ui-capture src="../../assets/capture-planning-maquette-1280.svg" label="Maquette"></ui-capture>
+          <ui-capture src="../../assets/capture-planning-livre-1280.svg" label="Livré"></ui-capture>
+        </div>
+      </ui-card>
+    </div>
+  </div>
+  <div class="review-bar" aria-label="Revue visuelle / Décision" data-name="Revue visuelle / Décision">
+    <ui-button variant="secondary" icon="pen">Demander des changements</ui-button>
+    <ui-button variant="primary" icon="merge">Approuver et merger</ui-button>
+  </div>
+</ui-app-shell>
+</body>
+</html>

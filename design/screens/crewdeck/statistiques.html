@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statistiques</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .stats-table thead { display: none; }
+  .stats-table tr { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+  .stats-table tr:last-child { border-bottom: 0; }
+  .stats-table td { display: inline; padding: 0; border: 0; text-align: left; font: var(--font-meta-weight) var(--font-meta-size)/var(--font-meta-line-height) var(--font-meta-family), monospace; color: var(--ink-2); }
+  .stats-table td:first-child { flex-basis: 100%; font: var(--font-title-weight) var(--font-label-size)/var(--font-title-line-height) var(--font-title-family), sans-serif; margin-bottom: var(--space-1); }
+  .stats-table td.num { text-align: left; }
+  .stats-table td[data-label]::before { content: attr(data-label) " "; color: var(--muted); }
+  @media (min-width: 1280px) {
+    .stats-table thead { display: table-header-group; }
+    .stats-table tr { display: table-row; }
+    .stats-table td { display: table-cell; padding: var(--space-3); border-bottom: 1px solid var(--line); }
+    .stats-table tr:last-child td { border-bottom: 0; }
+    .stats-table td.num { text-align: right; }
+    .stats-table td:first-child { margin: 0; }
+    .stats-table td[data-label]::before { content: none; }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : tous les chiffres, Projets et périodes sont fictifs -->
+<ui-app-shell screen="Statistiques" current="statistiques" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="Statistiques" count="30 derniers jours"></ui-page-header>
+  <ui-project-filter>
+    <ui-chip selected>Tous les Projets</ui-chip>
+    <ui-chip>Crewdeck</ui-chip>
+    <ui-chip>Personal OS</ui-chip>
+    <ui-chip>Site mairie</ui-chip>
+  </ui-project-filter>
+  <ui-tabs>
+    <ui-tab>7 jours</ui-tab>
+    <ui-tab selected>30 jours</ui-tab>
+    <ui-tab>90 jours</ui-tab>
+  </ui-tabs>
+  <section class="grid-4" aria-label="Statistiques / Tous les Projets">
+    <ui-stat label="Délai Idée → merge" value="3,4" unit="j" detail="médiane · 41 Tickets"></ui-stat>
+    <ui-stat label="Réussite de la Boucle" value="86" unit="%" detail="Tickets mergés sur pris"></ui-stat>
+    <ui-stat label="Tickets bloqués" value="9" unit="%" detail="4 sur 47"></ui-stat>
+    <ui-stat label="Coût par Ticket" value="1,80" unit="€" detail="moyenne · 74 € au total"></ui-stat>
+  </section>
+  <ui-card title="Par Projet" count="3" label="Statistiques / Par Projet">
+          <table class="table stats-table">
+        <thead>
+          <tr><th>Projet</th><th class="num">Délai</th><th class="num">Réussite</th><th class="num">Bloqués</th><th class="num">Coût / Ticket</th><th class="num">Mergés</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b>Personal OS</b></td><td class="num" data-label="Délai">2,9 j</td><td class="num" data-label="Réussite">91 %</td><td class="num" data-label="Bloqués">5 %</td><td class="num" data-label="Coût / Ticket">1,60 €</td><td class="num" data-label="Mergés">22</td></tr>
+          <tr><td><b>Crewdeck</b></td><td class="num" data-label="Délai">3,1 j</td><td class="num" data-label="Réussite">88 %</td><td class="num" data-label="Bloqués">8 %</td><td class="num" data-label="Coût / Ticket">1,95 €</td><td class="num" data-label="Mergés">13</td></tr>
+          <tr><td><b>Site mairie</b></td><td class="num" data-label="Délai">5,2 j</td><td class="num" data-label="Réussite">71 %</td><td class="num" data-label="Bloqués">21 %</td><td class="num" data-label="Coût / Ticket">2,10 €</td><td class="num" data-label="Mergés">6</td></tr>
+        </tbody>
+      </table>
+  </ui-card>
+  <p class="text-sm muted">Délai : de la note de l’Idée au merge de son dernier Ticket. Réussite : Tickets mergés sur Tickets pris par la Boucle. Coût : dépenses de tes Comptes IA rapportées aux Tickets.</p>
+</ui-app-shell>
+</body>
+</html>

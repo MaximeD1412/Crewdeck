@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revue des maquettes — Notifications</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* Review pages: « Demander des changements » then « Approuver … », in the page header on the PC, in a bar at the bottom on the phone */
+  .review-head-actions { display: none; }
+  .review-bar {
+    position: sticky; bottom: var(--tab-bar); z-index: 2; display: flex; gap: var(--space-2);
+    margin: 0 calc(var(--space-4) * -1) calc(var(--space-8) * -1); padding: var(--space-3) var(--space-4);
+    background: var(--side); border-top: 1px solid var(--line);
+  }
+  .review-bar .button { flex: 1 1 0; min-width: 0; height: auto; min-height: var(--touch); padding: var(--space-2) var(--space-3); white-space: normal; text-align: center; }
+  @media (min-width: 1280px) {
+    .review-head-actions { display: flex; gap: var(--space-2); }
+    .review-bar { display: none; }
+  }
+</style>
+<style>
+  /* Revue des maquettes: one capture at a time on the phone, 390 and 1280 side by side on the PC */
+  .shots { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+  .shot-wide { display: none; }
+  .width-switch { display: flex; gap: var(--space-2); }
+  .screen-list { display: none; }
+  @media (min-width: 1280px) {
+    .shots { grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); }
+    .shot-wide { display: block; }
+    .width-switch { display: none; }
+    .screen-tabs { display: none; }
+    .screen-list { display: block; }
+  }
+</style>
+</head><body>
+<!-- exemple : écrans, stories, PR et remarques fictifs ; les captures sont des schémas -->
+<ui-app-shell screen="Revue des maquettes" current="conceptions" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="Maquettes · Notifications" back="Notifications" screen="Revue des maquettes">
+    <span slot="sub" class="mono">Crewdeck · 3 écrans · PR #21</span>
+    <span class="review-head-actions"><ui-button>Demander des changements</ui-button><ui-button variant="primary">Approuver les maquettes</ui-button></span>
+  </ui-page-header>
+  <div class="screen-tabs"><ui-tabs>
+    <ui-tab selected count="1">Notifications</ui-tab>
+    <ui-tab>Notifications · vide</ui-tab>
+    <ui-tab>Paramètres des notifications</ui-tab>
+  </ui-tabs></div>
+  <div class="layout">
+    <ui-card title="Notifications" label="Revue des maquettes / Écran">
+      <div class="cluster text-sm muted">US-17, US-18 · état nominal</div>
+      <div class="width-switch" role="group" aria-label="Largeur"><ui-chip selected>390</ui-chip><ui-chip>1280</ui-chip></div>
+      <div class="shots">
+        <ui-capture src="../../assets/maquette-notifications-390.svg" label="390 px"></ui-capture>
+        <div class="shot-wide"><ui-capture src="../../assets/maquette-notifications-1280.svg" label="1280 px"></ui-capture></div>
+      </div>
+    </ui-card>
+    <div class="layout-aside">
+      <div class="screen-list"><ui-card title="Écrans" count="3" label="Revue des maquettes / Écrans" flush>
+        <ui-list-row link icon="image" title="Notifications" meta="US-17, US-18 · 1 remarque"></ui-list-row>
+        <ui-list-row link icon="image" title="Notifications · vide" meta="US-17"></ui-list-row>
+        <ui-list-row link icon="image" title="Paramètres des notifications" meta="US-18"></ui-list-row>
+      </ui-card></div>
+      <ui-card title="Remarques sur cet écran" count="1" label="Revue des maquettes / Remarques">
+        <ui-message from="pilote">Le titre de chaque ligne doit dire le Projet avant le Ticket.</ui-message>
+        <ui-text-field label="Ajouter une remarque" placeholder="Ce qui doit changer sur cet écran" multiline rows="3"></ui-text-field>
+      </ui-card>
+    </div>
+  </div>
+  <div class="review-bar"><ui-button>Demander des changements</ui-button><ui-button variant="primary">Approuver les maquettes</ui-button></div>
+</ui-app-shell>
+</body>
+</html>

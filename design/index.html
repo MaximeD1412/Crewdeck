@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crewdeck — Maquettes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  body { margin: 0; background: var(--ground); color: var(--ink); font: 400 15px/22px "IBM Plex Sans", sans-serif; }
+  header { padding: 32px 40px 8px; }
+  h1 { margin: 0; font: 600 28px/34px "IBM Plex Sans Condensed", sans-serif; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  header a { color: var(--accent-text); }
+  main { padding: 16px 40px 64px; display: flex; flex-direction: column; gap: 40px; }
+  .b-screen h2 { margin: 0 0 12px; font: 600 18px/24px "IBM Plex Sans Condensed", sans-serif; }
+  .b-screen h2 a { color: var(--ink); text-decoration: none; }
+  .b-screen h2 a:hover { color: var(--accent-hover); }
+  .b-screen code { font: 400 12px/18px "IBM Plex Mono", monospace; color: var(--muted); margin-left: 8px; }
+  .b-frames { display: flex; gap: 24px; align-items: flex-start; }
+  .b-phone { width: 390px; height: 844px; border: 1px solid var(--line-strong); border-radius: 4px; overflow: hidden; flex: none; }
+  .b-phone iframe { width: 390px; height: 844px; border: 0; display: block; }
+  .b-desk { width: 640px; height: 422px; border: 1px solid var(--line-strong); border-radius: 4px; overflow: hidden; flex: none; }
+  .b-desk iframe { width: 1280px; height: 844px; border: 0; transform: scale(0.5); transform-origin: 0 0; display: block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Crewdeck · maquettes du MVP</h1>
+  <p>22 écrans, 49 pages, à 390 et 1280 px. <a href="components.html">Galerie des Composants</a> · <code>screens.json</code></p>
+</header>
+<main aria-label="Tableau / Écrans">
+  <section class="b-screen" aria-label="Tableau / Connexion">
+    <h2><a href="screens/crewdeck/connexion.html">Connexion</a> <code>connexion</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/connexion.html" title="Connexion 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/connexion.html" title="Connexion 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Premiers pas : installer le Runner">
+    <h2><a href="screens/crewdeck/demarrage.html">Premiers pas : installer le Runner</a> <code>demarrage</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/demarrage.html" title="Premiers pas : installer le Runner 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/demarrage.html" title="Premiers pas : installer le Runner 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Premiers pas : installer le Runner — Runner relié">
+    <h2><a href="screens/crewdeck/demarrage-runner-relie.html">Premiers pas : installer le Runner — Runner relié</a> <code>demarrage-runner-relie</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/demarrage-runner-relie.html" title="Premiers pas : installer le Runner — Runner relié 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/demarrage-runner-relie.html" title="Premiers pas : installer le Runner — Runner relié 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Premiers pas : installer le Runner — Comptes IA du Runner">
+    <h2><a href="screens/crewdeck/demarrage-comptes-ia.html">Premiers pas : installer le Runner — Comptes IA du Runner</a> <code>demarrage-comptes-ia</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/demarrage-comptes-ia.html" title="Premiers pas : installer le Runner — Comptes IA du Runner 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/demarrage-comptes-ia.html" title="Premiers pas : installer le Runner — Comptes IA du Runner 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Premiers pas : installer le Runner — Choix des dépôts">
+    <h2><a href="screens/crewdeck/demarrage-projets.html">Premiers pas : installer le Runner — Choix des dépôts</a> <code>demarrage-projets</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/demarrage-projets.html" title="Premiers pas : installer le Runner — Choix des dépôts 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/demarrage-projets.html" title="Premiers pas : installer le Runner — Choix des dépôts 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Projets">
+    <h2><a href="screens/crewdeck/projets.html">Projets</a> <code>projets</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/projets.html" title="Projets 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/projets.html" title="Projets 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Projets — Aucun Projet">
+    <h2><a href="screens/crewdeck/projets-vide.html">Projets — Aucun Projet</a> <code>projets-vide</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/projets-vide.html" title="Projets — Aucun Projet 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/projets-vide.html" title="Projets — Aucun Projet 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Un Projet : préparation">
+    <h2><a href="screens/crewdeck/projet.html">Un Projet : préparation</a> <code>projet</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/projet.html" title="Un Projet : préparation 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/projet.html" title="Un Projet : préparation 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Un Projet : préparation — Inventaire d’un dépôt existant à approuver">
+    <h2><a href="screens/crewdeck/projet-inventaire-a-approuver.html">Un Projet : préparation — Inventaire d’un dépôt existant à approuver</a> <code>projet-inventaire-a-approuver</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/projet-inventaire-a-approuver.html" title="Un Projet : préparation — Inventaire d’un dépôt existant à approuver 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/projet-inventaire-a-approuver.html" title="Un Projet : préparation — Inventaire d’un dépôt existant à approuver 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / « À toi »">
+    <h2><a href="screens/crewdeck/a-toi.html">« À toi »</a> <code>a-toi</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/a-toi.html" title="« À toi » 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/a-toi.html" title="« À toi » 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / « À toi » — Rien ne t’attend">
+    <h2><a href="screens/crewdeck/a-toi-vide.html">« À toi » — Rien ne t’attend</a> <code>a-toi-vide</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/a-toi-vide.html" title="« À toi » — Rien ne t’attend 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/a-toi-vide.html" title="« À toi » — Rien ne t’attend 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / « À toi » — Runner hors ligne">
+    <h2><a href="screens/crewdeck/a-toi-runner-hors-ligne.html">« À toi » — Runner hors ligne</a> <code>a-toi-runner-hors-ligne</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/a-toi-runner-hors-ligne.html" title="« À toi » — Runner hors ligne 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/a-toi-runner-hors-ligne.html" title="« À toi » — Runner hors ligne 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / « À toi » — Resynchronisation">
+    <h2><a href="screens/crewdeck/a-toi-resynchronisation.html">« À toi » — Resynchronisation</a> <code>a-toi-resynchronisation</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/a-toi-resynchronisation.html" title="« À toi » — Resynchronisation 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/a-toi-resynchronisation.html" title="« À toi » — Resynchronisation 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / « À toi » — Menu « Plus » du téléphone">
+    <h2><a href="screens/crewdeck/a-toi-menu-plus.html">« À toi » — Menu « Plus » du téléphone</a> <code>a-toi-menu-plus</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/a-toi-menu-plus.html" title="« À toi » — Menu « Plus » du téléphone 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/a-toi-menu-plus.html" title="« À toi » — Menu « Plus » du téléphone 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Idées">
+    <h2><a href="screens/crewdeck/idees.html">Idées</a> <code>idees</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/idees.html" title="Idées 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/idees.html" title="Idées 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Idées — Noter une idée">
+    <h2><a href="screens/crewdeck/idees-nouvelle.html">Idées — Noter une idée</a> <code>idees-nouvelle</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/idees-nouvelle.html" title="Idées — Noter une idée 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/idees-nouvelle.html" title="Idées — Noter une idée 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Idées — Dictée en cours">
+    <h2><a href="screens/crewdeck/idees-dictee.html">Idées — Dictée en cours</a> <code>idees-dictee</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/idees-dictee.html" title="Idées — Dictée en cours 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/idees-dictee.html" title="Idées — Dictée en cours 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Idées — Aucune Idée">
+    <h2><a href="screens/crewdeck/idees-vide.html">Idées — Aucune Idée</a> <code>idees-vide</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/idees-vide.html" title="Idées — Aucune Idée 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/idees-vide.html" title="Idées — Aucune Idée 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Une Idée : analyse et tri">
+    <h2><a href="screens/crewdeck/idee.html">Une Idée : analyse et tri</a> <code>idee</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/idee.html" title="Une Idée : analyse et tri 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/idee.html" title="Une Idée : analyse et tri 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Une Idée : analyse et tri — Fusionner dans une autre Idée">
+    <h2><a href="screens/crewdeck/idee-fusion.html">Une Idée : analyse et tri — Fusionner dans une autre Idée</a> <code>idee-fusion</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/idee-fusion.html" title="Une Idée : analyse et tri — Fusionner dans une autre Idée 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/idee-fusion.html" title="Une Idée : analyse et tri — Fusionner dans une autre Idée 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Une Idée : analyse et tri — Idée retenue : lancer la Conception">
+    <h2><a href="screens/crewdeck/idee-retenue.html">Une Idée : analyse et tri — Idée retenue : lancer la Conception</a> <code>idee-retenue</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/idee-retenue.html" title="Une Idée : analyse et tri — Idée retenue : lancer la Conception 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/idee-retenue.html" title="Une Idée : analyse et tri — Idée retenue : lancer la Conception 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Session d’agent">
+    <h2><a href="screens/crewdeck/session.html">Session d’agent</a> <code>session</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/session.html" title="Session d’agent 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/session.html" title="Session d’agent 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Session d’agent — Question de l’agent">
+    <h2><a href="screens/crewdeck/session-question.html">Session d’agent — Question de l’agent</a> <code>session-question</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/session-question.html" title="Session d’agent — Question de l’agent 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/session-question.html" title="Session d’agent — Question de l’agent 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Session d’agent — Demande de permission">
+    <h2><a href="screens/crewdeck/session-permission.html">Session d’agent — Demande de permission</a> <code>session-permission</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/session-permission.html" title="Session d’agent — Demande de permission 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/session-permission.html" title="Session d’agent — Demande de permission 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Session d’agent — Session arrêtée">
+    <h2><a href="screens/crewdeck/session-arretee.html">Session d’agent — Session arrêtée</a> <code>session-arretee</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/session-arretee.html" title="Session d’agent — Session arrêtée 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/session-arretee.html" title="Session d’agent — Session arrêtée 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Conceptions">
+    <h2><a href="screens/crewdeck/conceptions.html">Conceptions</a> <code>conceptions</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/conceptions.html" title="Conceptions 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/conceptions.html" title="Conceptions 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Conceptions — Aucune Conception">
+    <h2><a href="screens/crewdeck/conceptions-vide.html">Conceptions — Aucune Conception</a> <code>conceptions-vide</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/conceptions-vide.html" title="Conceptions — Aucune Conception 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/conceptions-vide.html" title="Conceptions — Aucune Conception 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Une Conception">
+    <h2><a href="screens/crewdeck/conception.html">Une Conception</a> <code>conception</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/conception.html" title="Une Conception 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/conception.html" title="Une Conception 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Une Conception — Contrat incomplet">
+    <h2><a href="screens/crewdeck/conception-contrat-incomplet.html">Une Conception — Contrat incomplet</a> <code>conception-contrat-incomplet</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/conception-contrat-incomplet.html" title="Une Conception — Contrat incomplet 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/conception-contrat-incomplet.html" title="Une Conception — Contrat incomplet 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Relecture d’un document">
+    <h2><a href="screens/crewdeck/relecture.html">Relecture d’un document</a> <code>relecture</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/relecture.html" title="Relecture d’un document 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/relecture.html" title="Relecture d’un document 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Relecture d’un document — Confirmer l’approbation">
+    <h2><a href="screens/crewdeck/relecture-confirmation.html">Relecture d’un document — Confirmer l’approbation</a> <code>relecture-confirmation</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/relecture-confirmation.html" title="Relecture d’un document — Confirmer l’approbation 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/relecture-confirmation.html" title="Relecture d’un document — Confirmer l’approbation 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Revue des maquettes">
+    <h2><a href="screens/crewdeck/revue-maquettes.html">Revue des maquettes</a> <code>revue-maquettes</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/revue-maquettes.html" title="Revue des maquettes 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/revue-maquettes.html" title="Revue des maquettes 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Découpage en Tickets">
+    <h2><a href="screens/crewdeck/decoupage.html">Découpage en Tickets</a> <code>decoupage</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/decoupage.html" title="Découpage en Tickets 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/decoupage.html" title="Découpage en Tickets 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Boucle">
+    <h2><a href="screens/crewdeck/boucle.html">Boucle</a> <code>boucle</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/boucle.html" title="Boucle 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/boucle.html" title="Boucle 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Boucle — Boucle arrêtée">
+    <h2><a href="screens/crewdeck/boucle-arretee.html">Boucle — Boucle arrêtée</a> <code>boucle-arretee</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/boucle-arretee.html" title="Boucle — Boucle arrêtée 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/boucle-arretee.html" title="Boucle — Boucle arrêtée 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Boucle — Confirmer le démarrage">
+    <h2><a href="screens/crewdeck/boucle-confirmation-demarrage.html">Boucle — Confirmer le démarrage</a> <code>boucle-confirmation-demarrage</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/boucle-confirmation-demarrage.html" title="Boucle — Confirmer le démarrage 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/boucle-confirmation-demarrage.html" title="Boucle — Confirmer le démarrage 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Boucle — Planifier la Boucle">
+    <h2><a href="screens/crewdeck/boucle-planification.html">Boucle — Planifier la Boucle</a> <code>boucle-planification</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/boucle-planification.html" title="Boucle — Planifier la Boucle 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/boucle-planification.html" title="Boucle — Planifier la Boucle 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Un Ticket">
+    <h2><a href="screens/crewdeck/ticket.html">Un Ticket</a> <code>ticket</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/ticket.html" title="Un Ticket 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/ticket.html" title="Un Ticket 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Un Ticket — Ticket bloqué">
+    <h2><a href="screens/crewdeck/ticket-bloque.html">Un Ticket — Ticket bloqué</a> <code>ticket-bloque</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/ticket-bloque.html" title="Un Ticket — Ticket bloqué 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/ticket-bloque.html" title="Un Ticket — Ticket bloqué 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Revue visuelle d’un Ticket">
+    <h2><a href="screens/crewdeck/revue-visuelle.html">Revue visuelle d’un Ticket</a> <code>revue-visuelle</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/revue-visuelle.html" title="Revue visuelle d’un Ticket 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/revue-visuelle.html" title="Revue visuelle d’un Ticket 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Revue visuelle d’un Ticket — Confirmer le merge">
+    <h2><a href="screens/crewdeck/revue-visuelle-confirmation-merge.html">Revue visuelle d’un Ticket — Confirmer le merge</a> <code>revue-visuelle-confirmation-merge</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/revue-visuelle-confirmation-merge.html" title="Revue visuelle d’un Ticket — Confirmer le merge 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/revue-visuelle-confirmation-merge.html" title="Revue visuelle d’un Ticket — Confirmer le merge 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Revue visuelle d’un Ticket — Demander des changements">
+    <h2><a href="screens/crewdeck/revue-visuelle-changements.html">Revue visuelle d’un Ticket — Demander des changements</a> <code>revue-visuelle-changements</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/revue-visuelle-changements.html" title="Revue visuelle d’un Ticket — Demander des changements 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/revue-visuelle-changements.html" title="Revue visuelle d’un Ticket — Demander des changements 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Planning et arbre des Tickets">
+    <h2><a href="screens/crewdeck/planning.html">Planning et arbre des Tickets</a> <code>planning</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/planning.html" title="Planning et arbre des Tickets 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/planning.html" title="Planning et arbre des Tickets 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Statistiques">
+    <h2><a href="screens/crewdeck/statistiques.html">Statistiques</a> <code>statistiques</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/statistiques.html" title="Statistiques 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/statistiques.html" title="Statistiques 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Runner et Comptes IA">
+    <h2><a href="screens/crewdeck/runner.html">Runner et Comptes IA</a> <code>runner</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/runner.html" title="Runner et Comptes IA 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/runner.html" title="Runner et Comptes IA 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Runner et Comptes IA — Runner hors ligne">
+    <h2><a href="screens/crewdeck/runner-hors-ligne.html">Runner et Comptes IA — Runner hors ligne</a> <code>runner-hors-ligne</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/runner-hors-ligne.html" title="Runner et Comptes IA — Runner hors ligne 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/runner-hors-ligne.html" title="Runner et Comptes IA — Runner hors ligne 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Paramètres du compte">
+    <h2><a href="screens/crewdeck/parametres.html">Paramètres du compte</a> <code>parametres</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/parametres.html" title="Paramètres du compte 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/parametres.html" title="Paramètres du compte 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Paramètres d’un Projet">
+    <h2><a href="screens/crewdeck/parametres-projet.html">Paramètres d’un Projet</a> <code>parametres-projet</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/parametres-projet.html" title="Paramètres d’un Projet 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/parametres-projet.html" title="Paramètres d’un Projet 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+  <section class="b-screen" aria-label="Tableau / Bibliothèque de Composants">
+    <h2><a href="screens/crewdeck/composants.html">Bibliothèque de Composants</a> <code>composants</code></h2>
+    <div class="b-frames">
+      <div class="b-phone"><iframe src="screens/crewdeck/composants.html" title="Bibliothèque de Composants 390" loading="lazy"></iframe></div>
+      <div class="b-desk"><iframe src="screens/crewdeck/composants.html" title="Bibliothèque de Composants 1280" loading="lazy"></iframe></div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

@@ -30,9 +30,9 @@
 </head>
 <body>
 <!-- exemple : modèles, Planification et choix du Projet fictifs -->
-<ui-app-shell screen="Paramètres du Projet" current="parametres" decisions="7" ideas="3" designs="2" loops="2">
+<ui-app-shell screen="Paramètres du Projet" current="parametres" decisions="9" ideas="4" designs="2" loops="2">
   <ui-page-header title="Site mairie" count="Paramètres du Projet · 3 modifiés" back="Paramètres" screen="Paramètres du Projet"></ui-page-header>
-  <ui-banner tone="accent" icon="info" title="Ce Projet hérite de ton compte">Il reprend les Paramètres de ton compte et ne change que ce qui est marqué « Modifié pour ce Projet ». Un changement sur ton compte s’applique ici sauf là.</ui-banner>
+  <ui-banner tone="accent" icon="info" title="Ce Projet hérite de ton compte">Il reprend les Paramètres de ton compte. Ce qui est marqué « Modifié pour ce Projet » ne suit plus ton compte ; le reste change avec lui.</ui-banner>
   <div class="settings">
     <nav class="settings-nav" aria-label="Paramètres du Projet / Sections" data-name="Paramètres du Projet / Sections">
       <a href="#roles" aria-current="true">Rôles et modèles <span class="n">2</span></a>
@@ -61,7 +61,7 @@
         <ui-list-row icon="refresh" title="Quand la fenêtre de Claude se réinitialise" meta="active · prochaine à 16:40"><div slot="below" class="cluster"><ui-button size="sm">Mettre en pause</ui-button><ui-button size="sm" variant="danger">Supprimer</ui-button></div></ui-list-row>
       </ui-card>
       <ui-card title="Notifications" label="Paramètres du Projet / Notifications" id="notifications">
-        <ui-setting-row label="Notifications push" help="Quand une Décision de ce Projet t’attend." origin="compte"><ui-toggle checked aria="Notifications push"></ui-toggle></ui-setting-row>
+        <ui-setting-row label="Notifications push" help="Activées ou non pour ce Projet ; le reste des notifications se règle sur ton compte." origin="compte"><ui-toggle checked aria="Notifications push"></ui-toggle></ui-setting-row>
       </ui-card>
     </div>
   </div>

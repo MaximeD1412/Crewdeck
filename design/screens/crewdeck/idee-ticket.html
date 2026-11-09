@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Une Idée — Ticket à valider</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+</head>
+<body>
+<!-- exemple : Idée, Ticket rédigé et critères fictifs -->
+<ui-app-shell screen="Ticket à valider" current="idees" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header screen="Ticket à valider" back="#62 Corriger la date des actualités sur le téléphone" title="Ticket à valider" count="Site mairie · depuis l’Idée #62">
+    <ui-button>Demander des changements</ui-button>
+    <ui-button variant="primary" icon="check">Valider le Ticket</ui-button>
+    <span slot="sub">L’agent du Rôle Idée a rédigé ce Ticket depuis l’Idée et son analyse. Valide-le comme les Tickets d’une Conception : une fois validé, il rejoint les Tickets prêts de Site mairie et la Boucle le prend comme les autres. Pour le faire réécrire, demande des changements : l’agent reprend ton commentaire.</span>
+  </ui-page-header>
+  <div class="layout">
+    <ui-card title="Ticket proposé" label="Ticket à valider / Ticket">
+      <div class="doc">
+        <h2>Afficher la date des actualités en français sur le téléphone</h2>
+        <p>Sur le téléphone, la date des actualités s’affiche en anglais (« Nov 8, 2026 ») au lieu du format français. La page d’accueil et la liste des actualités sont concernées.</p>
+        <h3>Critères d’acceptation</h3>
+        <ul>
+          <li>Sur le téléphone, la date d’une actualité s’affiche « 8 nov. 2026 ».</li>
+          <li>Le format est le même sur le PC et le téléphone.</li>
+          <li>Un test couvre le format de la date.</li>
+        </ul>
+      </div>
+      <span class="mono muted">Rôle Idée · Claude Code · il y a 1 min</span>
+    </ui-card>
+    <div class="layout-aside">
+      <ui-card title="D’où il vient" label="Ticket à valider / Idée">
+        <b>#62 Corriger la date des actualités sur le téléphone</b>
+        <p class="text-sm">« La date des actualités s’affiche en anglais sur le téléphone. »</p>
+        <ui-key-value>
+          <ui-kv label="Projet">Site mairie</ui-kv>
+          <ui-kv label="Impact">faible</ui-kv>
+          <ui-kv label="Effort">faible</ui-kv>
+        </ui-key-value>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

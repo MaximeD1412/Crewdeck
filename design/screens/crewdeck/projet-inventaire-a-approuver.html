@@ -9,14 +9,28 @@
 <link rel="stylesheet" href="../../tokens.css">
 <link rel="stylesheet" href="../../components.css">
 <script defer src="../../components.js"></script>
+<style>
+/* Review pattern of relecture: « Demander des changements » then « Approuver … », in the page header on the PC, in a bar at the bottom on the phone */
+.review-head-actions { display: none; }
+.review-bar {
+  position: sticky; bottom: var(--tab-bar); z-index: 2; display: flex; gap: var(--space-2);
+  margin: 0 calc(var(--space-4) * -1) calc(var(--space-8) * -1); padding: var(--space-3) var(--space-4);
+  background: var(--side); border-top: 1px solid var(--line);
+}
+.review-bar .button { flex: 1 1 0; min-width: 0; height: auto; min-height: var(--touch); padding: var(--space-2) var(--space-3); white-space: normal; text-align: center; }
+@media (min-width: 1280px) {
+  .review-head-actions { display: flex; gap: var(--space-2); }
+  .review-bar { display: none; }
+}
+</style>
 </head>
 <body>
 <!-- exemple : Projet Tennis Manager et contenu de l’inventaire fictifs -->
-<ui-app-shell screen="Tennis Manager" current="projets" decisions="7" ideas="3" designs="2" loops="2">
+<ui-app-shell screen="Tennis Manager" current="projets" decisions="9" ideas="4" designs="2" loops="2">
   <ui-page-header title="Tennis Manager" back="Projets" count="inventaire à approuver">
-    <ui-button variant="primary" icon="check">Approuver l’inventaire</ui-button>
+    <span class="review-head-actions"><ui-button>Demander des changements</ui-button><ui-button variant="primary" icon="check">Approuver l’inventaire</ui-button></span>
   </ui-page-header>
-  <ui-banner tone="accent" icon="info" title="Ce Projet a déjà du code">Crewdeck en a rédigé le glossaire, les choix techniques et l’inventaire. Relis-les et approuve-les : le Process démarre ensuite.</ui-banner>
+  <ui-banner tone="accent" icon="info" title="Ce Projet a déjà du code">Crewdeck en a rédigé le glossaire, les choix techniques et l’inventaire. Approuve-les d’un coup, ou renvoie-les avec tes changements : le Process démarre une fois l’inventaire approuvé.</ui-banner>
   <div class="layout">
     <section class="stack" aria-label="Tennis Manager / Brouillons" data-name="Tennis Manager / Brouillons">
       <ui-card title="Glossaire" count="24 termes">
@@ -42,6 +56,7 @@
       </ui-card>
     </div>
   </div>
+  <div class="review-bar"><ui-button>Demander des changements</ui-button><ui-button variant="primary">Approuver l’inventaire</ui-button></div>
 </ui-app-shell>
 </body>
 </html>

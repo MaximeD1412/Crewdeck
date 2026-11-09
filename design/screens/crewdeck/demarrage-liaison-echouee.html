@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Premiers pas — liaison échouée</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+.steps .track { flex-direction: row; gap: var(--space-2); }
+.steps .track-step { flex: 1; padding-bottom: 0; grid-template-columns: var(--icon-box) minmax(0, 1fr); gap: var(--space-2); }
+.steps .track-step::before { display: none; }
+.steps .track-text > span { display: none; }
+.onboard { gap: var(--space-5); }
+.onboard-actions { display: flex; flex-direction: column; gap: var(--space-2); }
+@media (min-width: 1280px) {
+  .onboard-actions { flex-direction: row; justify-content: flex-end; }
+}
+</style>
+</head>
+<body>
+<!-- exemple : la raison de l’échec, la commande d’installation et les codes de liaison sont fictifs ; crewdeck.example attend le domaine du produit -->
+<ui-app-shell variant="bare" screen="Premiers pas">
+  <nav class="steps" aria-label="Premiers pas / Étapes" data-name="Premiers pas / Étapes">
+    <ui-process-track>
+      <ui-step state="halt" label="Runner"></ui-step>
+      <ui-step state="todo" label="Comptes IA"></ui-step>
+      <ui-step state="todo" label="Projets"></ui-step>
+    </ui-process-track>
+  </nav>
+  <ui-page-header title="La liaison a échoué" screen="Premiers pas">
+    <span slot="sub">Le Runner est installé mais il n’a pas pu se relier à ton compte.</span>
+  </ui-page-header>
+  <section class="stack onboard" aria-label="Premiers pas / Liaison" data-name="Premiers pas / Liaison">
+    <ui-banner tone="halt" icon="alert" title="Code de liaison expiré">Le code 7KQ4-M2PX a expiré avant que le Runner se relie. Relance la commande avec ce nouveau code.</ui-banner>
+    <ui-tabs>
+      <ui-tab selected>Linux</ui-tab>
+      <ui-tab>macOS</ui-tab>
+      <ui-tab>Windows (WSL)</ui-tab>
+    </ui-tabs>
+    <ui-code-block>curl -fsSL https://crewdeck.example/runner/install.sh | sh -s -- --link 9RTB-4HWN</ui-code-block>
+    <div class="onboard-actions">
+      <ui-button variant="primary" icon="refresh" wide>Réessayer</ui-button>
+    </div>
+    <p class="text-sm muted">« Réessayer » attend à nouveau ton Runner, avec le nouveau code.</p>
+  </section>
+</ui-app-shell>
+</body>
+</html>

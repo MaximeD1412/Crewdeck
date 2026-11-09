@@ -283,7 +283,7 @@ Each is a custom element `ui-<name>`; its root carries `data-name`.
   `ui-timeline-row` (`label`, `start`, `span`, `tone`, `meta`).
 
 **Session (US-9)**
-- **Session** (`Session/Default`): `title`, `meta`, `state="active|waiting|stopped"`; children messages, then `ui-composer`.
+- **Session** (`Session/Default`): `title`, `meta`, `state="active|waiting|stopped|interrupted"`, `resume-disabled` (« Reprendre » disabled, e.g. while the Runner is offline); children messages, then `ui-composer`.
 - **Message** (`Message/Agent`, `Message/Pilote`): `from`.
 - **ToolCall** (`ToolCall/Default`): `tool`, `target`, `detail`.
 - **Question** (`Question/Default`): `title`; children `ui-option`

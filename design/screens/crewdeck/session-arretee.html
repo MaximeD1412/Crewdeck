@@ -11,9 +11,9 @@
 <script defer src="../../components.js"></script>
 <style>
   /* Conceptions: a compact row per Conception on the phone (badge and « 1/4 »), the four Étapes as a track on the PC */
-  .c-sum { display: flex; align-items: center; gap: var(--space-2); }
+  .c-sum { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
   .c-track { display: none; }
-  .c-track .track { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2) var(--space-3); margin-top: var(--space-2); }
+  .c-track .track { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--space-2) var(--space-3); margin-top: var(--space-2); }
   .c-track .track-step { padding-bottom: 0; align-items: center; gap: var(--space-2); }
   .c-track .track-step::before { display: none; }
   .c-track .track-text { padding-top: 0; gap: 0; }
@@ -25,13 +25,13 @@
     .c-progress { display: none; }
     .shell--with-panel .layout { display: flex; flex-direction: column; }
     .shell--with-panel .chips { flex-wrap: wrap; }
-    .shell--with-panel .c-track .track { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .shell--with-panel .c-track .track { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 </style>
 </head>
 <body>
 <!-- exemple : contenu de la session et heure fictifs -->
-<ui-app-shell screen="Session" current="conceptions" decisions="7" ideas="3" designs="2" loops="2">
+<ui-app-shell screen="Session" current="conceptions" decisions="9" ideas="4" designs="2" loops="2">
   <ui-page-header title="Conceptions" count="3 en cours"></ui-page-header>
   <ui-project-filter>
     <ui-chip selected count="3">Tous les Projets</ui-chip>
@@ -68,10 +68,11 @@
         </div>
       </ui-list-row>
       <ui-list-row link title="Actualités" meta="Site mairie · Tickets · hier">
-        <div slot="below" class="c-sum"><ui-status-badge tone="caution">Contrat incomplet</ui-status-badge><span class="c-progress mono muted">Étape 4 sur 4</span></div>
+        <div slot="below" class="c-sum"><ui-status-badge tone="caution">Contrat incomplet</ui-status-badge><span class="c-progress mono muted">Étape 4 sur 4 · revue croisée désactivée pour ce Projet</span></div>
         <div slot="below" class="c-track">
           <ui-process-track>
             <ui-step state="done" label="PRD" meta="approuvé"></ui-step>
+            <ui-step state="off" label="Revue croisée" meta="désactivée"></ui-step>
             <ui-step state="done" label="Maquettes" meta="approuvées"></ui-step>
             <ui-step state="done" label="Conception technique" meta="approuvée"></ui-step>
             <ui-step state="caution" label="Tickets" meta="Contrat incomplet"></ui-step>

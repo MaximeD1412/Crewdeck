@@ -462,8 +462,8 @@
   });
 
   // 05 Session (US-9) -------------------------------------------------------------
-  const SESSION = { active: ["go", "active"], waiting: ["caution", "attend ta réponse"], stopped: ["neutral", "arrêtée"] };
-  // <ui-session title="Concevoir · Agenda partagé" meta="Personal OS · Conception · Claude Code" state="active">messages… <ui-composer></ui-composer></ui-session>
+  const SESSION = { active: ["go", "active"], waiting: ["caution", "attend ta réponse"], stopped: ["neutral", "arrêtée"], interrupted: ["caution", "interrompue"] };
+  // <ui-session title="…" meta="…" state="active|waiting|stopped|interrupted" resume-disabled>messages… <ui-composer></ui-composer></ui-session>
   define("ui-session", (el) => {
     const state = a(el, "state", "active");
     const [tone, label] = SESSION[state];
@@ -476,7 +476,7 @@
           h("div", { class: "session-title" }, h("span", { class: `dot dot--${tone}${state === "active" ? " dot--pulse" : ""}` }), h("b", { text: a(el, "title") })),
           h("div", { class: "session-meta" }, h("span", { text: label }), ` · ${a(el, "meta")}`)),
         h("div", { class: "session-head-actions" },
-          state === "stopped" ? h("ui-button", { size: "sm", icon: "play", variant: "secondary" }, "Reprendre") : h("ui-button", { size: "sm", icon: "stop", variant: "secondary" }, "Arrêter"),
+          state === "stopped" || state === "interrupted" ? h("ui-button", { size: "sm", icon: "play", variant: "secondary", state: el.hasAttribute("resume-disabled") ? "disabled" : null }, "Reprendre") : h("ui-button", { size: "sm", icon: "stop", variant: "secondary" }, "Arrêter"),
           h("ui-icon-button", { icon: "expand", label: "Agrandir", class: "only-wide" }),
           h("ui-icon-button", { icon: "x", label: "Fermer", class: "only-wide" }))),
       h("div", { class: "session-crypto" }, icon("lock", "icon icon--sm"), "Chiffrée de bout en bout entre ton Runner et ce navigateur"),

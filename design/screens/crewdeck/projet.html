@@ -12,18 +12,19 @@
 </head>
 <body>
 <!-- exemple : état de préparation fictif -->
-<ui-app-shell screen="Site mairie" current="projets" decisions="7" ideas="3" designs="2" loops="2">
+<ui-app-shell screen="Site mairie" current="projets" decisions="9" ideas="4" designs="2" loops="2">
   <ui-page-header title="Site mairie" back="Projets" count="1 point à régler">
     <ui-button icon="settings">Paramètres du Projet</ui-button>
   </ui-page-header>
-  <ui-banner tone="caution" icon="alert" title="Le Process ne peut pas démarrer">Il manque la branche d’intégration. Les Tickets attendent qu’elle existe.</ui-banner>
+  <ui-banner tone="caution" icon="alert" title="Le Process ne peut pas démarrer">Il manque la branche d’intégration develop. « Corriger » la crée sur GitHub en un clic ; les Tickets attendent qu’elle existe.</ui-banner>
   <div class="layout">
     <ui-card title="Ce dont le Process a besoin" label="Site mairie / Préparation" flush>
-      <ui-list-row icon="alert" tone="caution" title="Branche d’intégration" meta="develop absente sur GitHub"><ui-button size="sm" variant="primary">Créer develop</ui-button></ui-list-row>
-      <ui-list-row icon="check" tone="go" title="Labels" meta="labels du Process créés"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
-      <ui-list-row icon="check" tone="go" title="Fichier du Process" meta=".process.json présent"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
-      <ui-list-row icon="check" tone="go" title="Runner" meta="en ligne · atelier-pc"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
-      <ui-list-row icon="check" tone="go" title="Comptes IA des Rôles" meta="Idée, Conception : Claude Code · Code : Codex · Review : Claude Code"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
+      <ui-list-row icon="alert" tone="caution" title="Branches d’intégration et de release" meta="main présente · develop absente : « Corriger » la crée depuis main"><ui-button size="sm" variant="primary">Corriger</ui-button></ui-list-row>
+      <ui-list-row icon="check" tone="go" title="Runner relié" meta="en ligne · atelier-pc"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
+      <ui-list-row icon="check" tone="go" title="Un Moteur utilisable par Rôle" meta="Idée, Conception : Claude Code · Code : Codex · Review : Claude Code"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
+      <ui-list-row icon="check" tone="go" title="Labels" meta="labels du Process présents sur GitHub"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
+      <ui-list-row icon="check" tone="go" title="Paramètres du Process sur GitHub" meta=".process.json présent"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
+      <ui-list-row icon="check" tone="go" title="Inventaire approuvé" meta="approuvé le 3 nov."><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
     </ui-card>
     <div class="layout-aside">
       <ui-card title="Projet" label="Site mairie / Projet">

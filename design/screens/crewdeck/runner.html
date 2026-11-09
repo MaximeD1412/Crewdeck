@@ -20,7 +20,7 @@
 </head>
 <body>
 <!-- exemple : machine, modèles et usages fictifs -->
-<ui-app-shell screen="Runner et Comptes IA" current="runner" runner="online" decisions="7" ideas="3" designs="2" loops="2">
+<ui-app-shell screen="Runner et Comptes IA" current="runner" runner="online" decisions="9" ideas="4" designs="2" loops="2">
   <ui-page-header title="Runner et Comptes IA"></ui-page-header>
   <div class="layout">
     <div class="layout-main">
@@ -29,7 +29,8 @@
       <ui-usage-meter label="Fenêtre de 5 h" value="100" detail="16:40">Limite atteinte ; réinitialisation à 16:40.</ui-usage-meter>
       <ui-usage-meter label="Semaine" value="62" projection="100" detail="lundi">Réinitialisation lundi ; au rythme actuel, la semaine tient jusqu’à jeudi.</ui-usage-meter>
         <h3 class="sub">Codex · clé API</h3>
-        <p class="text-sm">Pas de fenêtre d’usage pour une clé API.</p>
+        <!-- exemple : montant fictif -->
+        <ui-key-value><ui-kv label="Dépense estimée du mois">21,60 €</ui-kv></ui-key-value>
       </ui-card>
       <ui-card title="Moteurs et modèles" label="Runner et Comptes IA / Moteurs" flush>
         <ui-list-row title="claude-opus-5-5" meta="Claude Code · Compte IA Claude"><ui-status-badge tone="go">disponible</ui-status-badge></ui-list-row>

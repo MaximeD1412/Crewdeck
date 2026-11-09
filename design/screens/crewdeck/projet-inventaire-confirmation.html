@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tennis Manager — inventaire à approuver (confirmation)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+/* Review pattern of relecture: « Demander des changements » then « Approuver … », in the page header on the PC, in a bar at the bottom on the phone */
+.review-head-actions { display: none; }
+.review-bar {
+  position: sticky; bottom: var(--tab-bar); z-index: 2; display: flex; gap: var(--space-2);
+  margin: 0 calc(var(--space-4) * -1) calc(var(--space-8) * -1); padding: var(--space-3) var(--space-4);
+  background: var(--side); border-top: 1px solid var(--line);
+}
+.review-bar .button { flex: 1 1 0; min-width: 0; height: auto; min-height: var(--touch); padding: var(--space-2) var(--space-3); white-space: normal; text-align: center; }
+@media (min-width: 1280px) {
+  .review-head-actions { display: flex; gap: var(--space-2); }
+  .review-bar { display: none; }
+}
+</style>
+</head>
+<body>
+<!-- exemple : Projet Tennis Manager et contenu de l’inventaire fictifs -->
+<ui-app-shell screen="Tennis Manager" current="projets" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Tennis Manager" back="Projets" count="inventaire à approuver">
+    <span class="review-head-actions"><ui-button>Demander des changements</ui-button><ui-button variant="primary" icon="check">Approuver l’inventaire</ui-button></span>
+  </ui-page-header>
+  <ui-banner tone="accent" icon="info" title="Ce Projet a déjà du code">Crewdeck en a rédigé le glossaire, les choix techniques et l’inventaire. Approuve-les d’un coup, ou renvoie-les avec tes changements : le Process démarre une fois l’inventaire approuvé.</ui-banner>
+  <div class="layout">
+    <section class="stack" aria-label="Tennis Manager / Brouillons" data-name="Tennis Manager / Brouillons">
+      <ui-card title="Glossaire" count="24 termes">
+        <p class="text-sm">Les termes du domaine relevés dans le code et sa documentation : Joueur, Match, Tournoi, Classement…</p>
+        <ui-button slot="actions" size="sm">Relire</ui-button>
+      </ui-card>
+      <ui-card title="Choix techniques" count="6">
+        <p class="text-sm">Ce qui est déjà décidé : le framework, la base de données, l’hébergement, les conventions de branches…</p>
+        <ui-button slot="actions" size="sm">Relire</ui-button>
+      </ui-card>
+      <ui-card title="Inventaire" count="3 apps · 41 écrans">
+        <p class="text-sm">Ce qui existe : les apps, leurs routes et leurs écrans, les tests et la CI.</p>
+        <ui-button slot="actions" size="sm">Relire</ui-button>
+      </ui-card>
+    </section>
+    <div class="layout-aside">
+      <ui-card title="Préparation" label="Tennis Manager / Préparation">
+        <ui-process-track>
+          <ui-step state="done" label="Projet préparé" meta="labels, branches, .process.json"></ui-step>
+          <ui-step state="current" label="Inventaire à approuver" meta="rédigé il y a 8 min"></ui-step>
+          <ui-step state="todo" label="Process prêt"></ui-step>
+        </ui-process-track>
+      </ui-card>
+    </div>
+  </div>
+  <div class="review-bar"><ui-button>Demander des changements</ui-button><ui-button variant="primary">Approuver l’inventaire</ui-button></div>
+  <ui-confirm-dialog slot="overlay" title="Approuver l’inventaire de Tennis Manager ?" action="Approuver l’inventaire">
+    <p>Crewdeck va :</p>
+    <ul>
+      <li>écrire le glossaire, les choix techniques et l’inventaire dans Tennis Manager, sur GitHub ;</li>
+      <li>démarrer le Process pour ce Projet : ses Idées, Conceptions et Tickets suivent ensuite le Process.</li>
+    </ul>
+  </ui-confirm-dialog>
+</ui-app-shell>
+</body>
+</html>

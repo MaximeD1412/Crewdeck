@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boucle — Reprendre une Planification</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .loop-state { display: flex; align-items: center; gap: var(--space-2); }
+  .loop-state b { font: var(--font-title-weight) var(--font-title-size)/var(--font-title-line-height) var(--font-title-family), sans-serif; color: var(--ink); }
+  .loop-state .loop-since { display: none; }
+  .loop-agents { display: flex; flex-direction: column; gap: var(--space-3); }
+  .loop-agents ui-agent-row ui-button { display: none; }
+  .loop-foot { display: flex; flex-direction: column; gap: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--line); }
+  .loop-foot .row { padding-right: 0; }
+  .loop-foot ui-ticket-row:nth-of-type(1) .row { border-top: 0; }
+  .loop-foot ui-ticket-row, .loop-foot .section-label { display: none; }
+  .loop-more { display: flex; align-items: center; justify-content: space-between; min-height: var(--touch); color: var(--ink-2); }
+  .page-reminder { order: 5; }
+  @media (min-width: 1280px) {
+    .loop-state .loop-since { display: inline; }
+    .loop-agents ui-agent-row ui-button { display: contents; }
+    .loop-foot { padding-top: var(--space-3); }
+    .loop-foot ui-ticket-row { display: block; }
+    .loop-foot .section-label { display: flex; }
+    .loop-more { display: none; }
+    .page-reminder { order: 0; }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : Projets, Tickets, heures et Planifications fictifs -->
+<ui-app-shell screen="Boucle" current="boucle" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Boucle" count="2 en cours · 1 arrêtée">
+    <ui-button variant="secondary" icon="calendar">Planifier</ui-button>
+  </ui-page-header>
+  <ui-project-filter>
+    <ui-chip selected count="3">Tous les Projets</ui-chip>
+    <ui-chip>Crewdeck</ui-chip>
+    <ui-chip>Personal OS</ui-chip>
+    <ui-chip>Site mairie</ui-chip>
+  </ui-project-filter>
+  <ui-banner class="page-reminder" tone="accent" icon="info" title="La Boucle merge elle-même">Chaque Ticket dont la review et les checks passent est mergé par la Boucle, jusqu’à ce que tu l’arrêtes. Un Ticket bloqué ou qui demande une revue visuelle t’attend dans « À toi », et la Boucle continue avec les Tickets qui n’en dépendent pas.</ui-banner>
+  <div class="layout">
+    <div class="layout-main">
+      <ui-card title="Personal OS" label="Boucle / Personal OS">
+        <ui-button slot="actions" size="sm" variant="secondary" icon="stop">Arrêter la Boucle</ui-button>
+        <div class="loop-state"><ui-status-dot tone="go" pulse></ui-status-dot><b>En cours</b><span class="mono muted loop-since">· depuis 09:12 · 4 Tickets mergés aujourd’hui</span></div>
+        <div class="loop-agents">
+          <ui-agent-row projet="#53 Export du planning" step="en review" engine="Codex · depuis 6 min" tone="accent"><ui-button slot="actions" size="sm" variant="ghost" icon="terminal">Session</ui-button></ui-agent-row>
+          <ui-agent-row projet="#51 Rappels de l’agenda" step="Interrompu" engine="limite de Claude atteinte" tone="caution"><ui-button slot="actions" size="sm" variant="ghost" icon="terminal">Session</ui-button></ui-agent-row>
+        </div>
+        <div class="loop-foot">
+          <span class="section-label">À suivre <span class="section-count">2</span></span>
+          <a href="#" class="loop-more text-sm">À suivre : #55, #56 <ui-icon name="chevron-right" size="sm"></ui-icon></a>
+          <ui-ticket-row number="55" title="Partage d’un événement" state="pret"></ui-ticket-row>
+          <ui-ticket-row number="56" title="Fuseau horaire des rappels" meta="bloqué par #51" state="attente"></ui-ticket-row>
+        </div>
+      </ui-card>
+      <ui-card title="Crewdeck" label="Boucle / Crewdeck">
+        <ui-button slot="actions" size="sm" variant="secondary" icon="stop">Arrêter la Boucle</ui-button>
+        <div class="loop-state"><ui-status-dot tone="go" pulse></ui-status-dot><b>En cours</b><span class="mono muted loop-since">· depuis 08:40 · 1 Ticket mergé aujourd’hui</span></div>
+        <div class="loop-agents">
+          <ui-agent-row projet="#44 Liste des Projets" step="code" engine="Claude Code · depuis 18 min"><ui-button slot="actions" size="sm" variant="ghost" icon="terminal">Session</ui-button></ui-agent-row>
+        </div>
+        <div class="loop-foot">
+          <span class="section-label">À suivre <span class="section-count">1</span></span>
+          <a href="#" class="loop-more text-sm">À suivre : #45 <ui-icon name="chevron-right" size="sm"></ui-icon></a>
+          <ui-ticket-row number="45" title="Filtre par Projet" state="pret"></ui-ticket-row>
+        </div>
+      </ui-card>
+      <ui-card title="Site mairie" label="Boucle / Site mairie">
+        <ui-button slot="actions" size="sm" variant="primary" icon="play">Démarrer la Boucle</ui-button>
+        <div class="loop-state"><ui-status-dot tone="neutral"></ui-status-dot><b>Arrêtée</b><span class="mono muted">· 3 Tickets prêts · 1 interrompu</span></div>
+      </ui-card>
+    </div>
+    <div class="layout-aside">
+      <ui-card title="Planifications" count="3" label="Boucle / Planifications" flush>
+        <ui-button slot="actions" size="sm" variant="ghost" icon="plus">Ajouter</ui-button>
+        <ui-list-row icon="clock" title="Chaque nuit à 01:00" meta="Personal OS · prochaine cette nuit"><div slot="below" class="cluster"><ui-button size="sm">Mettre en pause</ui-button><ui-button size="sm" variant="danger">Supprimer</ui-button></div></ui-list-row>
+        <ui-list-row icon="refresh" title="Quand la fenêtre de Claude se réinitialise" meta="Site mairie · prochaine à 16:40"><div slot="below" class="cluster"><ui-button size="sm">Mettre en pause</ui-button><ui-button size="sm" variant="danger">Supprimer</ui-button></div></ui-list-row>
+        <ui-list-row icon="clock" title="Chaque nuit à 02:00" meta="Crewdeck · en pause depuis hier"><div slot="below" class="cluster"><ui-button size="sm">Reprendre</ui-button><ui-button size="sm" variant="danger">Supprimer</ui-button></div></ui-list-row>
+      </ui-card>
+      <ui-card title="Comptes IA" label="Boucle / Comptes IA">
+        <ui-usage-meter label="Claude · 5 h" value="100" detail="16:40"></ui-usage-meter>
+        <ui-usage-meter label="Claude · semaine" value="62"></ui-usage-meter>
+      </ui-card>
+    </div>
+  </div>
+  <ui-confirm-dialog slot="overlay" title="Reprendre la Planification de Crewdeck ?" action="Reprendre la Planification" icon="play">
+    <p>Chaque nuit à 02:00. En reprenant cette Planification, tu acceptes, pour chaque démarrage prévu et jusqu’à ce que tu la mettes en pause ou la supprimes :</p>
+    <ul>
+      <li><b>du travail en arrière-plan sur tes Comptes IA</b>, sur ton Runner : Code sur Claude Code, Review sur Codex ;</li>
+      <li><b>le merge de chaque Ticket qui passe sa review</b> et ses checks, par la Boucle elle-même.</li>
+    </ul>
+    <p>Arrêter une exécution laisse les suivantes prévues.</p>
+  </ui-confirm-dialog>
+</ui-app-shell>
+</body>
+</html>

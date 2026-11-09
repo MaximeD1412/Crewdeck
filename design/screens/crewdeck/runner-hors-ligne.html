@@ -20,7 +20,7 @@
 </head>
 <body>
 <!-- exemple : machine, modèles et usages fictifs -->
-<ui-app-shell screen="Runner et Comptes IA" current="runner" runner="offline" decisions="7" ideas="3" designs="2" loops="2">
+<ui-app-shell screen="Runner et Comptes IA" current="runner" runner="offline" decisions="9" ideas="4" designs="2" loops="2">
   <ui-page-header title="Runner et Comptes IA"></ui-page-header>
   <ui-banner slot="banner" tone="halt" icon="server" title="Runner hors ligne">Rien ne tourne : la Boucle de Personal OS attend. Relance le Runner sur ta machine ; les Tickets interrompus attendront ensuite « Reprendre » dans « À toi ».<ui-code-block slot="actions">crewdeck-runner start</ui-code-block></ui-banner>
   <div class="layout">
@@ -31,7 +31,8 @@
       <ui-usage-meter label="Fenêtre de 5 h" value="100" detail="16:40">Réinitialisation à 16:40.</ui-usage-meter>
       <ui-usage-meter label="Semaine" value="62" detail="lundi">Réinitialisation lundi.</ui-usage-meter>
         <h3 class="sub">Codex · clé API</h3>
-        <p class="text-sm">Pas de fenêtre d’usage pour une clé API.</p>
+        <!-- exemple : montant fictif -->
+        <ui-key-value><ui-kv label="Dépense estimée du mois">21,60 €</ui-kv></ui-key-value>
       </ui-card>
       <ui-card title="Moteurs et modèles" label="Runner et Comptes IA / Moteurs" flush>
         <ui-list-row title="claude-opus-5-5" meta="Claude Code · Compte IA Claude"><ui-status-badge tone="go">disponible</ui-status-badge></ui-list-row>

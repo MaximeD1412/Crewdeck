@@ -30,7 +30,7 @@
 </head>
 <body>
 <!-- exemple : tous les chiffres, Projets et périodes sont fictifs -->
-<ui-app-shell screen="Statistiques" current="statistiques" decisions="7" ideas="3" designs="2" loops="2">
+<ui-app-shell screen="Statistiques" current="statistiques" decisions="9" ideas="4" designs="2" loops="2">
   <ui-page-header title="Statistiques" count="30 derniers jours"></ui-page-header>
   <ui-project-filter>
     <ui-chip selected>Tous les Projets</ui-chip>
@@ -45,9 +45,9 @@
   </ui-tabs>
   <section class="grid-4" aria-label="Statistiques / Tous les Projets">
     <ui-stat label="Délai Idée → merge" value="3,4" unit="j" detail="médiane · 41 Tickets"></ui-stat>
-    <ui-stat label="Réussite de la Boucle" value="86" unit="%" detail="Tickets mergés sur pris"></ui-stat>
-    <ui-stat label="Tickets bloqués" value="9" unit="%" detail="4 sur 47"></ui-stat>
-    <ui-stat label="Coût par Ticket" value="1,80" unit="€" detail="moyenne · 74 € au total"></ui-stat>
+    <ui-stat label="Réussite de la Boucle" value="86" unit="%" detail="mergés sans intervention, sur pris"></ui-stat>
+    <ui-stat label="Tickets bloqués" value="9" unit="%" detail="au moins une fois · 4 sur 47"></ui-stat>
+    <ui-stat label="Coût par Ticket" value="1,80" unit="€" detail="Codex · clé API"><span class="stat-detail">Claude · 6 % de la fenêtre de 5 h</span></ui-stat>
   </section>
   <ui-card title="Par Projet" count="3" label="Statistiques / Par Projet">
           <table class="table stats-table">
@@ -55,13 +55,13 @@
           <tr><th>Projet</th><th class="num">Délai</th><th class="num">Réussite</th><th class="num">Bloqués</th><th class="num">Coût / Ticket</th><th class="num">Mergés</th></tr>
         </thead>
         <tbody>
-          <tr><td><b>Personal OS</b></td><td class="num" data-label="Délai">2,9 j</td><td class="num" data-label="Réussite">91 %</td><td class="num" data-label="Bloqués">5 %</td><td class="num" data-label="Coût / Ticket">1,60 €</td><td class="num" data-label="Mergés">22</td></tr>
-          <tr><td><b>Crewdeck</b></td><td class="num" data-label="Délai">3,1 j</td><td class="num" data-label="Réussite">88 %</td><td class="num" data-label="Bloqués">8 %</td><td class="num" data-label="Coût / Ticket">1,95 €</td><td class="num" data-label="Mergés">13</td></tr>
-          <tr><td><b>Site mairie</b></td><td class="num" data-label="Délai">5,2 j</td><td class="num" data-label="Réussite">71 %</td><td class="num" data-label="Bloqués">21 %</td><td class="num" data-label="Coût / Ticket">2,10 €</td><td class="num" data-label="Mergés">6</td></tr>
+          <tr><td><b>Personal OS</b></td><td class="num" data-label="Délai">2,9 j</td><td class="num" data-label="Réussite">91 %</td><td class="num" data-label="Bloqués">5 %</td><td class="num" data-label="Coût / Ticket">1,60 € · 5 %</td><td class="num" data-label="Mergés">22</td></tr>
+          <tr><td><b>Crewdeck</b></td><td class="num" data-label="Délai">3,1 j</td><td class="num" data-label="Réussite">88 %</td><td class="num" data-label="Bloqués">8 %</td><td class="num" data-label="Coût / Ticket">1,95 € · 7 %</td><td class="num" data-label="Mergés">13</td></tr>
+          <tr><td><b>Site mairie</b></td><td class="num" data-label="Délai">5,2 j</td><td class="num" data-label="Réussite">71 %</td><td class="num" data-label="Bloqués">21 %</td><td class="num" data-label="Coût / Ticket">2,10 € · 6 %</td><td class="num" data-label="Mergés">6</td></tr>
         </tbody>
       </table>
   </ui-card>
-  <p class="text-sm muted">Délai : de la note de l’Idée au merge de son dernier Ticket. Réussite : Tickets mergés sur Tickets pris par la Boucle. Coût : dépenses de tes Comptes IA rapportées aux Tickets.</p>
+  <p class="text-sm muted">Délai : de la note de l’Idée au merge du dernier Ticket qui en vient. Réussite : Tickets mergés par la Boucle sans ton intervention, sur les Tickets qu’elle a pris. Tickets bloqués : Tickets bloqués au moins une fois, sur les Tickets pris. Coût par Ticket : la dépense en euros pour une clé API, la part de la fenêtre utilisée pour un abonnement (Coût / Ticket : euros de Codex · part de la fenêtre de 5 h de Claude).</p>
 </ui-app-shell>
 </body>
 </html>

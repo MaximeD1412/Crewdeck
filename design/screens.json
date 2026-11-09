@@ -21,7 +21,8 @@
       "title": "Premiers pas : installer le Runner",
       "prd": "docs/product/prd.md",
       "stories": [
-        "US-2"
+        "US-2",
+        "US-38"
       ],
       "html": "design/screens/crewdeck/demarrage.html",
       "captures": {
@@ -29,6 +30,15 @@
         "1280": "design/screens/crewdeck/demarrage-1280.png"
       },
       "states": [
+        {
+          "id": "liaison-echouee",
+          "title": "Liaison du Runner échouée",
+          "html": "design/screens/crewdeck/demarrage-liaison-echouee.html",
+          "captures": {
+            "390": "design/screens/crewdeck/demarrage-liaison-echouee-390.png",
+            "1280": "design/screens/crewdeck/demarrage-liaison-echouee-1280.png"
+          }
+        },
         {
           "id": "runner-relie",
           "title": "Runner relié",
@@ -54,6 +64,15 @@
           "captures": {
             "390": "design/screens/crewdeck/demarrage-projets-390.png",
             "1280": "design/screens/crewdeck/demarrage-projets-1280.png"
+          }
+        },
+        {
+          "id": "comptes-ia-aucun",
+          "title": "Aucun Moteur utilisable",
+          "html": "design/screens/crewdeck/demarrage-comptes-ia-aucun.html",
+          "captures": {
+            "390": "design/screens/crewdeck/demarrage-comptes-ia-aucun-390.png",
+            "1280": "design/screens/crewdeck/demarrage-comptes-ia-aucun-1280.png"
           }
         }
       ]
@@ -90,7 +109,8 @@
       "prd": "docs/product/prd.md",
       "stories": [
         "US-4",
-        "US-68"
+        "US-68",
+        "US-26"
       ],
       "html": "design/screens/crewdeck/projet.html",
       "captures": {
@@ -106,6 +126,15 @@
             "390": "design/screens/crewdeck/projet-inventaire-a-approuver-390.png",
             "1280": "design/screens/crewdeck/projet-inventaire-a-approuver-1280.png"
           }
+        },
+        {
+          "id": "inventaire-confirmation",
+          "title": "Confirmer l’approbation de l’inventaire",
+          "html": "design/screens/crewdeck/projet-inventaire-confirmation.html",
+          "captures": {
+            "390": "design/screens/crewdeck/projet-inventaire-confirmation-390.png",
+            "1280": "design/screens/crewdeck/projet-inventaire-confirmation-1280.png"
+          }
         }
       ]
     },
@@ -120,7 +149,8 @@
         "US-21",
         "US-40",
         "US-48",
-        "US-55"
+        "US-55",
+        "US-68"
       ],
       "html": "design/screens/crewdeck/a-toi.html",
       "captures": {
@@ -173,7 +203,8 @@
       "stories": [
         "US-5",
         "US-6",
-        "US-57"
+        "US-57",
+        "US-48"
       ],
       "html": "design/screens/crewdeck/idees.html",
       "captures": {
@@ -181,6 +212,15 @@
         "1280": "design/screens/crewdeck/idees-1280.png"
       },
       "states": [
+        {
+          "id": "analyse-echouee",
+          "title": "Analyse échouée",
+          "html": "design/screens/crewdeck/idees-analyse-echouee.html",
+          "captures": {
+            "390": "design/screens/crewdeck/idees-analyse-echouee-390.png",
+            "1280": "design/screens/crewdeck/idees-analyse-echouee-1280.png"
+          }
+        },
         {
           "id": "nouvelle",
           "title": "Noter une idée",
@@ -218,7 +258,8 @@
         "US-6",
         "US-7",
         "US-8",
-        "US-56"
+        "US-56",
+        "US-91"
       ],
       "html": "design/screens/crewdeck/idee.html",
       "captures": {
@@ -226,6 +267,24 @@
         "1280": "design/screens/crewdeck/idee-1280.png"
       },
       "states": [
+        {
+          "id": "ticket",
+          "title": "Ticket rédigé à valider",
+          "html": "design/screens/crewdeck/idee-ticket.html",
+          "captures": {
+            "390": "design/screens/crewdeck/idee-ticket-390.png",
+            "1280": "design/screens/crewdeck/idee-ticket-1280.png"
+          }
+        },
+        {
+          "id": "rejetee",
+          "title": "Idée rejetée : remettre à trier",
+          "html": "design/screens/crewdeck/idee-rejetee.html",
+          "captures": {
+            "390": "design/screens/crewdeck/idee-rejetee-390.png",
+            "1280": "design/screens/crewdeck/idee-rejetee-1280.png"
+          }
+        },
         {
           "id": "fusion",
           "title": "Fusionner dans une autre Idée",
@@ -286,6 +345,15 @@
           "captures": {
             "390": "design/screens/crewdeck/session-arretee-390.png",
             "1280": "design/screens/crewdeck/session-arretee-1280.png"
+          }
+        },
+        {
+          "id": "runner-hors-ligne",
+          "title": "Session, Runner hors ligne",
+          "html": "design/screens/crewdeck/session-runner-hors-ligne.html",
+          "captures": {
+            "390": "design/screens/crewdeck/session-runner-hors-ligne-390.png",
+            "1280": "design/screens/crewdeck/session-runner-hors-ligne-1280.png"
           }
         }
       ]
@@ -369,26 +437,50 @@
       "title": "Revue des maquettes",
       "prd": "docs/product/prd.md",
       "stories": [
-        "US-11"
+        "US-11",
+        "US-26"
       ],
       "html": "design/screens/crewdeck/revue-maquettes.html",
       "captures": {
         "390": "design/screens/crewdeck/revue-maquettes-390.png",
         "1280": "design/screens/crewdeck/revue-maquettes-1280.png"
-      }
+      },
+      "states": [
+        {
+          "id": "confirmation",
+          "title": "Confirmer l’approbation des maquettes",
+          "html": "design/screens/crewdeck/revue-maquettes-confirmation.html",
+          "captures": {
+            "390": "design/screens/crewdeck/revue-maquettes-confirmation-390.png",
+            "1280": "design/screens/crewdeck/revue-maquettes-confirmation-1280.png"
+          }
+        }
+      ]
     },
     {
       "id": "decoupage",
       "title": "Découpage en Tickets",
       "prd": "docs/product/prd.md",
       "stories": [
-        "US-12"
+        "US-12",
+        "US-26"
       ],
       "html": "design/screens/crewdeck/decoupage.html",
       "captures": {
         "390": "design/screens/crewdeck/decoupage-390.png",
         "1280": "design/screens/crewdeck/decoupage-1280.png"
-      }
+      },
+      "states": [
+        {
+          "id": "confirmation",
+          "title": "Confirmer l’approbation des Tickets",
+          "html": "design/screens/crewdeck/decoupage-confirmation.html",
+          "captures": {
+            "390": "design/screens/crewdeck/decoupage-confirmation-390.png",
+            "1280": "design/screens/crewdeck/decoupage-confirmation-1280.png"
+          }
+        }
+      ]
     },
     {
       "id": "boucle",
@@ -430,6 +522,15 @@
           "captures": {
             "390": "design/screens/crewdeck/boucle-planification-390.png",
             "1280": "design/screens/crewdeck/boucle-planification-1280.png"
+          }
+        },
+        {
+          "id": "reprise-planification",
+          "title": "Reprendre une Planification en pause",
+          "html": "design/screens/crewdeck/boucle-reprise-planification.html",
+          "captures": {
+            "390": "design/screens/crewdeck/boucle-reprise-planification-390.png",
+            "1280": "design/screens/crewdeck/boucle-reprise-planification-1280.png"
           }
         }
       ]

@@ -475,7 +475,6 @@ ui-setting-row:first-child .setting { border-top: 0; padding-top: 0; }
 /* 1280 ------------------------------------------------------------------------ */
 @media (min-width: 1280px) {
   .only-wide { display: revert; }
-  .code code { white-space: nowrap; }
   .composer-hint { visibility: visible; }
   ui-icon-button.only-wide { display: contents; }
   .shell { display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); }

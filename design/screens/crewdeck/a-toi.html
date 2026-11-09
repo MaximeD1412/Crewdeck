@@ -11,21 +11,23 @@
 <script defer src="../../components.js"></script>
 </head>
 <body>
-<!-- exemple : Projets, Tickets, heures et usages fictifs -->
-<ui-app-shell screen="À toi" current="a-toi" decisions="7" ideas="3" designs="2" loops="2">
-  <ui-page-header title="À toi" count="7 Décisions">
+<!-- exemple : Projets, Tickets, heures, sessions et usages fictifs -->
+<ui-app-shell screen="À toi" current="a-toi" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="À toi" count="9 Décisions">
     <ui-button variant="primary" icon="plus">Noter une Idée</ui-button>
   </ui-page-header>
   <ui-project-filter>
-    <ui-chip selected count="7">Tous les Projets</ui-chip>
-    <ui-chip count="1">Crewdeck</ui-chip>
-    <ui-chip count="3">Personal OS</ui-chip>
+    <ui-chip selected count="9">Tous les Projets</ui-chip>
+    <ui-chip count="2">Crewdeck</ui-chip>
+    <ui-chip count="4">Personal OS</ui-chip>
     <ui-chip count="2">Site mairie</ui-chip>
     <ui-chip count="1">Tennis Manager</ui-chip>
   </ui-project-filter>
   <div class="layout">
-    <ui-card title="Décisions" count="7" label="À toi / Décisions" flush>
+    <ui-card title="Décisions" count="9" label="À toi / Décisions" flush>
       <ui-decision-row tone="halt" icon="block" kind="Ticket bloqué" title="#42 Connexion GitHub" meta="Crewdeck · Code · il y a 4 min">L’agent ne trouve pas comment tester le renouvellement du jeton.<ui-button slot="actions" size="sm">Ouvrir</ui-button></ui-decision-row>
+      <ui-decision-row tone="caution" icon="shield" kind="Permission demandée" title="Code · #44 Liste des Projets" meta="Crewdeck · session · il y a 2 min">Bash : <code>git push origin feat/44-liste-des-projets</code><ui-button slot="actions" size="sm">Ouvrir</ui-button></ui-decision-row>
+      <ui-decision-row tone="accent" icon="info" kind="Question de l’agent" title="Concevoir · Agenda partagé" meta="Personal OS · session · il y a 3 min">Les membres de la famille voient-ils les agendas des autres en lecture seule ?<ui-button slot="actions" size="sm">Répondre</ui-button></ui-decision-row>
       <ui-decision-row tone="caution" icon="gauge" kind="Limite atteinte" title="Claude · fenêtre de 5 h" meta="Personal OS · #51 arrêté · il y a 12 min">#51 reprend à la réinitialisation, à 16:40. Sinon, passe le Rôle Code sur Codex.<ui-button slot="actions" size="sm">Attendre 16:40</ui-button><ui-button slot="actions" size="sm">Passer sur Codex</ui-button></ui-decision-row>
       <ui-decision-row tone="accent" icon="eye" kind="Revue visuelle" title="#38 Page Planning" meta="Personal OS · 4 captures · il y a 20 min">Review et checks passés ; la Boucle continue avec les Tickets qui n’en dépendent pas.<ui-button slot="actions" size="sm" variant="primary">Relire</ui-button></ui-decision-row>
       <ui-decision-row tone="accent" icon="doc" kind="Conception à relire" title="PRD « Agenda partagé »" meta="Personal OS · Conception · il y a 1 h">12 stories, 2 questions ouvertes.<ui-button slot="actions" size="sm">Relire</ui-button></ui-decision-row>
@@ -36,11 +38,12 @@
     <div class="layout-aside">
       <ui-card title="Boucles en cours" count="2" label="À toi / Boucles en cours">
         <ui-agent-row projet="Personal OS" ticket="#53 Export du planning" step="en review" engine="Codex" since="depuis 6 min"></ui-agent-row>
-        <ui-agent-row projet="Crewdeck" ticket="#44 Liste des Projets" step="code" engine="Claude Code" since="depuis 18 min"></ui-agent-row>
+        <ui-agent-row tone="caution" projet="Crewdeck" ticket="#44 Liste des Projets" step="attend ta permission" engine="Claude Code" since="depuis 18 min"></ui-agent-row>
       </ui-card>
       <ui-card title="Comptes IA" label="À toi / Comptes IA">
         <ui-usage-meter label="Claude · 5 h" value="100" detail="16:40"></ui-usage-meter>
         <ui-usage-meter label="Claude · semaine" value="62">Au rythme actuel, la semaine de Claude tient jusqu’à jeudi.</ui-usage-meter>
+
       </ui-card>
     </div>
   </div>

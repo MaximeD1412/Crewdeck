@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Premiers pas — aucun Moteur utilisable</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+.steps .track { flex-direction: row; gap: var(--space-2); }
+.steps .track-step { flex: 1; padding-bottom: 0; grid-template-columns: var(--icon-box) minmax(0, 1fr); gap: var(--space-2); }
+.steps .track-step::before { display: none; }
+.steps .track-text > span { display: none; }
+.onboard { gap: var(--space-5); }
+.onboard-actions { display: flex; flex-direction: column; gap: var(--space-2); }
+@media (min-width: 1280px) {
+  .onboard-actions { flex-direction: row; justify-content: flex-end; }
+}
+</style>
+</head>
+<body>
+<!-- exemple : états fictifs, tels que le Runner les rapporte -->
+<ui-app-shell variant="bare" screen="Premiers pas">
+  <nav class="steps" aria-label="Premiers pas / Étapes" data-name="Premiers pas / Étapes">
+    <ui-process-track>
+      <ui-step state="done" label="Runner"></ui-step>
+      <ui-step state="current" label="Comptes IA"></ui-step>
+      <ui-step state="todo" label="Projets"></ui-step>
+    </ui-process-track>
+  </nav>
+  <ui-page-header title="Connecte tes Comptes IA" screen="Premiers pas">
+    <span slot="sub">Tu les connectes sur le Runner, jamais dans le navigateur. Voici ce qu’il voit, Moteur par Moteur.</span>
+  </ui-page-header>
+  <section class="stack onboard" aria-label="Premiers pas / Moteurs" data-name="Premiers pas / Moteurs">
+    <ui-banner tone="caution" icon="alert" title="Aucun Moteur utilisable">Il en faut au moins un pour finir les Premiers pas. Connecte un Compte IA sur ta machine avec l’une des commandes ci-dessous.</ui-banner>
+    <ui-card title="Claude Code">
+      <ui-status-badge slot="actions" tone="caution">connexion requise</ui-status-badge>
+      <p class="text-sm">Avec ton abonnement Claude ou ta clé API :</p>
+      <ui-code-block>crewdeck-runner login claude</ui-code-block>
+    </ui-card>
+    <ui-card title="Codex">
+      <ui-status-badge slot="actions" tone="caution">connexion requise</ui-status-badge>
+      <p class="text-sm">Avec ta clé API :</p>
+      <ui-code-block>crewdeck-runner login codex</ui-code-block>
+    </ui-card>
+    <div class="onboard-actions">
+      <ui-button variant="primary" state="disabled" wide>Continuer</ui-button>
+    </div>
+    <p class="text-sm muted">« Continuer » s’active dès qu’un Moteur peut tourner.</p>
+  </section>
+</ui-app-shell>
+</body>
+</html>

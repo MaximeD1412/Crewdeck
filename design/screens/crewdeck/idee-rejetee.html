@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Une Idée — Rejetée</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+.said { color: var(--ink); font: var(--font-title-weight) var(--font-title-size)/var(--font-title-line-height) var(--font-title-family), sans-serif; }
+</style>
+</head>
+<body>
+<!-- exemple : Idée, Projet, dates et analyse fictifs -->
+<ui-app-shell screen="Une Idée" current="idees" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header screen="Une Idée" back="Idées" title="Afficher la météo sur l’accueil" count="#57 · Rejetée">
+    <ui-button variant="primary" icon="refresh">Remettre à trier</ui-button>
+    <span slot="sub">Rejetée par toi il y a 2 j. Remise à trier, elle revient dans « À trier ».</span>
+  </ui-page-header>
+  <div class="layout">
+    <div class="layout-main">
+      <ui-card title="Notée" label="Une Idée / Notée">
+        <p class="said">« La météo du jour sur l’accueil, pour préparer la journée. »</p>
+        <span class="mono muted">par toi · au téléphone · il y a 5 j</span>
+      </ui-card>
+      <ui-card title="Analyse" label="Une Idée / Analyse">
+        <p class="text-sm">La météo du jour en tête de l’accueil de Personal OS.</p>
+        <ui-key-value>
+          <ui-kv label="Projet visé">Personal OS</ui-kv>
+          <ui-kv label="Impact">faible</ui-kv>
+          <ui-kv label="Effort">moyen</ui-kv>
+          <ui-kv label="Doublons possibles">aucun</ui-kv>
+        </ui-key-value>
+        <span class="mono muted">Rôle Idée · Claude Code · il y a 5 j</span>
+      </ui-card>
+    </div>
+    <div class="layout-aside">
+      <ui-card title="Historique" label="Une Idée / Historique">
+        <ui-process-track>
+          <ui-step state="done" label="Notée" meta="il y a 5 j"></ui-step>
+          <ui-step state="done" label="Analysée" meta="il y a 5 j"></ui-step>
+          <ui-step state="halt" label="Rejetée" meta="par toi · il y a 2 j"></ui-step>
+        </ui-process-track>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

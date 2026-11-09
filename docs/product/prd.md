@@ -174,7 +174,7 @@ subscription.
 
 ### Settings
 The Pilote sets their account once, and each Projet differs where it needs.
-- **US-82** (MVP) As a Pilote, I want complete Paramètres for my account (Rôles and models, notifications, Planifications, Étapes optionnelles at the MVP; the Skins, channels and Plafonds join them when the Bêta brings them) and for each Projet, a Projet inheriting my account's Paramètres and changing only what it needs (at the MVP, its notifications only on or off), so that I set things once and adapt per Projet.
+- **US-82** (MVP) As a Pilote, I want complete Paramètres for my account (Rôles and models, notifications, Planifications, Étapes optionnelles at the MVP; the Skins, channels and Plafonds join them when the Bêta brings them) and for each Projet, a Projet inheriting my account's Paramètres and changing only what it needs (its Rôles, its Étapes optionnelles, and its notifications, which a Projet can only turn on or off at the MVP), so that I set things once and adapt per Projet.
 - **US-83** (MVP) As a Pilote, I want to turn the Étapes optionnelles on or off per Projet (at the MVP the mockups, the visual review and the cross review of a Conception; the visual audit, the user tests and the preview join them with the Bêta), the Idée analysis, the Tickets, the Code, the Review and the checks staying mandatory, so that a Projet without screens does not wait for a visual review.
 - **US-84** (next) As a Pilote, I want to show, hide and reorder the Composants of my Skin from the Paramètres, without code, so that I see only what I use.
 

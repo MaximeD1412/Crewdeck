@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projets</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+</head>
+<body>
+<!-- exemple : Projets et points à régler fictifs -->
+<ui-app-shell screen="Projets" current="projets" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="Projets" count="4 Projets">
+    <ui-button variant="primary" icon="plus">Ajouter un Projet</ui-button>
+  </ui-page-header>
+  <ui-card title="Prêts pour le Process ?" label="Projets / Liste" flush>
+    <ui-list-row icon="check" tone="go" title="Personal OS" meta="MaximeD1412/personal-os · Boucle en cours" link><ui-status-badge tone="go">prêt</ui-status-badge></ui-list-row>
+    <ui-list-row icon="alert" tone="caution" title="Site mairie" meta="1 point à régler : branche d’intégration absente" link><ui-status-badge tone="caution">à régler</ui-status-badge></ui-list-row>
+    <ui-list-row icon="check" tone="go" title="Crewdeck" meta="MaximeD1412/crewdeck · Boucle en cours" link><ui-status-badge tone="go">prêt</ui-status-badge></ui-list-row>
+    <ui-list-row icon="doc" tone="accent" title="Tennis Manager" meta="Inventaire à approuver avant le Process" link><ui-status-badge tone="accent">inventaire</ui-status-badge></ui-list-row>
+  </ui-card>
+</ui-app-shell>
+</body>
+</html>

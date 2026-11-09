@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Site mairie — préparation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+</head>
+<body>
+<!-- exemple : état de préparation fictif -->
+<ui-app-shell screen="Site mairie" current="projets" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="Site mairie" back="Projets" count="1 point à régler">
+    <ui-button icon="settings">Paramètres du Projet</ui-button>
+  </ui-page-header>
+  <ui-banner tone="caution" icon="alert" title="Le Process ne peut pas démarrer">Il manque la branche d’intégration. Les Tickets attendent qu’elle existe.</ui-banner>
+  <div class="layout">
+    <ui-card title="Ce dont le Process a besoin" label="Site mairie / Préparation" flush>
+      <ui-list-row icon="alert" tone="caution" title="Branche d’intégration" meta="develop absente sur GitHub"><ui-button size="sm" variant="primary">Créer develop</ui-button></ui-list-row>
+      <ui-list-row icon="check" tone="go" title="Labels" meta="labels du Process créés"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
+      <ui-list-row icon="check" tone="go" title="Fichier du Process" meta=".process.json présent"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
+      <ui-list-row icon="check" tone="go" title="Runner" meta="en ligne · atelier-pc"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
+      <ui-list-row icon="check" tone="go" title="Comptes IA des Rôles" meta="Idée, Conception : Claude Code · Code : Codex · Review : Claude Code"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
+    </ui-card>
+    <div class="layout-aside">
+      <ui-card title="Projet" label="Site mairie / Projet">
+        <ui-key-value>
+          <ui-kv label="GitHub">MaximeD1412/site-mairie</ui-kv>
+          <ui-kv label="Suivi depuis">3 nov.</ui-kv>
+          <ui-kv label="Paramètres">hérités du compte, 3 modifiés</ui-kv>
+        </ui-key-value>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

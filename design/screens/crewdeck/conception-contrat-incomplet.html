@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Actualités — Contrat incomplet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+</head>
+<body>
+<!-- exemple : Conception, Tickets, dates et fichiers fictifs -->
+<ui-app-shell screen="Une Conception" current="conceptions" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="Actualités" count="Site mairie" back="Conceptions">
+    <ui-button variant="primary" icon="refresh">Relancer l’Étape</ui-button>
+  </ui-page-header>
+  <ui-banner tone="caution" icon="contract" title="Le découpage en Tickets ne remplit pas son Contrat">2 Tickets sans critère d’acceptation : « Filtre par catégorie » et « Archive des actualités ». Relance l’Étape pour que l’agent les complète, ou ouvre sa session pour lui répondre.<ui-button slot="actions" size="sm" icon="terminal">Ouvrir la session</ui-button></ui-banner>
+  <div class="layout">
+    <div class="layout-main">
+      <ui-card title="Avancement" label="Une Conception / Avancement">
+        <ui-process-track>
+          <ui-step state="done" label="Idée retenue" meta="21 oct."></ui-step>
+          <ui-step state="done" label="PRD approuvé" meta="24 oct. · PR #31"></ui-step>
+          <ui-step state="done" label="Maquettes approuvées" meta="29 oct. · PR #33"></ui-step>
+          <ui-step state="done" label="Conception technique approuvée" meta="4 nov. · PR #35"></ui-step>
+          <ui-step state="caution" label="Découpage en Tickets" meta="hier · Contrat incomplet"></ui-step>
+        </ui-process-track>
+      </ui-card>
+      <ui-card title="Tickets proposés" count="5" label="Une Conception / Tickets proposés" flush>
+        <ui-list-row title="Modèle des actualités" meta="S · 3 critères"></ui-list-row>
+        <ui-list-row title="Liste des actualités" meta="M · 4 critères · écran actualites"></ui-list-row>
+        <ui-list-row title="Une actualité" meta="S · 3 critères · écran actualite"></ui-list-row>
+        <ui-list-row tone="caution" icon="alert" title="Filtre par catégorie" meta="S · aucun critère"><ui-status-badge tone="caution">Incomplet</ui-status-badge></ui-list-row>
+        <ui-list-row tone="caution" icon="alert" title="Archive des actualités" meta="M · aucun critère"><ui-status-badge tone="caution">Incomplet</ui-status-badge></ui-list-row>
+      </ui-card>
+    </div>
+    <div class="layout-aside">
+      <ui-card title="Session" label="Une Conception / Session">
+        <ui-agent-row projet="Découper · Actualités" step="terminée" engine="Claude Code" since="hier" tone="neutral"></ui-agent-row>
+      </ui-card>
+      <ui-card title="Détails" label="Une Conception / Détails">
+        <ui-key-value>
+          <ui-kv label="Projet">Site mairie</ui-kv>
+          <ui-kv label="Idée">Actualités</ui-kv>
+          <ui-kv label="Démarrée">21 oct. · par toi</ui-kv>
+          <ui-kv label="Rôle Conception">Claude Code</ui-kv>
+        </ui-key-value>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

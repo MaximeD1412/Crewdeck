@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paramètres</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .settings { display: flex; flex-direction: column; gap: var(--space-4); }
+  .settings-nav { display: flex; gap: var(--space-2); overflow-x: auto; margin: 0 calc(var(--space-4) * -1); padding: 0 var(--space-4); scrollbar-width: none; }
+  .settings-nav a { display: inline-flex; align-items: center; min-height: var(--control-sm); padding: 0 var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--ink-2); white-space: nowrap; font: var(--font-label-weight) var(--font-body-sm-size)/var(--font-label-line-height) var(--font-label-family), sans-serif; }
+  .settings-nav a[aria-current] { color: var(--accent-text); border-color: var(--accent); background: var(--accent-soft); }
+  .settings-body { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+  .pair-selects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+  .settings-body > ui-card:not(.is-current) { display: none; }
+  .always { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  @media (min-width: 1280px) {
+    .settings { display: grid; grid-template-columns: var(--capture-w) minmax(0, 1fr); gap: var(--space-8); align-items: start; }
+    .settings-nav { flex-direction: column; margin: 0; padding: 0; position: sticky; top: var(--space-8); gap: var(--space-1); }
+    .settings-nav a { border: 0; border-radius: var(--radius); min-height: var(--control); }
+    .settings-nav a[aria-current] { box-shadow: inset var(--stroke) 0 0 var(--accent); }
+    .settings-body { gap: var(--space-6); }
+    .settings-body > ui-card:not(.is-current) { display: block; }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : modèles, appareil et Planifications fictifs -->
+<ui-app-shell screen="Paramètres" current="parametres" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="Paramètres" count="ton compte · par défaut pour tes Projets"></ui-page-header>
+  <div class="settings">
+    <nav class="settings-nav" aria-label="Paramètres / Sections" data-name="Paramètres / Sections">
+      <a href="#roles" aria-current="true">Rôles et modèles</a>
+      <a href="#notifications">Notifications</a>
+      <a href="#planifications">Planifications</a>
+      <a href="#etapes">Étapes optionnelles</a>
+      <a href="#projets">Par Projet</a>
+      <a href="#moddeurs">Pour les Moddeurs</a>
+    </nav>
+    <div class="settings-body">
+      <ui-card class="is-current" title="Rôles et modèles" label="Paramètres / Rôles et modèles" id="roles">
+        <ui-setting-row label="Idée" help="Analyse chaque Idée notée.">
+          <ui-select value="Claude Code · Sonnet 5.5"></ui-select>
+        </ui-setting-row>
+        <ui-setting-row label="Conception" help="PRD, maquettes et conception technique, avec toi.">
+          <ui-select value="Claude Code · Opus 5.5"></ui-select>
+        </ui-setting-row>
+        <ui-setting-row label="Code" help="Implémente les Tickets dans la Boucle.">
+          <ui-select value="Claude Code · Opus 5.5"></ui-select>
+        </ui-setting-row>
+        <ui-setting-row label="Review" help="Relit chaque PR. Par défaut sur un autre Moteur que le Code.">
+          <ui-select value="Codex · GPT-5.5"></ui-select>
+        </ui-setting-row>
+      </ui-card>
+      <ui-card title="Notifications" label="Paramètres / Notifications" id="notifications">
+        <ui-toggle checked label="Notifications push" help="Sur tes appareils autorisés : quand une Décision t’attend et que tu n’es pas sur Crewdeck, et quand le Runner est hors ligne alors que du travail attend."></ui-toggle>
+        <ui-list-row icon="bell" title="iPhone de maximed1412" meta="autorisé le 3 nov."><ui-button size="sm" variant="ghost">Retirer</ui-button></ui-list-row>
+      </ui-card>
+      <ui-card title="Planifications" count="3" label="Paramètres / Planifications" id="planifications" flush>
+        <ui-button slot="actions" size="sm" variant="ghost" icon="plus">Ajouter</ui-button>
+        <ui-list-row icon="clock" title="Chaque nuit à 01:00" meta="Personal OS · active"><div slot="below" class="cluster"><ui-button size="sm">Mettre en pause</ui-button><ui-button size="sm" variant="danger">Supprimer</ui-button></div></ui-list-row>
+        <ui-list-row icon="refresh" title="Quand la fenêtre de Claude se réinitialise" meta="Site mairie · active"><div slot="below" class="cluster"><ui-button size="sm">Mettre en pause</ui-button><ui-button size="sm" variant="danger">Supprimer</ui-button></div></ui-list-row>
+        <ui-list-row icon="clock" title="Chaque nuit à 02:00" meta="Crewdeck · en pause depuis hier"><div slot="below" class="cluster"><ui-button size="sm">Reprendre</ui-button><ui-button size="sm" variant="danger">Supprimer</ui-button></div></ui-list-row>
+      </ui-card>
+      <ui-card title="Étapes optionnelles" label="Paramètres / Étapes optionnelles" id="etapes">
+        <p class="text-sm">Par défaut pour tes Projets ; chaque Projet peut les changer.</p>
+        <ui-toggle checked label="Maquettes" help="Les écrans dessinés avant la conception technique."></ui-toggle>
+        <ui-toggle checked label="Revue visuelle" help="Tu relis les captures d’un Ticket qui a des écrans avant son merge."></ui-toggle>
+        <ui-toggle checked label="Revue croisée d’une Conception" help="Un second agent relit le PRD et la conception technique."></ui-toggle>
+        <div class="stack-sm">
+          <span class="field-label">Toujours actives</span>
+          <div class="always"><ui-status-badge>Analyse d’Idée</ui-status-badge><ui-status-badge>Tickets</ui-status-badge><ui-status-badge>Code</ui-status-badge><ui-status-badge>Review</ui-status-badge><ui-status-badge>Checks</ui-status-badge></div>
+        </div>
+      </ui-card>
+      <ui-card title="Par Projet" label="Paramètres / Par Projet" id="projets" flush>
+        <ui-list-row link title="Crewdeck" meta="hérite de ton compte"></ui-list-row>
+        <ui-list-row link title="Personal OS" meta="hérite de ton compte"></ui-list-row>
+        <ui-list-row link title="Site mairie" meta="3 Paramètres modifiés"></ui-list-row>
+      </ui-card>
+      <ui-card title="Pour les Moddeurs" label="Paramètres / Pour les Moddeurs" id="moddeurs" flush>
+        <ui-list-row link icon="layers" title="Bibliothèque de Composants" meta="chaque Composant, ses données, ses actions et ses Emplacements"></ui-list-row>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

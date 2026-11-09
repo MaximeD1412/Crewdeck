@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crewdeck — Composants (galerie)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<script defer src="components.js"></script>
+<style>
+  .gallery { padding: var(--space-6) var(--space-4); display: flex; flex-direction: column; gap: var(--space-8); max-width: var(--page-max); margin: 0 auto; }
+  .gallery > section { display: flex; flex-direction: column; gap: var(--space-4); }
+  .gallery h2.group { font: var(--font-page-title-weight) var(--font-brand-size)/var(--font-page-title-line-height) var(--font-page-title-family), sans-serif; color: var(--ink); border-bottom: 1px solid var(--line); padding-bottom: var(--space-2); }
+  .specimens { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+  .specimen { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+  .specimen > code { color: var(--muted); font-size: var(--font-meta-size); }
+  .demo-shell { height: calc(var(--panel-width) / 2); overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-lg); position: relative; }
+  .demo-shell .shell { min-height: 100%; }
+  .demo-dialog { position: relative; display: flex; justify-content: center; padding: var(--space-4); background: var(--scrim); border-radius: var(--radius-lg); }
+  .swatches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+  .swatch { display: flex; align-items: center; gap: var(--space-2); font: var(--font-meta-weight) var(--font-meta-size)/var(--font-meta-line-height) var(--font-meta-family), monospace; color: var(--ink-2); }
+  .swatch i { width: var(--icon-box); height: var(--icon-box); border-radius: var(--radius); border: 1px solid var(--line-strong); flex: none; }
+  @media (min-width: 1280px) {
+    .gallery { padding: var(--space-10); }
+    .specimens { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .swatches { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : contenus des spécimens -->
+<main class="gallery" aria-label="Galerie / Composants" data-name="Galerie / Composants">
+  <header class="stack-sm">
+    <h1 class="page-title">Passerelle · Composants</h1>
+    <p class="text-sm">Le Skin par défaut de Crewdeck : chaque élément est un Composant qu’un Skin peut remplacer. Survol et focus au pointeur et au clavier.</p>
+  </header>
+
+  <section aria-label="Galerie / Fondations">
+    <h2 class="group">00 Fondations</h2>
+    <div class="swatches">
+      <span class="swatch"><i style="background: var(--ground)"></i>ground</span>
+      <span class="swatch"><i style="background: var(--side)"></i>side</span>
+      <span class="swatch"><i style="background: var(--panel)"></i>panel</span>
+      <span class="swatch"><i style="background: var(--raised)"></i>raised</span>
+      <span class="swatch"><i style="background: var(--sunk)"></i>sunk</span>
+      <span class="swatch"><i style="background: var(--ink)"></i>ink</span>
+      <span class="swatch"><i style="background: var(--muted)"></i>muted</span>
+      <span class="swatch"><i style="background: var(--line-strong)"></i>line-strong</span>
+      <span class="swatch"><i style="background: var(--accent)"></i>accent</span>
+      <span class="swatch"><i style="background: var(--accent-soft)"></i>accent-soft</span>
+      <span class="swatch"><i style="background: var(--go)"></i>go</span>
+      <span class="swatch"><i style="background: var(--caution)"></i>caution</span>
+      <span class="swatch"><i style="background: var(--halt)"></i>halt</span>
+      <span class="swatch"><i style="background: var(--go-soft)"></i>go-soft</span>
+      <span class="swatch"><i style="background: var(--caution-soft)"></i>caution-soft</span>
+      <span class="swatch"><i style="background: var(--halt-soft)"></i>halt-soft</span>
+    </div>
+    <div class="cluster">
+      <ui-icon name="inbox"></ui-icon><ui-icon name="bulb"></ui-icon><ui-icon name="pen"></ui-icon><ui-icon name="loop"></ui-icon>
+      <ui-icon name="calendar"></ui-icon><ui-icon name="chart"></ui-icon><ui-icon name="folder"></ui-icon><ui-icon name="server"></ui-icon>
+      <ui-icon name="settings"></ui-icon><ui-icon name="block"></ui-icon><ui-icon name="gauge"></ui-icon><ui-icon name="eye"></ui-icon>
+      <ui-icon name="doc"></ui-icon><ui-icon name="bolt"></ui-icon><ui-icon name="contract"></ui-icon><ui-icon name="mic"></ui-icon>
+      <ui-icon name="lock"></ui-icon><ui-icon name="shield"></ui-icon><ui-icon name="pr"></ui-icon><ui-icon name="merge"></ui-icon>
+      <ui-icon name="github"></ui-icon><ui-icon name="key"></ui-icon><ui-icon name="layers"></ui-icon><ui-icon name="tree"></ui-icon>
+    </div>
+  </section>
+
+  <section aria-label="Galerie / Cadre et navigation">
+    <h2 class="group">01 Cadre et navigation</h2>
+    <div class="specimen"><code>ui-app-shell current="a-toi" decisions="6"</code>
+      <div class="demo-shell"><ui-app-shell screen="Galerie" current="a-toi" decisions="6" ideas="3" designs="2" loops="2"><ui-page-header title="À toi" count="6 Décisions"><ui-button variant="primary" icon="plus">Noter une Idée</ui-button></ui-page-header></ui-app-shell></div>
+    </div>
+    <div class="specimens">
+      <div class="specimen"><code>ui-app-shell runner="offline"</code>
+        <div class="demo-shell"><ui-app-shell screen="Galerie hors ligne" current="boucle" runner="offline"><ui-page-header title="Boucle"></ui-page-header></ui-app-shell></div></div>
+      <div class="specimen"><code>ui-app-shell runner="resync"</code>
+        <div class="demo-shell"><ui-app-shell screen="Galerie resync" current="idees" runner="resync"><ui-page-header title="Idées"></ui-page-header></ui-app-shell></div></div>
+      <div class="specimen"><code>ui-page-header back title count</code>
+        <ui-page-header screen="Galerie / Idée" back="Idées" title="Agenda partagé" count="Personal OS"><ui-button>Fusionner…</ui-button><ui-button variant="primary">Retenir</ui-button></ui-page-header></div>
+      <div class="specimen"><code>ui-project-filter · ui-chip [selected]</code>
+        <ui-project-filter><ui-chip selected count="6">Tous les Projets</ui-chip><ui-chip count="1">Crewdeck</ui-chip><ui-chip count="3">Personal OS</ui-chip></ui-project-filter></div>
+      <div class="specimen"><code>ui-tabs · ui-tab [selected]</code>
+        <ui-tabs><ui-tab selected count="4">À trier</ui-tab><ui-tab count="7">Analysées</ui-tab><ui-tab count="2">Retenues</ui-tab></ui-tabs></div>
+    </div>
+  </section>
+
+  <section aria-label="Galerie / Actions">
+    <h2 class="group">02 Actions</h2>
+    <div class="specimens">
+      <div class="specimen"><code>ui-button variant="primary|secondary|ghost|danger"</code>
+        <div class="cluster"><ui-button variant="primary" icon="play">Démarrer la Boucle</ui-button><ui-button>Ouvrir</ui-button><ui-button variant="ghost">Annuler</ui-button><ui-button icon="stop">Arrêter</ui-button></div></div>
+      <div class="specimen"><code>ui-button size="sm" · state="disabled|loading"</code>
+        <div class="cluster"><ui-button variant="primary" size="sm">Relire</ui-button><ui-button size="sm">Voir</ui-button><ui-button variant="primary" state="disabled">Merger</ui-button><ui-button variant="primary" state="loading">Merger</ui-button></div></div>
+      <div class="specimen"><code>ui-icon-button</code>
+        <div class="cluster"><ui-icon-button icon="x" label="Fermer"></ui-icon-button><ui-icon-button icon="expand" label="Agrandir"></ui-icon-button><ui-icon-button icon="more" label="Plus d’actions"></ui-icon-button></div></div>
+    </div>
+  </section>
+
+  <section aria-label="Galerie / Signaux">
+    <h2 class="group">03 Signaux</h2>
+    <div class="specimens">
+      <div class="specimen"><code>ui-status-badge tone · ui-status-dot</code>
+        <div class="cluster"><ui-status-badge>Prêt</ui-status-badge><ui-status-badge tone="accent">En review</ui-status-badge><ui-status-badge tone="go">Mergé</ui-status-badge><ui-status-badge tone="caution">Revue visuelle</ui-status-badge><ui-status-badge tone="halt">Bloqué</ui-status-badge><ui-status-dot tone="go" pulse></ui-status-dot><ui-status-dot tone="caution"></ui-status-dot><ui-status-dot tone="halt"></ui-status-dot></div></div>
+      <div class="specimen"><code>ui-banner tone="caution|halt|accent|go"</code>
+        <div class="stack-sm">
+          <ui-banner tone="caution" icon="refresh" title="Resynchronisation…">La connexion a été perdue. Les Actions sensibles reviennent dès que l’état est sûr.</ui-banner>
+          <ui-banner tone="halt" icon="server" title="Runner hors ligne">2 Tickets attendent.<ui-button slot="actions" size="sm">Voir le Runner</ui-button></ui-banner>
+        </div></div>
+      <div class="specimen"><code>ui-empty</code>
+        <ui-card><ui-empty icon="inbox" title="Rien ne t’attend">Les Décisions arrivent ici dès qu’un agent a besoin de toi.</ui-empty></ui-card></div>
+    </div>
+  </section>
+
+  <section aria-label="Galerie / Lignes et cartes">
+    <h2 class="group">04 Lignes et cartes</h2>
+    <div class="specimens">
+      <div class="specimen"><code>ui-card flush · ui-decision-row tone</code>
+        <ui-card title="Décisions" count="3" flush>
+          <ui-decision-row tone="halt" icon="block" kind="Ticket bloqué" title="#42 Connexion GitHub" meta="Crewdeck · Code · il y a 4 min">L’agent ne trouve pas comment tester le renouvellement du jeton.<ui-button slot="actions" size="sm">Ouvrir</ui-button></ui-decision-row>
+          <ui-decision-row tone="caution" icon="gauge" kind="Limite atteinte" title="Claude · fenêtre de 5 h" meta="Personal OS · il y a 12 min">Réinitialisation à 16:40.<ui-button slot="actions" size="sm">Choisir</ui-button></ui-decision-row>
+          <ui-decision-row tone="accent" icon="eye" kind="Revue visuelle" title="#38 Page Planning" meta="Personal OS · il y a 20 min">4 captures.<ui-button slot="actions" size="sm" variant="primary">Relire</ui-button></ui-decision-row>
+        </ui-card></div>
+      <div class="specimen"><code>ui-idea-row state · ui-ticket-row state</code>
+        <ui-card flush>
+          <ui-idea-row title="Exporter le planning en PDF" meta="Personal OS · il y a 2 j" state="analysee" impact="moyen" effort="faible" duplicates="doublon possible : #12">Le Pilote veut partager son planning hors de l’app.</ui-idea-row>
+          <ui-idea-row title="Mode hors ligne" meta="Personal OS · à l’instant" state="en-analyse"></ui-idea-row>
+          <ui-ticket-row number="53" title="Export du planning" meta="Personal OS · Codex" state="en-review"></ui-ticket-row>
+          <ui-ticket-row number="42" title="Connexion GitHub" meta="Crewdeck · Claude Code" state="bloque"></ui-ticket-row>
+          <ui-ticket-row number="40" title="Comptes IA" meta="Crewdeck" state="merge"></ui-ticket-row>
+        </ui-card></div>
+      <div class="specimen"><code>ui-agent-row · ui-usage-meter value projection</code>
+        <ui-card title="Boucles en cours">
+          <ui-agent-row projet="Personal OS" ticket="#53 Export du planning" step="en review" engine="Codex" since="depuis 6 min"></ui-agent-row>
+          <ui-agent-row projet="Site mairie" step="en attente" tone="caution" engine="Runner hors ligne"></ui-agent-row>
+          <ui-usage-meter label="Claude · semaine" value="62" projection="94">À ce rythme : 94 % dimanche.</ui-usage-meter>
+          <ui-usage-meter label="Claude · 5 h" value="86" detail="16:40">Bientôt la limite.</ui-usage-meter>
+          <ui-usage-meter label="Claude · 5 h" value="100" detail="16:40"></ui-usage-meter>
+        </ui-card></div>
+      <div class="specimen"><code>ui-list-row link · ui-key-value · ui-code-block</code>
+        <ui-card flush>
+          <ui-list-row icon="folder" title="Site mairie" meta="1 point à régler" tone="caution" link><ui-status-badge tone="caution">À régler</ui-status-badge></ui-list-row>
+          <ui-list-row icon="folder" title="Personal OS" meta="Prêt pour le Process" tone="go" link><ui-status-badge tone="go">Prêt</ui-status-badge></ui-list-row>
+        </ui-card>
+        <ui-key-value><ui-kv label="Machine">atelier-wsl</ui-kv><ui-kv label="Version">0.4.2</ui-kv></ui-key-value>
+        <ui-code-block>curl -fsSL https://crewdeck.example/install.sh | sh</ui-code-block></div>
+      <div class="specimen"><code>ui-process-track · ui-step state</code>
+        <ui-card><ui-process-track>
+          <ui-step state="done" label="PRD" meta="approuvé le 3 nov."></ui-step>
+          <ui-step state="current" label="Maquettes" meta="en cours · Claude Code"></ui-step>
+          <ui-step state="caution" label="Tickets" meta="Contrat incomplet"></ui-step>
+          <ui-step state="off" label="Revue croisée" meta="désactivée pour ce Projet"></ui-step>
+          <ui-step state="todo" label="Conception technique"></ui-step>
+        </ui-process-track></ui-card></div>
+      <div class="specimen"><code>ui-stat · ui-check-row state</code>
+        <div class="grid-2"><ui-stat label="Délai Idée → merge" value="3,4" unit="j" detail="médiane"></ui-stat><ui-stat label="Succès de la Boucle" value="87" unit="%"></ui-stat></div>
+        <ui-card><ui-check-row name="Tests" state="passed" detail="412 tests"></ui-check-row><ui-check-row name="Lint" state="failed" detail="2 erreurs"></ui-check-row><ui-check-row name="Build" state="running" detail="en cours"></ui-check-row></ui-card></div>
+      <div class="specimen"><code>ui-ticket-tree · ui-tree-node depth blocked-by critical</code>
+        <ui-card><ui-ticket-tree>
+          <ui-tree-node number="44" title="Liste des Projets" state="en-cours" depth="0" critical></ui-tree-node>
+          <ui-tree-node number="45" title="Page d’un Projet" state="pret" depth="1" blocked-by="#44" critical></ui-tree-node>
+          <ui-tree-node number="42" title="Connexion GitHub" state="bloque" depth="0"></ui-tree-node>
+        </ui-ticket-tree></ui-card></div>
+      <div class="specimen"><code>ui-timeline · ui-timeline-row</code>
+        <ui-card><ui-timeline weeks="S46,S47,S48,S49,S50,S51" today="0">
+          <ui-timeline-row label="MVP · Process" detail="8 Tickets" start="0" span="3" meta="fin S48"></ui-timeline-row>
+          <ui-timeline-row label="Statistiques" detail="bloqué par #44" start="2" span="2" tone="caution" meta="S48–S49"></ui-timeline-row>
+        </ui-timeline></ui-card></div>
+      <div class="specimen"><code>ui-capture</code>
+        <ui-capture src="assets/capture-planning-livre-390.svg" label="Livré · 390"></ui-capture></div>
+    </div>
+  </section>
+
+  <section aria-label="Galerie / Session">
+    <h2 class="group">05 Session</h2>
+    <div class="specimens">
+      <div class="specimen"><code>ui-session state="active" · ui-message · ui-tool-call · ui-composer</code>
+        <ui-session title="Concevoir · Agenda partagé" meta="Personal OS · Claude Code" state="active">
+          <ui-tool-call tool="Read" target="docs/product/prd.md" detail="281 lignes"></ui-tool-call>
+          <ui-message from="agent">Je lis le PRD avant de te poser les questions.</ui-message>
+          <ui-message from="pilote">Commence par les rappels.</ui-message>
+          <ui-composer></ui-composer>
+        </ui-session></div>
+      <div class="specimen"><code>ui-question · ui-option · ui-permission-request · ui-composer state="dictating"</code>
+        <div class="stack">
+          <ui-question title="Les rappels partent-ils aussi par e-mail ?"><ui-option selected detail="Reco : le PRD ne parle que du téléphone.">Non, seulement sur le téléphone</ui-option><ui-option>Oui, par e-mail aussi</ui-option></ui-question>
+          <ui-permission-request tool="Bash">git push origin design/agenda-partage</ui-permission-request>
+          <ui-composer state="dictating">Ajoute un état vide pour la liste des rappels</ui-composer>
+        </div></div>
+    </div>
+  </section>
+
+  <section aria-label="Galerie / Formulaires">
+    <h2 class="group">06 Formulaires</h2>
+    <div class="specimens">
+      <div class="specimen"><code>ui-text-field [multiline] state="error|disabled" · ui-select</code>
+        <div class="stack">
+          <ui-text-field label="Ton idée" placeholder="En une phrase" multiline></ui-text-field>
+          <ui-text-field label="Heure" value="25:00" state="error" help="Une heure entre 00:00 et 23:59."></ui-text-field>
+          <ui-select label="Moteur du Rôle Code" value="Claude Code · claude-opus-5-5"></ui-select>
+        </div></div>
+      <div class="specimen"><code>ui-toggle · ui-checkbox · ui-radio · ui-setting-row origin</code>
+        <div class="stack">
+          <ui-toggle label="Notifications sur le téléphone" help="Quand une Décision t’attend et que tu n’es pas là." checked></ui-toggle>
+          <ui-toggle label="Revue visuelle" state="disabled"></ui-toggle>
+          <ui-checkbox checked>Personal OS</ui-checkbox><ui-checkbox>Site mairie</ui-checkbox>
+          <ui-radio checked>Chaque nuit</ui-radio><ui-radio>À une heure</ui-radio>
+          <ui-card>
+            <ui-setting-row label="Revue visuelle" help="Étape optionnelle" origin="projet"><ui-toggle aria="Revue visuelle"></ui-toggle></ui-setting-row>
+            <ui-setting-row label="Rôle Review" origin="compte"><ui-select value="Codex · gpt-5.5"></ui-select></ui-setting-row>
+          </ui-card>
+        </div></div>
+    </div>
+  </section>
+
+  <section aria-label="Galerie / Superpositions">
+    <h2 class="group">07 Superpositions</h2>
+    <div class="specimens">
+      <div class="specimen"><code>ui-dialog</code>
+        <div class="demo-dialog"><ui-dialog title="Noter une Idée"><ui-text-field placeholder="En une phrase" multiline></ui-text-field><ui-button slot="actions" variant="ghost">Annuler</ui-button><ui-button slot="actions" variant="primary">Noter</ui-button></ui-dialog></div></div>
+      <div class="specimen"><code>ui-confirm-dialog (Action sensible)</code>
+        <div class="demo-dialog"><ui-confirm-dialog title="Merger la PR de #38 ?" action="Merger" icon="merge"><p>La PR <b>#38 Page Planning</b> est mergée dans <code>develop</code>.</p></ui-confirm-dialog></div></div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

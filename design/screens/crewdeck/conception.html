@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agenda partagé — Conception</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+</head>
+<body>
+<!-- exemple : Conception, dates, PR et fichiers fictifs -->
+<ui-app-shell screen="Une Conception" current="conceptions" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="Agenda partagé" count="Personal OS" back="Conceptions">
+    <ui-button variant="primary" icon="doc">Relire le PRD</ui-button>
+  </ui-page-header>
+  <div class="layout">
+    <div class="layout-main">
+      <ui-card title="Avancement" label="Une Conception / Avancement">
+        <ui-process-track>
+          <ui-step state="done" label="Idée retenue" meta="3 nov. · « Partager mon agenda avec ma famille »"></ui-step>
+          <ui-step state="current" label="PRD à relire" meta="depuis 14:20 · PR #14 · 2 questions ouvertes"></ui-step>
+          <ui-step state="todo" label="Maquettes" meta="après ton approbation du PRD"></ui-step>
+          <ui-step state="todo" label="Conception technique"></ui-step>
+          <ui-step state="todo" label="Découpage en Tickets"></ui-step>
+        </ui-process-track>
+      </ui-card>
+      <ui-card title="Documents" count="3" label="Une Conception / Documents" flush>
+        <ui-list-row link icon="doc" title="PRD" meta="docs/product/features/agenda-partage.md"><ui-status-badge tone="accent">À relire</ui-status-badge></ui-list-row>
+        <ui-list-row icon="image" title="Maquettes" meta="design/screens/agenda-partage/"><ui-status-badge>À venir</ui-status-badge></ui-list-row>
+        <ui-list-row icon="layers" title="Conception technique" meta="docs/adr/"><ui-status-badge>À venir</ui-status-badge></ui-list-row>
+      </ui-card>
+    </div>
+    <div class="layout-aside">
+      <ui-card title="Session" label="Une Conception / Session">
+        <ui-agent-row projet="Concevoir · Agenda partagé" step="terminée" engine="Claude Code" since="il y a 1 h" tone="neutral"></ui-agent-row>
+        <ui-button icon="terminal">Ouvrir la session</ui-button>
+      </ui-card>
+      <ui-card title="Détails" label="Une Conception / Détails">
+        <ui-key-value>
+          <ui-kv label="Projet">Personal OS</ui-kv>
+          <ui-kv label="Idée">Agenda partagé</ui-kv>
+          <ui-kv label="Démarrée">3 nov. · par toi</ui-kv>
+          <ui-kv label="Rôle Conception">Claude Code</ui-kv>
+        </ui-key-value>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

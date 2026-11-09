@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conceptions — Aucune Conception</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* Conceptions: the four Étapes of each Conception as a compact track */
+  .c-track { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); margin-top: var(--space-1); }
+  .c-track ui-process-track { align-self: stretch; }
+  .c-track .track { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-3); margin-top: var(--space-2); }
+  .c-track .track-step { padding-bottom: 0; align-items: center; gap: var(--space-2); }
+  .c-track .track-step::before { display: none; }
+  .c-track .track-text { padding-top: 0; gap: 0; }
+  .c-track .track-text > b { font-size: var(--font-body-sm-size); line-height: var(--font-body-sm-line-height); }
+  @media (min-width: 1280px) {
+    .c-track { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); margin-top: var(--space-1); }
+  .c-track ui-process-track { align-self: stretch; }
+  .c-track .track { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .shell--with-panel .c-track .track { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<ui-app-shell screen="Conceptions" current="conceptions" decisions="7" ideas="3">
+  <ui-page-header title="Conceptions" count="0 en cours"></ui-page-header>
+  <ui-tabs>
+    <ui-tab selected count="0">En cours</ui-tab>
+    <ui-tab count="0">Terminées</ui-tab>
+  </ui-tabs>
+  <ui-card label="Conceptions / Aucune Conception">
+    <ui-empty icon="pen" title="Aucune Conception en cours">Retiens une Idée pour lancer sa Conception : un agent écrit le PRD avec toi, puis les maquettes et la conception technique, chacun approuvé par toi.<ui-button slot="actions" variant="primary" icon="bulb">Voir les Idées</ui-button></ui-empty>
+  </ui-card>
+</ui-app-shell>
+</body>
+</html>

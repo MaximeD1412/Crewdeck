@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planning</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .tree-card { display: none; }
+  .critical { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+  @media (min-width: 1280px) {
+    .planning-tabs { display: none; }
+    .tree-card { display: block; }
+    .planning-grid .timeline-head, .planning-grid .timeline-row { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+    .planning-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--space-6); align-items: start; }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : milestones, semaines, Tickets et dates estimées fictifs -->
+<ui-app-shell screen="Planning" current="planning" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="Planning" count="Personal OS · 6 Tickets ouverts"></ui-page-header>
+  <ui-project-filter>
+    <ui-chip selected count="6">Personal OS</ui-chip>
+    <ui-chip count="14">Tous les Projets</ui-chip>
+    <ui-chip count="4">Crewdeck</ui-chip>
+    <ui-chip count="4">Site mairie</ui-chip>
+  </ui-project-filter>
+  <ui-tabs class="planning-tabs">
+    <ui-tab selected>Planning</ui-tab>
+    <ui-tab count="6">Arbre des Tickets</ui-tab>
+  </ui-tabs>
+  <div class="planning-grid stack">
+    <div class="stack">
+      <ui-card title="Jalons" count="3" label="Planning / Jalons">
+        <ui-timeline weeks="S45,S46,S47,S48,S49,S50" today="1">
+          <ui-timeline-row label="Agenda" detail="terminé le 6 nov." start="0" span="1" tone="go" meta=""></ui-timeline-row>
+          <ui-timeline-row label="Planning" detail="fin estimée 20 nov." start="1" span="2" tone="accent" meta="3/5"></ui-timeline-row>
+          <ui-timeline-row label="Rappels" detail="bloqué par #51 · fin estimée 4 déc." start="2" span="3" tone="caution" meta="0/3"></ui-timeline-row>
+        </ui-timeline>
+      </ui-card>
+      <ui-card title="Chemin critique" label="Planning / Chemin critique">
+        <div class="critical mono"><span>#51</span><ui-icon name="chevron-right" size="sm"></ui-icon><span>#56</span><ui-icon name="chevron-right" size="sm"></ui-icon><span>#57</span></div>
+        <p class="text-sm">Le jalon Rappels attend #51, interrompu : limite de Claude atteinte. Fin estimée le 4 déc. au rythme actuel de la Boucle.</p>
+      </ui-card>
+      <ui-card title="À suivre" count="2" label="Planning / À suivre" flush>
+        <ui-ticket-row number="55" title="Partage d’un événement" meta="jalon Planning" state="pret"></ui-ticket-row>
+        <ui-ticket-row number="58" title="Impression du planning" meta="jalon Planning · bloqué par #38" state="attente"></ui-ticket-row>
+      </ui-card>
+    </div>
+    <ui-card title="Arbre des Tickets ouverts" count="6" label="Planning / Arbre des Tickets" class="tree-card">
+      <ui-ticket-tree>
+        <ui-tree-node number="51" title="Rappels de l’agenda · limite de Claude atteinte" state="interrompu" depth="0" critical></ui-tree-node>
+        <ui-tree-node number="56" title="Fuseau horaire des rappels" state="attente" depth="1" blocked-by="#51" critical></ui-tree-node>
+        <ui-tree-node number="57" title="Rappels par notification" state="attente" depth="2" blocked-by="#56" critical></ui-tree-node>
+        <ui-tree-node number="38" title="Page Planning" state="revue-visuelle" depth="0"></ui-tree-node>
+        <ui-tree-node number="58" title="Impression du planning" state="attente" depth="1" blocked-by="#38"></ui-tree-node>
+        <ui-tree-node number="53" title="Export du planning" state="en-review" depth="0"></ui-tree-node>
+      </ui-ticket-tree>
+      <p class="text-sm muted">En gras : le chemin critique.</p>
+    </ui-card>
+  </div>
+</ui-app-shell>
+</body>
+</html>

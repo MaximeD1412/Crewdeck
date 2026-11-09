@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Une Idée — Retenue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+</head>
+<body>
+<!-- exemple : Idée, Projet, dates et Étapes optionnelles fictives -->
+<ui-app-shell screen="Une Idée" current="idees" decisions="7" ideas="4" designs="2" loops="2">
+  <ui-page-header screen="Une Idée" back="Idées" title="Chercher dans les recettes par ingrédient" count="#61 · Retenue">
+    <ui-button variant="primary" icon="play">Lancer la Conception</ui-button>
+  </ui-page-header>
+  <div class="layout">
+    <div class="layout-main">
+      <ui-card title="Ce qui va se passer" label="Une Idée / Conception">
+        <p class="text-sm">Un agent mène la Conception avec toi, dans une session que tu suis et à laquelle tu réponds. Rien n’est construit sans ton accord.</p>
+        <ui-process-track>
+          <ui-step state="done" label="Idée analysée et retenue" meta="aujourd’hui"></ui-step>
+          <ui-step state="todo" label="PRD" meta="rédigé avec toi, approuvé par toi"></ui-step>
+          <ui-step state="todo" label="Maquettes" meta="Étape optionnelle · activée · approuvées par toi"></ui-step>
+          <ui-step state="todo" label="Conception technique" meta="approuvée par toi"></ui-step>
+          <ui-step state="todo" label="Tickets" meta="validés par toi en une fois"></ui-step>
+        </ui-process-track>
+        <span class="mono muted">Rôle Conception · Claude Code</span>
+      </ui-card>
+      <ui-card title="Analyse" label="Une Idée / Analyse">
+        <p class="text-sm">Une recherche des recettes de Personal OS qui contiennent un ingrédient donné.</p>
+        <ui-key-value>
+          <ui-kv label="Projet visé">Personal OS</ui-kv>
+          <ui-kv label="Impact">moyen</ui-kv>
+          <ui-kv label="Effort">moyen</ui-kv>
+          <ui-kv label="Doublons possibles">aucun</ui-kv>
+        </ui-key-value>
+      </ui-card>
+    </div>
+    <div class="layout-aside">
+      <ui-card title="Étapes optionnelles · Personal OS" label="Une Idée / Étapes optionnelles" flush>
+        <ui-list-row title="Maquettes" meta="hérité du compte"><ui-status-badge tone="go">activée</ui-status-badge></ui-list-row>
+        <ui-list-row title="Revue croisée de la Conception" meta="hérité du compte"><ui-status-badge tone="go">activée</ui-status-badge></ui-list-row>
+        <ui-list-row title="Revue visuelle des Tickets" meta="hérité du compte"><ui-status-badge tone="go">activée</ui-status-badge></ui-list-row>
+        <ui-list-row link title="Modifier dans les Paramètres du Projet"></ui-list-row>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

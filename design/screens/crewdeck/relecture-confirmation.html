@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relecture — Confirmer l’approbation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* Review pages: « Demander des changements » then « Approuver … », in the page header on the PC, in a bar at the bottom on the phone */
+  .review-head-actions { display: none; }
+  .review-bar {
+    position: sticky; bottom: var(--tab-bar); z-index: 2; display: flex; gap: var(--space-2);
+    margin: 0 calc(var(--space-4) * -1) calc(var(--space-8) * -1); padding: var(--space-3) var(--space-4);
+    background: var(--side); border-top: 1px solid var(--line);
+  }
+  .review-bar .button { flex: 1 1 0; min-width: 0; height: auto; min-height: var(--touch); padding: var(--space-2) var(--space-3); white-space: normal; text-align: center; }
+  @media (min-width: 1280px) {
+    .review-head-actions { display: flex; gap: var(--space-2); }
+    .review-bar { display: none; }
+  }
+</style>
+</head><body>
+<!-- exemple : PRD, PR et remarques fictifs -->
+<ui-app-shell screen="Relecture" current="conceptions" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="PRD · Agenda partagé" back="Agenda partagé" screen="Relecture">
+    <span slot="sub" class="mono">Personal OS · PR #14</span>
+    <span class="review-head-actions"><ui-button>Demander des changements</ui-button><ui-button variant="primary">Approuver le PRD</ui-button></span>
+  </ui-page-header>
+  <div class="layout">
+    <ui-card label="Relecture / Document">
+      <!-- exemple : le PRD tel que le fichier l’écrit (en anglais, la langue des documents des agents) -->
+      <article class="doc">
+        <h2>Agenda partagé — PRD</h2>
+        <p>Feature of Personal OS. Idea: « Partager mon agenda avec ma famille ».</p>
+        <h3>Problem</h3>
+        <ul>
+          <li>Each member keeps their own agenda; shared events are copied by hand and drift apart.</li>
+          <li>Nobody knows who changed an event, nor when.</li>
+        </ul>
+        <h3>Stories</h3>
+        <ul>
+          <li><b>US-14</b> (MVP) As a member, I want to see the events of a shared agenda in my agenda, so that I plan around them.</li>
+          <li><b>US-15</b> (MVP) As the owner, I want to invite a member by email, so that they join the agenda.</li>
+          <li><b>US-16</b> (MVP) As a member, I want to edit a shared event, <mark>every member being allowed to edit it</mark>, so that the agenda stays up to date.</li>
+          <li><b>US-17</b> (MVP) As a member, I want recurring shared events, so that weekly plans are entered once.</li>
+          <li><b>US-18</b> (next) As a member, I want to leave a shared agenda, so that its events leave my agenda.</li>
+        </ul>
+        <h3>Open questions</h3>
+        <ul>
+          <li>What does a member who leaves keep of the events they created?</li>
+          <li>Is an invitation by link allowed, or only by email?</li>
+        </ul>
+      </article>
+    </ui-card>
+    <div class="layout-aside">
+      <ui-card title="Tes remarques" count="1" label="Relecture / Remarques">
+        <ui-message from="pilote">« every member being allowed to edit it » : et si l’auteur ne veut pas ?</ui-message>
+        <ui-text-field label="Ajouter une remarque" placeholder="Sélectionne un passage pour le citer" multiline rows="3"></ui-text-field>
+      </ui-card>
+      <ui-card title="Vérifications" label="Relecture / Vérifications">
+        <ui-check-row name="Contrat du PRD" state="passed" detail="rempli"></ui-check-row>
+        <ui-check-row name="Revue croisée" state="passed" detail="Codex · réglée"></ui-check-row>
+      </ui-card>
+    </div>
+  </div>
+  <div class="review-bar"><ui-button>Demander des changements</ui-button><ui-button variant="primary">Approuver le PRD</ui-button></div>
+  <ui-confirm-dialog slot="overlay" title="Approuver le PRD de « Agenda partagé » ?" action="Approuver le PRD">
+    <p>Crewdeck va :</p>
+    <ul>
+      <li>merger la PR #14 du PRD dans <code>develop</code> ;</li>
+      <li>démarrer l’Étape Maquettes avec le Moteur du Rôle Conception (Claude Code).</li>
+    </ul>
+    <p>Tu relis ensuite les maquettes depuis « À toi ».</p>
+  </ui-confirm-dialog>
+</ui-app-shell>
+</body>
+</html>

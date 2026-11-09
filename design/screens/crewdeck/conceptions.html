@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conceptions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* Conceptions: a compact row per Conception on the phone (badge and « 1/4 »), the four Étapes as a track on the PC */
+  .c-sum { display: flex; align-items: center; gap: var(--space-2); }
+  .c-track { display: none; }
+  .c-track .track { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2) var(--space-3); margin-top: var(--space-2); }
+  .c-track .track-step { padding-bottom: 0; align-items: center; gap: var(--space-2); }
+  .c-track .track-step::before { display: none; }
+  .c-track .track-text { padding-top: 0; gap: 0; }
+  .c-track .track-text > b { font-size: var(--font-body-sm-size); line-height: var(--font-body-sm-line-height); }
+  /* Session: title and meta wrap rather than cut Projet and Moteur */
+  .session-title b, .session-meta { white-space: normal; }
+  @media (min-width: 1280px) {
+    .c-track { display: block; }
+    .c-progress { display: none; }
+    .shell--with-panel .layout { display: flex; flex-direction: column; }
+    .shell--with-panel .chips { flex-wrap: wrap; }
+    .shell--with-panel .c-track .track { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : Conceptions, Projets et dates fictifs -->
+<ui-app-shell screen="Conceptions" current="conceptions" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="Conceptions" count="3 en cours"></ui-page-header>
+  <ui-project-filter>
+    <ui-chip selected count="3">Tous les Projets</ui-chip>
+    <ui-chip count="1">Crewdeck</ui-chip>
+    <ui-chip count="1">Personal OS</ui-chip>
+    <ui-chip count="1">Site mairie</ui-chip>
+  </ui-project-filter>
+  <ui-tabs>
+    <ui-tab selected count="3">En cours</ui-tab>
+    <ui-tab count="4">Terminées</ui-tab>
+  </ui-tabs>
+  <div class="layout">
+    <ui-card label="Conceptions / En cours" flush>
+      <ui-list-row link title="Agenda partagé" meta="Personal OS · retenue le 3 nov.">
+        <div slot="below" class="c-sum"><ui-status-badge tone="accent">PRD à relire</ui-status-badge><span class="c-progress mono muted">Étape 1 sur 4</span></div>
+        <div slot="below" class="c-track">
+          <ui-process-track>
+            <ui-step state="current" label="PRD" meta="à relire"></ui-step>
+            <ui-step state="todo" label="Maquettes"></ui-step>
+            <ui-step state="todo" label="Conception technique"></ui-step>
+            <ui-step state="todo" label="Tickets"></ui-step>
+          </ui-process-track>
+        </div>
+      </ui-list-row>
+      <ui-list-row link title="Notifications" meta="Crewdeck · session active · Claude Code">
+        <div slot="below" class="c-sum"><ui-status-badge tone="accent">Maquettes en cours</ui-status-badge><span class="c-progress mono muted">Étape 2 sur 4</span></div>
+        <div slot="below" class="c-track">
+          <ui-process-track>
+            <ui-step state="done" label="PRD" meta="approuvé"></ui-step>
+            <ui-step state="current" label="Maquettes" meta="en cours"></ui-step>
+            <ui-step state="todo" label="Conception technique"></ui-step>
+            <ui-step state="todo" label="Tickets"></ui-step>
+          </ui-process-track>
+        </div>
+      </ui-list-row>
+      <ui-list-row link title="Actualités" meta="Site mairie · Tickets · hier">
+        <div slot="below" class="c-sum"><ui-status-badge tone="caution">Contrat incomplet</ui-status-badge><span class="c-progress mono muted">Étape 4 sur 4</span></div>
+        <div slot="below" class="c-track">
+          <ui-process-track>
+            <ui-step state="done" label="PRD" meta="approuvé"></ui-step>
+            <ui-step state="done" label="Maquettes" meta="approuvées"></ui-step>
+            <ui-step state="done" label="Conception technique" meta="approuvée"></ui-step>
+            <ui-step state="caution" label="Tickets" meta="Contrat incomplet"></ui-step>
+          </ui-process-track>
+        </div>
+      </ui-list-row>
+    </ui-card>
+    <div class="layout-aside">
+      <ui-card title="Sessions en cours" count="1" label="Conceptions / Sessions en cours">
+        <ui-agent-row projet="Crewdeck" ticket="Notifications · Maquettes" step="maquettes" engine="Claude Code" since="depuis 12 min" tone="accent"><ui-button slot="actions" size="sm">Ouvrir</ui-button></ui-agent-row>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

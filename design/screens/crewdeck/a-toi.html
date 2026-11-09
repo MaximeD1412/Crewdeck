@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>À toi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+</head>
+<body>
+<!-- exemple : Projets, Tickets, heures et usages fictifs -->
+<ui-app-shell screen="À toi" current="a-toi" decisions="7" ideas="3" designs="2" loops="2">
+  <ui-page-header title="À toi" count="7 Décisions">
+    <ui-button variant="primary" icon="plus">Noter une Idée</ui-button>
+  </ui-page-header>
+  <ui-project-filter>
+    <ui-chip selected count="7">Tous les Projets</ui-chip>
+    <ui-chip count="1">Crewdeck</ui-chip>
+    <ui-chip count="3">Personal OS</ui-chip>
+    <ui-chip count="2">Site mairie</ui-chip>
+    <ui-chip count="1">Tennis Manager</ui-chip>
+  </ui-project-filter>
+  <div class="layout">
+    <ui-card title="Décisions" count="7" label="À toi / Décisions" flush>
+      <ui-decision-row tone="halt" icon="block" kind="Ticket bloqué" title="#42 Connexion GitHub" meta="Crewdeck · Code · il y a 4 min">L’agent ne trouve pas comment tester le renouvellement du jeton.<ui-button slot="actions" size="sm">Ouvrir</ui-button></ui-decision-row>
+      <ui-decision-row tone="caution" icon="gauge" kind="Limite atteinte" title="Claude · fenêtre de 5 h" meta="Personal OS · #51 arrêté · il y a 12 min">#51 reprend à la réinitialisation, à 16:40. Sinon, passe le Rôle Code sur Codex.<ui-button slot="actions" size="sm">Attendre 16:40</ui-button><ui-button slot="actions" size="sm">Passer sur Codex</ui-button></ui-decision-row>
+      <ui-decision-row tone="accent" icon="eye" kind="Revue visuelle" title="#38 Page Planning" meta="Personal OS · 4 captures · il y a 20 min">Review et checks passés ; la Boucle continue avec les Tickets qui n’en dépendent pas.<ui-button slot="actions" size="sm" variant="primary">Relire</ui-button></ui-decision-row>
+      <ui-decision-row tone="accent" icon="doc" kind="Conception à relire" title="PRD « Agenda partagé »" meta="Personal OS · Conception · il y a 1 h">12 stories, 2 questions ouvertes.<ui-button slot="actions" size="sm">Relire</ui-button></ui-decision-row>
+      <ui-decision-row tone="caution" icon="bolt" kind="Ticket interrompu" title="#47 Actualités en page d’accueil" meta="Site mairie · Code · il y a 2 h">Le Runner s’est arrêté pendant le Code.<ui-button slot="actions" size="sm">Reprendre</ui-button></ui-decision-row>
+      <ui-decision-row tone="accent" icon="folder" kind="Inventaire à approuver" title="Tennis Manager" meta="Tennis Manager · Projet existant · il y a 3 h">Glossaire, choix techniques et inventaire rédigés depuis le code : à approuver avant le Process.<ui-button slot="actions" size="sm">Relire</ui-button></ui-decision-row>
+      <ui-decision-row tone="caution" icon="contract" kind="Contrat incomplet" title="Découpage « Actualités »" meta="Site mairie · Tickets · hier">2 Tickets sans critère d’acceptation.<ui-button slot="actions" size="sm">Voir</ui-button></ui-decision-row>
+    </ui-card>
+    <div class="layout-aside">
+      <ui-card title="Boucles en cours" count="2" label="À toi / Boucles en cours">
+        <ui-agent-row projet="Personal OS" ticket="#53 Export du planning" step="en review" engine="Codex" since="depuis 6 min"></ui-agent-row>
+        <ui-agent-row projet="Crewdeck" ticket="#44 Liste des Projets" step="code" engine="Claude Code" since="depuis 18 min"></ui-agent-row>
+      </ui-card>
+      <ui-card title="Comptes IA" label="À toi / Comptes IA">
+        <ui-usage-meter label="Claude · 5 h" value="100" detail="16:40"></ui-usage-meter>
+        <ui-usage-meter label="Claude · semaine" value="62">Au rythme actuel, la semaine de Claude tient jusqu’à jeudi.</ui-usage-meter>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

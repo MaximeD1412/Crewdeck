@@ -39,7 +39,13 @@ _Avoid_: workflow, pipeline, méthode
 **Projet** (`Project`):
 One repository (on GitHub at the MVP) followed by the product and prepared for the
 **Process**; a **Pilote** has one or more **Projets**.
-_Avoid_: repo, dépôt (in the UI), app
+_Avoid_: repo, dépôt (in the UI, for a followed one), app
+
+**Dépôt GitHub** (`Repository`):
+A repository of the **Pilote**'s code host that the product does not follow
+yet; once brought in, it is a **Projet**. Used only when picking what to
+follow.
+_Avoid_: repo, Projet (before it is followed)
 
 **Étape** (`Step`):
 One piece of work of the **Process** that an agent does in one **Rôle** with
@@ -190,8 +196,10 @@ _Avoid_: skin, style, palette
 
 **Action sensible** (`SensitiveAction`):
 An action a **Skin** may ask for but that the product always confirms in its
-own dialog: merge, start the **Boucle**, approve a **Conception** (and later
-release). Starting the **Boucle**, or creating its **Planification**, also
+own dialog: merge, start the **Boucle**, approve a document of a
+**Conception** (PRD, mockups, technical design, Tickets), approve the
+inventory of an existing repository (and later release). Starting the
+**Boucle**, or creating or resuming its **Planification**, also
 confirms the merges it does itself, for the Tickets that pass their review,
 until it is stopped or the **Planification** paused or deleted.
 _Avoid_: action critique, action protégée

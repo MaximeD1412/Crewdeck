@@ -26,6 +26,9 @@
     },
     {
       "path": "./infra/provision"
+    },
+    {
+      "path": "./infra/backup"
     }
   ]
 }

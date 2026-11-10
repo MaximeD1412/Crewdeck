@@ -51,6 +51,8 @@ export const zEnv = z
      * production.
      */
     CREWDECK_FAKES: z.literal('1').optional(),
+    /** Production only: the file the nightly backup writes its last success in (INFRA-8), read by `/api/health`. */
+    BACKUP_STATUS_FILE: z.string().min(1).optional(),
     /** Staging only: production's values, which the staging guard refuses. */
     PROD_PUBLIC_URL: zHttpUrl.optional(),
     PROD_GITHUB_APP_ID: z.string().min(1).optional(),

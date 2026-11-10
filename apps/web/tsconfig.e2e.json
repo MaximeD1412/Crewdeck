@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "out-tsc/e2e",
+    "tsBuildInfoFile": "out-tsc/e2e/tsconfig.e2e.tsbuildinfo",
+    "lib": ["es2024", "dom"],
+    "types": ["node"]
+  },
+  "include": ["e2e/**/*.ts", "playwright.config.ts"],
+  "references": [{ "path": "../../packages/contracts/tsconfig.lib.json" }]
+}

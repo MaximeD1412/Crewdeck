@@ -10,3 +10,17 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+/// A Pilote (CONTEXT.md): global, the scope's own key (ADR 0008). CORE-4 adds
+/// the token columns, CORE-5 uses `seq`. Ids are UUIDv7, generated in code
+/// (`src/ids.ts`).
+model Pilot {
+  id           String   @id @db.Uuid
+  githubUserId BigInt   @unique @map("github_user_id")
+  login        String
+  timeZone     String   @map("time_zone")
+  seq          BigInt   @default(0)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("pilots")
+}

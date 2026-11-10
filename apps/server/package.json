@@ -28,10 +28,12 @@
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:",
     "tslib": "catalog:",
+    "uuid": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@nestjs/testing": "catalog:",
+    "@prisma/get-dmmf": "catalog:",
     "@swc/core": "catalog:",
     "@types/pg": "catalog:",
     "unplugin-swc": "catalog:"

@@ -1,0 +1,58 @@
+name: Install the browsers in scope
+description: >-
+  Chromium, with its system dependencies, when a project in scope runs the
+  target in a browser through Playwright: the Composants' tests (Vitest
+  browser mode) and the end-to-end tests. A browser costs a minute: nothing is
+  installed otherwise. Runs after ./.github/actions/setup.
+
+inputs:
+  target:
+    description: 'The Nx target about to run (`test`, `e2e`)'
+    required: true
+  scope:
+    description: '`affected` or `full`'
+    required: true
+
+outputs:
+  projects:
+    description: 'The projects in scope with the target, space-separated (empty: nothing to run)'
+    value: ${{ steps.find.outputs.projects }}
+
+runs:
+  using: composite
+  steps:
+    - name: Find the projects in scope that need a browser
+      id: find
+      shell: bash
+      env:
+        TARGET: ${{ inputs.target }}
+        SCOPE: ${{ inputs.scope }}
+      run: |
+        affected=()
+        if [ "$SCOPE" = affected ]; then affected=(--affected); fi
+        work=$(mktemp -d)
+        pnpm exec nx show projects "${affected[@]}" --withTarget "$TARGET" --json > "$work/names.json"
+        pnpm exec nx graph --file=stdout > "$work/graph.json"
+        node "$GITHUB_ACTION_PATH/find.mjs" "$work/names.json" "$work/graph.json" | tee -a "$GITHUB_OUTPUT"
+
+    - name: Cache the Playwright browsers
+      id: cache
+      if: steps.find.outputs.playwright != ''
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.find.outputs.playwright }}
+
+    # Chromium only: the tests and the captures use one browser (INFRA-4).
+    - name: Install Chromium
+      if: steps.find.outputs.playwright != ''
+      shell: bash
+      env:
+        ROOT: ${{ steps.find.outputs.root }}
+        CACHED: ${{ steps.cache.outputs.cache-hit }}
+      run: |
+        if [ "$CACHED" = true ]; then
+          pnpm --dir "$ROOT" exec playwright install-deps chromium
+        else
+          pnpm --dir "$ROOT" exec playwright install --with-deps chromium
+        fi

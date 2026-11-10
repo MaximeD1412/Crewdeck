@@ -2,9 +2,11 @@
 // What the core loads before the Skin (apps/web/src/main.ts): the tokens and the document's ground.
 import './tokens.css';
 import './document.css';
-import { COMPOSANTS, t, type AnyComposant } from '@crewdeck/sdk';
+import { CD_ACTION, COMPOSANTS, t, zCdActionDetail, type AnyComposant, type CdActionDetail } from '@crewdeck/sdk';
 import type { LitElement } from 'lit';
+import { COPIED_MS } from './code-block.js';
 import passerelle from './index.js';
+import { fillSlots } from './slots.js';
 
 /** What the core does at boot: each implementation under its canonical tag. */
 beforeAll(() => {
@@ -17,12 +19,54 @@ beforeAll(() => {
 const render = async (declaration: AnyComposant, data: unknown, slots: Record<string, string> = {}) => {
   const el = document.createElement(declaration.tag) as LitElement & { data: unknown };
   el.data = data;
-  el.innerHTML = Object.entries(slots)
-    .map(([slot, html]) => `<div slot="${slot}">${html}</div>`)
-    .join('');
+  el.append(...fillSlots(slots));
   document.body.append(el);
-  await el.updateComplete;
+  await settle(el);
   return el;
+};
+
+/** Waits for `root` and every Composant rendered inside it, through their shadow roots. */
+const settle = async (root: Element): Promise<void> => {
+  const pending = [root, ...root.querySelectorAll('*'), ...(root.shadowRoot?.querySelectorAll('*') ?? [])];
+  for (const el of pending) {
+    if (el.localName.startsWith('cd-')) {
+      await (el as LitElement).updateComplete;
+      if (el !== root) await settle(el);
+    }
+  }
+};
+
+/** The element inside `host` at `selectors`, one per shadow root crossed. */
+const inside = <E extends Element = HTMLElement>(host: Element, ...selectors: string[]): E => {
+  let node: Element = host;
+  for (const selector of selectors) {
+    const next = (node.shadowRoot ?? node).querySelector(selector);
+    if (!next) throw new Error(`nothing at ${selectors.join(' >>> ')}`);
+    node = next;
+  }
+  return node as E;
+};
+
+/** The `cd-action`s reaching the document while `act` runs. */
+const actionsOf = async (act: () => unknown): Promise<CdActionDetail[]> => {
+  const details: CdActionDetail[] = [];
+  const listener = (event: Event) => details.push((event as CustomEvent<CdActionDetail>).detail);
+  document.addEventListener(CD_ACTION, listener);
+  try {
+    await act();
+  } finally {
+    document.removeEventListener(CD_ACTION, listener);
+  }
+  return details;
+};
+
+const textOf = (el: Element | null | undefined) => el?.textContent?.replace(/\s+/g, ' ').trim();
+
+/** How each declared action is set off from the first example: a test fails for an action without one. */
+const TRIGGERS: Readonly<Record<string, (el: Element) => void>> = {
+  'ProjectFilter.select': (el) => inside(el, 'cd-chip:nth-of-type(2)', 'button').click(),
+  'Tabs.select': (el) => inside(el, 'button[role=tab]:nth-of-type(2)').click(),
+  'PageComposants.select': (el) => inside(el, 'nav cd-list-row:not(:has(cd-status-badge))', 'a').click(),
 };
 
 afterEach(() => document.body.replaceChildren());
@@ -46,8 +90,304 @@ describe('the Passerelle Skin', () => {
           expect(el.shadowRoot?.childElementCount).toBeGreaterThan(0);
         },
       );
+
+      it.each(Object.keys(declaration.actions).map((action) => [action] as const))(
+        'emits a valid cd-action for « %s »',
+        async (action) => {
+          const trigger = TRIGGERS[`${declaration.name}.${action}`];
+          expect(trigger, `no trigger for ${declaration.name}.${action}`).toBeDefined();
+          const [example] = declaration.examples;
+          const el = await render(declaration, example?.data, example?.slots as Record<string, string> | undefined);
+          const details = await actionsOf(() => trigger?.(el));
+          expect(details).toHaveLength(1);
+          const detail = zCdActionDetail.parse(details[0]);
+          expect(detail).toMatchObject({ composant: declaration.name, action });
+          const actions: Record<string, { safeParse: (value: unknown) => { success: boolean } }> = declaration.actions;
+          expect(actions[action]?.safeParse(detail.payload).success).toBe(true);
+        },
+      );
     },
   );
+});
+
+describe('Icon', () => {
+  it('is an inline stroke SVG in the current colour, hidden from screen readers', async () => {
+    const el = await render(COMPOSANTS.Icon, { name: 'bell', size: 'sm' });
+    const svg = inside(el, 'svg');
+    expect(svg.getAttribute('aria-hidden')).toBe('true');
+    expect(svg.getAttribute('stroke')).toBe('currentColor');
+    expect(svg.getAttribute('viewBox')).toBe('0 0 24 24');
+    expect(svg.querySelector('path')).not.toBeNull();
+  });
+});
+
+describe('Button', () => {
+  const merge = { label: 'Merger', variant: 'primary', size: 'md', icon: 'merge' } as const;
+
+  it('is a native button with its label', async () => {
+    const el = await render(COMPOSANTS.Button, merge);
+    const button = inside<HTMLButtonElement>(el, 'button');
+    expect(button.type).toBe('button');
+    expect(textOf(button)).toBe('Merger');
+    button.focus();
+    expect(el.shadowRoot?.activeElement).toBe(button);
+  });
+
+  it('disabled with a reason shows the reason beside it, describes itself with it, and is neither focusable nor pressable', async () => {
+    const el = await render(COMPOSANTS.Button, { ...merge, state: 'disabled', disabledReason: 'Indisponible pendant la Resynchronisation' });
+    const button = inside<HTMLButtonElement>(el, 'button');
+    expect(button.disabled).toBe(true);
+    const reason = inside(el, `#${button.getAttribute('aria-describedby')}`);
+    expect(textOf(reason)).toBe('Indisponible pendant la Resynchronisation');
+    expect(reason.getBoundingClientRect().width).toBeGreaterThan(0);
+    button.focus();
+    expect(el.shadowRoot?.activeElement).toBeNull();
+    const pressed = vi.fn();
+    document.body.addEventListener('click', pressed);
+    reason.click();
+    el.click();
+    document.body.removeEventListener('click', pressed);
+    expect(pressed).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['with an icon', merge],
+    ['without an icon', { label: 'Enregistrer', variant: 'secondary', size: 'sm' }],
+  ] as const)('loading %s keeps its width, busy and not pressable', async (_case, data) => {
+    const idle = await render(COMPOSANTS.Button, data);
+    const loading = await render(COMPOSANTS.Button, { ...data, state: 'loading' });
+    const width = (el: Element) => inside(el, 'button').getBoundingClientRect().width;
+    expect(width(loading)).toBeCloseTo(width(idle), 1);
+    const button = inside<HTMLButtonElement>(loading, 'button');
+    expect(button.getAttribute('aria-busy')).toBe('true');
+    expect(button.disabled).toBe(true);
+    expect(loading.shadowRoot?.querySelector('.spinner')).not.toBeNull();
+    expect(textOf(button)).toBe(data.label);
+  });
+});
+
+describe('IconButton', () => {
+  it('is a button named by its label', async () => {
+    const el = await render(COMPOSANTS.IconButton, { icon: 'x', label: 'Fermer' });
+    expect(inside(el, 'button').getAttribute('aria-label')).toBe('Fermer');
+  });
+});
+
+describe('StatusDot', () => {
+  it('keeps its label for screen readers only', async () => {
+    const el = await render(COMPOSANTS.StatusDot, { tone: 'go', pulse: true, label: 'en ligne' });
+    expect(textOf(el.shadowRoot?.querySelector('.visually-hidden'))).toBe('en ligne');
+    expect(inside(el, '.dot').getAttribute('aria-hidden')).toBe('true');
+  });
+});
+
+describe('Banner', () => {
+  it.each([
+    ['caution', 'status'],
+    ['accent', 'status'],
+    ['halt', 'alert'],
+  ] as const)('%s is a %s', async (tone, role) => {
+    const el = await render(COMPOSANTS.Banner, { tone, title: 'Runner hors ligne' });
+    expect(el.shadowRoot?.querySelector(`[role=${role}]`)).not.toBeNull();
+  });
+
+  it('hides its actions’ row without actions', async () => {
+    const bare = await render(COMPOSANTS.Banner, { tone: 'accent', title: 'Info' }, { default: 'Un texte.' });
+    expect(inside(bare, '.actions').hidden).toBe(true);
+    const full = await render(COMPOSANTS.Banner, { tone: 'accent', title: 'Info' }, { actions: '<button>Voir</button>' });
+    expect(inside(full, '.actions').hidden).toBe(false);
+  });
+});
+
+describe('ProjectFilter', () => {
+  it('selects « Tous les Projets » with a null projectId, and a Project with its id', async () => {
+    const [example] = COMPOSANTS.ProjectFilter.examples;
+    const el = await render(COMPOSANTS.ProjectFilter, example?.data);
+    const chips = el.shadowRoot?.querySelectorAll('cd-chip') ?? [];
+    const details = await actionsOf(() => {
+      for (const chip of chips) inside(chip, 'button').click();
+    });
+    expect(details.map((detail) => detail.payload)).toEqual(
+      example?.data.chips.map((chip) => ({ projectId: chip.projectId })),
+    );
+    expect(details[0]?.payload).toEqual({ projectId: null });
+    expect(inside(chips[0] as Element, 'button').getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+describe('Tabs', () => {
+  const data = {
+    tabs: [
+      { id: 'a', label: 'A', selected: true },
+      { id: 'b', label: 'B', selected: false },
+      { id: 'c', label: 'C', selected: false },
+    ],
+  };
+
+  it('is a tablist where only the selected tab is in the tab order', async () => {
+    const el = await render(COMPOSANTS.Tabs, data);
+    const tabs = [...(el.shadowRoot?.querySelectorAll('[role=tablist] > [role=tab]') ?? [])];
+    expect(tabs.map((tab) => [tab.getAttribute('aria-selected'), tab.getAttribute('tabindex')])).toEqual([
+      ['true', '0'],
+      ['false', '-1'],
+      ['false', '-1'],
+    ]);
+  });
+
+  it.each([
+    ['ArrowRight', 'b'],
+    ['ArrowLeft', 'c'],
+    ['End', 'c'],
+    ['Home', 'a'],
+  ] as const)('%s from the first tab selects « %s » and moves the focus there', async (key, id) => {
+    const el = await render(COMPOSANTS.Tabs, data);
+    const first = inside(el, '[role=tab]');
+    first.focus();
+    const details = await actionsOf(() => first.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, composed: true })));
+    expect(details.map((detail) => detail.payload)).toEqual([{ id }]);
+    expect(textOf(el.shadowRoot?.activeElement)).toBe(id.toUpperCase());
+  });
+});
+
+describe('Card', () => {
+  it('is a section landmark named by its label, with its title as a heading', async () => {
+    const el = await render(COMPOSANTS.Card, { title: 'Projets', count: 2, label: 'Projets' });
+    expect(inside(el, 'section').getAttribute('aria-label')).toBe('Projets');
+    expect(textOf(inside(el, 'h2'))).toMatch(/^Projets/);
+    expect(textOf(inside(el, 'h2 .count'))).toBe('2');
+    const plain = await render(COMPOSANTS.Card, { title: 'Projets' });
+    expect(plain.shadowRoot?.querySelector('section')).toBeNull();
+  });
+});
+
+describe('ListRow', () => {
+  it('with href is a link on the whole row', async () => {
+    const el = await render(COMPOSANTS.ListRow, { title: 'Runner', href: '/runner' }, { trailing: '<span>ok</span>' });
+    const link = inside<HTMLAnchorElement>(el, 'a');
+    expect(link.getAttribute('href')).toBe('/runner');
+    expect(link.querySelector('slot[name=trailing]')).not.toBeNull();
+  });
+});
+
+describe('KeyValue', () => {
+  it('is a description list', async () => {
+    const el = await render(COMPOSANTS.KeyValue, { items: [{ label: 'Moteur', value: 'claude', mono: true }] });
+    expect(textOf(inside(el, 'dl dt'))).toBe('Moteur');
+    expect(textOf(inside(el, 'dl dd'))).toBe('claude');
+  });
+});
+
+describe('CodeBlock', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('copies its command and says « Copié » for 2 s', async () => {
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+    const el = (await render(COMPOSANTS.CodeBlock, { code: 'crewdeck-runner login' })) as LitElement;
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const button = inside(el, 'button');
+    expect(textOf(button)).toBe(t('codeBlock.copy'));
+    button.click();
+    await vi.waitFor(() => expect(textOf(button)).toBe(t('codeBlock.copied')));
+    expect(writeText).toHaveBeenCalledWith('crewdeck-runner login');
+    expect(textOf(el.shadowRoot?.querySelector('[role=status]'))).toBe(t('codeBlock.copied'));
+    vi.advanceTimersByTime(COPIED_MS);
+    await el.updateComplete;
+    expect(textOf(button)).toBe(t('codeBlock.copy'));
+  });
+});
+
+describe('PageHeader', () => {
+  it('is a header with one h1, its count and its back link', async () => {
+    const el = await render(COMPOSANTS.PageHeader, { title: 'Bibliothèque', count: 'Banner', back: { label: 'Paramètres', href: '/parametres' } });
+    expect(el.shadowRoot?.querySelectorAll('header h1')).toHaveLength(1);
+    expect(textOf(inside(el, '.count'))).toBe('Banner');
+    expect(inside(el, 'a').getAttribute('href')).toBe('/parametres');
+  });
+});
+
+describe('PageComposants', () => {
+  const example = COMPOSANTS.PageComposants.examples[0];
+
+  it('lists the catalogue as links to ?c=, the open one badged « ouvert »', async () => {
+    const el = await render(COMPOSANTS.PageComposants, example?.data);
+    const rows = [...(el.shadowRoot?.querySelectorAll('nav cd-list-row') ?? [])];
+    expect(rows.map((row) => inside(row, 'a').getAttribute('href'))).toEqual([
+      '/parametres/composants?c=PageHeader',
+      '/parametres/composants?c=Banner',
+      '/parametres/composants?c=Button',
+    ]);
+    const open = rows.filter((row) => row.querySelector('cd-status-badge'));
+    expect(open.map((row) => textOf(inside(row, '.title')))).toEqual(['Banner']);
+    expect(textOf(inside(open[0]?.querySelector('cd-status-badge') as Element, 'span'))).toBe(t('composants.page.badge.open'));
+  });
+
+  it('names each row of the catalogue by its Composant alone, its tag and version in the open one’s card', async () => {
+    const el = await render(COMPOSANTS.PageComposants, example?.data);
+    const rows = [...(el.shadowRoot?.querySelectorAll('nav cd-list-row') ?? [])];
+    expect(rows.map((row) => textOf(inside(row, 'a')))).toEqual(['PageHeader', 'Banner', 'Button']);
+    expect(textOf(inside(el, '.contract .identity'))).toBe(`cd-banner · ${t('composants.page.version', { version: 1 })}`);
+  });
+
+  it('fits the table of the fields in a phone’s width, a long type wrapped', async () => {
+    const el = await render(COMPOSANTS.PageComposants, {
+      ...example?.data,
+      selected: {
+        ...example?.data.selected,
+        fields: [{ name: 'icon', type: 'IconName | undefined', description: 'Son icône, « info » sans elle, à gauche du titre.' }],
+      },
+    });
+    el.style.display = 'block';
+    el.style.width = '390px';
+    await settle(el);
+    const scroller = el.shadowRoot?.querySelector('table')?.parentElement;
+    expect(scroller?.scrollWidth).toBeLessThanOrEqual(scroller?.clientWidth ?? 0);
+  });
+
+  it('previews each example with the real element, its data and its Emplacements', async () => {
+    const el = await render(COMPOSANTS.PageComposants, example?.data);
+    const preview = inside(el, '.stage cd-banner') as HTMLElement & { data: unknown };
+    expect(preview.data).toEqual(example?.data.selected.examples[0]?.data);
+    expect(textOf(preview)).toBe('Un instant.');
+    expect(preview.shadowRoot?.childElementCount).toBeGreaterThan(0);
+  });
+
+  it('keeps a preview’s links and actions inside it', async () => {
+    const el = await render(COMPOSANTS.PageComposants, {
+      ...example?.data,
+      selected: {
+        ...example?.data.selected,
+        name: 'Tabs',
+        tag: 'cd-tabs',
+        examples: [{ name: 'deux', data: { tabs: [{ id: 'a', label: 'A', selected: true }, { id: 'b', label: 'B', selected: false }] } }],
+      },
+    });
+    const details = await actionsOf(() => inside(el, '.stage cd-tabs', '[role=tab]').click());
+    expect(details).toEqual([]);
+  });
+
+  it('lets the keyboard scroll the table of the fields, named after its card', async () => {
+    const el = await render(COMPOSANTS.PageComposants, example?.data);
+    const table = el.shadowRoot?.querySelector('table');
+    const scroller = table?.parentElement;
+    expect(scroller?.tabIndex).toBe(0);
+    expect(scroller?.getAttribute('role')).toBe('group');
+    expect(scroller?.getAttribute('aria-label')).toBe(t('composants.page.data'));
+  });
+
+  it('shows the fields with their types, the actions with their badge, the Emplacements', async () => {
+    const el = await render(COMPOSANTS.PageComposants, example?.data);
+    const cells = [...(el.shadowRoot?.querySelectorAll('tbody tr') ?? [])].map((row) =>
+      [...row.querySelectorAll('td')].map((cell) => textOf(cell)),
+    );
+    expect(cells).toEqual([
+      ['tone', 'Tone', 'Sa couleur.'],
+      ['title', 'string', 'Son titre.'],
+    ]);
+    const badges = [...(el.shadowRoot?.querySelectorAll('.contract cd-list-row cd-status-badge') ?? [])].map((badge) =>
+      textOf(inside(badge, 'span')),
+    );
+    expect(badges).toEqual([t('composants.page.badge.free'), t('composants.page.badge.sensitive')]);
+  });
 });
 
 describe('PageIntrouvable', () => {

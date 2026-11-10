@@ -1,0 +1,65 @@
+import { z } from 'zod';
+
+/**
+ * The names of the Passerelle's icons: the `P` map of `design/components.js`
+ * (24×24, stroke 2, round caps). A Skin draws each of them.
+ */
+export const ICON_NAMES = [
+  'alert',
+  'arrow-left',
+  'bell',
+  'block',
+  'bolt',
+  'branch',
+  'bulb',
+  'calendar',
+  'chart',
+  'check',
+  'chevron-down',
+  'chevron-right',
+  'clock',
+  'contract',
+  'copy',
+  'doc',
+  'expand',
+  'external',
+  'eye',
+  'folder',
+  'gauge',
+  'github',
+  'image',
+  'inbox',
+  'info',
+  'key',
+  'layers',
+  'lock',
+  'loop',
+  'mark',
+  'merge',
+  'mic',
+  'more',
+  'pause',
+  'pen',
+  'play',
+  'plus',
+  'pr',
+  'refresh',
+  'send',
+  'server',
+  'settings',
+  'shield',
+  'sliders',
+  'spark',
+  'stop',
+  'terminal',
+  'ticket',
+  'trash',
+  'tree',
+  'user',
+  'wifi',
+  'x',
+] as const;
+
+/** An icon of the Skin, by name. */
+export const zIconName = z.enum(ICON_NAMES).meta({ title: 'IconName' });
+export type IconName = z.infer<typeof zIconName>;

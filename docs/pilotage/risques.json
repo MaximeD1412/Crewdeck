@@ -762,6 +762,11 @@
           "fait": true
         },
         {
+          "texte": "Bibliothèque /parametres/composants : contrat, aperçu et exemples des 15 Composants de base ; une clé t() manquante fait échouer la suite",
+          "ref": "ADR 0006",
+          "fait": true
+        },
+        {
           "texte": "Premiers fichiers à imiter (decision-row côté contrats et Skin, vue a-toi)",
           "ref": "ADR 0006",
           "fait": false

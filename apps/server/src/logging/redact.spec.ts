@@ -4,6 +4,7 @@ import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
 import { startApp } from '../../test/route-baseline.js';
 import { parseEnv } from '../config/env.js';
+import { Public } from '../scope/public.decorator.js';
 import { REDACT_CENSOR, REDACT_PATHS } from './redact.js';
 
 const SECRETS = {
@@ -20,6 +21,7 @@ const SECRETS = {
 class SealedDto extends createZodDto(z.object({ ciphertext: z.string(), payload: z.string() })) {}
 
 @Controller('probe')
+@Public()
 class ProbeController {
   constructor(@InjectPinoLogger('Probe') private readonly logger: PinoLogger) {}
 

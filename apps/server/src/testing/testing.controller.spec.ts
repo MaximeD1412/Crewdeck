@@ -11,12 +11,13 @@ const fakeDatabase = (tables: string[]) => {
   return {
     statements,
     prisma: {
-      $queryRaw: () => Promise.resolve(tables.map((tablename) => ({ tablename }))),
-      $executeRawUnsafe: (sql: string) => {
-        statements.push(sql);
-        return Promise.resolve(0);
+      unscoped: {
+        $queryRaw: () => Promise.resolve(tables.map((tablename) => ({ tablename }))),
+        $executeRawUnsafe: (sql: string) => {
+          statements.push(sql);
+          return Promise.resolve(0);
+        },
       },
-      $disconnect: () => Promise.resolve(),
     },
   };
 };

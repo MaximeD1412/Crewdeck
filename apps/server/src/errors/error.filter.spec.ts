@@ -4,6 +4,7 @@ import { createZodDto, ZodResponse } from 'nestjs-zod';
 import { z } from 'zod';
 import { expectEnvelope, expectFields, startApp } from '../../test/route-baseline.js';
 import { parseEnv } from '../config/env.js';
+import { Public } from '../scope/public.decorator.js';
 import { AppError, conflict, notFound, unprocessable } from './app-error.js';
 
 class ProbeInputDto extends createZodDto(z.object({ name: z.string().min(1), items: z.array(z.object({ id: zId })) })) {}
@@ -17,6 +18,7 @@ class DenyGuard implements CanActivate {
 }
 
 @Controller('probe')
+@Public()
 class ProbeController {
   @Post('record')
   record(@Body() input: ProbeRecordDto): { size: number } {

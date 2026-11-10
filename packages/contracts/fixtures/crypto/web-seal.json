@@ -5,11 +5,14 @@
     "seed": "Y3Jld2RlY2std2ViL3dyYXA",
     "recipientPrivateKey": "MQtvrF8TB47lbTCl433KyqPeDJ_0I4htQJ153500lqI",
     "recipientPublicKey": "zu3KFHwF-mEnKgYhE8qn5Wk3JSzjsyg3e-5ECMTiUkw",
+    "senderPrivateKey": "Che4cQYV_kLeFiZupi_NUyri02JkE0AYQvq14iw1H28",
+    "senderPublicKey": "HFUEbOcjXYsL-CDYPinMyddHyPMsKUzYLWBCwbHCsGs",
     "info": "crewdeck/v1/vault-wrap",
     "aad": "ZGV2XzAxSjlaUTNNOjE",
     "plaintext": "YSAzMi1ieXRlIHZhdWx0IGtleSBmcm9tIHRoZSB3ZWI",
     "enc": "pq9eiwF52tEyFjJuEkDpSh5UMn22iwSVXmXC5hFJYh8",
-    "ciphertext": "wTL5LWToq7oUQ938qfGrNDQOUJcosPWprfFNGfTX8UYUXnLqvpsA9kOUBVji0tQv"
+    "ciphertext": "wTL5LWToq7oUQ938qfGrNDQOUJcosPWprfFNGfTX8UYUXnLqvpsA9kOUBVji0tQv",
+    "tag": "CwkgOJ-p6LE8SLProFS4v-RbatHFklBnWsvNY9SXiVo"
   },
   "aesGcm": {
     "name": "web-session-input",

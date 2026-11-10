@@ -103,8 +103,10 @@ ciphertext    = AES-256-GCM(key, nonce = base_nonce, aad, plaintext)
 Open recomputes `dh = X25519(skR, enc)` and `pkR = X25519(skR, 9)`, then the
 same schedule. The nonce is not sent: it is `base_nonce`, sequence number 0,
 and a context serves one encryption only, since each seal has its own
-ephemeral key. On the wire a wrap is `{ enc, ciphertext }`, both base64url;
-`ciphertext` is `len(plaintext) + 16` bytes (48 for a 32-byte key).
+ephemeral key. `ciphertext` is `len(plaintext) + 16` bytes (48 for a 32-byte
+key). A holder never installs a key from this bare wrap: base mode does not
+authenticate who sealed it, so every wrap between holders is an
+[authenticated wrap](#authenticated-wraps).
 
 ### `info`, one per use
 
@@ -130,6 +132,48 @@ exact layout of each use is fixed by the ticket that introduces it:
 | The vault key for a holder | `holderId ‖ vaultKeyVersion` | E2E-2 |
 | An item | the item's id and field | E2E-2, IDEE-1 |
 | A Session key for a holder | the Session id and the holder's id | SESSION-1 |
+
+## Authenticated wraps
+
+HPKE's base mode does not authenticate the sender (RFC 9180, §9.1.2): anyone
+holding `pkR`, the server included, can seal for it. Binding the public keys
+in the pairing proofs is not enough: the server could relay the proofs
+untouched, then swap the vault wrap for `hpkeSeal(pkR, a key it chose, info,
+aad)`, and the recipient would install a key the server knows. So each wrap
+also carries a tag that only its sender and its recipient can compute, from
+their static X25519 keys, over the whole wrap and its context:
+
+```
+dh      = X25519(skS, pkR) = X25519(skR, pkS)        refused if all zeros
+authKey = HKDF-SHA256(salt = "", ikm = dh,
+                      info = "crewdeck/v1/wrap-auth" ‖ pkS ‖ pkR, L = 32)
+tag     = HMAC-SHA256(authKey, u16(len(info)) ‖ info ‖ u16(len(aad)) ‖ aad ‖ enc ‖ ciphertext)
+```
+
+- `pkS` and `pkR` are the sender's and the recipient's 32-byte public keys,
+  in that order; a holder wrapping for itself (an Appareil's own vault wrap)
+  has `pkS = pkR`. `info` and `aad` are length-prefixed (at most 65535 bytes
+  each); `enc` is always 32 bytes, so `ciphertext` is the rest.
+- `sealWrap(skS, pkR, plaintext, info, aad) → { enc, ciphertext, tag }` and
+  `openWrap(skR, pkS, wrap, info, aad) → plaintext` (Go: `SealWrap`,
+  `OpenWrap`). `openWrap` checks the tag in constant time **before**
+  opening; a wrong tag is the same `OpenError` / `ErrOpen` as a failed open.
+  On the wire a wrap is `{ enc, ciphertext, tag }`, each base64url.
+- The server, without `skS` nor `skR`, cannot compute `authKey`: it cannot
+  make a tag for a substituted `enc` or `ciphertext`, nor move a tag to
+  another `info`, `aad` or recipient. The recipient could forge a wrap "from"
+  the sender to itself, which gains it nothing.
+- **`pkS` is only ever a key the recipient already authenticated**, never
+  one the server hands over with the wrap: the peer's key checked by a
+  pairing proof (E2E-2, E2E-3), its own key, or a key a holder it trusts
+  vouched for in an authenticated wrap. Each holder keeps these keys locally.
+
+| Wrap | Sender | Recipient | Ticket |
+|---|---|---|---|
+| The vault key, at the first pairing | the first Appareil | the Runner, and the Appareil itself | E2E-2: the Runner opens it with the `devicePublicKey` the device proof authenticated; the Appareil, at each boot, with its own key |
+| The vault key, for a new Appareil | the approving holder | the new Appareil | E2E-3: the new Appareil opens it with the approver's key the approval proof authenticated |
+| The vault key of a new version | the rotating holder | each holder kept | E2E-4: only from a holder that was not revoked |
+| A Session key | the Runner | each holder opening the Session | SESSION-1: opened with the Runner's key authenticated at pairing |
 
 ## AES-256-GCM: items and Session frames
 
@@ -179,6 +223,11 @@ another:
 `shortId` enters as its 4 ASCII characters; the public keys as 32 raw bytes
 each. The secret is the 16 bytes the code's base32 decodes to.
 
+The proofs authenticate the public keys only; what is wrapped after them is
+authenticated by the [wrap's tag](#authenticated-wraps), computed with those
+keys. A holder verifies the proof first, then opens the wrap with the key the
+proof authenticated.
+
 ## Code formats: Crockford base32
 
 `encodeBase32(bytes)` / `decodeBase32(text)` (Go: `EncodeBase32`,
@@ -203,7 +252,7 @@ copied or scanned, never typed (ADR 0003).
 | The server sees | It never sees |
 |---|---|
 | The key holders' public keys, the short ids, the proofs | A link secret, a private key |
-| The wraps `{ enc, ciphertext }` of the vault key, the Session keys | The vault key, an item key, a Session key |
+| The wraps `{ enc, ciphertext, tag }` of the vault key, the Session keys | The vault key, an item key, a Session key |
 | The items' ciphertext (stored), the Session frames (relayed, not stored), their nonces and lengths | Any plaintext of an Idée, a Session, a diff or a log |
 | The ids and numbers bound as additional data | |
 
@@ -215,6 +264,7 @@ The server logs neither a payload of the Runner protocol nor a ciphertext
 | Threat | What stops it |
 |---|---|
 | The server swaps a public key during a pairing, to receive a wrap | Each side MACs both public keys with the 128-bit secret the server never sees; the server sees the proofs but cannot try 2^128 secrets offline, so it cannot forge a proof for a swapped key; a code works once and for 10 min (E2E-2, E2E-3) |
+| The server relays the proofs untouched but swaps a wrap for one of a key it chose | The [wrap's tag](#authenticated-wraps), keyed by the static X25519 secret of sender and recipient, covers `enc`, `ciphertext`, `info` and `aad`; the recipient checks it with a sender key it authenticated before opening |
 | The server replays one direction's proof as the other's | The labels differ (`…/link/runner`, `…/link/device`) and the keys are in opposite orders |
 | The server moves a ciphertext to another item, holder, version or Session | The additional data binds those ids; the open fails |
 | The server replays or reorders Session frames | The frame's `seq` is in its additional data, so a frame does not open at another position; a tab drops a frame whose `seq` it already has, and reopens from the first missing one on a gap (SESSION-1) |
@@ -237,11 +287,11 @@ mode, Chromium) and `apps/runner/internal/keys/vectors_test.go`:
 | File | What | Written by |
 |---|---|---|
 | `hpke-rfc9180.json` | RFC 9180's official vector for mode 0, KEM 0x0020, KDF 0x0001, AEAD 0x0002, first encryption (hex, with its `source`). Both sides open its `ct` and reseal it with its `skEm` byte for byte | copied from the RFC's `test-vectors.json` |
-| `crewdeck-wrap.json` | HPKE wraps for each `info`, an empty and a long plaintext | the Runner |
+| `crewdeck-wrap.json` | Authenticated wraps (sender, recipient, `enc`, `ciphertext`, `tag`) for each `info`, an empty and a long plaintext, a holder's wrap for itself | the Runner |
 | `aes-gcm.json` | AES-256-GCM seals with Session and item additional data | the Runner |
 | `hmac.json` | RFC 4231 case 2, a link-proof-shaped message, constant-time comparisons | the Runner |
 | `base32.json` | encodings, alias decodings, invalid inputs | the Runner |
-| `web-seal.json` | an HPKE wrap and an AES-GCM seal made by the browser, opened by the Runner | the browser, at each test run |
+| `web-seal.json` | an authenticated wrap and an AES-GCM seal made by the browser, opened by the Runner | the browser, at each test run |
 
 RFC 9180 Appendix A.1.1 is the AES-128-GCM suite (AEAD 0x0001); the vector
 for AES-256-GCM comes from the RFC's `test-vectors.json` at the commit named
@@ -274,22 +324,33 @@ the `_test.go` files only.
 
 To be written by E2E-2: the link flow, the exact bytes of both proofs and of
 the vault wraps (`holderId ‖ vaultKeyVersion`), the item keys under the vault
-key.
+key. The vault wraps are [authenticated wraps](#authenticated-wraps) sent as
+`{ enc, ciphertext, tag }`; the Runner opens its wrap only after the device
+proof, with the `devicePublicKey` it authenticated, and E2E-2 tests that a
+wrap the server substituted under untouched proofs is refused.
 
 ## New Appareil (E2E-3)
 
 To be written by E2E-3: the QR code `crewdeck:appareil:<shortId>-<secret>`,
-the proof, the approval by a trusted Appareil or by the Runner.
+the proof, the approval by a trusted Appareil or by the Runner. The new
+Appareil authenticates the approver's public key through the approval proof,
+then opens the vault wrap as an [authenticated wrap](#authenticated-wraps)
+from that key.
 
 ## Revocation (E2E-4)
 
 To be written by E2E-4: the rotation of the vault key, the rewrap of the item
-keys.
+keys. The wraps of the new version are [authenticated wraps](#authenticated-wraps);
+a holder refuses one whose sender it knows as revoked.
 
 ## Sessions (SESSION-1)
 
 To be written by SESSION-1: the frames, the Session keys' wraps, the
-additional data, what the server relays.
+additional data, what the server relays. A Session key's wrap is an
+[authenticated wrap](#authenticated-wraps) from the Runner, opened with the
+Runner's public key the Appareil authenticated at pairing, never one the
+server sends with the wrap: otherwise the server could hand a tab a Session
+key it knows and read what the Pilote types.
 
 ## Idées (IDEE-1)
 

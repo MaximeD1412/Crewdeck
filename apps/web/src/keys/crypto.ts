@@ -144,6 +144,78 @@ export const hpkeOpen = async (
   }
 };
 
+// Authenticated wraps. HPKE's base mode does not authenticate who sealed
+// (RFC 9180, 9.1.2): the server could swap a wrap for one of a key it chose.
+// A wrap therefore carries a tag only its sender and its recipient can
+// compute, from their static X25519 keys, over the whole wrap and its context;
+// `openWrap` checks it before opening. docs/security/e2e.md, « Authenticated
+// wraps ».
+
+/** An HPKE wrap with the tag of the key holder that sealed it. */
+export interface Wrap {
+  enc: Bytes;
+  ciphertext: Bytes;
+  tag: Bytes;
+}
+
+const WRAP_AUTH = 'crewdeck/v1/wrap-auth';
+
+/**
+ * HMAC-SHA256(authKey, u16(len info) ‖ info ‖ u16(len aad) ‖ aad ‖ enc ‖ ciphertext),
+ * authKey = HKDF-SHA256(salt "", X25519(skS, pkR), "crewdeck/v1/wrap-auth" ‖ pkS ‖ pkR, 32).
+ */
+const wrapTag = async (
+  dh: Bytes,
+  senderPublicKey: Uint8Array,
+  recipientPublicKey: Uint8Array,
+  wrap: { enc: Uint8Array; ciphertext: Uint8Array },
+  info: Uint8Array,
+  aad: Uint8Array,
+): Promise<Bytes> => {
+  if (info.length > 0xffff || aad.length > 0xffff) throw new Error('keys: info and additional data are at most 65535 bytes');
+  const ikm = await subtle().importKey('raw', dh, 'HKDF', false, ['deriveBits']);
+  const params = { name: 'HKDF', hash: 'SHA-256', salt: EMPTY, info: concat(utf8(WRAP_AUTH), senderPublicKey, recipientPublicKey) };
+  const authKey = new Uint8Array(await subtle().deriveBits(params, ikm, 256));
+  return hmacSha256(authKey, concat(u16(info.length), info, u16(aad.length), aad, wrap.enc, wrap.ciphertext));
+};
+
+/** Wraps `plaintext` for the holder of `recipientPublicKey`, as `senderPrivateKey`'s holder (it may be the same). */
+export const sealWrap = async (
+  senderPrivateKey: CryptoKey,
+  recipientPublicKey: Uint8Array,
+  plaintext: Uint8Array,
+  info: WrapInfo | Uint8Array,
+  aad: Uint8Array,
+): Promise<Wrap> => {
+  const sealed = await hpkeSeal(recipientPublicKey, plaintext, info, aad);
+  const dh = await x25519(senderPrivateKey, await importPublicKey(recipientPublicKey));
+  const tag = await wrapTag(dh, await publicKeyOf(senderPrivateKey), recipientPublicKey, sealed, infoBytes(info), aad);
+  return { ...sealed, tag };
+};
+
+/**
+ * Opens a wrap only if the holder of `senderPublicKey`, a key this holder
+ * already authenticated, sealed it for this context. Any failure is `OpenError`.
+ */
+export const openWrap = async (
+  recipientPrivateKey: CryptoKey,
+  senderPublicKey: Uint8Array,
+  wrap: Wrap,
+  info: WrapInfo | Uint8Array,
+  aad: Uint8Array,
+): Promise<Bytes> => {
+  requireAad(aad);
+  let tag: Bytes;
+  try {
+    const dh = await x25519(recipientPrivateKey, await importPublicKey(senderPublicKey));
+    tag = await wrapTag(dh, senderPublicKey, await publicKeyOf(recipientPrivateKey), wrap, infoBytes(info), aad);
+  } catch {
+    throw new OpenError();
+  }
+  if (!constantTimeEqual(tag, wrap.tag)) throw new OpenError();
+  return hpkeOpen(recipientPrivateKey, wrap.enc, wrap.ciphertext, info, aad);
+};
+
 // AES-256-GCM: nonce (12 bytes) ‖ ciphertext ‖ tag (16 bytes).
 
 /** A random AES-256 key, extractable only where it must be wrapped. */

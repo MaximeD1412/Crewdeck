@@ -110,6 +110,22 @@ func openWrapCase(t *testing.T, c wrapCase) {
 	if _, err := HPKEOpen(k, c.Enc, c.Ciphertext, []byte(c.Info), append(append([]byte(nil), c.AAD...), '!')); err == nil {
 		t.Fatalf("%s: another additional data opens", c.Name)
 	}
+
+	// The same wrap, authenticated by its sender.
+	if !bytes.Equal(PublicKeyBytes(privateKey(t, c.SenderPrivateKey)), c.SenderPublicKey) {
+		t.Fatalf("%s: the sender's public key does not match its private key", c.Name)
+	}
+	w := Wrap{Enc: c.Enc, Ciphertext: c.Ciphertext, Tag: c.Tag}
+	pt, err = OpenWrap(k, c.SenderPublicKey, w, []byte(c.Info), c.AAD)
+	if err != nil || !bytes.Equal(pt, c.Plaintext) {
+		t.Fatalf("%s: OpenWrap gives %x, %v; want %x", c.Name, pt, err, c.Plaintext)
+	}
+	if _, err := OpenWrap(k, c.SenderPublicKey, Wrap{c.Enc, c.Ciphertext, flipBit(c.Tag, len(c.Tag)-1)}, []byte(c.Info), c.AAD); err == nil {
+		t.Fatalf("%s: a flipped bit of the tag opens", c.Name)
+	}
+	if _, err := OpenWrap(k, c.RecipientPublicKey, w, []byte(c.Info), c.AAD); c.Name != "self-wrap" && err == nil {
+		t.Fatalf("%s: opens as if another holder had sealed it", c.Name)
+	}
 }
 
 func openAESGCMCase(t *testing.T, c aesGCMCase) {

@@ -18,3 +18,14 @@ paths = [
   '''^packages/contracts/fixtures/crypto/''',
 ]
 
+
+[[allowlists]]
+description = "Fake values of the log redaction test (CORE-1, SEC-7)"
+# apps/server/src/logging/redact.spec.ts sends these values in a request and
+# asserts none reaches the logs: made up, never a real credential. Only the
+# values shaped `secret-<words>-<4 hex>` are excepted, not the file: a path in
+# a global allowlist would skip every rule on it.
+regexTarget = "secret"
+regexes = [
+  '''^secret-[a-z-]+-[0-9a-f]{4}$''',
+]

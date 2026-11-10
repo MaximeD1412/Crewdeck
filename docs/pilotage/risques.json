@@ -196,7 +196,12 @@
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
-          "texte": "Liste de masquage du logger testée ; aucune charge du protocole Runner journalisée",
+          "texte": "Liste de masquage du logger testée : en-têtes d'authentification, cookies, corps, ciphertext, clés enveloppées, charges du protocole Runner et du relais, jetons",
+          "ref": "ADR 0003",
+          "fait": true
+        },
+        {
+          "texte": "Messages WebSocket jamais journalisés (seulement leur type et leur taille)",
           "ref": "ADR 0003",
           "fait": false
         }

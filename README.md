@@ -16,6 +16,8 @@ pnpm dev                    # le serveur sur :3000, la page sur http://localhost
 ```
 
 `http://localhost:4200/api/health` répond alors `{"status":"ok","commit":"dev","db":"ok"}`.
+La documentation OpenAPI de l'API, générée depuis les contrats, est sur
+`http://localhost:3000/api/docs` (`/api/docs.json`), jamais en production.
 
 Les contrats (`packages/contracts`) sont écrits une fois en zod : après un
 changement, `pnpm exec nx run contracts:generate` réécrit leur JSON Schema et

@@ -7,5 +7,16 @@
   },
   "agentLoop": {
     "conventionsFile": "AGENTS.md"
+  },
+  "pilotage": {
+    "dataDir": "docs/pilotage",
+    "out": "dist/pilotage",
+    "boardUrl": "https://github.com/users/MaximeD1412/projects/5",
+    "parallelism": 2,
+    "theme": {
+      "file": "design/tokens.css",
+      "light": ":root",
+      "dark": ":root"
+    }
   }
 }

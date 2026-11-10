@@ -1,0 +1,12 @@
+{
+  "phases": [
+    { "id": "acc", "titre": "Comptes et fournisseurs", "description": "À ouvrir en premier : le domaine, le VPS OVH, les deux GitHub Apps, le stockage des sauvegardes." },
+    { "id": "env", "titre": "Variables et secrets", "description": "Le .env du serveur de prod et de staging sur le VPS, les environnements GitHub staging et production. Une variable changée ne s'applique qu'au déploiement suivant." },
+    { "id": "vps", "titre": "Machine et services", "description": "Gestes sur le VPS : provisionnement, Caddy, Compose, clés de déploiement, restic." },
+    { "id": "db", "titre": "Base de données", "description": "Migrations Prisma, toujours compatibles avec la version précédente, répétées sur la dernière sauvegarde avant de migrer (ADR 0009)." },
+    { "id": "dep", "titre": "Livraison", "description": "La PR develop → main, faite à la main et mergée par un commit de merge : la prod promeut l'image du staging." },
+    { "id": "chk", "titre": "Vérifications en production", "description": "Sur le vrai site, avec son propre compte et son propre Runner." },
+    { "id": "doc", "titre": "Suivi", "description": "Ce qui doit être noté ou décidé ailleurs." }
+  ],
+  "elements": []
+}

@@ -61,11 +61,32 @@ stories), and its gates. Kept by the core; a **Skill** never changes it.
 _Avoid_: schéma, spec, format
 
 **Étape optionnelle** (`OptionalStep`):
-An **Étape** a **Pilote** may turn off for a **Projet**: the mockups, the
-visual review, the visual audit, the user tests, the preview, the cross
-review of a **Conception**. The analysis of an **Idée**, the **Tickets**, the
-Code, the Review and the checks always run.
+A piece of the **Process** a **Pilote** may turn off for a **Projet**: the
+mockups, the **Revue visuelle**, the visual audit, the user tests, the
+preview, the **Revue croisée**. Most are **Étapes**; the **Revue visuelle**
+is a gate of the **Pilote**'s. The analysis of an **Idée**, the **Tickets**,
+the Code, the Review and the checks always run.
 _Avoid_: option, module, plugin
+
+**Revue croisée** (`CrossReview`):
+The **Étape** where an agent in the « Review » **Rôle** reads the PRD, then
+the technical design, of a **Conception**, just before the **Pilote**
+approves each; every remark is fixed or answered « non retenue ».
+_Avoid_: relecture, double review
+
+**Revue visuelle** (`VisualReview`):
+The gate where the **Pilote** looks at the captures of a **Ticket**'s screens
+and approves it, which merges its PR, or asks for changes the **Boucle**
+takes up.
+_Avoid_: recette, QA, validation visuelle
+
+**Inventaire** (`Inventory`):
+What the product drafts when a **Dépôt GitHub** that already has code
+becomes a **Projet**: its glossary, its « choix techniques » and the list of
+what exists; the **Pilote** approves it, or sends it back, before the
+**Process** starts.
+_Avoid_: audit, état des lieux, decisions (a **Décision** waits for the
+**Pilote**; a « choix technique » is a decision of the code)
 
 **Skill** (`Skill`):
 The instructions (and scripts) an agent follows to do an **Étape**, in the
@@ -92,6 +113,14 @@ _Avoid_: tâche, issue (in the UI), story
 The agents of a **Projet** taking its ready **Tickets** one by one, on the
 **Runner**, until none is left or the **Pilote** stops it.
 _Avoid_: agent-loop (in the UI), automate, job
+
+**Session** (`AgentSession`):
+One conversation of an agent in one **Rôle**, on the **Runner**, with one
+**Moteur**: every **Étape** runs in a **Session**, the **Boucle**'s included,
+and the **Pilote** can read and drive any of them. Its content stays between
+the **Runner** and the **Appareils**; while the **Runner** is « hors ligne »
+only its title and state are shown.
+_Avoid_: conversation, run, exécution, job, chat
 
 **Décision** (`Decision`):
 Something that waits for the **Pilote** (a blocked **Ticket**, a document to
@@ -131,8 +160,15 @@ _Avoid_: portail client, lien public
 **Runner** (`Runner`):
 The program installed on the **Pilote**'s machine, linked to their account,
 that runs the agents on the **Pilote**'s **Comptes IA**. A **Pilote** has
-one **Runner**; it is online or « hors ligne ».
+one **Runner** (linking another replaces it); it is online or « hors
+ligne ».
 _Avoid_: agent (it runs agents), daemon, worker
+
+**Appareil** (`Device`):
+A browser the **Pilote** trusts to read what travels encrypted end to end
+(**Sessions**, the text of the **Idées**); the first one is linked with the
+**Runner**, each next one is approved from a trusted one.
+_Avoid_: navigateur (when trust is meant), device, client
 
 **Moteur** (`Engine`):
 An agent program the **Runner** drives: Claude Code and Codex at the MVP,
@@ -210,6 +246,15 @@ and says so until it is sure again.
 _Avoid_: rechargement, refresh
 
 ## Flagged ambiguities
+
+- « revue visuelle » was listed among the **Étapes optionnelles** as if an
+  agent did it: it is the **Pilote**'s gate; the **Revue croisée** is an
+  agent's **Étape**. Both can be turned off.
+- « decisions » of an existing repository clashed with **Décision**: they
+  are « choix techniques », part of the **Inventaire**.
+- « session », « run » and « exécution » were used for the work of an agent
+  on an **Étape**: it is always a **Session**, driven by the **Pilote** or by
+  the **Boucle**.
 
 - "agent" meant both the AI that codes and the program on the machine:
   the AI is an agent, the program is the **Runner**.

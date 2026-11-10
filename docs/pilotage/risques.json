@@ -1,0 +1,665 @@
+{
+  "categories": [
+    {
+      "id": "sec",
+      "titre": "Sécurité et cloisonnement"
+    },
+    {
+      "id": "ia",
+      "titre": "Fournisseurs IA et agents"
+    },
+    {
+      "id": "ops",
+      "titre": "Données et exploitation"
+    },
+    {
+      "id": "biz",
+      "titre": "Produit et business"
+    },
+    {
+      "id": "agt",
+      "titre": "Agents et projet"
+    }
+  ],
+  "statuts": [
+    "ouvert",
+    "solution choisie",
+    "implémenté",
+    "accepté"
+  ],
+  "risques": [
+    {
+      "id": "SEC-1",
+      "categorie": "sec",
+      "gravite": "critique",
+      "titre": "Fuite des données d'un Pilote vers un autre",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Portée du Pilote ouverte par requête, extension Prisma qui refuse une requête hors portée",
+          "ref": "ADR 0008",
+          "fait": false
+        },
+        {
+          "texte": "Un test 404 entre Pilotes sur chaque route, un test qui parcourt les modèles Prisma",
+          "ref": "ADR 0008",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "SEC-2",
+      "categorie": "sec",
+      "gravite": "critique",
+      "titre": "Clé privée de la GitHub App volée : écriture sur tous les dépôts suivis",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "VPS dédié à Crewdeck, secrets dans les environnements GitHub et le .env du serveur seulement",
+          "ref": "ADR 0009",
+          "fait": false
+        },
+        {
+          "texte": "Permissions minimales de l'App, sans administration",
+          "ref": "ADR 0002",
+          "fait": false
+        },
+        {
+          "texte": "Procédure de rotation de la clé écrite et répétée sur staging",
+          "ref": "ADR 0002",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "SEC-3",
+      "categorie": "sec",
+      "gravite": "elevee",
+      "titre": "Protocole de chiffrement de bout en bout fautif",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Construction HPKE (RFC 9180), WebCrypto et la bibliothèque standard de Go, sans crypto maison",
+          "ref": "ADR 0003",
+          "fait": false
+        },
+        {
+          "texte": "Vecteurs de test partagés entre TypeScript et Go",
+          "ref": "ADR 0003",
+          "fait": false
+        },
+        {
+          "texte": "docs/security/e2e.md relu par un relecteur extérieur avant la Bêta",
+          "ref": "ADR 0003",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "SEC-4",
+      "categorie": "sec",
+      "gravite": "elevee",
+      "titre": "Notre serveur substitue une clé publique et lit les Sessions",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Code de liaison avec un secret de 128 bits jamais envoyé au serveur, copié et non saisi ; preuve HMAC sur les deux clés",
+          "ref": "ADR 0003",
+          "fait": false
+        },
+        {
+          "texte": "Nouvel Appareil approuvé par un QR code portant son propre secret de 128 bits, depuis un Appareil de confiance",
+          "ref": "ADR 0003",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "SEC-5",
+      "categorie": "sec",
+      "gravite": "elevee",
+      "titre": "Une Skin agit à l'insu du Pilote ou lit le code déchiffré",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Dialogue de confirmation et clés hors du registre des Composants",
+          "ref": "ADR 0006",
+          "fait": false
+        },
+        {
+          "texte": "MVP : seule la Skin officielle, qui n'importe que @crewdeck/sdk (frontières Nx, ESLint)",
+          "ref": "ADR 0006",
+          "fait": false
+        },
+        {
+          "texte": "Bêta : Skin tierce dans une iframe isolée d'une autre origine, sans réseau",
+          "ref": "ADR 0006",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "SEC-6",
+      "categorie": "sec",
+      "gravite": "moyenne",
+      "titre": "Jeton GitHub du Runner volé sur la machine du Pilote",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Jeton d'installation limité à un dépôt et à quatre permissions, valable 1 h",
+          "ref": "ADR 0002",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "SEC-7",
+      "categorie": "sec",
+      "gravite": "moyenne",
+      "titre": "Contenu chiffré ou texte d'une Idée dans les logs du serveur",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Liste de masquage du logger testée ; aucune charge du protocole Runner journalisée",
+          "ref": "ADR 0003",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "SEC-8",
+      "categorie": "sec",
+      "gravite": "moyenne",
+      "titre": "Webhook GitHub falsifié ou rejoué",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Signature X-Hub-Signature-256 vérifiée en temps constant, livraisons dédoublonnées",
+          "ref": "ADR 0002",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "SEC-9",
+      "categorie": "sec",
+      "gravite": "faible",
+      "titre": "La dictée envoie l'audio au service du navigateur (Google, Apple)",
+      "statut": "accepté",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Web Speech API du navigateur, choix du Pilote ; à dire dans l'aide de la dictée",
+          "ref": "ADR 0007",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "IA-1",
+      "categorie": "ia",
+      "gravite": "critique",
+      "titre": "Anthropic refuse le binaire Claude Code connecté par abonnement dans un produit payant",
+      "statut": "ouvert",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Lettre rédigée (docs/research/provider-letters.md)",
+          "ref": "PRD",
+          "fait": true
+        },
+        {
+          "texte": "Réponse écrite avant la Bêta",
+          "ref": "PRD",
+          "fait": false
+        },
+        {
+          "texte": "Clé API toujours possible pour chaque Moteur",
+          "ref": "ADR 0004",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "IA-2",
+      "categorie": "ia",
+      "gravite": "moyenne",
+      "titre": "OpenAI ne donne pas « Sign in with ChatGPT » : Codex par clé API seulement",
+      "statut": "accepté",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Codex par clé API au MVP ; abonnement seulement si OpenAI l'accorde",
+          "ref": "ADR 0004",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "IA-3",
+      "categorie": "ia",
+      "gravite": "elevee",
+      "titre": "Le mode headless de Claude Code ou l'app-server de Codex change sous le Runner",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Un adaptateur par Moteur, flux enregistrés rejoués dans les tests",
+          "ref": "ADR 0004",
+          "fait": false
+        },
+        {
+          "texte": "Spike en premier ticket ; smoke test du Runner compilé chaque nuit",
+          "ref": "ADR 0004, ADR 0009",
+          "fait": false
+        },
+        {
+          "texte": "Le Runner déclare les versions de Moteur qu'il connaît et le dit dans son état",
+          "ref": "ADR 0004",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "IA-4",
+      "categorie": "ia",
+      "gravite": "moyenne",
+      "titre": "Limite d'un Compte IA atteinte en pleine Boucle",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Décision qui dit quoi faire (US-40), Planification à la réinitialisation de la fenêtre (US-62)",
+          "ref": "PRD",
+          "fait": false
+        },
+        {
+          "texte": "Usage remonté par le Runner en chiffres (US-55)",
+          "ref": "ADR 0004",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "IA-5",
+      "categorie": "ia",
+      "gravite": "elevee",
+      "titre": "La Review laisse passer un mauvais code, mergé sans humain",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Review sur un autre Moteur que le Code par défaut (US-39)",
+          "ref": "PRD",
+          "fait": false
+        },
+        {
+          "texte": "Contrat du Code (critères prouvés par des tests), checks verts, staging à chaque merge, nightly complète",
+          "ref": "ADR 0005, ADR 0009",
+          "fait": false
+        },
+        {
+          "texte": "Chaque verdict lié au SHA jugé ; merge refusé si la tête de la PR a bougé",
+          "ref": "ADR 0002",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "IA-6",
+      "categorie": "ia",
+      "gravite": "moyenne",
+      "titre": "Une Étape rend un livrable à moitié fait",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Contrat vérifié par le Runner, Décision « Contrat incomplet » pour relancer",
+          "ref": "ADR 0005",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "OPS-1",
+      "categorie": "ops",
+      "gravite": "elevee",
+      "titre": "Le texte des Idées est perdu si le Pilote perd tous ses Appareils et son Runner",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Avertissement avant de révoquer le dernier détenteur de clé",
+          "ref": "ADR 0003",
+          "fait": false
+        },
+        {
+          "texte": "Inviter à approuver un second Appareil dès les Premiers pas",
+          "ref": "ADR 0003",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "OPS-2",
+      "categorie": "ops",
+      "gravite": "critique",
+      "titre": "Perte de la base de production",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Sauvegarde restic chaque nuit chez un autre fournisseur",
+          "ref": "ADR 0009",
+          "fait": false
+        },
+        {
+          "texte": "Mot de passe restic aussi dans le gestionnaire du fondateur ; restauration mensuelle depuis une autre machine",
+          "ref": "ADR 0009",
+          "fait": false
+        },
+        {
+          "texte": "Chaque déploiement répète sa migration sur la dernière sauvegarde restaurée",
+          "ref": "ADR 0009",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "OPS-3",
+      "categorie": "ops",
+      "gravite": "moyenne",
+      "titre": "Le VPS unique tombe : produit indisponible, Boucles arrêtées",
+      "statut": "accepté",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Le Runner se reconnecte et reprend ses Sessions ; état sûr après la Resynchronisation",
+          "ref": "ADR 0007",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "OPS-4",
+      "categorie": "ops",
+      "gravite": "moyenne",
+      "titre": "Un webhook manqué laisse un état faux à l'écran",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Réconciliation de chaque dépôt toutes les 15 min et au démarrage du serveur",
+          "ref": "ADR 0002",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "OPS-5",
+      "categorie": "ops",
+      "gravite": "moyenne",
+      "titre": "Un changement met plus de 2 s à s'afficher",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Délai mesuré de la source à l'écran, p95 des 7 derniers jours visible",
+          "ref": "ADR 0007",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "OPS-6",
+      "categorie": "ops",
+      "gravite": "faible",
+      "titre": "Minutes GitHub Actions dépassées",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "CI affected, PR en brouillon ignorées, garde quotidienne à 80 %",
+          "ref": "ADR 0009",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "OPS-7",
+      "categorie": "ops",
+      "gravite": "faible",
+      "titre": "Notifications impossibles sur iPhone sans la PWA installée",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Les Paramètres expliquent l'ajout à l'écran d'accueil",
+          "ref": "ADR 0007",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "BIZ-1",
+      "categorie": "biz",
+      "gravite": "elevee",
+      "titre": "Pas de demande : les Skins ne valent rien pour un développeur solo",
+      "statut": "ouvert",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Page d'inscription et 5 entretiens pendant la conception technique (ticket externe)",
+          "ref": "PRD",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "BIZ-2",
+      "categorie": "biz",
+      "gravite": "moyenne",
+      "titre": "Le nom « Crewdeck » est pris (marque, domaine)",
+      "statut": "ouvert",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Vérification par le fondateur avant la page d'inscription (ticket externe)",
+          "ref": "PRD",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "BIZ-3",
+      "categorie": "biz",
+      "gravite": "moyenne",
+      "titre": "Arriver après la fermeture de Conductor sans page d'inscription",
+      "statut": "ouvert",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Page d'inscription en ligne avant 2027, hors du code du produit",
+          "ref": "PRD",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "BIZ-4",
+      "categorie": "biz",
+      "gravite": "faible",
+      "titre": "Le coût estimé en euros diffère de la facture",
+      "statut": "accepté",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Coût gardé en dollars tel que facturé, converti au taux BCE du jour de la dépense, affiché « estimé »",
+          "ref": "ADR 0008",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "BIZ-5",
+      "categorie": "biz",
+      "gravite": "moyenne",
+      "titre": "Obligations RGPD dès les bêta-testeurs extérieurs",
+      "statut": "ouvert",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Données minimales (identité GitHub, état du Process), texte libre chiffré",
+          "ref": "ADR 0003",
+          "fait": false
+        },
+        {
+          "texte": "Politique de confidentialité, export et suppression du compte avant la Bêta",
+          "ref": "PRD",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "AGT-1",
+      "categorie": "agt",
+      "gravite": "elevee",
+      "titre": "Un agent sans confirmation agit hors de son worktree sur la machine du Pilote",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Clones et worktrees propres au Runner, jamais le checkout du Pilote",
+          "ref": "ADR 0004",
+          "fait": false
+        },
+        {
+          "texte": "Sessions pilotées en mode auto ; conteneur par Session avec le Runner sur serveur (Bêta)",
+          "ref": "ADR 0004",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "AGT-2",
+      "categorie": "agt",
+      "gravite": "elevee",
+      "titre": "Des merges sans revue humaine cassent develop",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Socle de tests par route, Composant et écran ; PR en brouillon jusqu'à leurs checks",
+          "ref": "ADR 0008, ADR 0009",
+          "fait": false
+        },
+        {
+          "texte": "Staging à chaque merge, nightly complète corrigée en premier",
+          "ref": "ADR 0009",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "AGT-3",
+      "categorie": "agt",
+      "gravite": "moyenne",
+      "titre": "Les contrats TypeScript et Go divergent",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Types Go générés depuis zod, fixtures partagées, CI en échec si la génération n'est pas à jour",
+          "ref": "ADR 0001",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "AGT-4",
+      "categorie": "agt",
+      "gravite": "moyenne",
+      "titre": "Les agents connaissent moins bien Lit que React",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Premiers fichiers à imiter, exemples de chaque Composant testés",
+          "ref": "ADR 0006",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "AGT-5",
+      "categorie": "agt",
+      "gravite": "elevee",
+      "titre": "Le MVP est large pour un seul fondateur",
+      "statut": "ouvert",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Squelette de bout en bout d'abord, puis jalons par parcours (plan-backlog)",
+          "ref": "ADR 0001",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    },
+    {
+      "id": "AGT-6",
+      "categorie": "agt",
+      "gravite": "moyenne",
+      "titre": "La console des dotfiles doit tenir jusqu'à la bascule vers Crewdeck",
+      "statut": "accepté",
+      "statutDepuis": "2026-11-10",
+      "solutions": [
+        {
+          "texte": "Critère du MVP : 4 semaines sans les pages Process de la console",
+          "ref": "PRD",
+          "fait": false
+        }
+      ],
+      "tickets": []
+    }
+  ]
+}

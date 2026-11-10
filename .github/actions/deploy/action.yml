@@ -1,0 +1,57 @@
+name: Deploy on the VPS
+description: >-
+  Asks the VPS to deploy one commit's image on one environment, through that
+  environment's restricted SSH key (ADR 0009, « Delivery »). The key can only
+  run `deploy <env> <sha>` (infra/deploy/bin/deploy-trigger): the deploy runs
+  during the step, its log is the step's, and so is its exit code.
+
+inputs:
+  environment:
+    description: '`staging` or `production`: the key''s own, which the VPS checks again'
+    required: true
+  sha:
+    description: 'The 40-hex commit whose image is deployed'
+    required: true
+  key:
+    description: 'The private key of the GitHub environment (secrets.DEPLOY_SSH_KEY)'
+    required: true
+  host:
+    description: 'The VPS (vars.DEPLOY_HOST)'
+    required: true
+  known-hosts:
+    description: 'The VPS''s pinned host keys (vars.DEPLOY_KNOWN_HOSTS), as a known_hosts file'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Deploy ${{ inputs.environment }}
+      shell: bash
+      env:
+        DEPLOY_ENV: ${{ inputs.environment }}
+        SHA: ${{ inputs.sha }}
+        KEY: ${{ inputs.key }}
+        HOST: ${{ inputs.host }}
+        KNOWN_HOSTS: ${{ inputs.known-hosts }}
+      run: |
+        set -euo pipefail
+        missing() { echo "::error::$1 manque à l'environnement GitHub « $DEPLOY_ENV » : infra/deploy/README.md, « Livraison »."; exit 1; }
+        [ -n "$KEY" ] || missing "Le secret DEPLOY_SSH_KEY"
+        [ -n "$KNOWN_HOSTS" ] || missing "La variable DEPLOY_KNOWN_HOSTS"
+
+        dir=$(mktemp -d)
+        trap 'rm -rf "$dir"' EXIT
+        umask 077
+        printf '%s\n' "$KEY" > "$dir/key"
+        printf '%s\n' "$KNOWN_HOSTS" > "$dir/known_hosts"
+
+        ssh -i "$dir/key" \
+          -o IdentitiesOnly=yes \
+          -o BatchMode=yes \
+          -o StrictHostKeyChecking=yes \
+          -o UserKnownHostsFile="$dir/known_hosts" \
+          -o GlobalKnownHostsFile=/dev/null \
+          -o ServerAliveInterval=30 \
+          -o ServerAliveCountMax=10 \
+          -T "deploy@$HOST" \
+          "deploy $DEPLOY_ENV $SHA"

@@ -1,0 +1,162 @@
+name: Delivery
+
+# Pushed CD (ADR 0009, « Delivery »). Agents merge without a human reading the
+# code, so every push to `develop` is built, published and deployed on staging
+# at once; every push to `main` (the merge commit of the `develop` → `main`
+# PR) deploys on production the image staging ran for that `develop` commit,
+# without building. The deploy runs on the VPS during the job, through a
+# restricted SSH key (infra/deploy/bin/deploy-trigger): the job is red when
+# the environment did not follow. infra/deploy/README.md, « Livraison », says
+# how to redeploy.
+on:
+  push:
+    branches: [develop, main]
+
+# Two pushes to the same branch deploy one after the other, never cancelled:
+# a deploy stopped halfway would leave its environment between two images.
+concurrency:
+  group: delivery-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  IMAGE: ghcr.io/maximed1412/crewdeck-server
+
+jobs:
+  staging:
+    name: staging
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # The environment restricted to `develop`: only this job reads its key.
+    environment: staging
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      # Until INFRA-12 fills the environment, nothing is published or
+      # deployed, and the run stays green.
+      - name: VPS pas encore configuré
+        if: vars.DEPLOY_HOST == ''
+        run: |
+          echo "::notice title=Livraison::VPS pas encore configuré (DEPLOY_HOST vide) : rien n'est publié ni déployé."
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: vars.DEPLOY_HOST != ''
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        if: vars.DEPLOY_HOST != ''
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        if: vars.DEPLOY_HOST != ''
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # `:<sha>` is written once: a re-run redeploys the image already
+      # published, never a rebuild of the same commit that staging has not
+      # run (production also checks it is the `staged-` one, deploy.sh).
+      - name: Look for ${{ env.IMAGE }}:${{ github.sha }}
+        id: image
+        if: vars.DEPLOY_HOST != ''
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          if out=$(docker buildx imagetools inspect "$IMAGE:$SHA" 2>&1); then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "$IMAGE:$SHA est déjà publiée : elle est redéployée telle quelle."
+          elif grep -qi 'not found' <<<"$out"; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "$out"
+            echo "::error::Impossible de savoir si $IMAGE:$SHA existe déjà."
+            exit 1
+          fi
+
+      - name: Build and push ${{ env.IMAGE }}:${{ github.sha }}
+        if: vars.DEPLOY_HOST != '' && steps.image.outputs.exists == 'false'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/server/Dockerfile
+          build-args: CREWDECK_COMMIT=${{ github.sha }}
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          push: true
+          cache-from: type=gha,scope=crewdeck-server
+          cache-to: type=gha,scope=crewdeck-server,mode=max
+
+      - uses: ./.github/actions/deploy
+        if: vars.DEPLOY_HOST != ''
+        with:
+          environment: staging
+          sha: ${{ github.sha }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          host: ${{ vars.DEPLOY_HOST }}
+          known-hosts: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+
+      # The proof that staging ran this image and found it healthy: production
+      # promotes nothing else. A copy of the manifest, inside the registry.
+      - name: Tag ${{ env.IMAGE }}:staged-${{ github.sha }}
+        if: vars.DEPLOY_HOST != ''
+        env:
+          SHA: ${{ github.sha }}
+        run: docker buildx imagetools create --tag "$IMAGE:staged-$SHA" "$IMAGE:$SHA"
+
+  production:
+    name: production
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The environment restricted to `main`: only this job reads its key.
+    environment: production
+    permissions:
+      contents: read
+      # Reads the `staged-` tag; production never pushes an image.
+      packages: read
+    steps:
+      # HEAD and its two parents, for their trees.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+
+      # Before anything else, VPS or not: `main` holds exactly a `develop`
+      # commit, HEAD^2, whose image is the one deployed.
+      - name: Check that main is develop
+        id: release
+        run: |
+          dev_sha=$(infra/deploy/ci/production-sha.sh)
+          echo "dev-sha=$dev_sha" >> "$GITHUB_OUTPUT"
+          echo "main est develop en $dev_sha"
+
+      - name: VPS pas encore configuré
+        if: vars.DEPLOY_HOST == ''
+        run: |
+          echo "::notice title=Livraison::VPS pas encore configuré (DEPLOY_HOST vide) : rien n'est déployé."
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        if: vars.DEPLOY_HOST != ''
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check that staging ran this image
+        if: vars.DEPLOY_HOST != ''
+        env:
+          DEV_SHA: ${{ steps.release.outputs.dev-sha }}
+        run: |
+          if ! docker buildx imagetools inspect "$IMAGE:staged-$DEV_SHA" > /dev/null; then
+            echo "::error::Cette image n'a pas été déployée sur le staging : $IMAGE:staged-$DEV_SHA est introuvable."
+            exit 1
+          fi
+
+      - uses: ./.github/actions/deploy
+        if: vars.DEPLOY_HOST != ''
+        with:
+          environment: production
+          sha: ${{ steps.release.outputs.dev-sha }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          host: ${{ vars.DEPLOY_HOST }}
+          known-hosts: ${{ vars.DEPLOY_KNOWN_HOSTS }}

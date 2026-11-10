@@ -1,0 +1,43 @@
+name: Actions minutes
+
+# The account's Actions minutes, daily (ADR 0009, « CI »; risk OPS-6): the job
+# fails at 80 % of the month's quota, or when the month's projection exceeds
+# it, and GitHub's email of the failed workflow brings the news. Agents open
+# many PRs: the minutes are watched, not discovered on the bill.
+# docs/ci.md, « The workflow actions-minutes ».
+#
+# Set by the founder in Settings > Secrets and variables > Actions
+# (docs/pilotage/mep.json):
+#   - secret ACTIONS_BILLING_TOKEN: fine-grained token of the account,
+#     « Plan » read. Without it the job passes with a notice;
+#   - variable ACTIONS_MINUTES_QUOTA: the minutes of the account's plan,
+#     3000 by default (GitHub Pro).
+on:
+  schedule:
+    # After the nightly (03:30 UTC), so that its minutes count the same day.
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  usage:
+    name: usage
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Minutes of the month against the quota
+        run: node .github/scripts/actions-minutes.mjs
+        env:
+          ACTIONS_BILLING_TOKEN: ${{ secrets.ACTIONS_BILLING_TOKEN }}
+          ACTIONS_MINUTES_QUOTA: ${{ vars.ACTIONS_MINUTES_QUOTA }}

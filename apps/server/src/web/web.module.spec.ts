@@ -10,7 +10,7 @@ const INDEX = '<!doctype html><title>Crewdeck</title>';
 const DATABASE_URL = 'postgresql://crewdeck:crewdeck@127.0.0.1:1/crewdeck';
 
 const boot = async (values: Record<string, string>): Promise<INestApplication> => {
-  const app = await createApp(parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL, ...values }), { logger: false });
+  const app = await createApp(parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL, ...values }), { logs: false });
   await app.listen(0, '127.0.0.1');
   return app;
 };
@@ -54,7 +54,7 @@ describe('the web build at /', () => {
 
     expect(response.status).toBe(404);
     expect(response.headers.get('content-type')).toMatch(/^application\/json/);
-    expect(await response.json()).toMatchObject({ statusCode: 404 });
+    expect(await response.json()).toMatchObject({ status: 404, code: 'http.not-found' });
   });
 
   it('still routes the API', async () => {

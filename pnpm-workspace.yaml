@@ -4,6 +4,7 @@ packages:
 
 # Shared versions, exact for the frameworks (ADR 0001).
 catalog:
+  "@axe-core/playwright": 4.14.0
   "@eslint/js": 10.0.1
   "@fontsource/ibm-plex-mono": 5.3.0
   "@fontsource/ibm-plex-sans": 5.3.0
@@ -12,12 +13,14 @@ catalog:
   "@nestjs/core": 11.2.9
   "@nestjs/platform-express": 11.2.9
   "@nestjs/serve-static": 5.0.5
+  "@nestjs/swagger": 11.4.8
   "@nestjs/testing": 11.2.9
   "@nx/eslint": 23.3.1
   "@nx/eslint-plugin": 23.3.1
   "@nx/js": 23.3.1
   "@nx/vite": 23.3.1
   "@nx/vitest": 23.3.1
+  "@playwright/test": 1.65.0
   "@prisma/adapter-pg": 7.10.1
   "@prisma/client": 7.10.1
   "@swc/core": 1.16.22
@@ -27,8 +30,13 @@ catalog:
   eslint: 10.14.0
   happy-dom: 21.0.4
   lit: 3.3.3
+  nestjs-pino: 5.3.1
+  nestjs-zod: 5.6.0
   nx: 23.3.1
   pg: 8.23.1
+  pino: 10.4.0
+  pino-http: 11.0.0
+  pino-pretty: 13.2.0
   playwright: 1.65.0
   prisma: 7.10.1
   reflect-metadata: 0.2.2
@@ -41,6 +49,10 @@ catalog:
   vite: 8.3.7
   vitest: 5.1.0
   zod: 4.6.7
+
+ignoredBuiltDependencies:
+  # swagger-ui-dist's telemetry.
+  - "@scarf/scarf"
 
 onlyBuiltDependencies:
   - "@prisma/engines"

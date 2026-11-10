@@ -196,7 +196,12 @@
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
-          "texte": "Liste de masquage du logger testée ; aucune charge du protocole Runner journalisée",
+          "texte": "Liste de masquage du logger testée : en-têtes d'authentification, cookies, corps, ciphertext, clés enveloppées, charges du protocole Runner et du relais, jetons",
+          "ref": "ADR 0003",
+          "fait": true
+        },
+        {
+          "texte": "Messages WebSocket jamais journalisés (seulement leur type et leur taille)",
           "ref": "ADR 0003",
           "fait": false
         }
@@ -687,7 +692,12 @@
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
-          "texte": "Socle de tests par route, Composant et écran ; PR en brouillon jusqu'à leurs checks",
+          "texte": "Harnais des écrans : Playwright à 390 et 1280 px, axe sans violation, scénarios semés sur le serveur, captures de revue (scripts/captures.sh)",
+          "ref": "ADR 0008, ADR 0009",
+          "fait": true
+        },
+        {
+          "texte": "Socle de tests par route, Composant et écran appliqué par chaque ticket ; PR en brouillon jusqu'à leurs checks",
           "ref": "ADR 0008, ADR 0009",
           "fait": false
         },

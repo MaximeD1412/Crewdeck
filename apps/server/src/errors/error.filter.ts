@@ -1,5 +1,5 @@
 import type { ErrorEnvelope } from '@crewdeck/contracts';
-import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, NotFoundException } from '@nestjs/common';
+import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { ZodValidationException } from 'nestjs-zod';
@@ -12,13 +12,14 @@ const envelope = (status: number, code: MessageCode, fields?: Record<string, str
 
 /** Each issue's dotted path (`items.1.id`, `''` for the root) to its message; the first issue of a path wins. */
 const issueFields = (error: unknown): Record<string, string> => {
-  const fields: Record<string, string> = {};
-  if (!(error instanceof ZodError)) return fields;
+  // A Map, not an object: a path named `constructor` or `toString` is not already there.
+  const fields = new Map<string, string>();
+  if (!(error instanceof ZodError)) return {};
   for (const issue of error.issues) {
     const path = issue.path.map(String).join('.');
-    fields[path] ??= issue.message;
+    if (!fields.has(path)) fields.set(path, issue.message);
   }
-  return fields;
+  return Object.fromEntries(fields);
 };
 
 /** The client errors body-parser raises before any route (`http-errors`): exposed, with a 4xx status. */
@@ -47,10 +48,11 @@ export class ErrorFilter implements ExceptionFilter {
   private render(exception: unknown): ErrorEnvelope {
     if (exception instanceof AppError) return exception.toEnvelope();
     if (exception instanceof ZodValidationException) return envelope(400, 'validation.invalid', issueFields(exception.getZodError()));
-    if (exception instanceof NotFoundException) return envelope(404, 'http.not-found');
-    // Nest's own client errors (a body that is not JSON) and body-parser's (a body too large).
-    if (exception instanceof HttpException && exception.getStatus() < 500) return envelope(exception.getStatus(), 'http.bad-request');
-    if (isBodyParserError(exception)) return envelope(exception.status, 'http.bad-request');
+    // Nest's own client errors (an unknown route, a body that is not JSON, a guard's refusal) and body-parser's (a body too large).
+    const status = exception instanceof HttpException ? exception.getStatus() : isBodyParserError(exception) ? exception.status : 500;
+    // No 403 (ADR 0008): what is not yours does not exist.
+    if (status === 404 || status === 403) return envelope(404, 'http.not-found');
+    if (status < 500) return envelope(status, 'http.bad-request');
     this.logger.error({ err: exception }, 'unexpected error');
     return envelope(500, 'server.internal');
   }

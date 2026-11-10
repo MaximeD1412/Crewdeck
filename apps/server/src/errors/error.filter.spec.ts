@@ -1,5 +1,5 @@
 import { zId } from '@crewdeck/contracts';
-import { Body, Controller, Get, type INestApplication, Module, Post } from '@nestjs/common';
+import { Body, type CanActivate, Controller, ForbiddenException, Get, type INestApplication, Module, Post, UseGuards } from '@nestjs/common';
 import { createZodDto, ZodResponse } from 'nestjs-zod';
 import { z } from 'zod';
 import { expectEnvelope, expectFields, startApp } from '../../test/route-baseline.js';
@@ -7,10 +7,33 @@ import { parseEnv } from '../config/env.js';
 import { AppError, conflict, notFound, unprocessable } from './app-error.js';
 
 class ProbeInputDto extends createZodDto(z.object({ name: z.string().min(1), items: z.array(z.object({ id: zId })) })) {}
+class ProbeRecordDto extends createZodDto(z.record(z.string(), z.string().min(3).regex(/^[a-z]+$/))) {}
 class ProbeOutputDto extends createZodDto(z.object({ ok: z.literal(true) })) {}
+
+class DenyGuard implements CanActivate {
+  canActivate(): boolean {
+    return false;
+  }
+}
 
 @Controller('probe')
 class ProbeController {
+  @Post('record')
+  record(@Body() input: ProbeRecordDto): { size: number } {
+    return { size: Object.keys(input).length };
+  }
+
+  @Get('guarded')
+  @UseGuards(DenyGuard)
+  guarded(): { ok: true } {
+    return { ok: true };
+  }
+
+  @Get('forbidden')
+  forbidden(): never {
+    throw new ForbiddenException();
+  }
+
   @Post('validate')
   @ZodResponse({ type: ProbeOutputDto })
   validate(@Body() input: ProbeInputDto): ProbeOutputDto {
@@ -87,6 +110,18 @@ describe('the error envelope', () => {
     const res = await post('/api/probe/validate', JSON.stringify([]));
 
     await expectFields(res, ['']);
+  });
+
+  it('names the paths of keys Object.prototype has, the first message of a path kept', async () => {
+    const res = await post('/api/probe/record', '{"constructor":42,"toString":42,"hasOwnProperty":42,"ok":"abc","short":"A"}');
+
+    const fields = await expectFields(res, ['constructor', 'toString', 'hasOwnProperty', 'short']);
+    // "A" breaks both the length and the pattern: the first issue's message is kept.
+    expect(fields['short']).toMatch(/^Trop petit/);
+  });
+
+  it.each(['/api/probe/guarded', '/api/probe/forbidden'])('never answers 403: %s is a 404 http.not-found', async (path) => {
+    await expectEnvelope(await fetch(`${url}${path}`), 404, 'http.not-found');
   });
 
   it('renders an AppError as is', async () => {

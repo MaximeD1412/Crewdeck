@@ -1,7 +1,7 @@
 name: Verify
 
-# The one campaign of checks (ADR 0009, « CI »), called by ci.yml, and later
-# by the nightly (INFRA-9). docs/ci.md says what each job runs and how to run
+# The one campaign of checks (ADR 0009, « CI »), called by ci.yml and by
+# nightly.yml. docs/ci.md says what each job runs and how to run
 # it locally. Two scopes, and the verb given to Nx is their only difference:
 #
 #   - `affected` runs what the diff reaches (PRs to `develop`, pushes to

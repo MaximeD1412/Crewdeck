@@ -1,5 +1,6 @@
 import type { ScenarioRun } from '@crewdeck/contracts';
-import { Controller, HttpCode, NotFoundException, Param, Post } from '@nestjs/common';
+import { Controller, HttpCode, Param, Post } from '@nestjs/common';
+import { notFound } from '../errors/app-error.js';
 import { findScenario } from './scenarios/index.js';
 import { ScenariosService } from './scenarios.service.js';
 
@@ -17,7 +18,7 @@ export class TestingController {
   async run(@Param('name') name: string): Promise<ScenarioRun> {
     const scenario = findScenario(name);
     if (!scenario) {
-      throw new NotFoundException({ status: 404, code: 'testing.unknown-scenario', message: `Scénario de test inconnu : « ${name} ».` });
+      throw notFound('testing.unknown-scenario', `Scénario de test inconnu : « ${name} ».`);
     }
     return this.scenarios.run(scenario);
   }

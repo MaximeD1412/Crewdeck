@@ -11,8 +11,18 @@ const scopedPilotId = async (): Promise<{ pilotId: string }> => {
   return { pilotId: currentPilotId() };
 };
 
+/** A thenable that reads the scope only once awaited, as a PrismaPromise a handler returns without awaiting it. */
+const deferredPilotId = (): PromiseLike<{ pilotId: string }> => ({
+  then: (onfulfilled, onrejected) => new Promise<{ pilotId: string }>((resolve) => resolve({ pilotId: currentPilotId() })).then(onfulfilled, onrejected),
+});
+
 @Controller('probe')
 class ProbeController {
+  @Get('deferred')
+  deferred(): PromiseLike<{ pilotId: string }> {
+    return deferredPilotId();
+  }
+
   @Get('private')
   private(): Promise<{ pilotId: string }> {
     return scopedPilotId();
@@ -74,6 +84,13 @@ describe('ScopeGuard', () => {
 
   it.each(['pilot', 'runner'])('runs the handler in the scope of a %s principal’s Pilote', async (kind) => {
     const res = await fetch(`${url}/api/probe/private`, { headers: { 'x-test-pilot': 'p1', 'x-test-kind': kind } });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ pilotId: 'p1' });
+  });
+
+  it('runs a deferred query the handler returns without awaiting it inside the scope', async () => {
+    const res = await fetch(`${url}/api/probe/deferred`, { headers: { 'x-test-pilot': 'p1' } });
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ pilotId: 'p1' });

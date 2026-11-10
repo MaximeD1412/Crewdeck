@@ -30,6 +30,12 @@ const importsRawClient = `
 import { PrismaClient } from '../generated/prisma/client.js';
 export const client = new PrismaClient({} as never);
 `;
+const runsRawSql = `
+export const raw = async (prisma: { scoped: { $queryRaw(query: TemplateStringsArray): Promise<unknown>; $executeRawUnsafe(query: string): Promise<number> } }): Promise<unknown> => {
+  await prisma.scoped.$executeRawUnsafe('SELECT 1');
+  return prisma.scoped.$queryRaw\`SELECT 1\`;
+};
+`;
 const readsScoped = `
 import type { Prisma } from '../generated/prisma/client.js';
 export type Where = Prisma.PilotWhereInput;
@@ -38,11 +44,12 @@ export const all = (prisma: { scoped: { pilot: { findMany(): Promise<unknown> } 
 
 describe('ESLint, on prisma.unscoped', () => {
   it.each(['src/ideas/ideas.service.ts', 'src/github/app.service.ts', 'src/ideas/ideas.service.spec.ts'])(
-    'refuses prisma.unscoped and the raw PrismaClient in %s',
+    'refuses prisma.unscoped, the raw PrismaClient and raw SQL in %s',
     async (path) => {
       expect(await scopeErrors(path, readsUnscoped)).toEqual([expect.stringContaining('prisma.unscoped')]);
       expect(await scopeErrors(path, destructuresUnscoped)).toEqual([expect.stringContaining('prisma.unscoped')]);
       expect(await scopeErrors(path, importsRawClient)).toEqual([expect.stringContaining('PrismaClient')]);
+      expect(await scopeErrors(path, runsRawSql)).toEqual([expect.stringMatching(/^Raw SQL/), expect.stringMatching(/^Raw SQL/)]);
     },
   );
 
@@ -52,6 +59,7 @@ describe('ESLint, on prisma.unscoped', () => {
       expect(await scopeErrors(path, readsUnscoped)).toEqual([]);
       expect(await scopeErrors(path, destructuresUnscoped)).toEqual([]);
       expect(await scopeErrors(path, importsRawClient)).toEqual([]);
+      expect(await scopeErrors(path, runsRawSql)).toEqual([]);
     },
   );
 

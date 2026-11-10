@@ -5,7 +5,7 @@ import { AppError } from '../errors/app-error.js';
 import { MESSAGES } from '../errors/messages.js';
 import type { Principal, PrincipalRequest } from './principal.js';
 import { IS_PUBLIC } from './public.decorator.js';
-import { runInPilotScope } from './scope.context.js';
+import { withPilotScope } from './scope.context.js';
 
 const principalOf = (context: ExecutionContext): Principal | undefined =>
   context.switchToHttp().getRequest<PrincipalRequest>().principal;
@@ -37,6 +37,6 @@ export class ScopeInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const principal = principalOf(context);
     if (!principal) return next.handle();
-    return new Observable((subscriber) => runInPilotScope(principal.pilotId, () => next.handle().subscribe(subscriber)));
+    return new Observable((subscriber) => withPilotScope(principal.pilotId, () => next.handle().subscribe(subscriber)));
   }
 }

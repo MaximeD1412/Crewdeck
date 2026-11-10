@@ -6,6 +6,9 @@ const UNSCOPED_ALLOWED = ['src/scope/**', 'src/auth/**', 'src/github/webhooks/**
 const UNSCOPED_MESSAGE =
   'prisma.unscoped skips the scope of a Pilote (ADR 0008): use prisma.scoped, inside runInPilotScope for a webhook or a job. Allowed only in src/scope/, src/auth/, src/github/webhooks/ (and src/testing/).';
 
+const RAW_SQL_MESSAGE =
+  'Raw SQL skips the scope of a Pilote (ADR 0008), and prisma.scoped refuses it at run time: query a model through prisma.scoped. Allowed only on prisma.unscoped in src/scope/, src/auth/, src/github/webhooks/ (and src/testing/).';
+
 export default [
   ...base,
   {
@@ -16,6 +19,7 @@ export default [
         'error',
         { selector: 'MemberExpression[property.name="unscoped"]', message: UNSCOPED_MESSAGE },
         { selector: 'ObjectPattern > Property[key.name="unscoped"]', message: UNSCOPED_MESSAGE },
+        { selector: 'MemberExpression[property.name=/^\\$(query|execute)Raw(Unsafe)?$/]', message: RAW_SQL_MESSAGE },
       ],
       'no-restricted-imports': [
         'error',

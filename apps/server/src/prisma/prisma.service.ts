@@ -3,9 +3,9 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import type { Env } from '../config/env.js';
 import { ENV } from '../config/env.module.js';
 import { PrismaClient } from '../generated/prisma/client.js';
-import { pilotScope } from '../scope/prisma-scope.extension.js';
+import { pilotScope, runtimeModels } from '../scope/prisma-scope.extension.js';
 
-const extend = (client: PrismaClient) => client.$extends(pilotScope);
+const extend = (client: PrismaClient) => client.$extends(pilotScope(runtimeModels(client)));
 
 /** The client every module queries with: each scoped model within the current Pilote's scope (ADR 0008). */
 export type ScopedPrisma = ReturnType<typeof extend>;
@@ -22,7 +22,7 @@ export class PrismaService implements OnModuleDestroy {
    * `src/auth/`, `src/github/webhooks/` and `src/testing/`.
    */
   readonly unscoped: PrismaClient;
-  /** `pilotScope` on the raw client: `pilotId` added to every query of a scoped model, a throw outside a scope. */
+  /** `pilotScope` on the raw client: `pilotId` added to every query of a scoped model, a throw outside a scope, no raw SQL. */
   readonly scoped: ScopedPrisma;
 
   constructor(@Inject(ENV) env: Env) {

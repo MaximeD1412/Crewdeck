@@ -42,6 +42,39 @@ describe('the models walk', () => {
     expect(unscopedModels(datamodel(source('')))).toEqual(['Ticket: no index starting with pilotId']);
   });
 
+  it('fails on a relation between scoped models whose foreign key does not carry pilotId to pilotId', () => {
+    const source = (relation: string) => `
+      datasource db {
+        provider = "postgresql"
+      }
+      model Pilot {
+        id       String    @id
+        comments Comment[]
+      }
+      model Ticket {
+        id       String    @id
+        pilotId  String
+        comments Comment[]
+        @@unique([pilotId, id])
+      }
+      model Comment {
+        id       String @id
+        pilotId  String
+        ticketId String
+        pilot    Pilot  @relation(fields: [pilotId], references: [id])
+        ticket   Ticket ${relation}
+        @@index([pilotId, ticketId])
+      }`;
+
+    expect(unscopedModels(datamodel(source('@relation(fields: [pilotId, ticketId], references: [pilotId, id])')))).toEqual([]);
+    expect(unscopedModels(datamodel(source('@relation(fields: [ticketId], references: [id])')))).toEqual([
+      'Comment.ticket: relation to the scoped Ticket without pilotId in its foreign key',
+    ]);
+    expect(unscopedModels(datamodel(source('@relation(fields: [ticketId, pilotId], references: [pilotId, id])')))).toEqual([
+      'Comment.ticket: relation to the scoped Ticket without pilotId in its foreign key',
+    ]);
+  });
+
   describe('on a hand-built DMMF', () => {
     const fixture: DatamodelShape = {
       models: [

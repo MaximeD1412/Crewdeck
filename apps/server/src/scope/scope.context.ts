@@ -19,8 +19,20 @@ export class ScopeMissingError extends Error {
   }
 }
 
-/** Runs `fn` in the scope of `pilotId`; what `fn` awaits stays in it. */
-export const runInPilotScope = <T>(pilotId: string, fn: () => T): T => storage.run({ pilotId }, fn);
+/**
+ * Runs `fn` in the scope of `pilotId`, for a webhook or a scheduler job, and
+ * awaits its result inside the scope: a deferred query `fn` returns (a
+ * PrismaPromise only runs once awaited) runs in the scope too.
+ */
+export const runInPilotScope = <T>(pilotId: string, fn: () => T | PromiseLike<T>): Promise<T> =>
+  storage.run({ pilotId }, async () => await fn());
+
+/**
+ * Calls `fn` synchronously in the scope of `pilotId` and returns what it
+ * returns, as is: for `ScopeInterceptor`, which subscribes to the handler's
+ * Observable inside the scope. Elsewhere, `runInPilotScope`.
+ */
+export const withPilotScope = <T>(pilotId: string, fn: () => T): T => storage.run({ pilotId }, fn);
 
 /** The Pilote of the current scope; throws `ScopeMissingError` outside one. */
 export const currentPilotId = (): string => {

@@ -714,7 +714,12 @@
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
-          "texte": "Types Go générés depuis zod, fixtures partagées, CI en échec si la génération n'est pas à jour",
+          "texte": "Types Go générés depuis zod (nx run contracts:generate) et fixtures partagées, validées par Vitest et go test",
+          "ref": "ADR 0001",
+          "fait": true
+        },
+        {
+          "texte": "CI en échec si la génération n'est pas à jour",
           "ref": "ADR 0001",
           "fait": false
         }

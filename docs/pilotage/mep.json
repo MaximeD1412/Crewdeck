@@ -22,6 +22,36 @@
       ],
       "commande": "gh api repos/MaximeD1412/Crewdeck/branches/develop/protection --jq .required_status_checks.contexts",
       "ajouteLe": "2026-11-10"
+    },
+    {
+      "id": "env-prod-staging",
+      "phase": "env",
+      "source": "#97",
+      "titre": "Écrire /opt/crewdeck/prod/.env et /opt/crewdeck/staging/.env depuis leurs modèles",
+      "pourquoi": "Chaque projet Compose lit un seul fichier d'env, à la fois pour Compose (le sha de l'image, le mot de passe de sa PostgreSQL) et pour le serveur. Sans lui, Compose refuse de démarrer le projet ; un staging dont PUBLIC_URL, GITHUB_APP_ID ou DATABASE_URL est celui de la production s'arrête au démarrage. Rempli par INFRA-12.",
+      "etapes": [
+        "Copier infra/deploy/prod.env.example vers /opt/crewdeck/prod/.env et infra/deploy/staging.env.example vers /opt/crewdeck/staging/.env, mode 600, propriétaire deploy.",
+        "Remplir chaque clé selon son commentaire : PUBLIC_URL, POSTGRES_PASSWORD (openssl rand -hex 32), les clés de la GitHub App de l'environnement (INFRA-11), les clés à générer (INFRA-12) ; laisser CREWDECK_SHA vide, le déploiement l'écrit.",
+        "Dans le staging : PROD_PUBLIC_URL et PROD_GITHUB_APP_ID, les valeurs de la production.",
+        "Vérifier : docker compose -p crewdeck-staging --env-file /opt/crewdeck/staging/.env -f docker-compose.yml -f docker-compose.staging.yml config --quiet, depuis /opt/crewdeck/deploy, une fois CREWDECK_SHA écrit."
+      ],
+      "commande": "sudo stat -c '%a %U %n' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
+      "ajouteLe": "2026-11-10"
+    },
+    {
+      "id": "edge-caddy",
+      "phase": "vps",
+      "source": "#97",
+      "titre": "Démarrer Caddy dans /opt/crewdeck/edge, sur le réseau crewdeck-edge",
+      "pourquoi": "Caddy est le seul conteneur qui publie un port (80 et 443) : il obtient les certificats par ACME et route le domaine vers crewdeck-prod-server, staging.<domaine> vers crewdeck-staging-server. Le réseau crewdeck-edge est créé par le provisionnement (INFRA-7) ; le .env de l'edge est rempli par INFRA-12.",
+      "etapes": [
+        "Vérifier que le réseau existe : docker network inspect crewdeck-edge (sinon : docker network create crewdeck-edge).",
+        "Copier infra/edge/ vers /opt/crewdeck/edge/, puis edge.env.example vers /opt/crewdeck/edge/.env (mode 600) avec CREWDECK_DOMAIN (le domaine, sans schéma) et ACME_EMAIL.",
+        "docker compose up -d dans /opt/crewdeck/edge.",
+        "Vérifier : https://staging.<domaine> répond avec un certificat valide (502 tant que le serveur du staging ne tourne pas)."
+      ],
+      "commande": "docker compose -p crewdeck-edge ps caddy",
+      "ajouteLe": "2026-11-10"
     }
   ]
 }

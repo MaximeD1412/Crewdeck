@@ -98,11 +98,42 @@ browser and passes.
 pnpm exec nx e2e web -- a-toi.spec.ts
 ```
 
+## The workflow `image`
+
+`.github/workflows/image.yml`, apart from `ci.yml`: a PR to `develop` or
+`main` that changes what goes into the server's image or how the VPS runs it
+(`apps/server/Dockerfile`, `apps/server/bin/`, `apps/server/package.json`,
+`infra/`, the lockfile and workspace, `.dockerignore`, `.mise.toml`, the
+workflow itself). A PR that changes only code (`apps/web/src`, …) does not
+run it: `ci.yml`'s `build` covers the code. Skipped for drafts like `ci.yml`.
+Not a required check: a workflow filtered by paths does not report on every
+PR. One job, `image`, 30 minutes, nothing pushed (publishing is INFRA-6's):
+
+1. the Dockerfile's `NODE_VERSION` and `GO_VERSION` equal `.mise.toml`'s;
+2. `docker compose config` of `infra/deploy/` (prod, and staging with its
+   override) on the templates, completed by `infra/deploy/test/ci.env`, and
+   of `infra/edge/`;
+3. `caddy validate` of `infra/edge/Caddyfile`;
+4. the image built with `CREWDECK_COMMIT`, and refused without it;
+5. `infra/deploy/test/image-smoke.sh`: the Runner binaries and their
+   `.sha256`, `migrate` and `serve` against a throwaway PostgreSQL (health,
+   the page at `/` and `/a-toi`, 404 JSON at `/api/unknown`), the staging
+   guard.
+
+```bash
+docker build --build-arg CREWDECK_COMMIT=$(git rev-parse HEAD) -t crewdeck-server:local -f apps/server/Dockerfile .
+infra/deploy/test/image-smoke.sh crewdeck-server:local
+```
+
+[`infra/deploy/README.md`](../infra/deploy/README.md) gives the Compose
+commands.
+
 ## The files
 
 | File | What |
 |---|---|
 | `.github/workflows/ci.yml` | the events, the scope, the concurrency, the check `ci` |
+| `.github/workflows/image.yml` | the server's image and the VPS's Compose and Caddy files, on the PRs that change them |
 | `.github/workflows/verify.yml` | the jobs, `on: workflow_call` with `scope` (`affected` \| `full`) and `base` (`origin/develop`) |
 | `.github/actions/setup/` | mise, the caches, the dependencies, `nx-set-shas` |
 | `.github/actions/browsers/` | Chromium, only when a project in scope uses Playwright |

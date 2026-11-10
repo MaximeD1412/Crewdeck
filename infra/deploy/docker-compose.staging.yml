@@ -1,0 +1,16 @@
+# Staging's override (ADR 0009): the same image and services as production,
+# with capped resources, so that staging can never starve production on the
+# shared VPS.
+services:
+  server:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 768M
+  db:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M

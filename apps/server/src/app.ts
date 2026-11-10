@@ -19,11 +19,19 @@ const serveDocs = (app: INestApplication): void => {
   SwaggerModule.setup('api/docs', app, document, { jsonDocumentUrl: 'api/docs.json', yamlDocumentUrl: 'api/docs.yaml' });
 };
 
+/**
+ * Every route under `/api`, but the fake GitHub's (`/fake-github`, mounted
+ * with `CREWDECK_FAKES=1` only), at the path the page reads GitHub at.
+ */
+export const applyGlobalPrefix = (app: INestApplication): void => {
+  app.setGlobalPrefix('api', { exclude: ['fake-github/{*path}'] });
+};
+
 /** The server as `main.ts` runs it and the tests boot it: every route under `/api`. */
 export const createApp = async (env: Env, options: AppOptions = {}): Promise<INestApplication> => {
   const app = await NestFactory.create(AppModule.forRoot(env, options), { bufferLogs: true });
   app.useLogger(app.get(Logger));
-  app.setGlobalPrefix('api');
+  applyGlobalPrefix(app);
   app.enableShutdownHooks();
   if (env.NODE_ENV !== 'production') serveDocs(app);
   return app;

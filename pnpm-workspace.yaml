@@ -20,6 +20,10 @@ catalog:
   "@nx/js": 23.3.1
   "@nx/vite": 23.3.1
   "@nx/vitest": 23.3.1
+  "@octokit/auth-app": 8.3.1
+  "@octokit/core": 7.0.8
+  "@octokit/plugin-retry": 8.1.1
+  "@octokit/plugin-throttling": 11.0.5
   "@playwright/test": 1.65.0
   "@prisma/adapter-pg": 7.10.1
   "@prisma/client": 7.10.1
@@ -31,6 +35,7 @@ catalog:
   eslint: 10.14.0
   happy-dom: 21.0.4
   lit: 3.3.3
+  msw: 3.0.4
   nestjs-pino: 5.3.1
   nestjs-zod: 5.6.0
   nx: 23.3.1

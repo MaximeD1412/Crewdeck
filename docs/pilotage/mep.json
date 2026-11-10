@@ -181,6 +181,21 @@
       ],
       "commande": "infra/backup/bin/restore-check.sh --env <fichier>",
       "ajouteLe": "2026-11-10"
+    },
+    {
+      "id": "env-github-app",
+      "phase": "env",
+      "source": "#27",
+      "titre": "Les variables de la GitHub App dans le .env de la prod et du staging",
+      "pourquoi": "Le serveur parle à GitHub comme la GitHub App de son environnement (ADR 0002) : en production et en staging, il refuse de démarrer sans GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, GITHUB_APP_CLIENT_ID, GITHUB_APP_CLIENT_SECRET et GITHUB_APP_SLUG. Les valeurs viennent d'INFRA-11 (une App par environnement), INFRA-12 les écrit. Les clés du client s'appellent GITHUB_APP_CLIENT_ID et GITHUB_APP_CLIENT_SECRET (et non GITHUB_CLIENT_ID et GITHUB_CLIENT_SECRET, que citent encore INFRA-11 et INFRA-12). CREWDECK_FAKES reste absent : le serveur le refuse en production.",
+      "etapes": [
+        "Dans /opt/crewdeck/prod/.env, avec l'App « Crewdeck » : GITHUB_APP_ID, GITHUB_APP_SLUG, GITHUB_APP_CLIENT_ID, GITHUB_APP_CLIENT_SECRET, et GITHUB_APP_PRIVATE_KEY = base64 -w0 de la clé privée (.pem) de l'App.",
+        "Dans /opt/crewdeck/staging/.env, de même avec l'App « Crewdeck staging » ; PROD_GITHUB_APP_ID reste l'id de l'App de la production.",
+        "Laisser GITHUB_API_URL et GITHUB_WEB_URL vides (GitHub.com).",
+        "Vérifier après le déploiement suivant : le serveur est healthy, et GET /api/config donne l'appSlug de l'environnement."
+      ],
+      "commande": "curl -s https://staging.<domaine>/api/config",
+      "ajouteLe": "2026-11-10"
     }
   ]
 }

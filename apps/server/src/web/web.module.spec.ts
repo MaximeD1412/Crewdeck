@@ -49,7 +49,7 @@ describe('the web build at /', () => {
     expect(response.headers.get('content-type')).toMatch(/javascript/);
   });
 
-  it.each(['/api/unknown', '/api', '/runner/unknown'])('answers 404 JSON, not the page, at %s', async (path) => {
+  it.each(['/api/unknown', '/api', '/runner/unknown', '/fake-github/repos/o/r/contents/README.md'])('answers 404 JSON, not the page, at %s', async (path) => {
     const response = await fetch(`${url}${path}`);
 
     expect(response.status).toBe(404);

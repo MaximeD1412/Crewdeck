@@ -16,6 +16,10 @@
     "@nestjs/platform-express": "catalog:",
     "@nestjs/serve-static": "catalog:",
     "@nestjs/swagger": "catalog:",
+    "@octokit/auth-app": "catalog:",
+    "@octokit/core": "catalog:",
+    "@octokit/plugin-retry": "catalog:",
+    "@octokit/plugin-throttling": "catalog:",
     "@prisma/adapter-pg": "catalog:",
     "@prisma/client": "catalog:",
     "nestjs-pino": "catalog:",
@@ -36,6 +40,7 @@
     "@prisma/get-dmmf": "catalog:",
     "@swc/core": "catalog:",
     "@types/pg": "catalog:",
+    "msw": "catalog:",
     "unplugin-swc": "catalog:"
   }
 }

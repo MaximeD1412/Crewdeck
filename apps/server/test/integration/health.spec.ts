@@ -12,7 +12,7 @@ describe('GET /api/health against PostgreSQL', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    app = await createApp(parseEnv({ DATABASE_URL: databaseUrl }), { logger: false });
+    app = await createApp(parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: databaseUrl }), { logger: false });
     await app.listen(0, '127.0.0.1');
   });
 

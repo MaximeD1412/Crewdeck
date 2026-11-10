@@ -47,7 +47,10 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "CORE-2",
+        "PROJET-2"
+      ]
     },
     {
       "id": "SEC-2",
@@ -73,7 +76,12 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "INFRA-5",
+        "INFRA-7",
+        "INFRA-11",
+        "INFRA-12"
+      ]
     },
     {
       "id": "SEC-3",
@@ -99,7 +107,11 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "E2E-1",
+        "E2E-2",
+        "E2E-4"
+      ]
     },
     {
       "id": "SEC-4",
@@ -120,7 +132,12 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "E2E-2",
+        "E2E-3",
+        "RUNNER-3",
+        "SESSION-1"
+      ]
     },
     {
       "id": "SEC-5",
@@ -146,7 +163,11 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "CONCEPTION-4",
+        "CORE-7",
+        "UI-1"
+      ]
     },
     {
       "id": "SEC-6",
@@ -162,7 +183,9 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "RUNNER-10"
+      ]
     },
     {
       "id": "SEC-7",
@@ -178,7 +201,12 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "CORE-1",
+        "IDEE-1",
+        "IDEE-2",
+        "SESSION-1"
+      ]
     },
     {
       "id": "SEC-8",
@@ -194,7 +222,9 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "PROJET-1"
+      ]
     },
     {
       "id": "SEC-9",
@@ -210,7 +240,9 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "IDEE-4"
+      ]
     },
     {
       "id": "IA-1",
@@ -236,7 +268,11 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "BIZ-3",
+        "RUNNER-5",
+        "RUNNER-7"
+      ]
     },
     {
       "id": "IA-2",
@@ -252,7 +288,11 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "BIZ-3",
+        "RUNNER-6",
+        "RUNNER-7"
+      ]
     },
     {
       "id": "IA-3",
@@ -278,7 +318,15 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "RUNNER-1",
+        "RUNNER-4",
+        "RUNNER-5",
+        "RUNNER-6",
+        "RUNNER-7",
+        "RUNNER-8",
+        "RUNNER-14"
+      ]
     },
     {
       "id": "IA-4",
@@ -299,7 +347,11 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "BOUCLE-7",
+        "BOUCLE-8",
+        "RUNNER-13"
+      ]
     },
     {
       "id": "IA-5",
@@ -325,7 +377,10 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "BOUCLE-3",
+        "BOUCLE-4"
+      ]
     },
     {
       "id": "IA-6",
@@ -341,7 +396,19 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "ATOI-2",
+        "CONCEPTION-2",
+        "CONCEPTION-3",
+        "CONCEPTION-5",
+        "CONCEPTION-7",
+        "CONCEPTION-8",
+        "CONCEPTION-9",
+        "IDEE-2",
+        "IDEE-5",
+        "RUNNER-11",
+        "RUNNER-12"
+      ]
     },
     {
       "id": "OPS-1",
@@ -362,7 +429,10 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "E2E-3",
+        "E2E-4"
+      ]
     },
     {
       "id": "OPS-2",
@@ -388,7 +458,10 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "INFRA-8",
+        "INFRA-13"
+      ]
     },
     {
       "id": "OPS-3",
@@ -404,7 +477,12 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "INFRA-5",
+        "INFRA-6",
+        "INFRA-7",
+        "INFRA-10"
+      ]
     },
     {
       "id": "OPS-4",
@@ -420,7 +498,10 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "BOUCLE-1",
+        "PROJET-1"
+      ]
     },
     {
       "id": "OPS-5",
@@ -436,7 +517,10 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "CORE-8",
+        "PILOTAGE-3"
+      ]
     },
     {
       "id": "OPS-6",
@@ -452,7 +536,10 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "INFRA-3",
+        "INFRA-9"
+      ]
     },
     {
       "id": "OPS-7",
@@ -468,7 +555,9 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "ATOI-4"
+      ]
     },
     {
       "id": "BIZ-1",
@@ -484,7 +573,9 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "BIZ-2"
+      ]
     },
     {
       "id": "BIZ-2",
@@ -500,7 +591,9 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "BIZ-1"
+      ]
     },
     {
       "id": "BIZ-3",
@@ -516,7 +609,9 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "BIZ-2"
+      ]
     },
     {
       "id": "BIZ-4",
@@ -532,7 +627,10 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "PILOTAGE-3",
+        "RUNNER-13"
+      ]
     },
     {
       "id": "BIZ-5",
@@ -553,7 +651,9 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "BIZ-2"
+      ]
     },
     {
       "id": "AGT-1",
@@ -574,7 +674,9 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "RUNNER-9"
+      ]
     },
     {
       "id": "AGT-2",
@@ -595,7 +697,13 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "BOUCLE-4",
+        "INFRA-3",
+        "INFRA-4",
+        "INFRA-6",
+        "INFRA-9"
+      ]
     },
     {
       "id": "AGT-3",
@@ -611,7 +719,14 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "INFRA-1",
+        "INFRA-3",
+        "RUNNER-2",
+        "RUNNER-4",
+        "RUNNER-11",
+        "RUNNER-14"
+      ]
     },
     {
       "id": "AGT-4",
@@ -627,7 +742,10 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "UI-1",
+        "UI-2"
+      ]
     },
     {
       "id": "AGT-5",
@@ -643,7 +761,9 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "INFRA-2"
+      ]
     },
     {
       "id": "AGT-6",
@@ -659,7 +779,9 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "BIZ-4"
+      ]
     }
   ]
 }

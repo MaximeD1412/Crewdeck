@@ -1,0 +1,50 @@
+{
+  "description": "HMAC-SHA256 (the pairing proofs) and the constant-time comparison. Byte strings are base64url without padding. Every random byte (keys, ephemeral keys, nonces) comes from the deterministic stream of the case's seed, see docs/security/e2e.md « Test vectors ».",
+  "hmac": [
+    {
+      "name": "rfc4231-case-2",
+      "secret": "SmVmZQ",
+      "message": "d2hhdCBkbyB5YSB3YW50IGZvciBub3RoaW5nPw",
+      "mac": "W9zBRr9gdU5qBCQmCJV1x1oAPwidJzmDnexYuWTsOEM"
+    },
+    {
+      "name": "link-proof-shaped",
+      "secret": "g-_Xk_N6Q_PhvrBcy5Z2dw",
+      "message": "Y3Jld2RlY2svdjEvbGluay9ydW5uZXI3S1E0EZSxC-9o4jAkLo26S-6bwo-_vcRvbAHiUN-9b3YYKofbt7O7x7Y6-479mKez8SjrIiz6ThdKxfd-VfvkM_xXrA",
+      "mac": "_61CPIaT5Qv1nIYYy4jE9umCzDT68nsGXVDx-eKleuE"
+    },
+    {
+      "name": "empty-message",
+      "secret": "Y3Jld2RlY2stc2VjcmV0LTE2",
+      "message": "",
+      "mac": "N3cTvEVNqTYemUnjDtVNrSiDsjJACKOwJZmi_2MbZxw"
+    }
+  ],
+  "constantTimeEqual": [
+    {
+      "a": "_61CPIaT5Qv1nIYYy4jE9umCzDT68nsGXVDx-eKleuE",
+      "b": "_61CPIaT5Qv1nIYYy4jE9umCzDT68nsGXVDx-eKleuE",
+      "equal": true
+    },
+    {
+      "a": "_61CPIaT5Qv1nIYYy4jE9umCzDT68nsGXVDx-eKleuE",
+      "b": "_61CPIaT5Qv1nIYYy4jE9umCzDT68nsGXVDx-eKleuA",
+      "equal": false
+    },
+    {
+      "a": "_61CPIaT5Qv1nIYYy4jE9umCzDT68nsGXVDx-eKleuE",
+      "b": "_61CPIaT5Qv1nIYYy4jE9umCzDT68nsGXVDx-eKleg",
+      "equal": false
+    },
+    {
+      "a": "",
+      "b": "",
+      "equal": true
+    },
+    {
+      "a": "",
+      "b": "AA",
+      "equal": false
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "provision",
+  "projectType": "library",
+  "sourceRoot": "infra/provision/src",
+  "tags": ["scope:infra"],
+  "targets": {
+    "test": { "inputs": ["default"] },
+    "test-integration": {
+      "executor": "nx:run-commands",
+      "options": { "command": "vitest run --config vitest.integration.config.ts", "cwd": "{projectRoot}" }
+    }
+  }
+}

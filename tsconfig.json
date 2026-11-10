@@ -25,6 +25,9 @@
       "path": "./infra/deploy"
     },
     {
+      "path": "./infra/provision"
+    },
+    {
       "path": "./infra/backup"
     }
   ]

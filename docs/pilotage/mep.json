@@ -54,6 +54,20 @@
       "ajouteLe": "2026-11-10"
     },
     {
+      "id": "garde-minutes-actions",
+      "phase": "env",
+      "source": "#105",
+      "titre": "Donner au workflow actions-minutes son jeton de facturation et le quota du compte",
+      "pourquoi": "Le workflow actions-minutes (.github/workflows/actions-minutes.yml) lit chaque jour les minutes Actions du mois et échoue à 80 % du quota ou quand la projection à la fin du mois le dépasse : l'e-mail de l'échec est l'alerte (risque OPS-6). Sans le secret ACTIONS_BILLING_TOKEN, il passe avec un avis et ne surveille rien.",
+      "etapes": [
+        "Créer un jeton fin (fine-grained) du compte MaximeD1412 : Settings > Developer settings > Personal access tokens > Fine-grained tokens, permission de compte « Plan » en lecture, aucun dépôt.",
+        "Dans le dépôt, Settings > Secrets and variables > Actions : le secret ACTIONS_BILLING_TOKEN (ce jeton) et la variable ACTIONS_MINUTES_QUOTA (les minutes incluses dans l'offre du compte, 3000 pour GitHub Pro).",
+        "Vérifier : lancer le workflow à la main (Actions > Actions minutes > Run workflow) ; le job affiche « Minutes Actions ce mois : … » et non l'avis du secret absent."
+      ],
+      "commande": "gh workflow run actions-minutes.yml --repo MaximeD1412/Crewdeck",
+      "ajouteLe": "2026-11-10"
+    },
+    {
       "id": "edge-caddy",
       "phase": "vps",
       "source": "#97",

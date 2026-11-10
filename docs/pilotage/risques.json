@@ -532,13 +532,13 @@
       "categorie": "ops",
       "gravite": "faible",
       "titre": "Minutes GitHub Actions dépassées",
-      "statut": "solution choisie",
+      "statut": "implémenté",
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
           "texte": "CI affected, PR en brouillon ignorées, garde quotidienne à 80 %",
           "ref": "ADR 0009",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [
@@ -709,7 +709,7 @@
         {
           "texte": "Nightly complète corrigée en premier",
           "ref": "ADR 0009",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

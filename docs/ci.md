@@ -23,7 +23,7 @@ them (BOUCLE-4). A PR pushed again cancels its previous run; a push to
 - **`affected`**: `nx affected` between the PR's merge base and its head, or,
   on a push, since the last successful run of `ci.yml` on `develop`
   (`nrwl/nx-set-shas`): a red run's changes are checked again by the next
-  one. What a PR's scope skips, the nightly (INFRA-9) runs the next night.
+  one. What a PR's scope skips, the nightly runs the next night.
 - **`full`**: `nx run-many`, every project.
 
 No Nx Cloud, no remote cache: the pnpm store, the Go modules and builds, the
@@ -81,8 +81,12 @@ run creates its own database and drops it.
 
 ```bash
 pnpm db:up
-pnpm exec nx affected -t test-integration --base=origin/develop
+pnpm exec nx affected -t test-integration --base=origin/develop --exclude provision
 ```
+
+`provision` is left out: its integration specs install Docker in a
+throwaway machine, and the workflow `provision` runs them when the
+provisioning changes.
 
 Locally, run only the files you touched
 (`pnpm exec nx test-integration server -- ideas`): AGENTS.md « Checking ».
@@ -99,13 +103,62 @@ browser and passes.
 pnpm exec nx e2e web -- a-toi.spec.ts
 ```
 
+## The workflow `nightly`
+
+`.github/workflows/nightly.yml`, every night at 03:30 UTC (a schedule runs on
+the default branch, `develop`) and from a manual dispatch (Actions > Nightly
+> Run workflow, on `develop`). One job, `verify`, calls `verify.yml` with
+`scope: full`: every project, what the PRs' `affected` scope skipped
+included. A dispatch from another branch is skipped: the nightly checks
+`develop` only. A second run waits for the first rather than cancel it, so
+that a red night never ends as « cancelled ».
+
+A red nightly is reported by GitHub's email of the failed workflow, no other
+channel, and is fixed before anything else (AGENTS.md « Checking »). Not a
+check of the PRs. The compiled Runner's smoke test joins it as its own job
+(RUNNER-14).
+
+```bash
+gh workflow run nightly.yml --ref develop
+```
+
+## The workflow `actions-minutes`
+
+`.github/workflows/actions-minutes.yml`, every day at 06:17 UTC (after the
+nightly, whose minutes count the same day) and from a manual dispatch. One
+job, `usage`, 5 minutes, runs `.github/scripts/actions-minutes.mjs`:
+
+1. reads the account's usage of the current month from the billing API
+   (`GET /users/{owner}/settings/billing/usage`), its Actions minutes;
+2. projects them to the month's end, `used / elapsed days × days in month`
+   (the current day counted as elapsed);
+3. prints both and the quota, then fails with « 80 % du quota atteint » when
+   `used ≥ 0.8 × quota`, or « projection au-delà du quota » when the
+   projection exceeds it. GitHub's email of the failed workflow is the alert.
+
+It reads the secret `ACTIONS_BILLING_TOKEN` (fine-grained token of the
+account, « Plan » read) and the variable `ACTIONS_MINUTES_QUOTA` (3000 by
+default, GitHub Pro's minutes; a value that is not a positive integer fails).
+Without the token, it passes with a notice. Both are set by the founder in
+Settings > Secrets and variables > Actions (`docs/pilotage/mep.json`).
+
+The script's pure functions and the workflows' triggers are tested by the Nx
+project `github` (`.github/project.json`, Node's test runner), which `checks`
+runs when `.github/` changes:
+
+```bash
+pnpm exec nx test github        # node --test '**/*.spec.mjs' in .github/
+node --test .github/scripts/actions-minutes.spec.mjs
+actionlint .github/workflows/nightly.yml .github/workflows/actions-minutes.yml
+```
+
 ## The workflow `image`
 
 `.github/workflows/image.yml`, apart from `ci.yml`: a PR to `develop` or
 `main` that changes what goes into the server's image or how the VPS runs it
 (`apps/server/Dockerfile`, `apps/server/bin/`, `apps/server/package.json`,
-`infra/`, the lockfile and workspace, `.dockerignore`, `.mise.toml`, the
-workflow itself). A PR that changes only code (`apps/web/src`, …) does not
+`infra/` but `infra/provision/`, the lockfile and workspace,
+`.dockerignore`, `.mise.toml`, the workflow itself). A PR that changes only code (`apps/web/src`, …) does not
 run it: `ci.yml`'s `build` covers the code. Skipped for drafts like `ci.yml`.
 Not a required check: a workflow filtered by paths does not report on every
 PR. One job, `image`, 30 minutes, nothing pushed (publishing is `delivery`'s):
@@ -169,6 +222,30 @@ actionlint .github/workflows/backup-watch.yml
 
 The backups themselves: [`infra/backup/README.md`](../infra/backup/README.md).
 
+## The workflow `provision`
+
+`.github/workflows/provision.yml`, apart from `ci.yml`: a PR to `develop` or
+`main`, or a push to `develop`, that changes `infra/provision/` or the
+workflow itself (`infra/provision/src/workflow.spec.ts` checks the filter).
+Skipped for drafts like `ci.yml`. Not a required check, for the same reason
+as `image`. One job, `provision`, 30 minutes, on `ubuntu-24.04`:
+
+1. `shellcheck infra/provision/provision.sh`;
+2. `nx test-integration provision`: `infra/provision/test/Dockerfile`
+   (Ubuntu 24.04 with systemd) run as a privileged container, the script run
+   in it twice; the second run must print « rien à changer » and leave `/etc`
+   and the services as they were. A network namespace inside the machine
+   plays the Internet for SSH, fail2ban and the published ports; an Ubuntu
+   22.04 container checks the refusal.
+
+```bash
+shellcheck infra/provision/provision.sh
+pnpm exec nx test-integration provision   # PROVISION_KEEP=1 keeps the machine
+```
+
+[`infra/provision/README.md`](../infra/provision/README.md) says how to run
+the script on the VPS.
+
 ## The files
 
 | File | What |
@@ -177,7 +254,12 @@ The backups themselves: [`infra/backup/README.md`](../infra/backup/README.md).
 | `.github/workflows/image.yml` | the server's image and the VPS's Compose and Caddy files, on the PRs that change them |
 | `.github/workflows/delivery.yml` | the image published and deployed on staging, then promoted to production |
 | `.github/workflows/backup-watch.yml` | the age of production's last backup, every morning; its script in `.github/scripts/backup-watch.mjs` |
+| `.github/workflows/provision.yml` | the VPS's provisioning, twice on a throwaway machine, on the PRs and pushes that change it |
+| `.github/workflows/nightly.yml` | `verify.yml` in full scope on `develop`, at 03:30 UTC and on dispatch |
+| `.github/workflows/actions-minutes.yml` | the month's Actions minutes against the quota, daily |
 | `.github/workflows/verify.yml` | the jobs, `on: workflow_call` with `scope` (`affected` \| `full`) and `base` (`origin/develop`) |
+| `.github/scripts/actions-minutes.mjs` | the minutes' guard, its pure functions tested by `actions-minutes.spec.mjs` |
+| `.github/project.json`, `.github/test/` | the Nx project `github`: the specs of `.github/` under `node --test` |
 | `.github/actions/setup/` | mise, the caches, the dependencies, `nx-set-shas` |
 | `.github/actions/browsers/` | Chromium, only when a project in scope uses Playwright |
 | `.github/actions/deploy/` | the SSH call to the VPS's restricted key, for `delivery` |

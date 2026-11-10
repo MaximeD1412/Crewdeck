@@ -14,7 +14,7 @@ test.describe('the library of Composants (/parametres/composants)', () => {
     await scenario('composants');
 
     await expect(page.getByRole('heading', { level: 1, name: 'Bibliothèque de Composants' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Paramètres' })).toHaveAttribute('href', '/parametres');
+    await expect(page.getByRole('main').getByRole('link', { name: 'Paramètres' })).toHaveAttribute('href', '/parametres');
 
     const catalogue = page.getByRole('navigation', { name: 'Catalogue des Composants' });
     await expect(catalogue.getByRole('heading', { level: 2 })).toHaveText([/^Cadre et menu/, /^Pages/, /^Parties de page/, /^Signaux et contrôles/]);

@@ -1,0 +1,14 @@
+/*
+ * The document under the Composants: the Passerelle ground and ink, from the
+ * --cd-* tokens (load tokens.css first). The Cadre will lie on it.
+ */
+:root {
+  color-scheme: dark;
+  background: var(--cd-ground);
+  color: var(--cd-ink);
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+}

@@ -5,6 +5,9 @@ packages:
 # Shared versions, exact for the frameworks (ADR 0001).
 catalog:
   "@eslint/js": 10.0.1
+  "@fontsource/ibm-plex-mono": 5.3.0
+  "@fontsource/ibm-plex-sans": 5.3.0
+  "@fontsource/ibm-plex-sans-condensed": 5.3.0
   "@nestjs/common": 11.2.9
   "@nestjs/core": 11.2.9
   "@nestjs/platform-express": 11.2.9
@@ -19,11 +22,13 @@ catalog:
   "@swc/core": 1.16.22
   "@types/node": 24.19.2
   "@types/pg": 8.23.1
+  "@vitest/browser-playwright": 5.1.0
   eslint: 10.14.0
   happy-dom: 21.0.4
   lit: 3.3.3
   nx: 23.3.1
   pg: 8.23.1
+  playwright: 1.65.0
   prisma: 7.10.1
   reflect-metadata: 0.2.2
   rxjs: 7.8.2

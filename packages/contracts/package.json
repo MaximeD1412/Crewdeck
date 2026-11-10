@@ -10,6 +10,12 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./composants": {
+      "@crewdeck/source": "./src/composants/index.ts",
+      "types": "./dist/composants/index.d.ts",
+      "import": "./dist/composants/index.js",
+      "default": "./dist/composants/index.js"
+    },
     "./package.json": "./package.json"
   },
   "dependencies": {

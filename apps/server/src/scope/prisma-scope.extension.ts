@@ -116,8 +116,10 @@ export const pilotScope = (models: RuntimeModels, globals: ReadonlySet<string> =
           continue;
         }
         const target = relations.get(key);
-        if (!target || !isObject(value)) continue;
+        if (!target) continue;
+        // Before the value's shape: `runner: null` filters on the relation too.
         reach(name, key, target);
+        if (!isObject(value)) continue;
         const filters = RELATION_FILTERS.filter((filter) => filter in value);
         if (filters.length === 0) checkWhere(target, value);
         for (const filter of filters) checkWhere(target, value[filter]);
@@ -143,9 +145,12 @@ export const pilotScope = (models: RuntimeModels, globals: ReadonlySet<string> =
         if (key === '_count') {
           if (value === true) for (const [relation, target] of relations) reach(name, relation, target);
           if (isObject(value) && isObject(value['select'])) {
-            for (const relation of Object.keys(value['select'])) {
+            for (const [relation, counted] of Object.entries(value['select'])) {
               const target = relations.get(relation);
-              if (target) reach(name, relation, target);
+              if (!target) continue;
+              reach(name, relation, target);
+              // A filtered count (`{ where }`) tells about the rows it filters on.
+              if (isObject(counted)) checkWhere(target, counted['where']);
             }
           }
           continue;

@@ -75,6 +75,59 @@ describe('the models walk', () => {
     ]);
   });
 
+  it('fails on an implicit many-to-many between scoped models, and passes its explicit join model', () => {
+    const source = (relations: string) => `
+      datasource db {
+        provider = "postgresql"
+      }
+      model Ticket {
+        id      String @id
+        pilotId String
+        ${relations.includes('TicketLabel') ? 'links TicketLabel[]' : 'labels Label[]'}
+        @@unique([pilotId, id])
+      }
+      model Label {
+        id      String @id
+        pilotId String
+        ${relations.includes('TicketLabel') ? 'links TicketLabel[]' : 'tickets Ticket[]'}
+        @@unique([pilotId, id])
+      }
+      ${relations}`;
+    const joinModel = `
+      model TicketLabel {
+        pilotId  String
+        ticketId String
+        labelId  String
+        ticket   Ticket @relation(fields: [pilotId, ticketId], references: [pilotId, id])
+        label    Label  @relation(fields: [pilotId, labelId], references: [pilotId, id])
+        @@id([pilotId, ticketId, labelId])
+      }`;
+
+    expect(unscopedModels(datamodel(source('')))).toEqual([
+      'Ticket.labels: implicit many-to-many relation to the scoped Label, its join table has no pilotId: write an explicit join model',
+      'Label.tickets: implicit many-to-many relation to the scoped Ticket, its join table has no pilotId: write an explicit join model',
+    ]);
+    expect(unscopedModels(datamodel(source(joinModel)))).toEqual([]);
+    expect(
+      unscopedModels(
+        datamodel(`
+          datasource db {
+            provider = "postgresql"
+          }
+          model Ticket {
+            id        String   @id
+            pilotId   String
+            blocks    Ticket[] @relation("blocking")
+            blockedBy Ticket[] @relation("blocking")
+            @@unique([pilotId, id])
+          }`),
+      ),
+    ).toEqual([
+      'Ticket.blocks: implicit many-to-many relation to the scoped Ticket, its join table has no pilotId: write an explicit join model',
+      'Ticket.blockedBy: implicit many-to-many relation to the scoped Ticket, its join table has no pilotId: write an explicit join model',
+    ]);
+  });
+
   describe('on a hand-built DMMF', () => {
     const fixture: DatamodelShape = {
       models: [

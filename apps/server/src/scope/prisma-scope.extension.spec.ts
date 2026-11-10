@@ -6,9 +6,9 @@ type Args = Record<string, unknown>;
 const scalar = (name: string, type = 'String') => ({ name, kind: 'scalar', type });
 const relation = (name: string, type: string) => ({ name, kind: 'object', type });
 
-/** Pilot, Installation and Account are global; Ticket and Comment are scoped. */
+/** Pilot, Installation and Account are global; Ticket, Comment and Runner are scoped. */
 const MODELS: RuntimeModels = {
-  Pilot: { fields: [scalar('id'), scalar('login'), relation('tickets', 'Ticket'), relation('installations', 'Installation')] },
+  Pilot: { fields: [scalar('id'), scalar('login'), relation('tickets', 'Ticket'), relation('installations', 'Installation'), relation('runner', 'Runner')] },
   Ticket: {
     fields: [
       scalar('id'),
@@ -22,6 +22,7 @@ const MODELS: RuntimeModels = {
     ],
   },
   Comment: { fields: [scalar('id'), scalar('pilotId'), scalar('ticketId'), relation('ticket', 'Ticket')] },
+  Runner: { fields: [scalar('id'), scalar('pilotId'), relation('pilot', 'Pilot')] },
   Installation: { fields: [scalar('id'), relation('tickets', 'Ticket'), relation('owner', 'Account')] },
   Account: { fields: [scalar('id'), relation('installations', 'Installation')] },
 };
@@ -187,6 +188,10 @@ describe('pilotScope, on the relations of a global model', () => {
     ['findMany', { where: { tickets: { some: { title: 'A' } } } }],
     ['findMany', { where: { OR: [{ login: 'a' }, { tickets: { none: {} } }] } }],
     ['findMany', { orderBy: [{ tickets: { _count: 'desc' } }] }],
+    ['findMany', { where: { id: 'p2', runner: null } }],
+    ['findFirst', { where: { AND: [{ id: 'p2' }, { runner: { isNot: null } }] } }],
+    ['findMany', { select: { _count: { select: { installations: { where: { tickets: { some: {} } } } } } } }],
+    ['findMany', { include: { _count: { select: { installations: { where: { OR: [{ tickets: { none: {} } }] } } } } } }],
     ['count', { where: { NOT: { tickets: { every: { state: 'open' } } } } }],
     ['create', { data: { login: 'a', tickets: { create: { title: 'A' } } } }],
     ['update', { where: { id: 'p1' }, data: { tickets: { deleteMany: {} } } }],
@@ -197,7 +202,12 @@ describe('pilotScope, on the relations of a global model', () => {
   });
 
   it('lets it reach its global relations', async () => {
-    const args = { include: { installations: { include: { owner: true }, where: { owner: { is: { id: 'a1' } } } }, _count: { select: { installations: true } } } };
+    const args = {
+      include: {
+        installations: { include: { owner: true }, where: { owner: { is: { id: 'a1' } } } },
+        _count: { select: { installations: { where: { owner: null } } } },
+      },
+    };
 
     expect(await rewrite('Pilot', 'findMany', args)).toEqual(args);
     expect(await rewrite('Installation', 'findMany', { select: { _count: { select: { owner: true } } } })).toEqual({ select: { _count: { select: { owner: true } } } });

@@ -16,6 +16,7 @@ export interface DatamodelField {
   readonly type?: string;
   readonly relationFromFields?: readonly string[];
   readonly relationToFields?: readonly string[];
+  readonly relationName?: string | null;
 }
 
 /** The part of Prisma's DMMF the walk reads (`getDMMF().datamodel`). */
@@ -30,12 +31,16 @@ const carriesPilotId = (field: DatamodelField): boolean => {
   return at >= 0 && field.relationToFields?.[at] === PILOT_ID;
 };
 
+const holdsKey = (field: DatamodelField): boolean => (field.relationFromFields?.length ?? 0) > 0;
+
 /**
  * The models that break the scope's rule, each with why: neither global, nor
  * with a `pilotId` field and an index (or a primary or unique key) whose first
  * column is `pilotId`; or holding a foreign key to another scoped model that
  * does not carry `pilotId` (PostgreSQL then lets a row point at another
- * Pilote's, which an `include` would read). Empty when the schema is safe.
+ * Pilote's, which an `include` would read), or an implicit many-to-many to
+ * one, whose join table Prisma writes without `pilotId`. Empty when the
+ * schema is safe.
  */
 export const unscopedModels = (datamodel: DatamodelShape, globals: ReadonlySet<string> = GLOBAL_MODELS): string[] =>
   datamodel.models
@@ -43,9 +48,22 @@ export const unscopedModels = (datamodel: DatamodelShape, globals: ReadonlySet<s
     .flatMap((model) => {
       if (!model.fields.some((field) => field.name === PILOT_ID)) return [`${model.name}: no ${PILOT_ID} field`];
       const led = datamodel.indexes.some((index) => index.model === model.name && index.fields[0]?.name === PILOT_ID);
-      const foreign = model.fields
-        .filter((field) => field.kind === 'object' && field.type && !globals.has(field.type) && (field.relationFromFields?.length ?? 0) > 0)
-        .filter((field) => !carriesPilotId(field))
+      const toScoped = model.fields.filter((field) => field.kind === 'object' && field.type && !globals.has(field.type));
+      const foreign = toScoped
+        .filter((field) => holdsKey(field) && !carriesPilotId(field))
         .map((field) => `${model.name}.${field.name}: relation to the scoped ${field.type} without ${PILOT_ID} in its foreign key`);
-      return [...(led ? [] : [`${model.name}: no index starting with ${PILOT_ID}`]), ...foreign];
+      // Neither side holds the key: Prisma keeps the links in a join table of its own.
+      const implicit = toScoped
+        .filter((field) => !holdsKey(field))
+        .filter((field) => {
+          const other = datamodel.models
+            .find((candidate) => candidate.name === field.type)
+            ?.fields.find((candidate) => candidate.relationName === field.relationName && candidate !== field);
+          return other !== undefined && !holdsKey(other);
+        })
+        .map(
+          (field) =>
+            `${model.name}.${field.name}: implicit many-to-many relation to the scoped ${field.type}, its join table has no ${PILOT_ID}: write an explicit join model`,
+        );
+      return [...(led ? [] : [`${model.name}: no index starting with ${PILOT_ID}`]), ...foreign, ...implicit];
     });

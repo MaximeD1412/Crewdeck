@@ -114,7 +114,7 @@ Run what the change touches, from the repo's root:
 |---|---|
 | One TypeScript test file | `pnpm exec nx test server -- src/ideas/ideas.service.spec.ts` (or `web`, `contracts`, `sdk`, `skin-passerelle`) |
 | One integration file | `pnpm exec nx test-integration server -- ideas` (needs `pnpm db:up`) |
-| One end-to-end spec | `pnpm exec nx e2e web -- a-toi.spec.ts` |
+| One end-to-end spec | `pnpm exec nx e2e web -- a-toi.spec.ts` (needs `pnpm db:up`; starts `pnpm dev`, or reuses it; a screen adds its scenario in `apps/server/src/testing/scenarios/` and its spec in `apps/web/e2e/`) |
 | One Go package | `cd apps/runner && go test ./internal/session/ -run TestResume` |
 | Before the PR | `pnpm exec nx affected -t lint typecheck test build --base=origin/develop`, the integration and e2e files of what you touched, `pnpm exec nx run contracts:generate` with no diff |
 
@@ -132,8 +132,10 @@ Composants, screens, adapters, Contrat rules, protocol messages).
 - The PR goes to `develop`, as a draft until its own checks pass. Body in
   French: what changed, « Closes #<n> », the criterion-to-test table (each
   acceptance criterion, the test that proves it), the decisions taken alone.
-- A ticket with `revue_visuelle: true`: `scripts/captures.sh` for each
-  screen it changes (390 and 1280 px, pushed to `captures/<n>`), the
+- A ticket with `revue_visuelle: true`: `scripts/captures.sh <scenario>…`
+  with the scenarios of each screen and state it changes (their names are
+  the ids of `design/screens.json`, `<id>` or `<id>-<state>`; 390 and 1280
+  px, pushed to `captures/<n>`), the
   captures in the PR body, label `revue-visuelle`; a ticket with
   `video: true` adds a video of the flow. The merge waits for the Pilote.
 - Done means: the acceptance criteria proven by tests, the checks green,

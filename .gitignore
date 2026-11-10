@@ -3,3 +3,13 @@
 
 # builds, pilotage data (pilotage build)
 dist/
+.nx/
+node_modules/
+.env
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+vite.config.*.timestamp*
+vitest.config.*.timestamp*
+out-tsc/

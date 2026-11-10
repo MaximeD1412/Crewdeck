@@ -1,0 +1,75 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "runner",
+  "projectType": "application",
+  "sourceRoot": "apps/runner",
+  "tags": [
+    "scope:runner"
+  ],
+  "implicitDependencies": [
+    "contracts"
+  ],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "go",
+        "^production"
+      ],
+      "options": {
+        "command": "go test ./...",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "go"
+      ],
+      "options": {
+        "commands": [
+          "go vet ./...",
+          "test -z \"$(gofmt -l .)\" || (gofmt -l . && exit 1)"
+        ],
+        "parallel": false,
+        "cwd": "{projectRoot}"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "go"
+      ],
+      "options": {
+        "command": "go test -count=1 -run '^$' ./...",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "go",
+        "^production"
+      ],
+      "outputs": [
+        "{workspaceRoot}/dist/apps/runner"
+      ],
+      "options": {
+        "command": "go build -ldflags \"-X main.version=${CREWDECK_VERSION:-dev}\" -o ../../dist/apps/runner/crewdeck-runner ./cmd/crewdeck-runner",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "run": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "go run ./cmd/crewdeck-runner",
+        "cwd": "{projectRoot}",
+        "forwardAllArgs": true
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@crewdeck/sdk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "@crewdeck/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@crewdeck/contracts": "workspace:*"
+  },
+  "nx": {
+    "name": "sdk",
+    "tags": [
+      "scope:sdk"
+    ]
+  }
+}

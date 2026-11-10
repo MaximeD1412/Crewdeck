@@ -1,0 +1,33 @@
+{
+  "name": "@crewdeck/source",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "db:up": "docker compose up -d --wait db && pnpm exec nx run server:migrate",
+    "dev": "CREWDECK_FAKES=1 nx run-many -t serve -p server web"
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "@nx/eslint": "catalog:",
+    "@nx/eslint-plugin": "catalog:",
+    "@nx/js": "catalog:",
+    "@nx/vite": "catalog:",
+    "@nx/vitest": "catalog:",
+    "@swc/core": "catalog:",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "nx": "catalog:",
+    "tslib": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

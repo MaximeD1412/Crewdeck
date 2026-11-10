@@ -3,7 +3,7 @@ import { defaultServerConditions } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 /** Files and imports under Node; the Composants in a real browser (ADR 0008, test baseline). */
-const BROWSER_SPECS = ['src/composants.spec.ts'];
+const BROWSER_SPECS = ['src/composants.spec.ts', 'src/text-field.spec.ts', 'src/controls.spec.ts', 'src/dialog.spec.ts', 'src/page-composants.spec.ts'];
 
 export default defineConfig({
   root: import.meta.dirname,

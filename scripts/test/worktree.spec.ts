@@ -232,6 +232,36 @@ describe('scripts/worktree.sh setup', () => {
     expect(docker.some((args) => args.endsWith(' restart db'))).toBe(false);
   });
 
+  it.each([
+    ['a comment after the value', 'DB_PORT=5433 # port local\n'],
+    ['trailing spaces and spaces around =', 'DB_PORT = 5433   \n'],
+    ['single quotes and a comment', "export DB_PORT='5433' # local\n"],
+    ['double quotes', 'DB_PORT="5433"\n'],
+    ['Windows line endings', 'DB_PORT=5433\r\n'],
+    ['the last line winning, commented lines skipped', 'DB_PORT=5000\n# DB_PORT=6000\nDB_PORT=5433\n'],
+  ])('reads DB_PORT as Node parses .env, with %s', (_, content) => {
+    const { main, run, calls } = repository();
+    write(join(main, '.env'), content);
+
+    const result = run('setup');
+
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+    expect(calls().filter((call) => call.name === 'pg_isready').map((call) => call.args)).toEqual(['-h localhost -p 5433 -t 3']);
+    expect(calls().filter((call) => call.name === 'docker').every((call) => call.dbPort === '5433')).toBe(true);
+  });
+
+  it('fails clearly on a DB_PORT that is not a port', () => {
+    const { main, run, calls } = repository();
+    write(join(main, '.env'), 'DB_PORT=cinq\n');
+
+    const result = run('setup');
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('DB_PORT invalide dans .env : « cinq »');
+    expect(calls().some((call) => call.name === 'docker')).toBe(false);
+  });
+
   it('reads the default port 5432 when .env has no DB_PORT', () => {
     const { main, run, calls } = repository();
     rmSync(join(main, '.env'));
@@ -291,6 +321,22 @@ describe('scripts/worktree.sh drop', () => {
 
     expect(result.status).toBe(0);
     expect(dropped(calls())).toEqual([own]);
+  });
+
+  it('drops no database when another worktree has the same cut slug, and says so', () => {
+    const { main, worktree, run, calls } = repository('Crewdeck-feat-23-infra-2-scripts-worktree-sh-setup');
+    const other = join(temporary, 'Crewdeck-feat-23-infra-2-scripts-worktree-sh-drop');
+    git(main, 'worktree', 'add', '-q', '-b', 'feat/autre', other);
+    write(join(worktree, 'dist/a'), 'x');
+    // Whose run made it cannot be told: both worktrees' slugs are `crewdeck_feat_23_infra_2_scripts_worktree_`.
+    const shared = 'crewdeck_it_crewdeck_feat_23_infra_2_scripts_worktree__0a1b2c3d';
+
+    const result = run('drop', { STUB_DATABASES: shared });
+
+    expect(result.status).toBe(0);
+    expect(dropped(calls())).toEqual([]);
+    expect(result.stdout).toContain(`même préfixe de base que ${other}`);
+    expect(existsSync(join(worktree, 'dist'))).toBe(false);
   });
 
   it('still cleans the worktree when PostgreSQL is not running', () => {

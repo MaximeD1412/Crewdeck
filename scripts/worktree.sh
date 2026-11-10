@@ -102,18 +102,36 @@ setup() {
 # lu dans le .env du worktree (copié de celui du dépôt principal).
 project=${COMPOSE_PROJECT_NAME:-$(basename "$main" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]//g')}
 compose() {
-  DB_PORT=$(db_port) docker compose -p "$project" -f "$root/docker-compose.yml" "$@"
+  DB_PORT=$db_port docker compose -p "$project" -f "$root/docker-compose.yml" "$@"
 }
 
-# Le port de l'hôte : DB_PORT de .env, 5432 par défaut (docker-compose.yml).
-db_port() {
-  local port=
+# Le port de l'hôte : DB_PORT de .env, lu comme le lit Node (process.loadEnvFile,
+# celui de database.ts) sans rien exécuter : la dernière affectation l'emporte,
+# `export` permis, valeur entre guillemets simples ou doubles prise telle
+# quelle, sinon coupée au premier « # » et débarrassée de ses espaces. Vide ou
+# absent : 5432, le défaut de docker-compose.yml.
+db_port=
+load_db_port() {
+  local line value='' double='^"([^"]*)"' single="^'([^']*)'"
   if [[ -f $root/.env ]]; then
-    port=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}DB_PORT[[:space:]]*=[[:space:]]*//p' "$root/.env" | tail -n 1)
-    port=${port%$'\r'}
-    port=${port//[\"\']/}
+    while IFS= read -r line || [[ -n $line ]]; do
+      line=${line%$'\r'}
+      [[ $line =~ ^[[:space:]]*(export[[:space:]]+)?DB_PORT[[:space:]]*=(.*)$ ]] || continue
+      value=${BASH_REMATCH[2]}
+      value=${value#"${value%%[![:space:]]*}"}
+      if [[ $value =~ $double || $value =~ $single ]]; then
+        value=${BASH_REMATCH[1]}
+      else
+        value=${value%%#*}
+        value=${value%"${value##*[![:space:]]}"}
+      fi
+    done <"$root/.env"
   fi
-  echo "${port:-5432}"
+  value=${value:-5432}
+  if ! [[ $value =~ ^[0-9]{1,5}$ ]] || ((10#$value < 1 || 10#$value > 65535)); then
+    fail "DB_PORT invalide dans .env : « $value »"
+  fi
+  db_port=$((10#$value))
 }
 
 # host_answers <port> <essais> : PostgreSQL répond-il sur le port de l'hôte ?
@@ -133,7 +151,8 @@ host_answers() {
 
 postgres() {
   local port running
-  port=$(db_port)
+  load_db_port
+  port=$db_port
   running=$(compose ps --status running -q db 2>&1) || {
     echo "$running" >&2
     fail "docker compose ne répond pas (Docker est-il lancé ?)"
@@ -181,23 +200,33 @@ drop() {
 # (63, la limite de PostgreSQL, moins « crewdeck_it_ », « _ » et 8 hex).
 slug() {
   local slug
-  slug=$(basename "$root" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')
+  slug=$(basename "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')
   echo "${slug:0:42}"
 }
 
 # Les bases `crewdeck_it_<slug>_<8 hex>` de ce worktree, laissées par une
 # exécution des tests d'intégration interrompue. Celles des autres worktrees
-# ne sont jamais touchées.
+# ne sont jamais touchées : quand un autre checkout du dépôt a le même slug
+# (deux noms longs au même début), rien ne dit à qui est une base, et aucune
+# n'est supprimée.
 drop_databases() {
-  local running prefix list name
+  local running prefix list name other
   local -a names
+  load_db_port
   running=$(compose ps --status running -q db 2>/dev/null) || running=
   if [[ -z $running ]]; then
     echo "ok   conteneur db arrêté : aucune base d'intégration à supprimer"
     return
   fi
 
-  prefix="crewdeck_it_$(slug)_"
+  prefix="crewdeck_it_$(slug "$root")_"
+  while IFS= read -r other; do
+    [[ $other != "$root" ]] || continue
+    if [[ "crewdeck_it_$(slug "$other")_" == "$prefix" ]]; then
+      echo "ok   bases d'intégration laissées en place : ce worktree a le même préfixe de base que $other ($prefix), elles peuvent être les siennes"
+      return
+    fi
+  done < <(git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p')
   list=$(compose exec -T db psql -U crewdeck -d crewdeck -Atc \
     "SELECT datname FROM pg_database WHERE datname LIKE 'crewdeck\_it\_%'" </dev/null 2>&1) || {
     echo "$list" >&2

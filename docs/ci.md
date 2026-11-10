@@ -23,7 +23,7 @@ them (BOUCLE-4). A PR pushed again cancels its previous run; a push to
 - **`affected`**: `nx affected` between the PR's merge base and its head, or,
   on a push, since the last successful run of `ci.yml` on `develop`
   (`nrwl/nx-set-shas`): a red run's changes are checked again by the next
-  one. What a PR's scope skips, the nightly (INFRA-9) runs the next night.
+  one. What a PR's scope skips, the nightly runs the next night.
 - **`full`**: `nx run-many`, every project.
 
 No Nx Cloud, no remote cache: the pnpm store, the Go modules and builds, the
@@ -101,6 +101,55 @@ browser and passes.
 
 ```bash
 pnpm exec nx e2e web -- a-toi.spec.ts
+```
+
+## The workflow `nightly`
+
+`.github/workflows/nightly.yml`, every night at 03:30 UTC (a schedule runs on
+the default branch, `develop`) and from a manual dispatch (Actions > Nightly
+> Run workflow, on `develop`). One job, `verify`, calls `verify.yml` with
+`scope: full`: every project, what the PRs' `affected` scope skipped
+included. A dispatch from another branch is skipped: the nightly checks
+`develop` only. A second run waits for the first rather than cancel it, so
+that a red night never ends as « cancelled ».
+
+A red nightly is reported by GitHub's email of the failed workflow, no other
+channel, and is fixed before anything else (AGENTS.md « Checking »). Not a
+check of the PRs. The compiled Runner's smoke test joins it as its own job
+(RUNNER-14).
+
+```bash
+gh workflow run nightly.yml --ref develop
+```
+
+## The workflow `actions-minutes`
+
+`.github/workflows/actions-minutes.yml`, every day at 06:17 UTC (after the
+nightly, whose minutes count the same day) and from a manual dispatch. One
+job, `usage`, 5 minutes, runs `.github/scripts/actions-minutes.mjs`:
+
+1. reads the account's usage of the current month from the billing API
+   (`GET /users/{owner}/settings/billing/usage`), its Actions minutes;
+2. projects them to the month's end, `used / elapsed days × days in month`
+   (the current day counted as elapsed);
+3. prints both and the quota, then fails with « 80 % du quota atteint » when
+   `used ≥ 0.8 × quota`, or « projection au-delà du quota » when the
+   projection exceeds it. GitHub's email of the failed workflow is the alert.
+
+It reads the secret `ACTIONS_BILLING_TOKEN` (fine-grained token of the
+account, « Plan » read) and the variable `ACTIONS_MINUTES_QUOTA` (3000 by
+default, GitHub Pro's minutes; a value that is not a positive integer fails).
+Without the token, it passes with a notice. Both are set by the founder in
+Settings > Secrets and variables > Actions (`docs/pilotage/mep.json`).
+
+The script's pure functions and the workflows' triggers are tested by the Nx
+project `github` (`.github/project.json`, Node's test runner), which `checks`
+runs when `.github/` changes:
+
+```bash
+pnpm exec nx test github        # node --test '**/*.spec.mjs' in .github/
+node --test .github/scripts/actions-minutes.spec.mjs
+actionlint .github/workflows/nightly.yml .github/workflows/actions-minutes.yml
 ```
 
 ## The workflow `image`
@@ -185,7 +234,11 @@ the script on the VPS.
 | `.github/workflows/image.yml` | the server's image and the VPS's Compose and Caddy files, on the PRs that change them |
 | `.github/workflows/delivery.yml` | the image published and deployed on staging, then promoted to production |
 | `.github/workflows/provision.yml` | the VPS's provisioning, twice on a throwaway machine, on the PRs and pushes that change it |
+| `.github/workflows/nightly.yml` | `verify.yml` in full scope on `develop`, at 03:30 UTC and on dispatch |
+| `.github/workflows/actions-minutes.yml` | the month's Actions minutes against the quota, daily |
 | `.github/workflows/verify.yml` | the jobs, `on: workflow_call` with `scope` (`affected` \| `full`) and `base` (`origin/develop`) |
+| `.github/scripts/actions-minutes.mjs` | the minutes' guard, its pure functions tested by `actions-minutes.spec.mjs` |
+| `.github/project.json`, `.github/test/` | the Nx project `github`: the specs of `.github/` under `node --test` |
 | `.github/actions/setup/` | mise, the caches, the dependencies, `nx-set-shas` |
 | `.github/actions/browsers/` | Chromium, only when a project in scope uses Playwright |
 | `.github/actions/deploy/` | the SSH call to the VPS's restricted key, for `delivery` |

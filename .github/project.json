@@ -1,0 +1,17 @@
+{
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "name": "github",
+  "projectType": "library",
+  "tags": ["scope:github"],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default"],
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "node --test '**/*.spec.mjs'"
+      }
+    }
+  }
+}

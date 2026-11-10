@@ -1,0 +1,42 @@
+name: Nightly
+
+# The net under the PRs (ADR 0009, « CI »). A PR to `develop` runs only what
+# its diff reaches, and the Boucle merges it without a human reading the code:
+# what it skipped (a test Nx's graph does not link to the diff, a dependency
+# that moved outside) would only show at the release. Every night, the full
+# campaign of verify.yml runs again on `develop`.
+#
+# A red nightly fails like any workflow: GitHub's email of the failed workflow
+# reports it, no other channel, and AGENTS.md has it fixed before anything
+# else. docs/ci.md, « The workflow nightly ».
+#
+# The compiled Runner's smoke test is added here by RUNNER-14, as its own job.
+on:
+  schedule:
+    # 03:30 UTC: the agents' machine sleeps, and the campaign ends before the
+    # morning's first run. A schedule runs on the default branch, `develop`.
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+# Two nightlies do not overlap: the second, dispatched by hand, waits for the
+# first. Cancelling it instead would turn a red night into « cancelled », and
+# no failure email would come.
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+# The most any job of verify.yml gets; each job narrows it.
+permissions:
+  contents: read
+  actions: read
+  # gitleaks lists the commits through the API (private repository).
+  pull-requests: read
+
+jobs:
+  verify:
+    # The nightly checks `develop` and nothing else: a dispatch from another
+    # branch is skipped, rather than pass for a green night.
+    if: github.ref == 'refs/heads/develop'
+    uses: ./.github/workflows/verify.yml
+    with:
+      scope: full

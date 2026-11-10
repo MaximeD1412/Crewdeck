@@ -155,7 +155,7 @@
         {
           "texte": "MVP : seule la Skin officielle, qui n'importe que @crewdeck/sdk (frontières Nx, ESLint)",
           "ref": "ADR 0006",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Bêta : Skin tierce dans une iframe isolée d'une autre origine, sans réseau",
@@ -742,7 +742,12 @@
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
-          "texte": "Premiers fichiers à imiter, exemples de chaque Composant testés",
+          "texte": "Exemples de chaque Composant rendus par un test de la Skin, classe de base PasserelleElement",
+          "ref": "ADR 0006",
+          "fait": true
+        },
+        {
+          "texte": "Premiers fichiers à imiter (decision-row côté contrats et Skin, vue a-toi)",
           "ref": "ADR 0006",
           "fait": false
         }

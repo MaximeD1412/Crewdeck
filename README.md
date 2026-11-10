@@ -21,3 +21,7 @@ Les contrats (`packages/contracts`) sont écrits une fois en zod : après un
 changement, `pnpm exec nx run contracts:generate` réécrit leur JSON Schema et
 les types Go du Runner, à commiter. Les commandes de vérification sont dans
 [`AGENTS.md`](AGENTS.md#checking).
+
+Les jetons de la Skin Passerelle (`packages/skin-passerelle/src/tokens.css`,
+les `--cd-*`) sont générés depuis `design/tokens.json` : après un changement
+des maquettes, `pnpm exec nx run skin-passerelle:tokens`, à commiter aussi.

@@ -195,7 +195,7 @@ func generateBase32Vectors() base32Vectors {
 	for _, text := range []string{"o1ag", "OIAG", "0lag", "0LAG", "0iAg", "zzzzzzzzzzzzzzzzzzzzzzzzzw"} {
 		v.Decode = append(v.Decode, base32Case{Bytes: must(DecodeBase32(text)), Text: text})
 	}
-	v.Invalid = []string{"U0", "0u", "AB-CD", "AB=", "A", "ABC", "ABCDEF", "01", "0Z", " 0G", "é0"}
+	v.Invalid = []string{"U0", "0u", "AB-CD", "AB=", "A", "ABC", "ABCDEF", "01", "0Z", " 0G", "é0", "ß0", "ﬀ0"}
 	for _, s := range v.Invalid {
 		if _, err := DecodeBase32(s); err == nil {
 			panic("invalid base32 decodes: " + s)

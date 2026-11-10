@@ -6,7 +6,9 @@
     "release": "main"
   },
   "agentLoop": {
-    "conventionsFile": "AGENTS.md"
+    "conventionsFile": "AGENTS.md",
+    "setupCmd": "scripts/worktree.sh setup",
+    "dropCmd": "scripts/worktree.sh drop"
   },
   "pilotage": {
     "dataDir": "docs/pilotage",

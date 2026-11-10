@@ -1,0 +1,9 @@
+{
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "name": "scripts",
+  "projectType": "library",
+  "tags": ["scope:scripts"],
+  "targets": {
+    "test": { "inputs": ["default"] }
+  }
+}

@@ -4,9 +4,11 @@ import { ZodResponse } from 'nestjs-zod';
 import type { Env } from '../config/env.js';
 import { ENV } from '../config/env.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { Public } from '../scope/public.decorator.js';
 import { HealthDto } from './health.dto.js';
 
 /** `GET /api/health`: public (no session), returns no secret, only the commit. */
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(
@@ -22,7 +24,7 @@ export class HealthController {
 
   private async database(): Promise<Health['db']> {
     try {
-      await this.prisma.$queryRaw`SELECT 1`;
+      await this.prisma.ping();
       return 'ok';
     } catch {
       return 'down';

@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# The forced command of the deploy keys (ADR 0009, « Delivery »):
+#
+#   deploy-trigger <staging|production>
+#
+# install-access.sh writes it in ~deploy/.ssh/authorized_keys, one line per
+# environment, with the key's environment as its fixed argument:
+#
+#   command="/opt/crewdeck/deploy/bin/deploy-trigger staging",restrict <key>
+#
+# The client only chooses the commit: SSH_ORIGINAL_COMMAND must be exactly
+# `deploy <env> <sha>`, <env> the key's own and <sha> 40 lowercase hex
+# characters. Anything else prints « commande refusée » and exits 1 without
+# running anything. Then deploy.sh, next to this script, runs with these two
+# words only; its exit code is the SSH session's, so the workflow's.
+set -euo pipefail
+
+refuse() {
+  echo "commande refusée : $*" >&2
+  exit 1
+}
+
+[ $# -eq 1 ] || refuse "la clé doit fixer un seul environnement"
+key_env="$1"
+case "$key_env" in
+  staging | production) ;;
+  *) refuse "environnement de clé inconnu « $key_env »" ;;
+esac
+
+usage="cette clé n'accepte que « deploy $key_env <sha de 40 caractères hexadécimaux> »"
+command="${SSH_ORIGINAL_COMMAND-}"
+# `$` anchors the end of the string, not of a line: a second line, a `;` or
+# any extra word fails the match.
+[[ "$command" =~ ^deploy\ (staging|production)\ ([0-9a-f]{40})$ ]] || refuse "$usage"
+[ "${BASH_REMATCH[1]}" = "$key_env" ] || refuse "$usage"
+sha="${BASH_REMATCH[2]}"
+
+# A cancelled job or a lost connection closes the session: the deploy must not
+# stop between its migration and its health check because of it.
+trap '' HUP
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+exec "$script_dir/deploy.sh" "$key_env" "$sha"

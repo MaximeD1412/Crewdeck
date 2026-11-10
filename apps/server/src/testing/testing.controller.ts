@@ -1,6 +1,7 @@
 import type { ScenarioRun } from '@crewdeck/contracts';
 import { Controller, HttpCode, Param, Post } from '@nestjs/common';
 import { notFound } from '../errors/app-error.js';
+import { Public } from '../scope/public.decorator.js';
 import { findScenario } from './scenarios/index.js';
 import { ScenariosService } from './scenarios.service.js';
 
@@ -9,6 +10,7 @@ import { ScenariosService } from './scenarios.service.js';
  * the fakes, seeds the scenario, returns where the browser goes and with
  * which session cookie. Mounted outside production only (`TestingModule`).
  */
+@Public()
 @Controller('testing')
 export class TestingController {
   constructor(private readonly scenarios: ScenariosService) {}

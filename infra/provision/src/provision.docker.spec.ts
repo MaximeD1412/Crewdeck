@@ -4,7 +4,7 @@
  * (infra/deploy/README.md).
  */
 import { inject } from 'vitest';
-import { ADMIN, lastLine, must, refusal, sh } from './machine.js';
+import { ADMIN, lastLine, must, provision, refusal, sh } from './machine.js';
 
 const machine = inject('machine');
 
@@ -41,6 +41,22 @@ describe('the tree /opt/crewdeck', () => {
       '/opt/crewdeck/edge 750 root:docker',
       '/opt/crewdeck/backup 750 root:docker',
     ]);
+  });
+
+  it('keeps what install-access.sh (INFRA-6) made of deploy/ and prod/', () => {
+    const stat = "stat -c '%n %a %U:%G' /opt/crewdeck/deploy /opt/crewdeck/prod";
+    const before = must(machine, stat);
+    must(machine, 'install -d -o root -g root -m 755 /opt/crewdeck/deploy && chown nobody:docker /opt/crewdeck/prod');
+    try {
+      const handed = must(machine, stat);
+      const run = provision(machine);
+      expect(run.status, run.stderr).toBe(0);
+      expect(lastLine(run.stdout)).toBe('rien à changer');
+      expect(must(machine, stat)).toBe(handed);
+    } finally {
+      must(machine, 'chown root:docker /opt/crewdeck/deploy /opt/crewdeck/prod && chmod 750 /opt/crewdeck/deploy');
+    }
+    expect(must(machine, stat)).toBe(before);
   });
 });
 

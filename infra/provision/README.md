@@ -62,7 +62,7 @@ commandes système vont sur stderr, le résumé seul sur stdout.
 | 4. Pare-feu ufw | entrées refusées par défaut, sauf 22, 80 et 443 en TCP et 443 en UDP |
 | 5. Docker | Docker CE depuis le dépôt apt de Docker, `daemon.json` avec `log-driver: local` et `live-restore`, l'administrateur dans le groupe `docker` ; la chaîne `DOCKER-USER` qui ferme tout port publié sauf 80 et 443, rechargée après chaque démarrage de Docker par `crewdeck-docker-user.service` |
 | 6. Mises à jour de sécurité | unattended-upgrades, quotidiennes, des seules origines `-security`, sans redémarrage automatique |
-| 7. Arborescence et réseau | `/opt/crewdeck/{deploy,prod,staging,edge,backup}`, mode 750, groupe `docker` ; le réseau `crewdeck-edge` |
+| 7. Arborescence et réseau | `/opt/crewdeck/{deploy,prod,staging,edge,backup}`, mode 750, groupe `docker`, créés s'ils manquent (ensuite, `install-access.sh` d'INFRA-6 en reprend certains, et un nouveau passage les laisse tels quels) ; le réseau `crewdeck-edge` |
 
 Ce qu'il refuse, avant toute modification, avec le moyen d'en sortir :
 

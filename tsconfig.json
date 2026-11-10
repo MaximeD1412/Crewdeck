@@ -22,6 +22,9 @@
       "path": "./scripts"
     },
     {
+      "path": "./infra/deploy"
+    },
+    {
       "path": "./infra/provision"
     }
   ]

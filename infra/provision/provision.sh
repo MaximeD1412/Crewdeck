@@ -679,13 +679,19 @@ EOF
 # --- 7. Tree and network ---
 
 # What the Compose projects expect (infra/deploy/README.md): readable by
-# the docker group (the deploy account, INFRA-6), closed to the others.
+# the docker group (the deploy account, INFRA-6), closed to the others. The
+# subdirectories are only created: install-access.sh (INFRA-6) then hands
+# deploy/ to root (755) and prod/, staging/ to deploy, which writes there; a
+# run after it must not take them back.
 step_tree() {
   local dir
-  for dir in /opt/crewdeck /opt/crewdeck/{deploy,prod,staging,edge,backup}; do
-    if ensure_dir "$dir" 750 root:docker; then
-      changed "$dir"
-    fi
+  if ensure_dir /opt/crewdeck 750 root:docker; then
+    changed /opt/crewdeck
+  fi
+  for dir in /opt/crewdeck/{deploy,prod,staging,edge,backup}; do
+    [[ ! -d "$dir" ]] || continue
+    run install -d -m 750 -o root -g docker "$dir"
+    changed "$dir"
   done
   if ! docker network inspect crewdeck-edge >/dev/null 2>&1; then
     run docker network create crewdeck-edge

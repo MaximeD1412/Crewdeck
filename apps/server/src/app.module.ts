@@ -8,6 +8,7 @@ import { ErrorFilter } from './errors/error.filter.js';
 import { HealthModule } from './health/health.module.js';
 import { type LogDestination, loggerParams } from './logging/logger.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { ScopeModule } from './scope/scope.module.js';
 import { TestingModule } from './testing/testing.module.js';
 import { WebModule } from './web/web.module.js';
 
@@ -20,14 +21,15 @@ export interface AppModuleOptions {
 /**
  * The app, with the conventions of ADR 0008 applied to every route: each
  * input parsed by its DTO's schema (`createZodDto` of a contract), each output
- * by its `@ZodResponse` DTO, each error rendered as the envelope.
+ * by its `@ZodResponse` DTO, each error rendered as the envelope, each route
+ * but the `@Public()` ones run in the scope of its principal's Pilote.
  */
 @Module({})
 export class AppModule {
   static forRoot(env: Env, { logs, imports = [] }: AppModuleOptions = {}): DynamicModule {
     return {
       module: AppModule,
-      imports: [LoggerModule.forRoot(loggerParams(env, logs)), EnvModule.forRoot(env), PrismaModule, HealthModule, TestingModule.forEnvironment(env), WebModule.forRoot(env), ...imports],
+      imports: [LoggerModule.forRoot(loggerParams(env, logs)), EnvModule.forRoot(env), PrismaModule, ScopeModule, HealthModule, TestingModule.forEnvironment(env), WebModule.forRoot(env), ...imports],
       providers: [
         { provide: APP_PIPE, useClass: ZodValidationPipe },
         { provide: APP_INTERCEPTOR, useClass: ZodSerializerInterceptor },

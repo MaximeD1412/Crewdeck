@@ -4,6 +4,7 @@
  * `<module>.<case>` and every code thrown in `src/` has its entry.
  */
 export const MESSAGES = {
+  'auth.required': 'Connecte-toi pour continuer.',
   'http.bad-request': 'La requête n’est pas valide.',
   'http.not-found': 'Cette adresse n’existe pas.',
   'server.internal': 'Une erreur inattendue est survenue.',

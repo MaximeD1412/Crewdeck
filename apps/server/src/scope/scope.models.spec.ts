@@ -128,6 +128,43 @@ describe('the models walk', () => {
     ]);
   });
 
+  it('finds the other side of an implicit many-to-many by its model too, when a relation name is reused', () => {
+    const reused = `
+      datasource db {
+        provider = "postgresql"
+      }
+      model Group {
+        id      String   @id
+        pilotId String
+        tickets Ticket[] @relation("links")
+        labels  Label[]  @relation("links")
+        @@unique([pilotId, id])
+      }
+      model Ticket {
+        id      String  @id
+        pilotId String
+        groupId String
+        group   Group   @relation("links", fields: [pilotId, groupId], references: [pilotId, id])
+        labels  Label[] @relation("links")
+        @@unique([pilotId, id])
+        @@index([pilotId, groupId])
+      }
+      model Label {
+        id      String   @id
+        pilotId String
+        groupId String
+        group   Group    @relation("links", fields: [pilotId, groupId], references: [pilotId, id])
+        tickets Ticket[] @relation("links")
+        @@unique([pilotId, id])
+        @@index([pilotId, groupId])
+      }`;
+
+    expect(unscopedModels(datamodel(reused))).toEqual([
+      'Ticket.labels: implicit many-to-many relation to the scoped Label, its join table has no pilotId: write an explicit join model',
+      'Label.tickets: implicit many-to-many relation to the scoped Ticket, its join table has no pilotId: write an explicit join model',
+    ]);
+  });
+
   describe('on a hand-built DMMF', () => {
     const fixture: DatamodelShape = {
       models: [

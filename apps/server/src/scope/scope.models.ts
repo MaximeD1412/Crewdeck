@@ -56,10 +56,15 @@ export const unscopedModels = (datamodel: DatamodelShape, globals: ReadonlySet<s
       const implicit = toScoped
         .filter((field) => !holdsKey(field))
         .filter((field) => {
+          // The other side: same relation name and back to this model (a name may be reused by other pairs).
           const other = datamodel.models
             .find((candidate) => candidate.name === field.type)
-            ?.fields.find((candidate) => candidate.relationName === field.relationName && candidate !== field);
-          return other !== undefined && !holdsKey(other);
+            ?.fields.find(
+              (candidate) =>
+                candidate !== field && candidate.kind === 'object' && candidate.type === model.name && candidate.relationName === field.relationName,
+            );
+          // No other side found: reported rather than trusted.
+          return other === undefined || !holdsKey(other);
         })
         .map(
           (field) =>

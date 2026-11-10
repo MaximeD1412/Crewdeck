@@ -55,8 +55,28 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push ${{ env.IMAGE }}:${{ github.sha }}
+      # `:<sha>` is written once: a re-run redeploys the image already
+      # published, never a rebuild of the same commit that staging has not
+      # run (production also checks it is the `staged-` one, deploy.sh).
+      - name: Look for ${{ env.IMAGE }}:${{ github.sha }}
+        id: image
         if: vars.DEPLOY_HOST != ''
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          if out=$(docker buildx imagetools inspect "$IMAGE:$SHA" 2>&1); then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "$IMAGE:$SHA est déjà publiée : elle est redéployée telle quelle."
+          elif grep -qi 'not found' <<<"$out"; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "$out"
+            echo "::error::Impossible de savoir si $IMAGE:$SHA existe déjà."
+            exit 1
+          fi
+
+      - name: Build and push ${{ env.IMAGE }}:${{ github.sha }}
+        if: vars.DEPLOY_HOST != '' && steps.image.outputs.exists == 'false'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .

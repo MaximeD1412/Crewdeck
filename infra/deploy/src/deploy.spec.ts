@@ -23,7 +23,10 @@ const IMAGE = 'ghcr.io/maximed1412/crewdeck-server';
  * The stub of `docker`: one line per call, `<CREWDECK_SHA of --env-file>\t<args>`.
  * `STUB_BROKEN` lists the shas whose server answers the health check with another
  * commit; `STUB_MIGRATE_STATUS` is the exit code of `migrate`; `STUB_PULL_GATE`
- * makes `pull` touch `<gate>.started` and wait for `<gate>`.
+ * makes `pull` touch `<gate>.started` and wait for `<gate>`; `STUB_UP_FAILS` lists
+ * the shas whose `up -d` fails (a container Compose cannot create);
+ * `image inspect` answers `sha256:validated`, or `STUB_STAGED_ID` for a
+ * `staged-` tag.
  */
 const DOCKER = `#!/usr/bin/env bash
 env_file=
@@ -43,6 +46,9 @@ case " $* " in
       for _ in $(seq 200); do [[ -e $STUB_PULL_GATE ]] && break; sleep 0.05; done
     fi ;;
   *" run "*" migrate "*) exit "\${STUB_MIGRATE_STATUS:-0}" ;;
+  *" up "*) [[ " \${STUB_UP_FAILS-} " == *" $sha "* ]] && exit 1 ;;
+  *" image inspect "*)
+    if [[ " $* " == *":staged-"* ]]; then echo "\${STUB_STAGED_ID:-sha256:validated}"; else echo sha256:validated; fi ;;
   *" exec "*)
     commit=$sha
     [[ " \${STUB_BROKEN-} " == *" $sha "* ]] && commit=${OTHER}
@@ -197,6 +203,35 @@ describe('deploy.sh: a deploy that succeeds', () => {
   });
 });
 
+describe("deploy.sh: production runs staging's image", () => {
+  it('pulls the staged- tag and deploys when it is the same image as <sha>', () => {
+    const b = bench();
+    const result = deploy(b, ['production', SHA]);
+
+    expect(result.status).toBe(0);
+    expect(index(b, `pull --quiet ${IMAGE}:staged-${SHA}`)).toBeGreaterThan(index(b, `pull --quiet ${IMAGE}:${SHA}`));
+    expect(index(b, `pull --quiet ${IMAGE}:staged-${SHA}`)).toBeLessThan(index(b, ' migrate'));
+  });
+
+  it('refuses an image of <sha> that is not the one staging validated, before touching anything', () => {
+    const b = bench();
+    const result = deploy(b, ['production', SHA], { STUB_STAGED_ID: 'sha256:rebuilt' });
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("n'est pas celle que le staging a validée");
+    expect(index(b, ' migrate')).toBe(-1);
+    expect(index(b, ' up ')).toBe(-1);
+    expect(envSha(b, 'prod')).toBe(PREVIOUS);
+  });
+
+  it('never asks staging for a staged- tag', () => {
+    const b = bench();
+    deploy(b, ['staging', SHA]);
+
+    expect(index(b, 'staged-')).toBe(-1);
+  });
+});
+
 describe('deploy.sh: the rehearsal hook', () => {
   it('runs rehearse.sh <sha> before migrating production', () => {
     const b = bench({ rehearse: true });
@@ -255,6 +290,36 @@ describe('deploy.sh: a deploy that fails', () => {
     expect(result.output).toContain(`déploiement de ${SHA} échoué, retour à ${PREVIOUS}`);
     expect(result.output).toContain(`${PREVIOUS} ne répond pas non plus`);
     expect(envSha(b, 'staging')).toBe(PREVIOUS);
+  });
+
+  it('rolls back to the previous sha when the new containers cannot even start, and exits 1', () => {
+    const b = bench();
+    const result = deploy(b, ['staging', SHA], { STUB_UP_FAILS: SHA });
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(`déploiement de ${SHA} échoué, retour à ${PREVIOUS}`);
+    const ups = calls(b).filter((call) => call.includes(' up -d'));
+    expect(ups.map((call) => call.split('\t')[0])).toEqual([SHA, PREVIOUS]);
+    expect(envSha(b, 'staging')).toBe(PREVIOUS);
+    expect(read(join(b.root, 'staging/current-sha'))).toBe(`${PREVIOUS}\n`);
+  });
+
+  it('says so when the previous sha cannot start either', () => {
+    const b = bench();
+    const result = deploy(b, ['staging', SHA], { STUB_UP_FAILS: `${SHA} ${PREVIOUS}` });
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(`${PREVIOUS} ne répond pas non plus`);
+    expect(envSha(b, 'staging')).toBe(PREVIOUS);
+  });
+
+  it('restores the env file when the first deploy cannot start', () => {
+    const b = bench({ current: null });
+    const result = deploy(b, ['staging', SHA], { STUB_UP_FAILS: SHA });
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain('aucune version précédente');
+    expect(envSha(b, 'staging')).toBe('');
   });
 
   it('does not start the new image when the migration fails, and restores the env file', () => {

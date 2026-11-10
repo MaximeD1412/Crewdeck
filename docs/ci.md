@@ -137,8 +137,8 @@ the PRs: it runs after the merge, and its result is the deploy's.
 
 | Push to | Job | What it does |
 |---|---|---|
-| `develop` | `staging` (environment `staging`) | builds and pushes `ghcr.io/maximed1412/crewdeck-server:<sha>` (GitHub Actions cache), `deploy staging <sha>` over SSH, then the tag `staged-<sha>` |
-| `main` | `production` (environment `production`) | `infra/deploy/ci/production-sha.sh` (a merge commit whose tree is `HEAD^2`'s), the tag `staged-<HEAD^2>` exists, then `deploy production <HEAD^2>`; nothing is built |
+| `develop` | `staging` (environment `staging`) | builds and pushes `ghcr.io/maximed1412/crewdeck-server:<sha>` (GitHub Actions cache) unless it already exists (a re-run redeploys the published image), `deploy staging <sha>` over SSH, then the tag `staged-<sha>` |
+| `main` | `production` (environment `production`) | `infra/deploy/ci/production-sha.sh` (a merge commit whose tree is `HEAD^2`'s), the tag `staged-<HEAD^2>` exists, then `deploy production <HEAD^2>`, which refuses `<sha>` unless it is the `staged-` image; nothing is built |
 
 With `DEPLOY_HOST` empty in the environment, both jobs pass with the notice
 « VPS pas encore configuré ». The deploy itself, its rollback and how to

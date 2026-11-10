@@ -111,7 +111,8 @@ Le déploiement est poussé par GitHub ([ADR 0009](../../docs/adr/0009-infra-and
 
 - **push sur `develop`** (job `staging`, environnement GitHub `staging`) :
   construit l'image avec `CREWDECK_COMMIT=<sha>`, la pousse en
-  `ghcr.io/maximed1412/crewdeck-server:<sha>`, lance `deploy staging <sha>`
+  `ghcr.io/maximed1412/crewdeck-server:<sha>` (une seule fois : si ce tag
+  existe déjà, une relance reprend l'image publiée sans reconstruire), lance `deploy staging <sha>`
   sur le VPS, puis, si le déploiement a réussi, pose le tag `staged-<sha>` :
   la preuve que le staging a tourné sur cette image ;
 - **push sur `main`** (job `production`, environnement `production`) : main
@@ -141,7 +142,9 @@ Deux livraisons de la même branche se suivent, jamais annulées.
 1. un seul déploiement à la fois par environnement
    (`/run/lock/crewdeck-deploy-<env>.lock`) : le second sort tout de suite
    avec « déploiement déjà en cours » ;
-2. `docker login ghcr.io` avec `ghcr.env`, `docker pull` de l'image ;
+2. `docker login ghcr.io` avec `ghcr.env`, `docker pull` de l'image ; en
+   production, aussi `staged-<sha>`, et refus si `<sha>` n'est pas la même
+   image (« n'est pas celle que le staging a validée ») ;
 3. en production seulement, la répétition de la migration sur la dernière
    sauvegarde, `/opt/crewdeck/deploy/bin/rehearse.sh <sha>` (INFRA-8) quand
    il est installé : un échec arrête tout, rien n'a bougé ;
@@ -150,7 +153,8 @@ Deux livraisons de la même branche se suivent, jamais annulées.
 5. `/api/health` à `http://<projet>-server:3000`, l'adresse qu'emprunte
    Caddy, depuis le conteneur, pendant 60 s, jusqu'à `status: ok`, le commit
    `<sha>` et `db: ok` ;
-6. en cas d'échec, retour au sha de `/opt/crewdeck/<env>/current-sha` sans
+6. en cas d'échec (les conteneurs ne démarrent pas, ou ne sont pas en
+   bonne santé), retour au sha de `/opt/crewdeck/<env>/current-sha` sans
    rien migrer à l'envers (les migrations restent compatibles avec la version
    précédente), `up -d`, code 1 : « déploiement de `<sha>` échoué, retour à
    `<précédent>` ». En cas de succès, `current-sha` devient `<sha>`.
@@ -162,7 +166,8 @@ Le journal est dans le job GitHub et dans celui de la machine :
 
 - **Relancer le déploiement** : relancer le job du workflow `delivery`
   (« Re-run jobs ») sur le commit voulu de `develop` ou de `main`. Il refait
-  le même chemin, avec les mêmes vérifications.
+  le même chemin, avec les mêmes vérifications, et la même image : le job
+  `staging` ne reconstruit pas un `<sha>` déjà publié.
 - **Jamais** `docker compose up` avec un autre sha à la main, sauf un retour
   arrière : écrire le sha de `current-sha` (celui qui tournait) dans
   `CREWDECK_SHA` du `.env`, puis `up -d` (« Lancer un projet à la main »).

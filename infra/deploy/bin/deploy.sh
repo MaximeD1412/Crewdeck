@@ -10,12 +10,14 @@
 #
 #   1. one deploy per environment at a time (flock, without waiting);
 #   2. docker login ghcr.io with /opt/crewdeck/deploy/ghcr.env, docker pull;
+#      production also pulls `staged-<sha>`, the tag staging set on the image
+#      it found healthy, and refuses `<sha>` unless it is that same image;
 #   3. production only: the migration rehearsal on the latest backup,
 #      /opt/crewdeck/deploy/bin/rehearse.sh <sha> (INFRA-8), when installed;
 #   4. CREWDECK_SHA=<sha> in /opt/crewdeck/<env>/.env, `migrate`, `up -d`;
 #   5. /api/health at <project>-server:3000, the address Caddy uses, until it
 #      answers `ok` with this commit and its database (HEALTH_TIMEOUT s);
-#   6. on failure, back to the sha of /opt/crewdeck/<env>/current-sha, without
+#   6. on failure (the containers do not start, or are not healthy), back to the sha of /opt/crewdeck/<env>/current-sha, without
 #      migrating down (migrations stay compatible with the previous version),
 #      and exit 1; on success, current-sha is the new sha.
 #
@@ -122,6 +124,17 @@ unset ghcr_token
 log "récupération de $IMAGE:$sha"
 docker pull --quiet "$IMAGE:$sha" || fail "image $IMAGE:$sha introuvable"
 
+# Compose runs `$IMAGE:<sha>`; production runs it only if it is, byte for byte,
+# the image staging ran and tagged, not a later rebuild of the same commit.
+if [ "$env" = production ]; then
+  staged="$IMAGE:staged-$sha"
+  docker pull --quiet "$staged" || fail "$staged introuvable : $sha n'a pas été validé sur le staging"
+  image_id=$(docker image inspect --format '{{.Id}}' "$IMAGE:$sha") || fail "image $IMAGE:$sha illisible"
+  staged_id=$(docker image inspect --format '{{.Id}}' "$staged") || fail "image $staged illisible"
+  [ -n "$image_id" ] && [ "$image_id" = "$staged_id" ] ||
+    fail "l'image $IMAGE:$sha n'est pas celle que le staging a validée ($staged) : la production reste sur ${previous:-aucun}"
+fi
+
 # --- 3. The rehearsal, production only ------------------------------------
 
 if [ "$env" = production ]; then
@@ -134,7 +147,7 @@ if [ "$env" = production ]; then
   fi
 fi
 
-# --- 4. Migrate, start ------------------------------------------------------
+# --- 4. Migrate ------------------------------------------------------------
 
 write_sha "$sha"
 log "migration"
@@ -143,15 +156,19 @@ if ! compose run --rm server migrate; then
   fail "la migration de $sha a échoué : $env reste sur ${previous:-aucun}"
 fi
 
+# --- 5. Start and health, 6. rollback ---------------------------------------
+
+# `up` may fail after removing the old containers: the rollback follows either
+# way, set -e must not end the script first.
 log "démarrage de $sha"
-compose up -d
-
-# --- 5. Health, 6. rollback -------------------------------------------------
-
-if healthy "$sha"; then
-  printf '%s\n' "$sha" >"$current_file"
-  log "$env déployé sur $sha"
-  exit 0
+if compose up -d; then
+  if healthy "$sha"; then
+    printf '%s\n' "$sha" >"$current_file"
+    log "$env déployé sur $sha"
+    exit 0
+  fi
+else
+  log "les conteneurs de $sha n'ont pas démarré"
 fi
 
 if [ -z "$previous" ]; then
@@ -161,6 +178,5 @@ fi
 
 log "déploiement de $sha échoué, retour à $previous"
 write_sha "$previous"
-compose up -d
-healthy "$previous" || fail "$previous ne répond pas non plus : intervention nécessaire"
+{ compose up -d && healthy "$previous"; } || fail "$previous ne répond pas non plus : intervention nécessaire"
 fail "déploiement de $sha échoué, retour à $previous"

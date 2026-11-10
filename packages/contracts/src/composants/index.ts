@@ -1,9 +1,11 @@
 import { Banner } from './banner.js';
 import { Button } from './button.js';
 import { Card } from './card.js';
+import { Checkbox } from './checkbox.js';
 import { Chip } from './chip.js';
 import { CodeBlock } from './code-block.js';
 import type { AnyComposant } from './define.js';
+import { Dialog } from './dialog.js';
 import { Empty } from './empty.js';
 import { IconButton } from './icon-button.js';
 import { Icon } from './icon.js';
@@ -13,17 +15,24 @@ import { PageComposants } from './page-composants.js';
 import { PageHeader } from './page-header.js';
 import { PageIntrouvable } from './page-introuvable.js';
 import { ProjectFilter } from './project-filter.js';
+import { Radio } from './radio.js';
+import { Select } from './select.js';
+import { SettingRow } from './setting-row.js';
 import { StatusBadge } from './status-badge.js';
 import { StatusDot } from './status-dot.js';
 import { Tabs } from './tabs.js';
+import { TextField } from './text-field.js';
+import { Toggle } from './toggle.js';
 
 export * from './action.js';
 export * from './banner.js';
 export * from './button.js';
 export * from './card.js';
+export * from './checkbox.js';
 export * from './chip.js';
 export * from './code-block.js';
 export * from './define.js';
+export * from './dialog.js';
 export * from './empty.js';
 export * from './icon-button.js';
 export * from './icon.js';
@@ -34,9 +43,14 @@ export * from './page-composants.js';
 export * from './page-header.js';
 export * from './page-introuvable.js';
 export * from './project-filter.js';
+export * from './radio.js';
+export * from './select.js';
+export * from './setting-row.js';
 export * from './status-badge.js';
 export * from './status-dot.js';
 export * from './tabs.js';
+export * from './text-field.js';
+export * from './toggle.js';
 export * from './tone.js';
 
 /**
@@ -51,17 +65,24 @@ export const COMPOSANTS = {
   PageIntrouvable,
   Card,
   CodeBlock,
+  Dialog,
   KeyValue,
   ListRow,
+  SettingRow,
   Banner,
   Button,
+  Checkbox,
   Chip,
   Empty,
   Icon,
   IconButton,
+  Radio,
+  Select,
   StatusBadge,
   StatusDot,
   Tabs,
+  TextField,
+  Toggle,
 } as const satisfies Record<string, AnyComposant>;
 
 export type ComposantName = keyof typeof COMPOSANTS;

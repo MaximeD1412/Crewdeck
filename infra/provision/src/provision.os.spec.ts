@@ -1,10 +1,20 @@
 /** The script refuses any other release than Ubuntu 24.04 before touching anything. */
 import { docker, ETC_STATE, SCRIPT } from './machine.js';
 
+const RELEASE = 'ubuntu:22.04';
+
 describe('provision.sh on another release', () => {
+  // Pulled first when missing: `docker run` would write its download on the
+  // stderr checked here.
+  beforeAll(() => {
+    if (docker(['image', 'inspect', RELEASE]).status === 0) return;
+    const pull = docker(['pull', '-q', RELEASE]);
+    if (pull.status !== 0) throw new Error(`docker pull ${RELEASE} : ${pull.stderr}`);
+  });
+
   it('stops at once on Ubuntu 22.04 with « Ubuntu 24.04 attendu », /etc untouched', () => {
     const result = docker([
-      'run', '--rm', '-v', `${SCRIPT}:/src/provision.sh:ro`, 'ubuntu:22.04',
+      'run', '--rm', '-v', `${SCRIPT}:/src/provision.sh:ro`, RELEASE,
       'bash', '-c',
       `{ ${ETC_STATE}
        } > /tmp/avant

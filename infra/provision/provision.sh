@@ -164,13 +164,27 @@ check_admin() {
 
 # The admin's keys: their own, kept as they are, then those of the given
 # file. A key with options (restricted by command=, from=…) is never copied:
-# without its options, it would grant more than it was given.
+# without its options, it would grant more than it was given. Each given key
+# must be one OpenSSH reads (ssh-keygen): once root and the provider's account
+# are shut out, a truncated key could be the only way in, and sshd -t does
+# not read authorized_keys.
 collect_keys() {
-  local home="" given
+  local home="" given line n tmp
   [[ -n "$ADMIN_KEY" ]] || die "--admin-key (ou ADMIN_KEY) manquant : le fichier de la clé publique de l'administrateur"
   [[ -r "$ADMIN_KEY" ]] || die "--admin-key : $ADMIN_KEY illisible"
   given=$(grep -E "$KEY_LINE" "$ADMIN_KEY" || true)
   [[ -n "$given" ]] || die "--admin-key : aucune clé publique dans $ADMIN_KEY (ssh-ed25519 AAAA… commentaire)"
+  tmp=$(mktemp)
+  while IFS= read -r line; do
+    n=${line%%:*}
+    line=${line#*:}
+    printf '%s\n' "$line" >"$tmp"
+    if ! ssh-keygen -l -f "$tmp" >/dev/null 2>&1; then
+      rm -f "$tmp"
+      die "--admin-key : $ADMIN_KEY, ligne $n, clé refusée par ssh-keygen : $line"
+    fi
+  done < <(grep -nE "$KEY_LINE" "$ADMIN_KEY")
+  rm -f "$tmp"
   if getent passwd "$ADMIN_USER" >/dev/null; then
     home=$(getent passwd "$ADMIN_USER" | cut -d: -f6)
   fi
@@ -194,15 +208,16 @@ check_sshd_include() {
 # before 00-crewdeck.conf (in sshd_config before the Include, or in a file of
 # sshd_config.d sorted before ours) would win. In a Match block, wherever it
 # is, it would replace the global value for the connections it names
-# (« Match User root » then « PermitRootLogin yes »). Any Include other than
-# sshd_config.d/*.conf is refused: the included file would not be checked.
-# The machine is refused, on every run, before any change.
+# (« Match User root » then « PermitRootLogin yes »). AllowUsers lines add up
+# instead: one anywhere but in ours would let another account in. Any Include
+# other than sshd_config.d/*.conf is refused: the included file would not be
+# checked. The machine is refused, on every run, before any change.
 check_sshd_precedence() {
   local lus=(/etc/ssh/sshd_config) file conflicts LC_ALL=C
   while IFS= read -r file; do
     [[ -n "$file" && "$(basename "$file")" != "$SSHD_CONF" ]] && lus+=("$file")
   done < <(compgen -G "/etc/ssh/sshd_config.d/*.conf" | sort)
-  conflicts=$(awk -v ours="$SSHD_CONF" '
+  conflicts=$(awk -v ours="$SSHD_CONF" -v widens="s'ajoute à AllowUsers $ADMIN_USER deploy" '
     # The next word of rest, split as strdelim (misc.c, OpenSSH) splits the
     # keyword: it ends at the first blank, quote or « = ». A quoted part sticks
     # to the word (Inc"lude"); an « = » is skipped, alone or after blanks.
@@ -252,13 +267,14 @@ check_sshd_precedence() {
     # (elsewhere, or from sshd_config.d) would escape the check.
     key == "include" && main && path == "/etc/ssh/sshd_config.d/*.conf" { before = 0; next }
     key == "include" { print FILENAME ": " $0 " (Include non pris en charge)"; next }
+    key == "allowusers" { print FILENAME ": " $0 " (" widens ")"; next }
     key == "match" { inmatch = 1; next }
     (before || inmatch) && key in want && val != want[key] {
       print FILENAME ": " $0 (inmatch ? " (bloc Match)" : "")
     }
   ' "${lus[@]}")
   [[ -z "$conflicts" ]] ||
-    die "$(printf 'directives sshd qui annuleraient le durcissement (lues avant %s, dans un bloc Match, ou dans un fichier inclus non contrôlé) :\n%s\nLes retirer, puis relancer' "$SSHD_CONF" "$conflicts")"
+    die "$(printf 'directives sshd qui annuleraient le durcissement (lues avant %s, dans un bloc Match, AllowUsers hors du nôtre, ou dans un fichier inclus non contrôlé) :\n%s\nLes retirer, puis relancer' "$SSHD_CONF" "$conflicts")"
 }
 
 # The firewall opens only 22: an sshd listening elsewhere (Port 2222,
@@ -404,13 +420,16 @@ step_ssh() {
 # Read whole: `sshd -T | grep -q` fails under pipefail when grep closes the
 # pipe before the end (SIGPIPE).
 check_sshd_effective() {
-  local effective who
+  local effective who allowed expected
+  expected=$(printf 'allowusers %s\n' "$ADMIN_USER" deploy | sort -u)
   for who in root "$ADMIN_USER"; do
     effective=$(sshd -T -C "user=$who,host=localhost,addr=127.0.0.1")
     grep -qx 'passwordauthentication no' <<<"$effective" || die "sshd accepte encore les mots de passe pour $who : une autre configuration l'emporte"
     grep -qx 'kbdinteractiveauthentication no' <<<"$effective" || die "sshd accepte encore keyboard-interactive pour $who : une autre configuration l'emporte"
     grep -qx 'permitrootlogin no' <<<"$effective" || die "sshd accepte encore root (connexion de $who) : une autre configuration l'emporte"
-    grep -qx "allowusers $ADMIN_USER" <<<"$effective" || die "sshd n'autorise pas $ADMIN_USER (AllowUsers) : une autre configuration l'emporte"
+    allowed=$({ grep '^allowusers ' <<<"$effective" || true; } | sort -u)
+    [[ "$allowed" == "$expected" ]] ||
+      die "sshd n'autorise pas exactement $ADMIN_USER et deploy (connexion de $who) : $(tr '\n' ' ' <<<"$allowed")"
   done
 }
 
@@ -523,13 +542,18 @@ WantedBy=docker.service
 EOF
 }
 
-# The effective chain, over IPv4 and IPv6: the unit can be active and the
-# chain flushed since (by hand, by another tool).
+# The effective chain, over IPv4 and IPv6, rule for rule and in order: the
+# unit can be active and the chain changed since (flushed, or a rule put
+# before the DROP, by hand or by another tool).
 docker_user_loaded() {
-  local v4 v6
+  local expected v4 v6
+  expected=$(
+    echo '-N DOCKER-USER'
+    docker_user_rules | grep -- '^-A '
+  )
   v4=$(iptables -S DOCKER-USER 2>/dev/null) || return 1
   v6=$(ip6tables -S DOCKER-USER 2>/dev/null) || return 1
-  grep -q -- '--ctstate DNAT -j DROP' <<<"$v4" && grep -q -- '--ctstate DNAT -j DROP' <<<"$v6"
+  [[ "$v4" == "$expected" && "$v6" == "$expected" ]]
 }
 
 # Logs in the local format (rotation included) and live-restore (containers

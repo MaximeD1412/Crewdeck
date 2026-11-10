@@ -66,9 +66,12 @@ commandes système vont sur stderr, le résumé seul sur stdout.
 
 Ce qu'il refuse, avant toute modification, avec le moyen d'en sortir :
 
+- une clé du fichier `--admin-key` que `ssh-keygen` refuse (tronquée, mal
+  copiée) : elle serait peut-être le seul accès une fois root fermé ;
 - une directive sshd qui annulerait le durcissement (lue avant
   `00-crewdeck.conf`, dans un bloc `Match`, ou dans un fichier inclus hors
-  de `sshd_config.d`) ;
+  de `sshd_config.d`), ou un `AllowUsers` ailleurs que dans
+  `00-crewdeck.conf` (les `AllowUsers` s'additionnent) ;
 - un sshd qui n'écoute pas sur 22, seul port SSH ouvert ;
 - une règle ufw hors de 22, 80 et 443 ;
 - les paquets Docker d'Ubuntu (`docker.io`, …) ;
@@ -80,8 +83,9 @@ Ce qu'il refuse, avant toute modification, avec le moyen d'en sortir :
 La même commande. Sur une machine déjà provisionnée, elle affiche « déjà
 fait » pour les sept étapes puis « rien à changer », sans toucher à `/etc`
 ni redémarrer un service. Après une modification à la main d'un fichier
-qu'il gère (en-tête « Managed by infra/provision/provision.sh »), il le
-remet et le dit.
+qu'il gère (en-tête « Managed by infra/provision/provision.sh »), ou de la
+chaîne `DOCKER-USER` (comparée règle à règle, en IPv4 et IPv6), il les remet
+et le dit.
 
 ## Les tests
 

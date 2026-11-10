@@ -65,6 +65,22 @@ describe('fail2ban', () => {
   });
 });
 
+describe('an admin key file with a key OpenSSH refuses', () => {
+  it('is refused, /etc untouched, even beside a valid key: it could be the only way in', () => {
+    const file = '/root/essai/cles.pub';
+    const result = refusal(
+      machine,
+      `{ cat ${KEY}.pub; echo 'ssh-ed25519 AAAA cle-tronquee'; } > ${file}`,
+      `rm ${file}`,
+      `bash /src/provision.sh --admin-user ${ADMIN} --admin-key ${file}`,
+    );
+    expect(result.run.status).toBe(1);
+    expect(result.run.stderr).toContain(`--admin-key : ${file}, ligne 2, clé refusée par ssh-keygen : ssh-ed25519 AAAA cle-tronquee`);
+    expect(result.etcAfter).toBe(result.etcBefore);
+    expect(lastLine(result.rerun.stdout)).toBe('rien à changer');
+  });
+});
+
 describe('a machine whose sshd configuration would defeat the hardening', () => {
   it('is refused, /etc untouched, while a Match block lets root in', () => {
     const conf = '/etc/ssh/sshd_config.d/60-exception.conf';
@@ -75,6 +91,15 @@ describe('a machine whose sshd configuration would defeat the hardening', () => 
     );
     expect(result.run.status).toBe(1);
     expect(result.run.stderr).toContain(`${conf}: PermitRootLogin=yes (bloc Match)`);
+    expect(result.etcAfter).toBe(result.etcBefore);
+    expect(lastLine(result.rerun.stdout)).toBe('rien à changer');
+  });
+
+  it('is refused, /etc untouched, while another file adds an account to AllowUsers', () => {
+    const conf = '/etc/ssh/sshd_config.d/60-acces.conf';
+    const result = refusal(machine, `echo 'AllowUsers ubuntu' > ${conf}`, `rm ${conf}`);
+    expect(result.run.status).toBe(1);
+    expect(result.run.stderr).toContain(`${conf}: AllowUsers ubuntu (s'ajoute à AllowUsers ${ADMIN} deploy)`);
     expect(result.etcAfter).toBe(result.etcBefore);
     expect(lastLine(result.rerun.stdout)).toBe('rien à changer');
   });

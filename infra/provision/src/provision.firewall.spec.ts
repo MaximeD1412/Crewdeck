@@ -4,7 +4,7 @@
  * 80 or 443, Docker restarted or not.
  */
 import { inject } from 'vitest';
-import { BUSYBOX, HOST, HOST6, lastLine, must, reachable, refusal } from './machine.js';
+import { BUSYBOX, HOST, HOST6, lastLine, must, provision, reachable, refusal, stepLines } from './machine.js';
 
 const machine = inject('machine');
 
@@ -68,6 +68,21 @@ describe('DOCKER-USER after provisioning', () => {
     const chain = must(machine, 'iptables -S DOCKER-USER');
     expect(chain.split('\n').filter((line) => line.includes('--ctstate DNAT -j DROP'))).toHaveLength(1);
     expectOnlyWebPortsOpen();
+  });
+
+  it('is loaded again by the next run when a rule bypasses it, IPv4 and IPv6', () => {
+    const chains = 'iptables -S DOCKER-USER && ip6tables -S DOCKER-USER';
+    const loaded = must(machine, chains);
+    must(machine, 'iptables -I DOCKER-USER -j RETURN && ip6tables -I DOCKER-USER -j RETURN');
+    // Over IPv4 the published port is DNATed through DOCKER-USER; over IPv6
+    // docker-proxy takes it on INPUT, where ufw already closes it.
+    expect(reachable(machine, HOST, 5432)).toBe(true);
+    const run = provision(machine);
+    expect(run.status, run.stderr).toBe(0);
+    expect(stepLines(run.stdout)[4]).toBe('[5/7] Docker : appliqué : chaîne DOCKER-USER rechargée');
+    expect(must(machine, chains)).toBe(loaded);
+    expectOnlyWebPortsOpen();
+    expect(lastLine(provision(machine).stdout)).toBe('rien à changer');
   });
 });
 

@@ -95,15 +95,15 @@ export interface Refusal {
 }
 
 /**
- * A machine the script must refuse: `setup` makes it so, the script runs and
- * `/etc` is compared around it, `cleanup` puts the machine back, and the
- * script runs again.
+ * A machine the script must refuse: `setup` makes it so, the script runs
+ * (`command`, the usual run by default) and `/etc` is compared around it,
+ * `cleanup` puts the machine back, and the script runs again.
  */
-export const refusal = (machine: string, setup: string, cleanup: string): Refusal => {
+export const refusal = (machine: string, setup: string, cleanup: string, command = PROVISION): Refusal => {
   must(machine, setup);
   try {
     const etcBefore = etcState(machine);
-    const run = provision(machine);
+    const run = sh(machine, command);
     const etcAfter = etcState(machine);
     must(machine, cleanup);
     return { run, etcBefore, etcAfter, rerun: provision(machine) };

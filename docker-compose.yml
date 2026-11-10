@@ -1,0 +1,21 @@
+# The local stack: PostgreSQL for `pnpm dev` and the integration tests, which
+# create and drop their own database in it (ADR 0009).
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: crewdeck
+      POSTGRES_PASSWORD: crewdeck
+      POSTGRES_DB: crewdeck
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crewdeck -d crewdeck"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  db-data:

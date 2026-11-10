@@ -1,0 +1,25 @@
+{
+  "name": "@crewdeck/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@crewdeck/contracts": "workspace:*",
+    "@nestjs/common": "catalog:",
+    "@nestjs/core": "catalog:",
+    "@nestjs/platform-express": "catalog:",
+    "@prisma/adapter-pg": "catalog:",
+    "@prisma/client": "catalog:",
+    "pg": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "catalog:",
+    "@swc/core": "catalog:",
+    "@types/pg": "catalog:",
+    "prisma": "catalog:",
+    "unplugin-swc": "catalog:"
+  }
+}

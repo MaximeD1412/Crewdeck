@@ -1,0 +1,21 @@
+{
+  "name": "@crewdeck/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@crewdeck/contracts": "workspace:*",
+    "@crewdeck/sdk": "workspace:*",
+    "@crewdeck/skin-passerelle": "workspace:*",
+    "lit": "catalog:"
+  },
+  "devDependencies": {
+    "happy-dom": "catalog:"
+  },
+  "nx": {
+    "name": "web",
+    "tags": [
+      "scope:web"
+    ]
+  }
+}

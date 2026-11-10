@@ -1,0 +1,42 @@
+{
+  "name": "@crewdeck/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "@crewdeck/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "nx": {
+    "name": "contracts",
+    "tags": [
+      "scope:contracts"
+    ],
+    "targets": {
+      "generate": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "tsx src/generate.ts",
+          "cwd": "{projectRoot}"
+        },
+        "inputs": [
+          "production",
+          "{workspaceRoot}/apps/runner/go.mod"
+        ],
+        "outputs": [
+          "{projectRoot}/generated/json-schema",
+          "{workspaceRoot}/apps/runner/internal/contracts/*.go",
+          "!{workspaceRoot}/apps/runner/internal/contracts/*_test.go"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+// Crewdeck's database (ADR 0001). Columns in snake_case through @map, every
+// table of the Pilote's data with pilot_id (ADR 0008).
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}

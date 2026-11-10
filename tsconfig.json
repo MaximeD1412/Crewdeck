@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compileOnSave": false,
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/skin-passerelle"
+    },
+    {
+      "path": "./packages/contracts"
+    },
+    {
+      "path": "./packages/sdk"
+    },
+    {
+      "path": "./apps/server"
+    },
+    {
+      "path": "./apps/web"
+    }
+  ]
+}

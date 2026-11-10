@@ -1,0 +1,25 @@
+{
+  "name": "@crewdeck/skin-passerelle",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "@crewdeck/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@crewdeck/sdk": "workspace:*",
+    "lit": "catalog:"
+  },
+  "nx": {
+    "name": "skin-passerelle",
+    "tags": [
+      "scope:skin"
+    ]
+  }
+}

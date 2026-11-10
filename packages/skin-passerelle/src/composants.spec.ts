@@ -321,6 +321,28 @@ describe('PageComposants', () => {
     expect(textOf(inside(open[0]?.querySelector('cd-status-badge') as Element, 'span'))).toBe(t('composants.page.badge.open'));
   });
 
+  it('names each row of the catalogue by its Composant alone, its tag and version in the open one’s card', async () => {
+    const el = await render(COMPOSANTS.PageComposants, example?.data);
+    const rows = [...(el.shadowRoot?.querySelectorAll('nav cd-list-row') ?? [])];
+    expect(rows.map((row) => textOf(inside(row, 'a')))).toEqual(['PageHeader', 'Banner', 'Button']);
+    expect(textOf(inside(el, '.contract .identity'))).toBe(`cd-banner · ${t('composants.page.version', { version: 1 })}`);
+  });
+
+  it('fits the table of the fields in a phone’s width, a long type wrapped', async () => {
+    const el = await render(COMPOSANTS.PageComposants, {
+      ...example?.data,
+      selected: {
+        ...example?.data.selected,
+        fields: [{ name: 'icon', type: 'IconName | undefined', description: 'Son icône, « info » sans elle, à gauche du titre.' }],
+      },
+    });
+    el.style.display = 'block';
+    el.style.width = '390px';
+    await settle(el);
+    const scroller = el.shadowRoot?.querySelector('table')?.parentElement;
+    expect(scroller?.scrollWidth).toBeLessThanOrEqual(scroller?.clientWidth ?? 0);
+  });
+
   it('previews each example with the real element, its data and its Emplacements', async () => {
     const el = await render(COMPOSANTS.PageComposants, example?.data);
     const preview = inside(el, '.stage cd-banner') as HTMLElement & { data: unknown };

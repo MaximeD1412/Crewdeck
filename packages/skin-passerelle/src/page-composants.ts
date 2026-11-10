@@ -101,20 +101,21 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
         vertical-align: top;
         color: var(--cd-ink-2);
       }
-      th:first-child,
-      td:first-child {
-        padding-left: var(--cd-space-4);
-      }
-      th:last-child,
-      td:last-child {
-        padding-right: var(--cd-space-4);
-      }
       tr:last-child td {
         border-bottom: 0;
       }
       td code {
         color: var(--cd-ink);
+      }
+      /* A name never breaks; a type breaks at its spaces (« IconName | undefined »). */
+      td:first-child code {
         white-space: nowrap;
+      }
+      .identity {
+        margin-top: var(--cd-space-2);
+        font: var(--cd-font-meta-weight) var(--cd-font-meta-size) / var(--cd-font-meta-line-height)
+          var(--cd-font-meta-family), monospace;
+        color: var(--cd-muted);
       }
       @media (min-width: 1280px) {
         :host {
@@ -127,6 +128,13 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
           grid-template-columns: var(--cd-sidebar-width) minmax(0, 1fr);
           gap: var(--cd-space-6);
           align-items: start;
+        }
+        /* Room enough: the name and the type on one line, the description takes the rest. */
+        td code {
+          white-space: nowrap;
+        }
+        th:last-child {
+          width: 100%;
         }
       }
     `,
@@ -167,13 +175,12 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
     return html`<nav class="catalogue" aria-label=${t('composants.page.catalogue')}>
       ${groups.map(
         (group) =>
-          html`<cd-card .data=${{ title: t(`composants.category.${group.category}`), count: group.composants.length, flush: true }}>
+          html`<cd-card .data=${{ title: t(`composants.category.${group.category}`), flush: true }}>
             ${group.composants.map((entry) => {
               const open = entry.name === selected.name;
               return html`<cd-list-row
                 .data=${{
                   title: entry.name,
-                  meta: t('composants.page.version', { version: entry.version }),
                   href: hrefOf(entry.name),
                   ...(open ? { icon: 'layers', tone: 'accent' } : {}),
                 }}
@@ -209,8 +216,9 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
       </cd-card>
       <cd-card .data=${{ title: selected.name }}>
         <p class="text-sm">${selected.description}</p>
+        <p class="identity"><code>${selected.tag}</code> · ${t('composants.page.version', { version: selected.version })}</p>
       </cd-card>
-      <cd-card .data=${{ title: t('composants.page.data'), label: t('composants.page.data'), count: selected.fields.length, flush: true }}>
+      <cd-card .data=${{ title: t('composants.page.data'), label: t('composants.page.data'), flush: true }}>
         ${selected.fields.length === 0
           ? none('composants.page.noData')
           : html`<div class="scroll-x" tabindex="0" role="group" aria-label=${t('composants.page.data')}>
@@ -234,7 +242,7 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
               </table>
             </div>`}
       </cd-card>
-      <cd-card .data=${{ title: t('composants.page.actions'), label: t('composants.page.actions'), count: selected.actions.length, flush: true }}>
+      <cd-card .data=${{ title: t('composants.page.actions'), label: t('composants.page.actions'), flush: true }}>
         ${selected.actions.length === 0
           ? none('composants.page.noActions')
           : selected.actions.map(
@@ -248,7 +256,7 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
               </cd-list-row>`,
             )}
       </cd-card>
-      <cd-card .data=${{ title: t('composants.page.slots'), label: t('composants.page.slots'), count: selected.slots.length, flush: true }}>
+      <cd-card .data=${{ title: t('composants.page.slots'), label: t('composants.page.slots'), flush: true }}>
         ${selected.slots.length === 0
           ? none('composants.page.noSlots')
           : selected.slots.map((slot) => html`<cd-list-row .data=${{ title: slot.name, meta: slot.description }}></cd-list-row>`)}

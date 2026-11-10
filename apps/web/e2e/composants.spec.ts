@@ -19,9 +19,9 @@ test.describe('the library of Composants (/parametres/composants)', () => {
     const catalogue = page.getByRole('navigation', { name: 'Catalogue des Composants' });
     await expect(catalogue.getByRole('heading', { level: 2 })).toHaveText([/^Cadre et menu/, /^Pages/, /^Parties de page/, /^Signaux et contrôles/]);
     for (const name of ['PageHeader', 'ProjectFilter', 'PageComposants', 'Card', 'Button', 'Tabs']) {
-      await expect(catalogue.getByRole('link', { name: new RegExp(`^${name} `) })).toHaveAttribute('href', `/parametres/composants?c=${name}`);
+      await expect(catalogue.getByRole('link', { name: new RegExp(`^${name}$`) })).toHaveAttribute('href', `/parametres/composants?c=${name}`);
     }
-    await expect(catalogue.getByRole('link', { name: /^Banner .*ouvert$/ })).toBeVisible();
+    await expect(catalogue.getByRole('link', { name: /^Banner ouvert$/ })).toBeVisible();
 
     await expect(page.getByRole('region', { name: 'Aperçu' })).toBeVisible();
     const preview = card(page, 'Aperçu');
@@ -48,7 +48,7 @@ test.describe('the library of Composants (/parametres/composants)', () => {
   test('a click on a row of the catalogue opens that Composant through ?c=', async ({ page, scenario, expectAccessible }) => {
     await scenario('composants');
 
-    await page.getByRole('navigation', { name: 'Catalogue des Composants' }).getByRole('link', { name: /^Tabs / }).click();
+    await page.getByRole('navigation', { name: 'Catalogue des Composants' }).getByRole('link', { name: /^Tabs$/ }).click();
 
     await expect(page).toHaveURL(/\/parametres\/composants\?c=Tabs$/);
     await expect(card(page, 'Aperçu').getByRole('tablist')).toHaveCount(1);

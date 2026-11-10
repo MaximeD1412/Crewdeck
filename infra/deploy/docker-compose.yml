@@ -40,6 +40,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      # Production only (INFRA-8): the directory where the nightly backup
+      # writes last-success, read by /api/health (BACKUP_STATUS_FILE). The
+      # directory, not the file: the backup renames a new file into place.
+      # Staging leaves BACKUP_STATUS_DIR unset and mounts /dev/null there,
+      # which it never reads.
+      - ${BACKUP_STATUS_DIR:-/dev/null}:/run/backup:ro
     networks:
       default: {}
       edge:

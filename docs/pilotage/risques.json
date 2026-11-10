@@ -450,7 +450,7 @@
         {
           "texte": "Sauvegarde restic chaque nuit chez un autre fournisseur",
           "ref": "ADR 0009",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Mot de passe restic aussi dans le gestionnaire du fondateur ; restauration mensuelle depuis une autre machine",
@@ -460,7 +460,7 @@
         {
           "texte": "Chaque déploiement répète sa migration sur la dernière sauvegarde restaurée",
           "ref": "ADR 0009",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

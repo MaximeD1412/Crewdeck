@@ -38,7 +38,7 @@ Créée par le provisionnement (INFRA-7), mode 750, groupe `docker` :
 | `/opt/crewdeck/prod/` | `.env` de la production, depuis `prod.env.example` (mode 600) |
 | `/opt/crewdeck/staging/` | `.env` du staging, depuis `staging.env.example` (mode 600) |
 | `/opt/crewdeck/edge/` | `infra/edge/` (Caddy) et son `.env`, depuis `edge.env.example` |
-| `/opt/crewdeck/backup/` | les sauvegardes (INFRA-8) |
+| `/opt/crewdeck/backup/` | les sauvegardes (INFRA-8) : `restic.env` et le mot de passe du dépôt restic, `bin/backup.sh`, et `status/last-success`, monté en lecture seule dans le serveur de la production ; posés par `infra/backup/bin/install.sh` ([infra/backup/README.md](../backup/README.md)) |
 
 Le réseau Docker `crewdeck-edge` (créé par INFRA-7) relie Caddy aux deux
 serveurs, joignables sous les alias `crewdeck-prod-server` et
@@ -61,6 +61,12 @@ sa valeur ; INFRA-12 les remplit. Une valeur vide vaut une clé absente.
   `PUBLIC_URL` égale à `PROD_PUBLIC_URL`, `GITHUB_APP_ID` égal à
   `PROD_GITHUB_APP_ID`, ou une `DATABASE_URL` vers `crewdeck-prod-db`
   (`apps/server/src/config/staging-guard.ts`).
+- En production seulement, `BACKUP_STATUS_DIR` (le dossier
+  `/opt/crewdeck/backup/status`, monté en `/run/backup`) et
+  `BACKUP_STATUS_FILE` (`/run/backup/last-success`) : `/api/health` donne
+  alors `backup.lastSuccessAt`, que surveille le workflow `backup-watch`
+  ([infra/backup/README.md](../backup/README.md)). Sans eux, rien n'est
+  monté et la réponse n'a pas de clé `backup`.
 
 ## Lancer un projet à la main
 
@@ -146,8 +152,9 @@ Deux livraisons de la même branche se suivent, jamais annulées.
    production, aussi `staged-<sha>`, et refus si `<sha>` n'est pas la même
    image (« n'est pas celle que le staging a validée ») ;
 3. en production seulement, la répétition de la migration sur la dernière
-   sauvegarde, `/opt/crewdeck/deploy/bin/rehearse.sh <sha>` (INFRA-8) quand
-   il est installé : un échec arrête tout, rien n'a bougé ;
+   sauvegarde, `/opt/crewdeck/deploy/bin/rehearse.sh <sha>` (INFRA-8), quand
+   `infra/backup/bin/install.sh` l'a posé : un échec arrête tout, rien n'a
+   bougé ;
 4. `CREWDECK_SHA=<sha>` dans `/opt/crewdeck/<env>/.env`, `run --rm server
    migrate`, `up -d` ;
 5. `/api/health` à `http://<projet>-server:3000`, l'adresse qu'emprunte

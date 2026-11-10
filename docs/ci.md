@@ -149,6 +149,26 @@ pnpm exec nx test deploy
 actionlint .github/workflows/delivery.yml
 ```
 
+## The workflow `backup-watch`
+
+`.github/workflows/backup-watch.yml`, every day at 07:00 UTC and by hand
+(« Run workflow »), never a check of the PRs (ADR 0009, « Backups »). The VPS
+sends no mail: GitHub mails the founder when this run fails.
+
+It reads `https://<CREWDECK_DOMAIN>/api/health` (the repository variable
+`CREWDECK_DOMAIN`) with curl, then `.github/scripts/backup-watch.mjs` fails
+when the response is not the health, has no `backup` (production lacks
+`BACKUP_STATUS_FILE`), or its `backup.lastSuccessAt` is `null` or older than
+26 h. With `CREWDECK_DOMAIN` empty, it passes with a notice. No secret: the
+health is public.
+
+```bash
+pnpm exec nx test backup
+actionlint .github/workflows/backup-watch.yml
+```
+
+The backups themselves: [`infra/backup/README.md`](../infra/backup/README.md).
+
 ## The files
 
 | File | What |
@@ -156,6 +176,7 @@ actionlint .github/workflows/delivery.yml
 | `.github/workflows/ci.yml` | the events, the scope, the concurrency, the check `ci` |
 | `.github/workflows/image.yml` | the server's image and the VPS's Compose and Caddy files, on the PRs that change them |
 | `.github/workflows/delivery.yml` | the image published and deployed on staging, then promoted to production |
+| `.github/workflows/backup-watch.yml` | the age of production's last backup, every morning; its script in `.github/scripts/backup-watch.mjs` |
 | `.github/workflows/verify.yml` | the jobs, `on: workflow_call` with `scope` (`affected` \| `full`) and `base` (`origin/develop`) |
 | `.github/actions/setup/` | mise, the caches, the dependencies, `nx-set-shas` |
 | `.github/actions/browsers/` | Chromium, only when a project in scope uses Playwright |

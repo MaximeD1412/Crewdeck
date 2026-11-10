@@ -23,6 +23,9 @@
     },
     {
       "path": "./infra/deploy"
+    },
+    {
+      "path": "./infra/backup"
     }
   ]
 }

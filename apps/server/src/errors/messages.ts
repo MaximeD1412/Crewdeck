@@ -7,6 +7,7 @@ export const MESSAGES = {
   'http.bad-request': 'La requête n’est pas valide.',
   'http.not-found': 'Cette adresse n’existe pas.',
   'server.internal': 'Une erreur inattendue est survenue.',
+  'testing.unknown-scenario': 'Scénario de test inconnu.',
   'validation.invalid': 'Certaines valeurs ne sont pas valides.',
 } as const satisfies Record<string, string>;
 

@@ -4,6 +4,7 @@ packages:
 
 # Shared versions, exact for the frameworks (ADR 0001).
 catalog:
+  "@axe-core/playwright": 4.14.0
   "@eslint/js": 10.0.1
   "@fontsource/ibm-plex-mono": 5.3.0
   "@fontsource/ibm-plex-sans": 5.3.0
@@ -18,6 +19,7 @@ catalog:
   "@nx/js": 23.3.1
   "@nx/vite": 23.3.1
   "@nx/vitest": 23.3.1
+  "@playwright/test": 1.65.0
   "@prisma/adapter-pg": 7.10.1
   "@prisma/client": 7.10.1
   "@swc/core": 1.16.22

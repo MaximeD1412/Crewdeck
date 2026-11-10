@@ -10,13 +10,28 @@
     "lit": "catalog:"
   },
   "devDependencies": {
+    "@axe-core/playwright": "catalog:",
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
     "happy-dom": "catalog:",
+    "playwright": "catalog:",
     "zod": "catalog:"
   },
   "nx": {
     "name": "web",
     "tags": [
       "scope:web"
-    ]
+    ],
+    "targets": {
+      "e2e": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "options": {
+          "command": "playwright test",
+          "cwd": "{projectRoot}"
+        }
+      }
+    }
   }
 }

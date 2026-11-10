@@ -94,12 +94,12 @@
         {
           "texte": "Construction HPKE (RFC 9180), WebCrypto et la bibliothèque standard de Go, sans crypto maison",
           "ref": "ADR 0003",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Vecteurs de test partagés entre TypeScript et Go",
           "ref": "ADR 0003",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "docs/security/e2e.md relu par un relecteur extérieur avant la Bêta",
@@ -692,7 +692,12 @@
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
-          "texte": "Socle de tests par route, Composant et écran ; PR en brouillon jusqu'à leurs checks",
+          "texte": "Harnais des écrans : Playwright à 390 et 1280 px, axe sans violation, scénarios semés sur le serveur, captures de revue (scripts/captures.sh)",
+          "ref": "ADR 0008, ADR 0009",
+          "fait": true
+        },
+        {
+          "texte": "Socle de tests par route, Composant et écran appliqué par chaque ticket ; PR en brouillon jusqu'à leurs checks",
           "ref": "ADR 0008, ADR 0009",
           "fait": false
         },

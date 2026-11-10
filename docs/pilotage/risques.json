@@ -702,7 +702,12 @@
           "fait": false
         },
         {
-          "texte": "Staging à chaque merge, nightly complète corrigée en premier",
+          "texte": "Staging à chaque merge : image publiée, déployée par une clé bridée, retour arrière si la santé échoue ; la prod ne promeut que l'image passée par le staging",
+          "ref": "ADR 0009",
+          "fait": true
+        },
+        {
+          "texte": "Nightly complète corrigée en premier",
           "ref": "ADR 0009",
           "fait": false
         }

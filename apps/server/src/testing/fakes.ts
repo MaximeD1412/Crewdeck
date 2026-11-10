@@ -1,0 +1,23 @@
+/** A fake of an external system (GitHub, the Runner) that a scenario seeds. */
+export interface Fake {
+  /** Back to the empty state, before each scenario. */
+  reset(): void | Promise<void>;
+}
+
+/**
+ * The fakes a scenario's `seed` gets as `ctx.fakes`, by name. The tickets that
+ * build them add their entry here and in `createFakes`: the fake GitHub
+ * (CORE-3), the fake Runner (RUNNER-2).
+ */
+export interface Fakes {
+  readonly [name: string]: Fake;
+}
+
+/** The token of the `Fakes` the testing module shares with the fakes' modules. */
+export const FAKES = Symbol('FAKES');
+
+export const createFakes = (): Fakes => ({});
+
+export const resetFakes = async (fakes: Fakes): Promise<void> => {
+  for (const fake of Object.values(fakes)) await fake.reset();
+};

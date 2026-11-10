@@ -9,3 +9,22 @@ export const composants = defineScenario({
   path: '/parametres/composants?c=Banner',
   seed: () => ({}),
 });
+
+/** The library opened on the form Composants and the Dialog (UI-4), for their visual review. */
+export const composantsTextField = defineScenario({
+  name: 'composants-textfield',
+  path: '/parametres/composants?c=TextField',
+  seed: () => ({}),
+});
+
+export const composantsSettingRow = defineScenario({
+  name: 'composants-settingrow',
+  path: '/parametres/composants?c=SettingRow',
+  seed: () => ({}),
+});
+
+export const composantsDialog = defineScenario({
+  name: 'composants-dialog',
+  path: '/parametres/composants?c=Dialog',
+  seed: () => ({}),
+});

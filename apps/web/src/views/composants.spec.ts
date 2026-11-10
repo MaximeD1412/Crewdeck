@@ -16,13 +16,18 @@ describe('composantsView', () => {
     expect(view.groups[3]?.composants.map((entry) => entry.name)).toEqual([
       'Banner',
       'Button',
+      'Checkbox',
       'Chip',
       'Empty',
       'Icon',
       'IconButton',
+      'Radio',
+      'Select',
       'StatusBadge',
       'StatusDot',
       'Tabs',
+      'TextField',
+      'Toggle',
     ]);
   });
 

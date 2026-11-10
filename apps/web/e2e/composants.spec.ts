@@ -9,19 +9,32 @@ import { expect, test } from './fixtures.js';
 const card = (page: Page, title: string) =>
   page.locator('cd-card').filter({ has: page.getByRole('heading', { level: 2, name: new RegExp(`^${title}`) }) });
 
+/** The phone's project (390 px): the Select replaces the catalogue. */
+const isPhone = () => test.info().project.name === 'phone';
+
 test.describe('the library of Composants (/parametres/composants)', () => {
-  test('lists the Composants by category and opens Banner from ?c=Banner, accessible', async ({ page, scenario, expectAccessible }) => {
+  test('lists the Composants by category (a Select on the phone) and opens Banner from ?c=Banner, accessible', async ({ page, scenario, expectAccessible }) => {
     await scenario('composants');
 
     await expect(page.getByRole('heading', { level: 1, name: 'Bibliothèque de Composants' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Paramètres' })).toHaveAttribute('href', '/parametres');
 
-    const catalogue = page.getByRole('navigation', { name: 'Catalogue des Composants' });
-    await expect(catalogue.getByRole('heading', { level: 2 })).toHaveText([/^Cadre et menu/, /^Pages/, /^Parties de page/, /^Signaux et contrôles/]);
-    for (const name of ['PageHeader', 'ProjectFilter', 'PageComposants', 'Card', 'Button', 'Tabs']) {
-      await expect(catalogue.getByRole('link', { name: new RegExp(`^${name}$`) })).toHaveAttribute('href', `/parametres/composants?c=${name}`);
+    if (isPhone()) {
+      // The phone picks a Composant through the Select « Composant », the catalogue's groups are for 1280 px.
+      await expect(page.getByRole('navigation', { name: 'Catalogue des Composants' })).toBeHidden();
+      const picker = page.getByRole('combobox', { name: 'Composant', exact: true });
+      await expect(picker).toHaveValue('Banner');
+      for (const option of ['PageHeader · Cadre et menu', 'PageComposants · Pages', 'Card · Parties de page', 'Banner · Signaux et contrôles']) {
+        await expect(picker.getByRole('option', { name: option, exact: true })).toBeAttached();
+      }
+    } else {
+      const catalogue = page.getByRole('navigation', { name: 'Catalogue des Composants' });
+      await expect(catalogue.getByRole('heading', { level: 2 })).toHaveText([/^Cadre et menu/, /^Pages/, /^Parties de page/, /^Signaux et contrôles/]);
+      for (const name of ['PageHeader', 'ProjectFilter', 'PageComposants', 'Card', 'Button', 'Tabs']) {
+        await expect(catalogue.getByRole('link', { name: new RegExp(`^${name}$`) })).toHaveAttribute('href', `/parametres/composants?c=${name}`);
+      }
+      await expect(catalogue.getByRole('link', { name: /^Banner ouvert$/ })).toBeVisible();
     }
-    await expect(catalogue.getByRole('link', { name: /^Banner ouvert$/ })).toBeVisible();
 
     await expect(page.getByRole('region', { name: 'Aperçu' })).toBeVisible();
     const preview = card(page, 'Aperçu');
@@ -45,10 +58,11 @@ test.describe('the library of Composants (/parametres/composants)', () => {
     await expectAccessible(page);
   });
 
-  test('a click on a row of the catalogue opens that Composant through ?c=', async ({ page, scenario, expectAccessible }) => {
+  test('a click on a row of the catalogue, or the Select on the phone, opens that Composant through ?c=', async ({ page, scenario, expectAccessible }) => {
     await scenario('composants');
 
-    await page.getByRole('navigation', { name: 'Catalogue des Composants' }).getByRole('link', { name: /^Tabs$/ }).click();
+    if (isPhone()) await page.getByRole('combobox', { name: 'Composant', exact: true }).selectOption('Tabs');
+    else await page.getByRole('navigation', { name: 'Catalogue des Composants' }).getByRole('link', { name: /^Tabs$/ }).click();
 
     await expect(page).toHaveURL(/\/parametres\/composants\?c=Tabs$/);
     await expect(card(page, 'Aperçu').getByRole('tablist')).toHaveCount(1);

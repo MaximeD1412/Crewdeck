@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { ESLint } from 'eslint';
 import { join, resolve } from 'node:path';
 

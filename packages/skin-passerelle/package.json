@@ -12,6 +12,7 @@
     },
     "./tokens.css": "./src/tokens.css",
     "./fonts.css": "./src/fonts.css",
+    "./document.css": "./src/document.css",
     "./package.json": "./package.json"
   },
   "dependencies": {
@@ -22,7 +23,9 @@
     "lit": "catalog:"
   },
   "devDependencies": {
-    "happy-dom": "catalog:"
+    "@types/node": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "playwright": "catalog:"
   },
   "nx": {
     "name": "skin-passerelle",

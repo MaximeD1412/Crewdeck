@@ -1,0 +1,89 @@
+name: Image
+
+# The server's image and the VPS's Compose and Caddy files (INFRA-5, ADR
+# 0009): a PR that changes what goes into the image or how it runs builds it,
+# without pushing (publishing is INFRA-6's delivery), and starts it against a
+# PostgreSQL. A draft runs nothing, as in ci.yml. Not a required check: a
+# workflow filtered by paths does not run on every PR. docs/ci.md says what it
+# runs and how to run the same thing locally.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [develop, main]
+    paths:
+      - apps/server/Dockerfile
+      - apps/server/bin/**
+      - apps/server/package.json
+      - infra/**
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .dockerignore
+      - .mise.toml
+      - .github/workflows/image.yml
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: image
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The image builds with the toolchain the developers and ci.yml use.
+      - name: Check the Dockerfile's toolchain against .mise.toml
+        run: |
+          status=0
+          for tool in node go; do
+            arg=$(echo "$tool" | tr '[:lower:]' '[:upper:]')_VERSION
+            want=$(sed -n "s/^$tool = \"\(.*\)\"$/\1/p" .mise.toml)
+            got=$(sed -n "s/^ARG $arg=\(.*\)$/\1/p" apps/server/Dockerfile)
+            if [ -z "$want" ] || [ "$want" != "$got" ]; then
+              echo "::error file=apps/server/Dockerfile::$arg vaut « $got », .mise.toml dit « $want »."
+              status=1
+            fi
+          done
+          exit $status
+
+      # The templates with the values the deploy and INFRA-12 write on the VPS
+      # replaced by dummies (infra/deploy/test/ci.env).
+      - name: Check the Compose files
+        run: |
+          for env in prod staging; do
+            files=(-f infra/deploy/docker-compose.yml)
+            [ "$env" = staging ] && files+=(-f infra/deploy/docker-compose.staging.yml)
+            CREWDECK_ENV_FILE="$env.env.example" docker compose -p "crewdeck-$env" "${files[@]}" \
+              --env-file "infra/deploy/$env.env.example" --env-file infra/deploy/test/ci.env config --quiet
+          done
+          CREWDECK_DOMAIN=crewdeck.invalid ACME_EMAIL=acme@crewdeck.invalid \
+            docker compose -f infra/edge/docker-compose.yml config --quiet
+
+      - name: Validate the Caddyfile
+        run: |
+          docker run --rm -v "$PWD/infra/edge/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            -e CREWDECK_DOMAIN=crewdeck.invalid -e ACME_EMAIL=acme@crewdeck.invalid \
+            caddy:2 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+      - name: Build the image
+        run: |
+          docker build --build-arg CREWDECK_COMMIT="$(git rev-parse HEAD)" \
+            -t crewdeck-server:ci -f apps/server/Dockerfile .
+
+      - name: Refuse a build without CREWDECK_COMMIT
+        run: |
+          if docker build -f apps/server/Dockerfile . >/dev/null 2>&1; then
+            echo "::error file=apps/server/Dockerfile::L'image s'est construite sans CREWDECK_COMMIT."
+            exit 1
+          fi
+
+      # The Runner binaries, migrate, serve, the staging guard.
+      - name: Start the image
+        run: infra/deploy/test/image-smoke.sh crewdeck-server:ci

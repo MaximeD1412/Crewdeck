@@ -27,7 +27,7 @@
       "options": {
         "commands": [
           "tsc --build tsconfig.app.json --watch --preserveWatchOutput",
-          "node --watch-path=dist --env-file-if-exists=../../.env --enable-source-maps dist/main.js"
+          "CREWDECK_ENV=${CREWDECK_ENV:-development} node --watch-path=dist --env-file-if-exists=../../.env --enable-source-maps dist/main.js"
         ],
         "parallel": true,
         "cwd": "{projectRoot}"

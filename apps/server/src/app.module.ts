@@ -9,6 +9,7 @@ import { HealthModule } from './health/health.module.js';
 import { type LogDestination, loggerParams } from './logging/logger.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { TestingModule } from './testing/testing.module.js';
+import { WebModule } from './web/web.module.js';
 
 export interface AppModuleOptions {
   logs?: LogDestination;
@@ -26,7 +27,7 @@ export class AppModule {
   static forRoot(env: Env, { logs, imports = [] }: AppModuleOptions = {}): DynamicModule {
     return {
       module: AppModule,
-      imports: [LoggerModule.forRoot(loggerParams(env, logs)), EnvModule.forRoot(env), PrismaModule, HealthModule, TestingModule.forEnvironment(env), ...imports],
+      imports: [LoggerModule.forRoot(loggerParams(env, logs)), EnvModule.forRoot(env), PrismaModule, HealthModule, TestingModule.forEnvironment(env), WebModule.forRoot(env), ...imports],
       providers: [
         { provide: APP_PIPE, useClass: ZodValidationPipe },
         { provide: APP_INTERCEPTOR, useClass: ZodSerializerInterceptor },

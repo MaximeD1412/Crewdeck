@@ -22,7 +22,7 @@ const fakeDatabase = (tables: string[]) => {
 };
 
 const boot = async (nodeEnv: Env['NODE_ENV'], database = fakeDatabase([])): Promise<INestApplication> => {
-  const env = parseEnv({ NODE_ENV: nodeEnv, DATABASE_URL: 'postgresql://crewdeck:crewdeck@127.0.0.1:1/crewdeck' });
+  const env = parseEnv({ CREWDECK_ENV: 'test', NODE_ENV: nodeEnv, DATABASE_URL: 'postgresql://crewdeck:crewdeck@127.0.0.1:1/crewdeck' });
   const moduleRef = await Test.createTestingModule({ imports: [AppModule.forRoot(env, { logs: false })] })
     .overrideProvider(PrismaService)
     .useValue(database.prisma)

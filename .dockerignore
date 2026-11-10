@@ -1,0 +1,19 @@
+# The context of apps/server/Dockerfile is the repository's root: what the
+# image's build does not read, and what must never enter a layer.
+.git
+.agent-loop
+**/node_modules
+**/dist
+**/.nx
+**/.vite
+**/*.tsbuildinfo
+apps/server/src/generated
+design
+docs
+backlog
+coverage
+test-results
+playwright-report
+**/.env
+**/.env.*
+!.env.example

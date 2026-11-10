@@ -1,0 +1,33 @@
+# The edge (ADR 0009, « Hosting »): Caddy, the only container with a published
+# port, terminates TLS (ACME) and routes each domain to its environment's
+# server on the network `crewdeck-edge`. Run from /opt/crewdeck/edge, whose
+# `.env` (edge.env.example) gives CREWDECK_DOMAIN and ACME_EMAIL.
+name: crewdeck-edge
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CREWDECK_DOMAIN: ${CREWDECK_DOMAIN:?CREWDECK_DOMAIN manquant dans /opt/crewdeck/edge/.env}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL manquant dans /opt/crewdeck/edge/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # The certificates and the ACME account: lost, they are issued again.
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - edge
+
+volumes:
+  caddy-data:
+  caddy-config:
+
+networks:
+  # Created once by the provisioning (INFRA-7).
+  edge:
+    external: true
+    name: crewdeck-edge

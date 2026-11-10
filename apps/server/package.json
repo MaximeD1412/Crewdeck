@@ -3,11 +3,18 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "files": [
+    "bin",
+    "dist",
+    "prisma",
+    "prisma.config.ts"
+  ],
   "dependencies": {
     "@crewdeck/contracts": "workspace:*",
     "@nestjs/common": "catalog:",
     "@nestjs/core": "catalog:",
     "@nestjs/platform-express": "catalog:",
+    "@nestjs/serve-static": "catalog:",
     "@nestjs/swagger": "catalog:",
     "@prisma/adapter-pg": "catalog:",
     "@prisma/client": "catalog:",
@@ -17,15 +24,16 @@
     "pino": "catalog:",
     "pino-http": "catalog:",
     "pino-pretty": "catalog:",
+    "prisma": "catalog:",
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:",
+    "tslib": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@nestjs/testing": "catalog:",
     "@swc/core": "catalog:",
     "@types/pg": "catalog:",
-    "prisma": "catalog:",
     "unplugin-swc": "catalog:"
   }
 }

@@ -1,10 +1,13 @@
+import { AgentRow } from './agent-row.js';
 import { Banner } from './banner.js';
 import { Button } from './button.js';
 import { Card } from './card.js';
 import { Chip } from './chip.js';
 import { CodeBlock } from './code-block.js';
+import { DecisionRow } from './decision-row.js';
 import type { AnyComposant } from './define.js';
 import { Empty } from './empty.js';
+import { IdeaRow } from './idea-row.js';
 import { IconButton } from './icon-button.js';
 import { Icon } from './icon.js';
 import { KeyValue } from './key-value.js';
@@ -16,16 +19,20 @@ import { ProjectFilter } from './project-filter.js';
 import { StatusBadge } from './status-badge.js';
 import { StatusDot } from './status-dot.js';
 import { Tabs } from './tabs.js';
+import { TicketRow } from './ticket-row.js';
 
 export * from './action.js';
+export * from './agent-row.js';
 export * from './banner.js';
 export * from './button.js';
 export * from './card.js';
 export * from './chip.js';
 export * from './code-block.js';
+export * from './decision-row.js';
 export * from './define.js';
 export * from './empty.js';
 export * from './icon-button.js';
+export * from './idea-row.js';
 export * from './icon.js';
 export * from './icons.js';
 export * from './key-value.js';
@@ -37,6 +44,7 @@ export * from './project-filter.js';
 export * from './status-badge.js';
 export * from './status-dot.js';
 export * from './tabs.js';
+export * from './ticket-row.js';
 export * from './tone.js';
 
 /**
@@ -53,6 +61,10 @@ export const COMPOSANTS = {
   CodeBlock,
   KeyValue,
   ListRow,
+  DecisionRow,
+  IdeaRow,
+  TicketRow,
+  AgentRow,
   Banner,
   Button,
   Chip,

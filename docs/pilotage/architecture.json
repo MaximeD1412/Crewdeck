@@ -1,0 +1,2284 @@
+{
+  "titre": "Crewdeck, de la console du fondateur au produit hébergé",
+  "intro": "Trait plein : déjà en place. Pointillés : pas encore en place. Rouge : présent aujourd'hui, retiré dans la cible. Cliquez sur un bloc pour voir ce qu'il fait, les tickets qui le construisent et les décisions qui le justifient.",
+  "bascules": [
+    {
+      "titre": "Sessions des agents",
+      "de": "Hôte de sessions de la console des dotfiles",
+      "vers": "Runner lié au compte, Sessions relayées chiffrées",
+      "tickets": [
+        "RUNNER-3",
+        "RUNNER-9",
+        "SESSION-1",
+        "SESSION-2"
+      ]
+    },
+    {
+      "titre": "Boucle",
+      "de": "agent-loop sur la machine, état en fichiers",
+      "vers": "Boucle orchestrée par le serveur, merge lié au SHA",
+      "tickets": [
+        "BOUCLE-2",
+        "BOUCLE-3",
+        "BOUCLE-4"
+      ]
+    },
+    {
+      "titre": "Conception",
+      "de": "Outil design et skills des dotfiles",
+      "vers": "Étapes de Conception vérifiées par leurs Contrats",
+      "tickets": [
+        "RUNNER-11",
+        "RUNNER-12",
+        "CONCEPTION-3",
+        "CONCEPTION-9"
+      ]
+    },
+    {
+      "titre": "Idées",
+      "de": "Outil ideas, texte en clair",
+      "vers": "Idées chiffrées dans le navigateur",
+      "tickets": [
+        "IDEE-1",
+        "IDEE-2",
+        "IDEE-3"
+      ]
+    },
+    {
+      "titre": "Pilotage",
+      "de": "Page « Pilotage » de la console",
+      "vers": "Planning, arbre et statistiques de Crewdeck",
+      "tickets": [
+        "PILOTAGE-1",
+        "PILOTAGE-2",
+        "PILOTAGE-3"
+      ]
+    },
+    {
+      "titre": "Bascule du fondateur",
+      "de": "Quatre semaines sur la console",
+      "vers": "Quatre semaines sur Crewdeck",
+      "tickets": [
+        "BIZ-4"
+      ]
+    }
+  ],
+  "vues": [
+    {
+      "id": "global",
+      "titre": "Global",
+      "largeur": 1560,
+      "hauteur": 880,
+      "description": "Le serveur orchestre le Process sur le VPS, le Runner exécute les agents sur la machine du Pilote, GitHub reste la source des Tickets et du code.",
+      "zones": [
+        {
+          "id": "usagers",
+          "x": 20,
+          "y": 20,
+          "w": 1100,
+          "h": 100,
+          "couleur": "info",
+          "titre": "Usagers"
+        },
+        {
+          "id": "vps",
+          "x": 20,
+          "y": 140,
+          "w": 1100,
+          "h": 360,
+          "couleur": "c1",
+          "titre": "VPS OVH",
+          "sous": "crewdeck-prod + crewdeck-staging, Docker Compose"
+        },
+        {
+          "id": "externes",
+          "x": 1150,
+          "y": 140,
+          "w": 390,
+          "h": 580,
+          "couleur": "c4",
+          "titre": "Services extérieurs"
+        },
+        {
+          "id": "machine",
+          "x": 20,
+          "y": 520,
+          "w": 1100,
+          "h": 200,
+          "couleur": "c3",
+          "titre": "Machine du Pilote",
+          "sous": "Linux, macOS ou WSL"
+        },
+        {
+          "id": "livraison",
+          "x": 20,
+          "y": 740,
+          "w": 1520,
+          "h": 120,
+          "couleur": "c2",
+          "titre": "Livraison et code"
+        }
+      ],
+      "noeuds": [
+        {
+          "id": "pilote",
+          "zone": "usagers",
+          "x": 360,
+          "y": 52,
+          "w": 420,
+          "h": 56,
+          "titre": "Pilote",
+          "sous": "navigateur ou PWA, un Appareil de confiance",
+          "desc": "Le développeur solo qui pilote ses Projets. Chaque navigateur de confiance est un Appareil qui détient sa clé : il lit les Sessions et les Idées en clair, le serveur jamais.",
+          "tickets": [
+            "CORE-4",
+            "E2E-2",
+            "UI-3"
+          ],
+          "adr": [
+            "0003",
+            "0006"
+          ],
+          "zoom": "page"
+        },
+        {
+          "id": "edge",
+          "zone": "vps",
+          "x": 360,
+          "y": 176,
+          "w": 420,
+          "h": 56,
+          "titre": "Proxy Caddy",
+          "sous": "TLS par ACME, prod et staging",
+          "desc": "Termine le TLS et route le domaine de prod et celui du staging vers leur serveur. Les webhooks de GitHub et le WebSocket du Runner passent par lui.",
+          "tickets": [
+            "INFRA-5"
+          ],
+          "adr": [
+            "0009"
+          ],
+          "zoom": "infra"
+        },
+        {
+          "id": "serveur",
+          "zone": "vps",
+          "x": 60,
+          "y": 262,
+          "w": 480,
+          "h": 128,
+          "titre": "Serveur crewdeck-prod",
+          "sous": "NestJS 11, sert la page et les binaires du Runner",
+          "desc": "L'API, le temps réel et la machine à états du Process : Idées, Conceptions, Tickets, la Boucle de chaque Projet, les Planifications, les Décisions. Il décide de la prochaine Étape, la demande au Runner et merge.",
+          "tickets": [
+            "INFRA-1",
+            "INFRA-5"
+          ],
+          "adr": [
+            "0001",
+            "0002",
+            "0007",
+            "0008"
+          ],
+          "zoom": "serveur",
+          "items": [
+            {
+              "texte": "API REST et conventions",
+              "ticket": "CORE-1"
+            },
+            {
+              "texte": "Temps réel /api/ws",
+              "ticket": "CORE-5"
+            },
+            {
+              "texte": "Boucle des Projets",
+              "ticket": "BOUCLE-2"
+            },
+            {
+              "texte": "Client de la GitHub App",
+              "ticket": "CORE-3"
+            }
+          ]
+        },
+        {
+          "id": "db",
+          "zone": "vps",
+          "x": 60,
+          "y": 420,
+          "w": 480,
+          "h": 56,
+          "titre": "PostgreSQL 18 prod",
+          "sous": "Prisma 7, événements numérotés gardés 7 jours",
+          "desc": "La vérité du Process. Aucun texte libre en clair : une Idée y est stockée chiffrée, une Session n'y est jamais.",
+          "tickets": [
+            "INFRA-1",
+            "CORE-5"
+          ],
+          "adr": [
+            "0001",
+            "0003"
+          ],
+          "zoom": "donnees"
+        },
+        {
+          "id": "staging",
+          "zone": "vps",
+          "x": 600,
+          "y": 262,
+          "w": 480,
+          "h": 56,
+          "titre": "crewdeck-staging",
+          "sous": "même image, sa PostgreSQL, App « Crewdeck staging »",
+          "desc": "Déployé à chaque merge sur develop. Ressources plafonnées ; refuse de démarrer avec l'URL ou les secrets de la prod.",
+          "tickets": [
+            "INFRA-5",
+            "INFRA-6"
+          ],
+          "adr": [
+            "0009"
+          ],
+          "zoom": "infra"
+        },
+        {
+          "id": "sauvegardes",
+          "zone": "vps",
+          "x": 600,
+          "y": 420,
+          "w": 480,
+          "h": 56,
+          "titre": "Sauvegardes restic",
+          "sous": "chaque nuit, restauration vérifiée chaque mois",
+          "desc": "Sauvegarde nocturne de la base de prod vers un autre fournisseur. Chaque déploiement répète ses migrations sur la dernière sauvegarde restaurée.",
+          "tickets": [
+            "INFRA-8",
+            "INFRA-13"
+          ],
+          "adr": [
+            "0009"
+          ],
+          "zoom": "infra"
+        },
+        {
+          "id": "github",
+          "zone": "externes",
+          "x": 1180,
+          "y": 176,
+          "w": 330,
+          "h": 56,
+          "titre": "GitHub",
+          "sous": "GitHub App, webhooks, issues et PR",
+          "desc": "La source des Tickets et du code. Le serveur n'agit que sur les métadonnées (labels, branches, merges liés au SHA) ; la page lit le contenu avec le jeton de l'utilisateur.",
+          "tickets": [
+            "INFRA-11",
+            "CORE-3",
+            "PROJET-1"
+          ],
+          "adr": [
+            "0002"
+          ]
+        },
+        {
+          "id": "push",
+          "zone": "externes",
+          "x": 1180,
+          "y": 262,
+          "w": 330,
+          "h": 56,
+          "titre": "Web Push",
+          "sous": "services push des navigateurs, VAPID",
+          "desc": "Prévient le Pilote d'une Décision quand aucun onglet n'est visible depuis 2 min.",
+          "tickets": [
+            "ATOI-4"
+          ],
+          "adr": [
+            "0007"
+          ]
+        },
+        {
+          "id": "stockage",
+          "zone": "externes",
+          "x": 1180,
+          "y": 420,
+          "w": 330,
+          "h": 56,
+          "titre": "Stockage des sauvegardes",
+          "sous": "un autre fournisseur qu'OVH",
+          "desc": "Le dépôt restic. Son mot de passe est sur le VPS et dans le gestionnaire du fondateur, jamais dans GitHub.",
+          "tickets": [
+            "INFRA-13"
+          ],
+          "adr": [
+            "0009"
+          ]
+        },
+        {
+          "id": "ia",
+          "zone": "externes",
+          "x": 1180,
+          "y": 556,
+          "w": 330,
+          "h": 56,
+          "titre": "Anthropic, OpenAI",
+          "sous": "Comptes IA du Pilote",
+          "desc": "Les modèles derrière Claude Code et Codex, sur l'abonnement ou la clé API du Pilote. Crewdeck ne paie ni ne voit les tokens.",
+          "tickets": [
+            "RUNNER-7",
+            "BIZ-3"
+          ],
+          "adr": [
+            "0004"
+          ]
+        },
+        {
+          "id": "runner",
+          "zone": "machine",
+          "x": 60,
+          "y": 556,
+          "w": 480,
+          "h": 128,
+          "titre": "Runner crewdeck-runner",
+          "sous": "Go, service utilisateur, ~/.crewdeck",
+          "desc": "Exécute une Session par Étape à la demande du serveur, relaie ses événements chiffrés, vérifie le livrable contre son Contrat. Ne garde aucun état du Process.",
+          "tickets": [
+            "RUNNER-3"
+          ],
+          "adr": [
+            "0004",
+            "0005"
+          ],
+          "zoom": "runner",
+          "items": [
+            {
+              "texte": "Lien et protocole",
+              "ticket": "RUNNER-2"
+            },
+            {
+              "texte": "Sessions en worktrees",
+              "ticket": "RUNNER-9"
+            },
+            {
+              "texte": "Contrats vérifiés",
+              "ticket": "RUNNER-11"
+            },
+            {
+              "texte": "Skills officielles",
+              "ticket": "RUNNER-12"
+            }
+          ]
+        },
+        {
+          "id": "moteurs",
+          "zone": "machine",
+          "x": 600,
+          "y": 556,
+          "w": 480,
+          "h": 56,
+          "titre": "Moteurs",
+          "sous": "Claude Code et Codex, lancés par le Runner",
+          "desc": "Derrière une même interface : l'adaptateur Claude Code (headless) et celui de Codex (app-server).",
+          "tickets": [
+            "RUNNER-4",
+            "RUNNER-5",
+            "RUNNER-6"
+          ],
+          "adr": [
+            "0004"
+          ],
+          "zoom": "runner"
+        },
+        {
+          "id": "worktrees",
+          "zone": "machine",
+          "x": 600,
+          "y": 636,
+          "w": 480,
+          "h": 56,
+          "titre": "Clones et worktrees",
+          "sous": "~/.crewdeck/repos et worktrees",
+          "desc": "Un clone par Projet, un worktree par Session. Le code est poussé avec un jeton d'installation restreint au dépôt, renouvelé pendant la Session.",
+          "tickets": [
+            "RUNNER-9",
+            "RUNNER-10"
+          ],
+          "adr": [
+            "0002",
+            "0004"
+          ]
+        },
+        {
+          "id": "monorepo",
+          "zone": "livraison",
+          "x": 60,
+          "y": 776,
+          "w": 300,
+          "h": 56,
+          "titre": "Monorepo Nx",
+          "sous": "server, web, runner, contracts",
+          "desc": "Nx 23 sur pnpm avec une app Go. Les contrats zod génèrent JSON Schema et types Go.",
+          "tickets": [
+            "INFRA-1",
+            "INFRA-2"
+          ],
+          "adr": [
+            "0001",
+            "0008"
+          ],
+          "zoom": "livraison"
+        },
+        {
+          "id": "ci",
+          "zone": "livraison",
+          "x": 400,
+          "y": 776,
+          "w": 300,
+          "h": 56,
+          "titre": "CI GitHub Actions",
+          "sous": "verify.yml, nightly, minutes",
+          "desc": "Secrets, lint, tests, build et typecheck sur l'affecté, intégration, bout en bout à 390 et 1280 px.",
+          "tickets": [
+            "INFRA-3",
+            "INFRA-4",
+            "INFRA-9"
+          ],
+          "adr": [
+            "0009"
+          ],
+          "zoom": "livraison"
+        },
+        {
+          "id": "image",
+          "zone": "livraison",
+          "x": 740,
+          "y": 776,
+          "w": 300,
+          "h": 56,
+          "titre": "Image ghcr.io",
+          "sous": "serveur, page et binaires du Runner",
+          "desc": "Une image par commit ; la prod promeut celle déjà déployée sur le staging, sans rebuild.",
+          "tickets": [
+            "INFRA-5"
+          ],
+          "adr": [
+            "0009"
+          ],
+          "zoom": "livraison"
+        },
+        {
+          "id": "cd",
+          "zone": "livraison",
+          "x": 1080,
+          "y": 776,
+          "w": 300,
+          "h": 56,
+          "titre": "Déploiement poussé",
+          "sous": "clé SSH restreinte vers le VPS",
+          "desc": "develop → staging, main → prod. Le script migre, redémarre, vérifie /api/health et revient en arrière en cas d'échec.",
+          "tickets": [
+            "INFRA-6"
+          ],
+          "adr": [
+            "0009"
+          ],
+          "zoom": "livraison"
+        }
+      ],
+      "liens": [
+        {
+          "de": "pilote",
+          "vers": "edge",
+          "points": [
+            [
+              570,
+              108
+            ],
+            [
+              570,
+              176
+            ]
+          ],
+          "label": "HTTPS",
+          "labelPos": [
+            610,
+            130,
+            0
+          ]
+        },
+        {
+          "de": "pilote",
+          "vers": "github",
+          "points": [
+            [
+              780,
+              80
+            ],
+            [
+              1345,
+              80
+            ],
+            [
+              1345,
+              176
+            ]
+          ],
+          "label": "lit le code"
+        },
+        {
+          "de": "github",
+          "vers": "edge",
+          "points": [
+            [
+              1180,
+              204
+            ],
+            [
+              780,
+              204
+            ]
+          ],
+          "label": "webhooks",
+          "deuxSens": true
+        },
+        {
+          "de": "edge",
+          "vers": "serveur",
+          "points": [
+            [
+              450,
+              232
+            ],
+            [
+              450,
+              262
+            ]
+          ]
+        },
+        {
+          "de": "edge",
+          "vers": "staging",
+          "points": [
+            [
+              690,
+              232
+            ],
+            [
+              690,
+              262
+            ]
+          ]
+        },
+        {
+          "de": "serveur",
+          "vers": "db",
+          "points": [
+            [
+              300,
+              390
+            ],
+            [
+              300,
+              420
+            ]
+          ],
+          "label": "Prisma",
+          "labelPos": [
+            340,
+            405,
+            0
+          ]
+        },
+        {
+          "de": "db",
+          "vers": "sauvegardes",
+          "points": [
+            [
+              540,
+              448
+            ],
+            [
+              600,
+              448
+            ]
+          ]
+        },
+        {
+          "de": "sauvegardes",
+          "vers": "stockage",
+          "points": [
+            [
+              1080,
+              448
+            ],
+            [
+              1180,
+              448
+            ]
+          ],
+          "label": "restic"
+        },
+        {
+          "de": "serveur",
+          "vers": "push",
+          "points": [
+            [
+              540,
+              340
+            ],
+            [
+              1140,
+              340
+            ],
+            [
+              1140,
+              290
+            ],
+            [
+              1180,
+              290
+            ]
+          ],
+          "label": "notifications"
+        },
+        {
+          "de": "runner",
+          "vers": "serveur",
+          "points": [
+            [
+              60,
+              620
+            ],
+            [
+              40,
+              620
+            ],
+            [
+              40,
+              300
+            ],
+            [
+              60,
+              300
+            ]
+          ],
+          "label": "WebSocket",
+          "labelPos": [
+            40,
+            460,
+            -90
+          ],
+          "deuxSens": true
+        },
+        {
+          "de": "runner",
+          "vers": "moteurs",
+          "points": [
+            [
+              540,
+              584
+            ],
+            [
+              600,
+              584
+            ]
+          ]
+        },
+        {
+          "de": "runner",
+          "vers": "worktrees",
+          "points": [
+            [
+              540,
+              664
+            ],
+            [
+              600,
+              664
+            ]
+          ]
+        },
+        {
+          "de": "moteurs",
+          "vers": "ia",
+          "points": [
+            [
+              1080,
+              584
+            ],
+            [
+              1180,
+              584
+            ]
+          ],
+          "label": "modèles"
+        },
+        {
+          "de": "monorepo",
+          "vers": "ci",
+          "points": [
+            [
+              360,
+              804
+            ],
+            [
+              400,
+              804
+            ]
+          ]
+        },
+        {
+          "de": "ci",
+          "vers": "image",
+          "points": [
+            [
+              700,
+              804
+            ],
+            [
+              740,
+              804
+            ]
+          ]
+        },
+        {
+          "de": "image",
+          "vers": "cd",
+          "points": [
+            [
+              1040,
+              804
+            ],
+            [
+              1080,
+              804
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "serveur",
+      "titre": "Serveur",
+      "description": "apps/server : un socle commun, un module par partie du Process, des ports vers GitHub, le Runner et le push.",
+      "largeur": 1240,
+      "hauteur": 792,
+      "zones": [
+        {
+          "id": "socle",
+          "x": 20,
+          "y": 20,
+          "w": 1200,
+          "h": 196,
+          "couleur": "c1",
+          "titre": "Socle",
+          "sous": "conventions partagées par tous les modules"
+        },
+        {
+          "id": "modules",
+          "x": 20,
+          "y": 236,
+          "w": 1200,
+          "h": 400,
+          "couleur": "c2",
+          "titre": "Modules du Process",
+          "sous": "un module NestJS par partie"
+        },
+        {
+          "id": "ports",
+          "x": 20,
+          "y": 656,
+          "w": 1200,
+          "h": 116,
+          "couleur": "c4",
+          "titre": "Ports",
+          "sous": "ce qui parle au monde extérieur"
+        }
+      ],
+      "noeuds": [
+        {
+          "id": "conventions",
+          "zone": "socle",
+          "x": 40,
+          "y": 60,
+          "w": 370,
+          "h": 56,
+          "titre": "Conventions d'API",
+          "sous": "validation, enveloppe d'erreur, journaux",
+          "desc": "Le pipe de validation zod, l'enveloppe d'erreur, la base de tests. Les journaux ne contiennent jamais de chiffré ni de texte d'Idée.",
+          "tickets": [
+            "CORE-1"
+          ],
+          "adr": [
+            "0008"
+          ]
+        },
+        {
+          "id": "scope",
+          "zone": "socle",
+          "x": 434,
+          "y": 60,
+          "w": 370,
+          "h": 56,
+          "titre": "Périmètre du Pilote",
+          "sous": "chaque requête bornée à son Pilote",
+          "desc": "La garde qui empêche un Pilote de lire les données d'un autre.",
+          "tickets": [
+            "CORE-2"
+          ],
+          "adr": [
+            "0008"
+          ]
+        },
+        {
+          "id": "auth",
+          "zone": "socle",
+          "x": 828,
+          "y": 60,
+          "w": 370,
+          "h": 56,
+          "titre": "Connexion GitHub",
+          "sous": "OAuth de l'App, jetons chiffrés",
+          "desc": "Le flux web de l'App ; jeton utilisateur et refresh chiffrés au repos.",
+          "tickets": [
+            "CORE-4"
+          ],
+          "adr": [
+            "0002"
+          ]
+        },
+        {
+          "id": "temps-reel",
+          "zone": "socle",
+          "x": 40,
+          "y": 140,
+          "w": 370,
+          "h": 56,
+          "titre": "Temps réel",
+          "sous": "événements numérotés, rejeu ou instantané",
+          "desc": "Un WebSocket par client, événements numérotés par Pilote, rejeu depuis le dernier seq ou instantané.",
+          "tickets": [
+            "CORE-5"
+          ],
+          "adr": [
+            "0007"
+          ]
+        },
+        {
+          "id": "sensibles",
+          "zone": "socle",
+          "x": 434,
+          "y": 140,
+          "w": 370,
+          "h": 56,
+          "titre": "Actions sensibles",
+          "sous": "confirmation, désactivées pendant la resynchro",
+          "desc": "Les actions qui changent le dépôt ou la Boucle demandent une confirmation et portent leur seq.",
+          "tickets": [
+            "CORE-7"
+          ],
+          "adr": [
+            "0007"
+          ]
+        },
+        {
+          "id": "latence",
+          "zone": "socle",
+          "x": 828,
+          "y": 140,
+          "w": 370,
+          "h": 56,
+          "titre": "Latence mesurée",
+          "sous": "p95 du changement à l'écran",
+          "desc": "Chaque événement porte l'heure où sa source a vu le changement ; la page renvoie le délai.",
+          "tickets": [
+            "CORE-8"
+          ],
+          "adr": [
+            "0007"
+          ]
+        },
+        {
+          "id": "m-projets",
+          "zone": "modules",
+          "x": 40,
+          "y": 276,
+          "w": 370,
+          "h": 128,
+          "titre": "Projets",
+          "sous": "dépôts suivis, préparation, Inventaire",
+          "desc": "Un dépôt où l'App est installée devient un Projet ; sa préparation et son Inventaire.",
+          "tickets": [
+            "PROJET-2"
+          ],
+          "adr": [
+            "0002"
+          ],
+          "items": [
+            {
+              "texte": "Webhooks GitHub",
+              "ticket": "PROJET-1"
+            },
+            {
+              "texte": "Préparation d'un Projet",
+              "ticket": "PROJET-3"
+            },
+            {
+              "texte": "Inventaire",
+              "ticket": "PROJET-4"
+            },
+            {
+              "texte": "Valider l'Inventaire",
+              "ticket": "PROJET-5"
+            }
+          ]
+        },
+        {
+          "id": "m-boucle",
+          "zone": "modules",
+          "x": 434,
+          "y": 276,
+          "w": 370,
+          "h": 188,
+          "titre": "Boucle",
+          "sous": "prend, code, revoit, merge",
+          "desc": "La Boucle de chaque Projet : prochain Ticket prêt, Étapes Code et Review, merge lié au commit jugé.",
+          "tickets": [
+            "BOUCLE-2"
+          ],
+          "adr": [
+            "0002",
+            "0005"
+          ],
+          "items": [
+            {
+              "texte": "Tickets reflétés",
+              "ticket": "BOUCLE-1"
+            },
+            {
+              "texte": "Étape Code",
+              "ticket": "BOUCLE-3"
+            },
+            {
+              "texte": "Review et merge",
+              "ticket": "BOUCLE-4"
+            },
+            {
+              "texte": "Ticket bloqué",
+              "ticket": "BOUCLE-5"
+            },
+            {
+              "texte": "Revue visuelle",
+              "ticket": "BOUCLE-6"
+            },
+            {
+              "texte": "Limites atteintes",
+              "ticket": "BOUCLE-7"
+            },
+            {
+              "texte": "Planification",
+              "ticket": "BOUCLE-8"
+            }
+          ]
+        },
+        {
+          "id": "m-conception",
+          "zone": "modules",
+          "x": 828,
+          "y": 276,
+          "w": 370,
+          "h": 168,
+          "titre": "Conceptions",
+          "sous": "PRD, maquettes, technique, Découpage",
+          "desc": "Les Étapes d'une Conception, leurs revues et leurs validations.",
+          "tickets": [
+            "CONCEPTION-1"
+          ],
+          "adr": [
+            "0005"
+          ],
+          "items": [
+            {
+              "texte": "Étape PRD",
+              "ticket": "CONCEPTION-3"
+            },
+            {
+              "texte": "Étape Maquettes",
+              "ticket": "CONCEPTION-5"
+            },
+            {
+              "texte": "Conception technique",
+              "ticket": "CONCEPTION-7"
+            },
+            {
+              "texte": "Revue croisée",
+              "ticket": "CONCEPTION-8"
+            },
+            {
+              "texte": "Découpage",
+              "ticket": "CONCEPTION-9"
+            },
+            {
+              "texte": "Valider les Tickets",
+              "ticket": "CONCEPTION-10"
+            }
+          ]
+        },
+        {
+          "id": "m-idees",
+          "zone": "modules",
+          "x": 40,
+          "y": 488,
+          "w": 370,
+          "h": 108,
+          "titre": "Idées",
+          "sous": "notées chiffrées, analysées, triées",
+          "desc": "Une Idée est stockée chiffrée ; son analyse tourne sur le Runner.",
+          "tickets": [
+            "IDEE-1"
+          ],
+          "adr": [
+            "0003"
+          ],
+          "items": [
+            {
+              "texte": "Analyse",
+              "ticket": "IDEE-2"
+            },
+            {
+              "texte": "Tri",
+              "ticket": "IDEE-3"
+            },
+            {
+              "texte": "Idée vers Ticket",
+              "ticket": "IDEE-5"
+            }
+          ]
+        },
+        {
+          "id": "m-decisions",
+          "zone": "modules",
+          "x": 434,
+          "y": 488,
+          "w": 370,
+          "h": 108,
+          "titre": "Décisions",
+          "sous": "« À toi » et ses relances",
+          "desc": "Ce qui attend le Pilote : contrat incomplet, Runner hors ligne, questions des Sessions.",
+          "tickets": [
+            "ATOI-1"
+          ],
+          "adr": [
+            "0007"
+          ],
+          "items": [
+            {
+              "texte": "Contrat incomplet",
+              "ticket": "ATOI-2"
+            },
+            {
+              "texte": "Runner hors ligne",
+              "ticket": "ATOI-3"
+            },
+            {
+              "texte": "Notifications push",
+              "ticket": "ATOI-4"
+            }
+          ]
+        },
+        {
+          "id": "m-params",
+          "zone": "modules",
+          "x": 828,
+          "y": 488,
+          "w": 370,
+          "h": 128,
+          "titre": "Paramètres et statistiques",
+          "sous": "du compte et de chaque Projet",
+          "desc": "Rôles et modèles, Étapes optionnelles, statistiques.",
+          "tickets": [
+            "PARAM-1"
+          ],
+          "adr": [
+            "0008"
+          ],
+          "items": [
+            {
+              "texte": "Rôles et modèles",
+              "ticket": "PARAM-2"
+            },
+            {
+              "texte": "Paramètres d'un Projet",
+              "ticket": "PARAM-3"
+            },
+            {
+              "texte": "Étapes optionnelles",
+              "ticket": "PARAM-4"
+            },
+            {
+              "texte": "Statistiques",
+              "ticket": "PILOTAGE-3"
+            }
+          ]
+        },
+        {
+          "id": "p-github",
+          "zone": "ports",
+          "x": 40,
+          "y": 696,
+          "w": 272,
+          "h": 56,
+          "titre": "Client GitHub",
+          "sous": "liste blanche de lecture, faux GitHub",
+          "desc": "Le seul client GitHub du serveur ; il refuse toute lecture de contenu hors liste blanche.",
+          "tickets": [
+            "CORE-3"
+          ],
+          "adr": [
+            "0002"
+          ]
+        },
+        {
+          "id": "p-runner",
+          "zone": "ports",
+          "x": 336,
+          "y": 696,
+          "w": 272,
+          "h": 56,
+          "titre": "Protocole du Runner",
+          "sous": "un WebSocket, présence, versions",
+          "desc": "Messages de packages/contracts ; heartbeat toutes les 15 s.",
+          "tickets": [
+            "RUNNER-2"
+          ],
+          "adr": [
+            "0004"
+          ]
+        },
+        {
+          "id": "p-relais",
+          "zone": "ports",
+          "x": 632,
+          "y": 696,
+          "w": 272,
+          "h": 56,
+          "titre": "Relais des Sessions",
+          "sous": "chiffré de bout en bout, jamais stocké",
+          "desc": "Passe les messages chiffrés du Runner aux onglets et retour.",
+          "tickets": [
+            "SESSION-1"
+          ],
+          "adr": [
+            "0003",
+            "0007"
+          ]
+        },
+        {
+          "id": "p-push",
+          "zone": "ports",
+          "x": 928,
+          "y": 696,
+          "w": 272,
+          "h": 56,
+          "titre": "Web Push",
+          "sous": "VAPID, abonnements des Appareils",
+          "desc": "Envoie le titre d'une Décision et son lien.",
+          "tickets": [
+            "ATOI-4"
+          ],
+          "adr": [
+            "0007"
+          ]
+        }
+      ],
+      "liens": []
+    },
+    {
+      "id": "page",
+      "titre": "Page",
+      "description": "apps/web et la Skin par défaut : un cœur qui tient l'état, des Composants qu'une Skin peut remplacer, des écrans composés.",
+      "largeur": 1240,
+      "hauteur": 592,
+      "zones": [
+        {
+          "id": "coeur",
+          "x": 20,
+          "y": 20,
+          "w": 1200,
+          "h": 168,
+          "couleur": "c1",
+          "titre": "Cœur de la page",
+          "sous": "apps/web"
+        },
+        {
+          "id": "skin",
+          "x": 20,
+          "y": 208,
+          "w": 1200,
+          "h": 148,
+          "couleur": "c3",
+          "titre": "Skin Passerelle",
+          "sous": "packages/sdk et packages/skin-passerelle"
+        },
+        {
+          "id": "ecrans",
+          "x": 20,
+          "y": 376,
+          "w": 1200,
+          "h": 196,
+          "couleur": "c2",
+          "titre": "Écrans",
+          "sous": "composés d'instances de la bibliothèque"
+        }
+      ],
+      "noeuds": [
+        {
+          "id": "store",
+          "zone": "coeur",
+          "x": 40,
+          "y": 60,
+          "w": 370,
+          "h": 56,
+          "titre": "Store et resynchronisation",
+          "sous": "commandes portant leur seq",
+          "desc": "L'état de la page alimenté par le WebSocket ; « resynchronisation… » tant que le rejeu n'est pas appliqué.",
+          "tickets": [
+            "CORE-6"
+          ],
+          "adr": [
+            "0007"
+          ]
+        },
+        {
+          "id": "crypto",
+          "zone": "coeur",
+          "x": 434,
+          "y": 60,
+          "w": 370,
+          "h": 108,
+          "titre": "Clés de l'Appareil",
+          "sous": "WebCrypto, coffre du Pilote",
+          "desc": "Primitives de chiffrement partagées avec le Go et premier Appareil.",
+          "tickets": [
+            "E2E-1"
+          ],
+          "adr": [
+            "0003"
+          ],
+          "items": [
+            {
+              "texte": "Premier Appareil",
+              "ticket": "E2E-2"
+            },
+            {
+              "texte": "Nouvel Appareil par QR",
+              "ticket": "E2E-3"
+            },
+            {
+              "texte": "Révoquer un Appareil",
+              "ticket": "E2E-4"
+            }
+          ]
+        },
+        {
+          "id": "dictee",
+          "zone": "coeur",
+          "x": 828,
+          "y": 60,
+          "w": 370,
+          "h": 56,
+          "titre": "Dictée",
+          "sous": "Web Speech API",
+          "desc": "Remplit le champ à corriger avant l'envoi ; cachée là où l'API manque.",
+          "tickets": [
+            "IDEE-4"
+          ],
+          "adr": [
+            "0007"
+          ]
+        },
+        {
+          "id": "runtime",
+          "zone": "skin",
+          "x": 40,
+          "y": 248,
+          "w": 370,
+          "h": 56,
+          "titre": "Runtime des Skins",
+          "sous": "Composants, Emplacements, cd-action",
+          "desc": "Une Skin ne reçoit que des données et émet des actions ; elle ne lit jamais le code déchiffré.",
+          "tickets": [
+            "UI-1"
+          ],
+          "adr": [
+            "0006"
+          ]
+        },
+        {
+          "id": "bibliotheque",
+          "zone": "skin",
+          "x": 434,
+          "y": 248,
+          "w": 370,
+          "h": 88,
+          "titre": "Bibliothèque de Composants",
+          "sous": "cd-*, jetons de DESIGN.md",
+          "desc": "La bibliothèque par défaut, composée depuis les maquettes.",
+          "tickets": [
+            "UI-2"
+          ],
+          "adr": [
+            "0006"
+          ],
+          "colonnes": 2,
+          "items": [
+            {
+              "texte": "Formulaires et Dialog",
+              "ticket": "UI-4"
+            },
+            {
+              "texte": "Lignes",
+              "ticket": "UI-5"
+            },
+            {
+              "texte": "Pistes et chiffres",
+              "ticket": "UI-6"
+            },
+            {
+              "texte": "Composants de Session",
+              "ticket": "UI-7"
+            }
+          ]
+        },
+        {
+          "id": "cadre",
+          "zone": "skin",
+          "x": 828,
+          "y": 248,
+          "w": 370,
+          "h": 56,
+          "titre": "Le Cadre",
+          "sous": "menu, en-tête, 390 et 1280 px",
+          "desc": "La coque de toutes les pages.",
+          "tickets": [
+            "UI-3"
+          ],
+          "adr": [
+            "0006"
+          ]
+        },
+        {
+          "id": "e-atoi",
+          "zone": "ecrans",
+          "x": 40,
+          "y": 416,
+          "w": 272,
+          "h": 56,
+          "titre": "À toi",
+          "sous": "ce qui attend le Pilote",
+          "desc": "Les Décisions ouvertes.",
+          "tickets": [
+            "ATOI-1"
+          ],
+          "adr": [
+            "0007"
+          ]
+        },
+        {
+          "id": "e-projets",
+          "zone": "ecrans",
+          "x": 336,
+          "y": 416,
+          "w": 272,
+          "h": 56,
+          "titre": "Projets",
+          "sous": "liste, préparation, Inventaire",
+          "desc": "Les dépôts suivis et leur état.",
+          "tickets": [
+            "PROJET-2",
+            "PROJET-3"
+          ],
+          "adr": []
+        },
+        {
+          "id": "e-session",
+          "zone": "ecrans",
+          "x": 632,
+          "y": 416,
+          "w": 272,
+          "h": 56,
+          "titre": "Panneau de Session",
+          "sous": "en direct, questions et permissions",
+          "desc": "Le fil d'une Session, déchiffré dans l'onglet.",
+          "tickets": [
+            "SESSION-2",
+            "SESSION-3"
+          ],
+          "adr": [
+            "0003"
+          ]
+        },
+        {
+          "id": "e-ticket",
+          "zone": "ecrans",
+          "x": 928,
+          "y": 416,
+          "w": 272,
+          "h": 56,
+          "titre": "Page d'un Ticket",
+          "sous": "état, blocage, réponse",
+          "desc": "Le Ticket, son étape de Boucle et la réponse du Pilote.",
+          "tickets": [
+            "BOUCLE-5"
+          ],
+          "adr": []
+        },
+        {
+          "id": "e-idees",
+          "zone": "ecrans",
+          "x": 40,
+          "y": 496,
+          "w": 272,
+          "h": 56,
+          "titre": "Idées",
+          "sous": "notées, triées, dictées",
+          "desc": "La liste des Idées, déchiffrées dans l'onglet.",
+          "tickets": [
+            "IDEE-1",
+            "IDEE-3"
+          ],
+          "adr": [
+            "0003"
+          ]
+        },
+        {
+          "id": "e-conceptions",
+          "zone": "ecrans",
+          "x": 336,
+          "y": 496,
+          "w": 272,
+          "h": 56,
+          "titre": "Conceptions",
+          "sous": "Étapes et revues",
+          "desc": "La page d'une Conception et ses revues de documents et de maquettes.",
+          "tickets": [
+            "CONCEPTION-2",
+            "CONCEPTION-4",
+            "CONCEPTION-6"
+          ],
+          "adr": []
+        },
+        {
+          "id": "e-planning",
+          "zone": "ecrans",
+          "x": 632,
+          "y": 496,
+          "w": 272,
+          "h": 56,
+          "titre": "Planning et arbre",
+          "sous": "jalons, chemin critique",
+          "desc": "Le planning d'un Projet et l'arbre de ses Tickets ouverts.",
+          "tickets": [
+            "PILOTAGE-1",
+            "PILOTAGE-2"
+          ],
+          "adr": []
+        },
+        {
+          "id": "e-params",
+          "zone": "ecrans",
+          "x": 928,
+          "y": 496,
+          "w": 272,
+          "h": 56,
+          "titre": "Paramètres et statistiques",
+          "sous": "compte, Projet, chiffres",
+          "desc": "Paramètres du compte et des Projets, statistiques.",
+          "tickets": [
+            "PARAM-1",
+            "PILOTAGE-3"
+          ],
+          "adr": []
+        }
+      ],
+      "liens": []
+    },
+    {
+      "id": "runner",
+      "titre": "Runner",
+      "description": "apps/runner, en Go, sur la machine du Pilote : il exécute, le serveur décide.",
+      "largeur": 1240,
+      "hauteur": 532,
+      "zones": [
+        {
+          "id": "r-lien",
+          "x": 20,
+          "y": 20,
+          "w": 1200,
+          "h": 168,
+          "couleur": "c3",
+          "titre": "Le Runner",
+          "sous": "binaire statique, service utilisateur"
+        },
+        {
+          "id": "r-sessions",
+          "x": 20,
+          "y": 208,
+          "w": 1200,
+          "h": 168,
+          "couleur": "c1",
+          "titre": "Sessions",
+          "sous": "une par Étape, dans un worktree"
+        },
+        {
+          "id": "r-moteurs",
+          "x": 20,
+          "y": 396,
+          "w": 1200,
+          "h": 116,
+          "couleur": "c4",
+          "titre": "Moteurs",
+          "sous": "derrière une même interface"
+        }
+      ],
+      "noeuds": [
+        {
+          "id": "r-protocole",
+          "zone": "r-lien",
+          "x": 40,
+          "y": 60,
+          "w": 370,
+          "h": 108,
+          "titre": "Lien au serveur",
+          "sous": "code de lien, WebSocket, mise à jour",
+          "desc": "Lié par la commande d'installation ; se met à jour avant tout si le serveur ne parle plus sa version.",
+          "tickets": [
+            "RUNNER-3"
+          ],
+          "adr": [
+            "0004"
+          ],
+          "items": [
+            {
+              "texte": "Protocole",
+              "ticket": "RUNNER-2"
+            },
+            {
+              "texte": "Maintenance",
+              "ticket": "RUNNER-8"
+            },
+            {
+              "texte": "Appareils approuvés",
+              "ticket": "E2E-3"
+            }
+          ]
+        },
+        {
+          "id": "r-comptes",
+          "zone": "r-lien",
+          "x": 434,
+          "y": 60,
+          "w": 370,
+          "h": 68,
+          "titre": "Comptes IA",
+          "sous": "abonnement ou clé API, trousseau du système",
+          "desc": "Connexion des Moteurs et suivi de l'usage contre leurs limites.",
+          "tickets": [
+            "RUNNER-7"
+          ],
+          "adr": [
+            "0004"
+          ],
+          "items": [
+            {
+              "texte": "Usage et projection",
+              "ticket": "RUNNER-13"
+            }
+          ]
+        },
+        {
+          "id": "r-smoke",
+          "zone": "r-lien",
+          "x": 828,
+          "y": 60,
+          "w": 370,
+          "h": 56,
+          "titre": "Test de fumée nocturne",
+          "sous": "binaire compilé, linux et darwin",
+          "desc": "Lien, une Session contre le faux Moteur, contrôle du Contrat.",
+          "tickets": [
+            "RUNNER-14"
+          ],
+          "adr": [
+            "0009"
+          ]
+        },
+        {
+          "id": "r-session",
+          "zone": "r-sessions",
+          "x": 40,
+          "y": 248,
+          "w": 568,
+          "h": 108,
+          "titre": "Sessions",
+          "sous": "worktree, journal local, rejeu",
+          "desc": "Le contenu d'une Session n'existe que sur le Runner, qui le rejoue à l'onglet qui l'ouvre.",
+          "tickets": [
+            "RUNNER-9"
+          ],
+          "adr": [
+            "0003",
+            "0004"
+          ],
+          "items": [
+            {
+              "texte": "Jeton GitHub par Session",
+              "ticket": "RUNNER-10"
+            },
+            {
+              "texte": "Relais chiffré",
+              "ticket": "SESSION-1"
+            },
+            {
+              "texte": "Questions et permissions",
+              "ticket": "SESSION-3"
+            }
+          ]
+        },
+        {
+          "id": "r-contrats",
+          "zone": "r-sessions",
+          "x": 632,
+          "y": 248,
+          "w": 568,
+          "h": 108,
+          "titre": "Étapes et Contrats",
+          "sous": "livrable vérifié, verdict rendu",
+          "desc": "Les Skills officielles embarquées, crewdeck-runner etape, et le contrôle du livrable par son Contrat.",
+          "tickets": [
+            "RUNNER-11"
+          ],
+          "adr": [
+            "0005"
+          ],
+          "items": [
+            {
+              "texte": "Skills officielles",
+              "ticket": "RUNNER-12"
+            },
+            {
+              "texte": "Étape Code",
+              "ticket": "BOUCLE-3"
+            },
+            {
+              "texte": "Étape Review",
+              "ticket": "BOUCLE-4"
+            }
+          ]
+        },
+        {
+          "id": "r-interface",
+          "zone": "r-moteurs",
+          "x": 40,
+          "y": 436,
+          "w": 370,
+          "h": 56,
+          "titre": "Interface Moteur",
+          "sous": "événements normalisés, faux Moteur",
+          "desc": "Les flux enregistrés rejoués par le faux Moteur servent aux tests.",
+          "tickets": [
+            "RUNNER-4"
+          ],
+          "adr": [
+            "0004"
+          ]
+        },
+        {
+          "id": "r-claude",
+          "zone": "r-moteurs",
+          "x": 434,
+          "y": 436,
+          "w": 370,
+          "h": 56,
+          "titre": "Claude Code",
+          "sous": "mode headless",
+          "desc": "L'adaptateur de Claude Code.",
+          "tickets": [
+            "RUNNER-1",
+            "RUNNER-5"
+          ],
+          "adr": [
+            "0004"
+          ]
+        },
+        {
+          "id": "r-codex",
+          "zone": "r-moteurs",
+          "x": 828,
+          "y": 436,
+          "w": 370,
+          "h": 56,
+          "titre": "Codex",
+          "sous": "app-server",
+          "desc": "L'adaptateur de Codex.",
+          "tickets": [
+            "RUNNER-6"
+          ],
+          "adr": [
+            "0004"
+          ]
+        }
+      ],
+      "liens": []
+    },
+    {
+      "id": "donnees",
+      "titre": "Données",
+      "description": "PostgreSQL 18 par Prisma 7 : identifiants, états, dates et chiffres en clair, tout texte libre chiffré.",
+      "largeur": 1240,
+      "hauteur": 508,
+      "zones": [
+        {
+          "id": "d-compte",
+          "x": 20,
+          "y": 20,
+          "w": 1200,
+          "h": 116,
+          "couleur": "c1",
+          "titre": "Compte et Appareils"
+        },
+        {
+          "id": "d-github",
+          "x": 20,
+          "y": 156,
+          "w": 1200,
+          "h": 116,
+          "couleur": "c4",
+          "titre": "Reflet de GitHub",
+          "sous": "métadonnées seulement"
+        },
+        {
+          "id": "d-process",
+          "x": 20,
+          "y": 292,
+          "w": 1200,
+          "h": 196,
+          "couleur": "c2",
+          "titre": "Process"
+        }
+      ],
+      "noeuds": [
+        {
+          "id": "t-pilote",
+          "zone": "d-compte",
+          "x": 40,
+          "y": 60,
+          "w": 272,
+          "h": 56,
+          "titre": "Pilote et connexion",
+          "sous": "jetons GitHub chiffrés",
+          "desc": "Le Pilote, ses jetons utilisateur chiffrés au repos.",
+          "tickets": [
+            "CORE-4"
+          ],
+          "adr": [
+            "0002"
+          ]
+        },
+        {
+          "id": "t-appareils",
+          "zone": "d-compte",
+          "x": 336,
+          "y": 60,
+          "w": 272,
+          "h": 56,
+          "titre": "Appareils et coffre",
+          "sous": "Device, VaultKeyWrap",
+          "desc": "Clés publiques des Appareils et clé du coffre enveloppée pour chacun.",
+          "tickets": [
+            "E2E-2"
+          ],
+          "adr": [
+            "0003"
+          ]
+        },
+        {
+          "id": "t-runner",
+          "zone": "d-compte",
+          "x": 632,
+          "y": 60,
+          "w": 272,
+          "h": 56,
+          "titre": "Runner",
+          "sous": "Runner, RunnerLinkCode",
+          "desc": "Le Runner lié et ses codes de lien.",
+          "tickets": [
+            "RUNNER-3"
+          ],
+          "adr": [
+            "0004"
+          ]
+        },
+        {
+          "id": "t-params",
+          "zone": "d-compte",
+          "x": 928,
+          "y": 60,
+          "w": 272,
+          "h": 56,
+          "titre": "Paramètres",
+          "sous": "AccountSettings, ProjectSettings",
+          "desc": "Les Paramètres du compte et de chaque Projet.",
+          "tickets": [
+            "PARAM-1",
+            "PARAM-3"
+          ],
+          "adr": []
+        },
+        {
+          "id": "t-projets",
+          "zone": "d-github",
+          "x": 40,
+          "y": 196,
+          "w": 370,
+          "h": 56,
+          "titre": "Projets",
+          "sous": "Project, Repository, GitHubInstallation",
+          "desc": "Les dépôts suivis et les installations de l'App.",
+          "tickets": [
+            "PROJET-2"
+          ],
+          "adr": [
+            "0002"
+          ]
+        },
+        {
+          "id": "t-livraisons",
+          "zone": "d-github",
+          "x": 434,
+          "y": 196,
+          "w": 370,
+          "h": 56,
+          "titre": "Livraisons de webhooks",
+          "sous": "GitHubDelivery, dédupliquées",
+          "desc": "Chaque X-GitHub-Delivery vu une fois.",
+          "tickets": [
+            "PROJET-1"
+          ],
+          "adr": [
+            "0002"
+          ]
+        },
+        {
+          "id": "t-tickets",
+          "zone": "d-github",
+          "x": 828,
+          "y": 196,
+          "w": 370,
+          "h": 56,
+          "titre": "Tickets",
+          "sous": "tickets, milestones, ticket_checks",
+          "desc": "Les Tickets et jalons reflétés depuis GitHub.",
+          "tickets": [
+            "BOUCLE-1"
+          ],
+          "adr": []
+        },
+        {
+          "id": "t-boucle",
+          "zone": "d-process",
+          "x": 40,
+          "y": 332,
+          "w": 272,
+          "h": 56,
+          "titre": "Boucle",
+          "sous": "agent_loops, loop_records, verdicts",
+          "desc": "L'état de chaque Boucle et le registre de ce qu'elle a pris.",
+          "tickets": [
+            "BOUCLE-2",
+            "BOUCLE-4"
+          ],
+          "adr": []
+        },
+        {
+          "id": "t-planif",
+          "zone": "d-process",
+          "x": 336,
+          "y": 332,
+          "w": 272,
+          "h": 56,
+          "titre": "Planifications",
+          "sous": "schedules",
+          "desc": "Quand la Boucle tourne.",
+          "tickets": [
+            "BOUCLE-8"
+          ],
+          "adr": []
+        },
+        {
+          "id": "t-idees",
+          "zone": "d-process",
+          "x": 632,
+          "y": 332,
+          "w": 272,
+          "h": 56,
+          "titre": "Idées et Conceptions",
+          "sous": "ideas (chiffrées), Design",
+          "desc": "Le texte d'une Idée n'est stocké que chiffré.",
+          "tickets": [
+            "IDEE-1",
+            "CONCEPTION-1"
+          ],
+          "adr": [
+            "0003"
+          ]
+        },
+        {
+          "id": "t-decisions",
+          "zone": "d-process",
+          "x": 928,
+          "y": 332,
+          "w": 272,
+          "h": 56,
+          "titre": "Décisions et push",
+          "sous": "decisions, PushSubscription",
+          "desc": "Ce qui attend le Pilote et ses abonnements push.",
+          "tickets": [
+            "ATOI-1",
+            "ATOI-4"
+          ],
+          "adr": []
+        },
+        {
+          "id": "t-sessions",
+          "zone": "d-process",
+          "x": 40,
+          "y": 412,
+          "w": 370,
+          "h": 56,
+          "titre": "Sessions et Étapes",
+          "sous": "AgentSession, StepRun, AiAccount",
+          "desc": "Titre et état seulement : le contenu reste sur le Runner.",
+          "tickets": [
+            "RUNNER-9",
+            "RUNNER-12",
+            "RUNNER-7"
+          ],
+          "adr": [
+            "0003"
+          ]
+        },
+        {
+          "id": "t-usage",
+          "zone": "d-process",
+          "x": 434,
+          "y": 412,
+          "w": 370,
+          "h": 56,
+          "titre": "Usage et coûts",
+          "sous": "UsageMeasure, Spend, FxRate",
+          "desc": "L'usage des Comptes IA et les dépenses converties au taux BCE du jour.",
+          "tickets": [
+            "RUNNER-13"
+          ],
+          "adr": []
+        },
+        {
+          "id": "t-events",
+          "zone": "d-process",
+          "x": 828,
+          "y": 412,
+          "w": 370,
+          "h": 56,
+          "titre": "Événements",
+          "sous": "events, gardés 7 jours",
+          "desc": "Écrits dans la même transaction que le changement, numérotés par Pilote.",
+          "tickets": [
+            "CORE-5"
+          ],
+          "adr": [
+            "0007"
+          ]
+        }
+      ],
+      "liens": []
+    },
+    {
+      "id": "infra",
+      "titre": "Infra",
+      "description": "Un VPS OVH dédié à Crewdeck, provisionné par un script idempotent, deux projets Compose derrière Caddy.",
+      "largeur": 1240,
+      "hauteur": 292,
+      "zones": [
+        {
+          "id": "i-gestes",
+          "x": 20,
+          "y": 20,
+          "w": 1200,
+          "h": 116,
+          "couleur": "warn",
+          "titre": "Gestes du fondateur",
+          "sous": "tickets externes"
+        },
+        {
+          "id": "i-vps-z",
+          "x": 20,
+          "y": 156,
+          "w": 1200,
+          "h": 116,
+          "couleur": "c1",
+          "titre": "VPS OVH"
+        }
+      ],
+      "noeuds": [
+        {
+          "id": "i-domaine",
+          "zone": "i-gestes",
+          "x": 40,
+          "y": 60,
+          "w": 272,
+          "h": 56,
+          "titre": "Nom et domaine",
+          "sous": "marque vérifiée, DNS",
+          "desc": "Vérifier que « Crewdeck » est libre, acheter le domaine.",
+          "tickets": [
+            "BIZ-1"
+          ],
+          "adr": []
+        },
+        {
+          "id": "i-vps",
+          "zone": "i-gestes",
+          "x": 336,
+          "y": 60,
+          "w": 272,
+          "h": 56,
+          "titre": "Commander le VPS",
+          "sous": "OVH, EU",
+          "desc": "Commande à la main puis provisionnement.",
+          "tickets": [
+            "INFRA-10"
+          ],
+          "adr": [
+            "0009"
+          ]
+        },
+        {
+          "id": "i-apps",
+          "zone": "i-gestes",
+          "x": 632,
+          "y": 60,
+          "w": 272,
+          "h": 56,
+          "titre": "GitHub Apps",
+          "sous": "« Crewdeck » et « Crewdeck staging »",
+          "desc": "Permissions, événements, URLs ; secrets gardés.",
+          "tickets": [
+            "INFRA-11"
+          ],
+          "adr": [
+            "0002"
+          ]
+        },
+        {
+          "id": "i-secrets",
+          "zone": "i-gestes",
+          "x": 928,
+          "y": 60,
+          "w": 272,
+          "h": 56,
+          "titre": "Secrets et environnements",
+          "sous": ".env du serveur, environnements GitHub",
+          "desc": "staging lisible depuis develop, production depuis main.",
+          "tickets": [
+            "INFRA-12"
+          ],
+          "adr": [
+            "0009"
+          ]
+        },
+        {
+          "id": "i-provision",
+          "zone": "i-vps-z",
+          "x": 40,
+          "y": 196,
+          "w": 370,
+          "h": 56,
+          "titre": "Provisionnement",
+          "sous": "infra/provision/provision.sh",
+          "desc": "SSH par clé, fail2ban, ufw 22/80/443, chaîne DOCKER-USER, mises à jour automatiques, Docker CE ; testé deux fois en CI.",
+          "tickets": [
+            "INFRA-7"
+          ],
+          "adr": [
+            "0009"
+          ]
+        },
+        {
+          "id": "i-compose",
+          "zone": "i-vps-z",
+          "x": 434,
+          "y": 196,
+          "w": 370,
+          "h": 56,
+          "titre": "Compose prod et staging",
+          "sous": "serveur et PostgreSQL chacun, Caddy devant",
+          "desc": "crewdeck-prod et crewdeck-staging ; le staging refuse les secrets de la prod.",
+          "tickets": [
+            "INFRA-5"
+          ],
+          "adr": [
+            "0009"
+          ]
+        },
+        {
+          "id": "i-backup",
+          "zone": "i-vps-z",
+          "x": 828,
+          "y": 196,
+          "w": 370,
+          "h": 56,
+          "titre": "Sauvegardes",
+          "sous": "restic chaque nuit, restauration mensuelle",
+          "desc": "Dépôt chez un autre fournisseur, migrations répétées sur la dernière sauvegarde.",
+          "tickets": [
+            "INFRA-8",
+            "INFRA-13"
+          ],
+          "adr": [
+            "0009"
+          ]
+        }
+      ],
+      "liens": []
+    },
+    {
+      "id": "livraison",
+      "titre": "Livraison",
+      "description": "Des agents mergent sans revue humaine du code : staging à chaque merge, CD poussé dont le résultat est visible, CI sobre.",
+      "largeur": 1240,
+      "hauteur": 292,
+      "zones": [
+        {
+          "id": "l-repo",
+          "x": 20,
+          "y": 20,
+          "w": 1200,
+          "h": 116,
+          "couleur": "c2",
+          "titre": "Dépôt"
+        },
+        {
+          "id": "l-ci",
+          "x": 20,
+          "y": 156,
+          "w": 1200,
+          "h": 116,
+          "couleur": "c1",
+          "titre": "GitHub Actions"
+        }
+      ],
+      "noeuds": [
+        {
+          "id": "l-monorepo",
+          "zone": "l-repo",
+          "x": 40,
+          "y": 60,
+          "w": 370,
+          "h": 56,
+          "titre": "Squelette du monorepo",
+          "sous": "Nx, pnpm, Go, contrats générés",
+          "desc": "Le squelette qui traverse les trois apps.",
+          "tickets": [
+            "INFRA-1"
+          ],
+          "adr": [
+            "0001"
+          ]
+        },
+        {
+          "id": "l-worktree",
+          "zone": "l-repo",
+          "x": 434,
+          "y": 60,
+          "w": 370,
+          "h": 56,
+          "titre": "Worktrees",
+          "sous": "scripts/worktree.sh setup et drop",
+          "desc": "setupCmd et dropCmd du .process.json.",
+          "tickets": [
+            "INFRA-2"
+          ],
+          "adr": [
+            "0009"
+          ]
+        },
+        {
+          "id": "l-captures",
+          "zone": "l-repo",
+          "x": 828,
+          "y": 60,
+          "w": 370,
+          "h": 56,
+          "titre": "Bout en bout et captures",
+          "sous": "Playwright 390 et 1280 px, axe",
+          "desc": "scripts/captures.sh pousse les captures sur captures/<n>.",
+          "tickets": [
+            "INFRA-4"
+          ],
+          "adr": [
+            "0009"
+          ]
+        },
+        {
+          "id": "l-verify",
+          "zone": "l-ci",
+          "x": 40,
+          "y": 196,
+          "w": 370,
+          "h": 56,
+          "titre": "CI des PR",
+          "sous": "verify.yml : secrets, affecté, intégration, e2e",
+          "desc": "Sautée tant qu'une PR est en brouillon.",
+          "tickets": [
+            "INFRA-3"
+          ],
+          "adr": [
+            "0009"
+          ]
+        },
+        {
+          "id": "l-nightly",
+          "zone": "l-ci",
+          "x": 434,
+          "y": 196,
+          "w": 370,
+          "h": 56,
+          "titre": "Nuit et minutes",
+          "sous": "nightly.yml, actions-minutes.yml",
+          "desc": "Portée complète à 03:30 UTC ; échoue à 80 % du quota de minutes.",
+          "tickets": [
+            "INFRA-9"
+          ],
+          "adr": [
+            "0009"
+          ]
+        },
+        {
+          "id": "l-cd",
+          "zone": "l-ci",
+          "x": 828,
+          "y": 196,
+          "w": 370,
+          "h": 56,
+          "titre": "Déploiement poussé",
+          "sous": "clé restreinte, flock, retour arrière",
+          "desc": "develop → staging, main → prod qui promeut l'image du staging.",
+          "tickets": [
+            "INFRA-6"
+          ],
+          "adr": [
+            "0009"
+          ]
+        }
+      ],
+      "liens": []
+    }
+  ]
+}

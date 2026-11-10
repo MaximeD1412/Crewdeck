@@ -1,2 +1,5 @@
 # agent-loop state (loops, logs, worktree locks)
 .agent-loop/
+
+# builds, pilotage data (pilotage build)
+dist/

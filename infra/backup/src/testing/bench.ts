@@ -21,6 +21,9 @@ export const DUMP = 'PGDMP custom-format dump of crewdeck-prod';
 /**
  * One line per call in `$STUB_LOG`: `docker <args>`.
  *
+ * - `compose` needs `-f` with files that exist, and an `--env-file` that
+ *   exists, like the real one run outside the Compose directory (« no
+ *   configuration file provided: not found »);
  * - `compose … exec -T db pg_dump …` prints `$DUMP`, or exits
  *   `STUB_PG_DUMP_STATUS`; `compose … run --rm server migrate` (production's
  *   own migration) exits 0; `compose … exec` (the deploy's health check)
@@ -28,7 +31,9 @@ export const DUMP = 'PGDMP custom-format dump of crewdeck-prod';
  * - `network create|rm <name>`, `run [-d] [--rm] --name <name> …` and
  *   `rm -f <name>…` keep `$STUB_STATE/{network,container}-<name>`; a `run`
  *   whose command is `migrate` exits `STUB_MIGRATE_STATUS`, and leaves its
- *   container behind unless `--rm`;
+ *   container behind unless `--rm`; any other `run` also creates the
+ *   anonymous volume of postgres:18's `VOLUME`, `$STUB_STATE/volume-<name>`,
+ *   which only `rm -v` (or `run --rm`) removes;
  * - `exec <c> pg_isready` answers for a container that exists; `exec -i <c>
  *   pg_restore` keeps its stdin in `$STUB_STATE/restored-<c>` and exits
  *   `STUB_RESTORE_STATUS`; `exec <c> psql` prints `STUB_MIGRATIONS`.
@@ -38,6 +43,15 @@ printf 'docker %s\\n' "$*" >> "$STUB_LOG"
 state=$STUB_STATE
 case "$1" in
   compose)
+    files=0; prev=
+    for arg in "$@"; do
+      case "$prev" in
+        -f|--file) [ -e "$arg" ] || { echo "open $arg: no such file or directory" >&2; exit 1; }; files=$((files + 1)) ;;
+        --env-file) [ -e "$arg" ] || { echo "couldn't find env file: $arg" >&2; exit 1; } ;;
+      esac
+      prev=$arg
+    done
+    [ "$files" -gt 0 ] || { echo "no configuration file provided: not found" >&2; exit 1; }
     case " $* " in
       *" exec -T db pg_dump "*)
         [ "\${STUB_PG_DUMP_STATUS:-0}" = 0 ] || { echo "pg_dump: error: connection failed" >&2; exit "$STUB_PG_DUMP_STATUS"; }
@@ -74,7 +88,9 @@ case "$1" in
       [ "$remove" = 1 ] || touch "$state/container-$name"
       exit "\${STUB_MIGRATE_STATUS:-0}"
     fi
-    touch "$state/container-$name"
+    # A foreground --rm run is over, its container and volume gone, on return.
+    [ "$remove" = 1 ] && [ "$detach" = 0 ] && exit 0
+    touch "$state/container-$name" "$state/volume-$name"
     exit 0 ;;
   exec)
     shift; [ "$1" = -i ] && shift
@@ -88,7 +104,13 @@ case "$1" in
     exit 0 ;;
   rm)
     shift
-    for arg in "$@"; do [[ $arg == -* ]] || rm -f "$state/container-$arg"; done
+    volumes=0
+    for arg in "$@"; do [[ $arg == --volumes || $arg =~ ^-[a-z]*v ]] && volumes=1; done
+    for arg in "$@"; do
+      [[ $arg == -* ]] && continue
+      rm -f "$state/container-$arg"
+      [ "$volumes" = 1 ] && rm -f "$state/volume-$arg"
+    done
     exit 0 ;;
 esac
 exit 0
@@ -138,7 +160,12 @@ export function bench(temporary: string, options: { resticEnv?: boolean } = {}):
   const root = join(temporary, 'opt');
   const stubs = join(temporary, 'stubs');
   const state = join(temporary, 'state');
-  for (const dir of [stubs, state, join(root, 'backup')]) mkdirSync(dir, { recursive: true });
+  for (const dir of [stubs, state, join(root, 'backup'), join(root, 'deploy'), join(root, 'prod')]) {
+    mkdirSync(dir, { recursive: true });
+  }
+  // What the stub of `docker compose` needs to find, as on the VPS.
+  writeFileSync(join(root, 'deploy/docker-compose.yml'), 'services: {}\n');
+  writeFileSync(join(root, 'prod/.env'), 'CREWDECK_ENV=production\n');
   const password = join(root, 'backup/restic-password');
   writeFileSync(password, 'not-a-real-password\n');
   if (options.resticEnv !== false) {
@@ -174,9 +201,9 @@ export function run(b: Bench, script: string, args: string[] = [], extra: NodeJS
 export const calls = (b: Bench): string[] => read(join(b.state, 'calls.log')).split('\n').filter(Boolean);
 export const index = (b: Bench, needle: string): number => calls(b).findIndex((call) => call.includes(needle));
 
-/** The containers and networks the stub of `docker` still has. */
+/** The containers, volumes and networks the stub of `docker` still has. */
 export const leftovers = (b: Bench): string[] =>
-  readdirSync(b.state).filter((name) => name.startsWith('container-') || name.startsWith('network-'));
+  readdirSync(b.state).filter((name) => /^(container|volume|network)-/.test(name));
 
 export const temporaryDir = (): string => mkdtempSync(join(tmpdir(), 'crewdeck-backup-'));
 export const remove = (dir: string): void => rmSync(dir, { recursive: true, force: true });

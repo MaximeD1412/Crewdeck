@@ -81,8 +81,9 @@ sudo systemctl start crewdeck-backup.service   # la relancer
 
 En production, `deploy.sh` lance `rehearse.sh <sha>` avant de migrer : la
 dernière sauvegarde est restaurée dans une PostgreSQL 18 jetable, sur un
-réseau jetable, et l'image `<sha>` y lance `migrate`. Le conteneur et le
-réseau sont supprimés quoi qu'il arrive. Si la restauration ou la migration
+réseau jetable, et l'image `<sha>` y lance `migrate`. Les conteneurs, leurs
+volumes (la copie restaurée de la production) et le réseau sont supprimés
+quoi qu'il arrive. Si la restauration ou la migration
 échoue (« la migration échoue sur la dernière sauvegarde »), le déploiement
 s'arrête, la production n'a pas bougé. Sans aucune sauvegarde, la répétition
 est sautée (« aucune sauvegarde : répétition sautée »).
@@ -136,27 +137,32 @@ Il faut restic ≥ 0.17, Docker et GNU `date`.
    `restic.env` et le mot de passe recopiés depuis le gestionnaire.
 2. La production déployée une fois sur son dernier sha (relancer le job
    `production` du workflow `delivery`) : sa base est vide, migrée.
-3. Arrêter le serveur, garder la base :
+Les commandes Compose partent de `/opt/crewdeck/deploy`, toujours avec les
+fichiers de la production :
+
+```bash
+cd /opt/crewdeck/deploy
+prod() { docker compose -p crewdeck-prod --env-file /opt/crewdeck/prod/.env -f docker-compose.yml "$@"; }
+```
+
+3. Arrêter le serveur, garder la base : `prod stop server`.
+4. Choisir l'instantané, à part : sa liste n'entre pas dans le tube.
 
    ```bash
-   cd /opt/crewdeck/deploy
-   docker compose -p crewdeck-prod --env-file /opt/crewdeck/prod/.env -f docker-compose.yml stop server
+   sudo -u deploy bash -c 'set -a; . /opt/crewdeck/backup/restic.env; set +a; restic snapshots --tag prod'
    ```
 
-4. Remplacer la base par la dernière sauvegarde :
+5. Remplacer la base par cet instantané (pour un plus ancien, son id à la
+   place de `--tag prod latest`) : seul
+   `restic dump` écrit dans le tube, `pg_restore` ne reçoit que l'archive.
 
    ```bash
-   sudo -u deploy bash -c 'set -a; . /opt/crewdeck/backup/restic.env; set +a
-     restic snapshots --tag prod
-     restic dump --tag prod latest /crewdeck-prod.dump' |
-     docker compose -p crewdeck-prod exec -T db \
-       pg_restore -U crewdeck -d crewdeck --clean --if-exists --no-owner --exit-on-error --single-transaction
+   sudo -u deploy bash -c 'set -a; . /opt/crewdeck/backup/restic.env; set +a; restic dump --tag prod latest /crewdeck-prod.dump' |
+     prod exec -T db pg_restore -U crewdeck -d crewdeck --clean --if-exists --no-owner --exit-on-error --single-transaction
    ```
 
-   Pour un instantané plus ancien, son id à la place de `--tag prod latest`.
-5. Redémarrer : `docker compose -p crewdeck-prod --env-file /opt/crewdeck/prod/.env -f docker-compose.yml up -d`,
-   puis vérifier `https://<domaine>/api/health`.
-6. `sudo infra/backup/bin/install.sh`, puis lancer une sauvegarde
+6. Redémarrer, `prod up -d`, puis vérifier `https://<domaine>/api/health`.
+7. `sudo infra/backup/bin/install.sh`, puis lancer une sauvegarde
    (`sudo systemctl start crewdeck-backup.service`).
 
 ## Tests

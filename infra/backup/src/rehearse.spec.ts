@@ -42,7 +42,7 @@ describe('rehearse.sh: a rehearsal that succeeds', () => {
     expect(index(b, `${IMAGE}:${SHA} migrate`)).toBeGreaterThan(index(b, 'pg_restore'));
   });
 
-  it('runs on a network of its own and removes its containers and network', () => {
+  it('runs on a network of its own and removes its containers, their volumes and the network', () => {
     const result = run(b, REHEARSE, [SHA], SNAPSHOT);
 
     expect(result.status).toBe(0);

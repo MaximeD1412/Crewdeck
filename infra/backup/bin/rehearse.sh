@@ -57,8 +57,10 @@ db="$run-db"
 migrator="$run-migrate"
 password=rehearsal
 
+# -v: postgres:18 declares a VOLUME, and the restored copy of production
+# lives in that anonymous volume, which a plain rm keeps.
 cleanup() {
-  docker rm -f "$migrator" "$db" >/dev/null 2>&1 || true
+  docker rm -fv "$migrator" "$db" >/dev/null 2>&1 || true
   docker network rm "$network" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT

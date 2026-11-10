@@ -62,7 +62,7 @@ describe('restore-check.sh: a recent backup', () => {
     expect(calls(b).find((call) => call.startsWith('restic dump '))).toContain('70d3d6c0 /crewdeck-prod.dump');
   });
 
-  it('removes its container', () => {
+  it('removes its container and its volume, the restored copy of production', () => {
     run(b, CHECK, ['--env', envFile], takenAgo(2).env);
 
     expect(leftovers(b)).toEqual([]);

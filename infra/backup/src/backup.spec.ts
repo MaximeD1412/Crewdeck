@@ -29,7 +29,7 @@ describe('backup.sh: a backup that succeeds', () => {
     const backup = calls(b).find((call) => call.startsWith('restic backup '));
     expect(backup).toContain('--tag prod');
     expect(backup).toContain('--stdin-filename crewdeck-prod.dump');
-    expect(backup).toContain('--stdin-from-command -- docker compose -p crewdeck-prod exec -T db pg_dump -U crewdeck -Fc crewdeck');
+    expect(backup).toContain(`--stdin-from-command -- docker compose -p crewdeck-prod --env-file ${join(b.root, 'prod/.env')} -f ${join(b.root, 'deploy/docker-compose.yml')} exec -T db pg_dump -U crewdeck -Fc crewdeck`);
     expect(read(join(b.state, 'snapshot'))).toBe(DUMP);
   });
 
@@ -87,6 +87,15 @@ describe('backup.sh: a backup that fails', () => {
     expect(result.status).not.toBe(0);
     expect(read(join(b.state, 'snapshot'))).toBe('');
     expect(read(lastSuccess)).toBe('');
+  });
+
+  it("refuses to run without production's env file, before calling restic", () => {
+    remove(join(b.root, 'prod/.env'));
+    const result = run(b, BACKUP);
+
+    expect(result.status).not.toBe(0);
+    expect(result.output).toContain('prod/.env');
+    expect(index(b, 'restic ')).toBe(-1);
   });
 
   it('refuses to run without restic.env, before calling restic', () => {

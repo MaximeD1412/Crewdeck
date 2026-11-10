@@ -61,8 +61,10 @@ taken_at=$(date -u -d "@$taken" +%Y-%m-%dT%H:%M:%SZ)
 age_hours=$((($(date +%s) - taken) / 3600))
 
 db="crewdeck-restore-check-$$"
+# -v: postgres:18 declares a VOLUME, and the restored copy of production
+# lives in that anonymous volume, which a plain rm keeps.
 cleanup() {
-  docker rm -f "$db" >/dev/null 2>&1 || true
+  docker rm -fv "$db" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 trap 'exit 129' HUP

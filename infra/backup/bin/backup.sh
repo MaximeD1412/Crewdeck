@@ -41,9 +41,16 @@ set +a
 [ -n "${RESTIC_REPOSITORY-}" ] || fail "RESTIC_REPOSITORY manquant dans $env_file"
 [ -r "${RESTIC_PASSWORD_FILE-}" ] || fail "RESTIC_PASSWORD_FILE manquant ou illisible dans $env_file"
 
+# The unit starts in /: Compose needs production's files given explicitly,
+# as deploy.sh does, to find the project's `db` service.
+prod_env="$CREWDECK_ROOT/prod/.env"
+compose_file="$CREWDECK_ROOT/deploy/docker-compose.yml"
+[ -r "$prod_env" ] && [ -r "$compose_file" ] || fail "$prod_env ou $compose_file illisible : la production n'est pas déployée"
+
 log "pg_dump de crewdeck-prod vers $RESTIC_REPOSITORY"
 restic backup --retry-lock 10m --tag prod --stdin-filename crewdeck-prod.dump \
-  --stdin-from-command -- docker compose -p crewdeck-prod exec -T db pg_dump -U crewdeck -Fc crewdeck ||
+  --stdin-from-command -- docker compose -p crewdeck-prod --env-file "$prod_env" -f "$compose_file" \
+  exec -T db pg_dump -U crewdeck -Fc crewdeck ||
   fail "la sauvegarde n'a pas été enregistrée"
 
 log "rétention : 7 jours, 4 semaines, 6 mois"

@@ -1,3 +1,4 @@
+import { githubAppEnv } from '../../test/github-app.js';
 import { parseEnv } from './env.js';
 import { enforceStagingGuard, findProductionKey } from './staging-guard.js';
 
@@ -6,6 +7,7 @@ const staging = {
   PUBLIC_URL: 'https://staging.crewdeck.example',
   PROD_PUBLIC_URL: 'https://crewdeck.example',
   PROD_GITHUB_APP_ID: '1001',
+  ...githubAppEnv(),
   GITHUB_APP_ID: '2002',
   DATABASE_URL: 'postgresql://crewdeck:secret@db:5432/crewdeck',
 };
@@ -25,10 +27,6 @@ describe('findProductionKey', () => {
     expect(findProductionKey(parseEnv({ ...staging, ...values }))).toBe(key);
   });
 
-  it('lets a staging without its GitHub App yet start', () => {
-    expect(findProductionKey(parseEnv({ ...staging, GITHUB_APP_ID: undefined }))).toBeUndefined();
-  });
-
   it('checks nothing outside staging', () => {
     expect(
       findProductionKey(
@@ -36,6 +34,7 @@ describe('findProductionKey', () => {
           CREWDECK_ENV: 'production',
           PUBLIC_URL: 'https://crewdeck.example',
           DATABASE_URL: 'postgresql://crewdeck:secret@crewdeck-prod-db:5432/crewdeck',
+          ...githubAppEnv(),
         }),
       ),
     ).toBeUndefined();

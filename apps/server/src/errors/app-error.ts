@@ -1,10 +1,14 @@
 import type { ErrorEnvelope } from '@crewdeck/contracts';
 
-/** The statuses a module may answer with (ADR 0008); no 403: another Pilote's resource is a 404. */
-export type AppErrorStatus = 400 | 401 | 404 | 409 | 422;
+/**
+ * The statuses a module may answer with (ADR 0008); no 403: another Pilote's
+ * resource is a 404. 500 only for a system we depend on that fails, with its
+ * own message (`github.unavailable`): ADR 0008 has no 502.
+ */
+export type AppErrorStatus = 400 | 401 | 404 | 409 | 422 | 500;
 
 /**
- * An error the client caused, rendered as is in the envelope by the global
+ * An error the client caused, or a dependency's failure the page explains, rendered as is in the envelope by the global
  * filter. `code` is `<module>.<case>` with its French `message` in
  * `messages.ts`; `fields` maps a field's dotted path to its message.
  */

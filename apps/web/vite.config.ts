@@ -8,8 +8,10 @@ export default defineConfig({
     port: 4200,
     strictPort: true,
     host: 'localhost',
+    // xfwd: the server sees the page's origin, where `GET /api/config` puts the fake GitHub.
     proxy: {
-      '/api': { target: 'http://localhost:3000', changeOrigin: true, ws: true },
+      '/api': { target: 'http://localhost:3000', changeOrigin: true, ws: true, xfwd: true },
+      '/fake-github': { target: 'http://localhost:3000', changeOrigin: true, xfwd: true },
     },
   },
   preview: { port: 4300, host: 'localhost' },

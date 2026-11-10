@@ -7,8 +7,9 @@ import { type Env, parseEnv } from '../../src/config/env.js';
 
 const databaseUrl = inject('databaseUrl');
 
-const boot = async (nodeEnv: Env['NODE_ENV']): Promise<INestApplication> => {
-  const app = await createApp(parseEnv({ CREWDECK_ENV: 'test', NODE_ENV: nodeEnv, DATABASE_URL: databaseUrl }), { logs: false });
+const boot = async (nodeEnv: Env['NODE_ENV'], fakes: boolean): Promise<INestApplication> => {
+  const env = parseEnv({ CREWDECK_ENV: 'test', NODE_ENV: nodeEnv, DATABASE_URL: databaseUrl, ...(fakes ? { CREWDECK_FAKES: '1' } : {}) });
+  const app = await createApp(env, { logs: false });
   await app.listen(0, '127.0.0.1');
   return app;
 };
@@ -31,11 +32,11 @@ const sql = async <T extends pg.QueryResultRow>(text: string): Promise<T[]> => {
 };
 
 describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
-  describe('in development', () => {
+  describe('with CREWDECK_FAKES=1', () => {
     let app: INestApplication;
 
     beforeAll(async () => {
-      app = await boot('development');
+      app = await boot('development', true);
       await sql('CREATE TABLE scenario_parent (id serial PRIMARY KEY)');
       await sql('CREATE TABLE scenario_child (id serial PRIMARY KEY, parent_id int REFERENCES scenario_parent (id))');
     });
@@ -76,10 +77,10 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
     });
   });
 
-  it('gives 404 on a server booted in production, and empties nothing', async () => {
+  it('gives 404 on a server booted without CREWDECK_FAKES (production), and empties nothing', async () => {
     await sql('CREATE TABLE scenario_kept (id serial PRIMARY KEY)');
     await sql('INSERT INTO scenario_kept DEFAULT VALUES');
-    const app = await boot('production');
+    const app = await boot('production', false);
 
     try {
       const response = await post(app, 'blank');

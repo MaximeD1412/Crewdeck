@@ -7,8 +7,10 @@
 #
 # Against a throwaway PostgreSQL 18 on a network of its own, nothing published
 # on the host: the Runner binaries and their checksums, `migrate`, then
-# `serve` (health, the page at `/` and `/a-toi`, 404 JSON under `/api`), and
-# the staging guard. Removes everything it started, whatever the outcome.
+# `serve` (health, the page at `/` and `/a-toi`, 404 JSON under `/api` and
+# `/fake-github`, `/api/config` on GitHub.com), and the staging guard. The
+# GitHub App's variables are dummies, the key generated here: nothing calls
+# GitHub. Removes everything it started, whatever the outcome.
 set -euo pipefail
 
 image="${1:?usage: image-smoke.sh <image>}"
@@ -17,6 +19,11 @@ network="$run-net"
 db="$run-db"
 server="$run-server"
 database_url="postgresql://crewdeck:crewdeck@$db:5432/crewdeck"
+# The variables the server requires in production and staging, dummies: a key of its own, never an App's.
+github_app=(
+  -e GITHUB_APP_ID=1 -e GITHUB_APP_SLUG=crewdeck-smoke -e GITHUB_APP_CLIENT_ID=smoke -e GITHUB_APP_CLIENT_SECRET=smoke
+  -e GITHUB_APP_PRIVATE_KEY="$(openssl genrsa 2048 2>/dev/null | base64 -w0)"
+)
 
 fail() {
   echo "ÉCHEC : $*" >&2
@@ -63,7 +70,7 @@ docker run --rm --network "$network" -e DATABASE_URL="$database_url" "$image" mi
 
 echo "--- serve"
 docker run -d --name "$server" --network "$network" \
-  -e CREWDECK_ENV=production -e PUBLIC_URL=https://crewdeck.invalid -e DATABASE_URL="$database_url" \
+  -e CREWDECK_ENV=production -e PUBLIC_URL=https://crewdeck.invalid -e DATABASE_URL="$database_url" "${github_app[@]}" \
   "$image" >/dev/null
 for _ in $(seq 60); do
   [ "$(docker inspect "$server" --format '{{ .State.Health.Status }}')" = healthy ] && break
@@ -98,11 +105,19 @@ unknown=$(get /api/unknown)
 echo "/api/unknown: $(echo "$unknown" | head -1)"
 echo "$unknown" | head -1 | grep -q '^404 application/json' || fail "/api/unknown : $unknown"
 
+fake=$(get /fake-github/repos/o/r/contents/README.md)
+echo "/fake-github: $(echo "$fake" | head -1)"
+echo "$fake" | head -1 | grep -q '^404 application/json' || fail "/fake-github sert en production : $fake"
+
+config=$(get /api/config)
+echo "/api/config: $(echo "$config" | tail -1)"
+echo "$config" | tail -1 | grep -q '"githubApiUrl":"https://api.github.com"' || fail "/api/config : $config"
+
 echo "--- the staging guard"
 code=0
 output=$(docker run --rm --network "$network" \
   -e CREWDECK_ENV=staging -e PUBLIC_URL=https://crewdeck.invalid -e PROD_PUBLIC_URL=https://crewdeck.invalid \
-  -e PROD_GITHUB_APP_ID=1 -e DATABASE_URL="$database_url" "$image" 2>&1) || code=$?
+  -e PROD_GITHUB_APP_ID=2 -e DATABASE_URL="$database_url" "${github_app[@]}" "$image" 2>&1) || code=$?
 echo "$output"
 [ "$code" -ne 0 ] || fail "le staging a démarré avec l'URL de la production"
 echo "$output" | grep -q 'Staging refuse de démarrer avec la configuration de la production : PUBLIC_URL' \

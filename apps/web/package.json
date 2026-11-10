@@ -10,7 +10,8 @@
     "lit": "catalog:"
   },
   "devDependencies": {
-    "happy-dom": "catalog:"
+    "happy-dom": "catalog:",
+    "zod": "catalog:"
   },
   "nx": {
     "name": "web",

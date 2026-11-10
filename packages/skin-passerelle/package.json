@@ -10,16 +10,40 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./tokens.css": "./src/tokens.css",
+    "./fonts.css": "./src/fonts.css",
     "./package.json": "./package.json"
   },
   "dependencies": {
     "@crewdeck/sdk": "workspace:*",
+    "@fontsource/ibm-plex-mono": "catalog:",
+    "@fontsource/ibm-plex-sans": "catalog:",
+    "@fontsource/ibm-plex-sans-condensed": "catalog:",
     "lit": "catalog:"
+  },
+  "devDependencies": {
+    "happy-dom": "catalog:"
   },
   "nx": {
     "name": "skin-passerelle",
     "tags": [
       "scope:skin"
-    ]
+    ],
+    "targets": {
+      "tokens": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "node scripts/tokens.mjs",
+          "cwd": "{projectRoot}"
+        },
+        "inputs": [
+          "{projectRoot}/scripts/tokens.mjs",
+          "{workspaceRoot}/design/tokens.json"
+        ],
+        "outputs": [
+          "{projectRoot}/src/tokens.css"
+        ]
+      }
+    }
   }
 }

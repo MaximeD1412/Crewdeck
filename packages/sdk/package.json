@@ -15,6 +15,9 @@
   "dependencies": {
     "@crewdeck/contracts": "workspace:*"
   },
+  "devDependencies": {
+    "zod": "catalog:"
+  },
   "nx": {
     "name": "sdk",
     "tags": [

@@ -1,0 +1,78 @@
+{
+  "description": "Crockford base32: no padding, upper case out; either case, I and L as 1, O as 0 in. Bytes are base64url without padding.",
+  "encode": [
+    {
+      "bytes": "",
+      "text": ""
+    },
+    {
+      "bytes": "AA",
+      "text": "00"
+    },
+    {
+      "bytes": "_w",
+      "text": "ZW"
+    },
+    {
+      "bytes": "AQI",
+      "text": "0410"
+    },
+    {
+      "bytes": "Y3Jld2RlY2s",
+      "text": "CDS6AXV4CNHPP"
+    },
+    {
+      "bytes": "_____________________w",
+      "text": "ZZZZZZZZZZZZZZZZZZZZZZZZZW"
+    },
+    {
+      "bytes": "LQCMG4Gu2xZcW7FOXlkamg",
+      "text": "5M08R6W1NVDHCQ2VP575WP8TK8"
+    },
+    {
+      "bytes": "1cBhz1I",
+      "text": "TQ063KTJ"
+    }
+  ],
+  "decode": [
+    {
+      "bytes": "AFU",
+      "text": "o1ag"
+    },
+    {
+      "bytes": "AFU",
+      "text": "OIAG"
+    },
+    {
+      "bytes": "AFU",
+      "text": "0lag"
+    },
+    {
+      "bytes": "AFU",
+      "text": "0LAG"
+    },
+    {
+      "bytes": "AFU",
+      "text": "0iAg"
+    },
+    {
+      "bytes": "_____________________w",
+      "text": "zzzzzzzzzzzzzzzzzzzzzzzzzw"
+    }
+  ],
+  "invalid": [
+    "U0",
+    "0u",
+    "AB-CD",
+    "AB=",
+    "A",
+    "ABC",
+    "ABCDEF",
+    "01",
+    "0Z",
+    " 0G",
+    "é0",
+    "ß0",
+    "ﬀ0"
+  ]
+}

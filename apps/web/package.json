@@ -10,7 +10,10 @@
     "lit": "catalog:"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
     "happy-dom": "catalog:",
+    "playwright": "catalog:",
     "zod": "catalog:"
   },
   "nx": {

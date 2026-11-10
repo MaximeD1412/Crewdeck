@@ -77,7 +77,7 @@ class ProbeController {
 @Module({ controllers: [ProbeController] })
 class ProbeModule {}
 
-const env = parseEnv({ DATABASE_URL: 'postgresql://crewdeck:crewdeck@127.0.0.1:1/crewdeck' });
+const env = parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: 'postgresql://crewdeck:crewdeck@127.0.0.1:1/crewdeck' });
 
 describe('the error envelope', () => {
   let app: INestApplication;

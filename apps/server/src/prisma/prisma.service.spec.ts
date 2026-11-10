@@ -5,7 +5,7 @@ import { PrismaService } from './prisma.service.js';
 
 describe('PrismaService', () => {
   // Port 1: nothing listens, so nothing reaches a database.
-  const prisma = new PrismaService(parseEnv({ DATABASE_URL: 'postgresql://crewdeck:crewdeck@127.0.0.1:1/crewdeck' }));
+  const prisma = new PrismaService(parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: 'postgresql://crewdeck:crewdeck@127.0.0.1:1/crewdeck' }));
 
   afterAll(() => prisma.onModuleDestroy());
 

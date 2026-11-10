@@ -8,7 +8,7 @@ import { type Env, parseEnv } from '../../src/config/env.js';
 const databaseUrl = inject('databaseUrl');
 
 const boot = async (nodeEnv: Env['NODE_ENV']): Promise<INestApplication> => {
-  const app = await createApp(parseEnv({ NODE_ENV: nodeEnv, DATABASE_URL: databaseUrl }), { logs: false });
+  const app = await createApp(parseEnv({ CREWDECK_ENV: 'test', NODE_ENV: nodeEnv, DATABASE_URL: databaseUrl }), { logs: false });
   await app.listen(0, '127.0.0.1');
   return app;
 };

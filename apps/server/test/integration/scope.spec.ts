@@ -8,7 +8,7 @@ import { runInPilotScope } from '../../src/scope/scope.context.js';
 const databaseUrl = inject('databaseUrl');
 
 describe('prisma.scoped against PostgreSQL', () => {
-  const prisma = new PrismaService(parseEnv({ DATABASE_URL: databaseUrl }));
+  const prisma = new PrismaService(parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: databaseUrl }));
 
   afterAll(() => prisma.onModuleDestroy());
 

@@ -64,7 +64,7 @@ class ProbeModule implements NestModule {
   }
 }
 
-const env = parseEnv({ DATABASE_URL: 'postgresql://crewdeck:crewdeck@127.0.0.1:1/crewdeck' });
+const env = parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: 'postgresql://crewdeck:crewdeck@127.0.0.1:1/crewdeck' });
 
 describe('ScopeGuard', () => {
   let app: INestApplication;

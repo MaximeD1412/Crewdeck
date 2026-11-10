@@ -2,7 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import { expectEnvelope, startApp } from '../test/route-baseline.js';
 import { type Env, parseEnv } from './config/env.js';
 
-const envOf = (NODE_ENV: Env['NODE_ENV']): Env => parseEnv({ DATABASE_URL: 'postgresql://crewdeck:crewdeck@127.0.0.1:1/crewdeck', NODE_ENV });
+const envOf = (NODE_ENV: Env['NODE_ENV']): Env => parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: 'postgresql://crewdeck:crewdeck@127.0.0.1:1/crewdeck', NODE_ENV });
 
 interface OpenApi {
   openapi: string;

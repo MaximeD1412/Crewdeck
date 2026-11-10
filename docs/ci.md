@@ -108,7 +108,7 @@ pnpm exec nx e2e web -- a-toi.spec.ts
 workflow itself). A PR that changes only code (`apps/web/src`, …) does not
 run it: `ci.yml`'s `build` covers the code. Skipped for drafts like `ci.yml`.
 Not a required check: a workflow filtered by paths does not report on every
-PR. One job, `image`, 30 minutes, nothing pushed (publishing is INFRA-6's):
+PR. One job, `image`, 30 minutes, nothing pushed (publishing is `delivery`'s):
 
 1. the Dockerfile's `NODE_VERSION` and `GO_VERSION` equal `.mise.toml`'s;
 2. `docker compose config` of `infra/deploy/` (prod, and staging with its
@@ -129,15 +129,37 @@ infra/deploy/test/image-smoke.sh crewdeck-server:local
 [`infra/deploy/README.md`](../infra/deploy/README.md) gives the Compose
 commands.
 
+## The workflow `delivery`
+
+`.github/workflows/delivery.yml`, on every push to `develop` and `main`
+(ADR 0009, « Delivery »), never cancelled (`delivery-<ref>`). Not a check of
+the PRs: it runs after the merge, and its result is the deploy's.
+
+| Push to | Job | What it does |
+|---|---|---|
+| `develop` | `staging` (environment `staging`) | builds and pushes `ghcr.io/maximed1412/crewdeck-server:<sha>` (GitHub Actions cache), `deploy staging <sha>` over SSH, then the tag `staged-<sha>` |
+| `main` | `production` (environment `production`) | `infra/deploy/ci/production-sha.sh` (a merge commit whose tree is `HEAD^2`'s), the tag `staged-<HEAD^2>` exists, then `deploy production <HEAD^2>`; nothing is built |
+
+With `DEPLOY_HOST` empty in the environment, both jobs pass with the notice
+« VPS pas encore configuré ». The deploy itself, its rollback and how to
+redeploy: [`infra/deploy/README.md`](../infra/deploy/README.md), « Livraison ».
+
+```bash
+pnpm exec nx test deploy
+actionlint .github/workflows/delivery.yml
+```
+
 ## The files
 
 | File | What |
 |---|---|
 | `.github/workflows/ci.yml` | the events, the scope, the concurrency, the check `ci` |
 | `.github/workflows/image.yml` | the server's image and the VPS's Compose and Caddy files, on the PRs that change them |
+| `.github/workflows/delivery.yml` | the image published and deployed on staging, then promoted to production |
 | `.github/workflows/verify.yml` | the jobs, `on: workflow_call` with `scope` (`affected` \| `full`) and `base` (`origin/develop`) |
 | `.github/actions/setup/` | mise, the caches, the dependencies, `nx-set-shas` |
 | `.github/actions/browsers/` | Chromium, only when a project in scope uses Playwright |
+| `.github/actions/deploy/` | the SSH call to the VPS's restricted key, for `delivery` |
 | `.gitleaks.toml` | the secret scan's exceptions, each with its reason |
 
 The actions are pinned by commit SHA, their version in a comment: a moved

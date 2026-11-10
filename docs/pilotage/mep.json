@@ -39,6 +39,21 @@
       "ajouteLe": "2026-11-10"
     },
     {
+      "id": "environnements-github-livraison",
+      "phase": "env",
+      "source": "#101",
+      "titre": "Créer les environnements GitHub staging et production du workflow delivery",
+      "pourquoi": "Le workflow delivery (.github/workflows/delivery.yml) déploie le staging à chaque push sur develop et la production à chaque push sur main, par SSH, avec la clé de l'environnement. Tant que DEPLOY_HOST est vide, il passe avec l'avis « VPS pas encore configuré » sans rien publier ni déployer. Chaque environnement restreint à sa branche est la seule chose qui empêche un autre workflow de lire la clé de la production. Rempli par INFRA-12.",
+      "etapes": [
+        "Settings > Environments > New environment « staging » : Deployment branches and tags > Selected branches, develop seulement.",
+        "Même chose pour « production », main seulement.",
+        "Dans chacun : le secret DEPLOY_SSH_KEY (la clé privée de l'environnement, voir « acces-deploiement »), les variables DEPLOY_HOST (l'adresse du VPS) et DEPLOY_KNOWN_HOSTS (la sortie de ssh-keyscan -t ed25519 <VPS>, vérifiée contre ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub sur le VPS).",
+        "Vérifier : un push sur develop fait passer le job staging, et https://staging.<domaine>/api/health renvoie ce commit."
+      ],
+      "commande": "gh api repos/MaximeD1412/Crewdeck/environments --jq '.environments[].name'",
+      "ajouteLe": "2026-11-10"
+    },
+    {
       "id": "edge-caddy",
       "phase": "vps",
       "source": "#97",
@@ -51,6 +66,50 @@
         "Vérifier : https://staging.<domaine> répond avec un certificat valide (502 tant que le serveur du staging ne tourne pas)."
       ],
       "commande": "docker compose -p crewdeck-edge ps caddy",
+      "ajouteLe": "2026-11-10"
+    },
+    {
+      "id": "acces-deploiement",
+      "phase": "vps",
+      "source": "#101",
+      "titre": "Poser l'accès de déploiement : utilisateur deploy, deux clés bridées, scripts dans /opt/crewdeck/deploy",
+      "pourquoi": "GitHub déploie en SSH avec une clé par environnement, forcée sur deploy-trigger : elle ne peut lancer que « deploy <env> <sha> », sans PTY ni redirection. install-access.sh crée l'utilisateur deploy (membre de docker), copie infra/deploy/bin/ dans /opt/crewdeck/deploy/bin/ et écrit authorized_keys. Les fichiers Compose doivent aussi être à côté, dans /opt/crewdeck/deploy/. Fait par INFRA-12.",
+      "etapes": [
+        "Sur un poste : ssh-keygen -t ed25519 -N '' -C crewdeck-deploy-staging -f staging, puis -C crewdeck-deploy-production -f production.",
+        "Copier staging.pub et production.pub sur le VPS ; mettre staging et production (les clés privées) dans le secret DEPLOY_SSH_KEY de leur environnement GitHub, puis les effacer du poste.",
+        "Sur le VPS, depuis un clone du dépôt : sudo infra/deploy/bin/install-access.sh --staging-key staging.pub --production-key production.pub (à relancer après tout changement de infra/deploy/bin/).",
+        "Copier infra/deploy/docker-compose.yml et docker-compose.staging.yml dans /opt/crewdeck/deploy/ (à refaire quand ils changent).",
+        "Vérifier : ssh -i staging deploy@<VPS> 'deploy production 0000000000000000000000000000000000000000' répond « commande refusée »."
+      ],
+      "commande": "sudo cat /home/deploy/.ssh/authorized_keys | grep -c '^command=\"/opt/crewdeck/deploy/bin/deploy-trigger'",
+      "ajouteLe": "2026-11-10"
+    },
+    {
+      "id": "ghcr-env",
+      "phase": "vps",
+      "source": "#101",
+      "titre": "Écrire /opt/crewdeck/deploy/ghcr.env avec un jeton de lecture des packages",
+      "pourquoi": "deploy.sh se connecte à ghcr.io avant de tirer ghcr.io/maximed1412/crewdeck-server:<sha>, une image privée. Le jeton ne doit que lire : il reste sur le VPS. Sans lui, chaque déploiement échoue à « connexion à ghcr.io refusée ». Fait par INFRA-12.",
+      "etapes": [
+        "GitHub > Settings > Developer settings > Personal access tokens (classic) : un jeton avec read:packages seulement, nommé crewdeck-vps-pull.",
+        "Copier infra/deploy/ghcr.env.example vers /opt/crewdeck/deploy/ghcr.env, mode 600, propriétaire deploy, avec GHCR_USERNAME et GHCR_TOKEN.",
+        "Vérifier : le prochain job staging passe l'étape « récupération »."
+      ],
+      "commande": "sudo stat -c '%a %U %n' /opt/crewdeck/deploy/ghcr.env",
+      "ajouteLe": "2026-11-10"
+    },
+    {
+      "id": "merge-commit-main",
+      "phase": "dep",
+      "source": "#101",
+      "titre": "Merger la PR develop → main par un commit de merge, jamais squash ni rebase",
+      "pourquoi": "Le job production du workflow delivery n'accepte qu'un commit de merge à deux parents dont l'arbre est celui de develop (HEAD^2), et ne déploie que l'image que le staging a portée pour ce commit (tag staged-<sha>). Un squash, un rebase ou un commit direct sur main font échouer le job avant tout déploiement.",
+      "etapes": [
+        "Settings > General > Pull Requests : « Allow merge commits » coché.",
+        "Ouvrir la PR develop → main à la main, attendre « ci », choisir « Create a merge commit ».",
+        "Vérifier : le job production du workflow delivery est vert, et https://<domaine>/api/health renvoie le commit de develop."
+      ],
+      "commande": "gh api repos/MaximeD1412/Crewdeck --jq .allow_merge_commit",
       "ajouteLe": "2026-11-10"
     }
   ]

@@ -197,8 +197,10 @@ jobs:
           scope: ${{ inputs.scope }}
           base: ${{ inputs.base }}
 
+      # provision's integration specs install Docker in a throwaway machine:
+      # provision.yml runs them, when the provisioning changes.
       - name: Integration tests
-        run: pnpm exec nx "$NX" -t test-integration
+        run: pnpm exec nx "$NX" -t test-integration --exclude provision
 
   e2e:
     name: e2e

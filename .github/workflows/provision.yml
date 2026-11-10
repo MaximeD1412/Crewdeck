@@ -1,0 +1,53 @@
+name: Provision
+
+# The VPS's provisioning (INFRA-7, ADR 0009 « Provisioning »), run for real
+# on a throwaway Ubuntu 24.04 container with systemd, twice in a row: the
+# second run must change nothing. Only when the provisioning changes (the
+# `paths` filter, checked by infra/provision/src/workflow.spec.ts): it installs
+# Docker inside the container, minutes the other PRs do not spend. A draft
+# runs nothing, as in ci.yml. Not a required check: a workflow filtered by
+# paths does not report on every PR. docs/ci.md says what it runs and how to
+# run the same thing locally.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [develop, main]
+    paths:
+      - infra/provision/**
+      - .github/workflows/provision.yml
+  push:
+    branches: [develop]
+    paths:
+      - infra/provision/**
+      - .github/workflows/provision.yml
+
+concurrency:
+  group: provision-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    name: provision
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Shellcheck the script
+        run: shellcheck infra/provision/provision.sh
+
+      # mise, the pnpm store, the dependencies. `full`: no base to look up.
+      - uses: ./.github/actions/setup
+        with:
+          scope: full
+          base: origin/develop
+
+      - name: Provision a throwaway machine twice
+        run: pnpm exec nx test-integration provision
+        env:
+          NX_NO_CLOUD: true

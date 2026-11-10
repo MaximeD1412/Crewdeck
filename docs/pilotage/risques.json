@@ -715,7 +715,7 @@
       "categorie": "agt",
       "gravite": "moyenne",
       "titre": "Les contrats TypeScript et Go divergent",
-      "statut": "solution choisie",
+      "statut": "implémenté",
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
@@ -726,7 +726,7 @@
         {
           "texte": "CI en échec si la génération n'est pas à jour",
           "ref": "ADR 0001",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

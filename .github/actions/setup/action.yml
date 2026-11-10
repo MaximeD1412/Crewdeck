@@ -1,0 +1,82 @@
+name: Set up the workspace
+description: >-
+  The preamble of every job of verify.yml that runs Nx: the toolchain of
+  .mise.toml, the pnpm and Go caches, the dependencies, and the base of
+  `nx affected`. One copy, so that no job drifts from the others.
+
+inputs:
+  scope:
+    description: '`affected` (what the diff reaches) or `full` (every project)'
+    required: true
+  base:
+    description: >-
+      The integration branch `nx affected` compares against on a push, as a
+      remote ref (`origin/develop`). On a PR, the PR's own base is used.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Check the scope
+      shell: bash
+      env:
+        SCOPE: ${{ inputs.scope }}
+      run: |
+        case "$SCOPE" in
+          affected | full) ;;
+          *) echo "::error::Portée inconnue « $SCOPE » : affected ou full."; exit 1 ;;
+        esac
+
+    # Node, pnpm and Go at the versions of .mise.toml, the same as on the
+    # developer's machine. The action caches the installed tools itself.
+    - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+
+    - name: Locate the caches
+      id: paths
+      shell: bash
+      run: |
+        echo "pnpm-store=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+        echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+        echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache the pnpm store
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.paths.outputs.pnpm-store }}
+        key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: pnpm-store-${{ runner.os }}-
+
+    # The modules by go.sum, the build cache by the sources too: `go test
+    # -count=1` reruns the tests but still reuses the compiled packages.
+    - name: Cache the Go modules and builds
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ${{ steps.paths.outputs.go-mod }}
+          ${{ steps.paths.outputs.go-build }}
+        key: go-${{ runner.os }}-${{ hashFiles('apps/runner/go.sum') }}-${{ hashFiles('apps/runner/**/*.go') }}
+        restore-keys: |
+          go-${{ runner.os }}-${{ hashFiles('apps/runner/go.sum') }}-
+          go-${{ runner.os }}-
+
+    - name: Install the dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
+
+    - name: Name the integration branch
+      id: base
+      if: inputs.scope == 'affected'
+      shell: bash
+      env:
+        BASE: ${{ inputs.base }}
+      run: echo "branch=${BASE#origin/}" >> "$GITHUB_OUTPUT"
+
+    # Sets NX_BASE and NX_HEAD for the rest of the job. On a PR: the merge
+    # base with the PR's base branch. On a push: the commit of the last
+    # successful run of this workflow on the integration branch, so that a red
+    # run's changes are checked again by the next one.
+    - name: Find the base of nx affected
+      if: inputs.scope == 'affected'
+      uses: nrwl/nx-set-shas@e602fada7ad5987b0f7b1905e7a99ea1c661514c # v5.1.0
+      with:
+        main-branch-name: ${{ steps.base.outputs.branch }}

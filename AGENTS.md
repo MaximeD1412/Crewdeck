@@ -119,7 +119,8 @@ Run what the change touches, from the repo's root:
 | Before the PR | `pnpm exec nx affected -t lint typecheck test build --base=origin/develop`, the integration and e2e files of what you touched, `pnpm exec nx run contracts:generate` with no diff |
 
 Never the whole integration or e2e suite locally: CI and the nightly run
-them. A red nightly is fixed before anything else.
+them. A red nightly is fixed before anything else. What CI runs, and its one
+required check « ci »: [`docs/ci.md`](docs/ci.md).
 
 What every piece must prove: the test baseline of
 [ADR 0008](docs/adr/0008-conventions.md#test-baseline) (routes, events,

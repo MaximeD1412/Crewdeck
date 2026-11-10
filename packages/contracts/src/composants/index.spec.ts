@@ -12,6 +12,21 @@ describe('COMPOSANTS', () => {
     expect(new Set(tags).size).toBe(tags.length);
   });
 
+  it.each([
+    ['cadre', ['PageHeader', 'ProjectFilter']],
+    ['page', ['PageComposants', 'PageIntrouvable']],
+    ['partie', ['Card', 'CodeBlock', 'KeyValue', 'ListRow']],
+    ['signal', ['Banner', 'Button', 'Chip', 'Empty', 'Icon', 'IconButton', 'StatusBadge', 'StatusDot', 'Tabs']],
+  ])('puts the base Composants of %s in their category', (category, names) => {
+    for (const name of names) expect(COMPOSANTS[name as keyof typeof COMPOSANTS].category, name).toBe(category);
+  });
+
+  it('gives each Composant the tag of its name in kebab case', () => {
+    for (const [name, declaration] of declarations) {
+      expect(declaration.tag).toBe(`cd-${name.replace(/(?<!^)[A-Z]/g, (c) => `-${c}`).toLowerCase()}`);
+    }
+  });
+
   it('declares PageIntrouvable as a page with no data', () => {
     expect(COMPOSANTS.PageIntrouvable).toMatchObject({ tag: 'cd-page-introuvable', category: 'page', slots: [] });
     expect(COMPOSANTS.PageIntrouvable.data.parse({})).toEqual({});

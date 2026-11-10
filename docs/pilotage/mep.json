@@ -8,5 +8,20 @@
     { "id": "chk", "titre": "Vérifications en production", "description": "Sur le vrai site, avec son propre compte et son propre Runner." },
     { "id": "doc", "titre": "Suivi", "description": "Ce qui doit être noté ou décidé ailleurs." }
   ],
-  "elements": []
+  "elements": [
+    {
+      "id": "protection-branches-ci",
+      "phase": "acc",
+      "source": "#24",
+      "titre": "Protéger develop et main par le check « ci »",
+      "pourquoi": "La Boucle merge les Tickets sans revue humaine du code (US-15) : seule la CI l'en empêche, et seulement si la branche l'exige. Le check « ci » (dernier job de .github/workflows/ci.yml) est vert quand tous les jobs de verify.yml le sont. Sur un dépôt privé, la protection de branche demande un compte GitHub Pro.",
+      "etapes": [
+        "Attendre qu'une PR prête ait fait tourner ci.yml une première fois : GitHub ne propose le check « ci » qu'après l'avoir vu.",
+        "Settings > Branches (ou Rules > Rulesets) : une règle pour develop et une pour main, « Require status checks to pass before merging », check « ci » (GitHub Actions).",
+        "Vérifier : une PR dont le job checks est rouge affiche « Merging is blocked »."
+      ],
+      "commande": "gh api repos/MaximeD1412/Crewdeck/branches/develop/protection --jq .required_status_checks.contexts",
+      "ajouteLe": "2026-11-10"
+    }
+  ]
 }

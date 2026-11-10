@@ -1,0 +1,259 @@
+name: Verify
+
+# The one campaign of checks (ADR 0009, « CI »), called by ci.yml, and later
+# by the nightly (INFRA-9). docs/ci.md says what each job runs and how to run
+# it locally. Two scopes, and the verb given to Nx is their only difference:
+#
+#   - `affected` runs what the diff reaches (PRs to `develop`, pushes to
+#     `develop`). What it skips, the nightly runs the next night.
+#   - `full` runs everything (PRs to `main`, the nightly).
+on:
+  workflow_call:
+    inputs:
+      scope:
+        description: '`affected` runs what the diff reaches, `full` runs every project'
+        type: string
+        required: false
+        default: affected
+      base:
+        description: 'The integration branch `nx affected` compares against on a push'
+        type: string
+        required: false
+        default: origin/develop
+
+env:
+  NX: ${{ inputs.scope == 'full' && 'run-many' || 'affected' }}
+  # No Nx Cloud, no remote cache: GitHub's caches only (ADR 0009).
+  NX_NO_CLOUD: true
+
+jobs:
+  # Agents merge without a human reading the code (US-15): a committed secret
+  # must fail the PR before the merge. The scan does not depend on the scope:
+  # it reads the commits the event brings.
+  secrets:
+    name: secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # The action lists the PR's commits through the API: a private
+      # repository needs it.
+      pull-requests: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # A secret added then removed in the same PR stays in the history:
+          # the history is what is scanned, not only the last state.
+          fetch-depth: 0
+
+      # gitleaks honours an inline allow comment and a
+      # .gitleaksignore file, and the action cannot turn them off. Both would
+      # bypass the review: an exception is written in .gitleaks.toml, nowhere
+      # else.
+      - name: Refuse exceptions outside .gitleaks.toml
+        run: |
+          if [ -e .gitleaksignore ]; then
+            echo "::error::.gitleaksignore est refusé : une exception s'écrit dans .gitleaks.toml."
+            exit 1
+          fi
+          commits=$(git log -G 'gitleaks[:]allow' --diff-merges=first-parent --no-patch --format='%h %s' HEAD)
+          if [ -n "$commits" ]; then
+            echo "::error::Commentaire d'exception gitleaks refusé : une exception s'écrit dans .gitleaks.toml."
+            echo "$commits"
+            exit 1
+          fi
+
+      - name: Scan with gitleaks
+        # Pinned by SHA: a moved tag would run other code with the
+        # repository's token.
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_VERSION: 8.30.1
+          # Its comment offers to add the fingerprint to .gitleaksignore,
+          # which the step above refuses; and the token cannot write on the PR.
+          GITLEAKS_ENABLE_COMMENTS: false
+
+      # The action only reads the first 30 commits the API returns, with
+      # --first-parent --no-merges: a token in the 31st commit, on a branch
+      # merged into the PR, or added while resolving a merge escapes it. This
+      # second pass takes the whole range of the event, every parent, and each
+      # merge's diff against its first parent.
+      - name: Scan the whole range, merges included
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          case "$EVENT" in
+            pull_request) range="$PR_BASE..$PR_HEAD" ;;
+            # A push whose base is unknown (new branch, rewritten history)
+            # takes everything that leads to its head.
+            push) if git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then range="$BEFORE..$AFTER"; else range="$AFTER"; fi ;;
+            *) range=HEAD ;;
+          esac
+          echo "Scanned range: $range"
+          gitleaks git . --config .gitleaks.toml --no-banner --redact --log-opts="--diff-merges=first-parent $range"
+
+      # A scan that finds nothing proves nothing if the configuration stopped
+      # looking (an allowlist too wide, an unreadable file). It is given a fake
+      # token in the real format, made here so that none lives in the
+      # repository, and must report it.
+      - name: Check that the scan catches a real token format
+        run: |
+          decoy=$(mktemp -d)
+          printf 'GITHUB_TOKEN=ghp_%s\n' "$(openssl rand -hex 18)" > "$decoy/config.env"
+          code=0
+          gitleaks dir "$decoy" --config .gitleaks.toml --no-banner --redact --exit-code 3 || code=$?
+          if [ "$code" -ne 3 ]; then
+            echo "::error::Le scan n'a pas signalé un jeton GitHub factice (code $code)."
+            exit 1
+          fi
+
+  # AGENTS.md « Checking », « Before the PR ».
+  checks:
+    name: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # nx-set-shas looks up the last successful run on a push.
+      actions: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # `nx affected` compares two commits: a shallow clone has nothing to
+          # compare.
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup
+        with:
+          scope: ${{ inputs.scope }}
+          base: ${{ inputs.base }}
+
+      # The Composants' tests run in Chromium (Vitest browser mode).
+      - uses: ./.github/actions/browsers
+        with:
+          target: test
+          scope: ${{ inputs.scope }}
+
+      - name: Lint, typecheck, test and build
+        run: pnpm exec nx "$NX" -t lint typecheck test build
+
+      # The JSON Schemas and the Go types are committed (ADR 0001): whatever
+      # the scope, they must be what the zod schemas generate.
+      - name: Check the generated contracts
+        run: |
+          pnpm exec nx run contracts:generate
+          generated=(packages/contracts/generated apps/runner/internal/contracts)
+          if [ -n "$(git status --porcelain -- "${generated[@]}")" ]; then
+            echo "::error::Contrats générés pas à jour : lance pnpm exec nx run contracts:generate"
+            git status --short -- "${generated[@]}"
+            git diff -- "${generated[@]}"
+            exit 1
+          fi
+
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: crewdeck
+          POSTGRES_PASSWORD: crewdeck
+          POSTGRES_DB: crewdeck
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U crewdeck -d crewdeck"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+
+    env:
+      # Each run creates its own database in this server and drops it.
+      DATABASE_URL: postgresql://crewdeck:crewdeck@localhost:5432/crewdeck
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup
+        with:
+          scope: ${{ inputs.scope }}
+          base: ${{ inputs.base }}
+
+      - name: Integration tests
+        run: pnpm exec nx "$NX" -t test-integration
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+
+    # The page runs against the real server, the fake Runner and the fake
+    # GitHub (`pnpm dev`): the server needs its PostgreSQL.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: crewdeck
+          POSTGRES_PASSWORD: crewdeck
+          POSTGRES_DB: crewdeck
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U crewdeck -d crewdeck"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+
+    env:
+      DATABASE_URL: postgresql://crewdeck:crewdeck@localhost:5432/crewdeck
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup
+        with:
+          scope: ${{ inputs.scope }}
+          base: ${{ inputs.base }}
+
+      - name: Install the browsers in scope
+        id: browsers
+        uses: ./.github/actions/browsers
+        with:
+          target: e2e
+          scope: ${{ inputs.scope }}
+
+      # Until INFRA-4 adds the `e2e` target, nothing is in scope: the job
+      # passes without starting anything.
+      - name: End-to-end tests
+        if: steps.browsers.outputs.projects != ''
+        run: pnpm exec nx "$NX" -t e2e
+
+      - name: Keep the Playwright results
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-results
+          path: apps/web/test-results/
+          retention-days: 7
+          if-no-files-found: ignore

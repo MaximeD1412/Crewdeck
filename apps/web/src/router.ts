@@ -1,9 +1,13 @@
 import { PageIntrouvable, type AnyComposant } from '@crewdeck/sdk';
 
-/** A page URL (French, ADR 0008), `:name` for a parameter, and its page Composant. */
+/**
+ * A page URL (French, ADR 0008), `:name` for a parameter, its page Composant
+ * and, for a page that needs none of the store, the view giving its `data`.
+ */
 export interface Route {
   readonly path: string;
   readonly composant: AnyComposant;
+  readonly data?: (match: RouteMatch) => unknown;
 }
 
 export interface RouteMatch {
@@ -11,6 +15,8 @@ export interface RouteMatch {
   readonly path: string;
   readonly composant: AnyComposant;
   readonly params: Readonly<Record<string, string>>;
+  /** The query's parameters, the last one of a repeated name. */
+  readonly query: Readonly<Record<string, string>>;
   /** The panel open over the page: `?session=<id>` shows an AgentSession. */
   readonly panel: { readonly session: string | null };
 }
@@ -47,13 +53,20 @@ const matchPath = (pattern: string, path: string): Record<string, string> | null
 export const matchRoute = (routes: readonly Route[], url: string | URL): RouteMatch => {
   const parsed = new URL(url, 'http://crewdeck.invalid');
   const path = normalise(parsed.pathname);
+  const query = Object.fromEntries(parsed.searchParams);
   const panel = { session: parsed.searchParams.get('session') };
   for (const route of routes) {
     const params = matchPath(route.path, path);
-    if (params) return { path, composant: route.composant, params, panel };
+    if (params) return { path, composant: route.composant, params, query, panel };
   }
-  return { path, composant: PageIntrouvable, params: {}, panel };
+  return { path, composant: PageIntrouvable, params: {}, query, panel };
 };
+
+/** The page's `data` by default: its route's view, else nothing. */
+const routeData =
+  (routes: readonly Route[]) =>
+  (match: RouteMatch): unknown =>
+    routes.find((route) => route.composant === match.composant && matchPath(route.path, match.path))?.data?.(match) ?? {};
 
 export interface Router {
   readonly current: RouteMatch;
@@ -66,7 +79,7 @@ export interface RouterOptions {
   readonly routes: readonly Route[];
   /** Where the page Composant is rendered. */
   readonly outlet: HTMLElement;
-  /** The `data` of the page; CORE-6's view functions give it from the store. */
+  /** The `data` of the page; CORE-6's view functions give it from the store. By default, its route's `data`. */
   readonly data?: (match: RouteMatch) => unknown;
   /** Called after each render, with the match. */
   readonly onRoute?: (match: RouteMatch) => void;
@@ -90,7 +103,7 @@ const linkOf = (event: MouseEvent): URL | null => {
  * `outlet`, then follows `navigate()`, the same-origin links (shadow roots
  * included) and the browser's back and forward.
  */
-export const startRouter = ({ routes, outlet, data = () => ({}), onRoute, redirects = REDIRECTS }: RouterOptions): Router => {
+export const startRouter = ({ routes, outlet, data = routeData(routes), onRoute, redirects = REDIRECTS }: RouterOptions): Router => {
   let current: RouteMatch;
 
   const render = () => {

@@ -24,7 +24,7 @@ const routes: Route[] = [
   { path: '/a-toi', composant: PageAToi },
   { path: '/idees', composant: PageIdees },
   { path: '/idees/:id', composant: PageIdee },
-  { path: '/parametres/composants', composant: PageComposants },
+  { path: '/parametres/composants', composant: PageComposants, data: (match) => ({ c: match.query['c'] ?? null }) },
 ];
 
 const ID = '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b';
@@ -35,8 +35,13 @@ describe('matchRoute', () => {
       path: `/idees/${ID}`,
       composant: PageIdee,
       params: { id: ID },
+      query: {},
       panel: { session: null },
     });
+  });
+
+  it('gives the query', () => {
+    expect(matchRoute(routes, '/parametres/composants?c=Banner&x=a%20b').query).toEqual({ c: 'Banner', x: 'a b' });
   });
 
   it('keeps ?session= as a panel parameter', () => {
@@ -110,6 +115,16 @@ describe('startRouter', () => {
     start('/nope');
     expect(outlet.firstElementChild?.localName).toBe('cd-page-introuvable');
     expect((outlet.firstElementChild as HTMLElement & { data: unknown }).data).toEqual({});
+  });
+
+  it('gives the page its route’s data, from the match, and keeps the page when only the query changes', () => {
+    start('/parametres/composants?c=Banner');
+    const page = outlet.firstElementChild as HTMLElement & { data: unknown };
+    expect(page.localName).toBe('cd-page-composants');
+    expect(page.data).toEqual({ c: 'Banner' });
+    router.navigate('/parametres/composants?c=Button');
+    expect(outlet.firstElementChild).toBe(page);
+    expect(page.data).toEqual({ c: 'Button' });
   });
 
   it('sends / to « À toi »', () => {

@@ -1,0 +1,25 @@
+{
+  "description": "Written by the browser (apps/web/src/keys/crypto.spec.ts, Chromium WebCrypto), opened by the Runner.",
+  "wrap": {
+    "name": "web-vault-wrap",
+    "seed": "Y3Jld2RlY2std2ViL3dyYXA",
+    "recipientPrivateKey": "MQtvrF8TB47lbTCl433KyqPeDJ_0I4htQJ153500lqI",
+    "recipientPublicKey": "zu3KFHwF-mEnKgYhE8qn5Wk3JSzjsyg3e-5ECMTiUkw",
+    "senderPrivateKey": "Che4cQYV_kLeFiZupi_NUyri02JkE0AYQvq14iw1H28",
+    "senderPublicKey": "HFUEbOcjXYsL-CDYPinMyddHyPMsKUzYLWBCwbHCsGs",
+    "info": "crewdeck/v1/vault-wrap",
+    "aad": "ZGV2XzAxSjlaUTNNOjE",
+    "plaintext": "YSAzMi1ieXRlIHZhdWx0IGtleSBmcm9tIHRoZSB3ZWI",
+    "enc": "pq9eiwF52tEyFjJuEkDpSh5UMn22iwSVXmXC5hFJYh8",
+    "ciphertext": "wTL5LWToq7oUQ938qfGrNDQOUJcosPWprfFNGfTX8UYUXnLqvpsA9kOUBVji0tQv",
+    "tag": "CwkgOJ-p6LE8SLProFS4v-RbatHFklBnWsvNY9SXiVo"
+  },
+  "aesGcm": {
+    "name": "web-session-input",
+    "seed": "Y3Jld2RlY2std2ViL2Flcy1nY20",
+    "key": "YSAzMi1ieXRlIGl0ZW0ga2V5IGZyb20gdGhlIHdlYi4",
+    "aad": "c2VzXzAxSjlaUTVYOmlucHV0OmluXzAxSjlaUTZB",
+    "plaintext": "eyJ0eXBlIjoibWVzc2FnZSIsInRleHQiOiJMYW5jZSBsZXMgdGVzdHMifQ",
+    "sealed": "g3_X8rTdGzAxFV-OWIoTgwi6JXRs-QYZjbaLmT7I7PBIEt3kDAD0HVhWE41G2nJ7hBATyIYOg3Hg-U8p0mqOo46Jdr_Shf0"
+  }
+}

@@ -14,3 +14,4 @@ playwright-report/
 vite.config.*.timestamp*
 vitest.config.*.timestamp*
 out-tsc/
+.vitest/

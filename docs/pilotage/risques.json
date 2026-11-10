@@ -94,12 +94,12 @@
         {
           "texte": "Construction HPKE (RFC 9180), WebCrypto et la bibliothèque standard de Go, sans crypto maison",
           "ref": "ADR 0003",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Vecteurs de test partagés entre TypeScript et Go",
           "ref": "ADR 0003",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "docs/security/e2e.md relu par un relecteur extérieur avant la Bêta",

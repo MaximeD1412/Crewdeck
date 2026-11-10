@@ -8,7 +8,7 @@ export default defineConfig({
   test: {
     name: 'skin-passerelle',
     globals: true,
-    environment: 'node',
+    environment: 'happy-dom',
     include: ['src/**/*.spec.ts'],
   },
 });

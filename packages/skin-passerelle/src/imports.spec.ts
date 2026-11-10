@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { ESLint } from 'eslint';
 import { join, resolve } from 'node:path';
 
@@ -17,7 +18,9 @@ describe('the imports of the default Skin', () => {
         "import { version } from '@crewdeck/sdk';",
         "import { LitElement } from 'lit';",
         "import { customElement } from 'lit/decorators.js';",
+        "import '@fontsource/ibm-plex-sans/400.css';",
         "import './index.js';",
+        "import '../src/index.js';",
         'export const used = [version, LitElement, customElement];',
       ].join('\n'),
     );
@@ -29,6 +32,14 @@ describe('the imports of the default Skin', () => {
     expect(messages).toContainEqual(expect.stringMatching(/^no-restricted-imports: .*ADR 0006/));
     expect(messages).toContainEqual(expect.stringMatching(/^@nx\/enforce-module-boundaries: /));
   });
+
+  it.each(['../../apps/web/src/main.js', '../../../apps/web/src/main.js', '../../sdk/src/index.js'])(
+    'fails on a relative path out of the package: %s',
+    async (path) => {
+      const messages = await lint(`import '${path}';\n`);
+      expect(messages).toContainEqual(expect.stringMatching(/^no-restricted-imports: .*ADR 0006/));
+    },
+  );
 
   it('fails on the internals of lit-html', async () => {
     const messages = await lint("import { directive } from 'lit-html/directive.js';\nexport const used = directive;\n");

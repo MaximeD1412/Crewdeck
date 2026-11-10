@@ -24,11 +24,11 @@ export class ScenariosService {
     return { name: scenario.name, path: scenario.path, sessionCookie: seeded.sessionCookie ?? null };
   }
 
-  /** Every table of the current schema, the models' and any other, but the migrations'. */
+  /** Every table of the current schema, the models' and any other, but the migrations': every Pilote's, so unscoped. */
   private async emptyDatabase(): Promise<void> {
-    const tables = await this.prisma.$queryRaw<{ tablename: string }[]>`
+    const tables = await this.prisma.unscoped.$queryRaw<{ tablename: string }[]>`
       SELECT tablename FROM pg_tables WHERE schemaname = current_schema() AND tablename <> ${MIGRATIONS_TABLE} ORDER BY tablename`;
     if (tables.length === 0) return;
-    await this.prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tables.map((t) => quote(t.tablename)).join(', ')} RESTART IDENTITY CASCADE`);
+    await this.prisma.unscoped.$executeRawUnsafe(`TRUNCATE TABLE ${tables.map((t) => quote(t.tablename)).join(', ')} RESTART IDENTITY CASCADE`);
   }
 }

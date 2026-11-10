@@ -27,6 +27,13 @@ describe('usage(used, quota, now)', () => {
     assert.equal(report.failure, 'projection au-delà du quota');
   });
 
+  test('a projection above the quota by less than half a minute still fails', () => {
+    // 1 355 / 14 × 31 = 3 000.36: rounded, it would equal the quota.
+    const report = usage(1355, 3000, new Date('2026-10-14T06:17:00Z'));
+    assert.ok(report.projection > 3000);
+    assert.equal(report.failure, 'projection au-delà du quota');
+  });
+
   test('80 % is reached at exactly 0.8 × quota, not below', () => {
     const lastDay = new Date('2026-11-30T23:00:00Z');
     assert.equal(usage(2399, 3000, lastDay).failure, null);
@@ -123,6 +130,18 @@ describe('run(env)', () => {
     });
     assert.equal(code, 1);
     assert.match(lines.join('\n'), /::error::projection au-delà du quota/);
+  });
+
+  test('prints the projection rounded up, so that a projection just above the quota does not read as equal', async () => {
+    const { lines, log } = quietly();
+    const code = await run({
+      env,
+      now: new Date('2026-10-14T06:17:00Z'),
+      fetch: billing([{ product: 'actions', unitType: 'Minutes', quantity: 1355 }]),
+      log,
+    });
+    assert.equal(code, 1);
+    assert.match(lines.join('\n'), /3001 projetées/);
   });
 
   test('fails when the billing API refuses the token', async () => {

@@ -43,12 +43,14 @@ export function minutesOf(usageItems) {
  * The month's minutes against the quota. The projection keeps the month's
  * pace: `used / elapsed days × days in month`, the current day counted as
  * elapsed (the guard runs after the nightly, which is most of a day's
- * minutes). `failure` is null, or why the guard fails.
+ * minutes). `projection` is exact, compared unrounded: rounded, 3 000.36
+ * would pass a quota of 3 000; only the printed line rounds it, up. `failure` is
+ * null, or why the guard fails.
  */
 export function usage(used, quota, now) {
   const elapsedDays = now.getUTCDate();
   const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
-  const projection = Math.round((used / elapsedDays) * daysInMonth);
+  const projection = (used * daysInMonth) / elapsedDays;
   let failure = null;
   if (used >= ALERT_RATIO * quota) failure = '80 % du quota atteint';
   else if (projection > quota) failure = 'projection au-delà du quota';
@@ -83,7 +85,7 @@ export async function run({ env, now = new Date(), fetch = globalThis.fetch, log
   const { usageItems = [] } = await response.json();
 
   const report = usage(minutesOf(usageItems), quota, now);
-  const line = `Minutes Actions ce mois : ${Math.round(report.used)} / ${quota} (${Math.round((report.used / quota) * 100)} %, échec à ${ALERT_RATIO * 100} %), ${report.projection} projetées à la fin du mois`;
+  const line = `Minutes Actions ce mois : ${Math.round(report.used)} / ${quota} (${Math.round((report.used / quota) * 100)} %, échec à ${ALERT_RATIO * 100} %), ${Math.ceil(report.projection)} projetées à la fin du mois`;
   log(line);
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${line}\n`);
   if (report.failure) {

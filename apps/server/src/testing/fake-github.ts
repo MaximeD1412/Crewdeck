@@ -30,6 +30,11 @@ import type { Fake } from './fakes.js';
 export type FileContent = string | Uint8Array;
 type Files = ReadonlyMap<string, FileContent>;
 
+interface FakeCommit {
+  files: Files;
+  parents: readonly string[];
+}
+
 export interface FakeCall {
   readonly method: keyof GitHubClient;
   readonly args: readonly unknown[];
@@ -107,7 +112,7 @@ export class FakeGitHub implements GitHubClient, Fake {
   readonly calls: FakeCall[] = [];
 
   private repos = new Map<string, FakeRepo>();
-  private commits = new Map<string, Files>();
+  private commits = new Map<string, FakeCommit>();
   private users = new Map<number, GitHubUser>();
   private codes = new Map<string, number>();
   private accessTokens = new Map<string, number>();
@@ -187,10 +192,10 @@ export class FakeGitHub implements GitHubClient, Fake {
    */
   async pushCommit(repo: RepoRef, branch: string, files: Record<string, FileContent> = {}): Promise<string> {
     const fake = this.repo(repo);
-    const current = fake.branches.get(branch) ?? { sha: this.head(fake, fake.defaultBranch), protected: false };
-    const sha = this.commit(new Map([...this.files(current.sha), ...Object.entries(files)]));
-    fake.branches.set(branch, { ...current, sha });
-    for (const pr of fake.pullRequests.values()) if (pr.state === 'open' && pr.headRef === branch) pr.headSha = sha;
+    if (!fake.branches.has(branch)) fake.branches.set(branch, { sha: this.head(fake, fake.defaultBranch), protected: false });
+    const parent = this.head(fake, branch);
+    const sha = this.commit(new Map([...this.files(parent), ...Object.entries(files)]), [parent]);
+    this.moveBranch(fake, branch, sha);
     return Promise.resolve(sha);
   }
 
@@ -415,9 +420,11 @@ export class FakeGitHub implements GitHubClient, Fake {
   commitProcessJson(repo: RepoRef, branch: string, content: string, message: string): Promise<CommitRef> {
     this.record('commitProcessJson', repo, branch, content, message);
     return this.run(() => {
-      const current = this.writableBranch(this.repo(repo), branch);
-      current.sha = this.commit(new Map([...this.files(current.sha), ['.process.json', content]]));
-      return { sha: current.sha };
+      const fake = this.repo(repo);
+      const current = this.writableBranch(fake, branch);
+      const sha = this.commit(new Map([...this.files(current.sha), ['.process.json', content]]), [current.sha]);
+      this.moveBranch(fake, branch, sha);
+      return { sha };
     });
   }
 
@@ -453,21 +460,20 @@ export class FakeGitHub implements GitHubClient, Fake {
       const pr = fake.pullRequests.get(number);
       if (pr === undefined || pr.state !== 'open') throw githubUnavailable();
       if (pr.headSha !== options.sha) throw headMoved();
-      const base = fake.branches.get(pr.baseRef);
-      if (base === undefined) throw githubUnavailable();
-      base.sha = this.commit(new Map([...this.files(base.sha), ...this.files(pr.headSha)]));
+      const sha = this.merge(fake, pr.baseRef, pr.headSha);
       Object.assign(pr, { state: 'closed', merged: true, updatedAt: new Date().toISOString() });
-      return { sha: base.sha };
+      return { sha };
     });
   }
 
   mergeBranch(repo: RepoRef, merge: BranchMerge): Promise<CommitRef> {
     this.record('mergeBranch', repo, merge);
     return this.run(() => {
-      const base = this.writableBranch(this.repo(repo), merge.base);
+      const fake = this.repo(repo);
+      const base = this.writableBranch(fake, merge.base);
       if (!this.commits.has(merge.headSha)) throw githubUnavailable();
-      base.sha = this.commit(new Map([...this.files(base.sha), ...this.files(merge.headSha)]));
-      return { sha: base.sha };
+      if (this.ancestors(base.sha).has(merge.headSha)) return { sha: base.sha };
+      return { sha: this.merge(fake, merge.base, merge.headSha) };
     });
   }
 
@@ -548,10 +554,58 @@ export class FakeGitHub implements GitHubClient, Fake {
     return branch;
   }
 
-  private commit(files: Files): string {
+  private commit(files: Files, parents: readonly string[] = []): string {
     const sha = createHash('sha1').update(`fake-commit-${this.next()}`).digest('hex');
-    this.commits.set(sha, files);
+    this.commits.set(sha, { files, parents });
     return sha;
+  }
+
+  /** Every write of a branch goes here: the open PRs of that head move with it, as on GitHub. */
+  private moveBranch(fake: FakeRepo, name: string, sha: string): void {
+    const branch = fake.branches.get(name);
+    if (branch === undefined) throw githubUnavailable();
+    branch.sha = sha;
+    for (const pr of fake.pullRequests.values()) if (pr.state === 'open' && pr.headRef === name) pr.headSha = sha;
+  }
+
+  /**
+   * A merge commit of `headSha` into `base`, from their common ancestor: each
+   * side keeps what the other did not change; a file both changed apart is a
+   * conflict, `github.unavailable` as the real client maps GitHub's 405 or 409.
+   */
+  private merge(fake: FakeRepo, base: string, headSha: string): string {
+    const baseSha = this.head(fake, base);
+    const ancestor = this.mergeBase(baseSha, headSha);
+    const from: Files = ancestor === undefined ? new Map() : this.files(ancestor);
+    const [ours, theirs] = [this.files(baseSha), this.files(headSha)];
+    const merged = new Map<string, FileContent>();
+    for (const path of new Set([...ours.keys(), ...theirs.keys()])) {
+      const [was, mine, other] = [from.get(path), ours.get(path), theirs.get(path)];
+      const content = sameContent(other, was) ? mine : sameContent(mine, was) || sameContent(mine, other) ? other : CONFLICT;
+      if (content === CONFLICT) throw githubUnavailable();
+      if (content !== undefined) merged.set(path, content);
+    }
+    const sha = this.commit(merged, [baseSha, headSha]);
+    this.moveBranch(fake, base, sha);
+    return sha;
+  }
+
+  /** The commit and all those it comes from. */
+  private ancestors(sha: string): Set<string> {
+    const seen = new Set<string>();
+    for (const queue = [sha]; queue.length > 0; ) {
+      const next = queue.shift() as string;
+      if (seen.has(next)) continue;
+      seen.add(next);
+      queue.push(...(this.commits.get(next)?.parents ?? []));
+    }
+    return seen;
+  }
+
+  /** The nearest commit both come from, breadth first from `b`. */
+  private mergeBase(a: string, b: string): string | undefined {
+    const ofA = this.ancestors(a);
+    return [...this.ancestors(b)].find((sha) => ofA.has(sha));
   }
 
   private head(fake: FakeRepo, branch: string): string {
@@ -561,7 +615,7 @@ export class FakeGitHub implements GitHubClient, Fake {
   }
 
   private files(sha: string): Files {
-    return this.commits.get(sha) ?? new Map();
+    return this.commits.get(sha)?.files ?? new Map();
   }
 
   private pageRef(owner: string, name: string, ref: string | undefined): string | undefined {
@@ -590,6 +644,11 @@ export class FakeGitHub implements GitHubClient, Fake {
     };
   }
 }
+
+const CONFLICT = Symbol('conflict');
+
+const sameContent = (a: FileContent | undefined, b: FileContent | undefined): boolean =>
+  a === undefined || b === undefined ? a === b : Buffer.from(a).equals(Buffer.from(b));
 
 const toIssue = (issue: FakeIssue): Issue => ({
   number: issue.number,

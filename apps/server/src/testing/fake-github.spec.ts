@@ -1,4 +1,5 @@
 import { AppError } from '../errors/app-error.js';
+import type { RepoRef } from '@crewdeck/contracts';
 import { FakeGitHub } from './fake-github.js';
 
 const setup = () => {
@@ -32,6 +33,79 @@ describe('FakeGitHub', () => {
       await expect(merge).rejects.toBeInstanceOf(AppError);
       await expect(merge).rejects.toMatchObject({ status: 409, code: 'github.head-moved', message: 'La PR a changé depuis la dernière vérification.' });
       expect(await github.getPullRequest(repo, pr.number)).toMatchObject({ state: 'open', merged: false, headSha: moved });
+    });
+
+    it('throws github.head-moved when .process.json was committed on the head since', async () => {
+      const { github, repo } = setup();
+      const judged = await github.pushCommit(repo, 'feat/1-x', { 'src/a.ts': 'a' });
+      const pr = await github.createPullRequest(repo, { head: 'feat/1-x', base: 'main', title: 'feat : x', draft: false });
+      const moved = await github.commitProcessJson(repo, 'feat/1-x', '{"version":2}', 'chore(crewdeck) : Process');
+
+      await expect(github.mergePullRequest(repo, pr.number, { sha: judged, method: 'squash' })).rejects.toMatchObject({ code: 'github.head-moved' });
+      expect(await github.getPullRequest(repo, pr.number)).toMatchObject({ state: 'open', headSha: moved.sha });
+      expect(await github.readProcessJson(repo, 'main')).toEqual({ version: 1 });
+    });
+
+    it('moves the head of a PR whose branch a merge writes', async () => {
+      const { github, repo } = setup();
+      await github.pushCommit(repo, 'develop', {});
+      const release = await github.createPullRequest(repo, { head: 'develop', base: 'main', title: 'release', draft: false });
+      const feature = await github.pushCommit(repo, 'feat/1-x', { 'src/a.ts': 'a' });
+
+      const merge = await github.mergeBranch(repo, { base: 'develop', headSha: feature, message: 'feat : x' });
+
+      expect(await github.getPullRequest(repo, release.number)).toMatchObject({ headSha: merge.sha });
+    });
+
+    const merges = [
+      [
+        'a PR',
+        async (github: FakeGitHub, repo: RepoRef, head: string) => {
+          const pr = await github.createPullRequest(repo, { head: 'feat/1-x', base: 'main', title: 'feat : x', draft: false });
+          return github.mergePullRequest(repo, pr.number, { sha: head, method: 'merge' });
+        },
+      ],
+      ['a branch', (github: FakeGitHub, repo: RepoRef, head: string) => github.mergeBranch(repo, { base: 'main', headSha: head, message: 'feat : x' })],
+    ] as const;
+
+    it.each(merges)('merging %s keeps what the base changed and the head did not', async (_, merge) => {
+      const { github, repo } = setup();
+      const head = await github.pushCommit(repo, 'feat/1-x', { 'src/b.ts': 'b' });
+      await github.pushCommit(repo, 'main', { 'src/main.ts': 'code changed on main' });
+
+      const merged = await merge(github, repo, head);
+
+      expect(github.fileAt(repo.owner, repo.name, merged.sha, 'src/main.ts')).toBe('code changed on main');
+      expect(github.fileAt(repo.owner, repo.name, merged.sha, 'src/b.ts')).toBe('b');
+    });
+
+    it.each(merges)('merging %s takes what the head changed and the base did not', async (_, merge) => {
+      const { github, repo } = setup();
+      const head = await github.pushCommit(repo, 'feat/1-x', { 'src/main.ts': 'code changed on the head' });
+      await github.pushCommit(repo, 'main', { 'README.md': '# r' });
+
+      const merged = await merge(github, repo, head);
+
+      expect(github.fileAt(repo.owner, repo.name, merged.sha, 'src/main.ts')).toBe('code changed on the head');
+      expect(github.fileAt(repo.owner, repo.name, merged.sha, 'README.md')).toBe('# r');
+    });
+
+    it.each(merges)('merging %s refuses a conflict, and writes nothing', async (_, merge) => {
+      const { github, repo } = setup();
+      const head = await github.pushCommit(repo, 'feat/1-x', { 'src/main.ts': 'theirs' });
+      const base = await github.pushCommit(repo, 'main', { 'src/main.ts': 'ours' });
+
+      await expect(merge(github, repo, head)).rejects.toMatchObject({ code: 'github.unavailable' });
+      expect((await github.getBranch(repo, 'main'))?.sha).toBe(base);
+    });
+
+    it('merges a branch already in the base without a commit', async () => {
+      const { github, repo } = setup();
+      const head = await github.pushCommit(repo, 'feat/1-x', { 'src/b.ts': 'b' });
+      await github.mergeBranch(repo, { base: 'main', headSha: head, message: 'feat : x' });
+      const base = (await github.getBranch(repo, 'main'))?.sha;
+
+      expect(await github.mergeBranch(repo, { base: 'main', headSha: head, message: 'again' })).toEqual({ sha: base });
     });
 
     it('merges a branch through the merges API, refused on a protected base', async () => {

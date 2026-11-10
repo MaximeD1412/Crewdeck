@@ -198,6 +198,71 @@ describe('OctokitGitHubClient', () => {
     });
   });
 
+  describe('the installation of a repository', () => {
+    // @octokit/auth-app retries a 401 for 5 s after it got the token (GitHub's replication), here a token of the
+    // test's: these tests wait it out. Faking the clock is no way around it: the throttling's groups, shared by
+    // every Octokit, would then wait for a time that never comes.
+    const PAST_THE_RETRIES = 15_000;
+
+    /** `o/r` on installation 42, then on 43 once the App is reinstalled; the token of 42 then dies. */
+    const reinstallable = () => {
+      const state = { installation: 42, lookups: 0, refused: false };
+      server.use(
+        http.get(`${API}/repos/o/r/installation`, () => {
+          state.lookups += 1;
+          return HttpResponse.json({ id: state.installation });
+        }),
+        http.post(`${API}/app/installations/:id/access_tokens`, ({ params }) =>
+          !state.refused && Number(params.id) === state.installation
+            ? HttpResponse.json(
+                { token: `ghs_${String(params.id)}`, expires_at: new Date(Date.now() + 3_600_000).toISOString(), permissions: {}, repository_selection: 'all' },
+                { status: 201 },
+              )
+            : HttpResponse.json({ message: 'Not Found' }, { status: 404 }),
+        ),
+        http.get(`${API}/repos/o/r/labels`, ({ request }) =>
+          request.headers.get('authorization') === `token ghs_${String(state.installation)}`
+            ? HttpResponse.json([{ id: 1, name: 'needs-human', color: 'd73a4a', description: null, default: false }])
+            : HttpResponse.json({ message: 'Bad credentials' }, { status: 401 }),
+        ),
+      );
+      return state;
+    };
+
+    it('is looked up once, then remembered', async () => {
+      const state = reinstallable();
+      const client = new OctokitGitHubClient(env, logger());
+
+      await client.listLabels(repo);
+      await client.listLabels(repo);
+
+      expect(state.lookups).toBe(1);
+    });
+
+    it('is looked up again once the App is reinstalled on the repository', async () => {
+      const state = reinstallable();
+      const client = new OctokitGitHubClient(env, logger());
+      await client.listLabels(repo);
+
+      state.installation = 43;
+
+      await expect(client.listLabels(repo)).resolves.toEqual([{ name: 'needs-human', color: 'd73a4a', description: null }]);
+      expect(state.lookups).toBe(2);
+    }, PAST_THE_RETRIES);
+
+    it('is looked up again once only: an installation still refused is github.unavailable', async () => {
+      const state = reinstallable();
+      const client = new OctokitGitHubClient(env, logger());
+      await client.listLabels(repo);
+
+      state.installation = 43;
+      state.refused = true;
+
+      await expect(client.listLabels(repo)).rejects.toMatchObject({ code: 'github.unavailable' });
+      expect(state.lookups).toBe(2);
+    }, PAST_THE_RETRIES);
+  });
+
   describe('any other failure', () => {
     it('is github.unavailable, logged with the GitHub request id only', async () => {
       server.use(

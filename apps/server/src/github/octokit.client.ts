@@ -121,6 +121,7 @@ interface GitHubFailure {
   status: number;
   message: string;
   response?: { headers?: Record<string, string | number | undefined>; data?: unknown };
+  request?: { url?: string };
 }
 const isFailure = (error: unknown): error is GitHubFailure =>
   typeof error === 'object' && error !== null && typeof (error as { status?: unknown }).status === 'number';
@@ -135,6 +136,12 @@ const HEAD_MOVED = /head branch was modified/i;
 const PROTECTED = /protected branch|branch protection|rule violations|must be made through a pull request|required status check|approving review/i;
 
 const isNotFound = (error: unknown): boolean => isFailure(error) && error.status === 404;
+
+const INSTALLATION_TOKEN_ROUTE = /\/app\/installations\/\d+\/access_tokens$/;
+
+/** A failure that says the installation is gone: its token refused (401), or no token for it (404). Nothing was done. */
+const isStaleInstallation = (error: unknown): boolean =>
+  isFailure(error) && (error.status === 401 || (error.status === 404 && INSTALLATION_TOKEN_ROUTE.test(error.request?.url ?? '')));
 
 /**
  * The `GitHubClient` on GitHub's REST API, as the App (ADR 0002): a JWT for
@@ -476,15 +483,27 @@ export class OctokitGitHubClient implements GitHubClient {
     return octokit;
   }
 
-  /** Runs `fn` with the installation of `repo`, found once with the App's JWT. */
+  /**
+   * Runs `fn` with the installation of `repo`, found with the App's JWT and
+   * remembered. A remembered one GitHub no longer knows (the App reinstalled:
+   * its token refused, or its token's route a 404) is forgotten and looked up
+   * again, once.
+   */
   private onRepo<T>(repo: RepoRef, fn: (request: Request) => Promise<T>): Promise<T> {
     return this.call(async () => {
-      let installationId = this.installationOf.get(repo.id);
-      if (installationId === undefined) {
-        const { data } = await this.request(this.app())('GET /repos/{owner}/{repo}/installation', this.params(repo));
-        installationId = z.object({ id: z.int() }).parse(data).id;
-        this.installationOf.set(repo.id, installationId);
+      const remembered = this.installationOf.get(repo.id);
+      if (remembered !== undefined) {
+        try {
+          return await fn(this.request(this.forInstallation(remembered)));
+        } catch (error) {
+          if (!isStaleInstallation(error)) throw error;
+          this.installationOf.delete(repo.id);
+          this.installations.delete(remembered);
+        }
       }
+      const { data } = await this.request(this.app())('GET /repos/{owner}/{repo}/installation', this.params(repo));
+      const installationId = z.object({ id: z.int() }).parse(data).id;
+      this.installationOf.set(repo.id, installationId);
       return fn(this.request(this.forInstallation(installationId)));
     });
   }

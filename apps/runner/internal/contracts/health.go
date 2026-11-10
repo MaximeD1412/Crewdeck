@@ -5,8 +5,12 @@ package contracts
 import "encoding/json"
 import "fmt"
 import "reflect"
+import "time"
 
 type Health struct {
+	// Backup corresponds to the JSON schema field "backup".
+	Backup *HealthBackup `json:"backup,omitempty,omitzero"`
+
 	// Commit corresponds to the JSON schema field "commit".
 	Commit string `json:"commit"`
 
@@ -15,6 +19,29 @@ type Health struct {
 
 	// Status corresponds to the JSON schema field "status".
 	Status string `json:"status"`
+}
+
+type HealthBackup struct {
+	// LastSuccessAt corresponds to the JSON schema field "lastSuccessAt".
+	LastSuccessAt *time.Time `json:"lastSuccessAt"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *HealthBackup) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["lastSuccessAt"]; raw != nil && !ok {
+		return fmt.Errorf("field lastSuccessAt in HealthBackup: required")
+	}
+	type Plain HealthBackup
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	*j = HealthBackup(plain)
+	return nil
 }
 
 type HealthDb string

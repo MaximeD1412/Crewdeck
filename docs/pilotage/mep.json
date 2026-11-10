@@ -125,6 +125,62 @@
       ],
       "commande": "gh api repos/MaximeD1412/Crewdeck --jq .allow_merge_commit",
       "ajouteLe": "2026-11-10"
+    },
+    {
+      "id": "sauvegardes-installees",
+      "phase": "vps",
+      "source": "#103",
+      "titre": "Installer restic ≥ 0.17 et les sauvegardes de nuit sur le VPS",
+      "pourquoi": "backup.sh envoie chaque nuit le dump de la production dans le dépôt restic, et rehearse.sh répète chaque migration de la production sur la dernière sauvegarde avant de migrer. Ubuntu 24.04 n'a que restic 0.16, sans --stdin-from-command. Tant que rien n'est installé, aucune sauvegarde n'existe et deploy.sh migre la production sans répétition. À faire avec INFRA-13, une fois le dépôt restic créé.",
+      "etapes": [
+        "restic ≥ 0.17 depuis https://github.com/restic/restic/releases (restic_<version>_linux_amd64.bz2, vérifié contre SHA256SUMS) dans /usr/local/bin/restic, mode 755.",
+        "Écrire /opt/crewdeck/backup/restic.env depuis infra/backup/restic.env.example, et le fichier du mot de passe (INFRA-13).",
+        "Depuis un clone du dépôt : sudo infra/backup/bin/install.sh (refait après chaque changement de infra/backup/).",
+        "sudo systemctl start crewdeck-backup.service, puis cat /opt/crewdeck/backup/status/last-success."
+      ],
+      "commande": "systemctl list-timers crewdeck-backup.timer --no-pager && cat /opt/crewdeck/backup/status/last-success",
+      "ajouteLe": "2026-11-10"
+    },
+    {
+      "id": "backup-status-prod-env",
+      "phase": "env",
+      "source": "#103",
+      "titre": "Ajouter BACKUP_STATUS_DIR et BACKUP_STATUS_FILE au .env de la production",
+      "pourquoi": "Avec eux, le serveur de la production lit /opt/crewdeck/backup/status/last-success (monté en lecture seule) et /api/health donne backup.lastSuccessAt, que le workflow backup-watch surveille. Sans eux, backup-watch échoue chaque matin (« BACKUP_STATUS_FILE »). Jamais dans le .env du staging.",
+      "etapes": [
+        "Dans /opt/crewdeck/prod/.env : BACKUP_STATUS_DIR=/opt/crewdeck/backup/status et BACKUP_STATUS_FILE=/run/backup/last-success (infra/deploy/prod.env.example).",
+        "Relancer le dernier job production du workflow delivery : la variable ne s'applique qu'au déploiement suivant.",
+        "Vérifier : https://<domaine>/api/health contient backup.lastSuccessAt."
+      ],
+      "commande": "curl -s https://<domaine>/api/health",
+      "ajouteLe": "2026-11-10"
+    },
+    {
+      "id": "variable-crewdeck-domain",
+      "phase": "env",
+      "source": "#103",
+      "titre": "Poser la variable de dépôt CREWDECK_DOMAIN pour le workflow backup-watch",
+      "pourquoi": "backup-watch lit chaque matin https://<CREWDECK_DOMAIN>/api/health et échoue, donc envoie un mail, quand la dernière sauvegarde a plus de 26 h. Tant que la variable est vide, il passe avec un avis sans rien vérifier.",
+      "etapes": [
+        "Settings > Secrets and variables > Actions > Variables : CREWDECK_DOMAIN, le domaine de la production sans schéma (le même que dans /opt/crewdeck/edge/.env).",
+        "Actions > Backup watch > Run workflow : vert, avec « dernière sauvegarde réussie le … »."
+      ],
+      "commande": "gh variable get CREWDECK_DOMAIN",
+      "ajouteLe": "2026-11-10"
+    },
+    {
+      "id": "restauration-mensuelle",
+      "phase": "chk",
+      "source": "#103",
+      "titre": "Vérifier chaque mois la restauration depuis sa machine",
+      "pourquoi": "Une sauvegarde jamais restaurée ne prouve rien. restore-check.sh restaure la dernière sauvegarde dans une PostgreSQL locale jetable, sans le VPS, et imprime sa date et son nombre de migrations ; il échoue si elle a plus de 26 h.",
+      "etapes": [
+        "Depuis le gestionnaire de mots de passe (« Crewdeck backups ») : un fichier d'env local hors du dépôt et le fichier du mot de passe.",
+        "infra/backup/bin/restore-check.sh --env <ce fichier> : « OK ».",
+        "Effacer les deux fichiers ; un rappel mensuel dans son agenda."
+      ],
+      "commande": "infra/backup/bin/restore-check.sh --env <fichier>",
+      "ajouteLe": "2026-11-10"
     }
   ]
 }

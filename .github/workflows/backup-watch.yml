@@ -1,0 +1,52 @@
+name: Backup watch
+
+# The age of production's last backup (ADR 0009, « Backups »; INFRA-8). The VPS
+# has no alert channel: production's /api/health reports backup.lastSuccessAt,
+# and this workflow fails when it is null or older than 26 h. GitHub emails
+# the founder about a failed scheduled run. The backup runs at 01:30 UTC
+# (infra/backup/systemd/crewdeck-backup.timer); 07:00 leaves it time, and a
+# night it missed is seen the next morning.
+on:
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: watch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # The production domain, without a scheme (repository variable, INFRA-12).
+      DOMAIN: ${{ vars.CREWDECK_DOMAIN }}
+    steps:
+      - name: Skip while production has no domain
+        if: env.DOMAIN == ''
+        run: |
+          echo "::notice title=Sauvegarde de la production::Variable CREWDECK_DOMAIN vide : production pas encore en ligne, rien à surveiller."
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.DOMAIN != ''
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Read production's health
+        if: env.DOMAIN != ''
+        run: |
+          curl --fail --silent --show-error --retry 3 --retry-all-errors --max-time 30 \
+            --output "$RUNNER_TEMP/health.json" "https://$DOMAIN/api/health" || {
+            echo "::error title=Sauvegarde de la production::https://$DOMAIN/api/health ne répond pas."
+            exit 1
+          }
+
+      - name: Check the age of the last backup
+        if: env.DOMAIN != ''
+        run: node .github/scripts/backup-watch.mjs "$RUNNER_TEMP/health.json"

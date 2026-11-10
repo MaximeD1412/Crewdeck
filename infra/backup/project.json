@@ -1,0 +1,16 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "backup",
+  "projectType": "library",
+  "tags": ["scope:backup"],
+  "implicitDependencies": ["deploy"],
+  "targets": {
+    "test": {
+      "inputs": [
+        "default",
+        "{workspaceRoot}/infra/deploy/bin/deploy.sh",
+        "{workspaceRoot}/.github/scripts/backup-watch.mjs"
+      ]
+    }
+  }
+}

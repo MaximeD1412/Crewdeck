@@ -1,8 +1,10 @@
 import type { INestApplication } from '@nestjs/common';
 import { zScenarioRun } from '@crewdeck/contracts';
 import { Test } from '@nestjs/testing';
+import { applyGlobalPrefix } from '../app.js';
 import { AppModule } from '../app.module.js';
 import { type Env, parseEnv } from '../config/env.js';
+import { FAKES, type Fakes } from './fakes.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 /** The database's catalogue and the statements the reset sends to it, without PostgreSQL. */
@@ -11,24 +13,30 @@ const fakeDatabase = (tables: string[]) => {
   return {
     statements,
     prisma: {
-      $queryRaw: () => Promise.resolve(tables.map((tablename) => ({ tablename }))),
-      $executeRawUnsafe: (sql: string) => {
-        statements.push(sql);
-        return Promise.resolve(0);
+      unscoped: {
+        $queryRaw: () => Promise.resolve(tables.map((tablename) => ({ tablename }))),
+        $executeRawUnsafe: (sql: string) => {
+          statements.push(sql);
+          return Promise.resolve(0);
+        },
       },
-      $disconnect: () => Promise.resolve(),
     },
   };
 };
 
-const boot = async (nodeEnv: Env['NODE_ENV'], database = fakeDatabase([])): Promise<INestApplication> => {
-  const env = parseEnv({ NODE_ENV: nodeEnv, DATABASE_URL: 'postgresql://crewdeck:crewdeck@127.0.0.1:1/crewdeck' });
+const boot = async (nodeEnv: Env['NODE_ENV'], database = fakeDatabase([]), fakes = true): Promise<INestApplication> => {
+  const env = parseEnv({
+    CREWDECK_ENV: 'test',
+    NODE_ENV: nodeEnv,
+    DATABASE_URL: 'postgresql://crewdeck:crewdeck@127.0.0.1:1/crewdeck',
+    ...(fakes ? { CREWDECK_FAKES: '1' } : {}),
+  });
   const moduleRef = await Test.createTestingModule({ imports: [AppModule.forRoot(env, { logs: false })] })
     .overrideProvider(PrismaService)
     .useValue(database.prisma)
     .compile();
   const app = moduleRef.createNestApplication({ logger: false });
-  app.setGlobalPrefix('api');
+  applyGlobalPrefix(app);
   await app.listen(0, '127.0.0.1');
   return app;
 };
@@ -41,7 +49,7 @@ const post = async (app: INestApplication, name: string): Promise<Response> =>
   });
 
 describe('POST /api/testing/scenarios/:name', () => {
-  describe.each(['development', 'test'] as const)('with NODE_ENV=%s', (nodeEnv) => {
+  describe.each(['development', 'test'] as const)('with CREWDECK_FAKES=1 and NODE_ENV=%s', (nodeEnv) => {
     let app: INestApplication;
     const database = fakeDatabase(['ideas', 'pilots']);
 
@@ -66,6 +74,16 @@ describe('POST /api/testing/scenarios/:name', () => {
       expect(database.statements).toEqual(['TRUNCATE TABLE "ideas", "pilots" RESTART IDENTITY CASCADE']);
     });
 
+    it('first resets the fake GitHub', async () => {
+      const { github } = app.get<Fakes>(FAKES);
+      github.seedRepo({ owner: 'o', name: 'r' });
+
+      await post(app, 'blank');
+
+      expect(github.fileAt('o', 'r', 'main', 'README.md')).toBeUndefined();
+      await expect(github.getDefaultBranch({ owner: 'o', name: 'r', id: 1 })).rejects.toMatchObject({ code: 'github.unavailable' });
+    });
+
     it('gives 404 testing.unknown-scenario for an unknown name', async () => {
       const response = await post(app, 'nope');
 
@@ -78,9 +96,9 @@ describe('POST /api/testing/scenarios/:name', () => {
     });
   });
 
-  it('does not exist with NODE_ENV=production', async () => {
+  it.each(['development', 'production'] as const)('does not exist without CREWDECK_FAKES (NODE_ENV=%s)', async (nodeEnv) => {
     const database = fakeDatabase(['ideas']);
-    const app = await boot('production', database);
+    const app = await boot(nodeEnv, database, false);
 
     const response = await post(app, 'blank');
     await app.close();

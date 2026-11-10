@@ -1,0 +1,23 @@
+# Crewdeck's edge (ADR 0009). The upstreams are the network aliases of the two
+# Compose projects (infra/deploy/docker-compose.yml); one that does not run
+# answers 502. WebSockets (/api/ws, ADR 0007) and the GitHub webhooks go
+# through reverse_proxy as they are.
+{
+	email {$ACME_EMAIL}
+}
+
+(crewdeck) {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	header -Server
+}
+
+{$CREWDECK_DOMAIN} {
+	import crewdeck
+	reverse_proxy crewdeck-prod-server:3000
+}
+
+staging.{$CREWDECK_DOMAIN} {
+	import crewdeck
+	reverse_proxy crewdeck-staging-server:3000
+}

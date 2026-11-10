@@ -4,6 +4,7 @@ import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
 import { startApp } from '../../test/route-baseline.js';
 import { parseEnv } from '../config/env.js';
+import { Public } from '../scope/public.decorator.js';
 import { REDACT_CENSOR, REDACT_PATHS } from './redact.js';
 
 const SECRETS = {
@@ -20,6 +21,7 @@ const SECRETS = {
 class SealedDto extends createZodDto(z.object({ ciphertext: z.string(), payload: z.string() })) {}
 
 @Controller('probe')
+@Public()
 class ProbeController {
   constructor(@InjectPinoLogger('Probe') private readonly logger: PinoLogger) {}
 
@@ -42,7 +44,7 @@ describe('the logs (SEC-7)', () => {
   const output = (): string => lines.join('');
 
   beforeAll(async () => {
-    const env = parseEnv({ DATABASE_URL: 'postgresql://crewdeck:crewdeck@127.0.0.1:1/crewdeck', NODE_ENV: 'production' });
+    const env = parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: 'postgresql://crewdeck:crewdeck@127.0.0.1:1/crewdeck', NODE_ENV: 'production' });
     ({ app, url } = await startApp(env, { imports: [ProbeModule], logs: { write: (line: string) => lines.push(line) } }));
   });
 

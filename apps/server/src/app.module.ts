@@ -2,13 +2,16 @@ import { type DynamicModule, Module, type ModuleMetadata } from '@nestjs/common'
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod';
-import type { Env } from './config/env.js';
+import { type Env, usesFakes } from './config/env.js';
 import { EnvModule } from './config/env.module.js';
+import { PublicConfigModule } from './config/public-config.controller.js';
 import { ErrorFilter } from './errors/error.filter.js';
+import { GitHubModule } from './github/github.module.js';
 import { HealthModule } from './health/health.module.js';
 import { type LogDestination, loggerParams } from './logging/logger.js';
 import { PrismaModule } from './prisma/prisma.module.js';
-import { TestingModule } from './testing/testing.module.js';
+import { ScopeModule } from './scope/scope.module.js';
+import { WebModule } from './web/web.module.js';
 
 export interface AppModuleOptions {
   logs?: LogDestination;
@@ -17,16 +20,36 @@ export interface AppModuleOptions {
 }
 
 /**
+ * The fakes and the scenarios, with `CREWDECK_FAKES=1` only: a dynamic
+ * `import()`, so that without it nothing of `src/testing/` is loaded (a test
+ * walks the static imports of `main.ts`).
+ */
+const fakes = (env: Env): Promise<DynamicModule>[] =>
+  usesFakes(env) ? [import('./testing/testing.module.js').then(({ TestingModule }) => TestingModule.forRoot())] : [];
+
+/**
  * The app, with the conventions of ADR 0008 applied to every route: each
  * input parsed by its DTO's schema (`createZodDto` of a contract), each output
- * by its `@ZodResponse` DTO, each error rendered as the envelope.
+ * by its `@ZodResponse` DTO, each error rendered as the envelope, each route
+ * but the `@Public()` ones run in the scope of its principal's Pilote.
  */
 @Module({})
 export class AppModule {
   static forRoot(env: Env, { logs, imports = [] }: AppModuleOptions = {}): DynamicModule {
     return {
       module: AppModule,
-      imports: [LoggerModule.forRoot(loggerParams(env, logs)), EnvModule.forRoot(env), PrismaModule, HealthModule, TestingModule.forEnvironment(env), ...imports],
+      imports: [
+        LoggerModule.forRoot(loggerParams(env, logs)),
+        EnvModule.forRoot(env),
+        PrismaModule,
+        ScopeModule,
+        HealthModule,
+        PublicConfigModule,
+        GitHubModule.forRoot(env),
+        ...fakes(env),
+        WebModule.forRoot(env),
+        ...imports,
+      ],
       providers: [
         { provide: APP_PIPE, useClass: ZodValidationPipe },
         { provide: APP_INTERCEPTOR, useClass: ZodSerializerInterceptor },

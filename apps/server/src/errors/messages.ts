@@ -4,6 +4,12 @@
  * `<module>.<case>` and every code thrown in `src/` has its entry.
  */
 export const MESSAGES = {
+  'auth.required': 'Connecte-toi pour continuer.',
+  'fake-github.not-found': 'Ce fichier n’existe pas sur le faux GitHub.',
+  'github.branch-protected': 'Une protection de branche refuse cette écriture.',
+  'github.head-moved': 'La PR a changé depuis la dernière vérification.',
+  'github.process-json-invalid': 'Le fichier .process.json du dépôt n’est pas du JSON valide.',
+  'github.unavailable': 'GitHub ne répond pas, réessaie dans un instant.',
   'http.bad-request': 'La requête n’est pas valide.',
   'http.not-found': 'Cette adresse n’existe pas.',
   'server.internal': 'Une erreur inattendue est survenue.',

@@ -1,0 +1,26 @@
+[Unit]
+Description=Sauvegarde restic de la base de production de Crewdeck
+Documentation=https://github.com/MaximeD1412/Crewdeck/blob/develop/infra/backup/README.md
+# The dump is read from production's PostgreSQL container.
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/crewdeck/backup/bin/backup.sh
+# The secrets are read by the script from /opt/crewdeck/backup/restic.env,
+# never set here: an Environment= shows in `systemctl show`.
+User=root
+Group=root
+# restic's cache, kept between nights (/var/cache/crewdeck-backup).
+CacheDirectory=crewdeck-backup
+Environment=RESTIC_CACHE_DIR=/var/cache/crewdeck-backup
+# A backup that hangs hides the problem: past two hours, it fails, and
+# backup-watch sees the missing night.
+TimeoutStartSec=2h
+# Background work: never slows production down.
+Nice=10
+IOSchedulingClass=idle
+PrivateTmp=yes
+NoNewPrivileges=yes

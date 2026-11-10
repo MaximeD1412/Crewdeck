@@ -1,0 +1,63 @@
+# One environment of Crewdeck on the VPS (ADR 0009, « Hosting »): its server
+# and its PostgreSQL 18. The same file runs both Compose projects; the project
+# name, the env file and, for staging, docker-compose.staging.yml make the
+# difference:
+#
+#   docker compose -p crewdeck-staging --env-file /opt/crewdeck/staging/.env \
+#     -f docker-compose.yml -f docker-compose.staging.yml up -d
+#
+# Nothing is published on the host: Caddy (infra/edge) reaches the server on
+# the network `crewdeck-edge` as `<project>-server`, and the database is on the
+# project's own network only. No `container_name`: the project name prefixes
+# every container, so the two projects never collide.
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crewdeck
+      POSTGRES_DB: crewdeck
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant dans le .env de l'environnement}
+    volumes:
+      # PostgreSQL 18 keeps its data in a versioned directory under this one.
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crewdeck -d crewdeck"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  server:
+    # CREWDECK_SHA is written in the env file by the deploy (INFRA-6).
+    image: ghcr.io/maximed1412/crewdeck-server:${CREWDECK_SHA:?CREWDECK_SHA manquant dans le .env de l'environnement}
+    restart: unless-stopped
+    # Forwards SIGTERM to Node and reaps its children.
+    init: true
+    # The same file as --env-file: Compose reads it for the variables above,
+    # the server reads it for its own (apps/server/src/config/env.ts).
+    env_file:
+      - path: ${CREWDECK_ENV_FILE:?CREWDECK_ENV_FILE manquant dans le .env de l'environnement}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Production only (INFRA-8): the directory where the nightly backup
+      # writes last-success, read by /api/health (BACKUP_STATUS_FILE). The
+      # directory, not the file: the backup renames a new file into place.
+      # Staging leaves BACKUP_STATUS_DIR unset and mounts /dev/null there,
+      # which it never reads.
+      - ${BACKUP_STATUS_DIR:-/dev/null}:/run/backup:ro
+    networks:
+      default: {}
+      edge:
+        aliases:
+          - ${COMPOSE_PROJECT_NAME}-server
+
+volumes:
+  db-data:
+
+networks:
+  # Created once by the provisioning (INFRA-7), shared with Caddy.
+  edge:
+    external: true
+    name: crewdeck-edge

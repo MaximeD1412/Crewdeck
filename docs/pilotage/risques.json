@@ -39,7 +39,7 @@
         {
           "texte": "Portée du Pilote ouverte par requête, extension Prisma qui refuse une requête hors portée",
           "ref": "ADR 0008",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Un test 404 entre Pilotes sur chaque route, un test qui parcourt les modèles Prisma",
@@ -450,7 +450,7 @@
         {
           "texte": "Sauvegarde restic chaque nuit chez un autre fournisseur",
           "ref": "ADR 0009",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Mot de passe restic aussi dans le gestionnaire du fondateur ; restauration mensuelle depuis une autre machine",
@@ -460,7 +460,7 @@
         {
           "texte": "Chaque déploiement répète sa migration sur la dernière sauvegarde restaurée",
           "ref": "ADR 0009",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [
@@ -532,13 +532,13 @@
       "categorie": "ops",
       "gravite": "faible",
       "titre": "Minutes GitHub Actions dépassées",
-      "statut": "solution choisie",
+      "statut": "implémenté",
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
           "texte": "CI affected, PR en brouillon ignorées, garde quotidienne à 80 %",
           "ref": "ADR 0009",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [
@@ -702,9 +702,14 @@
           "fait": false
         },
         {
-          "texte": "Staging à chaque merge, nightly complète corrigée en premier",
+          "texte": "Staging à chaque merge : image publiée, déployée par une clé bridée, retour arrière si la santé échoue ; la prod ne promeut que l'image passée par le staging",
           "ref": "ADR 0009",
-          "fait": false
+          "fait": true
+        },
+        {
+          "texte": "Nightly complète corrigée en premier",
+          "ref": "ADR 0009",
+          "fait": true
         }
       ],
       "tickets": [

@@ -15,6 +15,8 @@ on:
       - apps/server/bin/**
       - apps/server/package.json
       - infra/**
+      # The provisioning has its own workflow (provision.yml).
+      - '!infra/provision/**'
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
       - .dockerignore

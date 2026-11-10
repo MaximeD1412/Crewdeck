@@ -81,8 +81,12 @@ run creates its own database and drops it.
 
 ```bash
 pnpm db:up
-pnpm exec nx affected -t test-integration --base=origin/develop
+pnpm exec nx affected -t test-integration --base=origin/develop --exclude provision
 ```
+
+`provision` is left out: its integration specs install Docker in a
+throwaway machine, and the workflow `provision` runs them when the
+provisioning changes.
 
 Locally, run only the files you touched
 (`pnpm exec nx test-integration server -- ideas`): AGENTS.md « Checking ».
@@ -104,8 +108,8 @@ pnpm exec nx e2e web -- a-toi.spec.ts
 `.github/workflows/image.yml`, apart from `ci.yml`: a PR to `develop` or
 `main` that changes what goes into the server's image or how the VPS runs it
 (`apps/server/Dockerfile`, `apps/server/bin/`, `apps/server/package.json`,
-`infra/`, the lockfile and workspace, `.dockerignore`, `.mise.toml`, the
-workflow itself). A PR that changes only code (`apps/web/src`, …) does not
+`infra/` but `infra/provision/`, the lockfile and workspace,
+`.dockerignore`, `.mise.toml`, the workflow itself). A PR that changes only code (`apps/web/src`, …) does not
 run it: `ci.yml`'s `build` covers the code. Skipped for drafts like `ci.yml`.
 Not a required check: a workflow filtered by paths does not report on every
 PR. One job, `image`, 30 minutes, nothing pushed (publishing is `delivery`'s):
@@ -149,6 +153,30 @@ pnpm exec nx test deploy
 actionlint .github/workflows/delivery.yml
 ```
 
+## The workflow `provision`
+
+`.github/workflows/provision.yml`, apart from `ci.yml`: a PR to `develop` or
+`main`, or a push to `develop`, that changes `infra/provision/` or the
+workflow itself (`infra/provision/src/workflow.spec.ts` checks the filter).
+Skipped for drafts like `ci.yml`. Not a required check, for the same reason
+as `image`. One job, `provision`, 30 minutes, on `ubuntu-24.04`:
+
+1. `shellcheck infra/provision/provision.sh`;
+2. `nx test-integration provision`: `infra/provision/test/Dockerfile`
+   (Ubuntu 24.04 with systemd) run as a privileged container, the script run
+   in it twice; the second run must print « rien à changer » and leave `/etc`
+   and the services as they were. A network namespace inside the machine
+   plays the Internet for SSH, fail2ban and the published ports; an Ubuntu
+   22.04 container checks the refusal.
+
+```bash
+shellcheck infra/provision/provision.sh
+pnpm exec nx test-integration provision   # PROVISION_KEEP=1 keeps the machine
+```
+
+[`infra/provision/README.md`](../infra/provision/README.md) says how to run
+the script on the VPS.
+
 ## The files
 
 | File | What |
@@ -156,6 +184,7 @@ actionlint .github/workflows/delivery.yml
 | `.github/workflows/ci.yml` | the events, the scope, the concurrency, the check `ci` |
 | `.github/workflows/image.yml` | the server's image and the VPS's Compose and Caddy files, on the PRs that change them |
 | `.github/workflows/delivery.yml` | the image published and deployed on staging, then promoted to production |
+| `.github/workflows/provision.yml` | the VPS's provisioning, twice on a throwaway machine, on the PRs and pushes that change it |
 | `.github/workflows/verify.yml` | the jobs, `on: workflow_call` with `scope` (`affected` \| `full`) and `base` (`origin/develop`) |
 | `.github/actions/setup/` | mise, the caches, the dependencies, `nx-set-shas` |
 | `.github/actions/browsers/` | Chromium, only when a project in scope uses Playwright |

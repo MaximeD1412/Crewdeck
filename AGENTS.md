@@ -156,7 +156,8 @@ A ticket's PR updates:
 Several sessions work on this repository at once; the main checkout is
 never edited.
 
-- Work in a worktree (`../Crewdeck-<branch>`), prepared by
-  `scripts/worktree.sh setup`, cleaned by `scripts/worktree.sh drop` before
-  `git worktree remove`.
+- Work in a worktree (`../Crewdeck-<branch>`): `scripts/worktree.sh setup`
+  in it after `git worktree add` (the `.env*` of the main checkout, the
+  toolchain, the dependencies, the shared PostgreSQL), `scripts/worktree.sh
+  drop` before `git worktree remove`.
 - Commit with explicit paths, never `git add -A` nor `git commit -a`.

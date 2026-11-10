@@ -135,13 +135,15 @@ const messageOf = (failure: GitHubFailure): string => {
 const HEAD_MOVED = /head branch was modified/i;
 const PROTECTED = /protected branch|branch protection|rule violations|must be made through a pull request|required status check|approving review/i;
 
-const isNotFound = (error: unknown): boolean => isFailure(error) && error.status === 404;
-
 const INSTALLATION_TOKEN_ROUTE = /\/app\/installations\/\d+\/access_tokens$/;
 
 /** A failure that says the installation is gone: its token refused (401), or no token for it (404). Nothing was done. */
 const isStaleInstallation = (error: unknown): boolean =>
   isFailure(error) && (error.status === 401 || (error.status === 404 && INSTALLATION_TOKEN_ROUTE.test(error.request?.url ?? '')));
+
+/** A resource GitHub does not have: never the 404 of an installation's token, which says the installation is gone. */
+const isNotFound = (error: unknown): boolean =>
+  isFailure(error) && error.status === 404 && !INSTALLATION_TOKEN_ROUTE.test(error.request?.url ?? '');
 
 /**
  * The `GitHubClient` on GitHub's REST API, as the App (ADR 0002): a JWT for

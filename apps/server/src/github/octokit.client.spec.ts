@@ -261,6 +261,56 @@ describe('OctokitGitHubClient', () => {
       await expect(client.listLabels(repo)).rejects.toMatchObject({ code: 'github.unavailable' });
       expect(state.lookups).toBe(2);
     }, PAST_THE_RETRIES);
+
+    // The calls that read a 404 as « absent »: the 404 of an installation's token is never one.
+    it.each([
+      [
+        'getBranch',
+        http.get(`${API}/repos/o/r/branches/main`, () => HttpResponse.json({ name: 'main', commit: { sha: SHA }, protected: false })),
+        (client: OctokitGitHubClient) => client.getBranch(repo, 'main'),
+        { name: 'main', sha: SHA, protected: false },
+      ],
+      [
+        'getPullRequest',
+        http.get(`${API}/repos/o/r/pulls/3`, () => HttpResponse.json(prPayload)),
+        (client: OctokitGitHubClient) => client.getPullRequest(repo, 3),
+        expect.objectContaining({ number: 3, headSha: SHA }),
+      ],
+      [
+        'readProcessJson',
+        http.get(`${API}/repos/o/r/contents/.process.json`, () =>
+          HttpResponse.json({ type: 'file', encoding: 'base64', content: Buffer.from('{"version":1}').toString('base64') }),
+        ),
+        (client: OctokitGitHubClient) => client.readProcessJson(repo, 'main'),
+        { version: 1 },
+      ],
+      [
+        'removeLabel',
+        http.delete(`${API}/repos/o/r/issues/3/labels/needs-human`, () => HttpResponse.json([])),
+        (client: OctokitGitHubClient) => client.removeLabel(repo, 3, 'needs-human'),
+        undefined,
+      ],
+    ] as const)('%s looks the installation up again when its token is a 404, not « absent »', async (_, resource, call, expected) => {
+      // The App reinstalled with no token of 42 in the cache: GitHub moved `o/r` to 43, and has no token for 42 anymore.
+      let lookups = 0;
+      server.use(
+        http.get(`${API}/repos/o/r/installation`, () => {
+          lookups += 1;
+          return HttpResponse.json({ id: lookups === 1 ? 42 : 43 });
+        }),
+        http.post(`${API}/app/installations/:id/access_tokens`, ({ params }) =>
+          params.id === '43'
+            ? HttpResponse.json({ token: 'ghs_43', expires_at: new Date(Date.now() + 3_600_000).toISOString(), permissions: {}, repository_selection: 'all' }, { status: 201 })
+            : HttpResponse.json({ message: 'Not Found' }, { status: 404 }),
+        ),
+        resource,
+      );
+      const client = new OctokitGitHubClient(env, logger());
+      await expect(client.listLabels(repo)).rejects.toMatchObject({ code: 'github.unavailable' });
+
+      await expect(call(client)).resolves.toEqual(expected);
+      expect(lookups).toBe(2);
+    });
   });
 
   describe('any other failure', () => {

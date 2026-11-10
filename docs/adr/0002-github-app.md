@@ -35,22 +35,41 @@ Agents push branches and open PRs from the Pilote's machine.
   `X-Hub-Signature-256` checked in constant time, `X-GitHub-Delivery`
   deduplicated). The server is always up: no relay. A reconciliation reads
   each followed repository every 15 min and after the server starts.
-- **The server acts with installation tokens**: labels, branches, merges
-  (squash), the Process's files.
+- **The server acts with installation tokens** on metadata only: labels,
+  branches, merges (squash), and `.process.json`, which it generates from
+  the **Paramètres**. It never sends content to GitHub, as it never reads
+  it: everything an agent writes (documents, the **Inventaire**, issues'
+  bodies, code) is pushed by the Runner.
+- **Every gate is bound to a commit.** A Review verdict, a Contrat verdict,
+  the checks, the captures of a visual review and the approval of a
+  document each record the PR's head SHA they judged. The server merges with
+  that SHA (`sha` of the merge API, which GitHub refuses when the head
+  moved); a push after a verdict voids it, and the Ticket or the document
+  goes back to its review.
 - **The Runner gets a token per Session**: an installation token restricted
-  to the **Projet**'s repository and to contents, pull requests and
-  workflows, valid 1 h, renewed by the Runner while the Session lives. Git
+  to the **Projet**'s repository and to contents, issues, pull requests and
+  workflows (read and write), valid 1 h, renewed by the Runner while the
+  Session lives. Issues because the agents read their Ticket and create the
+  Tickets of a split (US-12) or of an Idée (US-56): content the server must
+  not carry. Git
   pushes with it (`x-access-token`), PRs are opened by `crewdeck[bot]`. No
   `gh` sign-in is needed on the machine. The Review agent posts a review of
   kind `COMMENT` (a bot cannot approve its own PR): the verdict that lets the
   Boucle merge is Crewdeck's, not a GitHub approval.
 - **What the product writes in a repository** (US-4's « Corriger », US-68's
-  approved inventory): labels and branches through the API; files
-  (`.process.json`, `CONTEXT.md`, the « choix techniques ») as one commit by
-  the App on the integration branch, message `chore(crewdeck) : <what>`.
-  When a branch protection refuses it, the same change goes as a PR and the
-  Décision says so. The Pilote approved it in Crewdeck already: a PR to merge
-  would be a second approval.
+  approved **Inventaire**), straight to the integration branch, never as a
+  PR to merge (the Pilote approved it in Crewdeck already):
+  - labels and branches through the API, by the server;
+  - `.process.json` as one commit by the server, message `chore(crewdeck) :
+    <what>`;
+  - the **Inventaire** (`CONTEXT.md`, the « choix techniques », the list of
+    what exists): drafted by the Runner's Session on the branch
+    `crewdeck/inventaire`, read by the browser from GitHub; approving it
+    merges that branch into the integration branch through the merges API
+    (one merge commit by the server, which never sees the files), bound to
+    the SHA the Pilote read.
+  When a branch protection refuses a write, the same change goes as a PR
+  and the Décision says so.
 - **Approving a document of a Conception** (PRD, mockups, technical design,
   Tickets) is merging its design PR, after the product's confirmation
   (US-26): one gesture, and the repository stays the source of truth for the

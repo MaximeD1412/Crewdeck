@@ -110,12 +110,12 @@
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
-          "texte": "Code de liaison en deux moitiés, la seconde jamais envoyée ; preuve HMAC sur les deux clés",
+          "texte": "Code de liaison avec un secret de 128 bits jamais envoyé au serveur, copié et non saisi ; preuve HMAC sur les deux clés",
           "ref": "ADR 0003",
           "fait": false
         },
         {
-          "texte": "Nouvel Appareil approuvé depuis un Appareil de confiance avec la même preuve",
+          "texte": "Nouvel Appareil approuvé par un QR code portant son propre secret de 128 bits, depuis un Appareil de confiance",
           "ref": "ADR 0003",
           "fait": false
         }
@@ -157,7 +157,7 @@
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
-          "texte": "Jeton d'installation limité à un dépôt et à trois permissions, valable 1 h",
+          "texte": "Jeton d'installation limité à un dépôt et à quatre permissions, valable 1 h",
           "ref": "ADR 0002",
           "fait": false
         }
@@ -318,6 +318,11 @@
           "texte": "Contrat du Code (critères prouvés par des tests), checks verts, staging à chaque merge, nightly complète",
           "ref": "ADR 0005, ADR 0009",
           "fait": false
+        },
+        {
+          "texte": "Chaque verdict lié au SHA jugé ; merge refusé si la tête de la PR a bougé",
+          "ref": "ADR 0002",
+          "fait": false
         }
       ],
       "tickets": []
@@ -369,6 +374,11 @@
       "solutions": [
         {
           "texte": "Sauvegarde restic chaque nuit chez un autre fournisseur",
+          "ref": "ADR 0009",
+          "fait": false
+        },
+        {
+          "texte": "Mot de passe restic aussi dans le gestionnaire du fondateur ; restauration mensuelle depuis une autre machine",
           "ref": "ADR 0009",
           "fait": false
         },

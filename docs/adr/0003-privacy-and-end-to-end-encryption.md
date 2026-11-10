@@ -52,19 +52,21 @@ readable by the server to orchestrate.
   in `packages/contracts/fixtures/crypto/` prove both sides agree. No
   third-party crypto library.
 - **The first Appareil** is the browser that shows the install command
-  (US-2). Its link code (`7KQ4-M2PX`, Crockford base32) is two halves: the
-  first identifies the link for the server; the second is a secret the
-  browser drew and never sends. Runner and browser exchange their public
-  keys through the server and each proves it knows the secret with an
-  HMAC-SHA256 over both keys: a server that swapped a key cannot forge it.
-  A code is valid 10 min and burns at the first proof, right or wrong (one
-  guess of 20 bits). The browser then creates the vault key and wraps it for
-  the Runner.
-- **A new Appareil** (the phone) shows a code of the same shape (or a QR);
-  the Pilote types it on an Appareil already trusted, the same proof runs,
-  and the trusted Appareil wraps the vault key for the new one. Without any
-  trusted Appareil: `crewdeck-runner appareils approuver <code>` on the
-  Runner.
+  (US-2). The link code in the command has two parts: a short id the server
+  knows (`7KQ4`), and a 128-bit secret (26 Crockford base32 characters) the
+  browser drew and never sends; the command is copied, never typed. Runner
+  and browser exchange their public keys through the server and each proves
+  it knows the secret with an HMAC-SHA256 over both keys. The server sees
+  the proofs but cannot test 2^128 secrets offline, so it cannot forge a
+  proof for a swapped key. A code is valid 10 min and works once. The
+  browser then creates the vault key and wraps it for the Runner.
+- **A new Appareil** (the phone) shows a QR code carrying its own 128-bit
+  secret, scanned by an Appareil already trusted (or its text copied into
+  it); the same proof runs, and the trusted Appareil wraps the vault key for
+  the new one. Without any trusted Appareil: `crewdeck-runner appareils
+  approuver <code>`, the code pasted from the new Appareil. No short code is
+  ever typed: a secret short enough to type could be ground offline by the
+  server from the proofs it relays.
 - **Revoking an Appareil** (Paramètres) rotates the vault key: the next
   Appareil or Runner online rewraps the item keys under the new one; the
   server stops serving ciphertext to the revoked one at once.

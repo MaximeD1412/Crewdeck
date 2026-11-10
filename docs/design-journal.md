@@ -65,3 +65,11 @@ personal-os for the infra and the operational parts of AGENTS.md
 - Go is not installed on the founder's machine yet: `.mise.toml`
   (walking-skeleton ticket) installs it; `worktree.sh setup` runs
   `mise install`.
+- The cross-review (7 remarks, all fixed) found what the rounds missed:
+  a 20-bit pairing secret the server could grind offline, the Runner's
+  token without Issues, the server writing content files, verdicts not
+  bound to a SHA, the backup key living only on the VPS, the release SHA
+  differing from staging's. **To generalise**: technical-design checks,
+  before committing, every content path (who reads and who writes each
+  file) against the privacy ADR, every gate against a commit SHA, and every
+  secret against « where is its second copy ».

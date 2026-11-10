@@ -26,9 +26,12 @@ the Bêta: it shares no machine with the founder's personal data.
   fail2ban, ufw 22/80/443, a `DOCKER-USER` chain, unattended upgrades,
   Docker CE. Tested in CI on throwaway containers twice (idempotence), when
   `infra/provision/` changes.
-- **Backups**: restic, nightly, to another provider; the key never leaves
-  the VPS; the deploy rehearses each migration on the latest backup restored
-  into a throwaway container before migrating.
+- **Backups**: restic, nightly, to another provider. The repository's
+  password and credentials are on the VPS and in the founder's password
+  manager (ticket `externe`), never in GitHub: losing the VPS does not lose
+  the backups. A monthly check restores the latest backup from a machine
+  other than the VPS. The deploy rehearses each migration on the latest
+  backup restored into a throwaway container before migrating.
 - **Secrets**: `.env.example` templates committed, values never; GitHub
   environments `staging` (readable from `develop` only) and `production`
   (from `main` only).
@@ -39,10 +42,13 @@ the Bêta: it shares no machine with the founder's personal data.
   and the Runner binaries of the same commit inside
   ([ADR 0004](0004-the-runner.md)).
 - **Staging** is deployed on every push to `develop`; **production** on
-  every push to `main` (the `develop` → `main` PR is opened by hand; the
-  release stays in the founder's console until the Lancement, PRD).
-  Production promotes the image already built for that commit, never
-  rebuilds.
+  every push to `main` (the `develop` → `main` PR is opened by hand and
+  merged with a merge commit; the release stays in the founder's console
+  until the Lancement, PRD). Production promotes the image already built
+  and deployed on staging for the merge's second parent (`HEAD^2`, the
+  `develop` commit), after checking that `main`'s tree is that commit's tree
+  (nothing else entered `main`); it never rebuilds. A tree that differs
+  fails the workflow.
 - **Pushed CD through a restricted key** (personal-os's ADR 0032): a
   `deploy` user without a shell, one key per environment with
   `command="/opt/crewdeck/deploy/bin/deploy-trigger <env>",restrict`,

@@ -49,7 +49,7 @@ screens`).
 | Maquettes | `design/DESIGN.md`, `design/screens.json`, the captures | `screens.json` valid; every screen and state has its capture at 390 and 1280 px; every story cited exists in the PRD |
 | Conception technique | `AGENTS.md`, `docs/adr/`, `CONTEXT.md`, `docs/pilotage/risques.json` | AGENTS.md's sections; every ADR has its status line; `risques.json` valid; every glossary term has its code identifier |
 | Découpage en Tickets | `backlog/` files, then the issues | the ticket template's front matter; every story cited exists; every `MVP` story has a ticket (`attention`); no cycle in `blocked-by`; acceptance criteria present (the rules of `plan-backlog`'s `check-backlog.mjs`) |
-| Code | The Ticket's PR | branch `feat/<n>-<slug>` to the integration branch; « Closes #n »; the criterion-to-test table; for a Ticket with a visual review, its captures at 390 and 1280 px linked |
+| Code | The Ticket's PR | branch `(feat\|fix\|chore)/<n>-<slug>` to the integration branch; « Closes #n »; the criterion-to-test table; for a Ticket with a visual review, its captures at 390 and 1280 px linked |
 | Review | A PR review of kind `COMMENT` | a verdict `ok` or `changements`; each remark has a file and line or says it is general |
 | Revue croisée | The remarks and their answers | every remark answered, fixed or « non retenue » with a reason |
 

@@ -1,0 +1,58 @@
+name: CI
+
+# PRs to `develop` and `main`, pushes to `develop` (ADR 0009, « CI »). The
+# Boucle opens its PRs as drafts and marks them ready after its review: a
+# draft runs nothing, and `ready_for_review` runs the checks on the head SHA,
+# where the Boucle reads them (BOUCLE-4). docs/ci.md says what runs and how
+# to reproduce it locally.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [develop, main]
+  push:
+    branches: [develop]
+
+# A PR pushed again cancels its previous run. A push to `develop` does not:
+# each merge is checked, and nx-set-shas compares the next push with the last
+# successful one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# The most any job of verify.yml gets; each job narrows it.
+permissions:
+  contents: read
+  # nx-set-shas looks up the last successful run of this workflow on a push.
+  actions: read
+  # gitleaks lists the PR's commits through the API (private repository).
+  pull-requests: read
+
+jobs:
+  gate:
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
+    uses: ./.github/workflows/verify.yml
+    # A PR to `develop` runs what its diff reaches, the nightly runs the rest.
+    # A PR to `main` runs everything: the release does not find the failure
+    # the merge let through.
+    with:
+      scope: ${{ github.base_ref == 'main' && 'full' || 'affected' }}
+
+  # The one required status check of `develop` and `main`: branch protection
+  # names this job whatever verify.yml becomes. Skipped with `gate` on a
+  # draft, so a draft reports nothing.
+  ci:
+    name: ci
+    needs: gate
+    if: always() && (github.event_name == 'push' || github.event.pull_request.draft == false)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require every job of verify.yml
+        env:
+          RESULT: ${{ needs.gate.result }}
+        run: |
+          if [ "$RESULT" != success ]; then
+            echo "::error::La vérification a échoué ou a été annulée (gate : $RESULT)."
+            exit 1
+          fi

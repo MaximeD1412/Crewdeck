@@ -14,8 +14,11 @@
     "@nestjs/common": "catalog:",
     "@nestjs/core": "catalog:",
     "@nestjs/platform-express": "catalog:",
+    "@nestjs/platform-ws": "catalog:",
+    "@nestjs/schedule": "catalog:",
     "@nestjs/serve-static": "catalog:",
     "@nestjs/swagger": "catalog:",
+    "@nestjs/websockets": "catalog:",
     "@octokit/auth-app": "catalog:",
     "@octokit/core": "catalog:",
     "@octokit/plugin-retry": "catalog:",
@@ -33,6 +36,7 @@
     "rxjs": "catalog:",
     "tslib": "catalog:",
     "uuid": "catalog:",
+    "ws": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -40,6 +44,7 @@
     "@prisma/get-dmmf": "catalog:",
     "@swc/core": "catalog:",
     "@types/pg": "catalog:",
+    "@types/ws": "catalog:",
     "msw": "catalog:",
     "unplugin-swc": "catalog:"
   }

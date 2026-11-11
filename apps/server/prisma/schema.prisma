@@ -12,7 +12,8 @@ datasource db {
 }
 
 /// A Pilote (CONTEXT.md): global, the scope's own key (ADR 0008), created by
-/// their first sign-in with GitHub (CORE-4); CORE-5 uses `seq`. Ids are
+/// their first sign-in with GitHub (CORE-4). `seq` is the number of its last
+/// event (CORE-5). Ids are
 /// UUIDv7, generated in code (`src/ids.ts`).
 model Pilot {
   id           String           @id @db.Uuid
@@ -24,6 +25,7 @@ model Pilot {
   createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz
   githubToken  GithubUserToken?
   webSessions  WebSession[]
+  events       Event[]
 
   @@map("pilots")
 }
@@ -58,4 +60,25 @@ model WebSession {
 
   @@index([pilotId])
   @@map("web_sessions")
+}
+
+/// What changed in the Process of a Pilote (ADR 0007), written by
+/// `EventsWriter` in the transaction of the change, numbered by the Pilote's
+/// `seq`: the tables are the truth, an event only tells the page what changed.
+/// Kept 7 days (`src/realtime/retention.job.ts`).
+model Event {
+  pilotId  String    @map("pilot_id") @db.Uuid
+  seq      BigInt
+  /// `<resource>.upserted` or `<resource>.removed` (`zEventType`).
+  type     String
+  /// The resource as the API returns it, or `{ id }` for a removal.
+  payload  Json
+  at       DateTime  @default(now()) @db.Timestamptz
+  /// When its source saw the change (a webhook's delivery, a Runner's report).
+  sourceAt DateTime? @map("source_at") @db.Timestamptz
+  pilot    Pilot     @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@id([pilotId, seq])
+  @@index([at])
+  @@map("events")
 }

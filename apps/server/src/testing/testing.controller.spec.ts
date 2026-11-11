@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import { zScenarioRun } from '@crewdeck/contracts';
 import { Test } from '@nestjs/testing';
-import { applyGlobalPrefix } from '../app.js';
+import { mountApi } from '../app.js';
 import { AppModule } from '../app.module.js';
 import { type Env, parseEnv } from '../config/env.js';
 import { FAKES, type Fakes } from './fakes.js';
@@ -36,7 +36,7 @@ const boot = async (nodeEnv: Env['NODE_ENV'], database = fakeDatabase([]), fakes
     .useValue(database.prisma)
     .compile();
   const app = moduleRef.createNestApplication({ logger: false });
-  applyGlobalPrefix(app);
+  mountApi(app);
   await app.listen(0, '127.0.0.1');
   return app;
 };

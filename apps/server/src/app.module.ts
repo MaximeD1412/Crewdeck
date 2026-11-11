@@ -12,6 +12,7 @@ import { HealthModule } from './health/health.module.js';
 import { type LogDestination, loggerParams } from './logging/logger.js';
 import { PilotsModule } from './pilots/me.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { RealtimeModule } from './realtime/realtime.module.js';
 import { ScopeModule } from './scope/scope.module.js';
 import { WebModule } from './web/web.module.js';
 
@@ -45,6 +46,7 @@ export class AppModule {
         EnvModule.forRoot(env),
         PrismaModule,
         ScopeModule,
+        RealtimeModule,
         HealthModule,
         PublicConfigModule,
         GitHubModule.forRoot(env),

@@ -20,7 +20,8 @@
     "@fontsource/ibm-plex-mono": "catalog:",
     "@fontsource/ibm-plex-sans": "catalog:",
     "@fontsource/ibm-plex-sans-condensed": "catalog:",
-    "lit": "catalog:"
+    "lit": "catalog:",
+    "markdown-it": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

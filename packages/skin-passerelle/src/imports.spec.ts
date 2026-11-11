@@ -11,16 +11,17 @@ const lint = async (code: string): Promise<string[]> => {
 };
 
 describe('the imports of the default Skin', () => {
-  it('may be @crewdeck/sdk, lit and its own files', async () => {
+  it('may be @crewdeck/sdk, lit, markdown-it and its own files', async () => {
     const messages = await lint(
       [
         "import { version } from '@crewdeck/sdk';",
         "import { LitElement } from 'lit';",
         "import { customElement } from 'lit/decorators.js';",
         "import '@fontsource/ibm-plex-sans/400.css';",
+        "import MarkdownIt from 'markdown-it';",
         "import './index.js';",
         "import '../src/index.js';",
-        'export const used = [version, LitElement, customElement];',
+        'export const used = [version, LitElement, customElement, MarkdownIt];',
       ].join('\n'),
     );
     expect(messages).toEqual([]);

@@ -11,7 +11,8 @@ import { actionsOf, defineSkin, inside, render, settle, textOf } from './testing
 beforeAll(defineSkin);
 
 /** How each declared action is set off from the first example: a test fails for an action without one. */
-const TRIGGERS: Readonly<Record<string, (el: Element) => void>> = {
+const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unknown>> = {
+  'Dialog.close': (el) => inside(el, 'cd-icon-button', 'button').click(),
   'Cadre.openPilot': (el) => inside(el, 'button.pilot').click(),
   'ProjectFilter.select': (el) => inside(el, 'cd-chip:nth-of-type(2)', 'button').click(),
   'Tabs.select': (el) => inside(el, 'button[role=tab]:nth-of-type(2)').click(),
@@ -19,6 +20,31 @@ const TRIGGERS: Readonly<Record<string, (el: Element) => void>> = {
   'IdeaRow.open': (el) => inside(el, '.open').click(),
   'AgentRow.open': (el) => inside(el, 'button').click(),
   'PageComposants.select': (el) => inside(el, 'nav cd-list-row:not(:has(cd-status-badge))', 'a').click(),
+  'Session.stop': (el) => inside(el, 'cd-button.stop', 'button').click(),
+  'Session.resume': async (el) => {
+    el.data = { ...(el.data as object), state: 'stopped' };
+    await settle(el);
+    inside(el, 'cd-button.resume', 'button').click();
+  },
+  'Session.close': (el) => inside(el, 'cd-icon-button.close', 'button').click(),
+  'Session.expand': (el) => inside(el, 'cd-icon-button.expand', 'button').click(),
+  'Question.answer': (el) => inside(el, 'cd-button.answer', 'button').click(),
+  'PermissionRequest.allow': (el) => inside(el, 'cd-button.allow', 'button').click(),
+  'PermissionRequest.allowForSession': (el) => inside(el, 'cd-button.allow-for-session', 'button').click(),
+  'PermissionRequest.deny': (el) => inside(el, 'cd-button.deny', 'button').click(),
+  'Composer.send': async (el) => {
+    const field = inside<HTMLTextAreaElement>(el, 'textarea');
+    field.value = 'Pense aux événements récurrents.';
+    field.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    await settle(el);
+    inside(el, 'button.send').click();
+  },
+  'Composer.dictate': (el) => inside(el, 'button.mic').click(),
+  'Composer.stopDictation': async (el) => {
+    el.data = { ...(el.data as object), state: 'dictating' };
+    await settle(el);
+    inside(el, 'button.mic').click();
+  },
   'PageConnexion.signIn': (el) => inside(el, 'cd-button', 'button').click(),
 };
 
@@ -51,7 +77,7 @@ describe('the Passerelle Skin', () => {
           expect(trigger, `no trigger for ${declaration.name}.${action}`).toBeDefined();
           const [example] = declaration.examples;
           const el = await render(declaration, example?.data, example?.slots as Record<string, string> | undefined);
-          const details = await actionsOf(() => trigger?.(el));
+          const details = await actionsOf(() => trigger?.(el as Element & { data: unknown }));
           expect(details).toHaveLength(1);
           const detail = zCdActionDetail.parse(details[0]);
           expect(detail).toMatchObject({ composant: declaration.name, action });

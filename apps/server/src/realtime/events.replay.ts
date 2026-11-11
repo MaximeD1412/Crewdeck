@@ -2,7 +2,7 @@ import type { Event } from '@crewdeck/contracts';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { runInPilotScope } from '../scope/scope.context.js';
-import { toEvent } from './events.writer.js';
+import { EVENT_VIEW, toEvent } from './events.writer.js';
 
 /** What a socket's `hello` replays, read from the `events` the server still keeps. */
 @Injectable()
@@ -27,7 +27,7 @@ export class EventsReplay {
           const rows = await tx.event.findMany({
             where: { seq: { gt: BigInt(lastSeq) } },
             orderBy: { seq: 'asc' },
-            select: { seq: true, type: true, payload: true, at: true, sourceAt: true },
+            select: EVENT_VIEW,
           });
           // Contiguous from lastSeq + 1 to the Pilote's seq: a seq is never skipped, the retention deletes the oldest.
           if (rows.length !== current - lastSeq) return null;

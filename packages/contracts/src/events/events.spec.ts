@@ -44,6 +44,11 @@ describe('zEvent', () => {
     expect(zEvent.parse({ ...event, sourceAt: AT })).toMatchObject({ sourceAt: AT });
   });
 
+  it('accepts the source of the change, one of four', () => {
+    for (const source of ['github', 'runner', 'pilot', 'scheduler']) expect(zEvent.parse({ ...event, sourceAt: AT, source })).toMatchObject({ source });
+    expect(zEvent.safeParse({ ...event, source: 'webhook' }).success).toBe(false);
+  });
+
   it('rejects a payload that does not match its type, an unregistered type, a negative seq', () => {
     expect(zEvent.safeParse({ ...event, payload: { id: PILOT.id } }).success).toBe(false);
     expect(zEvent.safeParse({ ...event, type: 'usage.upserted' }).success).toBe(false);

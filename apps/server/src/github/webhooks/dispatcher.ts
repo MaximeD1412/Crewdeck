@@ -20,7 +20,7 @@ export interface GitHubEvent<PilotId extends string | null = string> {
   /** The payload's `action` (`opened`, `created`…), when it has one. */
   readonly action: string | undefined;
   readonly payload: WebhookPayload;
-  /** When the server received it: `EventsWriter.write`'s `sourceAt`, the latency of ADR 0007. */
+  /** When the server received it: `EventsWriter.write`'s `sourceAt` (with `source: 'github'`), the latency of ADR 0007. */
   readonly sourceAt: Date;
 }
 

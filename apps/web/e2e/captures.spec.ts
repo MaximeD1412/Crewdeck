@@ -31,6 +31,18 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   'demarrage-runner-relie': async (page) => {
     await expect(page.locator('cd-page-demarrage cd-banner')).toContainText('Runner en ligne');
   },
+  'demarrage-comptes-ia': async (page) => {
+    await expect(page.locator('cd-page-demarrage cd-card[data-engine=claude-code]')).toContainText('connecté · abonnement');
+  },
+  'demarrage-comptes-ia-aucun': async (page) => {
+    await expect(page.locator('cd-page-demarrage cd-banner')).toContainText('Aucun Moteur utilisable');
+  },
+  runner: async (page) => {
+    await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('en ligne');
+  },
+  'runner-hors-ligne': async (page) => {
+    await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('hors ligne');
+  },
 };
 
 const names = (process.env['CAPTURES_SCENARIOS'] ?? '')

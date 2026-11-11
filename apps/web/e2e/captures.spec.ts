@@ -4,10 +4,20 @@
  * `design/screens.json`) into `CAPTURES_DIR`, once per project (390 and 1280 px).
  */
 import type { Page } from '@playwright/test';
-import { test } from './fixtures.js';
+import { expect, test } from './fixtures.js';
+import { routeSocket } from './socket.js';
 
 /** What a scenario's capture shows beyond its page: a sheet or a dialog opened, by width. */
 const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<void>>> = {
+  // The socket cut once live, at the mockup's time of the loss.
+  'a-toi-resynchronisation': async (page) => {
+    await page.clock.setFixedTime(new Date('2026-11-11T15:12:00+01:00'));
+    const socket = await routeSocket(page);
+    await page.reload();
+    await expect(page.getByText('Runner hors ligne').filter({ visible: true })).toBeVisible();
+    await socket.cut();
+    await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('15:12');
+  },
   'a-toi-menu-plus': async (page, width) => {
     if (width < 1280) await page.getByRole('button', { name: 'Plus' }).click();
   },

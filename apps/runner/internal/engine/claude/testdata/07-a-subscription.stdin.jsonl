@@ -1,0 +1,2 @@
+{"type":"control_request","request_id":"drv-1","request":{"subtype":"initialize"}}
+{"type":"user","message":{"role":"user","content":"Réponds seulement « ok »."}}

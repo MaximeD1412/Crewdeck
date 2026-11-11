@@ -400,6 +400,13 @@ authenticated (`openWrap(skRunner, devicePublicKey, …)`); a wrong proof, a
 wrap that does not open, or a vault key that is not 32 bytes all give the
 same refusal, and the Runner writes nothing.
 
+At each start, `crewdeck-runner run` opens its vault again from `runner.key`
+and `vault.wrap` alone (`openVault`, `cmd/crewdeck-runner/vault.go`), the
+same check as the link's; a Runner whose files are missing or whose wrap no
+longer opens refuses to run and says to link it again. The page opens its own
+wrap once its code is linked: on the confirmation's answer, or on the event
+that shows it linked when that answer was lost.
+
 ### Items under the vault key
 
 An item (an Idée's text, a reason: IDEE-1 fixes their additional data) is
@@ -439,9 +446,11 @@ version or with `deviceVaultWrap` (422 `runner.link-pairing-invalid`).
 |---|---|
 | Both proofs and wraps, byte for byte, on both sides | `link-pairing.json` read by `pairing.spec.ts`; `web-pairing.json` written by `pairing.spec.ts`, opened by `TestWhatTheBrowserPairedOpens` |
 | The same vault key on both sides | an item sealed by the Runner opened in the browser (`vault.spec.ts`, `item.json`), one sealed by the browser opened in Go (`web-pairing.json`) |
+| A full link: the real `crewdeck-runner link` against the server, the web's pairing and vault code on the page's side, the Runner restarted, an item each way | `test/integration/first-appareil.spec.ts` (with `TestVaultProbe`) |
+| The Runner opens its vault at start, or refuses to run | `cmd/crewdeck-runner/vault_test.go` |
 | A swapped device key refused by the Runner, a swapped Runner key by the page | `cmd/crewdeck-runner/link_test.go`; `pairing.spec.ts`; `e2e/demarrage.spec.ts` |
 | A wrap substituted under untouched proofs refused | `cmd/crewdeck-runner/link_test.go` |
-| The secret and the vault key in no request nor column | `test/integration/runner-link.spec.ts`; `e2e/demarrage.spec.ts` |
+| The secret and the vault key in no request nor column | `test/integration/first-appareil.spec.ts`; `test/integration/runner-link.spec.ts`; `e2e/demarrage.spec.ts` |
 
 ## New Appareil (E2E-3)
 

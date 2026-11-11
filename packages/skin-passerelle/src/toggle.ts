@@ -67,6 +67,7 @@ export class PasserelleToggle extends PasserelleFormElement<typeof Toggle> {
         background: var(--cd-accent-ink);
       }
       .switch:disabled {
+        opacity: 0.45;
         cursor: not-allowed;
       }
     `,

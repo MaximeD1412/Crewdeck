@@ -7,7 +7,8 @@ import { PasserelleElement } from './base.js';
  * states »): a label over its control, the control's border in
  * `--cd-control-border` (3:1 on `panel` and `side`), the help under it; in
  * error the border, the help and the message under the field in `halt`;
- * disabled at 45 % with no pointer.
+ * disabled, the control at 45 % with no pointer, its label and its help kept
+ * readable (as a Button's reason).
  */
 export const fieldStyles = css`
   .field {
@@ -62,7 +63,8 @@ export const fieldStyles = css`
   .error {
     color: var(--cd-halt);
   }
-  .disabled {
+  .disabled .control,
+  .disabled cd-icon {
     opacity: 0.45;
   }
   .disabled,

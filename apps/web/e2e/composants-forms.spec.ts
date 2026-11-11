@@ -69,11 +69,11 @@ test.describe('the form Composants and the Dialog in the library (UI-4)', () => 
   test('Select, Toggle, Checkbox and Radio: each used from the keyboard', async ({ page, scenario }) => {
     await open(page, scenario, 'Select');
     const engine = page.getByRole('combobox', { name: 'Moteur du Rôle Code' });
-    await expect(engine).toHaveValue('codex');
+    await expect(engine).toHaveValue('claude-code');
     await expect(engine.getByRole('option', { name: /Gemini CLI/ })).toBeDisabled();
     await engine.focus();
-    await page.keyboard.press('ArrowUp');
-    await expect(engine).toHaveValue('claude-code');
+    await page.keyboard.press('ArrowDown');
+    await expect(engine).toHaveValue('codex');
     await expect(page.getByRole('combobox', { name: 'Runner' })).toBeDisabled();
 
     await open(page, scenario, 'Toggle');
@@ -111,8 +111,9 @@ test.describe('the form Composants and the Dialog in the library (UI-4)', () => 
     await page.keyboard.press('Enter');
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('button', { name: 'Fermer' })).toBeFocused();
-    await expect(dialog.getByRole('textbox', { name: 'Ton idée' })).toBeVisible();
-    await expect(dialog.getByRole('button', { name: 'Noter' })).toBeVisible();
+    // Its body and its buttons are slotted: in the page's tree, under the cd-dialog host, not under the <dialog>.
+    await expect(page.getByRole('textbox', { name: 'Ton idée' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Noter', exact: true })).toBeVisible();
     const box = await dialog.boundingBox();
     if (isPhone()) expect(box).toMatchObject({ x: 0, y: 0, width: 390, height: 844 });
     else expect(box?.width).toBeLessThan(1280);

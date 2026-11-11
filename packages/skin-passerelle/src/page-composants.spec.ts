@@ -119,3 +119,14 @@ describe('the preview of an open Dialog', () => {
     expect(deepActiveElement()).toBe(opener);
   });
 });
+
+describe('the preview of a form Composant', () => {
+  it('shows each example with its own value', async () => {
+    const el = await render(COMPOSANTS.PageComposants, {
+      ...library,
+      selected: { ...library.selected, name: 'Select', tag: 'cd-select', examples: COMPOSANTS.Select.examples.map((select) => ({ ...select })) },
+    });
+    const values = [...(el.shadowRoot?.querySelectorAll('.stage cd-select') ?? [])].map((select) => inside<HTMLSelectElement>(select, 'select').value);
+    expect(values).toEqual(COMPOSANTS.Select.examples.map((select) => select.data.value));
+  });
+});

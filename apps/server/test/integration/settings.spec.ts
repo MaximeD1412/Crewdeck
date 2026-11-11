@@ -115,6 +115,7 @@ describe('the Paramètres of the account against PostgreSQL', () => {
 
       await expectFields(await patch(alice.cookie, { seq: '0', theme: 'dark' }), ['theme']);
       await expectFields(await patch(alice.cookie, { seq: '0', roles: { pilot: null } }), ['roles.pilot']);
+      await expectFields(await patch(alice.cookie, { seq: '0', roles: { code: { engine: 'codex', model: 'gpt-5', typo: true } } }), ['roles.code.typo']);
       const fields = await expectFields(await patch(alice.cookie, { seq: '0', timeZone: 'Mars/Olympus' }), ['timeZone']);
       expect(fields).toEqual({ timeZone: 'Fuseau horaire inconnu.' });
 
@@ -135,6 +136,40 @@ describe('the Paramètres of the account against PostgreSQL', () => {
 
       expect(await (await fetch(`${url}/api/settings`, { headers: { cookie: bob.cookie } })).json()).toEqual(DEFAULTS);
       expect(await events(bob.id)).toEqual([]);
+    });
+
+    it.each([
+      ['with a row of settings', true],
+      ['before the first row', false],
+    ])('keeps both of two concurrent changes to distinct fields, %s', async (_case, existing) => {
+      const alice = await pilot('alice');
+      if (existing) await patch(alice.cookie, { seq: '0', optionalSteps: { 'cross-review': false } });
+
+      // A transaction holds the Pilote's row so that the two PATCHes overlap.
+      const holder = new pg.Client({ connectionString: databaseUrl });
+      await holder.connect();
+      let first: Promise<Response>;
+      let second: Promise<Response>;
+      try {
+        await holder.query('BEGIN');
+        await holder.query('SELECT id FROM pilots WHERE id = $1 FOR UPDATE', [alice.id]);
+        first = patch(alice.cookie, { seq: '1', optionalSteps: { mockups: false } });
+        second = patch(alice.cookie, { seq: '1', notifications: { push: true } });
+        await expect
+          .poll(async () => (await sql<{ n: number }>(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND datname = current_database()`))[0]?.n, { timeout: 5000 })
+          .toBe(2);
+      } finally {
+        await holder.query('COMMIT');
+        await holder.end();
+      }
+      expect((await first).status).toBe(200);
+      expect((await second).status).toBe(200);
+
+      expect(await (await fetch(`${url}/api/settings`, { headers: { cookie: alice.cookie } })).json()).toEqual({
+        ...DEFAULTS,
+        optionalSteps: { mockups: false, 'visual-review': true, 'cross-review': !existing },
+        notifications: { push: true },
+      });
     });
   });
 

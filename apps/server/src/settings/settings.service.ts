@@ -73,12 +73,18 @@ export class SettingsService {
   /**
    * Writes what `patch` changes, with its `settings.upserted` (and
    * `pilot.upserted` when the time zone changes) in the same `tx`; returns the
-   * settings. 400 on a zone that is not one.
+   * settings. 400 on a zone that is not one. Concurrent updates of a Pilote
+   * are serialised on their row, so none loses a field another one changed.
    */
   async update(tx: Tx, pilotId: string, patch: AccountSettingsPatch): Promise<AccountSettings> {
     if (patch.timeZone !== undefined && !isKnownTimeZone(patch.timeZone)) {
       throw new AppError(400, 'validation.invalid', MESSAGES['validation.invalid'], { timeZone: UNKNOWN_TIME_ZONE });
     }
+    // The Pilote's row locked before the read, row of settings or not yet (the
+    // lock `EventsWriter` takes later; the scoped client has no raw `FOR
+    // UPDATE`): two PATCHes run one after the other, the second merging over
+    // what the first wrote.
+    await tx.pilot.update({ where: { id: pilotId }, data: { seq: { increment: 0 } }, select: { id: true } });
     const before = await this.account(pilotId, tx);
     const after = patched(before, patch);
     const row = { roles: after.roles, optionalSteps: after.optionalSteps, notificationsPush: after.notifications.push };

@@ -41,5 +41,6 @@ describe('zAccountSettingsPatch', () => {
     expect(zAccountSettingsPatch.safeParse({ theme: 'dark' }).success).toBe(false);
     expect(zAccountSettingsPatch.safeParse({ roles: { pilot: null } }).success).toBe(false);
     expect(zAccountSettingsPatch.safeParse({ notifications: { email: true } }).success).toBe(false);
+    expect(zAccountSettingsPatch.safeParse({ roles: { code: { engine: 'codex', model: 'gpt-5', typo: true } } }).success).toBe(false);
   });
 });

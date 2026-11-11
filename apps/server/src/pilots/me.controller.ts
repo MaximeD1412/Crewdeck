@@ -5,6 +5,7 @@ import { AppError, conflict, unprocessable } from '../errors/app-error.js';
 import { MESSAGES } from '../errors/messages.js';
 import type { GettingStartedStep as GettingStartedStepRow } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { usableModels } from '../runners/ai-accounts/ai-accounts.js';
 import { EventsWriter } from '../realtime/events.writer.js';
 import { assertFresh } from '../realtime/freshness.js';
 import { STATE_CONTRIBUTORS, type StateContributor, type StateContributors } from '../realtime/state-contributors.js';
@@ -49,8 +50,8 @@ export class MeController {
   /**
    * `POST /api/me/getting-started/advance`: from the step the page shows to
    * the next. 409 when the Pilote is no longer at `from` (another tab moved
-   * on), 422 from `runner` without a linked Runner. RUNNER-7 adds the rule
-   * of `ai-accounts`.
+   * on), 422 from `runner` without a linked Runner, and from `ai-accounts`
+   * without a usable model (`usableModels`).
    */
   @Post('getting-started/advance')
   @HttpCode(200)
@@ -64,6 +65,9 @@ export class MeController {
       if (stepOf(row.gettingStartedStep) !== from) throw conflict('realtime.stale', MESSAGES['realtime.stale']);
       if (from === 'runner' && (await tx.runner.count({ where: { revokedAt: null } })) === 0) {
         throw unprocessable('getting-started.runner-not-linked', MESSAGES['getting-started.runner-not-linked']);
+      }
+      if (from === 'ai-accounts' && (await usableModels(tx)).length === 0) {
+        throw unprocessable('getting-started.no-usable-engine', MESSAGES['getting-started.no-usable-engine']);
       }
       const pilot = toMe(await tx.pilot.update({ where: { id: pilotId }, data: { gettingStartedStep: rowOf(nextGettingStartedStep(from)) }, select: ME }));
       const written = await this.events.write(tx, pilotId, 'pilot.upserted', pilot);

@@ -16,6 +16,7 @@ const (
 	TypeHeartbeat     = "heartbeat"
 	TypeHeartbeatAck  = "heartbeat.ack"
 	TypeError         = "error"
+	TypeStepVerdict   = "step.verdict"
 )
 
 // Machine is what the Runner says of itself in its hello.

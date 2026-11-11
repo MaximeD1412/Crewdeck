@@ -3,12 +3,16 @@
  * to `generated/json-schema/<name>.schema.json`, then its Go type to
  * `apps/runner/internal/contracts/<name>.go` with go-jsonschema. Deterministic:
  * sorted keys, stable file order, stale generated files removed. The output
- * is committed; CI fails when running it leaves a diff.
+ * is committed; CI fails when running it leaves a diff. It also writes every
+ * Contrat (ADR 0005) to `apps/runner/internal/contrat/contrats/<id>.v<version>.json`,
+ * which the Runner embeds, and the example Contrat beside its fixtures.
  */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { z } from 'zod';
+import { exampleContrat } from '../fixtures/contrats/example.js';
+import { type Contrat, CONTRATS } from './contrats/index.js';
 import { goConstants, registry } from './registry.js';
 
 const GO_JSONSCHEMA = 'github.com/atombender/go-jsonschema@v0.24.1';
@@ -20,6 +24,20 @@ const packageRoot = resolve(import.meta.dirname, '..');
 const jsonSchemaDir = join(packageRoot, 'generated', 'json-schema');
 const runnerRoot = resolve(packageRoot, '../../apps/runner');
 const goDir = join(runnerRoot, 'internal', 'contracts');
+const runnerContratsDir = join(runnerRoot, 'internal', 'contrat', 'contrats');
+const exampleContratFile = join(packageRoot, 'fixtures', 'contrats', 'example.json');
+
+/**
+ * The Contrats the Runner embeds: the current version of each Étape's, and the
+ * example one, which `crewdeck-runner contrat check example` and the tests use
+ * (no Étape has it). Past versions stay in TypeScript, for their labels.
+ */
+export const embeddedContrats: readonly Contrat[] = [...CONTRATS, exampleContrat];
+
+export const contratFileName = (contrat: Contrat): string => `${contrat.id}.v${contrat.version}.json`;
+
+/** A Contrat as the Runner reads it: the declaration, in its own order (the rules' order is the check's). */
+export const renderContrat = (contrat: Contrat): string => `${JSON.stringify(contrat, null, 2)}\n`;
 
 export interface RegistryEntry {
   name: string;
@@ -92,6 +110,11 @@ const generate = (): void => {
     (file) => file.endsWith('.go') && !file.endsWith('_test.go') && readFileSync(join(goDir, file), 'utf8').startsWith(GO_HEADER),
   );
   execFileSync('gofmt', ['-w', goDir], { stdio: 'inherit' });
+
+  mkdirSync(runnerContratsDir, { recursive: true });
+  for (const contrat of embeddedContrats) writeFileSync(join(runnerContratsDir, contratFileName(contrat)), renderContrat(contrat));
+  removeStale(runnerContratsDir, new Set(embeddedContrats.map(contratFileName)), (file) => file.endsWith('.json'));
+  writeFileSync(exampleContratFile, renderContrat(exampleContrat));
 };
 
 if (import.meta.main) generate();

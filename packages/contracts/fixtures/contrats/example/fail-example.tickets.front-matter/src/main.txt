@@ -1,0 +1,1 @@
+Un fichier, pour que src/ ne soit pas vide.

@@ -280,6 +280,19 @@
       ],
       "commande": "sudo grep -c '^GITHUB_WEBHOOK_SECRET=.\\+' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
       "ajouteLe": "2026-11-11"
+    },
+    {
+      "id": "migration-account-settings",
+      "phase": "db",
+      "source": "#53",
+      "titre": "Migration account_settings : la table des Paramètres du compte",
+      "pourquoi": "PARAM-1 ajoute la table account_settings (une ligne par Pilote, créée à son premier changement ; sans elle, les valeurs par défaut). La migration ne fait que créer la table : compatible avec la version précédente, qui ne la lit pas. deploy.sh l'applique (compose run --rm server migrate), après la répétition sur la dernière sauvegarde en production.",
+      "etapes": [
+        "Rien à faire à la main : le déploiement suivant applique 20261115000000_account_settings, sur le staging puis en production.",
+        "Vérifier après le déploiement : la migration figure dans _prisma_migrations, et /parametres affiche « Compte » avec le fuseau horaire du Pilote."
+      ],
+      "commande": "sudo docker compose -p crewdeck-prod --env-file /opt/crewdeck/prod/.env -f /opt/crewdeck/deploy/docker-compose.yml exec db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261115000000_account_settings'\"",
+      "ajouteLe": "2026-11-11"
     }
   ]
 }

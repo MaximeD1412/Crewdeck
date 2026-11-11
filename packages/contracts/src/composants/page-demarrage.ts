@@ -3,6 +3,7 @@ import { zGettingStartedStep } from '../api/me.js';
 import { zLinkFailureReason } from '../api/runner-link.js';
 import { zRunner } from '../api/runner.js';
 import { defineComposant } from './define.js';
+import { EXAMPLE_ENGINES, EXAMPLE_ENGINES_NONE, zEngineAccount } from './engine-account.js';
 
 /** The systems of the install command's tabs: the same command, a help line each. */
 export const DEMARRAGE_SYSTEMS = ['linux', 'macos', 'wsl'] as const;
@@ -26,14 +27,17 @@ const RUNNER = {
  * command of the system's tab with the full link code, waiting for the
  * Runner (`shortId` only ever shown); after a failed link, the halt Banner of
  * its reason, the new command and « Réessayer » (`retry`); once linked, the
- * Runner's machine and « Continuer » (`continue`). The Comptes IA (RUNNER-7)
- * and the Projets (PROJET-2) show an Empty and « Continuer » until their
- * tickets. `command` is `null` until the page drew its code; `busy` while a
- * command is on its way.
+ * Runner's machine and « Continuer » (`continue`). The Comptes IA's step
+ * shows each Moteur of `engines`, its Compte IA, its models and, when not
+ * connected, the command that connects it; « Continuer » only once `usable`
+ * (a Rôle can run on one of them), else disabled under the Banner « Aucun
+ * Moteur utilisable ». The Projets (PROJET-2) show an Empty and « Continuer »
+ * until their ticket. `command` is `null` until the page drew its code;
+ * `busy` while a command is on its way.
  */
 export const PageDemarrage = defineComposant({
   name: 'PageDemarrage',
-  version: 1,
+  version: 2,
   tag: 'cd-page-demarrage',
   category: 'page',
   description: 'Les Premiers pas : le Runner, les Comptes IA, les Projets.',
@@ -46,13 +50,15 @@ export const PageDemarrage = defineComposant({
     failure: z.object({ reason: zLinkFailureReason, shortId: z.string() }).nullable(),
     runner: zRunner.pick({ machine: true, os: true, arch: true, wsl: true, runnerVersion: true, state: true, lastSeenAt: true }).nullable(),
     busy: z.boolean(),
+    engines: z.array(zEngineAccount),
+    usable: z.boolean(),
   }),
   actions: { selectSystem: z.object({ system: zDemarrageSystem }), retry: z.object({}), continue: z.object({}) },
   slots: [],
   examples: [
     {
       name: 'en attente du Runner',
-      data: { step: 'runner', login: 'octocat', system: 'linux', command: COMMAND, shortId: '7KQ4', failure: null, runner: null, busy: false },
+      data: { step: 'runner', login: 'octocat', system: 'linux', command: COMMAND, shortId: '7KQ4', failure: null, runner: null, busy: false, engines: [], usable: false },
     },
     {
       name: 'liaison échouée',
@@ -65,19 +71,47 @@ export const PageDemarrage = defineComposant({
         failure: { reason: 'expired', shortId: '9RTB' },
         runner: null,
         busy: false,
+        engines: [],
+        usable: false,
       },
     },
     {
       name: 'Runner relié',
-      data: { step: 'runner', login: 'octocat', system: 'wsl', command: null, shortId: null, failure: null, runner: RUNNER, busy: false },
+      data: { step: 'runner', login: 'octocat', system: 'wsl', command: null, shortId: null, failure: null, runner: RUNNER, busy: false, engines: [], usable: false },
     },
     {
       name: 'Comptes IA',
-      data: { step: 'ai-accounts', login: 'octocat', system: 'linux', command: null, shortId: null, failure: null, runner: RUNNER, busy: false },
+      data: {
+        step: 'ai-accounts',
+        login: 'octocat',
+        system: 'linux',
+        command: null,
+        shortId: null,
+        failure: null,
+        runner: RUNNER,
+        busy: false,
+        engines: [...EXAMPLE_ENGINES],
+        usable: true,
+      },
+    },
+    {
+      name: 'aucun Moteur utilisable',
+      data: {
+        step: 'ai-accounts',
+        login: 'octocat',
+        system: 'linux',
+        command: null,
+        shortId: null,
+        failure: null,
+        runner: RUNNER,
+        busy: false,
+        engines: [...EXAMPLE_ENGINES_NONE],
+        usable: false,
+      },
     },
     {
       name: 'Projets',
-      data: { step: 'projects', login: 'octocat', system: 'linux', command: null, shortId: null, failure: null, runner: RUNNER, busy: false },
+      data: { step: 'projects', login: 'octocat', system: 'linux', command: null, shortId: null, failure: null, runner: RUNNER, busy: false, engines: [], usable: false },
     },
   ],
 });

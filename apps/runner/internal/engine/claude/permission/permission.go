@@ -67,10 +67,13 @@ type callParams struct {
 // ends or ctx does; the calls still waiting are then withdrawn.
 func (s *Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
 	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	conn := &connection{out: out, calls: map[string]context.CancelFunc{}}
 	var wg sync.WaitGroup
-	defer wg.Wait()
+	// The calls are withdrawn before they are waited for.
+	defer func() {
+		cancel()
+		wg.Wait()
+	}()
 
 	lines := bufio.NewScanner(in)
 	lines.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)

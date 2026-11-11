@@ -9,7 +9,11 @@
 //   - claude-permission: asks the permission tool of Claude Code, as Claude
 //     does (claude.go), its `arguments` those of the recorded `tools/call`;
 //   - claude-hook: runs the `PreToolUse` hooks of Claude Code's settings on
-//     the recorded `input`, as Claude does (claude.go).
+//     the recorded `input`, as Claude does (claude.go);
+//   - close-stdin: stops reading stdin, the driver's writes then fail;
+//   - await-sigint: waits for SIGINT.
+//
+// A SIGINT, awaited or not, ends it with code 130, as a shell's command.
 //
 // Each line read on stdin is appended to FAKE_ENGINE_STDIN_LOG, and what a
 // side channel answered (the permission tool's text, a hook's stdout) to
@@ -28,9 +32,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 )
 
 func main() {
@@ -88,7 +95,14 @@ func appendLine(path, line string) error {
 	return err
 }
 
-func run(args []string, stdin io.Reader, stdout io.Writer) error {
+func run(args []string, stdin *os.File, stdout io.Writer) error {
+	interrupted := make(chan os.Signal, 1)
+	signal.Notify(interrupted, syscall.SIGINT)
+	go func() {
+		<-interrupted
+		os.Exit(130)
+	}()
+
 	path := os.Getenv("FAKE_ENGINE_STREAM")
 	if path == "" {
 		return fmt.Errorf("FAKE_ENGINE_STREAM is not set")
@@ -139,6 +153,14 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 			if _, err := io.WriteString(log, got); err != nil {
 				return err
 			}
+		case "close-stdin":
+			if err := stdin.Close(); err != nil {
+				return fmt.Errorf("%s:%d: %w", path, n, err)
+			}
+		case "await-sigint":
+			for {
+				time.Sleep(time.Hour)
+			}
 		case "claude-permission":
 			answer, err := claude.permission(d.Arguments)
 			if err != nil {
@@ -176,7 +198,7 @@ func directiveOf(line []byte) (directive, error) {
 		return directive{}, nil
 	}
 	switch d.Fake {
-	case "await-stdin", "claude-permission", "claude-hook":
+	case "await-stdin", "close-stdin", "await-sigint", "claude-permission", "claude-hook":
 		return d, nil
 	}
 	return directive{}, fmt.Errorf("unknown directive %q", d.Fake)

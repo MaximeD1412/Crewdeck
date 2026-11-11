@@ -429,7 +429,8 @@ func (r *run) write(message any) error {
 
 // Interrupt sends the control request the spike validated; Claude ends the
 // turn with a result the parser reads as interrupted. When stdin is gone, a
-// SIGINT.
+// SIGINT: Claude ends with no result, and the run gives the interrupted one,
+// with the Session's id, before its end.
 func (r *run) Interrupt(ctx context.Context) error {
 	if r.isEnded() {
 		return engine.ErrRunEnded
@@ -508,11 +509,11 @@ func (r *run) toolCall(id string) chan struct{} {
 
 // read parses stdout until the process ends, then ends the run.
 func (r *run) read(stdout io.Reader) {
+	// Not under stdinMu: a write Claude no longer reads blocks with it held,
+	// and the kill is what releases it.
 	stop := context.AfterFunc(r.ctx, func() {
-		r.stdinMu.Lock()
-		r.stdin.Close()
-		r.stdinMu.Unlock()
 		_ = r.cmd.Process.Kill()
+		r.stdin.Close()
 	})
 	defer stop()
 
@@ -552,6 +553,9 @@ func (r *run) read(stdout io.Reader) {
 	waitErr := r.cmd.Wait()
 	r.mu.Lock()
 	r.ended = true
+	// An interrupt Claude ended on with no result of its own (the SIGINT of
+	// a closed stdin).
+	unanswered := r.interrupting
 	r.mu.Unlock()
 	r.listener.Close()
 	close(r.closing)
@@ -560,6 +564,12 @@ func (r *run) read(stdout io.Reader) {
 	switch {
 	case r.ctx.Err() != nil:
 		r.err = r.ctx.Err()
+	case unanswered:
+		result := &contracts.EngineEventResult{Kind: contracts.EngineEventKindResult, Status: contracts.EngineEventResultStatusInterrupted}
+		if id := r.parser.sessionID; id != "" {
+			result.EngineSessionId = &id
+		}
+		r.emit(contracts.EngineEvent{Result: result})
 	case waitErr != nil:
 		r.err = fmt.Errorf("claude: %w", waitErr)
 		message := "Claude Code s’est arrêté sur une erreur."

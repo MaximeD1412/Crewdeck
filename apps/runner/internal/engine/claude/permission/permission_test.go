@@ -270,3 +270,24 @@ func TestAnAdapterThatCannotBeReachedDeniesTheCall(t *testing.T) {
 		t.Fatalf("denied %v", denied)
 	}
 }
+
+// Claude closing the connection, its context still alive, withdraws the call
+// that waits for the Pilote.
+func TestAClosedConnectionWithdrawsTheCallThatWaits(t *testing.T) {
+	asked, withdrawn := make(chan struct{}), make(chan struct{})
+	c := start(t, &permission.Server{Ask: func(ctx context.Context, _ control.Request) (control.Reply, error) {
+		close(asked)
+		<-ctx.Done()
+		close(withdrawn)
+		return control.Reply{}, ctx.Err()
+	}})
+	c.handshake()
+	c.call(2, "toolu_closed")
+	<-asked
+	c.in.Close()
+	select {
+	case <-withdrawn:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the request still waits 5 s after the connection closed")
+	}
+}

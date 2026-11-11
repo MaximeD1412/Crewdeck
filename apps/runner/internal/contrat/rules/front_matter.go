@@ -25,13 +25,13 @@ func validateFrontMatter(r Rule) error {
 }
 
 func evaluateFrontMatter(_ context.Context, t target.Target, r Rule) (bool, error) {
-	paths, err := files(t, r.Glob)
+	paths, err := t.Glob(r.Glob)
 	if err != nil || len(paths) == 0 {
 		return false, err
 	}
 	for _, path := range paths {
-		data, err := readFile(t, path)
-		if err != nil {
+		data, ok, err := t.ReadFile(path)
+		if !ok || err != nil {
 			return false, err
 		}
 		header, ok := frontMatter(data)

@@ -3,8 +3,6 @@ package rules
 import (
 	"context"
 	"errors"
-	"io/fs"
-	"os"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contrat/target"
 )
@@ -26,15 +24,22 @@ func validateFile(r Rule) error {
 
 func evaluateFile(_ context.Context, t target.Target, r Rule) (bool, error) {
 	if r.Path != "" {
-		_, err := os.Stat(resolve(t, r.Path))
-		if errors.Is(err, fs.ErrNotExist) {
-			return false, nil
-		}
-		return err == nil, err
+		_, ok, err := t.Stat(r.Path)
+		return ok, err
 	}
-	matches, err := files(t, r.Glob)
+	matches, err := t.Glob(r.Glob)
 	if err != nil {
 		return false, err
 	}
-	return len(matches) >= max(r.Min, 1), nil
+	regular := 0
+	for _, match := range matches {
+		info, ok, err := t.Stat(match)
+		if err != nil {
+			return false, err
+		}
+		if ok && info.Mode().IsRegular() {
+			regular++
+		}
+	}
+	return regular >= max(r.Min, 1), nil
 }

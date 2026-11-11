@@ -232,3 +232,42 @@ func TestAVerdictFitsTheStepVerdictMessage(t *testing.T) {
 		t.Fatalf("verdict %+v, back %+v", verdict, back.Verdict)
 	}
 }
+
+// passCopy is a copy of the passing folder, to break one deliverable of it.
+func passCopy(t *testing.T) Target {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "worktree")
+	if err := os.CopyFS(dir, os.DirFS(filepath.Join(fixturesDir, "example", "pass"))); err != nil {
+		t.Fatal(err)
+	}
+	return Target{Dir: dir, PR: examplePR(t), IntegrationBranch: "develop"}
+}
+
+// A deliverable of the wrong type, or one that lies out of the worktree
+// behind a link, is a verdict naming its rule, not an error.
+func TestAWrongTypeOrALinkOutIsAnIncompleteVerdict(t *testing.T) {
+	folder := passCopy(t)
+	screens := filepath.Join(folder.Dir, "design", "screens.json")
+	if err := os.Remove(screens); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(screens, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := check(t, example(t), folder); got.Status != contracts.ContratVerdictStatusIncomplete || !slices.Equal(got.FailedRuleIds, []string{"example.screens.json"}) {
+		t.Errorf("screens.json a folder: %+v, want incomplete with example.screens.json", got)
+	}
+
+	linked := passCopy(t)
+	elsewhere := passCopy(t)
+	prd := filepath.Join(linked.Dir, "docs", "prd.md")
+	if err := os.Remove(prd); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(elsewhere.Dir, "docs", "prd.md"), prd); err != nil {
+		t.Fatal(err)
+	}
+	if got := check(t, example(t), linked); got.Status != contracts.ContratVerdictStatusIncomplete || !slices.Equal(got.FailedRuleIds, []string{"example.prd.sections", "example.stories.unique"}) {
+		t.Errorf("docs/prd.md linked out: %+v, want incomplete with the PRD's two rules", got)
+	}
+}

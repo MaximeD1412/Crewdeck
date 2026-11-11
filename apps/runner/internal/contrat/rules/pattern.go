@@ -36,19 +36,16 @@ func evaluatePattern(_ context.Context, t target.Target, r Rule) (bool, error) {
 	}
 	paths := []string{r.Path}
 	if r.Glob != "" {
-		if paths, err = files(t, r.Glob); err != nil {
+		if paths, err = t.Glob(r.Glob); err != nil {
 			return false, err
 		}
 	}
 	matched := 0
 	seen := map[string]bool{}
 	for _, path := range paths {
-		data, err := readFile(t, path)
-		if err != nil {
+		data, ok, err := t.ReadFile(path)
+		if !ok || err != nil {
 			return false, err
-		}
-		if data == nil {
-			return false, nil
 		}
 		for _, line := range strings.Split(string(data), "\n") {
 			match := re.FindStringSubmatch(strings.TrimSuffix(line, "\r"))

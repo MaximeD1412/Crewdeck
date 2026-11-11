@@ -13,7 +13,8 @@ import (
 
 // Func says whether `t` passes the check, given the rule's `params`. An error
 // is for what is not the output's fault (a parameter the check cannot use, a
-// read that failed): the verdict is then not sent.
+// read that failed): the verdict is then not sent. It reads the worktree
+// only through `t`'s methods, confined to it, never through `t.Dir`.
 type Func func(ctx context.Context, t target.Target, params map[string]any) (bool, error)
 
 var (

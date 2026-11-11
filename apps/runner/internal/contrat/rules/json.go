@@ -17,8 +17,8 @@ func validateJSON(r Rule) error {
 }
 
 func evaluateJSON(_ context.Context, t target.Target, r Rule) (bool, error) {
-	data, err := readFile(t, r.Path)
-	if data == nil || err != nil {
+	data, ok, err := t.ReadFile(r.Path)
+	if !ok || err != nil {
 		return false, err
 	}
 	return matchesSchema(r.Schema, data)

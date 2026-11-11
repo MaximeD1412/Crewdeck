@@ -45,3 +45,25 @@ func TestANameIsRegisteredOnce(t *testing.T) {
 	}()
 	Register("example-nonempty-dir", exampleNonemptyDir)
 }
+
+// A file where the folder is due, or a link out of the worktree, fails the
+// check without an error.
+func TestExampleNonemptyDirFailsAFileOrALinkOut(t *testing.T) {
+	dir, out := t.TempDir(), t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "src"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(out, "main.txt"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(out, filepath.Join(dir, "lib")); err != nil {
+		t.Fatal(err)
+	}
+	fn, _ := Lookup("example-nonempty-dir")
+	for _, path := range []string{"src", "lib", "src/sub"} {
+		got, err := fn(context.Background(), target.Target{Dir: dir}, map[string]any{"path": path})
+		if got || err != nil {
+			t.Errorf("%s: %v, %v; want false, no error", path, got, err)
+		}
+	}
+}

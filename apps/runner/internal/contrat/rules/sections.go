@@ -28,8 +28,8 @@ func validateSections(r Rule) error {
 }
 
 func evaluateSections(_ context.Context, t target.Target, r Rule) (bool, error) {
-	source, err := readFile(t, r.Path)
-	if source == nil || err != nil {
+	source, ok, err := t.ReadFile(r.Path)
+	if !ok || err != nil {
 		return false, err
 	}
 	next := 0

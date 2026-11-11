@@ -2,10 +2,7 @@ package checks
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 	"path/filepath"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contrat/target"
@@ -22,12 +19,6 @@ func exampleNonemptyDir(_ context.Context, t target.Target, params map[string]an
 	if !ok || !filepath.IsLocal(filepath.FromSlash(path)) {
 		return false, fmt.Errorf("example-nonempty-dir: params.path must be a path of the worktree, got %v", params["path"])
 	}
-	entries, err := os.ReadDir(filepath.Join(t.Dir, filepath.FromSlash(path)))
-	if errors.Is(err, fs.ErrNotExist) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return len(entries) > 0, nil
+	entries, ok, err := t.ReadDir(path)
+	return ok && len(entries) > 0, err
 }

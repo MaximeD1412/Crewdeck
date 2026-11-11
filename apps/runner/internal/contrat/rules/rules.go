@@ -7,11 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contrat/target"
@@ -142,28 +139,4 @@ func compileRegex(source string) (*regexp.Regexp, error) {
 		return nil, fmt.Errorf("regex %q: %w", source, err)
 	}
 	return re, nil
-}
-
-// resolve is the file of the worktree at `path`.
-func resolve(t target.Target, path string) string {
-	return filepath.Join(t.Dir, filepath.FromSlash(path))
-}
-
-// files are the regular files of the worktree matching `glob`, sorted, relative to it.
-func files(t target.Target, glob string) ([]string, error) {
-	matches, err := doublestar.Glob(os.DirFS(t.Dir), glob, doublestar.WithFilesOnly())
-	if err != nil {
-		return nil, err
-	}
-	sort.Strings(matches)
-	return matches, nil
-}
-
-// readFile reads a file of the worktree; a missing one is `nil, nil`.
-func readFile(t target.Target, path string) ([]byte, error) {
-	data, err := os.ReadFile(resolve(t, path))
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	return data, err
 }

@@ -14,6 +14,7 @@ import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
 import { encodeBase32 } from './keys/base32.js';
 import type { LinkKeys, PendingLink } from './keys/pairing.js';
+import type { VaultState } from './keys/vault.js';
 import type { RouteMatch } from './router.js';
 import { HOME_PATH } from './sign-in.js';
 import type { Store } from './store/store.js';
@@ -61,7 +62,7 @@ export interface GettingStartedOptions {
   /** This browser's Appareil and the pairing's crypto (E2E-2). */
   readonly keys: LinkKeys;
   /** Opens the vault once the Runner is linked: the Appareil now holds its wrap. */
-  readonly unlockVault: () => Promise<unknown>;
+  readonly unlockVault: () => Promise<VaultState>;
 }
 
 /** A refusal the same request would get again (not the network, not the server down, not a stale `seq`). */
@@ -115,8 +116,15 @@ export const createGettingStarted = ({
   let advancing: GettingStartedStep | null = null;
   /** Its answer, and the store's pilot it was given over. */
   let answered: { readonly me: Me; readonly over: Me | null | undefined } | null = null;
-  /** The vault opens once, whichever comes first: the confirmation's answer, or the store showing the page's code linked. */
-  let unlocking = false;
+  /**
+   * The vault opens on the confirmation's answer or on the store showing the
+   * page's code linked, whichever comes first: once it opened (or the browser
+   * has no Appareil the server knows), never again; an opening that ended
+   * `locked` (the wrap not fetched) is tried again at the next of them, also
+   * when it arrived while that opening was on its way.
+   */
+  let vaultOpening: 'idle' | 'opening' | 'done' = 'idle';
+  let openAgain = false;
 
   const notify = () => {
     for (const listener of [...listeners]) listener();
@@ -129,9 +137,19 @@ export const createGettingStarted = ({
   };
 
   const openVault = () => {
-    if (unlocking) return;
-    unlocking = true;
-    void unlockVault();
+    if (vaultOpening === 'done') return;
+    if (vaultOpening === 'opening') {
+      openAgain = true;
+      return;
+    }
+    vaultOpening = 'opening';
+    openAgain = false;
+    void unlockVault()
+      .catch((): VaultState => 'locked')
+      .then((result) => {
+        vaultOpening = result === 'locked' ? 'idle' : 'done';
+        if (vaultOpening === 'idle' && openAgain) openVault();
+      });
   };
 
   const draw = async () => {

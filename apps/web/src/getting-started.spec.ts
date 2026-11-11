@@ -4,6 +4,7 @@ import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
 import { CONFIRM_RETRY_MS, createGettingStarted, drawSecret, gettingStartedGuard, type GettingStarted } from './getting-started.js';
 import type { LinkKeys, PendingLink } from './keys/pairing.js';
+import type { VaultState } from './keys/vault.js';
 import { matchRoute } from './router.js';
 import { ROUTES } from './routes.js';
 import { createStore, type Store } from './store/store.js';
@@ -79,6 +80,8 @@ describe('createGettingStarted', () => {
   let adopted: string[];
   let asked: PendingLink[];
   let unlocks: number;
+  /** What each opening of the vault answers, in turn; `unlocked` once they are used. */
+  let unlockResults: (() => Promise<VaultState>)[];
   let seq: number;
   let commands: { method: string; path: string; body: object }[];
   let answers: Record<string, () => unknown>;
@@ -88,7 +91,7 @@ describe('createGettingStarted', () => {
     query: (async () => CONFIG) as Client['query'],
     command: (async (method: string, path: string, body: object, schema?: z.ZodType) => {
       commands.push({ method, path, body });
-      const answer = answers[path]?.();
+      const answer = await answers[path]?.();
       return schema ? schema.parse(answer) : undefined;
     }) as Client['command'],
   };
@@ -107,6 +110,7 @@ describe('createGettingStarted', () => {
     adopted = [];
     asked = [];
     unlocks = 0;
+    unlockResults = [];
     answers = {
       '/api/runner/link-codes': () => ({ id: LINK_ID, shortId: '7KQ4', expiresAt: AT, deviceId: DEVICE_ID }),
       [`/api/runner/link-codes/${LINK_ID}/confirm`]: () => ({ runner: RUNNER }),
@@ -122,8 +126,9 @@ describe('createGettingStarted', () => {
         return asking.runnerPairing.runnerPublicKey === SWAPPED.runnerPublicKey ? null : CONFIRM;
       },
     };
-    const unlockVault = async () => {
+    const unlockVault = async (): Promise<VaultState> => {
       unlocks++;
+      return (await unlockResults.shift()?.()) ?? 'unlocked';
     };
     controller = createGettingStarted({ store, client, bootPilot: ME, origin: 'https://crewdeck.example', system: 'linux', secret: () => SECRET, keys, unlockVault });
     store.subscribe(() => controller.sync());
@@ -224,6 +229,51 @@ describe('createGettingStarted', () => {
     event('runner.upserted', RUNNER);
     await flush();
     expect(unlocks).toBe(1);
+  });
+
+  it('opens the vault again on the confirmation’s answer when the opening the linked event started failed', async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    answers[`/api/runner/link-codes/${LINK_ID}/confirm`] = () => new Promise((resolve) => (answer = resolve));
+    // The wrap could not be fetched yet: the opening ends locked.
+    unlockResults = [async () => 'locked'];
+    snapshot();
+    await flush();
+    event('runner-link.upserted', link(pending()));
+    await flush();
+    // The code's event first; nothing else changes in the store before the confirmation answers.
+    event('runner-link.upserted', link({ ...pending(), state: 'linked' }));
+    await flush();
+    expect(unlocks).toBe(1);
+
+    answer({ runner: RUNNER });
+    await flush();
+    await flush();
+    expect(unlocks).toBe(2);
+    event('runner-link.upserted', link({ ...pending(), state: 'linked' }));
+    await flush();
+    expect(unlocks).toBe(2);
+  });
+
+  it('opens the vault again when the confirmation answers while a failing opening is still on its way', async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    answers[`/api/runner/link-codes/${LINK_ID}/confirm`] = () => new Promise((resolve) => (answer = resolve));
+    let fail: () => void = () => undefined;
+    unlockResults = [() => new Promise<VaultState>((resolve) => (fail = () => resolve('locked')))];
+    snapshot();
+    await flush();
+    event('runner-link.upserted', link(pending()));
+    await flush();
+    // The code's event first; nothing else changes in the store before the confirmation answers.
+    event('runner-link.upserted', link({ ...pending(), state: 'linked' }));
+    await flush();
+    answer({ runner: RUNNER });
+    await flush();
+    expect(unlocks).toBe(1);
+
+    fail();
+    await flush();
+    await flush();
+    expect(unlocks).toBe(2);
   });
 
   it('does not open the vault for a linked code it did not draw', async () => {

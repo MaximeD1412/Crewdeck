@@ -17,16 +17,17 @@ test.describe('the sign-in (US-1)', () => {
 
     await connexion.getByRole('button', { name: 'Continuer avec GitHub' }).click();
 
-    await expect(page).toHaveURL('/a-toi');
+    // Back on « À toi », which a new Pilote leaves for their « Premiers pas » (US-2).
+    await expect(page).toHaveURL('/demarrage');
     const cookies = await page.context().cookies();
     expect(cookies.find((cookie) => cookie.name === 'crewdeck_session')).toMatchObject({ httpOnly: true, sameSite: 'Lax', path: '/' });
     const me = await page.request.get('/api/me');
     expect(me.status()).toBe(200);
     expect(await me.json()).toMatchObject({ login: 'octocat', timeZone: 'Europe/Paris' });
 
-    // Signed in, /connexion leads to « À toi ».
+    // Signed in, /connexion leads to « À toi », hence to « Premiers pas » until they are done.
     await page.goto('/connexion');
-    await expect(page).toHaveURL('/a-toi');
+    await expect(page).toHaveURL('/demarrage');
   });
 
   test('a failed sign-in shows why above the button', async ({ page, scenario, expectAccessible }) => {

@@ -13,24 +13,38 @@ datasource db {
   provider = "postgresql"
 }
 
+/// The steps of « Premiers pas » (US-2, RUNNER-3), in order.
+enum GettingStartedStep {
+  runner
+  ai_accounts @map("ai-accounts")
+  projects
+  done
+
+  @@map("getting_started_step")
+}
+
 /// A Pilote (CONTEXT.md): global, the scope's own key (ADR 0008), created by
 /// their first sign-in with GitHub (CORE-4). `seq` is the number of its last
-/// event (CORE-5). Ids are
-/// UUIDv7, generated in code (`src/ids.ts`).
+/// event (CORE-5), `lastSeq` the one of the last event about the Pilote
+/// themselves (`pilot.upserted`). Ids are UUIDv7, generated in code
+/// (`src/ids.ts`).
 model Pilot {
-  id             String               @id @db.Uuid
-  githubUserId   BigInt               @unique @map("github_user_id")
-  login          String
-  avatarUrl      String?              @map("avatar_url")
-  timeZone       String               @map("time_zone")
-  seq            BigInt               @default(0)
-  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz
-  githubToken    GithubUserToken?
-  webSessions    WebSession[]
-  events         Event[]
-  installations  GitHubInstallation[]
-  runners        Runner[]
-  latencySamples LatencySample[]
+  id                 String               @id @db.Uuid
+  githubUserId       BigInt               @unique @map("github_user_id")
+  login              String
+  avatarUrl          String?              @map("avatar_url")
+  timeZone           String               @map("time_zone")
+  gettingStartedStep GettingStartedStep   @default(runner) @map("getting_started_step")
+  seq                BigInt               @default(0)
+  lastSeq            BigInt               @default(0) @map("last_seq")
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  githubToken        GithubUserToken?
+  webSessions        WebSession[]
+  events             Event[]
+  installations      GitHubInstallation[]
+  runners            Runner[]
+  runnerLinkCodes    RunnerLinkCode[]
+  latencySamples     LatencySample[]
 
   @@map("pilots")
 }
@@ -136,6 +150,56 @@ model Runner {
   @@index([pilotId])
   @@index([state, lastSeenAt])
   @@map("runners")
+}
+
+enum RunnerLinkState {
+  waiting
+  pending
+  linked
+  failed
+  expired
+
+  @@map("runner_link_state")
+}
+
+enum RunnerLinkFailure {
+  expired
+  already_used       @map("already-used")
+  unsupported_system @map("unsupported-system")
+  no_engine          @map("no-engine")
+
+  @@map("runner_link_failure")
+}
+
+/// A link code the page drew (ADR 0003, RUNNER-3): the server knows only its
+/// `shortId`, never its secret. `waiting` for a Runner, `pending` once one
+/// called `POST /api/runner/link` with it (`pendingRunner` its machine), then
+/// `linked` when the page confirmed it, `failed` (`failureReason`) or
+/// `expired` 10 minutes after its creation. The pairings are opaque to the
+/// server (E2E-2): the page's (`browserPairing`), the Runner's
+/// (`runnerPairing`), the page's answer to it (`confirmPairing`).
+model RunnerLinkCode {
+  id             String             @id @db.Uuid
+  pilotId        String             @map("pilot_id") @db.Uuid
+  shortId        String             @map("short_id")
+  state          RunnerLinkState    @default(waiting)
+  failureReason  RunnerLinkFailure? @map("failure_reason")
+  browserPairing Json               @map("browser_pairing")
+  runnerPairing  Json?              @map("runner_pairing")
+  confirmPairing Json?              @map("confirm_pairing")
+  pendingRunner  Json?              @map("pending_runner")
+  /// The Runner it linked.
+  runnerId       String?            @map("runner_id") @db.Uuid
+  expiresAt      DateTime           @map("expires_at") @db.Timestamptz
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  lastSeq        BigInt             @default(0) @map("last_seq")
+  pilot          Pilot              @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@unique([shortId], map: "runner_link_codes_short_id_live_key", where: raw("state IN ('waiting', 'pending')"))
+  @@index([pilotId, createdAt])
+  @@index([shortId])
+  @@index([state, expiresAt])
+  @@map("runner_link_codes")
 }
 
 /// A webhook delivery GitHub sent (ADR 0002), by its `X-GitHub-Delivery`:

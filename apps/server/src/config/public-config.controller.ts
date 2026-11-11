@@ -24,7 +24,8 @@ const header = (request: Request, name: string): string | undefined => {
  * `GET /api/config`: public, what the page needs before anyone signs in.
  * Where it reads GitHub with the Pilote's token (ADR 0002) and the App's
  * slug, to install it: GitHub's, or with the fakes `<origin>/fake-github`,
- * the origin being the page's (through Vite's proxy in development).
+ * the origin being the page's (through Vite's proxy in development). The
+ * `--server` of the Runner's install command, outside production.
  */
 @Public()
 @Controller('config')
@@ -34,14 +35,15 @@ export class PublicConfigController {
   @Get()
   @ZodResponse({ status: 200, description: 'Where the page reads GitHub.', type: PublicConfigDto })
   config(@Req() request: Request): PublicConfig {
+    const runnerServer = this.env.CREWDECK_ENV === 'production' ? null : this.origin(request);
     if (!usesFakes(this.env)) {
-      return { githubApiUrl: this.env.GITHUB_API_URL, githubWebUrl: this.env.GITHUB_WEB_URL, appSlug: this.env.GITHUB_APP_SLUG ?? 'crewdeck' };
+      return { githubApiUrl: this.env.GITHUB_API_URL, githubWebUrl: this.env.GITHUB_WEB_URL, appSlug: this.env.GITHUB_APP_SLUG ?? 'crewdeck', runnerServer };
     }
     const fake = `${this.origin(request)}/fake-github`;
-    return { githubApiUrl: fake, githubWebUrl: fake, appSlug: this.env.GITHUB_APP_SLUG ?? 'crewdeck' };
+    return { githubApiUrl: fake, githubWebUrl: fake, appSlug: this.env.GITHUB_APP_SLUG ?? 'crewdeck', runnerServer };
   }
 
-  /** The origin the page was served from; the proxy's headers are trusted with the fakes only, never in production. */
+  /** The origin the page was served from: `PUBLIC_URL`'s where it is set (always outside development and test), else the proxy's. */
   private origin(request: Request): string {
     if (this.env.PUBLIC_URL !== undefined) return new URL(this.env.PUBLIC_URL).origin;
     const protocol = header(request, 'x-forwarded-proto') ?? request.protocol;

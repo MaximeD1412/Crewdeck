@@ -1,19 +1,22 @@
 import type { Me } from '@crewdeck/contracts';
-import { Cadre, PageComposants, PageConnexion, type Skin } from '@crewdeck/sdk';
+import { Cadre, PageComposants, PageConnexion, PageDemarrage, type Skin } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
 import { me as readMe } from './api/auth.js';
+import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
+import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
 import { bootSkin } from './registry.js';
-import { startRouter, type Route, type Router } from './router.js';
+import { routeData, startRouter, type Route, type Router } from './router.js';
 import { composantsHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
 import { signInGuard, signInHref } from './sign-in.js';
-import { connection as pageConnection, store as pageStore } from './store/index.js';
+import { client as pageClient, connection as pageConnection, store as pageStore } from './store/index.js';
 import type { Connection } from './store/connection.js';
 import { createLatencyMeter, type LatencyMeter } from './store/latency.js';
 import type { Store } from './store/store.js';
+import { systemOfBrowser } from './views/demarrage.js';
 
 /** The Skins the page knows, by id: at the MVP, the default one. */
 const SKINS: Readonly<Record<string, Skin>> = { passerelle };
@@ -36,6 +39,7 @@ export interface BootOptions {
   /** The page's store and its socket (`store/index.ts`) by default. */
   readonly store?: Store;
   readonly connection?: Pick<Connection, 'start' | 'stop'>;
+  readonly client?: Pick<Client, 'command' | 'query'>;
   /** The latency the page measures on its store's live events (CORE-8): started with the socket. */
   readonly latency?: LatencyMeter;
 }
@@ -65,6 +69,7 @@ export const boot = async ({
   leave = (url) => location.assign(url),
   store = pageStore,
   connection = pageConnection,
+  client = pageClient,
   latency = createLatencyMeter({ store }),
 }: BootOptions): Promise<App> => {
   const [pilot] = await Promise.all([me().catch(() => null), bootSkin(skin, resolveSkin)]);
@@ -78,14 +83,31 @@ export const boot = async ({
       return { ...state, slices: { pilot: state.slices.pilot !== undefined ? state.slices.pilot : pilot } };
     },
   });
-  const unsubscribe = store.subscribe(() => shell.refresh());
   const onUnhandled = (event: PromiseRejectionEvent) => {
     if (!(event.reason instanceof ApiError)) return;
     event.preventDefault();
     shell.showError(event.reason.message);
   };
   window.addEventListener('unhandledrejection', onUnhandled);
-  const router = startRouter({ routes, outlet: shell.outlet, onRoute: shell.update, guard: signInGuard(pilot) });
+  const gettingStarted = createGettingStarted({ store, client, bootPilot: pilot, origin: location.origin, system: systemOfBrowser(navigator.userAgent) });
+  const signIn = signInGuard(pilot);
+  const started = gettingStartedGuard(gettingStarted.pilot);
+  const pageData = routeData(routes);
+  const router = startRouter({
+    routes,
+    outlet: shell.outlet,
+    onRoute: shell.update,
+    guard: (match) => started(match) ?? signIn(match),
+    data: (match) => (match.composant === PageDemarrage ? gettingStarted.view() : pageData(match)),
+  });
+  const unsubscribe = [
+    store.subscribe(() => {
+      gettingStarted.sync();
+      router.refresh();
+      shell.refresh();
+    }),
+    gettingStarted.subscribe(() => router.refresh()),
+  ];
   if (pilot) {
     latency.start();
     connection.start();
@@ -95,11 +117,14 @@ export const boot = async ({
   });
   dispatcher.registerAction(PageComposants, 'select', { run: ({ name }) => router.navigate(composantsHref(name)) });
   dispatcher.registerAction(Cadre, 'openPilot', { run: () => router.navigate('/parametres') });
+  dispatcher.registerAction(PageDemarrage, 'selectSystem', { run: ({ system }) => gettingStarted.selectSystem(system) });
+  dispatcher.registerAction(PageDemarrage, 'retry', { run: () => gettingStarted.retry() });
+  dispatcher.registerAction(PageDemarrage, 'continue', { run: () => gettingStarted.advance() });
   const stop = () => {
     router.stop();
     connection.stop();
     latency.stop();
-    unsubscribe();
+    for (const stopListening of unsubscribe) stopListening();
     window.removeEventListener('unhandledrejection', onUnhandled);
   };
   return { router, bridge, dispatcher, stop };

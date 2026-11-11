@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "arch": {
+      "enum": [
+        "amd64",
+        "arm64"
+      ],
+      "type": "string"
+    },
+    "engines": {
+      "items": {
+        "maxLength": 64,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 16,
+      "type": "array"
+    },
+    "machine": {
+      "maxLength": 255,
+      "minLength": 1,
+      "type": "string"
+    },
+    "os": {
+      "enum": [
+        "linux",
+        "darwin"
+      ],
+      "type": "string"
+    },
+    "runnerVersion": {
+      "maxLength": 64,
+      "minLength": 1,
+      "type": "string"
+    },
+    "shortId": {
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{4}$",
+      "type": "string"
+    },
+    "wsl": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "arch",
+    "engines",
+    "machine",
+    "os",
+    "runnerVersion",
+    "shortId",
+    "wsl"
+  ],
+  "title": "RunnerLinkRequest",
+  "type": "object"
+}

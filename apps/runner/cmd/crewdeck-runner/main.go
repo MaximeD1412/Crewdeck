@@ -41,6 +41,7 @@ func newRootCommand() *cobra.Command {
 			fmt.Fprintln(cmd.OutOrStdout(), version)
 		},
 	})
+	root.AddCommand(newLinkCommand(&server))
 	root.AddCommand(&cobra.Command{
 		Use:   "run",
 		Short: "Connect to the server and stay connected, in the foreground",

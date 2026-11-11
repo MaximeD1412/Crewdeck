@@ -1,5 +1,7 @@
 import type { z } from 'zod';
+import { zErrorEnvelope } from './api/errors.js';
 import { zHealth } from './api/health.js';
+import { LINK_ATTEMPTS_PER_MINUTE, LINK_CODE_TTL_SECONDS, LINK_POLL_SECONDS, zRunnerLinkAccepted, zRunnerLinkPairing, zRunnerLinkRequest, zRunnerLinkStatus } from './api/runner-link.js';
 import { zEngineCapabilities } from './runner/engines.js';
 import { zEngineEvent } from './runner/events.js';
 import { zHeartbeat, zHeartbeatAck } from './runner/heartbeat.js';
@@ -15,6 +17,11 @@ import { HEARTBEAT_SECONDS, OFFLINE_AFTER_SECONDS, PROTOCOL_VERSION, RUNNER_WS_C
  */
 export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'health', schema: zHealth },
+  { name: 'error-envelope', schema: zErrorEnvelope },
+  { name: 'runner-link-request', schema: zRunnerLinkRequest },
+  { name: 'runner-link-accepted', schema: zRunnerLinkAccepted },
+  { name: 'runner-link-pairing', schema: zRunnerLinkPairing },
+  { name: 'runner-link-status', schema: zRunnerLinkStatus },
   { name: 'runner-envelope', schema: zRunnerEnvelope },
   { name: 'runner-hello', schema: zHello },
   { name: 'runner-hello-accepted', schema: zHelloAccepted },
@@ -60,7 +67,7 @@ export const generatedEntries: readonly { name: string; schema: z.ZodType }[] = 
 /**
  * The constants the Runner reads as the server does, written as Go constants
  * to `apps/runner/internal/contracts/constants.go`: the protocol's version, its
- * timings and its close codes.
+ * timings and its close codes, the link's timings.
  */
 export const goConstants: Readonly<Record<string, number>> = {
   ProtocolVersion: PROTOCOL_VERSION,
@@ -69,4 +76,7 @@ export const goConstants: Readonly<Record<string, number>> = {
   CloseUnauthorized: RUNNER_WS_CLOSE.unauthorized,
   CloseReplaced: RUNNER_WS_CLOSE.replaced,
   CloseUpdateRequired: RUNNER_WS_CLOSE.updateRequired,
+  LinkCodeTtlSeconds: LINK_CODE_TTL_SECONDS,
+  LinkPollSeconds: LINK_POLL_SECONDS,
+  LinkAttemptsPerMinute: LINK_ATTEMPTS_PER_MINUTE,
 };

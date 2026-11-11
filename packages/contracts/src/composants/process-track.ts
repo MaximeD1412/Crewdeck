@@ -9,7 +9,9 @@ const zStep = z.object({ label: z.string(), meta: z.string().nullable(), state: 
 
 /**
  * The Étapes of a Conception, of a Ticket or of the getting started
- * (CONCEPTION-2, BOUCLE-5): an ordered list, the current one marked as such.
+ * (CONCEPTION-2, BOUCLE-5, RUNNER-3): an ordered list, the current one marked
+ * as such. `compact` keeps them on one line at every width, without their
+ * metas: the steps of « Premiers pas ».
  */
 export const ProcessTrack = defineComposant({
   name: 'ProcessTrack',
@@ -18,7 +20,7 @@ export const ProcessTrack = defineComposant({
   category: 'partie',
   description: 'Les Étapes d’une Conception ou d’un Ticket, dans l’ordre, la courante marquée.',
   data: z.object({
-    direction: z.enum(['horizontal', 'vertical']),
+    direction: z.enum(['horizontal', 'vertical', 'compact']),
     steps: z.array(zStep).min(1),
   }),
   actions: {},
@@ -71,6 +73,17 @@ export const ProcessTrack = defineComposant({
           { label: 'Checks', meta: '4 sur 4 passés', state: 'done' },
           { label: 'Review', meta: 'Codex · depuis 6 min', state: 'current' },
           { label: 'Merge', meta: 'par la Boucle, dès que la review passe', state: 'todo' },
+        ],
+      },
+    },
+    {
+      name: 'compacte, les Premiers pas',
+      data: {
+        direction: 'compact',
+        steps: [
+          { label: 'Runner', meta: null, state: 'done' },
+          { label: 'Comptes IA', meta: null, state: 'current' },
+          { label: 'Projets', meta: null, state: 'todo' },
         ],
       },
     },

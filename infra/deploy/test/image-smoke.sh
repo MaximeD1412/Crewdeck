@@ -51,6 +51,7 @@ docker run --rm --entrypoint sh -e COMMIT="$commit" "$image" -c '
     sha256sum -c "$target.sha256"
   done
   [ "$(ls | wc -l)" -eq 8 ] || { echo "attendu 4 binaires et 4 .sha256 :" >&2; ls >&2; exit 1; }
+  [ -f "$RUNNER_DIST_DIR/install.sh" ] || { echo "install.sh absent" >&2; exit 1; }
   version=$(./linux-amd64 version)
   [ "$version" = "$COMMIT" ] || { echo "crewdeck-runner version : $version, attendu $COMMIT" >&2; exit 1; }
   echo "crewdeck-runner version: $version"
@@ -114,6 +115,14 @@ echo "$fake" | head -1 | grep -q '^404 application/json' || fail "/fake-github s
 config=$(get /api/config)
 echo "/api/config: $(echo "$config" | tail -1)"
 echo "$config" | tail -1 | grep -q '"githubApiUrl":"https://api.github.com"' || fail "/api/config : $config"
+
+install=$(get /runner/install.sh)
+echo "/runner/install.sh: $(echo "$install" | head -1)"
+echo "$install" | head -1 | grep -q '^200 text/x-shellscript' || fail "/runner/install.sh : $(echo "$install" | head -1)"
+echo "$install" | grep -q "^server='https://crewdeck.invalid'$" || fail "/runner/install.sh n'est pas rendu avec PUBLIC_URL"
+echo "$install" | grep -q "^version='$commit'$" || fail "/runner/install.sh n'est pas rendu avec le commit $commit"
+binary=$(get "/runner/$commit/linux-amd64.sha256")
+echo "$binary" | head -1 | grep -q '^200 ' || fail "/runner/$commit/linux-amd64.sha256 : $(echo "$binary" | head -1)"
 
 echo "--- the staging guard"
 code=0

@@ -25,7 +25,6 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
         display: flex;
         flex-direction: column;
         gap: var(--cd-space-4);
-        padding: var(--cd-space-4) var(--cd-space-4) var(--cd-space-8);
         min-width: 0;
       }
       .lib,
@@ -119,9 +118,7 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
       }
       @media (min-width: 1280px) {
         :host {
-          padding: var(--cd-space-8) var(--cd-space-10) var(--cd-space-10);
           gap: var(--cd-space-6);
-          max-width: calc(var(--cd-page-max) + var(--cd-space-10) * 2);
         }
         .lib {
           display: grid;

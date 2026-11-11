@@ -10,6 +10,8 @@ describe('composantsView', () => {
       Object.keys(COMPOSANTS).sort(),
     );
     expect(view.groups[0]?.composants).toEqual([
+      { name: 'Cadre', version: 1 },
+      { name: 'MenuItem', version: 1 },
       { name: 'PageHeader', version: 1 },
       { name: 'ProjectFilter', version: 1 },
     ]);
@@ -55,7 +57,7 @@ describe('composantsView', () => {
   });
 
   it.each([null, 'Nope', 'constructor'])('with ?c=%s, opens the first Composant of the catalogue', (name) => {
-    expect(composantsView(COMPOSANTS, name).selected.name).toBe('PageHeader');
+    expect(composantsView(COMPOSANTS, name).selected.name).toBe('Cadre');
   });
 
   it('is the data of PageComposants', () => {

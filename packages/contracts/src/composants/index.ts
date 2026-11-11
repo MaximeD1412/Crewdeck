@@ -1,5 +1,6 @@
 import { Banner } from './banner.js';
 import { Button } from './button.js';
+import { Cadre, MenuItem } from './cadre.js';
 import { Capture } from './capture.js';
 import { Card } from './card.js';
 import { CheckRow } from './check-row.js';
@@ -27,6 +28,7 @@ import { UsageMeter } from './usage-meter.js';
 export * from './action.js';
 export * from './banner.js';
 export * from './button.js';
+export * from './cadre.js';
 export * from './capture.js';
 export * from './card.js';
 export * from './check-row.js';
@@ -60,6 +62,8 @@ export * from './usage-meter.js';
  * The UI and page tickets add theirs.
  */
 export const COMPOSANTS = {
+  Cadre,
+  MenuItem,
   PageHeader,
   ProjectFilter,
   PageComposants,

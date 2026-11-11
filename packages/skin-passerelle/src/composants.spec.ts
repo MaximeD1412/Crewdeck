@@ -64,6 +64,7 @@ const textOf = (el: Element | null | undefined) => el?.textContent?.replace(/\s+
 
 /** How each declared action is set off from the first example: a test fails for an action without one. */
 const TRIGGERS: Readonly<Record<string, (el: Element) => void>> = {
+  'Cadre.openPilot': (el) => inside(el, 'button.pilot').click(),
   'ProjectFilter.select': (el) => inside(el, 'cd-chip:nth-of-type(2)', 'button').click(),
   'Tabs.select': (el) => inside(el, 'button[role=tab]:nth-of-type(2)').click(),
   'Capture.open': (el) => inside(el, 'button').click(),

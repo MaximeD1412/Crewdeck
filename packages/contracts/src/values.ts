@@ -28,8 +28,15 @@ export type UsdMicros = z.infer<typeof zUsdMicros>;
 export const zEurCents = zNonNegativeInt;
 export type EurCents = z.infer<typeof zEurCents>;
 
-/** The real-time sequence number of ADR 0007. */
-export const zSeq = zNonNegativeInt;
+/**
+ * The real-time sequence number of ADR 0007. The page keeps it a `bigint` and
+ * sends it as its decimal string (BigInt-safe in JSON); the server sends a
+ * number. Both are read as a number, which stays a safe integer.
+ */
+export const zSeq = z.codec(z.union([zNonNegativeInt, z.string().regex(/^(0|[1-9][0-9]*)$/)]), zNonNegativeInt, {
+  decode: (value) => Number(value),
+  encode: (seq) => seq,
+});
 export type Seq = z.infer<typeof zSeq>;
 
 /** A page of a list that only grows: its items, and the cursor of the next page (`null` at the end). */

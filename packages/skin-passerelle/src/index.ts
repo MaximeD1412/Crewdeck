@@ -26,6 +26,7 @@ import { PasserelleMenuItem } from './menu-item.js';
 import { PasserelleMessage } from './message.js';
 import { PasserellePageComposants } from './page-composants.js';
 import { PasserellePageConnexion } from './page-connexion.js';
+import { PasserellePageParametres } from './page-parametres.js';
 import { PasserellePageHeader } from './page-header.js';
 import { PasserellePageIntrouvable } from './page-introuvable.js';
 import { PasserellePermissionRequest } from './permission-request.js';
@@ -54,6 +55,7 @@ export default defineSkin({
     ProjectFilter: PasserelleProjectFilter,
     PageComposants: PasserellePageComposants,
     PageConnexion: PasserellePageConnexion,
+    PageParametres: PasserellePageParametres,
     PageIntrouvable: PasserellePageIntrouvable,
     Card: PasserelleCard,
     CodeBlock: PasserelleCodeBlock,

@@ -183,3 +183,37 @@ func seqOf(event contracts.EngineEvent) int {
 	}
 	return -1
 }
+
+func TestCancellingTheContextOfStartEndsARunWaitingForAnAnswer(t *testing.T) {
+	e := &fake.Engine{Events: []contracts.EngineEvent{question("q-1"), message("Bleu"), ok()}}
+	ctx, cancel := context.WithCancel(context.Background())
+	run, _ := e.Start(ctx, engine.StartOptions{})
+	next(t, run)
+	cancel()
+	if rest := drain(t, run); len(rest) != 0 {
+		t.Fatalf("after the cancel %+v", rest)
+	}
+	if err := run.Wait(); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Wait %v, want context.Canceled", err)
+	}
+	if err := run.Answer(context.Background(), "q-1", engine.Answer{Options: []string{"Bleu"}}); !errors.Is(err, engine.ErrRunEnded) {
+		t.Fatalf("Answer after the cancel %v, want ErrRunEnded", err)
+	}
+}
+
+func TestCancellingTheContextOfResumeEndsARunWhoseEventsAreNotRead(t *testing.T) {
+	e := &fake.Engine{Events: []contracts.EngineEvent{message("Bonjour"), ok()}}
+	ctx, cancel := context.WithCancel(context.Background())
+	run, _ := e.Resume(ctx, engine.ResumeOptions{EngineSessionID: "s-1"})
+	cancel()
+	done := make(chan error, 1)
+	go func() { done <- run.Wait() }()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Wait %v, want context.Canceled", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Wait still blocked 5 s after the cancel")
+	}
+}

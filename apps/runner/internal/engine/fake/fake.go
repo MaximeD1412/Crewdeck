@@ -2,7 +2,9 @@
 // events, for the tests of the Sessions (RUNNER-9) and the fake Runner. It
 // runs nothing: each run emits Events in order, numbered from 1, waits after
 // a `question` or a `permission-request` until it is answered, and ends after
-// the last one. Interrupt ends it at once with a `result` `interrupted`.
+// the last one. Interrupt ends it at once with a `result` `interrupted`;
+// cancelling the context given to Start or Resume ends it with nothing more,
+// as a killed Moteur process would, Wait then returning the context's error.
 package fake
 
 import (
@@ -56,12 +58,12 @@ func (e *Engine) Capabilities(context.Context) (contracts.EngineCapabilities, er
 	}, nil
 }
 
-func (e *Engine) Start(_ context.Context, opts engine.StartOptions) (engine.Run, error) {
-	return e.start(opts, ""), nil
+func (e *Engine) Start(ctx context.Context, opts engine.StartOptions) (engine.Run, error) {
+	return e.start(ctx, opts, ""), nil
 }
 
-func (e *Engine) Resume(_ context.Context, opts engine.ResumeOptions) (engine.Run, error) {
-	return e.start(opts.StartOptions, opts.EngineSessionID), nil
+func (e *Engine) Resume(ctx context.Context, opts engine.ResumeOptions) (engine.Run, error) {
+	return e.start(ctx, opts.StartOptions, opts.EngineSessionID), nil
 }
 
 // Runs are the runs started so far, in order, for a test to read what they
@@ -72,7 +74,7 @@ func (e *Engine) Runs() []*Run {
 	return append([]*Run(nil), e.runs...)
 }
 
-func (e *Engine) start(opts engine.StartOptions, sessionID string) *Run {
+func (e *Engine) start(ctx context.Context, opts engine.StartOptions, sessionID string) *Run {
 	now := e.Now
 	if now == nil {
 		now = time.Now
@@ -89,7 +91,7 @@ func (e *Engine) start(opts engine.StartOptions, sessionID string) *Run {
 	e.mu.Lock()
 	e.runs = append(e.runs, r)
 	e.mu.Unlock()
-	go r.play(append([]contracts.EngineEvent(nil), e.Events...), e.Err)
+	go r.play(ctx, append([]contracts.EngineEvent(nil), e.Events...), e.Err)
 	return r
 }
 
@@ -124,13 +126,17 @@ type answerRequest struct {
 
 // play emits the events; it is the only one to write on r.events, and it
 // takes every Interrupt and Answer, so that nothing is emitted after an
-// Interrupt returns but the `interrupted` result.
-func (r *Run) play(events []contracts.EngineEvent, err error) {
+// Interrupt returns but the `interrupted` result. Every wait of it also ends
+// on the context's cancellation.
+func (r *Run) play(ctx context.Context, events []contracts.EngineEvent, err error) {
 	defer close(r.done)
 	defer close(r.events)
 	seq := 0 // of the last event emitted
 	interrupted := func() {
-		r.events <- engine.Stamp(contracts.EngineEvent{Result: &contracts.EngineEventResult{Status: contracts.EngineEventResultStatusInterrupted}}, seq+1, r.now())
+		select {
+		case r.events <- engine.Stamp(contracts.EngineEvent{Result: &contracts.EngineEventResult{Status: contracts.EngineEventResultStatusInterrupted}}, seq+1, r.now()):
+		case <-ctx.Done():
+		}
 	}
 	for _, event := range events {
 		next := engine.Stamp(event, seq+1, r.now())
@@ -139,6 +145,9 @@ func (r *Run) play(events []contracts.EngineEvent, err error) {
 			case r.events <- next:
 				seq++
 				sent = true
+			case <-ctx.Done():
+				r.err = ctx.Err()
+				return
 			case <-r.interrupt:
 				interrupted()
 				return
@@ -149,6 +158,9 @@ func (r *Run) play(events []contracts.EngineEvent, err error) {
 		pending := requestID(event)
 		for pending != "" {
 			select {
+			case <-ctx.Done():
+				r.err = ctx.Err()
+				return
 			case <-r.interrupt:
 				interrupted()
 				return

@@ -166,12 +166,16 @@ func TestReplayWithUpdateRewritesTheGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Chdir(dir)
+	// Whatever -update the command line gave: off to see the stale golden
+	// fail, on to rewrite it, then as it was.
+	given := *update
+	t.Cleanup(func() { *update = given })
 
+	*update = false
 	if failures := replayFailures(t, "toy", "stale"); len(failures) == 0 {
 		t.Fatal("a stale golden matched")
 	}
 	*update = true
-	defer func() { *update = false }()
 	Replay(t, toy{}, "toy", "stale")
 	*update = false
 	if rewritten, _ := os.ReadFile(golden); string(rewritten) != string(committed) {

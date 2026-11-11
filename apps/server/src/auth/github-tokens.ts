@@ -6,6 +6,7 @@ import { GITHUB_CLIENT, type GitHubClient } from '../github/github.client.js';
 import { PrismaService, type ScopedPrisma } from '../prisma/prisma.service.js';
 import { currentPilotId } from '../scope/scope.context.js';
 import { TOKEN_KEY_VERSION, TokenCipher, TokenDecryptError } from './token-cipher.js';
+import { WebSessions } from './web-sessions.js';
 
 /** The access token is refreshed when less than this remains of it. */
 export const REFRESH_WITHIN_MS = 5 * 60 * 1000;
@@ -39,6 +40,7 @@ export class GithubTokens {
     private readonly prisma: PrismaService,
     private readonly cipher: TokenCipher,
     @Inject(GITHUB_CLIENT) private readonly github: GitHubClient,
+    private readonly sessions: WebSessions,
   ) {}
 
   /** Stores `tokens` as the scope's Pilote's, written by `tx`. */
@@ -91,16 +93,18 @@ export class GithubTokens {
    * with a random nonce): a sign-in stored new ones meanwhile, which are read
    * again. The token's delete is conditional and takes its row's lock, the
    * sessions are deleted only after it in the same transaction: a sign-in
-   * that commits first keeps its session, one that commits after waits.
+   * that commits first keeps its session, one that commits after waits. The
+   * sockets of the sessions deleted, and of those only, are closed once it
+   * commits: a sign-in that completes between the commit and the return keeps
+   * its socket.
    */
   private async expire(read: Uint8Array<ArrayBuffer>, pilotId: string, now: number): Promise<GithubToken> {
-    const replaced = await this.prisma.scoped.$transaction(async (tx) => {
+    const deleted = await this.prisma.scoped.$transaction(async (tx) => {
       const { count } = await tx.githubUserToken.deleteMany({ where: { refreshTokenEnc: { equals: read } } });
-      if (count === 0) return true;
-      await tx.webSession.deleteMany({});
-      return false;
+      return count === 0 ? undefined : this.sessions.deleteAll(tx);
     });
-    if (replaced) return this.read(pilotId, now);
+    if (!deleted) return this.read(pilotId, now);
+    this.sessions.revokeSockets(pilotId, deleted);
     throw githubExpired();
   }
 }

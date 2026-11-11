@@ -1,13 +1,14 @@
 import type { INestApplication } from '@nestjs/common';
 import pg from 'pg';
 import { inject } from 'vitest';
-import { zGithubToken, zMe } from '@crewdeck/contracts';
+import { WS_CLOSE, zGithubToken, zMe } from '@crewdeck/contracts';
 import { parseEnv } from '../../src/config/env.js';
 import { userTokenRefused } from '../../src/github/github.errors.js';
 import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
 import { FAKES, type Fakes } from '../../src/testing/fakes.js';
+import { connect, type WsClient } from '../fakes/ws-client.js';
 import { authKeysEnv } from '../github-app.js';
 import { expectEnvelope, startApp } from '../route-baseline.js';
 
@@ -96,6 +97,20 @@ describe('sign in with GitHub against PostgreSQL', () => {
   const signedIn = async (options?: Parameters<typeof signIn>[0]): Promise<string> =>
     (setCookies(await signIn(options)).get('crewdeck_session') ?? '').split(';')[0] ?? '';
 
+  const sockets: WsClient[] = [];
+  afterEach(async () => {
+    await Promise.all(sockets.splice(0).map((client) => client.close()));
+  });
+
+  /** A socket of the page on `/api/ws`, answered once open (a pong), with its cookie. */
+  const socket = async (cookie: string): Promise<WsClient> => {
+    const client = await connect(url, { cookie, origin: APP_URL });
+    sockets.push(client);
+    client.send({ type: 'ping' });
+    await client.next('pong');
+    return client;
+  };
+
   /** A call of the page: its Origin, its cookie. */
   const call = (path: string, cookie: string, init: RequestInit = {}): Promise<Response> =>
     fetch(`${url}${path}`, { ...init, headers: { origin: APP_URL, cookie, ...init.headers } });
@@ -178,9 +193,10 @@ describe('sign in with GitHub against PostgreSQL', () => {
       expect(fakes.github.refreshUserToken).toHaveBeenCalledTimes(1);
     });
 
-    it('signs the Pilote out with 401 auth.github-expired when GitHub refuses the refresh', async () => {
+    it('signs the Pilote out with 401 auth.github-expired when GitHub refuses the refresh, and closes all their sockets', async () => {
       const cookie = await signedIn();
-      await signedIn();
+      const other = await signedIn();
+      const sockets = [await socket(cookie), await socket(other)];
       await sql(`UPDATE github_user_tokens SET access_expires_at = now() + interval '1 minute'`);
       fakes.github.reset();
       fakes.github.seedUser(OCTOCAT);
@@ -190,6 +206,37 @@ describe('sign in with GitHub against PostgreSQL', () => {
       await expectEnvelope(res, 401, 'auth.github-expired');
       expect(await sql('SELECT * FROM web_sessions')).toEqual([]);
       await expectEnvelope(await call('/api/me', cookie), 401, 'auth.required');
+      for (const client of sockets) expect((await client.closed()).code).toBe(WS_CLOSE.unauthorized);
+    });
+
+    it('keeps the socket of a sign-in that completes after the sign-out commits, before it returns', async () => {
+      const cookie = await signedIn();
+      const old = await socket(cookie);
+      await sql(`UPDATE github_user_tokens SET access_expires_at = now() + interval '1 minute'`);
+      fakes.github.reset();
+      fakes.github.seedUser(OCTOCAT);
+      const prisma = app.get(PrismaService);
+      const transaction = prisma.scoped.$transaction.bind(prisma.scoped);
+      let committed!: () => void;
+      let release!: () => void;
+      const signOutCommitted = new Promise<void>((resolve) => (committed = resolve));
+      const signOutReleased = new Promise<void>((resolve) => (release = resolve));
+      vi.spyOn(prisma.scoped, '$transaction').mockImplementationOnce((async (...args: Parameters<typeof transaction>) => {
+        const result = await transaction(...args);
+        committed();
+        await signOutReleased;
+        return result;
+      }) as typeof transaction);
+
+      const refused = call('/api/github/token', cookie, { method: 'POST' });
+      await signOutCommitted;
+      const fresh = await socket(await signedIn());
+      release();
+
+      await expectEnvelope(await refused, 401, 'auth.github-expired');
+      expect((await old.closed()).code).toBe(WS_CLOSE.unauthorized);
+      fresh.send({ type: 'ping' });
+      await expect(fresh.next('pong')).resolves.toEqual({ type: 'pong' });
     });
 
     it('keeps a sign-in that completes while an earlier refresh is pending, then refused', async () => {
@@ -270,6 +317,19 @@ describe('sign in with GitHub against PostgreSQL', () => {
     await expectEnvelope(await call('/api/github/token', cookie, { method: 'POST', headers: { origin: 'https://evil.example' } }), 401, 'auth.origin');
     await expectEnvelope(await fetch(`${url}/api/auth/logout`, { method: 'POST', headers: { cookie } }), 401, 'auth.origin');
     expect((await call('/api/me', cookie)).status).toBe(200);
+  });
+
+  it('closes the sockets of the session it logs out, and keeps the other sessions’', async () => {
+    const cookie = await signedIn();
+    const other = await signedIn();
+    const mine = await socket(cookie);
+    const theirs = await socket(other);
+
+    expect((await call('/api/auth/logout', cookie, { method: 'POST' })).status).toBe(204);
+
+    expect(await mine.closed()).toEqual({ code: WS_CLOSE.unauthorized, reason: 'revoked' });
+    theirs.send({ type: 'ping' });
+    await expect(theirs.next('pong')).resolves.toEqual({ type: 'pong' });
   });
 
   it('logs out with 204, clears the cookie, and refuses the same cookie after', async () => {

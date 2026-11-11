@@ -2,6 +2,7 @@ import { SESSION_COOKIE } from '../../auth/cookies.js';
 import { WebSessions } from '../../auth/web-sessions.js';
 import type { GitHubUser } from '@crewdeck/contracts';
 import { newId } from '../../ids.js';
+import { WsRevocations } from '../../realtime/ws-revocations.js';
 import { runInPilotScope } from '../../scope/scope.context.js';
 import type { ScenarioContext, ScenarioSeed } from './define.js';
 
@@ -29,6 +30,6 @@ export const signInPilot = async (ctx: ScenarioContext): Promise<ScenarioSeed> =
     // No avatar: the Cadre of the captures shows the initials, not an image that never loads.
     data: { id: newId(), githubUserId: BigInt(OCTOCAT.id), login: OCTOCAT.login, avatarUrl: null, timeZone: 'Europe/Paris' },
   });
-  const token = await runInPilotScope(pilot.id, () => new WebSessions(ctx.prisma).open(ctx.prisma.scoped, pilot.id, undefined));
+  const token = await runInPilotScope(pilot.id, () => new WebSessions(ctx.prisma, new WsRevocations()).open(ctx.prisma.scoped, pilot.id, undefined));
   return { sessionCookie: `${SESSION_COOKIE}=${token}` };
 };

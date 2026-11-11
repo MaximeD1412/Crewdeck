@@ -2,7 +2,7 @@ import type { z } from 'zod';
 import { zErrorEnvelope } from './api/errors.js';
 import { zHealth } from './api/health.js';
 import { LINK_ATTEMPTS_PER_MINUTE, LINK_CODE_TTL_SECONDS, LINK_POLL_SECONDS, zRunnerLinkAccepted, zRunnerLinkPairing, zRunnerLinkRequest, zRunnerLinkStatus } from './api/runner-link.js';
-import { zEngineCapabilities } from './runner/engines.js';
+import { CAPABILITIES_EVERY_SECONDS, zCapabilities } from './runner/capabilities.js';
 import { zEngineEvent } from './runner/events.js';
 import { zHeartbeat, zHeartbeatAck } from './runner/heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './runner/hello.js';
@@ -30,7 +30,7 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-heartbeat-ack', schema: zHeartbeatAck },
   { name: 'runner-error', schema: zProtocolError },
   { name: 'runner-step-verdict', schema: zStepVerdict },
-  { name: 'engine-capabilities', schema: zEngineCapabilities },
+  { name: 'runner-capabilities', schema: zCapabilities },
 ];
 
 /**
@@ -79,4 +79,5 @@ export const goConstants: Readonly<Record<string, number>> = {
   LinkCodeTtlSeconds: LINK_CODE_TTL_SECONDS,
   LinkPollSeconds: LINK_POLL_SECONDS,
   LinkAttemptsPerMinute: LINK_ATTEMPTS_PER_MINUTE,
+  CapabilitiesEverySeconds: CAPABILITIES_EVERY_SECONDS,
 };

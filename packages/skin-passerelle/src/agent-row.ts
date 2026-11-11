@@ -72,16 +72,25 @@ export class PasserelleAgentRow extends PasserelleElement<typeof AgentRow> {
         color: var(--cd-ink);
         font-weight: 600;
       }
+      /* One line: the Étape whole, the Moteur and since when cut short when they must be. */
       .meta {
         display: flex;
-        flex-wrap: wrap;
         align-items: center;
+        min-width: 0;
         gap: var(--cd-space-2);
         font: var(--cd-font-meta-weight) var(--cd-font-meta-size) / var(--cd-font-meta-line-height)
           var(--cd-font-meta-family), monospace;
         color: var(--cd-muted);
       }
+      .engine {
+        min-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
       .step {
+        flex: none;
+        white-space: nowrap;
         padding: 0 var(--cd-space-2);
         border-radius: var(--cd-radius-sm);
         font-weight: 500;
@@ -110,7 +119,7 @@ export class PasserelleAgentRow extends PasserelleElement<typeof AgentRow> {
       <span class="dot ${tone}" aria-hidden="true"></span>
       <span class="main">
         <span class="title"><b>${projet}</b> · ${ticket}</span>
-        <span class="meta"><span class="step ${tone}">${step}</span> ${engine} · ${since}</span>
+        <span class="meta"><span class="step ${tone}">${step}</span> <span class="engine">${engine} · ${since}</span></span>
       </span>
     </button>`;
   }

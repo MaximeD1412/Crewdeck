@@ -78,12 +78,18 @@ export const rowStyles = css`
     flex-direction: column;
     gap: var(--cd-space-1);
   }
+  /* The badges stay beside the title: a title too long wraps on its own. */
   .title-line {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: var(--cd-space-1) var(--cd-space-2);
+    gap: var(--cd-space-2);
     min-width: 0;
+  }
+  .title-line .title {
+    min-width: 0;
+  }
+  .title-line ::slotted(*) {
+    flex: none;
   }
   .title {
     font: var(--cd-font-title-weight) var(--cd-font-label-size) / var(--cd-font-title-line-height)

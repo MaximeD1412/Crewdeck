@@ -183,6 +183,7 @@ export const createGettingStarted = ({
         busy: advancing !== null,
         origin,
         server: config?.runnerServer ?? null,
+        accounts: [...(slices['ai-account']?.values() ?? [])],
       });
     },
     sync,

@@ -1,4 +1,4 @@
-import type { Runner } from '@crewdeck/contracts';
+import type { AiAccount, Runner } from '@crewdeck/contracts';
 import { COMPOSANTS } from '@crewdeck/sdk';
 import { demarrageView, installCommand, systemOfBrowser, type DemarrageState } from './demarrage.js';
 
@@ -23,7 +23,31 @@ const STATE: DemarrageState = {
   busy: false,
   origin: 'https://crewdeck.example',
   server: null,
+  accounts: [],
 };
+const CLAUDE: AiAccount = {
+  id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7c',
+  engine: 'claude-code',
+  installed: true,
+  version: '2.1.3',
+  knownVersion: false,
+  kind: 'subscription',
+  state: 'connected',
+  models: [
+    { id: 'claude-opus-5-5', label: 'Opus 5.5', usable: true },
+    { id: 'claude-fable-5-1', label: 'Fable 5.1', usable: false, reason: 'not-in-plan' },
+  ],
+  reportedAt: '2026-11-11T14:12:00.000Z',
+};
+const NOT_CONNECTED = (engine: 'claude-code' | 'codex', command: string) => ({
+  engine,
+  installed: true,
+  knownVersion: true,
+  kind: 'none',
+  state: 'login-required',
+  models: [],
+  command,
+});
 
 const valid = (state: DemarrageState) => COMPOSANTS.PageDemarrage.data.parse(demarrageView(state));
 
@@ -60,7 +84,32 @@ describe('demarrageView', () => {
       failure: null,
       runner: null,
       busy: false,
+      engines: [NOT_CONNECTED('claude-code', 'crewdeck-runner login claude'), NOT_CONNECTED('codex', 'crewdeck-runner login codex')],
+      usable: false,
     });
+  });
+
+  it('gives both Moteurs, as their Runner reported them or not connected, and usable once a Rôle can run on one', () => {
+    const view = valid({ ...STATE, pilot: { login: 'octocat', gettingStartedStep: 'ai-accounts' }, runner: RUNNER, accounts: [CLAUDE] });
+    expect(view.engines).toEqual([
+      {
+        engine: 'claude-code',
+        installed: true,
+        knownVersion: false,
+        kind: 'subscription',
+        state: 'connected',
+        models: CLAUDE.models,
+        command: 'crewdeck-runner login claude',
+      },
+      NOT_CONNECTED('codex', 'crewdeck-runner login codex'),
+    ]);
+    expect(view.usable).toBe(true);
+  });
+
+  it('is not usable while no connected Moteur has a usable model', () => {
+    const quota = { ...CLAUDE, models: [{ id: 'claude-opus-5-5', label: 'Opus 5.5', usable: false, reason: 'quota-reached' as const }] };
+    expect(valid({ ...STATE, runner: RUNNER, accounts: [quota] }).usable).toBe(false);
+    expect(valid({ ...STATE, runner: RUNNER, accounts: [{ ...CLAUDE, state: 'login-required', kind: 'none' }] }).usable).toBe(false);
   });
 
   it('has no command before the code is drawn, and keeps the failure for its Banner', () => {

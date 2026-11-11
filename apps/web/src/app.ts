@@ -1,5 +1,5 @@
 import type { Me } from '@crewdeck/contracts';
-import { Cadre, PageComposants, PageConnexion, PageDemarrage, type Skin } from '@crewdeck/sdk';
+import { Cadre, PageComposants, PageConnexion, PageDemarrage, PageRunner, type Skin } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
 import { me as readMe } from './api/auth.js';
@@ -17,6 +17,7 @@ import type { Connection } from './store/connection.js';
 import { createLatencyMeter, type LatencyMeter } from './store/latency.js';
 import type { Store } from './store/store.js';
 import { systemOfBrowser } from './views/demarrage.js';
+import { runnerView } from './views/runner.js';
 
 /** The Skins the page knows, by id: at the MVP, the default one. */
 const SKINS: Readonly<Record<string, Skin>> = { passerelle };
@@ -98,7 +99,12 @@ export const boot = async ({
     outlet: shell.outlet,
     onRoute: shell.update,
     guard: (match) => started(match) ?? signIn(match),
-    data: (match) => (match.composant === PageDemarrage ? gettingStarted.view() : pageData(match)),
+    data: (match) => {
+      if (match.composant === PageDemarrage) return gettingStarted.view();
+      if (match.composant !== PageRunner) return pageData(match);
+      const { slices } = store.getState();
+      return runnerView({ runner: slices.runner ?? null, accounts: slices['ai-account']?.values() ?? [] });
+    },
   });
   const unsubscribe = [
     store.subscribe(() => {

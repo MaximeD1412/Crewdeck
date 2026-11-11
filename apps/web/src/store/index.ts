@@ -13,6 +13,7 @@ export const store = createStore();
 store.registerSlice('pilot', { shape: 'single' });
 store.registerSlice('runner', { shape: 'single' });
 store.registerSlice('runner-link', { shape: 'single' });
+store.registerSlice('ai-account', { shape: 'collection' });
 
 export const client = createClient({
   seq: () => store.getState().seq,

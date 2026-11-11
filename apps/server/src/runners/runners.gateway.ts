@@ -6,6 +6,7 @@ import type { RawData, WebSocket } from 'ws';
 import { bearerOf, type RunnerCredential, RunnerTokens } from '../auth/runner-tokens.js';
 import type { Env } from '../config/env.js';
 import { ENV } from '../config/env.module.js';
+import { Devices } from '../devices/devices.service.js';
 import { WS_CLIENTS, type WsClientHandler, type WsClientHandlers } from '../realtime/ws-clients.js';
 import { type OutgoingRunnerMessage, type RunnerLink, RunnerConnections, stamp } from './runner-connections.js';
 import { parseRunnerMessage, RunnerDispatcher } from './runner-dispatcher.js';
@@ -27,7 +28,8 @@ const textOf = (data: RawData): string => (Array.isArray(data) ? Buffer.concat(d
  *   protocol.hello-required`); a protocol older than the one before the
  *   server's gets `hello.rejected update-required` with the version to
  *   update to, then 4426; else `hello.accepted` at the server's version or
- *   the Runner's, whichever is older, and the Runner online
+ *   the Runner's, whichever is older, with its wrap of the vault key once
+ *   it has one (E2E-2), and the Runner online
  *   (`RunnerPresence`). The Pilote's socket before it is closed with 4409;
  * - then each message goes to its handler (`RunnerDispatcher`), in the order
  *   they came; one that is not of `RunnerToServer` gets `error
@@ -48,6 +50,7 @@ export class RunnersGateway implements WsClientHandler, OnModuleInit {
     private readonly dispatcher: RunnerDispatcher,
     private readonly presence: RunnerPresence,
     private readonly protocol: RunnerProtocol,
+    private readonly devices: Devices,
     @InjectPinoLogger(RunnersGateway.name) private readonly logger: PinoLogger,
   ) {}
 
@@ -62,7 +65,9 @@ export class RunnersGateway implements WsClientHandler, OnModuleInit {
   handleConnection(socket: WebSocket, request: IncomingMessage): void {
     const token = bearerOf(request);
     const credential = token === undefined ? Promise.resolve(undefined) : this.tokens.find(token);
-    new RunnerSocket(socket, this.env.CREWDECK_COMMIT, this.protocol, this.connections, this.dispatcher, this.presence, this.logger).start(credential);
+    new RunnerSocket(socket, this.env.CREWDECK_COMMIT, this.protocol, this.connections, this.dispatcher, this.presence, this.devices, this.logger).start(
+      credential,
+    );
   }
 }
 
@@ -85,6 +90,7 @@ class RunnerSocket implements RunnerLink {
     private readonly connections: RunnerConnections,
     private readonly dispatcher: RunnerDispatcher,
     private readonly presence: RunnerPresence,
+    private readonly devices: Devices,
     private readonly logger: PinoLogger,
   ) {}
 
@@ -163,11 +169,12 @@ class RunnerSocket implements RunnerLink {
     }
     const protocolVersion = Math.min(hello.protocolVersion, this.protocol.version);
     this.connections.take(this)?.close(RUNNER_WS_CLOSE.replaced, 'replaced');
+    const vaultKeyWrap = await this.devices.runnerWrap(this.pilotId, this.runnerId);
     // hello.accepted before what the onOnline hooks send (RunnerCommands): the Runner reads nothing else until it.
     await this.presence.connected(this.pilotId, this.runnerId, hello, protocolVersion, () => {
       if (this.closed) return false;
       this.isAccepted = true;
-      this.reply({ type: 'hello.accepted', runnerId: this.runnerId, protocolVersion });
+      this.reply({ type: 'hello.accepted', runnerId: this.runnerId, protocolVersion, ...(vaultKeyWrap ? { vaultKeyWrap } : {}) });
       return true;
     });
   }

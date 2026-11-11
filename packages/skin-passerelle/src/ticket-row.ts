@@ -5,8 +5,8 @@ import { rowStyles } from './row.js';
 
 type State = ComposantData<typeof TicketRow>['state'];
 
-/** The tone of each state's badge (`design/components.js`, `TICKET`). */
-const TONES: Readonly<Record<State, Tone>> = {
+/** The tone of each state's badge (`design/components.js`, `TICKET`), on a TicketRow and in the ticket tree. */
+export const TICKET_TONES: Readonly<Record<State, Tone>> = {
   pret: 'neutral',
   'en-cours': 'accent',
   'en-review': 'accent',
@@ -71,7 +71,7 @@ export class PasserelleTicketRow extends PasserelleElement<typeof TicketRow> {
 
   protected override render() {
     const { number, title, meta, state, label, context, href } = this.data;
-    const tone = TONES[state];
+    const tone = TICKET_TONES[state];
     return html`<div part="row" class="row ${tone}">
       <span class="rail"></span>
       <span class="number" aria-hidden=${href === null ? nothing : 'true'}>#${number}</span>

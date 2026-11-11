@@ -9,7 +9,9 @@ import { PasserelleAgentRow } from './agent-row.js';
 import { PasserelleBanner } from './banner.js';
 import { PasserelleButton } from './button.js';
 import { PasserelleCadre } from './cadre.js';
+import { PasserelleCapture } from './capture.js';
 import { PasserelleCard } from './card.js';
+import { PasserelleCheckRow } from './check-row.js';
 import { PasserelleCheckbox } from './checkbox.js';
 import { PasserelleChip } from './chip.js';
 import { PasserelleCodeBlock } from './code-block.js';
@@ -29,19 +31,24 @@ import { PasserellePageConnexion } from './page-connexion.js';
 import { PasserellePageHeader } from './page-header.js';
 import { PasserellePageIntrouvable } from './page-introuvable.js';
 import { PasserellePermissionRequest } from './permission-request.js';
+import { PasserelleProcessTrack } from './process-track.js';
 import { PasserelleProjectFilter } from './project-filter.js';
 import { PasserelleQuestion } from './question.js';
 import { PasserelleSession } from './session.js';
 import { PasserelleRadio } from './radio.js';
 import { PasserelleSelect } from './select.js';
 import { PasserelleSettingRow } from './setting-row.js';
+import { PasserelleStat } from './stat.js';
 import { PasserelleStatusBadge } from './status-badge.js';
 import { PasserelleStatusDot } from './status-dot.js';
 import { PasserelleTabs } from './tabs.js';
 import { PasserelleTextField } from './text-field.js';
 import { PasserelleTicketRow } from './ticket-row.js';
+import { PasserelleTicketTree } from './ticket-tree.js';
+import { PasserelleTimeline } from './timeline.js';
 import { PasserelleToolCall } from './tool-call.js';
 import { PasserelleToggle } from './toggle.js';
+import { PasserelleUsageMeter } from './usage-meter.js';
 
 export default defineSkin({
   id: 'passerelle',
@@ -71,6 +78,13 @@ export default defineSkin({
     IdeaRow: PasserelleIdeaRow,
     TicketRow: PasserelleTicketRow,
     AgentRow: PasserelleAgentRow,
+    ProcessTrack: PasserelleProcessTrack,
+    UsageMeter: PasserelleUsageMeter,
+    Stat: PasserelleStat,
+    CheckRow: PasserelleCheckRow,
+    Capture: PasserelleCapture,
+    TicketTree: PasserelleTicketTree,
+    Timeline: PasserelleTimeline,
     Banner: PasserelleBanner,
     Button: PasserelleButton,
     Checkbox: PasserelleCheckbox,

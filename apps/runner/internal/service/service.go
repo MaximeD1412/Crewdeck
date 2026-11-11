@@ -164,7 +164,7 @@ func Plist(home, path string) string {
 	if path != "" {
 		env = "\t<key>EnvironmentVariables</key>\n\t<dict>\n\t\t<key>PATH</key>\n\t\t<string>" + xmlEscape(path) + "</string>\n\t</dict>\n"
 	}
-	log := xmlEscape(filepath.Join(home, ".crewdeck", "runner.log"))
+	log := xmlEscape(LogPath(home))
 	return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">

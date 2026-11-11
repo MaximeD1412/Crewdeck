@@ -1,0 +1,256 @@
+[
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 1,
+    "text": "Ma réponse précédente était"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 2,
+    "text": " «"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 3,
+    "text": " No"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 4,
+    "text": " response requested."
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 5,
+    "text": " », et"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 6,
+    "text": " je "
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 7,
+    "text": "ne l'"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 8,
+    "text": "ai pas finie au"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 9,
+    "text": " sens où "
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 10,
+    "text": "ta"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 11,
+    "text": " demande des"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 12,
+    "text": " 40 lignes s"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 13,
+    "text": "ur les nuages n'a"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 14,
+    "text": " j"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 15,
+    "text": "amais été éc"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 16,
+    "text": "rite."
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 17,
+    "text": " Je n"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 18,
+    "text": "'ai r"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 19,
+    "text": "ien produ"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 20,
+    "text": "it de"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 21,
+    "text": " c"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 22,
+    "text": "ette"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 23,
+    "text": " t"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 24,
+    "text": "âche, don"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 25,
+    "text": "c t"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 26,
+    "text": "u pe"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 27,
+    "text": "ux me"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 28,
+    "text": " la red"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 29,
+    "text": "em"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 30,
+    "text": "ander tel"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 31,
+    "text": "le quelle."
+  },
+  {
+    "final": true,
+    "from": "agent",
+    "kind": "message",
+    "seq": 32,
+    "text": "Ma réponse précédente était « No response requested. », et je ne l'ai pas finie au sens où ta demande des 40 lignes sur les nuages n'a jamais été écrite. Je n'ai rien produit de cette tâche, donc tu peux me la redemander telle quelle."
+  },
+  {
+    "kind": "usage",
+    "seq": 33,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 16
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 23
+      }
+    ]
+  },
+  {
+    "costUsdMicros": 1056,
+    "inputTokens": 20353,
+    "kind": "usage",
+    "outputTokens": 97,
+    "seq": 34
+  },
+  {
+    "costUsdMicros": 1056,
+    "engineSessionId": "5a000000-0000-4000-8000-000000000005",
+    "kind": "result",
+    "seq": 35,
+    "status": "ok"
+  }
+]

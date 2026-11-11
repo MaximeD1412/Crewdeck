@@ -6,20 +6,68 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
-	"os/signal"
-	"syscall"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 
+	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/engine"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
-	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/service"
 	"github.com/spf13/cobra"
 )
 
 // version is set at build time with -ldflags "-X main.version=<v>".
 var version = "dev"
 
-func newRootCommand() *cobra.Command {
+// silentExit ends the command with this code, its message already printed.
+type silentExit int
+
+func (e silentExit) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
+
+// machine is what the commands reach of this machine; tests replace it.
+type machine struct {
+	// service describes the user service of this machine.
+	service func() (service.Config, error)
+	// executable is the running binary's path, the one an update replaces.
+	executable func() (string, error)
+	// engines says what each Moteur can do here.
+	engines func(context.Context) []contracts.EngineCapabilities
+	// restart starts the Runner again on the build at binary, once updated.
+	restart func(ctx context.Context, binary string) error
+}
+
+// adapters are the Moteurs' adapters the Runner registers.
+var adapters = &engine.Registry{}
+
+func thisMachine() *machine {
+	m := &machine{
+		service: func() (service.Config, error) {
+			described, err := protocol.DescribeMachine(version)
+			if err != nil {
+				return service.Config{}, err
+			}
+			return service.Detect(runtime.GOOS, described.WSL)
+		},
+		executable: func() (string, error) {
+			path, err := os.Executable()
+			if err != nil {
+				return "", err
+			}
+			return filepath.EvalSymlinks(path)
+		},
+		engines: func(ctx context.Context) []contracts.EngineCapabilities {
+			return capabilities(ctx, adapters, exec.LookPath)
+		},
+	}
+	m.restart = m.restartOn
+	return m
+}
+
+func newRootCommand() *cobra.Command { return newRoot(thisMachine()) }
+
+func newRoot(m *machine) *cobra.Command {
 	var server string
 	root := &cobra.Command{
 		Use:           "crewdeck-runner",
@@ -29,7 +77,7 @@ func newRootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		// Without a command, the Runner runs (as `nx run runner:run`).
-		RunE: func(cmd *cobra.Command, _ []string) error { return runRunner(cmd, server) },
+		RunE: func(cmd *cobra.Command, _ []string) error { return m.run(cmd, server) },
 	}
 	root.SetVersionTemplate("{{.Version}}\n")
 	root.PersistentFlags().StringVar(&server, "server", "", "the server's address, instead of the one of runner.json")
@@ -46,48 +94,19 @@ func newRootCommand() *cobra.Command {
 		Use:   "run",
 		Short: "Connect to the server and stay connected, in the foreground",
 		Args:  cobra.NoArgs,
-		RunE:  func(cmd *cobra.Command, _ []string) error { return runRunner(cmd, server) },
+		RunE:  func(cmd *cobra.Command, _ []string) error { return m.run(cmd, server) },
 	})
+	root.AddCommand(newStatusCommand(m))
+	for _, action := range []service.Action{service.ActionStart, service.ActionStop, service.ActionRestart} {
+		root.AddCommand(newControlCommand(m, action))
+	}
+	root.AddCommand(newLogsCommand(m))
+	root.AddCommand(newUninstallCommand(m))
+	root.AddCommand(newUpdateCommand(m, &server))
 	root.AddCommand(newContratCommand())
+	root.AddCommand(newMCPCommand())
+	root.AddCommand(newHookCommand())
 	return root
-}
-
-// runRunner stays connected to the server until SIGINT, SIGTERM, or a refusal of the server for good.
-func runRunner(cmd *cobra.Command, server string) error {
-	store, err := state.Default()
-	if err != nil {
-		return err
-	}
-	linked, err := store.Load()
-	if errors.Is(err, state.ErrNotLinked) {
-		return errors.New("Ce Runner n’est relié à aucun compte : relie-le avec la commande que donne Crewdeck, crewdeck-runner link <code>.")
-	}
-	if err != nil {
-		return err
-	}
-	// The vault opens at start: a Runner that cannot open it does not run.
-	vault, err := openVault(store)
-	if err != nil {
-		return err
-	}
-	if server != "" {
-		linked.Server = server
-	}
-	machine, err := protocol.DescribeMachine(version)
-	if err != nil {
-		return err
-	}
-	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	logger := slog.New(slog.NewTextHandler(cmd.ErrOrStderr(), nil))
-	logger.Info("vault opened", "vaultKeyVersion", vault.Version)
-	client := protocol.New(protocol.Config{
-		Server:  linked.Server,
-		Token:   linked.Token,
-		Machine: machine,
-		Logger:  logger,
-	})
-	return refusal(client.Run(ctx))
 }
 
 // refusal says in French why the server refused the Runner for good.
@@ -110,8 +129,13 @@ func refusal(err error) error {
 }
 
 func main() {
-	if err := newRootCommand().ExecuteContext(context.Background()); err != nil {
+	err := newRootCommand().ExecuteContext(context.Background())
+	var exit silentExit
+	if errors.As(err, &exit) {
+		os.Exit(int(exit))
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		os.Exit(exitCode(err))
 	}
 }

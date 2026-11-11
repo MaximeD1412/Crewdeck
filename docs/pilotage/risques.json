@@ -325,7 +325,7 @@
         {
           "texte": "Le Runner déclare les versions de Moteur qu'il connaît et le dit dans son état",
           "ref": "ADR 0004",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

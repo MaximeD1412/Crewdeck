@@ -1,4 +1,4 @@
-import { eventPayloadSchema, zRunner } from '../index.js';
+import { eventPayloadSchema, zRunner, zRunnerLatest } from '../index.js';
 
 const RUNNER = {
   id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6aff',
@@ -22,5 +22,13 @@ describe('zRunner', () => {
     expect(zRunner.safeParse({ ...RUNNER, state: 'away' }).success).toBe(false);
     expect(zRunner.safeParse({ ...RUNNER, os: 'windows' }).success).toBe(false);
     expect(zRunner.safeParse({ ...RUNNER, lastSeenAt: null }).success).toBe(false);
+  });
+});
+
+describe('zRunnerLatest', () => {
+  it('is the version of the binaries the server serves, GET /runner/latest', () => {
+    expect(zRunnerLatest.parse({ version: 'abc1234' })).toEqual({ version: 'abc1234' });
+    expect(zRunnerLatest.safeParse({ version: '' }).success).toBe(false);
+    expect(zRunnerLatest.safeParse({}).success).toBe(false);
   });
 });

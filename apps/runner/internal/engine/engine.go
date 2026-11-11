@@ -68,6 +68,10 @@ type StartOptions struct {
 	// SkillsDir holds the official Skills the Session mounts.
 	SkillsDir     string
 	InitialPrompt string
+	// SessionDir is the Session's own folder (`~/.crewdeck/sessions/<id>`,
+	// RUNNER-9), where the adapter keeps its side channels; empty, a
+	// temporary folder removed at the end of the run.
+	SessionDir string
 	// BinaryPath is the Moteur's executable; empty, the adapter's own (found
 	// on PATH). The tests set the fake binary here.
 	BinaryPath string

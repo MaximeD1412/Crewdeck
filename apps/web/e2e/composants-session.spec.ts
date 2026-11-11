@@ -26,8 +26,13 @@ test.describe('the Session Composants in the library (/parametres/composants)', 
     test(`shows ${name}, its examples, accessible`, async ({ page, scenario, expectAccessible }) => {
       await scenario(id);
 
-      const catalogue = page.getByRole('navigation', { name: 'Catalogue des Composants' });
-      await expect(catalogue.getByRole('link', { name: new RegExp(`^${name} ouvert$`) })).toBeVisible();
+      if (test.info().project.name === 'phone') {
+        // The phone picks a Composant through the Select « Composant », the catalogue is for 1280 px.
+        await expect(page.getByRole('combobox', { name: 'Composant', exact: true })).toHaveValue(name);
+      } else {
+        const catalogue = page.getByRole('navigation', { name: 'Catalogue des Composants' });
+        await expect(catalogue.getByRole('link', { name: new RegExp(`^${name} ouvert$`) })).toBeVisible();
+      }
       await expect(page.getByRole('heading', { level: 2, name: new RegExp(`^${name}$`) })).toBeVisible();
       await expect(preview(page).locator(`figure > .stage > ${tag}`)).toHaveCount(examples);
 

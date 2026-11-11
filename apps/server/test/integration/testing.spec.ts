@@ -42,6 +42,8 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
     });
 
     afterAll(async () => {
+      // The files share the run's database: the scenarios' Pilotes do not stay for the next.
+      await post(app, 'blank');
       await sql('DROP TABLE scenario_child, scenario_parent');
       await app.close();
     });
@@ -67,6 +69,31 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
       await sql('INSERT INTO scenario_parent DEFAULT VALUES');
 
       expect(await sql('SELECT id FROM scenario_parent')).toEqual([{ id: 1 }]);
+    });
+
+    it('signs a scenario’s Pilote in: its session cookie opens /api/me', async () => {
+      const run = zScenarioRun.parse(await (await post(app, 'composants')).json());
+
+      expect(run.sessionCookie).toMatch(/^crewdeck_session=[\w-]{43}$/);
+      const me = await fetch(`${await app.getUrl()}/api/me`, { headers: { cookie: run.sessionCookie ?? '' } });
+      expect(me.status).toBe(200);
+      expect(await me.json()).toMatchObject({ login: 'octocat', timeZone: 'Europe/Paris' });
+    });
+
+    it.each([
+      ['connexion', '/connexion'],
+      ['connexion-erreur', '/connexion?erreur=state-mismatch'],
+    ])('opens %s signed out, with the fake GitHub user who signs in at once', async (name, path) => {
+      const run = zScenarioRun.parse(await (await post(app, name)).json());
+      expect(run).toEqual({ name, path, sessionCookie: null });
+
+      const base = await app.getUrl();
+      const start = await fetch(`${base}/api/auth/github/start?timeZone=Europe%2FParis&next=%2Fa-toi`, { redirect: 'manual' });
+      const authorize = await fetch(new URL(start.headers.get('location') ?? '', base), { redirect: 'manual' });
+      const callback = new URL(authorize.headers.get('location') ?? '');
+      const cookie = start.headers.getSetCookie()[0]?.split(';')[0] ?? '';
+      const signedIn = await fetch(`${base}${callback.pathname}${callback.search}`, { redirect: 'manual', headers: { cookie } });
+      expect(signedIn.headers.get('location')).toBe('/a-toi');
     });
 
     it('gives 404 testing.unknown-scenario for an unknown name', async () => {

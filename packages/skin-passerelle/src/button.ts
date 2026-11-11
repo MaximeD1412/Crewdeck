@@ -20,6 +20,8 @@ export class PasserelleButton extends PasserelleElement<typeof Button> {
         vertical-align: middle;
       }
       button {
+        /* A container may stretch it: the Dialog's actions, on the phone. */
+        width: var(--passerelle-button-width, auto);
         position: relative;
         display: inline-flex;
         align-items: center;

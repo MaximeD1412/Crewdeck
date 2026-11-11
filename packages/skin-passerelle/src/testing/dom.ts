@@ -28,12 +28,17 @@ export const settle = async (root: Element): Promise<void> => {
   }
 };
 
-/** `declaration`'s element with `data` and its Emplacements, in the document, rendered. */
-export const render = async (declaration: AnyComposant, data: unknown, slots: Record<string, string> = {}) => {
+/** `declaration`'s element with `data` and its Emplacements, appended to `parent`, rendered. */
+export const render = async (
+  declaration: AnyComposant,
+  data: unknown,
+  slots: Readonly<Record<string, string>> = {},
+  parent: Element = document.body,
+): Promise<LitElement & { data: unknown }> => {
   const el = document.createElement(declaration.tag) as LitElement & { data: unknown };
   el.data = data;
   el.append(...fillSlots(slots));
-  document.body.append(el);
+  parent.append(el);
   await settle(el);
   return el;
 };
@@ -49,6 +54,13 @@ export const inside = <E extends Element = HTMLElement>(host: Element, ...select
   return node as E;
 };
 
+/** The focused element, through the shadow roots. */
+export const deepActiveElement = (): Element | null => {
+  let active = document.activeElement;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  return active;
+};
+
 /** The `cd-action`s reaching the document while `act` runs. */
 export const actionsOf = async (act: () => unknown): Promise<CdActionDetail[]> => {
   const details: CdActionDetail[] = [];
@@ -62,5 +74,5 @@ export const actionsOf = async (act: () => unknown): Promise<CdActionDetail[]> =
   return details;
 };
 
-/** An element's text, its white space collapsed. */
-export const textOf = (el: Element | null | undefined) => el?.textContent?.replace(/\s+/g, ' ').trim();
+/** A node's text, its white space collapsed. */
+export const textOf = (el: Node | null | undefined) => el?.textContent?.replace(/\s+/g, ' ').trim();

@@ -247,6 +247,12 @@ jobs:
           target: e2e
           scope: ${{ inputs.scope }}
 
+      # The service's database is empty: its tables, as `pnpm db:up` gives
+      # them locally, before the scenarios sign a Pilote in.
+      - name: Migrate the database
+        if: steps.browsers.outputs.projects != ''
+        run: pnpm exec nx run server:migrate
+
       # Until INFRA-4 adds the `e2e` target, nothing is in scope: the job
       # passes without starting anything.
       - name: End-to-end tests

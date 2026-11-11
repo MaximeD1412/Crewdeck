@@ -23,7 +23,7 @@ import type {
   UserTokens,
 } from '@crewdeck/contracts';
 import type { GitHubClient } from '../github/github.client.js';
-import { branchProtected, githubUnavailable, headMoved, processJsonInvalid } from '../github/github.errors.js';
+import { branchProtected, githubUnavailable, headMoved, processJsonInvalid, userTokenRefused } from '../github/github.errors.js';
 import type { Fake } from './fakes.js';
 
 /** A file's content: text, or the bytes of an image (the captures). */
@@ -628,8 +628,9 @@ export class FakeGitHub implements GitHubClient, Fake {
     return fake.branches.get(ref)?.sha ?? (this.commits.has(ref) ? ref : undefined);
   }
 
+  /** The tokens of a grant: GitHub refuses an unknown code or refresh token (used, revoked) with a 200 and an `error`. */
   private tokensFor(userId: number | undefined): UserTokens {
-    if (userId === undefined || !this.users.has(userId)) throw githubUnavailable();
+    if (userId === undefined || !this.users.has(userId)) throw userTokenRefused();
     const n = this.next();
     const accessToken = `ghu_fake_${n}`;
     const refreshToken = `ghr_fake_${n}`;

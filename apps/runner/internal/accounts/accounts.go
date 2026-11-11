@@ -57,9 +57,21 @@ func (s Store) Get(engine contracts.EngineId) (string, error) {
 }
 
 // Set stores the key of a Moteur, in the keychain or, when none answers, in its file.
+// The mark comes first: no key reaches the keychain without it.
 func (s Store) Set(engine contracts.EngineId, key string) error {
+	_, err := os.Stat(s.marker(engine))
+	markedBefore := err == nil
+	if err := s.mark(engine); err != nil {
+		return err
+	}
 	if err := keyring.Set(Service, string(engine), key); err == nil {
-		return s.mark(engine)
+		return nil
+	}
+	// The keychain kept nothing of this key; one it held before keeps its mark.
+	if !markedBefore {
+		if err := os.Remove(s.marker(engine)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("accounts: delete the mark of %s: %w", engine, err)
+		}
 	}
 	dir := filepath.Dir(s.file(engine))
 	if err := os.MkdirAll(dir, 0o700); err != nil {

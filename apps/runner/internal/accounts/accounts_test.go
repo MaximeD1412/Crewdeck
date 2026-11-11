@@ -108,3 +108,47 @@ func TestDeleteWithoutAKeychainOfAKeyThatWentToTheFileIsNotAnError(t *testing.T)
 		t.Fatalf("delete of nothing = %v", err)
 	}
 }
+
+func TestAKeyNeverReachesTheKeychainWithoutItsMark(t *testing.T) {
+	keyring.MockInit()
+	store := Store{Dir: t.TempDir()}
+	// keychain is a file: no mark can be written in it.
+	if err := os.WriteFile(filepath.Join(store.Dir, "keychain"), []byte("not a folder"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.Set(contracts.EngineIdCodex, "sk-unmarked"); err == nil {
+		t.Fatal("set without its mark succeeded")
+	}
+	if _, err := keyring.Get(Service, "codex"); !errors.Is(err, keyring.ErrNotFound) {
+		t.Fatalf("the keychain holds a key without its mark: %v", err)
+	}
+}
+
+func TestAKeychainThatRefusesAKeyLeavesTheMarkOfAKeyItHeldBefore(t *testing.T) {
+	keyring.MockInit()
+	store := Store{Dir: t.TempDir()}
+	if err := store.Set(contracts.EngineIdCodex, "sk-first"); err != nil {
+		t.Fatal(err)
+	}
+	keyring.MockInitWithError(errors.New("the keychain is locked"))
+
+	if err := store.Set(contracts.EngineIdCodex, "sk-second"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(store.marker(contracts.EngineIdCodex)); err != nil {
+		t.Fatalf("the mark of the key still in the keychain is gone: %v", err)
+	}
+}
+
+func TestAKeyThatGoesToTheFileLeavesNoMark(t *testing.T) {
+	keyring.MockInitWithError(errors.New("no Secret Service"))
+	store := Store{Dir: t.TempDir()}
+
+	if err := store.Set(contracts.EngineIdCodex, "sk-file"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(store.marker(contracts.EngineIdCodex)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("a mark without a key in the keychain: %v", err)
+	}
+}

@@ -9,7 +9,8 @@ import { REDACT_CENSOR, REDACT_PATHS } from './redact.js';
 
 const SECRETS = {
   authorization: 'Bearer secret-bearer-4a1f',
-  cookie: 'crewdeck_session=secret-session-9b2e',
+  // The sign-in's cookie: a session cookie would ask its session of the database this app has not.
+  cookie: 'crewdeck_oauth=secret-session-9b2e',
   ciphertext: 'secret-ciphertext-c3d0',
   payload: 'secret-payload-7e55',
   wrappedKey: 'secret-wrapped-key-0aa1',

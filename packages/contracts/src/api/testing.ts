@@ -11,3 +11,11 @@ export const zScenarioRun = z.object({
   sessionCookie: z.string().min(1).nullable(),
 });
 export type ScenarioRun = z.infer<typeof zScenarioRun>;
+
+/**
+ * `POST /api/testing/pilot`, outside production only: renames the Pilote
+ * signed in, with its `pilot.upserted` event, as a change of the Process
+ * would. The end-to-end tests make the page miss an event with it.
+ */
+export const zTestingPilotUpdate = z.object({ login: z.string().min(1).max(39) });
+export type TestingPilotUpdate = z.infer<typeof zTestingPilotUpdate>;

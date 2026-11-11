@@ -1,0 +1,6 @@
+{
+  "zen": "Keep it logically awesome.",
+  "hook_id": 81000001,
+  "hook": { "type": "App", "id": 81000001, "active": true, "events": ["installation", "issues", "pull_request"], "app_id": 4242 },
+  "sender": { "login": "octo-fixture", "id": 9100001, "type": "User" }
+}

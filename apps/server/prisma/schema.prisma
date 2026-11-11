@@ -16,16 +16,17 @@ datasource db {
 /// event (CORE-5). Ids are
 /// UUIDv7, generated in code (`src/ids.ts`).
 model Pilot {
-  id           String           @id @db.Uuid
-  githubUserId BigInt           @unique @map("github_user_id")
-  login        String
-  avatarUrl    String?          @map("avatar_url")
-  timeZone     String           @map("time_zone")
-  seq          BigInt           @default(0)
-  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz
-  githubToken  GithubUserToken?
-  webSessions  WebSession[]
-  events       Event[]
+  id            String               @id @db.Uuid
+  githubUserId  BigInt               @unique @map("github_user_id")
+  login         String
+  avatarUrl     String?              @map("avatar_url")
+  timeZone      String               @map("time_zone")
+  seq           BigInt               @default(0)
+  createdAt     DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  githubToken   GithubUserToken?
+  webSessions   WebSession[]
+  events        Event[]
+  installations GitHubInstallation[]
 
   @@map("pilots")
 }
@@ -81,4 +82,39 @@ model Event {
   @@id([pilotId, seq])
   @@index([at])
   @@map("events")
+}
+
+/// A webhook delivery GitHub sent (ADR 0002), by its `X-GitHub-Delivery`:
+/// global, recorded once its signature is valid, so that a redelivery is
+/// dispatched once. Its payload is never stored. Kept 7 days
+/// (`src/github/webhooks/deliveries.retention.ts`).
+model GitHubDelivery {
+  deliveryId String   @id @map("delivery_id")
+  /// `X-GitHub-Event`: `installation`, `issues`, `pull_request`…
+  event      String
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz
+
+  @@index([receivedAt])
+  @@map("github_deliveries")
+}
+
+/// The App's installations index (ADR 0008): global, what a webhook's
+/// `installation.id` gives the Pilote of, maintained from the `installation`
+/// events. `pilotId` is null until the GitHub user who installed it
+/// (`senderId`) signs in as a Pilote.
+model GitHubInstallation {
+  installationId BigInt   @id @map("installation_id")
+  /// The account it is installed on, a user or an organisation.
+  accountLogin   String   @map("account_login")
+  accountId      BigInt   @map("account_id")
+  /// The GitHub user who installed it (`sender.id` of `installation.created`): the Pilote it is linked to.
+  senderId       BigInt   @map("sender_id")
+  pilotId        String?  @map("pilot_id") @db.Uuid
+  suspended      Boolean  @default(false)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  pilot          Pilot?   @relation(fields: [pilotId], references: [id], onDelete: SetNull)
+
+  @@index([pilotId])
+  @@index([senderId])
+  @@map("github_installations")
 }

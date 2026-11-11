@@ -3,9 +3,9 @@
  * rewritten by `pilotScope`. Every other model is scoped, and the models walk
  * of `scope.models.spec.ts` fails when one lacks a `pilotId` led index, or
  * points at another scoped model by a foreign key without `pilotId`.
- * Later: `FxRate`, `GithubInstallation`, `WebhookDelivery`.
+ * Later: `FxRate`.
  */
-export const GLOBAL_MODELS: ReadonlySet<string> = new Set(['Pilot']);
+export const GLOBAL_MODELS: ReadonlySet<string> = new Set(['Pilot', 'GitHubDelivery', 'GitHubInstallation']);
 
 export const PILOT_ID = 'pilotId';
 

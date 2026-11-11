@@ -52,7 +52,8 @@ export const demarrageRunnerRelie = defineScenario({
   path: '/demarrage',
   seed: async (ctx) => {
     const seed = await signInPilot(ctx, { gettingStartedStep: 'runner' });
-    const { token } = await createLinkedRunner(ctx.prisma, seed.pilotId, { machine: 'atelier-pc', os: 'linux', arch: 'amd64', wsl: true, runnerVersion: '0.4.2' });
-    return { ...seed, runnerToken: token };
+    const runnerMachine = { machine: 'atelier-pc', os: 'linux', arch: 'amd64', wsl: true, runnerVersion: '0.4.2' } as const;
+    const { token } = await createLinkedRunner(ctx.prisma, seed.pilotId, runnerMachine);
+    return { ...seed, runnerToken: token, runnerMachine };
   },
 });

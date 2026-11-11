@@ -27,7 +27,7 @@ export class ScenariosService {
     this.moduleRef.get(RunnerLinkLimiter, { strict: false }).reset();
     await this.emptyDatabase();
     const seeded = await scenario.seed({ prisma: this.prisma, fakes: this.fakes });
-    if (seeded.runnerToken) await this.fakes.runner.connect(this.ownUrl(), seeded.runnerToken);
+    if (seeded.runnerToken) await this.fakes.runner.connect(this.ownUrl(), seeded.runnerToken, seeded.runnerMachine);
     return { name: scenario.name, path: scenario.path, sessionCookie: seeded.sessionCookie ?? null };
   }
 

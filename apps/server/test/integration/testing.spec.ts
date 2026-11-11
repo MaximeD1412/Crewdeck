@@ -145,6 +145,15 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
       await vi.waitFor(() => expect(app.get(RunnerPresence).isOnline(runner?.pilot_id ?? '')).toBe(false));
     });
 
+    it('has the fake Runner say the machine of the scenario’s Runner, which its hello would else overwrite', async () => {
+      await post(app, 'demarrage-runner-relie');
+
+      const [runner] = await sql<{ machine: string; wsl: boolean; runner_version: string; state: string }>(
+        'SELECT machine, wsl, runner_version, state FROM runners',
+      );
+      expect(runner).toEqual({ machine: 'atelier-pc', wsl: true, runner_version: '0.4.2', state: 'online' });
+    });
+
     it('gives 404 testing.unknown-scenario for an unknown name', async () => {
       const response = await post(app, 'nope');
 

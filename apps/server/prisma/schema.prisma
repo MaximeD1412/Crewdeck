@@ -5,6 +5,8 @@ generator client {
   provider     = "prisma-client"
   output       = "../src/generated/prisma"
   moduleFormat = "esm"
+  // A Pilote's current Runner, unique among the unrevoked ones (`runners`).
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -26,6 +28,7 @@ model Pilot {
   githubToken  GithubUserToken?
   webSessions  WebSession[]
   events       Event[]
+  runners      Runner[]
 
   @@map("pilots")
 }
@@ -81,4 +84,52 @@ model Event {
   @@id([pilotId, seq])
   @@index([at])
   @@map("events")
+}
+
+enum RunnerState {
+  online
+  offline
+
+  @@map("runner_state")
+}
+
+enum RunnerOs {
+  linux
+  darwin
+
+  @@map("runner_os")
+}
+
+enum RunnerArch {
+  amd64
+  arm64
+
+  @@map("runner_arch")
+}
+
+/// A Pilote's Runner (ADR 0004), created by its link (RUNNER-3): one per
+/// Pilote, linking a new one revokes the old (`revokedAt`). Its token is 32
+/// random bytes the Runner keeps, the row only its SHA-256 in hex. Its
+/// machine is the one its last `hello` described; `state` and `lastSeenAt`
+/// follow its heartbeats (`src/runners/runner-presence.service.ts`).
+model Runner {
+  id              String      @id @db.Uuid
+  pilotId         String      @map("pilot_id") @db.Uuid
+  tokenHash       String      @unique @map("token_hash")
+  machine         String
+  os              RunnerOs
+  arch            RunnerArch
+  wsl             Boolean
+  runnerVersion   String      @map("runner_version")
+  protocolVersion Int         @map("protocol_version")
+  state           RunnerState @default(offline)
+  lastSeenAt      DateTime    @map("last_seen_at") @db.Timestamptz
+  linkedAt        DateTime    @default(now()) @map("linked_at") @db.Timestamptz
+  revokedAt       DateTime?   @map("revoked_at") @db.Timestamptz
+  pilot           Pilot       @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@unique([pilotId], map: "runners_pilot_id_current_key", where: raw("revoked_at IS NULL"))
+  @@index([pilotId])
+  @@index([state, lastSeenAt])
+  @@map("runners")
 }

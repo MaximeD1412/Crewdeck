@@ -1,4 +1,5 @@
 import { FakeGitHub } from './fake-github.js';
+import { FakeRunner } from './fake-runner.js';
 
 /** A fake of an external system (GitHub, the Runner) that a scenario seeds. */
 export interface Fake {
@@ -14,12 +15,14 @@ export interface Fake {
 export interface Fakes {
   /** Bound to `GITHUB_CLIENT` and served under `/fake-github`. */
   readonly github: FakeGitHub;
+  /** Connected by `ScenariosService` when the scenario links a Runner (`ScenarioSeed.runnerToken`). */
+  readonly runner: FakeRunner;
 }
 
 /** The token of the `Fakes` the testing module shares with the fakes' modules. */
 export const FAKES = Symbol('FAKES');
 
-export const createFakes = (): Fakes => ({ github: new FakeGitHub() });
+export const createFakes = (): Fakes => ({ github: new FakeGitHub(), runner: new FakeRunner() });
 
 export const resetFakes = async (fakes: Fakes): Promise<void> => {
   for (const fake of Object.values(fakes) as Fake[]) await fake.reset();

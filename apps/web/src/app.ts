@@ -14,6 +14,7 @@ import { mountShell } from './shell.js';
 import { signInGuard, signInHref } from './sign-in.js';
 import { client as pageClient, connection as pageConnection, store as pageStore } from './store/index.js';
 import type { Connection } from './store/connection.js';
+import { createLatencyMeter, type LatencyMeter } from './store/latency.js';
 import type { Store } from './store/store.js';
 import { systemOfBrowser } from './views/demarrage.js';
 
@@ -39,6 +40,8 @@ export interface BootOptions {
   readonly store?: Store;
   readonly connection?: Pick<Connection, 'start' | 'stop'>;
   readonly client?: Pick<Client, 'command' | 'query'>;
+  /** The latency the page measures on its store's live events (CORE-8): started with the socket. */
+  readonly latency?: LatencyMeter;
 }
 
 export interface App {
@@ -67,6 +70,7 @@ export const boot = async ({
   store = pageStore,
   connection = pageConnection,
   client = pageClient,
+  latency = createLatencyMeter({ store }),
 }: BootOptions): Promise<App> => {
   const [pilot] = await Promise.all([me().catch(() => null), bootSkin(skin, resolveSkin)]);
   dispatcher.listen(document);
@@ -104,7 +108,10 @@ export const boot = async ({
     }),
     gettingStarted.subscribe(() => router.refresh()),
   ];
-  if (pilot) connection.start();
+  if (pilot) {
+    latency.start();
+    connection.start();
+  }
   dispatcher.registerAction(PageConnexion, 'signIn', {
     run: () => leave(signInHref(router.current.query['next'], Intl.DateTimeFormat().resolvedOptions().timeZone)),
   });
@@ -116,6 +123,7 @@ export const boot = async ({
   const stop = () => {
     router.stop();
     connection.stop();
+    latency.stop();
     for (const stopListening of unsubscribe) stopListening();
     window.removeEventListener('unhandledrejection', onUnhandled);
   };

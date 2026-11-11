@@ -5,6 +5,7 @@ import { inject } from 'vitest';
 import { parseEnv } from '../../src/config/env.js';
 import { newId } from '../../src/ids.js';
 import { EventsBus } from '../../src/realtime/events.bus.js';
+import { EventsReplay } from '../../src/realtime/events.replay.js';
 import { EventPayloadError, EventsWriter, TransactionMissingError } from '../../src/realtime/events.writer.js';
 import { Transactions } from '../../src/realtime/transactions.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
@@ -156,11 +157,20 @@ describe('the events writer against PostgreSQL', () => {
     expect(await sql('SELECT * FROM events')).toEqual([]);
   });
 
-  it('keeps sourceAt when the source gives it', async () => {
+  it('keeps sourceAt and the source when the source gives them, on the event published and replayed', async () => {
     const sourceAt = new Date('2026-11-11T08:00:00.000Z');
-    await inScope(() => transactions.run((tx) => writer.write(tx, pilotId, 'pilot.upserted', me(), { sourceAt })));
+    await inScope(() => transactions.run((tx) => writer.write(tx, pilotId, 'pilot.upserted', me(), { sourceAt, source: 'github' })));
 
-    expect(await sql('SELECT source_at FROM events')).toEqual([{ source_at: sourceAt }]);
-    expect(published[0]?.event.sourceAt).toBe('2026-11-11T08:00:00.000Z');
+    expect(await sql('SELECT source_at, source FROM events')).toEqual([{ source_at: sourceAt, source: 'github' }]);
+    expect(published[0]?.event).toMatchObject({ sourceAt: '2026-11-11T08:00:00.000Z', source: 'github' });
+    expect((await app.get(EventsReplay).after(pilotId, 0))?.[0]).toMatchObject({ sourceAt: '2026-11-11T08:00:00.000Z', source: 'github' });
+  });
+
+  it('writes neither without them', async () => {
+    await inScope(() => transactions.run((tx) => writer.write(tx, pilotId, 'pilot.upserted', me())));
+
+    expect(await sql('SELECT source_at, source FROM events')).toEqual([{ source_at: null, source: null }]);
+    expect(published[0]?.event).not.toHaveProperty('source');
+    expect(published[0]?.event).not.toHaveProperty('sourceAt');
   });
 });

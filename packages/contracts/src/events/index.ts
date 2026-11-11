@@ -73,10 +73,16 @@ export const eventPayloadSchema = (type: EventType): z.ZodType | undefined => {
   return verb === 'removed' ? zRemovedPayload : payloads.get(resource);
 };
 
+/** Where a change comes from (ADR 0007): a GitHub webhook, the Runner's report, the Pilote's command, the scheduler. */
+export const EVENT_SOURCES = ['github', 'runner', 'pilot', 'scheduler'] as const;
+export const zEventSource = z.enum(EVENT_SOURCES);
+export type EventSource = z.infer<typeof zEventSource>;
+
 /**
  * One event as the socket carries it (`event { event }`); its payload checked
  * against the schema of its type. `sourceAt`: when its source saw the change
- * (a webhook's delivery, a Runner's report), for the latency of US-20.
+ * (a webhook's delivery, a Runner's report), and `source` which one it is,
+ * for the latency of US-20 (CORE-8).
  */
 export const zEvent = z
   .object({
@@ -85,6 +91,7 @@ export const zEvent = z
     payload: z.unknown(),
     at: zInstant,
     sourceAt: zInstant.optional(),
+    source: zEventSource.optional(),
   })
   .superRefine((event, ctx) => {
     const schema = eventPayloadSchema(event.type);

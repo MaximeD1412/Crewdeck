@@ -1,0 +1,16 @@
+{
+  "kind": "result",
+  "seq": 8,
+  "at": "2026-11-11T09:00:31.300Z",
+  "status": "ok",
+  "engineSessionId": "3d0caa19-0333-4929-9820-622b9e9f85d0",
+  "costUsdMicros": 1471,
+  "raw": {
+    "type": "result",
+    "subtype": "success",
+    "is_error": false,
+    "session_id": "3d0caa19-0333-4929-9820-622b9e9f85d0",
+    "total_cost_usd": 0.0014711800000000003,
+    "terminal_reason": "completed"
+  }
+}

@@ -1,0 +1,37 @@
+[
+  {
+    "final": true,
+    "from": "agent",
+    "kind": "message",
+    "seq": 1,
+    "text": "Bonjour"
+  },
+  {
+    "kind": "question",
+    "multiple": false,
+    "options": [
+      {
+        "label": "Bleu"
+      },
+      {
+        "label": "Rouge"
+      }
+    ],
+    "requestId": "q-1",
+    "seq": 2,
+    "title": "Quelle couleur ?"
+  },
+  {
+    "final": true,
+    "from": "agent",
+    "kind": "message",
+    "seq": 3,
+    "text": "Bleu, donc."
+  },
+  {
+    "engineSessionId": "toy-1",
+    "kind": "result",
+    "seq": 4,
+    "status": "ok"
+  }
+]

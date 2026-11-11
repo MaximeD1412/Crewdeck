@@ -217,6 +217,31 @@ describe('linking a Runner against PostgreSQL', () => {
       await expectEnvelope(await confirm(alice, code.id), 409, 'runner.link-not-pending');
     });
 
+    it('takes a code once when two machines link with it at the same time: the second 422 runner.link-code-used, the code failed', async () => {
+      const alice = await pilot();
+      const code = await drawCode(alice);
+      // The Pilote's row, which each event's write locks, held: both requests read the code `waiting` before either commits.
+      const holder = new pg.Client({ connectionString: databaseUrl });
+      await holder.connect();
+      try {
+        await holder.query('BEGIN');
+        await holder.query('SELECT id FROM pilots WHERE id = $1 FOR UPDATE', [alice.id]);
+        const answers = ['pc-1', 'pc-2'].map((machine) => binary('/api/runner/link', { ...MACHINE, machine, shortId: code.shortId }));
+        await vi.waitFor(async () => {
+          const [waiting] = await sql<{ count: string }>(
+            "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'",
+          );
+          expect(Number(waiting?.count)).toBe(2);
+        });
+        await holder.query('COMMIT');
+
+        expect((await Promise.all(answers)).map((res) => res.status).sort()).toEqual([202, 422]);
+      } finally {
+        await holder.end();
+      }
+      expect((await state(alice))['runner-link']).toMatchObject({ state: 'failed', failureReason: 'already-used' });
+    });
+
     it('answers 422 runner.link-code-used once the code linked a Runner', async () => {
       const alice = await pilot();
       const { code } = await link(alice);

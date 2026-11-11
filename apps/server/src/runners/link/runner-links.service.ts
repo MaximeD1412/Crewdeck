@@ -103,7 +103,8 @@ export class RunnerLinks {
    * The binary links with `shortId`: a `waiting` code becomes `pending` with
    * its machine; without a Moteur it fails (`no-engine`). A code already
    * `pending` that another machine links with fails for both
-   * (`already-used`): the page could not tell which one is the Pilote's.
+   * (`already-used`): the page could not tell which one is the Pilote's,
+   * even when both link at the same time.
    */
   async link({ shortId, ...machine }: RunnerLinkRequest): Promise<RunnerLinkAccepted> {
     const owner = await this.lookup.byShortId(shortId);
@@ -127,7 +128,12 @@ export class RunnerLinks {
         return unprocessable('runner.no-engine', MESSAGES['runner.no-engine']);
       }
       const pendingRunner: PendingRunner = machine;
-      await tx.runnerLinkCode.update({ where: { id: owner.id }, data: { state: 'pending', pendingRunner } });
+      // On the state read: a machine that took the code since (its update waited for ours) changes nothing and fails it.
+      const { count } = await tx.runnerLinkCode.updateMany({ where: { id: owner.id, state: 'waiting' }, data: { state: 'pending', pendingRunner } });
+      if (count === 0) {
+        await this.fail(tx, owner.pilotId, owner.id, 'already-used');
+        return codeUsed();
+      }
       await this.writeEvent(tx, owner.pilotId, owner.id);
       return { linkId: owner.id, browserPairing: row.browserPairing as Pairing };
     });

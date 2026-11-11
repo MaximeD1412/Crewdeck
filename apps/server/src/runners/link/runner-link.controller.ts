@@ -12,11 +12,14 @@ import {
   zRunnerLinkConfirmed,
   zRunnerLinkFailure,
   zRunnerLinkPairing,
+  zRunnerLinkReject,
   zRunnerLinkRequest,
   zRunnerLinkStatus,
 } from '@crewdeck/contracts';
 import { Body, Controller, Get, HttpCode, Inject, Injectable, type OnModuleInit, Param, Post, Req } from '@nestjs/common';
 import { createZodDto, ZodResponse } from 'nestjs-zod';
+import { type AuthRequest } from '../../auth/auth.request.js';
+import { namedDevice } from '../../devices/devices.controller.js';
 import { notFound } from '../../errors/app-error.js';
 import { MESSAGES } from '../../errors/messages.js';
 import { STATE_CONTRIBUTORS, type StateContributor, type StateContributors } from '../../realtime/state-contributors.js';
@@ -31,6 +34,7 @@ export class RunnerLinkCodeCreateDto extends createZodDto(zRunnerLinkCodeCreate)
 export class RunnerLinkCodeCreatedDto extends createZodDto(zRunnerLinkCodeCreated) {}
 export class RunnerLinkConfirmDto extends createZodDto(zRunnerLinkConfirm) {}
 export class RunnerLinkConfirmedDto extends createZodDto(zRunnerLinkConfirmed) {}
+export class RunnerLinkRejectDto extends createZodDto(zRunnerLinkReject) {}
 export class RunnerLinkRequestDto extends createZodDto(zRunnerLinkRequest) {}
 export class RunnerLinkAcceptedDto extends createZodDto(zRunnerLinkAccepted) {}
 export class RunnerLinkPairingDto extends createZodDto(zRunnerLinkPairing) {}
@@ -49,7 +53,11 @@ const codeId = (value: string): string => {
   return parsed.data;
 };
 
-/** The page's side of the link (session): draw a code, confirm the Runner that linked with it. */
+/**
+ * The page's side of the link (session): draw a code for its Appareil,
+ * confirm the Runner that linked with it, or reject it when its proof is
+ * wrong.
+ */
 @Controller('runner/link-codes')
 export class RunnerLinkCodesController {
   constructor(private readonly links: RunnerLinks) {}
@@ -57,8 +65,8 @@ export class RunnerLinkCodesController {
   @Post()
   @HttpCode(201)
   @ZodResponse({ status: 201, description: 'The new code, without its secret.', type: RunnerLinkCodeCreatedDto })
-  create(@Body() { pairing }: RunnerLinkCodeCreateDto): Promise<RunnerLinkCodeCreated> {
-    return this.links.create(currentPilotId(), pairing);
+  create(@Req() request: AuthRequest, @Body() { pairing }: RunnerLinkCodeCreateDto): Promise<RunnerLinkCodeCreated> {
+    return this.links.create(currentPilotId(), pairing, namedDevice(request));
   }
 
   @Post(':id/confirm')
@@ -66,6 +74,12 @@ export class RunnerLinkCodesController {
   @ZodResponse({ status: 200, description: 'The Runner linked, the previous one revoked.', type: RunnerLinkConfirmedDto })
   async confirm(@Param('id') id: string, @Body() { pairing, seq }: RunnerLinkConfirmDto): Promise<RunnerLinkConfirmed> {
     return { runner: await this.links.confirm(currentPilotId(), codeId(id), pairing, seq) };
+  }
+
+  @Post(':id/reject')
+  @HttpCode(204)
+  async reject(@Param('id') id: string, @Body() { seq }: RunnerLinkRejectDto): Promise<void> {
+    await this.links.reject(currentPilotId(), codeId(id), seq);
   }
 }
 

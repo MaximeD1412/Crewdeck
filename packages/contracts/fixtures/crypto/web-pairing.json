@@ -1,0 +1,28 @@
+{
+  "description": "Written by the browser (apps/web/src/keys/pairing.spec.ts, Chromium WebCrypto) from the « first-appareil » case of link-pairing.json, opened by the Runner. Byte strings are base64url without padding.",
+  "case": "first-appareil",
+  "seed": "Y3Jld2RlY2std2ViL3BhaXJpbmc",
+  "deviceId": "dev_01J9ZQ3M",
+  "runnerId": "run_01J9ZQ5R",
+  "confirm": {
+    "proof": "wV6BqqinjVLj4DR3USmZ70cHQk6kjWc3XMSnts0-JGQ",
+    "vaultKeyVersion": 1,
+    "runnerVaultWrap": {
+      "enc": "1Kj4a6aavq3S4NV2XRUq_liuDy32Dquyw03mqLZP_ig",
+      "ciphertext": "2vXt64YDfbgTyP4laj3Mr63Ak5CzX-8qLwAIRMiT6tUxTFIaH2xYjGfaMl8hr7sA",
+      "tag": "-oOdHhwdN9mQeihk9UtbSRMPIDsu49uHOye3sifqvu0"
+    },
+    "deviceVaultWrap": {
+      "enc": "aUJdGTyxLAy5doAyzLlqk1FFwLwXowqN96lTRTB3nWU",
+      "ciphertext": "Aw0yJTA7uy87m99goasI93-dcq44r_o4CCZTyZYve4AbzqxaxXFfD76-ZB4DY2KB",
+      "tag": "1pV9_mMMyohbJXdECj3TeHYuC0MQlyL7eXjMPIjFjxI"
+    }
+  },
+  "item": {
+    "seed": "Y3Jld2RlY2std2ViL2l0ZW0",
+    "aad": "aWRlYV8wMUo5WlE0Qzp0ZXh0",
+    "plaintext": "VW5lIElkw6llIHNjZWxsw6llIGRhbnMgbGUgbmF2aWdhdGV1ci4",
+    "key": "ycFH_U7hj9BKl2IGtjbeseR3zDa86amp3vTgIhuWsIXpJkknGROKs1g2SBjkRge22C8AlmSQRcnQWq-b",
+    "ciphertext": "hgtLw9OnBeZ_HSxGR_8dZgrgSKdVQDpL9JYCVPWuJxIRLYd7N4F8VziSsojsy-Vr0IHRy3yIpE_cgKliVT0C_EIf"
+  }
+}

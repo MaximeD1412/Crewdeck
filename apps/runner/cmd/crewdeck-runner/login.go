@@ -188,10 +188,11 @@ func (c *accountsCLI) askClaudeKind() (subscription bool, err error) {
 // signInClaude runs `claude /login` on the terminal: the sign-in stays
 // Claude Code's own. A stored API key would win over it, so it is deleted.
 func (c *accountsCLI) signInClaude(ctx context.Context) error {
-	if err := c.store.Delete(contracts.EngineIdClaudeCode); err == nil {
+	if _, err := c.store.Get(contracts.EngineIdClaudeCode); !errors.Is(err, accounts.ErrNoKey) {
+		if err := c.store.Delete(contracts.EngineIdClaudeCode); err != nil {
+			return fmt.Errorf("La clé API de Claude Code n’a pas pu être supprimée : %w", err)
+		}
 		fmt.Fprintln(c.out, "La clé API de Claude Code enregistrée sur cette machine est supprimée : ton abonnement prend sa place.")
-	} else if !errors.Is(err, accounts.ErrNotFound) {
-		return fmt.Errorf("La clé API de Claude Code n’a pas pu être supprimée : %w", err)
 	}
 	fmt.Fprintln(c.out, "Claude Code s’ouvre sur /login : connecte-toi, puis quitte-le avec /exit.")
 	if err := c.interactive(ctx, c.claude, "/login"); err != nil {
@@ -211,12 +212,13 @@ func (c *accountsCLI) logout(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
-	switch err := c.store.Delete(id); {
-	case errors.Is(err, accounts.ErrNotFound):
-		fmt.Fprintf(c.out, "Aucune clé API de %s n’est enregistrée sur cette machine.\n", moteurNames[id])
-	case err != nil:
+	_, stored := c.store.Get(id)
+	if err := c.store.Delete(id); err != nil {
 		return fmt.Errorf("La clé API de %s n’a pas pu être supprimée : %w", moteurNames[id], err)
-	default:
+	}
+	if errors.Is(stored, accounts.ErrNoKey) {
+		fmt.Fprintf(c.out, "Aucune clé API de %s n’est enregistrée sur cette machine.\n", moteurNames[id])
+	} else {
 		fmt.Fprintf(c.out, "Clé API de %s supprimée de cette machine.\n", moteurNames[id])
 	}
 	if id == contracts.EngineIdClaudeCode {

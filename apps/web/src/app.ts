@@ -7,6 +7,7 @@ import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
 import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
+import { createPageKeys, type PageKeys } from './keys/index.js';
 import { bootSkin } from './registry.js';
 import { routeData, startRouter, type Route, type Router } from './router.js';
 import { composantsHref, ROUTES } from './routes.js';
@@ -43,6 +44,8 @@ export interface BootOptions {
   readonly client?: Pick<Client, 'command' | 'query'>;
   /** The latency the page measures on its store's live events (CORE-8): started with the socket. */
   readonly latency?: LatencyMeter;
+  /** This browser's Appareil and the vault (E2E-2): IndexedDB and WebCrypto by default. */
+  readonly keys?: Pick<PageKeys, 'linkKeys' | 'nameDevice' | 'unlockVault'>;
 }
 
 export interface App {
@@ -72,6 +75,7 @@ export const boot = async ({
   connection = pageConnection,
   client = pageClient,
   latency = createLatencyMeter({ store }),
+  keys = createPageKeys({ store, client, userAgent: navigator.userAgent }),
 }: BootOptions): Promise<App> => {
   const [pilot] = await Promise.all([me().catch(() => null), bootSkin(skin, resolveSkin)]);
   dispatcher.listen(document);
@@ -90,7 +94,15 @@ export const boot = async ({
     shell.showError(event.reason.message);
   };
   window.addEventListener('unhandledrejection', onUnhandled);
-  const gettingStarted = createGettingStarted({ store, client, bootPilot: pilot, origin: location.origin, system: systemOfBrowser(navigator.userAgent) });
+  const gettingStarted = createGettingStarted({
+    store,
+    client,
+    bootPilot: pilot,
+    origin: location.origin,
+    system: systemOfBrowser(navigator.userAgent),
+    keys: keys.linkKeys,
+    unlockVault: () => keys.unlockVault(),
+  });
   const signIn = signInGuard(pilot);
   const started = gettingStartedGuard(gettingStarted.pilot);
   const pageData = routeData(routes);
@@ -115,6 +127,9 @@ export const boot = async ({
     gettingStarted.subscribe(() => router.refresh()),
   ];
   if (pilot) {
+    // The Appareil named before the snapshot, which says which one is `current`.
+    await keys.nameDevice();
+    void keys.unlockVault();
     latency.start();
     connection.start();
   }

@@ -7,6 +7,7 @@ const pilotSlice: StateContributor = { key: 'pilot', snapshot: () => Promise.rej
 const runnerSlice: StateContributor = { ...pilotSlice, key: 'runner' };
 const linkSlice: StateContributor = { ...pilotSlice, key: 'runner-link' };
 const aiAccountSlice: StateContributor = { ...pilotSlice, key: 'ai-account' };
+const devicesSlice: StateContributor = { ...pilotSlice, key: 'devices' };
 
 const boot = (contributors: StateContributor[]): void => {
   const registry = new Registry<StateContributor>();
@@ -16,13 +17,13 @@ const boot = (contributors: StateContributor[]): void => {
 
 describe('StateController at boot', () => {
   it('starts when every slice of STATE_SLICES has one contributor', () => {
-    expect(() => boot([pilotSlice, runnerSlice, linkSlice, aiAccountSlice])).not.toThrow();
+    expect(() => boot([pilotSlice, runnerSlice, linkSlice, aiAccountSlice, devicesSlice])).not.toThrow();
   });
 
   it('refuses to start with a slice missing, repeated or not in STATE_SLICES', () => {
-    expect(() => boot([])).toThrow(/missing \[pilot, runner, runner-link, ai-account\]/);
-    expect(() => boot([pilotSlice])).toThrow(/missing \[runner, runner-link, ai-account\]/);
-    expect(() => boot([pilotSlice, runnerSlice, linkSlice, aiAccountSlice, pilotSlice])).toThrow(/repeated \[pilot\]/);
+    expect(() => boot([])).toThrow(/missing \[pilot, runner, runner-link, ai-account, devices\]/);
+    expect(() => boot([pilotSlice])).toThrow(/missing \[runner, runner-link, ai-account, devices\]/);
+    expect(() => boot([pilotSlice, runnerSlice, linkSlice, aiAccountSlice, devicesSlice, pilotSlice])).toThrow(/repeated \[pilot\]/);
     expect(() => boot([pilotSlice, runnerSlice, { ...pilotSlice, key: 'ideas' as never }])).toThrow(/repeated \[ideas\]/);
   });
 });

@@ -4,13 +4,47 @@ package contracts
 
 import "encoding/json"
 import "fmt"
+import "regexp"
 
 type RunnerLinkPairing struct {
 	// Pairing corresponds to the JSON schema field "pairing".
 	Pairing RunnerLinkPairingPairing `json:"pairing"`
 }
 
-type RunnerLinkPairingPairing map[string]interface{}
+type RunnerLinkPairingPairing struct {
+	// Proof corresponds to the JSON schema field "proof".
+	Proof string `json:"proof"`
+
+	// RunnerPublicKey corresponds to the JSON schema field "runnerPublicKey".
+	RunnerPublicKey string `json:"runnerPublicKey"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerLinkPairingPairing) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["proof"]; raw != nil && !ok {
+		return fmt.Errorf("field proof in RunnerLinkPairingPairing: required")
+	}
+	if _, ok := raw["runnerPublicKey"]; raw != nil && !ok {
+		return fmt.Errorf("field runnerPublicKey in RunnerLinkPairingPairing: required")
+	}
+	type Plain RunnerLinkPairingPairing
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Proof)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Proof", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.RunnerPublicKey)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "RunnerPublicKey", `^[A-Za-z0-9_-]*$`)
+	}
+	*j = RunnerLinkPairingPairing(plain)
+	return nil
+}
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *RunnerLinkPairing) UnmarshalJSON(value []byte) error {

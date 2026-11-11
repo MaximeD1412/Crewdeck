@@ -1,4 +1,6 @@
+import type { BrowserPairing, RunnerPairing } from '@crewdeck/contracts';
 import type { APIRequestContext, Page } from '@playwright/test';
+import { createHmac, generateKeyPairSync } from 'node:crypto';
 import { expect, test } from './fixtures.js';
 
 /** What the binary sends for its machine (`crewdeck-runner link`), Moteurs found on `PATH`. */
@@ -16,10 +18,45 @@ const codeOf = async (page: Page): Promise<{ shortId: string; secret: string }> 
 const binary = async (playwright: { request: { newContext(options: { baseURL?: string }): Promise<APIRequestContext> } }, baseURL: string | undefined) =>
   playwright.request.newContext({ baseURL: baseURL ?? 'http://localhost:4200' });
 
+/** `PAIRING_PROOF_LABELS` of the contracts, literal: a spec reads no package's build. */
+const PAIRING_PROOF_LABELS = { runner: 'crewdeck/v1/link/runner', device: 'crewdeck/v1/link/device' } as const;
+
+const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+/** The secret's bytes from its Crockford base32 in the command, as `crewdeck-runner link` reads it. */
+const secretBytes = (base32: string): Buffer => {
+  const bytes: number[] = [];
+  let value = 0;
+  let bits = 0;
+  for (const char of base32) {
+    value = ((value << 5) | CROCKFORD.indexOf(char)) & 0xffff;
+    bits += 5;
+    if (bits >= 8) {
+      bytes.push((value >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(bytes);
+};
+
+/** `HMAC-SHA256(secret, label ‖ shortId ‖ own key ‖ peer's key)`, base64url (`docs/security/e2e.md`). */
+const proof = (side: keyof typeof PAIRING_PROOF_LABELS, secret: Buffer, shortId: string, own: string, peer: string): string =>
+  createHmac('sha256', secret)
+    .update(Buffer.concat([Buffer.from(PAIRING_PROOF_LABELS[side]), Buffer.from(shortId, 'ascii'), Buffer.from(own, 'base64url'), Buffer.from(peer, 'base64url')]))
+    .digest('base64url');
+
+const x25519PublicKey = (): string => generateKeyPairSync('x25519').publicKey.export({ format: 'jwk' }).x ?? '';
+
+/** The Runner's pairing for the page's key, from the command's secret: what `crewdeck-runner link` sends. */
+const runnerPairing = (code: { shortId: string; secret: string }, browser: BrowserPairing, runnerPublicKey = x25519PublicKey()): RunnerPairing => ({
+  runnerPublicKey,
+  proof: proof('runner', secretBytes(code.secret), code.shortId, runnerPublicKey, browser.devicePublicKey),
+});
+
 const banner = (page: Page) => page.locator('cd-page-demarrage cd-banner');
 
 test.describe('« Premiers pas », the Runner (US-2)', () => {
-  test('a Pilote at the Runner’s step lands on /demarrage, whose code links the Runner; its secret never reaches the server', async ({
+  test('a Pilote at the Runner’s step lands on /demarrage, whose code links the Runner through both proofs; its secret never reaches the server', async ({
     page,
     playwright,
     baseURL,
@@ -35,7 +72,8 @@ test.describe('« Premiers pas », the Runner (US-2)', () => {
     const demarrage = page.locator('cd-page-demarrage');
     await expect(demarrage.getByRole('heading', { level: 1, name: 'Installe le Runner' })).toBeVisible();
     await expect(page.locator('cd-cadre').getByRole('navigation', { name: 'Menu principal' })).toHaveCount(0);
-    const { shortId, secret } = await codeOf(page);
+    const code = await codeOf(page);
+    const { shortId, secret } = code;
     await expect(demarrage.getByText('En attente du Runner…')).toBeVisible();
     await expect(demarrage.getByText('Cette page passe à la suite dès que le Runner se relie à ton compte.')).toBeVisible();
     await expect(demarrage.locator('cd-check-row')).toContainText(`code ${shortId}`);
@@ -49,27 +87,60 @@ test.describe('« Premiers pas », the Runner (US-2)', () => {
     const runner = await binary(playwright, baseURL);
     const linked = await runner.post('/api/runner/link', { data: { ...MACHINE, shortId } });
     expect(linked.status(), await linked.text()).toBe(202);
-    const { linkId } = (await linked.json()) as { linkId: string };
-    expect((await runner.post(`/api/runner/link/${linkId}/pairing`, { data: { pairing: {} } })).status()).toBe(204);
+    const { linkId, browserPairing } = (await linked.json()) as { linkId: string; browserPairing: BrowserPairing };
+    expect(browserPairing.deviceName).toMatch(/ sur /);
+    const pairing = runnerPairing(code, browserPairing);
+    expect((await runner.post(`/api/runner/link/${linkId}/pairing`, { data: { pairing } })).status()).toBe(204);
 
     // The page confirms the pending code; the binary gets its token once.
     await expect(demarrage.getByRole('heading', { level: 1, name: 'Runner relié' })).toBeVisible();
     await expect(demarrage.locator('cd-key-value')).toContainText('atelier-pc');
     await expect(demarrage.locator('cd-key-value')).toContainText('Linux · amd64');
     await expect(demarrage.locator('cd-key-value')).toContainText('Runner 0.4.2');
-    const status = (await (await runner.get(`/api/runner/link/${linkId}`)).json()) as { state: string; token?: string };
-    expect(status).toMatchObject({ state: 'linked', token: expect.any(String) });
+    const status = (await (await runner.get(`/api/runner/link/${linkId}`)).json()) as { state: string; token?: string; pairing?: { proof: string } };
+    expect(status).toMatchObject({ state: 'linked', token: expect.any(String), pairing: { vaultKeyVersion: 1 } });
+    // The page proved the same secret over the same two keys, the other way round.
+    expect(status.pairing?.proof).toBe(proof('device', secretBytes(secret), shortId, browserPairing.devicePublicKey, pairing.runnerPublicKey));
     expect(await (await runner.get(`/api/runner/link/${linkId}`)).json()).not.toHaveProperty('token');
     await runner.dispose();
 
     expect(sent.some((line) => line.includes(`/api/runner/link-codes/${linkId}/confirm`))).toBe(true);
-    expect(sent.filter((line) => line.includes(secret))).toEqual([]);
+    expect(sent.filter((line) => line.includes(secret) || line.includes(secretBytes(secret).toString('base64url')))).toEqual([]);
+    // The browser's Appareil, trusted now, opens its own wrap of the vault key.
+    expect(sent.some((line) => /GET \S+\/api\/devices\/[^/]+\/vault-key-wrap/.test(line))).toBe(true);
 
     // « Continuer » on to the Comptes IA, which wait for the Runner to report a usable one.
     await demarrage.getByRole('button', { name: 'Continuer' }).click();
     await expect(demarrage.getByRole('heading', { level: 1, name: 'Connecte tes Comptes IA' })).toBeVisible();
     await expect(banner(page)).toContainText('Aucun Moteur utilisable');
     await expect(demarrage.getByRole('button', { name: 'Continuer' })).toBeDisabled();
+  });
+
+  test('a Runner’s key the server swapped: the page refuses its proof, shows its Banner and a new command; the binary reads why', async ({
+    page,
+    playwright,
+    baseURL,
+    scenario,
+  }) => {
+    const sent: string[] = [];
+    page.on('request', (request) => sent.push(`${request.method()} ${request.url()} ${request.postData() ?? ''}`));
+    await scenario('demarrage');
+    const code = await codeOf(page);
+    const runner = await binary(playwright, baseURL);
+    const { linkId, browserPairing } = (await (await runner.post('/api/runner/link', { data: { ...MACHINE, shortId: code.shortId } })).json()) as {
+      linkId: string;
+      browserPairing: BrowserPairing;
+    };
+    // The proof the Runner computed over its key, the key the server put in its place.
+    const swapped = { ...runnerPairing(code, browserPairing), runnerPublicKey: x25519PublicKey() };
+    expect((await runner.post(`/api/runner/link/${linkId}/pairing`, { data: { pairing: swapped } })).status()).toBe(204);
+
+    await expect(banner(page)).toContainText('Preuve de liaison refusée');
+    await expect.poll(async () => (await codeOf(page)).shortId).not.toBe(code.shortId);
+    expect(await (await runner.get(`/api/runner/link/${linkId}`)).json()).toEqual({ state: 'failed', reason: 'pairing-mismatch' });
+    await runner.dispose();
+    expect(sent.filter((line) => line.includes(`/api/runner/link-codes/${linkId}/confirm`))).toEqual([]);
+    expect(sent.filter((line) => line.includes(code.secret))).toEqual([]);
   });
 
   test('an expired code shows its Banner and a new command', async ({ page, scenario, expectAccessible }) => {

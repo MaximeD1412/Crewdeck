@@ -3,13 +3,15 @@ import {
   CROCKFORD_ALPHABET,
   LINK_CODE_SHORT_ID_LENGTH,
   LINK_CODE_TTL_SECONDS,
-  type Pairing,
+  type BrowserPairing,
+  type ConfirmPairing,
   RUNNER_WS_CLOSE,
   type Runner,
   type RunnerLinkAccepted,
   type RunnerLinkCodeCreated,
   type RunnerLinkFailure as RunnerLinkFailureBody,
   type RunnerLinkRequest,
+  type RunnerPairing,
   type RunnerLinkStatus,
 } from '@crewdeck/contracts';
 import { Injectable } from '@nestjs/common';
@@ -21,6 +23,7 @@ import { newId } from '../../ids.js';
 import { EventsWriter } from '../../realtime/events.writer.js';
 import { assertFresh } from '../../realtime/freshness.js';
 import { Transactions, type Tx } from '../../realtime/transactions.js';
+import { Devices } from '../../devices/devices.service.js';
 import { runInPilotScope } from '../../scope/scope.context.js';
 import { RunnerClock } from '../clock.js';
 import { RunnerConnections } from '../runner-connections.js';
@@ -69,20 +72,27 @@ export class RunnerLinks {
     private readonly tokens: RunnerLinkTokens,
     private readonly connections: RunnerConnections,
     private readonly protocol: RunnerProtocol,
+    private readonly devices: Devices,
   ) {}
 
-  /** A new code of the current Pilote: the ones still live expire, only the last one is followed by the page. */
-  async create(pilotId: string, pairing: Pairing): Promise<RunnerLinkCodeCreated> {
+  /**
+   * A new code of the current Pilote, for the Appareil `namedDeviceId` names
+   * (`X-Crewdeck-Device`) or a new one (`Devices.forCode`): the codes still
+   * live expire, only the last one is followed by the page.
+   */
+  async create(pilotId: string, pairing: BrowserPairing, namedDeviceId?: string): Promise<RunnerLinkCodeCreated> {
     for (let attempt = 1; ; attempt++) {
       try {
         return await this.transactions.run(async (tx) => {
           const now = this.clock.now();
           await tx.runnerLinkCode.updateMany({ where: { state: { in: [...LIVE] } }, data: { state: 'expired', failureReason: 'expired' } });
+          const deviceId = await this.devices.forCode(tx, pilotId, namedDeviceId, pairing);
           const row = await tx.runnerLinkCode.create({
             data: {
               id: newId(),
               pilotId,
               shortId: drawShortId(),
+              deviceId,
               browserPairing: pairing as Prisma.InputJsonValue,
               expiresAt: new Date(now.getTime() + LINK_CODE_TTL_SECONDS * 1000),
               createdAt: now,
@@ -90,7 +100,7 @@ export class RunnerLinks {
             select: { id: true, shortId: true, expiresAt: true },
           });
           await this.writeEvent(tx, pilotId, row.id);
-          return { id: row.id, shortId: row.shortId, expiresAt: row.expiresAt.toISOString() };
+          return { id: row.id, shortId: row.shortId, expiresAt: row.expiresAt.toISOString(), deviceId };
         });
       } catch (error) {
         // Another Pilote's live code has this short id: draw another.
@@ -104,7 +114,8 @@ export class RunnerLinks {
    * its machine; without a Moteur it fails (`no-engine`). A code already
    * `pending` that another machine links with fails for both
    * (`already-used`): the page could not tell which one is the Pilote's,
-   * even when both link at the same time.
+   * even when both link at the same time. The future Runner's id is drawn
+   * here: the page binds its wrap of the vault key to it.
    */
   async link({ shortId, ...machine }: RunnerLinkRequest): Promise<RunnerLinkAccepted> {
     const owner = await this.lookup.byShortId(shortId);
@@ -129,18 +140,18 @@ export class RunnerLinks {
       }
       const pendingRunner: PendingRunner = machine;
       // On the state read: a machine that took the code since (its update waited for ours) changes nothing and fails it.
-      const { count } = await tx.runnerLinkCode.updateMany({ where: { id: owner.id, state: 'waiting' }, data: { state: 'pending', pendingRunner } });
+      const { count } = await tx.runnerLinkCode.updateMany({ where: { id: owner.id, state: 'waiting' }, data: { state: 'pending', pendingRunner, runnerId: newId() } });
       if (count === 0) {
         await this.fail(tx, owner.pilotId, owner.id, 'already-used');
         return codeUsed();
       }
       await this.writeEvent(tx, owner.pilotId, owner.id);
-      return { linkId: owner.id, browserPairing: row.browserPairing as Pairing };
+      return { linkId: owner.id, browserPairing: row.browserPairing as BrowserPairing };
     });
   }
 
   /** The Runner's pairing, once, on a `pending` code: the page then confirms. */
-  async pairing(linkId: string, pairing: Pairing): Promise<void> {
+  async pairing(linkId: string, pairing: RunnerPairing): Promise<void> {
     const owner = await this.lookup.byId(linkId);
     if (!owner) throw codeUnknown();
     await this.inScope(owner.pilotId, async (tx) => {
@@ -169,12 +180,18 @@ export class RunnerLinks {
    * The page confirms the current Pilote's `pending` code, once it read the
    * Runner's pairing: the Runner is created with a new token (its hash kept),
    * the previous one revoked and its socket closed with 4401, the code
-   * `linked`. The binary reads the token with `status`.
+   * `linked`, its wrap of the vault key stored (`Devices.confirm`). The
+   * binary reads the token, the device's proof and its wrap with `status`.
+   * An Appareil that does not hold the vault key fails the code
+   * (`device-not-trusted`); a pairing the vault refuses changes nothing.
    */
-  async confirm(pilotId: string, id: string, pairing: Pairing, seq: number): Promise<Runner> {
+  async confirm(pilotId: string, id: string, pairing: ConfirmPairing, seq: number): Promise<Runner> {
     const token = newRunnerToken();
-    const { runner, revoked } = await this.inScope(pilotId, async (tx) => {
-      const row = await tx.runnerLinkCode.findUnique({ where: { id }, select: { state: true, runnerPairing: true, pendingRunner: true, expiresAt: true, lastSeq: true } });
+    const { runner, revoked, linkedPairing } = await this.inScope(pilotId, async (tx) => {
+      const row = await tx.runnerLinkCode.findUnique({
+        where: { id },
+        select: { state: true, runnerPairing: true, pendingRunner: true, runnerId: true, deviceId: true, expiresAt: true, lastSeq: true },
+      });
       if (!row) return codeUnknown();
       assertFresh(row.lastSeq, BigInt(seq));
       const now = this.clock.now();
@@ -182,13 +199,16 @@ export class RunnerLinks {
         await this.expire(tx, pilotId, id);
         return notPending();
       }
-      if (row.state !== 'pending' || row.runnerPairing === null || row.pendingRunner === null) return notPending();
+      if (row.state !== 'pending' || row.runnerPairing === null || row.pendingRunner === null || row.runnerId === null) return notPending();
       const machine = row.pendingRunner as PendingRunner;
+      const vault = await this.devices.confirm(tx, pilotId, row.deviceId, row.runnerId, pairing);
+      if (vault === 'not-trusted') await this.fail(tx, pilotId, id, 'device-not-trusted');
+      if (vault === 'not-trusted' || vault === 'invalid') return Devices.errorOf(vault);
       const previous = await tx.runner.findMany({ where: { revokedAt: null }, select: { id: true } });
       await tx.runner.updateMany({ where: { revokedAt: null }, data: { revokedAt: now, state: 'offline' } });
       const created = await tx.runner.create({
         data: {
-          id: newId(),
+          id: row.runnerId,
           pilotId,
           tokenHash: runnerTokenHash(token),
           machine: machine.machine,
@@ -203,16 +223,33 @@ export class RunnerLinks {
         },
         select: RUNNER_VIEW,
       });
-      await tx.runnerLinkCode.update({ where: { id }, data: { state: 'linked', runnerId: created.id, confirmPairing: pairing as Prisma.InputJsonValue } });
+      const linkedPairing = { proof: pairing.proof, vaultKeyVersion: pairing.vaultKeyVersion, runnerVaultWrap: pairing.runnerVaultWrap };
+      await tx.runnerLinkCode.update({ where: { id }, data: { state: 'linked', confirmPairing: linkedPairing } });
       const linked = toRunner(created);
       await this.events.write(tx, pilotId, 'runner.upserted', linked);
       await this.writeEvent(tx, pilotId, id);
-      return { runner: linked, revoked: new Set(previous.map((runner) => runner.id)) };
+      return { runner: linked, revoked: new Set(previous.map((runner) => runner.id)), linkedPairing };
     });
-    this.tokens.keep(id, { token, pairing });
+    this.tokens.keep(id, { token, pairing: linkedPairing });
     const socket = this.connections.of(pilotId);
     if (socket && revoked.has(socket.runnerId)) socket.close(RUNNER_WS_CLOSE.unauthorized, 'revoked');
     return runner;
+  }
+
+  /**
+   * The page found the Runner's proof wrong (the public keys it read were not
+   * the ones the secret's holders sent): the `pending` code fails with
+   * `pairing-mismatch`, the binary stops, the page draws a new code.
+   */
+  async reject(pilotId: string, id: string, seq: number): Promise<void> {
+    await this.inScope(pilotId, async (tx) => {
+      const row = await tx.runnerLinkCode.findUnique({ where: { id }, select: { state: true, lastSeq: true } });
+      if (!row) return codeUnknown();
+      assertFresh(row.lastSeq, BigInt(seq));
+      if (row.state !== 'pending') return notPending();
+      await this.fail(tx, pilotId, id, 'pairing-mismatch');
+      return undefined;
+    });
   }
 
   /** What the binary polls: `pending`, `linked` (its token the first time), or `failed` with the reason. */
@@ -287,7 +324,7 @@ export class RunnerLinks {
     await this.writeEvent(tx, pilotId, id);
   }
 
-  private async fail(tx: Tx, pilotId: string, id: string, reason: 'already-used' | 'no-engine' | 'unsupported-system'): Promise<void> {
+  private async fail(tx: Tx, pilotId: string, id: string, reason: 'already-used' | 'no-engine' | 'unsupported-system' | 'pairing-mismatch' | 'device-not-trusted'): Promise<void> {
     await tx.runnerLinkCode.update({ where: { id }, data: { state: 'failed', failureReason: failureOf(reason) } });
     await this.writeEvent(tx, pilotId, id);
   }

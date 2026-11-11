@@ -34,9 +34,21 @@ regexes = [
 description = "Fake secret of a link code in the tests of the Runner's link (RUNNER-3)"
 # The tests of the contracts, the page and `crewdeck-runner link` share this
 # made-up secret of 26 Crockford characters: never a real code (a real one is
-# drawn by the page and never written anywhere). Only this exact value is
-# excepted, not the files.
+# drawn by the page and never written anywhere). The tests of the link's
+# proofs (E2E-2) end it in G, so that it decodes to exactly 16 bytes. Only
+# these two exact values are excepted, not the files.
 regexTarget = "secret"
 regexes = [
-  '''^M2PXA7QK9VZ3T8W4R6N1B5C0DE$''',
+  '''^M2PXA7QK9VZ3T8W4R6N1B5C0D[EG]$''',
+]
+
+[[allowlists]]
+description = "Public key of a test vector in the tests of the pairing schemas (E2E-2)"
+# recipientPublicKey of packages/contracts/fixtures/crypto/crewdeck-wrap.json
+# (a vector generated for the tests, a public key): the schema tests of
+# packages/contracts reuse it as a well-formed 32-byte key. Only this exact
+# value is excepted, not the files.
+regexTarget = "secret"
+regexes = [
+  '''^Yfery35HM-eYbPAm7LdhTYCeN5erL97LmNKhUPk930U$''',
 ]

@@ -57,7 +57,7 @@ type accountsHarness struct {
 func newAccountsHarness(t *testing.T, keychain accounts.Keyring, input string, secret string) *accountsHarness {
 	t.Helper()
 	h := &accountsHarness{out: &bytes.Buffer{}, running: true}
-	store := accounts.Store{Keyring: keychain, Dir: filepath.Join(t.TempDir(), "secrets")}
+	store := accounts.Store{Keyring: keychain, Dir: t.TempDir()}
 	var registry engine.Registry
 	registry.Register(&fake.Engine{EngineID: contracts.EngineIdClaudeCode, APIKey: store.Provider(contracts.EngineIdClaudeCode),
 		Models: []contracts.EngineCapabilitiesModelsElem{{Id: "claude-opus-5-5", Label: "Opus 5.5"}}})
@@ -149,7 +149,7 @@ func TestWithoutAKeychainLoginWritesAFileOfModeSixHundred(t *testing.T) {
 	if err := h.cli.login(context.Background(), "codex"); err != nil {
 		t.Fatal(err)
 	}
-	info, err := os.Stat(filepath.Join(h.cli.store.Dir, "codex.key"))
+	info, err := os.Stat(filepath.Join(h.cli.store.Dir, "secrets", "codex.key"))
 	if err != nil || info.Mode().Perm() != 0o600 {
 		t.Fatalf("key file %v, %v: want mode 600", info, err)
 	}

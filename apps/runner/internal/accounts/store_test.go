@@ -1,9 +1,8 @@
 package accounts
 
 import (
+	"context"
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
@@ -41,76 +40,29 @@ func (absentKeyring) Get(string, string) (string, error) { return "", errNoKeych
 func (absentKeyring) Set(string, string, string) error   { return errNoKeychain }
 func (absentKeyring) Delete(string, string) error        { return errNoKeychain }
 
-func TestAKeyIsKeptInTheKeychainUnderTheRunnersService(t *testing.T) {
-	keychain := memoryKeyring{}
-	store := Store{Keyring: keychain, Dir: t.TempDir()}
-
-	if err := store.Set(contracts.EngineIdCodex, "sk-test-codex"); err != nil {
-		t.Fatal(err)
-	}
-	if keychain["crewdeck-runner/codex"] != "sk-test-codex" {
-		t.Fatalf("keychain %v, want the key under crewdeck-runner/codex", keychain)
-	}
-	if _, err := os.Stat(filepath.Join(store.Dir, "codex.key")); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("a file was written beside the keychain: %v", err)
-	}
-	got, err := store.Get(contracts.EngineIdCodex)
-	if err != nil || got != "sk-test-codex" {
-		t.Fatalf("Get = %q, %v", got, err)
-	}
-}
-
-func TestWithoutAKeychainTheKeyIsAFileOnlyThePiloteReads(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "secrets")
-	store := Store{Keyring: absentKeyring{}, Dir: dir}
-
-	if err := store.Set(contracts.EngineIdClaudeCode, "sk-ant-test\n"); err != nil {
-		t.Fatal(err)
-	}
-	file := filepath.Join(dir, "claude-code.key")
-	info, err := os.Stat(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Mode().Perm() != 0o600 {
-		t.Fatalf("file mode %v, want 600", info.Mode().Perm())
-	}
-	folder, _ := os.Stat(dir)
-	if folder.Mode().Perm() != 0o700 {
-		t.Fatalf("folder mode %v, want 700", folder.Mode().Perm())
-	}
-	got, err := store.Get(contracts.EngineIdClaudeCode)
-	if err != nil || got != "sk-ant-test" {
-		t.Fatalf("Get = %q, %v", got, err)
-	}
-}
-
-func TestNoKeyStoredIsErrNotFound(t *testing.T) {
+func TestNoKeyStoredIsErrNoKeyAndTheAdapterGetsNone(t *testing.T) {
 	for name, keychain := range map[string]Keyring{"keychain": memoryKeyring{}, "no keychain": absentKeyring{}} {
 		store := Store{Keyring: keychain, Dir: t.TempDir()}
-		if _, err := store.Get(contracts.EngineIdCodex); !errors.Is(err, ErrNotFound) {
-			t.Errorf("%s: Get = %v, want ErrNotFound", name, err)
+		if _, err := store.Get(contracts.EngineIdCodex); !errors.Is(err, ErrNoKey) {
+			t.Errorf("%s: Get = %v, want ErrNoKey", name, err)
 		}
-		if err := store.Delete(contracts.EngineIdCodex); !errors.Is(err, ErrNotFound) {
-			t.Errorf("%s: Delete = %v, want ErrNotFound", name, err)
+		if key, err := store.Provider(contracts.EngineIdCodex)(context.Background()); key != "" || err != nil {
+			t.Errorf("%s: Provider = %q, %v, want none", name, key, err)
 		}
 	}
 }
 
-func TestDeleteRemovesTheKeyWhereverItIs(t *testing.T) {
-	keychain := memoryKeyring{}
+func TestAKeyStoredInTheKeychainReplacesTheOneOfTheFile(t *testing.T) {
 	dir := t.TempDir()
 	if err := (Store{Keyring: absentKeyring{}, Dir: dir}).Set(contracts.EngineIdCodex, "sk-old"); err != nil {
 		t.Fatal(err)
 	}
-	keychain["crewdeck-runner/codex"] = "sk-new"
-	store := Store{Keyring: keychain, Dir: dir}
-
-	if err := store.Delete(contracts.EngineIdCodex); err != nil {
+	keychain := memoryKeyring{}
+	if err := (Store{Keyring: keychain, Dir: dir}).Set(contracts.EngineIdCodex, "sk-new"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Get(contracts.EngineIdCodex); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("Get after Delete = %v, want ErrNotFound", err)
+	if got, err := (Store{Keyring: absentKeyring{}, Dir: dir}).Get(contracts.EngineIdCodex); !errors.Is(err, ErrNoKey) {
+		t.Fatalf("the old file still gives %q, %v", got, err)
 	}
 }
 

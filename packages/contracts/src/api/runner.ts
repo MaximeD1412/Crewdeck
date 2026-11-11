@@ -25,3 +25,11 @@ export const zRunner = z.object({
   linkedAt: zInstant,
 });
 export type Runner = z.infer<typeof zRunner>;
+
+/**
+ * `GET /runner/latest`, public: the version of the Runner's binaries this
+ * server serves (its image's `CREWDECK_COMMIT`), which `crewdeck-runner
+ * status` and `update` compare with their own (RUNNER-8).
+ */
+export const zRunnerLatest = z.object({ version: z.string().min(1) });
+export type RunnerLatest = z.infer<typeof zRunnerLatest>;

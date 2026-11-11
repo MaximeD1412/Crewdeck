@@ -100,9 +100,7 @@ func TestRunConnectsWithTheLinkedTokenAndStopsCleanlyWhenItsContextEnds(t *testi
 	home := t.TempDir()
 	t.Setenv(state.HomeEnv, home)
 	// runner.json names another server: --server takes its place.
-	if err := (state.Store{Dir: home}).Save(state.State{Server: "http://127.0.0.1:1", RunnerID: "runner-id", Token: "rnr_linked"}); err != nil {
-		t.Fatal(err)
-	}
+	linkedHome(t, home, "http://127.0.0.1:1")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	root := newRootCommand()
@@ -175,9 +173,7 @@ func TestRunSendsItsCapabilitiesOnceAcceptedAndAgainWhenLoginAsks(t *testing.T) 
 	t.Cleanup(srv.Close)
 	home := t.TempDir()
 	t.Setenv(state.HomeEnv, home)
-	if err := (state.Store{Dir: home}).Save(state.State{Server: srv.URL, RunnerID: "runner-id", Token: "rnr_linked"}); err != nil {
-		t.Fatal(err)
-	}
+	linkedHome(t, home, srv.URL)
 	previous := runnerEngines
 	runnerEngines = func(accounts.Store) *engine.Registry {
 		var registry engine.Registry

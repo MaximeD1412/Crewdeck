@@ -1,4 +1,4 @@
-import { zErrorEnvelope, type ErrorEnvelope } from '@crewdeck/contracts';
+import { DEVICE_HEADER, zErrorEnvelope, type ErrorEnvelope } from '@crewdeck/contracts';
 import { t } from '@crewdeck/sdk';
 import type { z } from 'zod';
 
@@ -28,14 +28,23 @@ const errorOf = async (response: Response): Promise<ApiError> => {
 
 export type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
+let currentDevice: string | null = null;
+
+/** Names this browser's Appareil on every call from now on (`X-Crewdeck-Device`, E2E-2); `null` stops. */
+export const setCurrentDevice = (deviceId: string | null): void => {
+  currentDevice = deviceId;
+};
+
 /**
  * One call to the API on the page's origin, with its session cookie, `body`
  * sent as JSON: the answer read with `schema`, nothing for a 204 or without
- * `schema`; an `ApiError` otherwise.
+ * `schema`; an `ApiError` otherwise. The page's Appareil, once known, is
+ * named in `X-Crewdeck-Device`.
  */
 export async function call(method: Method, path: string, body: unknown, schema?: z.ZodType): Promise<unknown> {
   const headers: Record<string, string> = { accept: 'application/json' };
   if (body !== undefined) headers['content-type'] = 'application/json';
+  if (currentDevice) headers[DEVICE_HEADER] = currentDevice;
   const response = await fetch(path, {
     method,
     credentials: 'same-origin',

@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ecdh"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +18,7 @@ import (
 	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/keys"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/service"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
@@ -38,6 +41,8 @@ const (
 	reasonUnreachable = "server-unreachable"
 	reasonRateLimited = "rate-limited"
 	reasonTokenGone   = "token-gone"
+	reasonMismatch    = "pairing-mismatch"
+	reasonNotTrusted  = "device-not-trusted"
 )
 
 var reasons = map[string]string{
@@ -48,7 +53,14 @@ var reasons = map[string]string{
 	reasonUnsupported: "Ce système n’est pas pris en charge : le Runner tourne sur Linux, macOS ou Windows (WSL), en amd64 ou arm64.",
 	reasonRateLimited: "Trop de tentatives de liaison depuis cette adresse : attends une minute.",
 	reasonTokenGone:   "Le jeton de ce Runner a déjà été remis une fois.",
+	reasonMismatch:    "La page n’a pas reconnu la preuve de liaison du Runner.",
+	reasonNotTrusted:  "Ce navigateur n’est pas un Appareil de confiance : relie le Runner depuis un Appareil de confiance.",
 }
+
+// errPairingMismatch is the Runner's refusal of the page's proof, or of a
+// wrap of the vault key that does not open from the Appareil it authenticated:
+// the server swapped a key. Nothing is written.
+var errPairingMismatch = errors.New("La preuve de liaison ne correspond pas : relance la commande depuis la page.")
 
 // linkFailure is a failed link: its reason, then the install command again.
 type linkFailure struct {
@@ -159,8 +171,10 @@ func (l *linker) fail(reason, code string) error {
 	return &linkFailure{reason: reason, server: l.server, code: code}
 }
 
-// link runs the link of ADR 0004: the request, the Runner's pairing, then
-// the poll until the page confirmed it; runner.json and the service last.
+// link runs the link of ADR 0004: the request, the Runner's pairing (its new
+// public key and its proof), then the poll until the page confirmed it with
+// its own proof and the Runner's wrap of the vault key; the keys, runner.json
+// and the service last (docs/security/e2e.md « First Appareil (E2E-2) »).
 func (l *linker) link(ctx context.Context, raw string) error {
 	if u, err := url.Parse(l.server); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return fmt.Errorf("Le serveur %q n’est pas une adresse http(s).", l.server)
@@ -169,8 +183,12 @@ func (l *linker) link(ctx context.Context, raw string) error {
 	if !linkCode.MatchString(code) {
 		return l.fail(reasonUnknown, code)
 	}
-	// The secret stays on this machine: E2E-2 derives the pairing from it.
-	shortID, _, _ := strings.Cut(code, "-")
+	// The secret stays on this machine: both pairing proofs derive from it.
+	shortID, encoded, _ := strings.Cut(code, "-")
+	secret, err := keys.DecodeBase32(encoded)
+	if err != nil {
+		return l.fail(reasonUnknown, code)
+	}
 
 	machine, err := l.describe()
 	if err != nil {
@@ -195,7 +213,21 @@ func (l *linker) link(ctx context.Context, raw string) error {
 	if err := l.call(ctx, code, http.MethodPost, "/api/runner/link", request, http.StatusAccepted, &accepted); err != nil {
 		return err
 	}
-	pairing := contracts.RunnerLinkPairing{Pairing: contracts.RunnerLinkPairingPairing{}}
+	devicePublicKey, err := base64.RawURLEncoding.Strict().DecodeString(accepted.BrowserPairing.DevicePublicKey)
+	if err != nil {
+		return errPairingMismatch
+	}
+	runnerKey, err := keys.GenerateKeyPair()
+	if err != nil {
+		return err
+	}
+	runnerPublicKey := keys.PublicKeyBytes(runnerKey)
+	pair := &pairing{secret: secret, shortID: shortID, runner: runnerKey, devicePublicKey: devicePublicKey}
+	proof := keys.PairingProof(keys.ProofLabelRunner, secret, shortID, runnerPublicKey, devicePublicKey)
+	pairing := contracts.RunnerLinkPairing{Pairing: contracts.RunnerLinkPairingPairing{
+		RunnerPublicKey: base64.RawURLEncoding.EncodeToString(runnerPublicKey),
+		Proof:           base64.RawURLEncoding.EncodeToString(proof),
+	}}
 	if err := l.call(ctx, code, http.MethodPost, "/api/runner/link/"+url.PathEscape(accepted.LinkId)+"/pairing", pairing, http.StatusNoContent, nil); err != nil {
 		return err
 	}
@@ -209,7 +241,7 @@ func (l *linker) link(ctx context.Context, raw string) error {
 		}
 		switch status.State {
 		case contracts.RunnerLinkStatusStateLinked:
-			return l.linked(ctx, code, status)
+			return l.linked(ctx, code, pair, status)
 		case contracts.RunnerLinkStatusStateFailed:
 			reason := reasonExpired
 			if status.Reason != nil {
@@ -226,9 +258,60 @@ func (l *linker) link(ctx context.Context, raw string) error {
 	}
 }
 
-func (l *linker) linked(ctx context.Context, code string, status contracts.RunnerLinkStatus) error {
+// pairing is what the Runner keeps of the link until the page confirmed it.
+type pairing struct {
+	secret          []byte
+	shortID         string
+	runner          *ecdh.PrivateKey
+	devicePublicKey []byte
+}
+
+// open checks the page's proof over both public keys, then opens the Runner's
+// wrap of the vault key from the Appareil that proof authenticated.
+func (p *pairing) open(runnerID string, linked *contracts.RunnerLinkStatusPairing) (state.VaultWrap, error) {
+	if linked == nil {
+		return state.VaultWrap{}, errPairingMismatch
+	}
+	b := func(text string) []byte {
+		data, err := base64.RawURLEncoding.Strict().DecodeString(text)
+		if err != nil {
+			return nil
+		}
+		return data
+	}
+	if !keys.VerifyPairingProof(b(linked.Proof), keys.ProofLabelDevice, p.secret, p.shortID, p.devicePublicKey, keys.PublicKeyBytes(p.runner)) {
+		return state.VaultWrap{}, errPairingMismatch
+	}
+	w := keys.Wrap{Enc: b(linked.RunnerVaultWrap.Enc), Ciphertext: b(linked.RunnerVaultWrap.Ciphertext), Tag: b(linked.RunnerVaultWrap.Tag)}
+	if _, err := keys.Unlock(p.runner, p.devicePublicKey, runnerID, linked.VaultKeyVersion, w); err != nil {
+		return state.VaultWrap{}, errPairingMismatch
+	}
+	return state.VaultWrap{
+		RunnerID:        runnerID,
+		VaultKeyVersion: linked.VaultKeyVersion,
+		DevicePublicKey: p.devicePublicKey,
+		Enc:             w.Enc,
+		Ciphertext:      w.Ciphertext,
+		Tag:             w.Tag,
+	}, nil
+}
+
+// linked saves the Runner's key, its wrap of the vault key and runner.json,
+// in that order: runner.json, the token, is the last, so a Runner that
+// refused the page's proof or stopped halfway is not linked.
+func (l *linker) linked(ctx context.Context, code string, pair *pairing, status contracts.RunnerLinkStatus) error {
 	if status.Token == nil || status.RunnerId == nil {
 		return l.fail(reasonTokenGone, code)
+	}
+	wrap, err := pair.open(*status.RunnerId, status.Pairing)
+	if err != nil {
+		return err
+	}
+	if err := l.store.SaveRunnerKey(pair.runner.Bytes()); err != nil {
+		return err
+	}
+	if err := l.store.SaveVaultWrap(wrap); err != nil {
+		return err
 	}
 	if err := l.store.Save(state.State{Server: l.server, RunnerID: *status.RunnerId, Token: *status.Token}); err != nil {
 		return err

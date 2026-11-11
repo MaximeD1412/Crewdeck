@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { RunnerTokens } from '../auth/runner-tokens.js';
+import { DevicesModule } from '../devices/devices.module.js';
 import { AiAccounts, AiAccountsController, AiAccountState } from './ai-accounts/ai-accounts.js';
 import { RunnerClock } from './clock.js';
 import { RunnerDistController } from './distribution/runner-dist.controller.js';
@@ -25,6 +26,7 @@ import { RunnerProtocol } from './protocol-version.js';
  * (`ai-accounts/`, RUNNER-7).
  */
 @Module({
+  imports: [DevicesModule],
   controllers: [RunnersController, AiAccountsController, RunnerLinkCodesController, RunnerLinkController, RunnerDistController],
   providers: [
     RunnerTokens,

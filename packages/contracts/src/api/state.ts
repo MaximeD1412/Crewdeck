@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zAiAccount } from './ai-accounts.js';
+import { zDevice } from './devices.js';
 import { zMe } from './me.js';
 import { zRunner } from './runner.js';
 import { zRunnerLink } from './runner-link.js';
@@ -18,6 +19,8 @@ export const STATE_SLICES = {
   'runner-link': zRunnerLink.nullable(),
   /** The Pilote's Comptes IA, one per Moteur their Runner reported (RUNNER-7). */
   'ai-account': z.array(zAiAccount),
+  /** The Pilote's Appareils (E2E-2), newest first; `current` is `false`, each page sets its own. */
+  devices: z.array(zDevice),
 } as const;
 export type StateKey = keyof typeof STATE_SLICES;
 

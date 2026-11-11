@@ -5,6 +5,7 @@ import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod';
 import { AuthModule } from './auth/auth.module.js';
 import { type Env, usesFakes } from './config/env.js';
 import { EnvModule } from './config/env.module.js';
+import { DevicesModule } from './devices/devices.module.js';
 import { PublicConfigModule } from './config/public-config.controller.js';
 import { ErrorFilter } from './errors/error.filter.js';
 import { GitHubModule } from './github/github.module.js';
@@ -59,6 +60,7 @@ export class AppModule {
         ...fakes(env),
         AuthModule,
         PilotsModule,
+        DevicesModule,
         RunnersModule,
         MetricsModule,
         WebModule.forRoot(env),

@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { zRunnerLatest } from '@crewdeck/contracts';
 import type { INestApplication } from '@nestjs/common';
 import { expectEnvelope, startApp } from '../../../test/route-baseline.js';
 import { parseEnv } from '../../config/env.js';
@@ -66,6 +67,19 @@ describe('the Runner’s distribution', () => {
     app = (await startApp(parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL }))).app;
     const bare = await app.getUrl();
     await expectEnvelope(await fetch(`${bare}/runner/install.sh`), 404, 'runner-dist.not-found');
+  });
+
+  it('says at /runner/latest the version of the binaries it serves, without a session nor RUNNER_DIST_DIR', async () => {
+    const url = await boot();
+
+    const res = await fetch(`${url}/runner/latest`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(zRunnerLatest.parse(await res.json())).toStrictEqual({ version: 'abc1234' });
+    await app?.close();
+    app = (await startApp(parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL, CREWDECK_COMMIT: 'def5678' }))).app;
+    expect(await (await fetch(`${await app.getUrl()}/runner/latest`)).json()).toStrictEqual({ version: 'def5678' });
   });
 
   it('leaves /api/runner/… under /api', async () => {

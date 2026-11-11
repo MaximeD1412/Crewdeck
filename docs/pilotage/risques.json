@@ -129,7 +129,7 @@
         {
           "texte": "Preuve HMAC sur les deux clés, avec le secret du code de liaison",
           "ref": "ADR 0003",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Nouvel Appareil approuvé par un QR code portant son propre secret de 128 bits, depuis un Appareil de confiance",

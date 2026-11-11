@@ -4,8 +4,9 @@
 > event (scenario 6, recorded when it happens) and `bypassPermissions`
 > (scenario 9a, to be run by the founder). Codex: version, sign-in states
 > (none, API key), models, Skills discovery and the quota reached on an API
-> key recorded; every scenario that runs a model waits for credit on the
-> OpenAI key. No scenario so far breaks a story; the
+> key recorded; the scenarios that run a model are **not tested**: the
+> founder's OpenAI key has no credit and none will be added for now. No
+> scenario so far breaks a story; the
 > one that came closest, a permission request waiting for hours, works
 > once the Runner's MCP server sends progress notifications (scenario 2).
 
@@ -20,7 +21,7 @@ RUNNER-4, RUNNER-5 and RUNNER-6 replay.
 |---|---|
 | Machine | Linux (WSL2), x86_64 |
 | Claude Code | `claude --version` → `2.1.319 (Claude Code)`; Compte IA: the founder's subscription (`subscriptionType: "Claude Max"`). No API key tried (the founder's choice for this session). |
-| Codex | `codex --version` → `codex-cli 0.167.1` (`npm i -g @openai/codex@0.167.1`). Signed in by the founder's OpenAI API key, whose account has no credit yet (every turn ends « Quota exceeded »); a ChatGPT sign-in is not tried (ADR 0004). |
+| Codex | `codex --version` → `codex-cli 0.167.1` (`npm i -g @openai/codex@0.167.1`). Signed in by the founder's OpenAI API key, whose account has no credit (every turn ends « Quota exceeded »; no credit will be added for now); a ChatGPT sign-in is not tried (ADR 0004). |
 | Repository | A throwaway one, `git init` in a temporary folder, scrubbed to `/home/pilote/spike` |
 | Model | `haiku` (Haiku 5.5) for every Claude scenario but 6 (`sonnet`) |
 
@@ -84,7 +85,7 @@ sentence, with `--include-partial-messages`.
 
 **Verdict: works.**
 
-**Codex**: waits for credit on the OpenAI key (`exec --json` and app-server
+**Codex**: not tested (no credit on the OpenAI key, the founder's choice) (`exec --json` and app-server
 `turn/start`).
 
 ## 2. A permission request that waits for hours
@@ -136,7 +137,7 @@ request in the same Session, answered `deny`), `deny`, and `allow`.
 **Verdict: works with a caveat** (the Runner keeps the call alive with
 progress notifications, or Claude aborts it after 30 minutes).
 
-**Codex**: waits for credit on the OpenAI key (`item/commandExecution/requestApproval`
+**Codex**: not tested (no credit on the OpenAI key, the founder's choice) (`item/commandExecution/requestApproval`
 and `item/fileChange/requestApproval`, server requests of the app-server,
 answered `{decision: "accept" | "acceptForSession" | "decline" | "cancel"}`).
 
@@ -174,7 +175,7 @@ received « Bleu » and finished the Skill. A hook is not subject to the
 
 **Verdict: works.**
 
-**Codex**: waits for credit on the OpenAI key (`item/tool/requestUserInput`, a server
+**Codex**: not tested (no credit on the OpenAI key, the founder's choice) (`item/tool/requestUserInput`, a server
 request of the app-server; Codex has no hooks for it).
 
 ## 4. Interrupt, then resume
@@ -198,7 +199,7 @@ control request `{"type":"control_request","request_id":"drv-1","request":{"subt
 
 **Verdict: works.**
 
-**Codex**: waits for credit on the OpenAI key (`turn/interrupt`, then `thread/resume`).
+**Codex**: not tested (no credit on the OpenAI key, the founder's choice) (`turn/interrupt`, then `thread/resume`).
 
 ## 5. A Session that survives a Runner restart
 
@@ -226,7 +227,7 @@ the Session is interrupted while the Runner is away, until it is resumed.
 **Verdict: works with a caveat** (the in-flight turn is lost; the Runner
 says so in the Session and resends).
 
-**Codex**: waits for credit on the OpenAI key (`thread/resume` after killing
+**Codex**: not tested (no credit on the OpenAI key, the founder's choice) (`thread/resume` after killing
 `app-server`).
 
 ## 6. Limits and usage
@@ -271,7 +272,7 @@ limit-reached event is still to record).
   `thread.started`, `turn.started`, `error` and `turn.failed` with only the
   message (no `codexErrorInfo`), exit code 1. The Boucle's adapter
   recognises the message; the app-server gives a code.
-- Usage figures of a real turn: wait for credit on the key.
+- Usage figures of a real turn: not tested (no credit on the OpenAI key).
 
 ## 7. Authentication states
 
@@ -315,7 +316,7 @@ empty `CODEX_HOME`):
   stored in `CODEX_HOME`), `07-c-app-server-api-key`: `account/read` →
   `{account: {type: "apiKey"}, requiresOpenaiAuth: true}`; `model/list` the
   same nine models; `codex login status` exits 0. A model outside the plan:
-  waits for credit on the key.
+  not tested (no credit on the OpenAI key).
 
 **Verdict: works** (Claude subscription and not signed in; Codex not
 signed in and API key); the Claude API key is left out by the founder.
@@ -340,7 +341,8 @@ shows it with a dummy `skill-perso`. RUNNER-6 decides whether the Session
 gets a `HOME` of its own or lives with them. Using the Skill: waits for an
 API key.
 
-**Verdict: works with a caveat** (found; used, *en attente*).
+**Verdict: works with a caveat** (found; used: not tested, no credit on the
+OpenAI key).
 
 ## 9. Permission modes
 
@@ -349,9 +351,14 @@ API key.
 - `--permission-mode bypassPermissions` (Rôles Code and Review), `09-a-bypass`:
   *to be run by the founder*. The agent running this spike was not allowed
   to start a `claude` that bypasses permissions, even in the throwaway
-  repository. Command:
-  `SPIKE_NAME=09-a-bypass docs/spikes/scripts/claude.sh 09-permission-modes '[{"send":"Avec l’outil Bash, lance exactement `touch bypass.txt`, puis avec l’outil Write crée `bypass.md` contenant « ok ». Dis ensuite « fait »."},{"untilType":"result","timeoutMs":180000},{"closeStdin":true},{"untilExit":true}]' --model haiku --permission-mode bypassPermissions`
-  then `node docs/spikes/scripts/collect.mjs`.
+  repository. From the repository's root:
+
+  ```sh
+  SPIKE_NAME=09-a-bypass docs/spikes/scripts/claude.sh 09-permission-modes \
+    '[{"send":"Avec l’outil Bash, lance exactement `touch bypass.txt`, puis avec l’outil Write crée `bypass.md` contenant « ok ». Dis ensuite « fait »."},{"untilType":"result","timeoutMs":180000},{"closeStdin":true},{"untilExit":true}]' \
+    --model haiku --permission-mode bypassPermissions
+  node docs/spikes/scripts/collect.mjs && docs/spikes/scripts/check.sh
+  ```
 - `--permission-mode auto` (the exact flag; `init` says `permissionMode:
   "auto"`), `09-b-auto`, `09-c-auto-outside`: a `touch`, a `git push --force
   origin main` (no remote), a `Write` outside the repository and an `rm -rf`
@@ -370,7 +377,8 @@ anything; in the default mode, every call outside the allowed list. US-9
 holds either way. Which mode those Sessions use is for RUNNER-5 to settle
 with the Pilote (it changes what the Pilote sees).
 
-**Verdict: works with a caveat** (`bypassPermissions` *en attente*).
+**Verdict: works with a caveat** (`bypassPermissions`: to be run by the
+founder).
 
 **Codex**: 0.167.1 has no `--full-auto` any more. `codex exec --help`
 offers `--sandbox read-only|workspace-write|danger-full-access`,
@@ -424,7 +432,9 @@ process), the MCP progress notifications (they never reach stdout), `system/stat
 
 Observed so far: the not-signed-in states and the listings. The other rows
 come from the protocol of 0.167.1 (`codex app-server generate-ts`) and are
-*to confirm* once the scenarios run with an API key.
+*to confirm*: they need a model to run, not tested for lack of credit on
+the OpenAI key. RUNNER-6 starts from them and records its own streams once a
+Compte IA Codex can run a turn.
 
 | Normalised | app-server (Sessions the Pilote drives) | `exec --json` (Boucle) |
 |---|---|---|
@@ -452,7 +462,13 @@ come from the protocol of 0.167.1 (`codex app-server generate-ts`) and are
   Sessions use (scenario 9).
 - **RUNNER-6 (Codex)**: check the account before starting a turn; the
   Pilote's `~/.agents/skills` show up in a Session; types generated from
-  `codex app-server generate-ts`.
+  `codex app-server generate-ts`. **Codex is not proven on a running turn**
+  (no credit on the founder's OpenAI key): its approvals held for hours, its
+  question, interrupt and resume, its usage figures are taken from the
+  protocol, not observed. RUNNER-6 records them before its adapter relies on
+  them; does an approval request survive hours, as Claude's needed a
+  keep-alive, is the first thing to check. Until then Claude Code is the
+  only proven Moteur.
 - **Runner restart**: the turn in progress is lost; the Runner keeps what it
   streamed, marks the Session interrupted, and sends a message on resume
   (US-60).

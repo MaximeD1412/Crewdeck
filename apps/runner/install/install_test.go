@@ -152,6 +152,9 @@ func TestAnUnsupportedSystemIsReportedThenRefusedInFrench(t *testing.T) {
 	if !strings.Contains(out, "n’est pas pris en charge") {
 		t.Fatalf("output %q", out)
 	}
+	if !strings.Contains(out, "curl -fsSL "+srv.URL+"/runner/install.sh | sh -s -- --link "+code) {
+		t.Fatalf("the command is not printed again: %q", out)
+	}
 	if len(d.requests) != 1 || d.requests[0] != "POST /api/runner/link-failures" {
 		t.Fatalf("requests %v", d.requests)
 	}

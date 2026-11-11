@@ -84,6 +84,7 @@ if [ -z "$os" ] || [ -z "$arch" ]; then
 			--data "{\"shortId\":\"$(clean "$short_id")\",\"reason\":\"unsupported-system\",\"os\":\"$(clean "$system")\",\"arch\":\"$(clean "$machine")\"}" \
 			"$server/api/runner/link-failures" >/dev/null 2>&1 || true
 	fi
+	again
 	fail "ce système ($system $machine) n’est pas pris en charge : le Runner tourne sur Linux, macOS ou Windows (WSL), en amd64 ou arm64."
 fi
 

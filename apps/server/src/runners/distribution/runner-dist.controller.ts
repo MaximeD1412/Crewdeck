@@ -1,3 +1,4 @@
+import type { RunnerLatest } from '@crewdeck/contracts';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Controller, Get, Header, Inject, Param, Req, StreamableFile } from '@nestjs/common';
@@ -43,6 +44,8 @@ const missing = () => notFound('runner-dist.not-found', MESSAGES['runner-dist.no
  * /runner/<version>/<os>-<arch>` with its `.sha256`, from `RUNNER_DIST_DIR`
  * (`<dir>/install.sh`, `<dir>/<version>/<os>-<arch>`, as `runner:dist` and
  * the image lay them out). 404 for a version or a system it does not have.
+ * `GET /runner/latest` says the version it serves, for the Runner's
+ * `status` and its self-update.
  */
 @Public()
 @Controller(RUNNER_DIST_ROUTE)
@@ -55,6 +58,12 @@ export class RunnerDistController {
   async install(@Req() request: Request): Promise<string> {
     const script = await this.read('install.sh');
     return script.toString('utf8').replaceAll(INSTALL_SERVER, this.server(request)).replaceAll(INSTALL_VERSION, this.env.CREWDECK_COMMIT);
+  }
+
+  @Get('latest')
+  @Header('Cache-Control', 'no-store')
+  latest(): RunnerLatest {
+    return { version: this.env.CREWDECK_COMMIT };
   }
 
   @Get(':version/:file')

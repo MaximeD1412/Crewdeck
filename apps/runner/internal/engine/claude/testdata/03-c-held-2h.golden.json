@@ -1,0 +1,99 @@
+[
+  {
+    "callId": "toolu_01QBm65LRqvjigCYtB7GWqef",
+    "kind": "tool-call",
+    "seq": 1,
+    "target": "crewdeck-spike:choisir-couleur",
+    "tool": "Skill"
+  },
+  {
+    "callId": "toolu_01QBm65LRqvjigCYtB7GWqef",
+    "detail": "Launching skill: crewdeck-spike:choisir-couleur",
+    "kind": "tool-result",
+    "ok": true,
+    "seq": 2
+  },
+  {
+    "kind": "usage",
+    "seq": 3,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 14
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 22
+      }
+    ]
+  },
+  {
+    "callId": "toolu_01CeX3unbDfTYMLUkeuix4fk",
+    "kind": "tool-call",
+    "seq": 4,
+    "tool": "AskUserQuestion"
+  },
+  {
+    "kind": "question",
+    "multiple": false,
+    "options": [
+      {
+        "detail": "Titre du README en rouge",
+        "label": "Rouge"
+      },
+      {
+        "detail": "Titre du README en bleu",
+        "label": "Bleu"
+      }
+    ],
+    "requestId": "toolu_01CeX3unbDfTYMLUkeuix4fk",
+    "seq": 5,
+    "title": "Quelle couleur pour le titre du README ?"
+  },
+  {
+    "callId": "toolu_01CeX3unbDfTYMLUkeuix4fk",
+    "detail": "Your questions have been answered: \"Quelle couleur pour le titre du README ?\"=\"Bleu\". You can now continue with these answers in mind.",
+    "kind": "tool-result",
+    "ok": true,
+    "seq": 6
+  },
+  {
+    "final": true,
+    "from": "agent",
+    "kind": "message",
+    "seq": 7,
+    "text": "Couleur choisie : Bleu SKILL-OK"
+  },
+  {
+    "kind": "usage",
+    "seq": 8,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 69
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 27
+      }
+    ]
+  },
+  {
+    "costUsdMicros": 2231,
+    "inputTokens": 61722,
+    "kind": "usage",
+    "outputTokens": 229,
+    "seq": 9
+  },
+  {
+    "costUsdMicros": 2231,
+    "engineSessionId": "fbb2ff45-baba-4dda-97b7-fb1ad3a0a91b",
+    "kind": "result",
+    "seq": 10,
+    "status": "ok"
+  }
+]

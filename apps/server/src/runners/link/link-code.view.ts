@@ -1,4 +1,4 @@
-import type { LinkCodeState, LinkFailureReason, Pairing, RunnerLink } from '@crewdeck/contracts';
+import type { LinkCodeState, LinkFailureReason, RunnerLink, RunnerPairing } from '@crewdeck/contracts';
 import type { RunnerLinkFailure } from '../../generated/prisma/client.js';
 
 /** What of a `runner_link_codes` row the page sees: the `runner-link` slice and the payload of `runner-link.upserted`. */
@@ -8,6 +8,7 @@ export const LINK_VIEW = {
   state: true,
   failureReason: true,
   expiresAt: true,
+  runnerId: true,
   runnerPairing: true,
 } as const;
 
@@ -17,6 +18,7 @@ interface LinkRow {
   state: LinkCodeState;
   failureReason: RunnerLinkFailure | null;
   expiresAt: Date;
+  runnerId: string | null;
   runnerPairing: unknown;
 }
 
@@ -32,5 +34,6 @@ export const toRunnerLink = (row: LinkRow): RunnerLink => ({
   state: row.state,
   failureReason: row.failureReason ? reasonOf(row.failureReason) : null,
   expiresAt: row.expiresAt.toISOString(),
-  runnerPairing: (row.runnerPairing as Pairing | null) ?? null,
+  runnerId: row.runnerId,
+  runnerPairing: (row.runnerPairing as RunnerPairing | null) ?? null,
 });

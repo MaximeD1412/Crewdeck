@@ -3,10 +3,22 @@
   "additionalProperties": false,
   "properties": {
     "browserPairing": {
-      "additionalProperties": {},
-      "propertyNames": {
-        "type": "string"
+      "additionalProperties": false,
+      "properties": {
+        "deviceName": {
+          "maxLength": 60,
+          "minLength": 1,
+          "type": "string"
+        },
+        "devicePublicKey": {
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        }
       },
+      "required": [
+        "deviceName",
+        "devicePublicKey"
+      ],
       "type": "object"
     },
     "linkId": {

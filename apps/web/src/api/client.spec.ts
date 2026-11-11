@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createClient } from './client.js';
-import { ApiError } from './request.js';
+import { ApiError, setCurrentDevice } from './request.js';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const zIdea = z.object({ id: z.string(), title: z.string() });
@@ -43,6 +43,23 @@ describe('the API client', () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     await expect(client.command('DELETE', '/api/ideas/i1', {})).resolves.toBeUndefined();
     expect(sentBody(1)).toEqual({ seq: '9007199254740993' });
+  });
+
+  it('names the page’s Appareil in X-Crewdeck-Device once known, on reads and commands', async () => {
+    const headers = (call: number) => fetchMock.mock.calls[call]?.[1]?.headers as Record<string, string>;
+    fetchMock.mockImplementation(async () => new Response(null, { status: 204 }));
+    await client.query('/api/devices', zIdea);
+    expect(headers(0)).not.toHaveProperty('X-Crewdeck-Device');
+
+    setCurrentDevice('018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a74');
+    try {
+      await client.query('/api/devices', zIdea);
+      await client.command('POST', '/api/ideas', {});
+      expect(headers(1)['X-Crewdeck-Device']).toBe('018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a74');
+      expect(headers(2)['X-Crewdeck-Device']).toBe('018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a74');
+    } finally {
+      setCurrentDevice(null);
+    }
   });
 
   it('command before any snapshot carries seq 0: the server then answers what changed', async () => {

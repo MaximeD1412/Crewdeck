@@ -38,9 +38,10 @@ describe('RunnerLinkLimiter', () => {
 describe('RunnerLinkTokens', () => {
   it('gives a link’s token once', () => {
     const tokens = new RunnerLinkTokens();
-    tokens.keep('link', { token: 't', pairing: {} });
+    const pairing = { proof: 'p', vaultKeyVersion: 1, runnerVaultWrap: { enc: 'e', ciphertext: 'c', tag: 't' } };
+    tokens.keep('link', { token: 't', pairing });
 
-    expect(tokens.take('link')).toEqual({ token: 't', pairing: {} });
+    expect(tokens.take('link')).toEqual({ token: 't', pairing });
     expect(tokens.take('link')).toBeUndefined();
   });
 });
@@ -58,6 +59,7 @@ describe('the link view', () => {
       state: 'failed',
       failureReason: 'no_engine',
       expiresAt: new Date('2026-11-11T08:10:00.000Z'),
+      runnerId: null,
       runnerPairing: null,
     });
 
@@ -67,6 +69,7 @@ describe('the link view', () => {
       state: 'failed',
       failureReason: 'no-engine',
       expiresAt: '2026-11-11T08:10:00.000Z',
+      runnerId: null,
       runnerPairing: null,
     });
   });

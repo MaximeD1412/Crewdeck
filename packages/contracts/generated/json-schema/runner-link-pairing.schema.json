@@ -3,10 +3,21 @@
   "additionalProperties": false,
   "properties": {
     "pairing": {
-      "additionalProperties": {},
-      "propertyNames": {
-        "type": "string"
+      "additionalProperties": false,
+      "properties": {
+        "proof": {
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "runnerPublicKey": {
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        }
       },
+      "required": [
+        "proof",
+        "runnerPublicKey"
+      ],
       "type": "object"
     }
   },

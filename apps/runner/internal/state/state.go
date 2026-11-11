@@ -1,6 +1,7 @@
 // Package state keeps what the Runner knows of its link to the server, in
-// ~/.crewdeck/ (ADR 0004): runner.json holds the server, the Runner's id and
-// its token, readable by the Pilote only.
+// ~/.crewdeck/ (ADR 0004), readable by the Pilote only: runner.json holds the
+// server, the Runner's id and its token; runner.key its private key; vault.wrap
+// its wrap of the vault key, never the key.
 package state
 
 import (
@@ -76,6 +77,15 @@ func (s Store) Load() (State, error) {
 // Save writes runner.json (mode 600) in its folder (mode 700), replacing the
 // one before at once: a crash never leaves half a file.
 func (s Store) Save(state State) error {
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return fmt.Errorf("state: encode: %w", err)
+	}
+	return s.write(FileName, append(data, '\n'))
+}
+
+// write replaces name in the folder (mode 700) at once with data (mode 600).
+func (s Store) write(name string, data []byte) error {
 	if err := os.MkdirAll(s.Dir, dirMode); err != nil {
 		return fmt.Errorf("state: create %s: %w", s.Dir, err)
 	}
@@ -83,28 +93,24 @@ func (s Store) Save(state State) error {
 	if err := os.Chmod(s.Dir, dirMode); err != nil {
 		return fmt.Errorf("state: chmod %s: %w", s.Dir, err)
 	}
-	data, err := json.MarshalIndent(state, "", "  ")
+	tmp, err := os.CreateTemp(s.Dir, name+".*")
 	if err != nil {
-		return fmt.Errorf("state: encode: %w", err)
-	}
-	tmp, err := os.CreateTemp(s.Dir, FileName+".*")
-	if err != nil {
-		return fmt.Errorf("state: write %s: %w", FileName, err)
+		return fmt.Errorf("state: write %s: %w", name, err)
 	}
 	defer os.Remove(tmp.Name())
 	if err := tmp.Chmod(fileMode); err != nil {
 		tmp.Close()
-		return fmt.Errorf("state: chmod %s: %w", FileName, err)
+		return fmt.Errorf("state: chmod %s: %w", name, err)
 	}
-	if _, err := tmp.Write(append(data, '\n')); err != nil {
+	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
-		return fmt.Errorf("state: write %s: %w", FileName, err)
+		return fmt.Errorf("state: write %s: %w", name, err)
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("state: write %s: %w", FileName, err)
+		return fmt.Errorf("state: write %s: %w", name, err)
 	}
-	if err := os.Rename(tmp.Name(), s.Path()); err != nil {
-		return fmt.Errorf("state: write %s: %w", FileName, err)
+	if err := os.Rename(tmp.Name(), filepath.Join(s.Dir, name)); err != nil {
+		return fmt.Errorf("state: write %s: %w", name, err)
 	}
 	return nil
 }

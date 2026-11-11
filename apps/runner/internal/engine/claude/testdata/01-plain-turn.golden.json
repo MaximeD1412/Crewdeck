@@ -1,0 +1,159 @@
+[
+  {
+    "callId": "toolu_012Jbykwo4wSxHJXYYgRUXs7",
+    "kind": "tool-call",
+    "seq": 1,
+    "target": "/home/pilote/spike/README.md",
+    "tool": "Read"
+  },
+  {
+    "callId": "toolu_012Jbykwo4wSxHJXYYgRUXs7",
+    "detail": "1\t# spike\n2\t\n3\tA throwaway repository for the Crewdeck Runner spike.\n4\t",
+    "kind": "tool-result",
+    "ok": true,
+    "seq": 2
+  },
+  {
+    "callId": "toolu_01H2jgUzMm5pjZ935RjGenu1",
+    "detail": "List files in current directory",
+    "kind": "tool-call",
+    "seq": 3,
+    "target": "ls",
+    "tool": "Bash"
+  },
+  {
+    "kind": "usage",
+    "seq": 4,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 19
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 23
+      }
+    ]
+  },
+  {
+    "callId": "toolu_01H2jgUzMm5pjZ935RjGenu1",
+    "detail": "README.md\nauto.txt\nmath.js\nrestart.txt",
+    "kind": "tool-result",
+    "ok": true,
+    "seq": 5
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 6,
+    "text": "This repository is a throwa"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 7,
+    "text": "way sp"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 8,
+    "text": "ike for the Crewde"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 9,
+    "text": "ck Runner,"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 10,
+    "text": " hol"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 11,
+    "text": "ding a README"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 12,
+    "text": ", a `"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 13,
+    "text": "math.js` file, and two"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 14,
+    "text": " lo"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 15,
+    "text": "ose text files (`auto."
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 16,
+    "text": "txt`"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 17,
+    "text": ", `restart.txt`"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 18,
+    "text": ")."
+  },
+  {
+    "final": true,
+    "from": "agent",
+    "kind": "message",
+    "seq": 19,
+    "text": "This repository is a throwaway spike for the Crewdeck Runner, holding a README, a `math.js` file, and two loose text files (`auto.txt`, `restart.txt`)."
+  },
+  {
+    "costUsdMicros": 1471,
+    "inputTokens": 40821,
+    "kind": "usage",
+    "outputTokens": 199,
+    "seq": 20
+  },
+  {
+    "costUsdMicros": 1471,
+    "engineSessionId": "3d0caa19-0333-4929-9820-622b9e9f85d0",
+    "kind": "result",
+    "seq": 21,
+    "status": "ok"
+  }
+]

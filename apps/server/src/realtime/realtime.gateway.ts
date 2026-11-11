@@ -105,14 +105,15 @@ class Connection {
     this.socket.on('close', () => this.cleanUp());
     this.armSilence();
     identity.then(
-      (found) => {
+      async (found) => {
         if (this.closed) return;
         if (!found) return this.close(WS_CLOSE.unauthorized, 'unauthorized');
         const { principal, credential } = found;
-        this.principal = principal;
         this.untrack = this.revocations.track(principal.pilotId, credential, () => this.close(WS_CLOSE.unauthorized, 'revoked'));
-        // Checked again at once: a revocation committed while the socket was authenticated found nothing to close.
-        void this.checkCredential(credential);
+        // Checked again before anything is sent: a revocation committed while the
+        // socket was authenticated found nothing to close. Messages wait meanwhile.
+        if (!(await this.checkCredential(credential))) return;
+        this.principal = principal;
         if (principal.kind === 'pilot') this.presence.open(principal.pilotId, this.socket);
         for (const data of this.waiting.splice(0)) this.handle(data);
       },
@@ -192,19 +193,25 @@ class Connection {
   }
 
   /** Closes the socket when its credential has ended, else checks it again when it expires. */
-  private async checkCredential(credential: WsCredential): Promise<void> {
+  /** Whether `credential` is still valid; closes the socket when it is not, else re-arms its expiry. */
+  private async checkCredential(credential: WsCredential): Promise<boolean> {
     let expiresAt: Date | undefined;
     try {
       expiresAt = await credential.check();
     } catch (error) {
       this.logger.error({ err: error }, 'ws credential check failed');
-      return this.close(INTERNAL_ERROR, 'internal error');
+      this.close(INTERNAL_ERROR, 'internal error');
+      return false;
     }
-    if (this.closed) return;
-    if (!expiresAt || expiresAt.getTime() <= Date.now()) return this.close(WS_CLOSE.unauthorized, 'expired');
+    if (this.closed) return false;
+    if (!expiresAt || expiresAt.getTime() <= Date.now()) {
+      this.close(WS_CLOSE.unauthorized, 'expired');
+      return false;
+    }
     clearTimeout(this.expiry);
     this.expiry = setTimeout(() => void this.checkCredential(credential), Math.min(expiresAt.getTime() - Date.now(), MAX_TIMER_MS));
     this.expiry.unref();
+    return true;
   }
 
   private armSilence(): void {

@@ -80,17 +80,27 @@ export class WebSessions {
   /** Ends one session of the scope's Pilote, and its sockets. */
   async close(id: string): Promise<void> {
     await this.prisma.scoped.webSession.deleteMany({ where: { id } });
-    this.revocations.revoke(currentPilotId(), 'session', id);
+    this.revokeSockets(currentPilotId(), [id]);
   }
 
   /** Ends every session of the scope's Pilote, and their sockets. */
   async closeAll(): Promise<void> {
-    await this.prisma.scoped.webSession.deleteMany({});
-    this.revokeSocketsOf(currentPilotId());
+    this.revokeSockets(currentPilotId(), await this.deleteAll(this.prisma.scoped));
   }
 
-  /** Ends the sockets of every session of `pilotId`, once a transaction that deleted them has committed. */
-  revokeSocketsOf(pilotId: string): void {
-    this.revocations.revoke(pilotId, 'session');
+  /**
+   * Deletes every session of the scope's Pilote within `tx`, and returns
+   * their ids: a session opened after it is not among them, its sockets
+   * stay open.
+   */
+  async deleteAll(tx: Pick<ScopedPrisma, 'webSession'>): Promise<string[]> {
+    const ids = (await tx.webSession.findMany({ select: { id: true } })).map(({ id }) => id);
+    if (ids.length > 0) await tx.webSession.deleteMany({ where: { id: { in: ids } } });
+    return ids;
+  }
+
+  /** Ends the sockets of `pilotId`'s sessions `ids`, once the transaction that deleted them has committed. */
+  revokeSockets(pilotId: string, ids: readonly string[]): void {
+    this.revocations.revoke(pilotId, 'session', ids);
   }
 }

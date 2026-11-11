@@ -127,18 +127,23 @@ describe('/api/ws against PostgreSQL', () => {
       await expect(client.next('pong')).resolves.toEqual({ type: 'pong' });
     });
 
-    it('closes a socket whose session ended while it was authenticated', async () => {
+    it('closes a socket whose session ended while it was authenticated, without sending it anything', async () => {
       const { id, cookie } = await pilot();
+      await emit(id, 2);
       const sessions = app.get(WebSessions);
       const expiryOf = sessions.expiryOf.bind(sessions);
       vi.spyOn(sessions, 'expiryOf').mockImplementationOnce(async (sessionId) => {
         await sql('DELETE FROM web_sessions WHERE pilot_id = $1', [id]);
+        await new Promise((resolve) => setTimeout(resolve, 300));
         return expiryOf(sessionId);
       });
 
       const client = await open(cookie);
+      client.send({ type: 'hello', lastSeq: 0 });
+      client.send({ type: 'ping' });
 
       expect(await client.closed()).toEqual({ code: WS_CLOSE.unauthorized, reason: 'expired' });
+      expect(client.collect()).toEqual([]);
     });
   });
 

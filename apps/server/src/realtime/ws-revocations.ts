@@ -23,11 +23,13 @@ export class WsRevocations {
     return () => this.sockets.delete(tracked);
   }
 
-  /** Ends the sockets of `pilotId`'s credentials of `kind`: the one of `id`, or all of them. */
-  revoke(pilotId: string, kind: WsCredential['kind'], id?: string): void {
+  /** Ends the sockets of `pilotId`'s credentials of `kind` whose id is in `ids`. */
+  revoke(pilotId: string, kind: WsCredential['kind'], ids: readonly string[]): void {
+    if (ids.length === 0) return;
+    const revoked = new Set(ids);
     for (const tracked of [...this.sockets]) {
       const { credential } = tracked;
-      if (tracked.pilotId === pilotId && credential.kind === kind && (id === undefined || credential.id === id)) {
+      if (tracked.pilotId === pilotId && credential.kind === kind && revoked.has(credential.id)) {
         this.sockets.delete(tracked);
         tracked.end();
       }

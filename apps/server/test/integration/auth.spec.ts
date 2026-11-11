@@ -209,6 +209,36 @@ describe('sign in with GitHub against PostgreSQL', () => {
       for (const client of sockets) expect((await client.closed()).code).toBe(WS_CLOSE.unauthorized);
     });
 
+    it('keeps the socket of a sign-in that completes after the sign-out commits, before it returns', async () => {
+      const cookie = await signedIn();
+      const old = await socket(cookie);
+      await sql(`UPDATE github_user_tokens SET access_expires_at = now() + interval '1 minute'`);
+      fakes.github.reset();
+      fakes.github.seedUser(OCTOCAT);
+      const prisma = app.get(PrismaService);
+      const transaction = prisma.scoped.$transaction.bind(prisma.scoped);
+      let committed!: () => void;
+      let release!: () => void;
+      const signOutCommitted = new Promise<void>((resolve) => (committed = resolve));
+      const signOutReleased = new Promise<void>((resolve) => (release = resolve));
+      vi.spyOn(prisma.scoped, '$transaction').mockImplementationOnce((async (...args: Parameters<typeof transaction>) => {
+        const result = await transaction(...args);
+        committed();
+        await signOutReleased;
+        return result;
+      }) as typeof transaction);
+
+      const refused = call('/api/github/token', cookie, { method: 'POST' });
+      await signOutCommitted;
+      const fresh = await socket(await signedIn());
+      release();
+
+      await expectEnvelope(await refused, 401, 'auth.github-expired');
+      expect((await old.closed()).code).toBe(WS_CLOSE.unauthorized);
+      fresh.send({ type: 'ping' });
+      await expect(fresh.next('pong')).resolves.toEqual({ type: 'pong' });
+    });
+
     it('keeps a sign-in that completes while an earlier refresh is pending, then refused', async () => {
       const cookie = await signedIn();
       await sql(`UPDATE github_user_tokens SET access_expires_at = now() + interval '1 minute'`);

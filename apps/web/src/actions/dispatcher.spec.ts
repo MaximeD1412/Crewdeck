@@ -89,7 +89,7 @@ const Porte = defineComposant({
 });
 
 describe('the dispatcher, for an Action sensible', () => {
-  const live: StoreState = { seq: 7n, connection: 'live', lostAt: null, slices: {} };
+  const live: StoreState = { seq: 7n, connection: 'live', lostAt: null, slices: {}, vaultState: 'unlocked' };
   let state: StoreState;
   let answer: (confirmed: boolean) => void;
   const confirm = vi.fn(

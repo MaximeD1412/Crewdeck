@@ -1,0 +1,3 @@
+{"type":"user","message":{"role":"user","content":"Lance exactement `node -e \"setTimeout(() => console.log('fini'), 40000)\"` avec l'outil Bash, au premier plan (pas en arrière-plan), puis dis « terminé »."}}
+{"type":"control_request","request_id":"drv-1","request":{"subtype":"interrupt"}}
+{"type":"user","message":{"role":"user","content":"Ne lance rien. Réponds seulement : « reçu après interruption »."}}

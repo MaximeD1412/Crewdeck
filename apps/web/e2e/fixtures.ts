@@ -23,7 +23,9 @@ export interface Fixtures {
 export const test = base.extend<Fixtures>({
   scenario: async ({ page, context, baseURL }, use) => {
     await use(async (name) => {
-      const response = await page.request.post(`/api/testing/scenarios/${encodeURIComponent(name)}`, { data: {} });
+      // The page's origin, as a page's POST carries it: the server refuses another with a session cookie (CORE-4).
+      const origin = new URL(baseURL ?? 'http://localhost:4200').origin;
+      const response = await page.request.post(`/api/testing/scenarios/${encodeURIComponent(name)}`, { data: {}, headers: { origin } });
       expect(response.status(), `scénario ${name} : ${await response.text()}`).toBe(200);
       const run = (await response.json()) as ScenarioRun;
       if (run.sessionCookie) {

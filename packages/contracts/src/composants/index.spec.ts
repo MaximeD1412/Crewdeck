@@ -14,7 +14,7 @@ describe('COMPOSANTS', () => {
 
   it.each([
     ['cadre', ['PageHeader', 'ProjectFilter']],
-    ['page', ['PageComposants', 'PageIntrouvable']],
+    ['page', ['PageComposants', 'PageConnexion', 'PageIntrouvable']],
     ['partie', ['AgentRow', 'Card', 'CodeBlock', 'DecisionRow', 'IdeaRow', 'KeyValue', 'ListRow', 'TicketRow']],
     ['signal', ['Banner', 'Button', 'Chip', 'Empty', 'Icon', 'IconButton', 'StatusBadge', 'StatusDot', 'Tabs']],
   ])('puts the base Composants of %s in their category', (category, names) => {

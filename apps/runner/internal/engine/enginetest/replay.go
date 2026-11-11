@@ -32,18 +32,32 @@ const fakeEnginePackage = "github.com/maximed1412/crewdeck/apps/runner/internal/
 const Timeout = 30 * time.Second
 
 // Replayed is what a replay gives: the events as the adapter emitted them
-// (raw and at included), the lines the fake binary read on its stdin, and
-// what the run's Wait returned.
+// (raw and at included), the lines the fake binary read on its stdin, what
+// its side channels answered it (Replies: the permission tool's results, the
+// hooks' outputs), how it was run, and what the run's Wait returned.
 type Replayed struct {
-	Events []contracts.EngineEvent
-	Stdin  []string
-	Err    error
+	Events      []contracts.EngineEvent
+	Stdin       []string
+	Replies     []string
+	Invocations []Invocation
+	Err         error
+}
+
+// Invocation is one run of the fake binary: its arguments, and those of the
+// variables WithLoggedEnv names that were set.
+type Invocation struct {
+	Args []string          `json:"args"`
+	Env  map[string]string `json:"env"`
 }
 
 type config struct {
-	start  engine.StartOptions
-	exit   int
-	answer func(contracts.EngineEvent) engine.Answer
+	start      engine.StartOptions
+	resume     *string
+	exit       int
+	answer     func(contracts.EngineEvent) engine.Answer
+	onEvent    func(context.Context, engine.Run, contracts.EngineEvent)
+	directives []Directive
+	loggedEnv  []string
 }
 
 // Option changes how Replay starts the adapter.
@@ -53,6 +67,30 @@ type Option func(*config)
 // fake's variables of Env are Replay's own).
 func WithStartOptions(opts engine.StartOptions) Option {
 	return func(c *config) { c.start = opts }
+}
+
+// WithResume resumes the Session engineSessionID instead of starting one.
+func WithResume(engineSessionID string) Option {
+	return func(c *config) { c.resume = &engineSessionID }
+}
+
+// WithDirectives plays the stream with these directives inserted (the
+// recordings hold none: where the Moteur waited for stdin or used a side
+// channel depends on what the adapter drives).
+func WithDirectives(directives ...Directive) Option {
+	return func(c *config) { c.directives = append(c.directives, directives...) }
+}
+
+// WithOnEvent calls the function on each event, after it is collected and
+// before a request is answered: a test sends, interrupts there.
+func WithOnEvent(onEvent func(context.Context, engine.Run, contracts.EngineEvent)) Option {
+	return func(c *config) { c.onEvent = onEvent }
+}
+
+// WithLoggedEnv has the fake binary log the values of these variables, in
+// Invocations.
+func WithLoggedEnv(names ...string) Option {
+	return func(c *config) { c.loggedEnv = append(c.loggedEnv, names...) }
 }
 
 // WithExit has the fake binary exit with this code once its stream is written.
@@ -90,14 +128,11 @@ func Replay(t testing.TB, e engine.Engine, stream, golden string, opts ...Option
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	streamPath, err := filepath.Abs(filepath.Join("testdata", stream+".jsonl"))
-	if err != nil {
-		t.Fatalf("enginetest: %v", err)
-	}
-	if _, err := os.Stat(streamPath); err != nil {
-		t.Fatalf("enginetest: stream %s: %v", stream, err)
-	}
-	stdinLog := filepath.Join(t.TempDir(), "stdin.jsonl")
+	streamPath := Stream(t, stream, cfg.directives...)
+	logs := t.TempDir()
+	stdinLog := filepath.Join(logs, "stdin.jsonl")
+	replyLog := filepath.Join(logs, "replies.jsonl")
+	argvLog := filepath.Join(logs, "argv.jsonl")
 
 	start := cfg.start
 	start.BinaryPath = FakeBinary(t)
@@ -108,11 +143,22 @@ func Replay(t testing.TB, e engine.Engine, stream, golden string, opts ...Option
 		"FAKE_ENGINE_STREAM="+streamPath,
 		"FAKE_ENGINE_STDIN_LOG="+stdinLog,
 		"FAKE_ENGINE_EXIT="+strconv.Itoa(cfg.exit),
+		"FAKE_ENGINE_REPLY_LOG="+replyLog,
+		"FAKE_ENGINE_ARGV_LOG="+argvLog,
+		"FAKE_ENGINE_LOG_ENV="+strings.Join(cfg.loggedEnv, ","),
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
 	t.Cleanup(cancel)
-	run, err := e.Start(ctx, start)
+	var (
+		run engine.Run
+		err error
+	)
+	if cfg.resume != nil {
+		run, err = e.Resume(ctx, engine.ResumeOptions{StartOptions: start, EngineSessionID: *cfg.resume})
+	} else {
+		run, err = e.Start(ctx, start)
+	}
 	if err != nil {
 		t.Fatalf("enginetest: start %s on %s: %v", e.ID(), stream, err)
 	}
@@ -126,6 +172,9 @@ func Replay(t testing.TB, e engine.Engine, stream, golden string, opts ...Option
 				break
 			}
 			replayed.Events = append(replayed.Events, event)
+			if cfg.onEvent != nil {
+				cfg.onEvent(ctx, run, event)
+			}
 			if id := requestID(event); id != "" {
 				if err := run.Answer(ctx, id, cfg.answer(event)); err != nil {
 					t.Fatalf("enginetest: answer %s: %v", id, err)
@@ -136,12 +185,79 @@ func Replay(t testing.TB, e engine.Engine, stream, golden string, opts ...Option
 		}
 	}
 	replayed.Err = run.Wait()
-	if logged, err := os.ReadFile(stdinLog); err == nil {
-		replayed.Stdin = strings.FieldsFunc(string(logged), func(r rune) bool { return r == '\n' })
+	replayed.Stdin = lines(stdinLog)
+	replayed.Replies = lines(replyLog)
+	for _, line := range lines(argvLog) {
+		var invocation Invocation
+		if err := json.Unmarshal([]byte(line), &invocation); err != nil {
+			t.Fatalf("enginetest: argv log %q: %v", line, err)
+		}
+		replayed.Invocations = append(replayed.Invocations, invocation)
 	}
 
 	compare(t, filepath.Join("testdata", golden+".golden.json"), render(t, replayed.Events))
 	return replayed
+}
+
+func lines(path string) []string {
+	logged, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	return strings.FieldsFunc(string(logged), func(r rune) bool { return r == '\n' })
+}
+
+// Directive is a line {"fake":"…"} of the fake binary, played before the line
+// Before (from 1) of a recording; past its last line, at its end.
+type Directive struct {
+	Before int
+	Line   map[string]any
+}
+
+// AwaitStdin has the fake binary wait for a line on its stdin.
+func AwaitStdin(before int) Directive {
+	return Directive{Before: before, Line: map[string]any{"fake": "await-stdin"}}
+}
+
+// Stream gives the path of `testdata/<stream>.jsonl` with the directives
+// inserted, a copy in the test's temporary folder when there are any.
+func Stream(t testing.TB, stream string, directives ...Directive) string {
+	t.Helper()
+	path, err := filepath.Abs(filepath.Join("testdata", stream+".jsonl"))
+	if err != nil {
+		t.Fatalf("enginetest: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("enginetest: stream %s: %v", stream, err)
+	}
+	if len(directives) == 0 {
+		return path
+	}
+	recorded := strings.SplitAfter(string(data), "\n")
+	if recorded[len(recorded)-1] == "" {
+		recorded = recorded[:len(recorded)-1]
+	}
+	var out strings.Builder
+	for n := 1; n <= len(recorded)+1; n++ {
+		for _, d := range directives {
+			if d.Before == n || (n == len(recorded)+1 && d.Before > n) {
+				line, err := json.Marshal(d.Line)
+				if err != nil {
+					t.Fatalf("enginetest: directive %+v: %v", d, err)
+				}
+				out.Write(append(line, '\n'))
+			}
+		}
+		if n <= len(recorded) {
+			out.WriteString(strings.TrimRight(recorded[n-1], "\n") + "\n")
+		}
+	}
+	copied := filepath.Join(t.TempDir(), filepath.Base(stream)+".jsonl")
+	if err := os.WriteFile(copied, []byte(out.String()), 0o644); err != nil {
+		t.Fatalf("enginetest: %v", err)
+	}
+	return copied
 }
 
 func requestID(event contracts.EngineEvent) string {

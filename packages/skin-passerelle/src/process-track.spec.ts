@@ -63,6 +63,18 @@ describe('ProcessTrack', () => {
     });
   });
 
+  it.each([390, 1280])('compact at %s px lines up its steps, each label beside its mark, without meta', async (width) => {
+    await page.viewport(width, 800);
+    const el = await render(COMPOSANTS.ProcessTrack, { direction: 'compact', steps: steps.slice(0, 3) });
+    const [first, second, third] = items(el).map((li) => li.getBoundingClientRect());
+    expect(second?.top).toBe(first?.top);
+    expect(third?.left).toBeGreaterThan(second?.left ?? Infinity);
+    const mark = inside(el, 'ol > li:first-child .mark').getBoundingClientRect();
+    const label = inside(el, 'ol > li:first-child b').getBoundingClientRect();
+    expect(label.left).toBeGreaterThanOrEqual(mark.right);
+    expect(inside(el, 'ol > li:first-child .meta').getBoundingClientRect().width).toBe(0);
+  });
+
   it('vertical at 1280 px stacks its steps', async () => {
     await page.viewport(1280, 800);
     const el = await render(COMPOSANTS.ProcessTrack, { direction: 'vertical', steps });

@@ -1,4 +1,4 @@
-import type { Event, Me, Resource, State } from '@crewdeck/contracts';
+import type { Decision, Event, Me, Resource, Runner, State, StateKey } from '@crewdeck/contracts';
 
 /**
  * Where the page stands with the server (ADR 0007): `connecting` at boot,
@@ -14,6 +14,10 @@ export type Connection = 'connecting' | 'resync' | 'live';
  */
 export interface Slices {
   readonly pilot: Me | null;
+  /** The Pilote's Runner, `null` while none is linked (RUNNER-2). */
+  readonly runner: Runner | null;
+  /** The open Décisions (ATOI-1), from the snapshot's `decisions`. */
+  readonly decision: ReadonlyMap<string, Decision>;
 }
 
 export interface StoreState {
@@ -35,8 +39,8 @@ export interface Store {
   getState(): StoreState;
   /** Calls `fn` after each change; returns the function that stops. */
   subscribe(fn: (state: StoreState) => void): () => void;
-  /** Declares the slice of `resource`, fed by the snapshot's key of the same name and by its events. */
-  registerSlice(resource: Resource, options: { shape: SliceShape }): void;
+  /** Declares the slice of `resource`, fed by its events and by the snapshot's `key`, the resource's name by default. */
+  registerSlice(resource: Resource, options: { shape: SliceShape; key?: StateKey }): void;
   /** Replaces every registered slice and the `seq` with `GET /api/state`'s. */
   applySnapshot(state: State): void;
   /** Applies the event that follows the `seq`; ignores one already applied; a later one is a gap. */
@@ -58,6 +62,7 @@ type Identified = { readonly id: string };
  */
 export const createStore = (): Store => {
   const shapes = new Map<string, SliceShape>();
+  const keys = new Map<string, string>();
   const listeners = new Set<(state: StoreState) => void>();
   let state: StoreState = { seq: null, connection: 'connecting', lostAt: null, slices: {} };
 
@@ -93,15 +98,16 @@ export const createStore = (): Store => {
         listeners.delete(fn);
       };
     },
-    registerSlice(resource, { shape }) {
+    registerSlice(resource, { shape, key = resource }) {
       if (shapes.has(resource)) throw new Error(`La tranche ${resource} est déjà enregistrée`);
       shapes.set(resource, shape);
+      keys.set(resource, key);
     },
     applySnapshot(snapshot) {
       const next = slices();
       const values = snapshot as unknown as Readonly<Record<string, unknown>>;
       for (const [resource, shape] of shapes) {
-        const value = values[resource];
+        const value = values[keys.get(resource) ?? resource];
         next[resource] = shape === 'single' ? (value ?? null) : new Map((value as readonly Identified[]).map((item) => [item.id, item]));
       }
       set({ ...state, seq: BigInt(snapshot.seq), slices: next as Partial<Slices> });

@@ -5,7 +5,7 @@ const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat'
 const AT = '2026-11-11T08:00:00.000Z';
 
 const pilotEvent = (seq: number, login: string): Event => ({ seq, type: 'pilot.upserted', payload: { ...PILOT, login }, at: AT });
-const snapshot = (seq: number, pilot: Me = PILOT): State => ({ seq, pilot, runner: null });
+const snapshot = (seq: number, pilot: Me = PILOT): State => ({ seq, pilot, runner: null, decisions: [] });
 
 const pilotStore = () => {
   const store = createStore();
@@ -108,6 +108,15 @@ describe('the slices', () => {
 
     store.applyEvent({ seq: 4, type: 'idea.removed', payload: { id: IDEA_A.id }, at: AT });
     expect([...slice()]).toEqual([[IDEA_B.id, IDEA_B]]);
+  });
+
+  it('a collection may read its snapshot under another key than its resource: decision under decisions', () => {
+    const store = createStore();
+    store.registerSlice('decision', { shape: 'collection', key: 'decisions' });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, decisions: [IDEA_A] } as unknown as State);
+    expect([...(store.getState().slices.decision ?? [])]).toEqual([[IDEA_A.id, IDEA_A]]);
+    store.applyEvent({ seq: 2, type: 'decision.removed', payload: { id: IDEA_A.id }, at: AT });
+    expect([...(store.getState().slices.decision ?? [])]).toEqual([]);
   });
 
   it('a slice is registered once', () => {

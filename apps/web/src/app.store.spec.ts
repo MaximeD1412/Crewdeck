@@ -37,7 +37,7 @@ afterAll(() => app.stop());
 describe('the page’s Cadre follows its store', () => {
   it('shows the Pilote of /api/me until the snapshot, then the pilot slice’s', () => {
     expect(cadre.data).toMatchObject({ status: 'resync', pilot: { login: 'octocat' } });
-    store.applySnapshot({ seq: 3, pilot: { ...PILOT, login: 'from-snapshot' }, runner: null });
+    store.applySnapshot({ seq: 3, pilot: { ...PILOT, login: 'from-snapshot' }, runner: null, decisions: [] });
     store.markLive();
     expect(cadre.data).toMatchObject({ status: 'offline', statusDetail: null, pilot: { login: 'from-snapshot' } });
     expect(banners()).toEqual([]);

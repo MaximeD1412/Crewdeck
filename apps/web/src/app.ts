@@ -1,5 +1,5 @@
 import type { Me } from '@crewdeck/contracts';
-import { Cadre, PageComposants, PageConnexion, type Skin } from '@crewdeck/sdk';
+import { Cadre, PageAToi, PageComposants, PageConnexion, type Skin } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
 import { me as readMe } from './api/auth.js';
@@ -7,12 +7,13 @@ import { ApiError } from './api/request.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
 import { bootSkin } from './registry.js';
 import { startRouter, type Route, type Router } from './router.js';
-import { composantsHref, ROUTES } from './routes.js';
+import { aToiHref, composantsHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
 import { signInGuard, signInHref } from './sign-in.js';
 import { connection as pageConnection, store as pageStore } from './store/index.js';
 import type { Connection } from './store/connection.js';
 import type { Store } from './store/store.js';
+import { decisionViews } from './views/decisions/registry.js';
 
 /** The Skins the page knows, by id: at the MVP, the default one. */
 const SKINS: Readonly<Record<string, Skin>> = { passerelle };
@@ -71,23 +72,52 @@ export const boot = async ({
     root,
     state: () => {
       const state = store.getState();
-      return { ...state, slices: { pilot: state.slices.pilot !== undefined ? state.slices.pilot : pilot } };
+      return { ...state, slices: { ...state.slices, pilot: state.slices.pilot !== undefined ? state.slices.pilot : pilot } };
     },
   });
-  const unsubscribe = store.subscribe(() => shell.refresh());
   const onUnhandled = (event: PromiseRejectionEvent) => {
     if (!(event.reason instanceof ApiError)) return;
     event.preventDefault();
     shell.showError(event.reason.message);
   };
   window.addEventListener('unhandledrejection', onUnhandled);
-  const router = startRouter({ routes, outlet: shell.outlet, onRoute: shell.update, guard: signInGuard(pilot) });
+  const router = startRouter({
+    routes,
+    outlet: shell.outlet,
+    state: () => store.getState(),
+    onRoute: shell.update,
+    guard: signInGuard(pilot),
+  });
+  // A new state of the store: the Cadre and the page shown get their data again (ADR 0007, no reload).
+  const unsubscribe = store.subscribe(() => {
+    shell.refresh();
+    router.refresh();
+  });
   if (pilot) connection.start();
   dispatcher.registerAction(PageConnexion, 'signIn', {
     run: () => leave(signInHref(router.current.query['next'], Intl.DateTimeFormat().resolvedOptions().timeZone)),
   });
   dispatcher.registerAction(PageComposants, 'select', { run: ({ name }) => router.navigate(composantsHref(name)) });
   dispatcher.registerAction(Cadre, 'openPilot', { run: () => router.navigate('/parametres') });
+  const openDecision = (id: string) => store.getState().slices.decision?.get(id);
+  dispatcher.registerAction(PageAToi, 'filter', { run: ({ projectId }) => router.navigate(aToiHref(projectId)) });
+  dispatcher.registerAction(PageAToi, 'open', {
+    run: ({ id }) => {
+      const decision = openDecision(id);
+      if (decision) router.navigate(decision.link);
+    },
+  });
+  // A Décision is answered by its module's command, never here (ATOI-1): the kind's view runs its button.
+  dispatcher.registerAction(PageAToi, 'act', {
+    run: ({ id, action }) => {
+      const decision = openDecision(id);
+      const button = decision && decisionViews.viewOf(decision.kind).actions.find((candidate) => candidate.id === action);
+      if (!decision || !button) return;
+      if (button.needsRunner && store.getState().slices.runner?.state !== 'online') return;
+      return button.run(decision, { navigate: (url) => router.navigate(url) });
+    },
+  });
+  dispatcher.registerAction(PageAToi, 'note-idea', { run: () => router.navigate('/idees') });
   const stop = () => {
     router.stop();
     connection.stop();

@@ -1,13 +1,14 @@
 import { PageIntrouvable, type AnyComposant } from '@crewdeck/sdk';
+import type { StoreState } from './store/store.js';
 
 /**
  * A page URL (French, ADR 0008), `:name` for a parameter, its page Composant
- * and, for a page that needs none of the store, the view giving its `data`.
+ * and the view giving its `data`, from the match and the store's state.
  */
 export interface Route {
   readonly path: string;
   readonly composant: AnyComposant;
-  readonly data?: (match: RouteMatch) => unknown;
+  readonly data?: (match: RouteMatch, state: StoreState) => unknown;
 }
 
 export interface RouteMatch {
@@ -62,16 +63,21 @@ export const matchRoute = (routes: readonly Route[], url: string | URL): RouteMa
   return { path, composant: PageIntrouvable, params: {}, query, panel };
 };
 
+/** The state of a router without a store: nothing received yet. */
+export const NO_STATE: StoreState = { seq: null, connection: 'connecting', lostAt: null, slices: {} };
+
 /** The page's `data` by default: its route's view, else nothing. */
 const routeData =
-  (routes: readonly Route[]) =>
+  (routes: readonly Route[], state: () => StoreState) =>
   (match: RouteMatch): unknown =>
-    routes.find((route) => route.composant === match.composant && matchPath(route.path, match.path))?.data?.(match) ?? {};
+    routes.find((route) => route.composant === match.composant && matchPath(route.path, match.path))?.data?.(match, state()) ?? {};
 
 export interface Router {
   readonly current: RouteMatch;
   /** Goes to a page URL of the app (path, query, hash) through the History API. */
   navigate(url: string, options?: { replace?: boolean }): void;
+  /** Gives the page shown its `data` again, for a new state of the store: same URL, same element. */
+  refresh(): void;
   stop(): void;
 }
 
@@ -79,8 +85,10 @@ export interface RouterOptions {
   readonly routes: readonly Route[];
   /** Where the page Composant is rendered. */
   readonly outlet: HTMLElement;
-  /** The `data` of the page; CORE-6's view functions give it from the store. By default, its route's `data`. */
+  /** The `data` of the page. By default, its route's `data`, from the match and `state`. */
   readonly data?: (match: RouteMatch) => unknown;
+  /** The store's state the routes' views read: nothing received by default. */
+  readonly state?: () => StoreState;
   /** Called after each render, with the match. */
   readonly onRoute?: (match: RouteMatch) => void;
   readonly redirects?: Readonly<Record<string, string>>;
@@ -108,7 +116,15 @@ const linkOf = (event: MouseEvent): URL | null => {
  * `outlet`, then follows `navigate()`, the same-origin links (shadow roots
  * included) and the browser's back and forward.
  */
-export const startRouter = ({ routes, outlet, data = routeData(routes), onRoute, redirects = REDIRECTS, guard }: RouterOptions): Router => {
+export const startRouter = ({
+  routes,
+  state = () => NO_STATE,
+  outlet,
+  data = routeData(routes, state),
+  onRoute,
+  redirects = REDIRECTS,
+  guard,
+}: RouterOptions): Router => {
   let current: RouteMatch;
 
   const render = () => {
@@ -156,6 +172,10 @@ export const startRouter = ({ routes, outlet, data = routeData(routes), onRoute,
       return current;
     },
     navigate,
+    refresh() {
+      const page = outlet.firstElementChild;
+      if (page && page.localName === current.composant.tag) (page as Element & { data: unknown }).data = data(current);
+    },
     stop() {
       document.removeEventListener('click', onClick);
       window.removeEventListener('popstate', render);

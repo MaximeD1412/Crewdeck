@@ -1,6 +1,7 @@
 import { defineComposant, PageIntrouvable } from '@crewdeck/sdk';
 import { z } from 'zod';
 import { matchRoute, startRouter, type Route, type Router } from './router.js';
+import type { StoreState } from './store/store.js';
 
 const page = (name: string, tag: `cd-${string}`) =>
   defineComposant({
@@ -125,6 +126,21 @@ describe('startRouter', () => {
     router.navigate('/parametres/composants?c=Button');
     expect(outlet.firstElementChild).toBe(page);
     expect(page.data).toEqual({ c: 'Button' });
+  });
+
+  it('gives a route’s data the store’s state, and refresh() gives the same page its data again', () => {
+    history.replaceState(null, '', '/a-toi');
+    outlet = document.createElement('main');
+    document.body.append(outlet);
+    let state: StoreState = { seq: 1n, connection: 'live', lostAt: null, slices: { pilot: null } };
+    const withState: Route[] = [{ path: '/a-toi', composant: PageAToi, data: (_match, current) => ({ seq: current.seq }) }];
+    router = startRouter({ routes: withState, outlet, state: () => state });
+    const page = outlet.firstElementChild as HTMLElement & { data: unknown };
+    expect(page.data).toEqual({ seq: 1n });
+    state = { ...state, seq: 2n };
+    router.refresh();
+    expect(outlet.firstElementChild).toBe(page);
+    expect(page.data).toEqual({ seq: 2n });
   });
 
   it('sends / to « À toi »', () => {

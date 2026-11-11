@@ -77,6 +77,9 @@ export class PasserellePageParametres extends PasserelleElement<typeof PageParam
         display: none;
       }
       @media (min-width: 1280px) {
+        :host {
+          gap: var(--cd-space-6);
+        }
         .settings {
           display: grid;
           grid-template-columns: var(--cd-capture-w) minmax(0, 1fr);

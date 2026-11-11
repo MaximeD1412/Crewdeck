@@ -34,12 +34,17 @@ const MODDERS = placed(
   'cd-card',
   { title: 'Pour les Moddeurs', label: 'Paramètres / Pour les Moddeurs', flush: true },
   undefined,
-  placed('cd-list-row', {
-    title: 'Bibliothèque de Composants',
-    meta: 'chaque Composant, ses données, ses actions et ses Emplacements',
-    icon: 'layers',
-    href: '/parametres/composants',
-  }),
+  placed(
+    'cd-list-row',
+    {
+      title: 'Bibliothèque de Composants',
+      meta: 'chaque Composant, ses données, ses actions et ses Emplacements',
+      icon: 'layers',
+      href: '/parametres/composants',
+    },
+    undefined,
+    placed('cd-icon', { name: 'chevron-right', size: 'sm' }, 'trailing'),
+  ),
 );
 
 /**

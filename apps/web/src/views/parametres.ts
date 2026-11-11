@@ -1,5 +1,5 @@
 import type { AccountSettings } from '@crewdeck/contracts';
-import { t, type Card, type ComposantData, type ListRow, type Select, type SettingRow } from '@crewdeck/sdk';
+import { t, type Card, type ComposantData, type Icon, type ListRow, type Select, type SettingRow } from '@crewdeck/sdk';
 import type { PlacedNode } from '../placed.js';
 
 /** The time zones the Pilote may pick: the IANA zones the browser knows. */
@@ -17,6 +17,8 @@ const modders = (): PlacedNode =>
         icon: 'layers',
         href: '/parametres/composants',
       } satisfies ComposantData<typeof ListRow>,
+      // The chevron of a row that leads to a page, as the mockup draws it.
+      children: [{ tag: 'cd-icon', slot: 'trailing', data: { name: 'chevron-right', size: 'sm' } satisfies ComposantData<typeof Icon> }],
     },
   ]);
 

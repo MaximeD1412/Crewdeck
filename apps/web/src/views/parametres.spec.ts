@@ -13,6 +13,8 @@ const MODDERS = {
     {
       tag: 'cd-list-row',
       data: { title: t('settings.modders.library.title'), meta: t('settings.modders.library.meta'), icon: 'layers', href: '/parametres/composants' },
+      // The chevron of a row that leads to a page, as the mockup draws it.
+      children: [{ tag: 'cd-icon', slot: 'trailing', data: { name: 'chevron-right', size: 'sm' } }],
     },
   ],
 };

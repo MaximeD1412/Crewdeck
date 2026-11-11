@@ -10,18 +10,24 @@ import { PasserelleButton } from './button.js';
 import { PasserelleCard } from './card.js';
 import { PasserelleChip } from './chip.js';
 import { PasserelleCodeBlock } from './code-block.js';
+import { PasserelleComposer } from './composer.js';
 import { PasserelleEmpty } from './empty.js';
 import { PasserelleIconButton } from './icon-button.js';
 import { PasserelleIcon } from './icon.js';
 import { PasserelleKeyValue } from './key-value.js';
 import { PasserelleListRow } from './list-row.js';
+import { PasserelleMessage } from './message.js';
 import { PasserellePageComposants } from './page-composants.js';
 import { PasserellePageHeader } from './page-header.js';
 import { PasserellePageIntrouvable } from './page-introuvable.js';
+import { PasserellePermissionRequest } from './permission-request.js';
 import { PasserelleProjectFilter } from './project-filter.js';
+import { PasserelleQuestion } from './question.js';
+import { PasserelleSession } from './session.js';
 import { PasserelleStatusBadge } from './status-badge.js';
 import { PasserelleStatusDot } from './status-dot.js';
 import { PasserelleTabs } from './tabs.js';
+import { PasserelleToolCall } from './tool-call.js';
 
 export default defineSkin({
   id: 'passerelle',
@@ -36,6 +42,12 @@ export default defineSkin({
     CodeBlock: PasserelleCodeBlock,
     KeyValue: PasserelleKeyValue,
     ListRow: PasserelleListRow,
+    Session: PasserelleSession,
+    Message: PasserelleMessage,
+    ToolCall: PasserelleToolCall,
+    Question: PasserelleQuestion,
+    PermissionRequest: PasserellePermissionRequest,
+    Composer: PasserelleComposer,
     Banner: PasserelleBanner,
     Button: PasserelleButton,
     Chip: PasserelleChip,

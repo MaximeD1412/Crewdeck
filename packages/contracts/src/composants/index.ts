@@ -1,5 +1,6 @@
 import { Banner } from './banner.js';
 import { Button } from './button.js';
+import { Cadre, MenuItem } from './cadre.js';
 import { Card } from './card.js';
 import { Chip } from './chip.js';
 import { CodeBlock } from './code-block.js';
@@ -20,6 +21,7 @@ import { Tabs } from './tabs.js';
 export * from './action.js';
 export * from './banner.js';
 export * from './button.js';
+export * from './cadre.js';
 export * from './card.js';
 export * from './chip.js';
 export * from './code-block.js';
@@ -45,6 +47,8 @@ export * from './tone.js';
  * The UI and page tickets add theirs.
  */
 export const COMPOSANTS = {
+  Cadre,
+  MenuItem,
   PageHeader,
   ProjectFilter,
   PageComposants,

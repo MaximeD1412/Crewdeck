@@ -1,0 +1,77 @@
+[
+  {
+    "callId": "toolu_01FV2sDr1FfkzGVejVJVEHEc",
+    "detail": "Create empty file denied.txt",
+    "kind": "tool-call",
+    "seq": 1,
+    "target": "touch denied.txt",
+    "tool": "Bash"
+  },
+  {
+    "command": "touch denied.txt",
+    "kind": "permission-request",
+    "requestId": "toolu_01FV2sDr1FfkzGVejVJVEHEc",
+    "seq": 2,
+    "tool": "Bash"
+  },
+  {
+    "kind": "usage",
+    "seq": 3,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 27
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 23
+      }
+    ]
+  },
+  {
+    "callId": "toolu_01FV2sDr1FfkzGVejVJVEHEc",
+    "detail": "Refusé par le Pilote après deux heures.",
+    "kind": "tool-result",
+    "ok": false,
+    "seq": 4
+  },
+  {
+    "final": true,
+    "from": "agent",
+    "kind": "message",
+    "seq": 5,
+    "text": "The `touch denied.txt` command was refused by the permission system, so I did not create the file. I didn't retry or use any other tool, as you asked. If you want the file created, approve the command or tell me another way to do it."
+  },
+  {
+    "kind": "usage",
+    "seq": 6,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 82
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 28
+      }
+    ]
+  },
+  {
+    "costUsdMicros": 2388,
+    "inputTokens": 40688,
+    "kind": "usage",
+    "outputTokens": 263,
+    "seq": 7
+  },
+  {
+    "costUsdMicros": 2388,
+    "engineSessionId": "ea01200c-a27b-48e0-aa87-0581d4738092",
+    "kind": "result",
+    "seq": 8,
+    "status": "ok"
+  }
+]

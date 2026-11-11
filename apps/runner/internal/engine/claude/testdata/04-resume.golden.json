@@ -1,0 +1,207 @@
+[
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 1,
+    "text": "Tu m"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 2,
+    "text": "'avais demandé de l"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 3,
+    "text": "ancer `node -e \"set"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 4,
+    "text": "Timeout(() =\u003e console"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 5,
+    "text": ".log('fini'), "
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 6,
+    "text": "40000)\"` au premier"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 7,
+    "text": " plan,"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 8,
+    "text": " puis de dire « termin"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 9,
+    "text": "é ». El"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 10,
+    "text": "le n'a pas f"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 11,
+    "text": "ini : j"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 12,
+    "text": "'ai essayé de la"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 13,
+    "text": " lancer, mais l'"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 14,
+    "text": "appel a été interrompu"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 15,
+    "text": " p"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 16,
+    "text": "endant son"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 17,
+    "text": " exécution, don"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 18,
+    "text": "c je ne sais pas"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 19,
+    "text": " si elle a t"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 20,
+    "text": "ourné en"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 21,
+    "text": " partie ou en totalité"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 22,
+    "text": ", et je n'ai p"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 23,
+    "text": "as vu « fini » "
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 24,
+    "text": "ni « terminé »."
+  },
+  {
+    "final": true,
+    "from": "agent",
+    "kind": "message",
+    "seq": 25,
+    "text": "Tu m'avais demandé de lancer `node -e \"setTimeout(() =\u003e console.log('fini'), 40000)\"` au premier plan, puis de dire « terminé ». Elle n'a pas fini : j'ai essayé de la lancer, mais l'appel a été interrompu pendant son exécution, donc je ne sais pas si elle a tourné en partie ou en totalité, et je n'ai pas vu « fini » ni « terminé »."
+  },
+  {
+    "kind": "usage",
+    "seq": 26,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 15
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 23
+      }
+    ]
+  },
+  {
+    "costUsdMicros": 1784,
+    "inputTokens": 20824,
+    "kind": "usage",
+    "outputTokens": 152,
+    "seq": 27
+  },
+  {
+    "costUsdMicros": 1784,
+    "engineSessionId": "4a000000-0000-4000-8000-000000000014",
+    "kind": "result",
+    "seq": 28,
+    "status": "ok"
+  }
+]

@@ -1,0 +1,120 @@
+[
+  {
+    "callId": "toolu_012qFBgnEYDhQujmDHZwgJDs",
+    "detail": "Create empty file allowed.txt",
+    "kind": "tool-call",
+    "seq": 1,
+    "target": "touch allowed.txt",
+    "tool": "Bash"
+  },
+  {
+    "command": "touch allowed.txt",
+    "kind": "permission-request",
+    "requestId": "toolu_012qFBgnEYDhQujmDHZwgJDs",
+    "seq": 2,
+    "tool": "Bash"
+  },
+  {
+    "kind": "usage",
+    "seq": 3,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 27
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 23
+      }
+    ]
+  },
+  {
+    "callId": "toolu_012qFBgnEYDhQujmDHZwgJDs",
+    "detail": "(Bash completed with no output)",
+    "kind": "tool-result",
+    "ok": true,
+    "seq": 4
+  },
+  {
+    "final": true,
+    "from": "agent",
+    "kind": "message",
+    "seq": 5,
+    "text": "Done."
+  },
+  {
+    "kind": "usage",
+    "seq": 6,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 82
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 28
+      }
+    ]
+  },
+  {
+    "costUsdMicros": 2300,
+    "inputTokens": 40680,
+    "kind": "usage",
+    "outputTokens": 90,
+    "seq": 7
+  },
+  {
+    "costUsdMicros": 2300,
+    "engineSessionId": "b631cb74-bc1e-4e7a-98d4-ce672502471c",
+    "kind": "result",
+    "seq": 8,
+    "status": "ok"
+  },
+  {
+    "callId": "toolu_01EJnPRTsN7Sf6YPm6VAgdVK",
+    "detail": "Create empty file second.txt",
+    "kind": "tool-call",
+    "seq": 9,
+    "target": "touch second.txt",
+    "tool": "Bash"
+  },
+  {
+    "command": "touch second.txt",
+    "kind": "permission-request",
+    "requestId": "toolu_01EJnPRTsN7Sf6YPm6VAgdVK",
+    "seq": 10,
+    "tool": "Bash"
+  },
+  {
+    "callId": "toolu_01EJnPRTsN7Sf6YPm6VAgdVK",
+    "detail": "Refusé par le Pilote.",
+    "kind": "tool-result",
+    "ok": false,
+    "seq": 11
+  },
+  {
+    "final": true,
+    "from": "agent",
+    "kind": "message",
+    "seq": 12,
+    "text": "The `touch second.txt` command was refused by the permission layer, so the file was not created. I won't retry it or try another command to get around the refusal. If you want it created, you'll need to approve the command or allow it in your permission settings."
+  },
+  {
+    "costUsdMicros": 2890,
+    "inputTokens": 41049,
+    "kind": "usage",
+    "outputTokens": 288,
+    "seq": 13
+  },
+  {
+    "costUsdMicros": 2890,
+    "engineSessionId": "b631cb74-bc1e-4e7a-98d4-ce672502471c",
+    "kind": "result",
+    "seq": 14,
+    "status": "ok"
+  }
+]

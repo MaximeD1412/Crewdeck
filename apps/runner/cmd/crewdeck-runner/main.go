@@ -49,6 +49,8 @@ func newRootCommand() *cobra.Command {
 		RunE:  func(cmd *cobra.Command, _ []string) error { return runRunner(cmd, server) },
 	})
 	root.AddCommand(newContratCommand())
+	root.AddCommand(newMCPCommand())
+	root.AddCommand(newHookCommand())
 	return root
 }
 
@@ -105,6 +107,6 @@ func refusal(err error) error {
 func main() {
 	if err := newRootCommand().ExecuteContext(context.Background()); err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		os.Exit(exitCode(err))
 	}
 }

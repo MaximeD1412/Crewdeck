@@ -1,13 +1,14 @@
+import type { Mock } from 'vitest';
 import { AppError } from '../errors/app-error.js';
 import { RunnerCommands } from './runner-commands.service.js';
 import { type RunnerLink, RunnerConnections, stamp } from './runner-connections.js';
 import type { RunnerPresence } from './runner-presence.service.js';
 
-const link = (pilotId: string): RunnerLink & { send: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> } => ({
+const link = (pilotId: string): RunnerLink & { send: Mock<RunnerLink['send']>; close: Mock<RunnerLink['close']> } => ({
   pilotId,
   runnerId: `${pilotId}-runner`,
-  send: vi.fn(),
-  close: vi.fn(),
+  send: vi.fn<RunnerLink['send']>(),
+  close: vi.fn<RunnerLink['close']>(),
 });
 
 const presence = (online: boolean): RunnerPresence => ({ isOnline: () => online }) as unknown as RunnerPresence;

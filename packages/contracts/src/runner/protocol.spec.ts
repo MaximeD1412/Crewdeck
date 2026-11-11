@@ -40,7 +40,8 @@ describe('the Runner protocol', () => {
   });
 
   it('refuses a message without its envelope, or with a type of the other direction', () => {
-    const { id: _id, ...withoutId } = fixture('heartbeat') as Record<string, unknown>;
+    const withoutId: Record<string, unknown> = { ...(fixture('heartbeat') as object) };
+    delete withoutId.id;
     expect(zRunnerToServer.safeParse(withoutId).success).toBe(false);
     expect(zRunnerToServer.safeParse({ ...(fixture('heartbeat') as object), at: 'yesterday' }).success).toBe(false);
     expect(zRunnerToServer.safeParse(fixture('heartbeat.ack')).success).toBe(false);
@@ -57,7 +58,8 @@ describe('the Runner protocol', () => {
 
   it('rejects a hello for one of its three reasons only, latestVersion optional', () => {
     const rejected = fixture('hello.rejected') as Record<string, unknown>;
-    const { latestVersion: _latest, ...withoutLatest } = rejected;
+    const withoutLatest = { ...rejected };
+    delete withoutLatest.latestVersion;
     expect(zHelloRejected.parse({ ...withoutLatest, reason: 'revoked' })).toMatchObject({ reason: 'revoked' });
     expect(zHelloRejected.safeParse({ ...rejected, reason: 'expired' }).success).toBe(false);
   });

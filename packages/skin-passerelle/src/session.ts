@@ -43,7 +43,7 @@ export class PasserelleSession extends PasserelleElement<typeof Session> {
         background: var(--cd-panel);
         flex: none;
       }
-      /* On a phone, the title and the meta wrap rather than cut the Projet and the Moteur; the actions go under them when they lack room. */
+      /* The meta wraps rather than cut the Projet and the Moteur, as the title does on a phone; there, the actions go under them when they lack room. */
       .titles {
         flex: 1 1 12rem;
         min-width: 0;
@@ -77,8 +77,7 @@ export class PasserelleSession extends PasserelleElement<typeof Session> {
         header {
           flex-wrap: nowrap;
         }
-        h2 span,
-        .meta {
+        h2 span {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;

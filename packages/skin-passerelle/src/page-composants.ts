@@ -36,7 +36,6 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
         display: flex;
         flex-direction: column;
         gap: var(--cd-space-4);
-        padding: var(--cd-space-4) var(--cd-space-4) var(--cd-space-8);
         min-width: 0;
       }
       .lib,
@@ -148,9 +147,7 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
       }
       @media (min-width: 1280px) {
         :host {
-          padding: var(--cd-space-8) var(--cd-space-10) var(--cd-space-10);
           gap: var(--cd-space-6);
-          max-width: calc(var(--cd-page-max) + var(--cd-space-10) * 2);
         }
         .picker {
           display: none;
@@ -167,12 +164,9 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
           gap: var(--cd-space-6);
           align-items: start;
         }
-        /* Room enough: the name and the type on one line, the description takes the rest. */
-        td code {
-          white-space: nowrap;
-        }
+        /* Room enough: a type on one line unless it is a long union, which breaks at its spaces; the description takes the rest. */
         th:last-child {
-          width: 100%;
+          width: 60%;
         }
       }
     `,

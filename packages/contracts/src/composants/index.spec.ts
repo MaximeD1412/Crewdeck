@@ -15,7 +15,7 @@ describe('COMPOSANTS', () => {
   it.each([
     ['cadre', ['PageHeader', 'ProjectFilter']],
     ['page', ['PageComposants', 'PageIntrouvable']],
-    ['partie', ['Card', 'CodeBlock', 'Dialog', 'KeyValue', 'ListRow', 'SettingRow']],
+    ['partie', ['AgentRow', 'Card', 'CodeBlock', 'DecisionRow', 'Dialog', 'IdeaRow', 'KeyValue', 'ListRow', 'SettingRow', 'TicketRow']],
     [
       'signal',
       ['Banner', 'Button', 'Checkbox', 'Chip', 'Empty', 'Icon', 'IconButton', 'Radio', 'Select', 'StatusBadge', 'StatusDot', 'Tabs', 'TextField', 'Toggle'],

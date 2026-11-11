@@ -1,6 +1,11 @@
+/// <reference types="vite/client" />
+import './tokens.css';
+import './document.css';
 import { COMPOSANTS, t } from '@crewdeck/sdk';
 import { page, userEvent } from 'vitest/browser';
-import { actionsOf, deepActiveElement, inside, render, settle, textOf } from './testing/browser.js';
+import { actionsOf, deepActiveElement, defineSkin, inside, render, settle, textOf } from './testing/dom.js';
+
+beforeAll(defineSkin);
 
 afterEach(() => document.body.replaceChildren());
 

@@ -1,5 +1,10 @@
+/// <reference types="vite/client" />
+import './tokens.css';
+import './document.css';
 import { COMPOSANTS } from '@crewdeck/sdk';
-import { inside, render, settle, textOf } from './testing/browser.js';
+import { defineSkin, inside, render, settle, textOf } from './testing/dom.js';
+
+beforeAll(defineSkin);
 
 const field = {
   name: 'time',

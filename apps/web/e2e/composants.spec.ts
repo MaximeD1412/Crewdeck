@@ -17,7 +17,7 @@ test.describe('the library of Composants (/parametres/composants)', () => {
     await scenario('composants');
 
     await expect(page.getByRole('heading', { level: 1, name: 'Bibliothèque de Composants' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Paramètres' })).toHaveAttribute('href', '/parametres');
+    await expect(page.locator('cd-page-header').getByRole('link', { name: 'Paramètres' })).toHaveAttribute('href', '/parametres');
 
     if (isPhone()) {
       // The phone picks a Composant through the Select « Composant », the catalogue's groups are for 1280 px.

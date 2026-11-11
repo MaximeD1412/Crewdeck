@@ -1,22 +1,21 @@
-/// <reference types="vite/client" />
 /**
- * What the Skin's browser specs share: the page the core prepares (the tokens
- * and the document's ground, then each implementation under its canonical
- * tag), and the helpers that render a Composant and reach into its shadow
- * roots. Never built into the Skin (`tsconfig.lib.json`).
+ * What the browser specs of the Skin share: the Skin's elements defined as the
+ * core does at boot, an element rendered from its data and Emplacements, and
+ * the means to look inside shadow roots and catch the `cd-action`s. Never part
+ * of the Skin's build.
  */
-import '../tokens.css';
-import '../document.css';
 import { CD_ACTION, COMPOSANTS, type AnyComposant, type CdActionDetail } from '@crewdeck/sdk';
 import type { LitElement } from 'lit';
 import passerelle from '../index.js';
 import { fillSlots } from '../slots.js';
 
 /** What the core does at boot: each implementation under its canonical tag. */
-for (const [name, impl] of Object.entries(passerelle.composants)) {
-  const declaration = COMPOSANTS[name as keyof typeof COMPOSANTS];
-  if (impl && !customElements.get(declaration.tag)) customElements.define(declaration.tag, impl);
-}
+export const defineSkin = (): void => {
+  for (const [name, impl] of Object.entries(passerelle.composants)) {
+    const declaration = COMPOSANTS[name as keyof typeof COMPOSANTS];
+    if (impl && !customElements.get(declaration.tag)) customElements.define(declaration.tag, impl);
+  }
+};
 
 /** Waits for `root` and every Composant rendered inside it, through their shadow roots. */
 export const settle = async (root: Element): Promise<void> => {
@@ -29,7 +28,7 @@ export const settle = async (root: Element): Promise<void> => {
   }
 };
 
-/** The Composant `declaration` with `data` and its Emplacements, appended to `parent` and rendered. */
+/** `declaration`'s element with `data` and its Emplacements, appended to `parent`, rendered. */
 export const render = async (
   declaration: AnyComposant,
   data: unknown,
@@ -75,4 +74,5 @@ export const actionsOf = async (act: () => unknown): Promise<CdActionDetail[]> =
   return details;
 };
 
+/** A node's text, its white space collapsed. */
 export const textOf = (el: Node | null | undefined) => el?.textContent?.replace(/\s+/g, ' ').trim();

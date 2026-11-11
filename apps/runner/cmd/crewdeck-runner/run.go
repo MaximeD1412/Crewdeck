@@ -112,7 +112,7 @@ func (m *machine) restartOn(ctx context.Context, binary string) error {
 			return nil
 		}
 		// The service manager starts again a Runner that ends in failure.
-		return exitCode(1)
+		return silentExit(1)
 	}
 	return syscall.Exec(binary, os.Args, os.Environ())
 }

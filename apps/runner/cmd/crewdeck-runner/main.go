@@ -21,10 +21,10 @@ import (
 // version is set at build time with -ldflags "-X main.version=<v>".
 var version = "dev"
 
-// exitCode ends the command with this code, its message already printed.
-type exitCode int
+// silentExit ends the command with this code, its message already printed.
+type silentExit int
 
-func (e exitCode) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
+func (e silentExit) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
 
 // machine is what the commands reach of this machine; tests replace it.
 type machine struct {
@@ -130,7 +130,7 @@ func refusal(err error) error {
 
 func main() {
 	err := newRootCommand().ExecuteContext(context.Background())
-	var exit exitCode
+	var exit silentExit
 	if errors.As(err, &exit) {
 		os.Exit(int(exit))
 	}

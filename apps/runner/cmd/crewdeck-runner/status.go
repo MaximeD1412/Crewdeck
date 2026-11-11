@@ -63,7 +63,7 @@ func newStatusCommand(m *machine) *cobra.Command {
 				printStatus(cmd.OutOrStdout(), status)
 			}
 			if !status.Linked {
-				return exitCode(1)
+				return silentExit(1)
 			}
 			return nil
 		},

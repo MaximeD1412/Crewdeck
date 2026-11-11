@@ -128,7 +128,7 @@ func TestStatusOfAnUnlinkedRunnerSaysSoAndExitsOne(t *testing.T) {
 	f := newMachineFixture(t, service.Config{OS: "linux", Systemd: true})
 
 	out, err := f.execute(t, "", "status")
-	var exit exitCode
+	var exit silentExit
 	if !errors.As(err, &exit) || exit != 1 {
 		t.Fatalf("err = %v", err)
 	}
@@ -172,7 +172,7 @@ func TestStatusJSONIsTheStatusStruct(t *testing.T) {
 
 	unlinked := newMachineFixture(t, service.Config{OS: "linux", WSL: true})
 	out, err = unlinked.execute(t, "", "status", "--json")
-	var exit exitCode
+	var exit silentExit
 	if !errors.As(err, &exit) || exit != 1 {
 		t.Fatalf("err = %v", err)
 	}

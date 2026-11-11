@@ -1,7 +1,7 @@
 import type { Me, Runner, RunnerLink, State } from '@crewdeck/contracts';
 import type { z } from 'zod';
 import type { Client } from './api/client.js';
-import { createGettingStarted, drawSecret, gettingStartedGuard, type GettingStarted } from './getting-started.js';
+import { CONFIRM_RETRY_MS, createGettingStarted, drawSecret, gettingStartedGuard, type GettingStarted } from './getting-started.js';
 import { matchRoute } from './router.js';
 import { ROUTES } from './routes.js';
 import { createStore, type Store } from './store/store.js';
@@ -126,6 +126,31 @@ describe('createGettingStarted', () => {
     expect(commands.slice(1)).toEqual([{ method: 'POST', path: `/api/runner/link-codes/${LINK_ID}/confirm`, body: { pairing: {} } }]);
     event('runner.upserted', RUNNER);
     expect(controller.view()).toMatchObject({ command: null, runner: { machine: 'atelier-pc' } });
+  });
+
+  it('confirms its pending code again after a confirmation that failed, until one goes through', async () => {
+    vi.useFakeTimers();
+    try {
+      let refusals = 1;
+      answers[`/api/runner/link-codes/${LINK_ID}/confirm`] = () => {
+        if (refusals-- > 0) throw new Error('réseau');
+        return { runner: RUNNER };
+      };
+      snapshot();
+      await vi.advanceTimersByTimeAsync(0);
+      event('runner-link.upserted', link({ state: 'pending', runnerPairing: {} }));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(commands.filter((c) => c.path.endsWith('/confirm'))).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(CONFIRM_RETRY_MS);
+      expect(commands.filter((c) => c.path.endsWith('/confirm'))).toHaveLength(2);
+      await vi.advanceTimersByTimeAsync(CONFIRM_RETRY_MS * 3);
+      event('runner-link.upserted', link({ state: 'pending', runnerPairing: {} }));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(commands.filter((c) => c.path.endsWith('/confirm'))).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('handles the failure of a code once, even when it comes again', async () => {

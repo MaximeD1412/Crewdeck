@@ -36,6 +36,9 @@ export const gettingStartedGuard =
     return here ? null : GETTING_STARTED_PATH;
   };
 
+/** How long after a confirmation that failed (the network, the server) the page confirms its pending code again. */
+export const CONFIRM_RETRY_MS = 2000;
+
 /** 128 bits from `crypto.getRandomValues`, 26 Crockford characters (ADR 0003). */
 export const drawSecret = (): string => {
   const secret = encodeBase32(crypto.getRandomValues(new Uint8Array(16)));
@@ -93,7 +96,7 @@ export const createGettingStarted = ({
   let config: PublicConfig | null = null;
   let started = false;
   let drawing = false;
-  /** The codes already confirmed, and those whose failure was already shown: each handled once. */
+  /** The codes confirmed or being confirmed (one that failed leaves it, to be confirmed again), and those whose failure was already shown: each handled once. */
   const confirmed = new Set<string>();
   const failed = new Set<string>();
   /** The step « Continuer » leaves, while its command is on its way. */
@@ -132,7 +135,13 @@ export const createGettingStarted = ({
   };
 
   const confirm = async (id: string) => {
-    await client.command('POST', `/api/runner/link-codes/${id}/confirm`, { pairing: {} }, zRunnerLinkConfirmed);
+    try {
+      await client.command('POST', `/api/runner/link-codes/${id}/confirm`, { pairing: {} }, zRunnerLinkConfirmed);
+    } catch {
+      // Still `pending` for the page: confirmed again a little later, or at the next change of the store. The code's expiry ends it.
+      confirmed.delete(id);
+      setTimeout(sync, CONFIRM_RETRY_MS);
+    }
   };
 
   function sync() {

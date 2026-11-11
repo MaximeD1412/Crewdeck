@@ -1,0 +1,20 @@
+{
+  "kind": "usage",
+  "seq": 6,
+  "at": "2026-11-11T09:00:31.100Z",
+  "windows": [
+    {
+      "id": "five-hour",
+      "usedPercent": 20,
+      "resetsAt": "2026-11-11T12:00:00.000Z"
+    },
+    {
+      "id": "week",
+      "usedPercent": 4.5,
+      "resetsAt": "2026-11-16T00:00:00.000Z"
+    }
+  ],
+  "costUsdMicros": 1471,
+  "inputTokens": 4,
+  "outputTokens": 199
+}

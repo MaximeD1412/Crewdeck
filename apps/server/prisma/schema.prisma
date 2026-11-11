@@ -18,19 +18,20 @@ datasource db {
 /// event (CORE-5). Ids are
 /// UUIDv7, generated in code (`src/ids.ts`).
 model Pilot {
-  id            String               @id @db.Uuid
-  githubUserId  BigInt               @unique @map("github_user_id")
-  login         String
-  avatarUrl     String?              @map("avatar_url")
-  timeZone      String               @map("time_zone")
-  seq           BigInt               @default(0)
-  createdAt     DateTime             @default(now()) @map("created_at") @db.Timestamptz
-  githubToken   GithubUserToken?
-  webSessions   WebSession[]
-  events        Event[]
-  installations GitHubInstallation[]
-  runners       Runner[]
-  settings      AccountSettings?
+  id             String               @id @db.Uuid
+  githubUserId   BigInt               @unique @map("github_user_id")
+  login          String
+  avatarUrl      String?              @map("avatar_url")
+  timeZone       String               @map("time_zone")
+  seq            BigInt               @default(0)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  githubToken    GithubUserToken?
+  webSessions    WebSession[]
+  events         Event[]
+  installations  GitHubInstallation[]
+  runners        Runner[]
+  latencySamples LatencySample[]
+  settings       AccountSettings?
 
   @@map("pilots")
 }
@@ -81,6 +82,8 @@ model Event {
   at       DateTime  @default(now()) @db.Timestamptz
   /// When its source saw the change (a webhook's delivery, a Runner's report).
   sourceAt DateTime? @map("source_at") @db.Timestamptz
+  /// Which source it is: `github`, `runner`, `pilot` or `scheduler` (`zEventSource`).
+  source   String?
   pilot    Pilot     @relation(fields: [pilotId], references: [id], onDelete: Cascade)
 
   @@id([pilotId, seq])
@@ -184,4 +187,23 @@ model GitHubInstallation {
   @@index([pilotId])
   @@index([senderId])
   @@map("github_installations")
+}
+
+/// A latency the page measured (CORE-8, US-20): an event of `source` applied
+/// `delayMs` after its source saw the change, at `at`. Not an event: nothing
+/// is sent in real time, the statistics read the p95 of 7 days
+/// (`src/metrics/latency.service.ts`). Kept 30 days
+/// (`src/metrics/latency.retention.ts`).
+model LatencySample {
+  id      String   @id @db.Uuid
+  pilotId String   @map("pilot_id") @db.Uuid
+  /// `github`, `runner`, `pilot` or `scheduler` (`zEventSource`).
+  source  String
+  delayMs Int      @map("delay_ms")
+  at      DateTime @db.Timestamptz
+  pilot   Pilot    @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@index([pilotId, at])
+  @@index([at])
+  @@map("latency_samples")
 }

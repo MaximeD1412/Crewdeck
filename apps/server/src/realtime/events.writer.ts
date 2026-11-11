@@ -1,4 +1,4 @@
-import { type Event, type EventPayload, type EventType, eventPayloadSchema } from '@crewdeck/contracts';
+import { type Event, type EventPayload, type EventSource, type EventType, eventPayloadSchema } from '@crewdeck/contracts';
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '../generated/prisma/client.js';
 import { pendingEventsOf, type Tx } from './transactions.js';
@@ -13,19 +13,27 @@ export class EventPayloadError extends Error {
   }
 }
 
-export interface WriteOptions {
-  /** When the source saw the change (a webhook's delivery, a Runner's report): CORE-8 measures the latency from it. */
-  readonly sourceAt?: Date;
-}
+/**
+ * Where the change comes from, and when its source saw it (a webhook's
+ * delivery, a Runner's report): the page measures the latency from `sourceAt`
+ * (CORE-8), which therefore always comes with its `source`.
+ */
+export type WriteOptions =
+  | { readonly source?: EventSource; readonly sourceAt?: undefined }
+  | { readonly source: EventSource; readonly sourceAt: Date };
 
 /** An `events` row as the socket carries it. */
-export const toEvent = (row: { seq: bigint; type: string; payload: unknown; at: Date; sourceAt: Date | null }): Event => ({
+export const toEvent = (row: { seq: bigint; type: string; payload: unknown; at: Date; sourceAt: Date | null; source: string | null }): Event => ({
   seq: Number(row.seq),
   type: row.type as EventType,
   payload: row.payload,
   at: row.at.toISOString(),
   ...(row.sourceAt ? { sourceAt: row.sourceAt.toISOString() } : {}),
+  ...(row.source ? { source: row.source as EventSource } : {}),
 });
+
+/** The columns `toEvent` reads. */
+export const EVENT_VIEW = { seq: true, type: true, payload: true, at: true, sourceAt: true, source: true } as const;
 
 /**
  * Writes the event of a change (ADR 0007), with the `tx` of
@@ -36,7 +44,7 @@ export const toEvent = (row: { seq: bigint; type: string; payload: unknown; at: 
 @Injectable()
 export class EventsWriter {
   /** Returns the event's `seq`, which the changed row keeps in its `lastSeq`. */
-  async write<T extends EventType>(tx: Tx, pilotId: string, type: T, payload: EventPayload<T>, { sourceAt }: WriteOptions = {}): Promise<bigint> {
+  async write<T extends EventType>(tx: Tx, pilotId: string, type: T, payload: EventPayload<T>, { sourceAt, source }: WriteOptions = {}): Promise<bigint> {
     const pending = pendingEventsOf(tx);
     const schema = eventPayloadSchema(type);
     if (!schema) throw new EventPayloadError(type, 'no schema is registered for it');
@@ -47,8 +55,8 @@ export class EventsWriter {
     // At once, the row locked: the places are taken in the order of the seqs.
     const place = pending.placeOf(pilotId);
     const row = await tx.event.create({
-      data: { pilotId, seq, type, payload: parsed.data as Prisma.InputJsonValue, sourceAt: sourceAt ?? null },
-      select: { seq: true, type: true, payload: true, at: true, sourceAt: true },
+      data: { pilotId, seq, type, payload: parsed.data as Prisma.InputJsonValue, sourceAt: sourceAt ?? null, source: source ?? null },
+      select: EVENT_VIEW,
     });
     place.events.push(toEvent(row));
     return seq;

@@ -1,0 +1,7 @@
+{
+  "kind": "error",
+  "seq": 2,
+  "at": "2026-11-11T09:41:00.000Z",
+  "code": "model_not_found",
+  "message": "There's an issue with the selected model. It may not exist or you may not have access to it."
+}

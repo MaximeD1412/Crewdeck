@@ -58,11 +58,6 @@ export const AGENT_ROLES = ['idea', 'design', 'code', 'review'] as const;
 export const zAgentRole = z.enum(AGENT_ROLES);
 export type AgentRole = z.infer<typeof zAgentRole>;
 
-/** A Moteur: the agent CLI a Runner drives. */
-export const ENGINES = ['claude-code', 'codex'] as const;
-export const zEngine = z.enum(ENGINES);
-export type Engine = z.infer<typeof zEngine>;
-
 /** An Étape of the Process the Pilote may turn off. */
 export const OPTIONAL_STEPS = ['mockups', 'visual-review', 'cross-review'] as const;
 export const zOptionalStep = z.enum(OPTIONAL_STEPS);

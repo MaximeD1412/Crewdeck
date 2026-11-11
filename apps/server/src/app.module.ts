@@ -12,6 +12,7 @@ import { ReconciliationModule } from './github/reconciliation/reconciliation.mod
 import { WebhooksModule } from './github/webhooks/webhooks.module.js';
 import { HealthModule } from './health/health.module.js';
 import { type LogDestination, loggerParams } from './logging/logger.js';
+import { MetricsModule } from './metrics/metrics.module.js';
 import { PilotsModule } from './pilots/me.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
@@ -60,6 +61,7 @@ export class AppModule {
         AuthModule,
         PilotsModule,
         RunnersModule,
+        MetricsModule,
         SettingsModule,
         WebModule.forRoot(env),
         ...imports,

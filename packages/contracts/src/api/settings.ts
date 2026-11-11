@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { type AgentRole, type OptionalStep, zEngine } from '../values.js';
+import { zEngineId } from '../runner/engines.js';
+import type { AgentRole, OptionalStep } from '../values.js';
 
 /** The Moteur and the model a Rôle runs with; `null` leaves it to the default. An unknown key is refused. */
-export const zRoleChoice = z.strictObject({ engine: zEngine, model: z.string().min(1) }).nullable();
+export const zRoleChoice = z.strictObject({ engine: zEngineId, model: z.string().min(1) }).nullable();
 export type RoleChoice = z.infer<typeof zRoleChoice>;
 
 const zRoles = z.strictObject({ idea: zRoleChoice, design: zRoleChoice, code: zRoleChoice, review: zRoleChoice } satisfies Record<AgentRole, z.ZodType>);

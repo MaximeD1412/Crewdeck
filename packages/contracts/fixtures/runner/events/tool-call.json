@@ -1,0 +1,27 @@
+{
+  "kind": "tool-call",
+  "seq": 1,
+  "at": "2026-11-11T09:00:29.511Z",
+  "callId": "toolu_012Jbykwo4wSxHJXYYgRUXs7",
+  "tool": "Read",
+  "target": "README.md",
+  "raw": {
+    "type": "assistant",
+    "message": {
+      "model": "claude-haiku-5-5",
+      "id": "msg_spike0001",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_012Jbykwo4wSxHJXYYgRUXs7",
+          "name": "Read",
+          "input": {
+            "file_path": "README.md"
+          }
+        }
+      ]
+    },
+    "session_id": "3d0caa19-0333-4929-9820-622b9e9f85d0"
+  }
+}

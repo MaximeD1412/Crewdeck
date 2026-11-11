@@ -1,0 +1,23 @@
+{
+  "kind": "message",
+  "seq": 3,
+  "at": "2026-11-11T09:00:31.204Z",
+  "from": "agent",
+  "text": "Ce dépôt contient un README et un script d’exemple.",
+  "final": true,
+  "raw": {
+    "type": "assistant",
+    "message": {
+      "model": "claude-haiku-5-5",
+      "id": "msg_spike0002",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Ce dépôt contient un README et un script d’exemple."
+        }
+      ]
+    },
+    "session_id": "3d0caa19-0333-4929-9820-622b9e9f85d0"
+  }
+}

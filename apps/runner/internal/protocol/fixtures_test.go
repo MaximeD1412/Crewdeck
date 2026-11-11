@@ -30,6 +30,9 @@ func TestEveryFixtureOfTheProtocolDecodesIntoItsGeneratedType(t *testing.T) {
 	}
 	var seen []string
 	for _, entry := range entries {
+		if entry.IsDir() { // events/, engines/: not messages of the protocol
+			continue
+		}
 		typ := strings.TrimSuffix(entry.Name(), ".json")
 		decode, ok := decoders[typ]
 		if !ok {

@@ -27,7 +27,9 @@ describe('the Runner protocol', () => {
   });
 
   it('has one fixture per message, and no other', () => {
-    const files = readdirSync(FIXTURES).map((file) => file.replace(/\.json$/, ''));
+    const files = readdirSync(FIXTURES)
+      .filter((file) => file.endsWith('.json'))
+      .map((file) => file.replace(/\.json$/, ''));
     expect(files.sort()).toEqual([...RUNNER_TO_SERVER, ...SERVER_TO_RUNNER].sort());
   });
 

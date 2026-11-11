@@ -4,8 +4,9 @@
  * - `scenario(name)`: seeds the server with the scenario (`apps/server/src/testing/scenarios/`),
  *   carries its session cookie, opens its page;
  * - `expectAccessible(page)`: axe, WCAG 2.1 A and AA, no violation;
- * - `capture(page, screenId)`: with `CAPTURES_DIR` set, a full-page PNG
- *   `<CAPTURES_DIR>/<screenId>-<390|1280>.png` (`scripts/captures.sh`); else nothing.
+ * - `capture(page, screenId, { fullPage })`: with `CAPTURES_DIR` set, a PNG
+ *   `<CAPTURES_DIR>/<screenId>-<390|1280>.png` (`scripts/captures.sh`), of the
+ *   full page unless `fullPage: false` (a modal over the screen); else nothing.
  */
 import AxeBuilder from '@axe-core/playwright';
 import type { ScenarioRun } from '@crewdeck/contracts';
@@ -17,7 +18,7 @@ const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21aa'];
 export interface Fixtures {
   scenario: (name: string) => Promise<ScenarioRun>;
   expectAccessible: (page: Page) => Promise<void>;
-  capture: (page: Page, screenId: string) => Promise<void>;
+  capture: (page: Page, screenId: string, options?: { fullPage?: boolean }) => Promise<void>;
 }
 
 export const test = base.extend<Fixtures>({
@@ -63,12 +64,12 @@ export const test = base.extend<Fixtures>({
   // Playwright reads the fixtures a fixture needs from its first parameter's destructuring: none here.
   // eslint-disable-next-line no-empty-pattern
   capture: async ({}, use, testInfo) => {
-    await use(async (page, screenId) => {
+    await use(async (page, screenId, { fullPage = true } = {}) => {
       const dir = process.env['CAPTURES_DIR'];
       if (!dir) return;
       const width = testInfo.project.use.viewport?.width;
       if (!width) throw new Error(`le projet ${testInfo.project.name} n'a pas de largeur`);
-      await page.screenshot({ path: join(dir, `${screenId}-${width}.png`), fullPage: true, animations: 'disabled' });
+      await page.screenshot({ path: join(dir, `${screenId}-${width}.png`), fullPage, animations: 'disabled' });
     });
   },
 });

@@ -11,6 +11,25 @@ export const composants = defineScenario({
   seed: signInPilot,
 });
 
+/** The library opened on the form Composants and the Dialog (UI-4), for their visual review, the Pilote signed in. */
+export const composantsTextField = defineScenario({
+  name: 'composants-textfield',
+  path: '/parametres/composants?c=TextField',
+  seed: signInPilot,
+});
+
+export const composantsSettingRow = defineScenario({
+  name: 'composants-settingrow',
+  path: '/parametres/composants?c=SettingRow',
+  seed: signInPilot,
+});
+
+export const composantsDialog = defineScenario({
+  name: 'composants-dialog',
+  path: '/parametres/composants?c=Dialog',
+  seed: signInPilot,
+});
+
 /** The library opened on each row Composant (UI-5), `composants-<name in lower case>`, the Pilote signed in. */
 export const composantsRows = ['DecisionRow', 'IdeaRow', 'TicketRow', 'AgentRow'].map((name) =>
   defineScenario({

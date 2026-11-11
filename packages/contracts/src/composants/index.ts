@@ -3,10 +3,12 @@ import { Banner } from './banner.js';
 import { Button } from './button.js';
 import { Cadre, MenuItem } from './cadre.js';
 import { Card } from './card.js';
+import { Checkbox } from './checkbox.js';
 import { Chip } from './chip.js';
 import { CodeBlock } from './code-block.js';
 import { DecisionRow } from './decision-row.js';
 import type { AnyComposant } from './define.js';
+import { Dialog } from './dialog.js';
 import { Empty } from './empty.js';
 import { IdeaRow } from './idea-row.js';
 import { IconButton } from './icon-button.js';
@@ -18,10 +20,15 @@ import { PageConnexion } from './page-connexion.js';
 import { PageHeader } from './page-header.js';
 import { PageIntrouvable } from './page-introuvable.js';
 import { ProjectFilter } from './project-filter.js';
+import { Radio } from './radio.js';
+import { Select } from './select.js';
+import { SettingRow } from './setting-row.js';
 import { StatusBadge } from './status-badge.js';
 import { StatusDot } from './status-dot.js';
 import { Tabs } from './tabs.js';
+import { TextField } from './text-field.js';
 import { TicketRow } from './ticket-row.js';
+import { Toggle } from './toggle.js';
 
 export * from './action.js';
 export * from './agent-row.js';
@@ -29,10 +36,12 @@ export * from './banner.js';
 export * from './button.js';
 export * from './cadre.js';
 export * from './card.js';
+export * from './checkbox.js';
 export * from './chip.js';
 export * from './code-block.js';
 export * from './decision-row.js';
 export * from './define.js';
+export * from './dialog.js';
 export * from './empty.js';
 export * from './icon-button.js';
 export * from './idea-row.js';
@@ -45,10 +54,15 @@ export * from './page-connexion.js';
 export * from './page-header.js';
 export * from './page-introuvable.js';
 export * from './project-filter.js';
+export * from './radio.js';
+export * from './select.js';
+export * from './setting-row.js';
 export * from './status-badge.js';
 export * from './status-dot.js';
 export * from './tabs.js';
+export * from './text-field.js';
 export * from './ticket-row.js';
+export * from './toggle.js';
 export * from './tone.js';
 
 /**
@@ -66,21 +80,28 @@ export const COMPOSANTS = {
   PageIntrouvable,
   Card,
   CodeBlock,
+  Dialog,
   KeyValue,
   ListRow,
+  SettingRow,
   DecisionRow,
   IdeaRow,
   TicketRow,
   AgentRow,
   Banner,
   Button,
+  Checkbox,
   Chip,
   Empty,
   Icon,
   IconButton,
+  Radio,
+  Select,
   StatusBadge,
   StatusDot,
   Tabs,
+  TextField,
+  Toggle,
 } as const satisfies Record<string, AnyComposant>;
 
 export type ComposantName = keyof typeof COMPOSANTS;

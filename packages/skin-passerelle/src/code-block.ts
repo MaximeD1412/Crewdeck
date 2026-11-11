@@ -5,7 +5,10 @@ import { PasserelleElement, sharedStyles } from './base.js';
 /** How long « Copié » stays. */
 export const COPIED_MS = 2000;
 
-/** `cd-code-block`: a command and « Copier », which copies it and says « Copié » for 2 s; a local behaviour, no action. */
+/**
+ * `cd-code-block`: a command and « Copier », which copies it and says « Copié » for 2 s; a local behaviour, no action.
+ * The command takes the focus: at 1280 px it scrolls on one line, which the keyboard must reach (WCAG 2.1.1).
+ */
 export class PasserelleCodeBlock extends PasserelleElement<typeof CodeBlock> {
   static override properties = { copied: { state: true } };
   static override styles = [
@@ -39,6 +42,10 @@ export class PasserelleCodeBlock extends PasserelleElement<typeof CodeBlock> {
         color: var(--cd-ink-2);
         font: var(--cd-font-label-weight) var(--cd-font-caption-size) / 1 var(--cd-font-label-family), sans-serif;
         flex: none;
+      }
+      code:focus-visible {
+        outline: var(--cd-stroke) solid var(--cd-accent);
+        outline-offset: var(--cd-stroke);
       }
       button::after {
         content: '';
@@ -87,7 +94,7 @@ export class PasserelleCodeBlock extends PasserelleElement<typeof CodeBlock> {
 
   protected override render() {
     return html`<div part="code" class="code">
-      <code>${this.data.code}</code>
+      <code tabindex="0">${this.data.code}</code>
       <button type="button" @click=${() => void this.copy()}>
         <cd-icon .data=${{ name: this.copied ? 'check' : 'copy', size: 'sm' }}></cd-icon>
         ${this.copied ? t('codeBlock.copied') : t('codeBlock.copy')}

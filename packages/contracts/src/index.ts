@@ -6,6 +6,7 @@ export * from './api/github-token.js';
 export * from './api/health.js';
 export * from './api/me.js';
 export * from './api/runner.js';
+export * from './api/sensitive-actions.js';
 export * from './api/state.js';
 export * from './api/testing.js';
 export * from './events/index.js';

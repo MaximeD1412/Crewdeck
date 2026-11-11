@@ -150,7 +150,7 @@
         {
           "texte": "Dialogue de confirmation et clés hors du registre des Composants",
           "ref": "ADR 0006",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "MVP : seule la Skin officielle, qui n'importe que @crewdeck/sdk (frontières Nx, ESLint)",

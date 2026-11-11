@@ -2,11 +2,15 @@ import { z } from 'zod';
 import { COMPOSANT_CATEGORIES, defineComposant } from './define.js';
 
 const zEntry = z.object({ name: z.string(), version: z.number().int().positive() });
+/** A piece the core provides itself (the `crewdeck-confirm` dialog): listed with its meta, no Skin implements it. */
+const zProvided = z.object({ name: z.string(), meta: z.string() });
 
 /**
  * The library of Composants (US-23, `/parametres/composants?c=<Name>`): the
  * Composants by category, then the one selected, its preview rendered from
- * its examples, its data, its actions and its Emplacements. Built from the
+ * its examples, its data, its actions and its Emplacements. A group also
+ * lists what the core provides in it (`provided`), neither replaceable nor
+ * selectable. Built from the
  * declarations by `apps/web/src/views/composants.ts`; `select` changes `?c=`.
  */
 export const PageComposants = defineComposant({
@@ -16,7 +20,13 @@ export const PageComposants = defineComposant({
   category: 'page',
   description: 'La bibliothèque des Composants, générée de leurs déclarations.',
   data: z.object({
-    groups: z.array(z.object({ category: z.enum(COMPOSANT_CATEGORIES), composants: z.array(zEntry) })),
+    groups: z.array(
+      z.object({
+        category: z.enum(COMPOSANT_CATEGORIES),
+        composants: z.array(zEntry),
+        provided: z.array(zProvided).optional(),
+      }),
+    ),
     selected: zEntry.extend({
       tag: z.string(),
       category: z.enum(COMPOSANT_CATEGORIES),
@@ -47,6 +57,7 @@ export const PageComposants = defineComposant({
               { name: 'Banner', version: 1 },
               { name: 'Button', version: 1 },
             ],
+            provided: [{ name: 'ConfirmDialog', meta: 'fourni par le produit, non remplaçable' }],
           },
         ],
         selected: {

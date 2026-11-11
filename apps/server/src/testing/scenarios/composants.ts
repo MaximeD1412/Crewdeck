@@ -33,6 +33,13 @@ export const composantsSettingRow = defineScenario({
   seed: signInPilot,
 });
 
+/** The core's confirmation of an Action sensible (CORE-7), opened over the library by the capture through the page's harness. */
+export const confirmDialog = defineScenario({
+  name: 'confirm-dialog',
+  path: '/parametres/composants?c=Banner',
+  seed: signInPilot,
+});
+
 export const composantsDialog = defineScenario({
   name: 'composants-dialog',
   path: '/parametres/composants?c=Dialog',

@@ -19,6 +19,7 @@ export const MESSAGES = {
   'realtime.stale': 'L’état a changé depuis ton dernier affichage : vérifie avant de recommencer.',
   'runner.not-linked': 'Aucun Runner n’est relié à ton compte.',
   'runner.offline': 'Le Runner est hors ligne.',
+  'sensitive-action.stale': 'L’état a changé pendant que tu confirmais : vérifie et confirme de nouveau.',
   'server.internal': 'Une erreur inattendue est survenue.',
   'testing.unknown-scenario': 'Scénario de test inconnu.',
   'validation.invalid': 'Certaines valeurs ne sont pas valides.',

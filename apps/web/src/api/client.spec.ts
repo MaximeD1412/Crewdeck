@@ -52,6 +52,12 @@ describe('the API client', () => {
     expect(sentBody()).toEqual({ a: 1, seq: '0' });
   });
 
+  it('an Action sensible’s command carries the seq captured when the Pilote confirmed, not the store’s', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await client.command('POST', '/api/loops/l1/start', { seq: 7n });
+    expect(sentBody()).toEqual({ seq: '7' });
+  });
+
   it('parses the error envelope into an ApiError, its message as is, its fields', async () => {
     fetchMock.mockResolvedValueOnce(
       json(400, { status: 400, code: 'validation.failed', message: 'Vérifie le formulaire.', fields: { title: 'Le titre est requis.' } }),
@@ -67,6 +73,14 @@ describe('the API client', () => {
     const error = await client.command('POST', '/api/ideas/i1/retain', {}).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject(STALE);
+    expect(onStale).toHaveBeenCalledTimes(1);
+  });
+
+  it('a 409 sensitive-action.stale triggers the catch-up too: the Pilote confirms again on the state now sure', async () => {
+    const stale = { status: 409, code: 'sensitive-action.stale', message: 'L’état a changé pendant que tu confirmais : vérifie et confirme de nouveau.' };
+    fetchMock.mockResolvedValueOnce(json(409, stale));
+    const error = await client.command('POST', '/api/loops/l1/start', { seq: 7n }).catch((e: unknown) => e);
+    expect(error).toMatchObject(stale);
     expect(onStale).toHaveBeenCalledTimes(1);
   });
 

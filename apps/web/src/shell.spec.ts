@@ -3,6 +3,7 @@ import type { ShellState } from './shell.js';
 import { matchRoute } from './router.js';
 import { ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
+import { createAnnouncer } from './announcer.js';
 
 type WithData = Element & { data: unknown };
 const at = (path: string) => matchRoute(ROUTES, new URL(path, location.origin));
@@ -20,6 +21,21 @@ describe('mountShell', () => {
     expect(shell.outlet.parentElement).toBe(cadre);
     expect(shell.outlet.hasAttribute('slot')).toBe(false);
     expect(shell.outlet.style.display).toBe('contents');
+  });
+
+  it('holds the page’s aria-live region in the Cadre, outside the page the router replaces', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const announcer = createAnnouncer();
+    const shell = mountShell({ root, announcer });
+    const cadre = root.firstElementChild as WithData;
+    const region = cadre.querySelector('[role=status]');
+    expect(region).toBe(announcer.element);
+    expect(region?.getAttribute('aria-live')).toBe('polite');
+    expect(shell.outlet.contains(region)).toBe(false);
+    announcer.announce('Action indisponible');
+    announcer.announce('Action indisponible');
+    expect(region?.textContent).toBe('Action indisponible');
   });
 
   it('on each route, sets the Cadre’s data and one cd-menu-item per entry in its menu Emplacement', () => {

@@ -7,6 +7,7 @@ import {
   composantsSession,
   composantsSettingRow,
   composantsTextField,
+  confirmDialog,
 } from './composants.js';
 import { connexion, connexionErreur } from './connexion.js';
 import type { Scenario } from './define.js';
@@ -27,6 +28,7 @@ const SCENARIOS: readonly Scenario[] = [
   composantsTextField,
   composantsSettingRow,
   composantsDialog,
+  confirmDialog,
   ...composantsFigures,
   ...composantsSession,
 ];

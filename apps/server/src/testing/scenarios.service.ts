@@ -1,8 +1,9 @@
 import type { ScenarioRun } from '@crewdeck/contracts';
 import type { AddressInfo } from 'node:net';
 import { Inject, Injectable } from '@nestjs/common';
-import { HttpAdapterHost } from '@nestjs/core';
+import { HttpAdapterHost, ModuleRef } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { RunnerLinkLimiter } from '../runners/link/link-limiter.js';
 import { FAKES, type Fakes, resetFakes } from './fakes.js';
 import type { Scenario } from './scenarios/index.js';
 
@@ -17,14 +18,16 @@ export class ScenariosService {
     private readonly prisma: PrismaService,
     @Inject(FAKES) private readonly fakes: Fakes,
     private readonly adapterHost: HttpAdapterHost,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
-  /** Empties the data tables and resets the fakes, then seeds the scenario, its Runner connected when it links one. */
+  /** Empties the data tables, resets the fakes and the link attempts' count, then seeds the scenario, its Runner connected when it links one. */
   async run(scenario: Scenario): Promise<ScenarioRun> {
     await resetFakes(this.fakes);
+    this.moduleRef.get(RunnerLinkLimiter, { strict: false }).reset();
     await this.emptyDatabase();
     const seeded = await scenario.seed({ prisma: this.prisma, fakes: this.fakes });
-    if (seeded.runnerToken) await this.fakes.runner.connect(this.ownUrl(), seeded.runnerToken);
+    if (seeded.runnerToken) await this.fakes.runner.connect(this.ownUrl(), seeded.runnerToken, seeded.runnerMachine);
     return { name: scenario.name, path: scenario.path, sessionCookie: seeded.sessionCookie ?? null };
   }
 

@@ -47,6 +47,17 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     inside(el, 'button.mic').click();
   },
   'PageConnexion.signIn': (el) => inside(el, 'cd-button', 'button').click(),
+  'PageDemarrage.selectSystem': (el) => inside(el, 'cd-tabs', 'button[role=tab]:nth-of-type(2)').click(),
+  'PageDemarrage.retry': async (el) => {
+    el.data = { ...(el.data as object), failure: { reason: 'expired', shortId: '9RTB' } };
+    await settle(el);
+    inside(el, 'cd-button.retry', 'button').click();
+  },
+  'PageDemarrage.continue': async (el) => {
+    el.data = COMPOSANTS.PageDemarrage.examples[2]?.data;
+    await settle(el);
+    inside(el, 'cd-button.continue', 'button').click();
+  },
 };
 
 afterEach(() => document.body.replaceChildren());

@@ -29,3 +29,14 @@ regexTarget = "secret"
 regexes = [
   '''^secret-[a-z-]+-[0-9a-f]{4}$''',
 ]
+
+[[allowlists]]
+description = "Fake secret of a link code in the tests of the Runner's link (RUNNER-3)"
+# The tests of the contracts, the page and `crewdeck-runner link` share this
+# made-up secret of 26 Crockford characters: never a real code (a real one is
+# drawn by the page and never written anywhere). Only this exact value is
+# excepted, not the files.
+regexTarget = "secret"
+regexes = [
+  '''^M2PXA7QK9VZ3T8W4R6N1B5C0DE$''',
+]

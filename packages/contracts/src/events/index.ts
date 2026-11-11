@@ -12,6 +12,7 @@ export const RESOURCES = [
   'pilot',
   'settings',
   'runner',
+  'runner-link',
   'ai-account',
   'device',
   'project',

@@ -1,10 +1,15 @@
-import { HEARTBEAT_SECONDS, PROTOCOL_VERSION, type RunnerToServer, zServerToRunner } from '@crewdeck/contracts';
+import { HEARTBEAT_SECONDS, PROTOCOL_VERSION, type Runner, type RunnerToServer, zServerToRunner } from '@crewdeck/contracts';
 import WebSocket from 'ws';
 import { newId } from '../ids.js';
 import type { Fake } from './fakes.js';
 
 /** How long `connect` waits for `hello.accepted`. */
 const ACCEPT_MS = 5_000;
+
+/** What the fake Runner says of its machine in its `hello`. */
+export type RunnerMachine = Pick<Runner, 'machine' | 'os' | 'arch' | 'wsl' | 'runnerVersion'>;
+
+const OWN_MACHINE: RunnerMachine = { runnerVersion: 'fake', machine: 'atelier', os: 'linux', arch: 'amd64', wsl: false };
 
 type WithoutEnvelope<T> = T extends unknown ? Omit<T, 'id' | 'at'> : never;
 
@@ -24,8 +29,8 @@ export class FakeRunner implements Fake {
     return this.socket?.readyState === WebSocket.OPEN;
   }
 
-  /** Connects to the server at `baseUrl` with `token`; resolves once its `hello` is accepted. */
-  async connect(baseUrl: string, token: string): Promise<void> {
+  /** Connects to the server at `baseUrl` with `token`, saying `machine`; resolves once its `hello` is accepted. */
+  async connect(baseUrl: string, token: string, machine: RunnerMachine = OWN_MACHINE): Promise<void> {
     this.disconnect();
     const url = new URL('/api/ws?client=runner', baseUrl);
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -41,7 +46,7 @@ export class FakeRunner implements Fake {
       socket.once('error', fail);
       socket.once('close', (code) => fail(new Error(`fake runner: closed with ${code} before hello.accepted`)));
       socket.once('open', () =>
-        this.send(socket, { type: 'hello', protocolVersion: PROTOCOL_VERSION, runnerVersion: 'fake', machine: 'atelier', os: 'linux', arch: 'amd64', wsl: false }),
+        this.send(socket, { type: 'hello', protocolVersion: PROTOCOL_VERSION, ...machine }),
       );
       socket.on('message', (data: WebSocket.RawData) => {
         const parsed = zServerToRunner.safeParse(JSON.parse(data.toString()));

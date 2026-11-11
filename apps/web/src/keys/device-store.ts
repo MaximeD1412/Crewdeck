@@ -35,10 +35,10 @@ const open = (factory: IDBFactory): Promise<IDBDatabase> => {
 };
 
 /** The Appareil in IndexedDB's database `crewdeck-keys`, store `device`. */
-export const createDeviceStore = (factory: IDBFactory = indexedDB): DeviceStore => {
+export const createDeviceStore = (factory?: IDBFactory): DeviceStore => {
   let database: Promise<IDBDatabase> | null = null;
   const run = async <T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> => {
-    database ??= open(factory);
+    database ??= open(factory ?? indexedDB);
     const transaction = (await database).transaction(STORE, mode);
     const committed = new Promise<void>((resolve, reject) => {
       transaction.oncomplete = () => resolve();

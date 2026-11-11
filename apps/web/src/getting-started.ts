@@ -11,7 +11,9 @@ import {
 } from '@crewdeck/contracts';
 import type { DemarrageSystem } from '@crewdeck/sdk';
 import type { Client } from './api/client.js';
+import { ApiError } from './api/request.js';
 import { encodeBase32 } from './keys/base32.js';
+import type { LinkKeys, PendingLink } from './keys/pairing.js';
 import type { RouteMatch } from './router.js';
 import { HOME_PATH } from './sign-in.js';
 import type { Store } from './store/store.js';
@@ -56,7 +58,14 @@ export interface GettingStartedOptions {
   /** The tab open first. */
   readonly system: DemarrageSystem;
   readonly secret?: () => string;
+  /** This browser's Appareil and the pairing's crypto (E2E-2). */
+  readonly keys: LinkKeys;
+  /** Opens the vault once the Runner is linked: the Appareil now holds its wrap. */
+  readonly unlockVault: () => Promise<unknown>;
 }
+
+/** A refusal the same request would get again (not the network, not the server down, not a stale `seq`). */
+const final = (error: unknown): boolean => error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 409;
 
 export interface GettingStarted {
   /** The Pilote as the page knows them now: the answer of « Continuer » until the store's pilot changes, the store's, else the boot's. */
@@ -75,8 +84,9 @@ export interface GettingStarted {
 /**
  * The page's side of linking the Runner (RUNNER-3): it draws a code whose
  * secret never leaves it, follows the `runner-link` slice for that code only,
- * confirms it once the Runner is there (`pending` with its pairing; the
- * pairings' crypto is E2E-2's, `{}` until then), and after a failure keeps its
+ * confirms it once the Runner is there (`pending` with its pairing, whose
+ * proof the page checks: a key the server swapped makes it reject the code,
+ * E2E-2), opens the vault once linked, and after a failure keeps its
  * reason for the Banner and draws a new code. At load, the reason of the
  * Pilote's last failed code shows the same way. The Runner linked, « Continuer »
  * moves the Pilote to their next step.
@@ -88,6 +98,8 @@ export const createGettingStarted = ({
   origin,
   system: firstSystem,
   secret = drawSecret,
+  keys,
+  unlockVault,
 }: GettingStartedOptions): GettingStarted => {
   const listeners = new Set<() => void>();
   let system = firstSystem;
@@ -121,10 +133,12 @@ export const createGettingStarted = ({
     notify();
     const drawn = secret();
     try {
+      const pairing = await keys.browserPairing();
       const [created, read] = await Promise.all([
-        client.command('POST', '/api/runner/link-codes', { pairing: {} }, zRunnerLinkCodeCreated),
+        client.command('POST', '/api/runner/link-codes', { pairing }, zRunnerLinkCodeCreated),
         config ? Promise.resolve(config) : client.query('/api/config', zPublicConfig),
       ]);
+      await keys.adoptDevice(created.deviceId);
       config = read;
       code = { id: created.id, shortId: created.shortId, secret: drawn };
     } finally {
@@ -134,14 +148,24 @@ export const createGettingStarted = ({
     sync();
   };
 
-  const confirm = async (id: string) => {
+  const confirm = async (drawn: DrawnCode & { readonly id: string }, link: Pick<PendingLink, 'runnerId' | 'runnerPairing'>) => {
     try {
-      await client.command('POST', `/api/runner/link-codes/${id}/confirm`, { pairing: {} }, zRunnerLinkConfirmed);
-    } catch {
+      const pairing = await keys.confirmPairing({ secret: drawn.secret, shortId: drawn.shortId, ...link });
+      if (!pairing) {
+        // The Runner's proof does not match the keys the server relayed: the code fails, the page shows why and draws another.
+        await client.command('POST', `/api/runner/link-codes/${drawn.id}/reject`, { reason: 'pairing-mismatch' });
+        return;
+      }
+      await client.command('POST', `/api/runner/link-codes/${drawn.id}/confirm`, { pairing }, zRunnerLinkConfirmed);
+    } catch (error) {
+      // A refusal (`devices.not-trusted`: the code failed, its event shows why) is not sent again.
+      if (final(error)) return;
       // Still `pending` for the page: confirmed again a little later, or at the next change of the store. The code's expiry ends it.
-      confirmed.delete(id);
+      confirmed.delete(drawn.id);
       setTimeout(sync, CONFIRM_RETRY_MS);
+      return;
     }
+    await unlockVault();
   };
 
   function sync() {
@@ -159,9 +183,9 @@ export const createGettingStarted = ({
       return;
     }
     if (!code || !last || last.id !== code.id) return;
-    if (last.state === 'pending' && last.runnerPairing && !confirmed.has(last.id)) {
+    if (last.state === 'pending' && last.runnerPairing && last.runnerId && !confirmed.has(last.id)) {
       confirmed.add(last.id);
-      void confirm(last.id);
+      void confirm(code, { runnerId: last.runnerId, runnerPairing: last.runnerPairing });
     } else if ((last.state === 'failed' || last.state === 'expired') && last.failureReason && !failed.has(last.id)) {
       failed.add(last.id);
       failure = { reason: last.failureReason, shortId: code.shortId };

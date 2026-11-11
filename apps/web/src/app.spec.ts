@@ -1,9 +1,10 @@
+import type { Me } from '@crewdeck/contracts';
 import { CD_ACTION, t } from '@crewdeck/sdk';
 import { createDispatcher } from './actions/dispatcher.js';
 import { boot } from './app.js';
 import { createStore } from './store/store.js';
 
-const PILOT = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
 
 type WithData = HTMLElement & { data: unknown; updateComplete: Promise<unknown> };
 

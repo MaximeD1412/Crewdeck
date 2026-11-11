@@ -63,7 +63,7 @@ export const matchRoute = (routes: readonly Route[], url: string | URL): RouteMa
 };
 
 /** The page's `data` by default: its route's view, else nothing. */
-const routeData =
+export const routeData =
   (routes: readonly Route[]) =>
   (match: RouteMatch): unknown =>
     routes.find((route) => route.composant === match.composant && matchPath(route.path, match.path))?.data?.(match) ?? {};
@@ -72,6 +72,12 @@ export interface Router {
   readonly current: RouteMatch;
   /** Goes to a page URL of the app (path, query, hash) through the History API. */
   navigate(url: string, options?: { replace?: boolean }): void;
+  /**
+   * Renders the current page again for a new state (the store's, a page's
+   * own): the guard asked again, the page's `data` read again; `onRoute`
+   * only when the guard moved the page.
+   */
+  refresh(): void;
   stop(): void;
 }
 
@@ -111,7 +117,8 @@ const linkOf = (event: MouseEvent): URL | null => {
 export const startRouter = ({ routes, outlet, data = routeData(routes), onRoute, redirects = REDIRECTS, guard }: RouterOptions): Router => {
   let current: RouteMatch;
 
-  const render = () => {
+  const render = (navigated = true) => {
+    const before = location.href;
     const path = normalise(location.pathname);
     const target = Object.hasOwn(redirects, path) ? redirects[path] : undefined;
     if (target) history.replaceState(history.state, '', target + location.search + location.hash);
@@ -128,7 +135,7 @@ export const startRouter = ({ routes, outlet, data = routeData(routes), onRoute,
         : document.createElement(current.composant.tag);
     (page as Element & { data: unknown }).data = data(current);
     if (page !== existing || outlet.childElementCount !== 1) outlet.replaceChildren(page);
-    onRoute?.(current);
+    if (navigated || location.href !== before) onRoute?.(current);
   };
 
   const navigate = (url: string, { replace = false }: { replace?: boolean } = {}) => {
@@ -148,7 +155,8 @@ export const startRouter = ({ routes, outlet, data = routeData(routes), onRoute,
   };
 
   document.addEventListener('click', onClick);
-  window.addEventListener('popstate', render);
+  const onPopState = () => render();
+  window.addEventListener('popstate', onPopState);
   render();
 
   return {
@@ -156,9 +164,10 @@ export const startRouter = ({ routes, outlet, data = routeData(routes), onRoute,
       return current;
     },
     navigate,
+    refresh: () => render(false),
     stop() {
       document.removeEventListener('click', onClick);
-      window.removeEventListener('popstate', render);
+      window.removeEventListener('popstate', onPopState);
     },
   };
 };

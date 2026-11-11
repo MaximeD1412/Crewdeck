@@ -18,7 +18,13 @@ export interface LinkedInstallation {
 export class GitHubInstallations {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** `installation.created`: kept, linked to the Pilote whose GitHub user installed it, if there is one. */
+  /**
+   * `installation.created`: kept, linked to the Pilote whose GitHub user
+   * installed it, if there is one. Unlinked, the Pilote is read again once the
+   * row is written: a sign-in between the first read and the write found no
+   * row to link (`linkPendingTo`), and is caught here; one after the write
+   * links it itself.
+   */
   async created(facts: InstallationFacts): Promise<void> {
     const pilot = await this.prisma.unscoped.pilot.findUnique({ where: { githubUserId: BigInt(facts.senderId) }, select: { id: true } });
     const row = {
@@ -33,6 +39,9 @@ export class GitHubInstallations {
       create: { installationId: BigInt(facts.installationId), ...row },
       update: row,
     });
+    if (pilot) return;
+    const late = await this.prisma.unscoped.pilot.findUnique({ where: { githubUserId: BigInt(facts.senderId) }, select: { id: true } });
+    if (late) await this.linkPendingTo(late.id, facts.senderId);
   }
 
   /** `installation.deleted`: the installation leaves the index. */

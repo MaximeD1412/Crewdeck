@@ -25,6 +25,34 @@ const sql = async <T extends pg.QueryResultRow>(text: string, values: unknown[] 
   }
 };
 
+/**
+ * A transaction of another client holding `text` uncommitted: a statement of
+ * the server that conflicts with it waits on its lock until `release()`
+ * (rolled back). How the tests order two writes of the server.
+ */
+const holding = async (text: string, values: unknown[] = []): Promise<{ release: () => Promise<void> }> => {
+  const client = new pg.Client({ connectionString: databaseUrl });
+  await client.connect();
+  await client.query('BEGIN');
+  await client.query(text, values);
+  return {
+    release: async () => {
+      await client.query('ROLLBACK');
+      await client.end();
+    },
+  };
+};
+
+/** Resolves once a statement of the server waits on a lock that `holding` took. */
+const waitingOnALock = () =>
+  vi.waitFor(
+    async () => {
+      const [row] = await sql<{ n: number }>(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`);
+      expect(row?.n).toBeGreaterThan(0);
+    },
+    { timeout: 5000, interval: 20 },
+  );
+
 interface Seen {
   readonly handler: string;
   readonly event: Omit<GitHubEvent<string | null>, 'payload'>;
@@ -133,6 +161,19 @@ describe('GitHub webhooks against PostgreSQL', () => {
     return res;
   };
 
+  /** The fixtures' sender signs in with GitHub: their Pilote, created by this sign-in. */
+  const signIn = async (): Promise<{ id: string } | undefined> => {
+    fakes.github.reset();
+    fakes.github.seedUser(SENDER);
+    const start = await fetch(`${url}/api/auth/github/start?timeZone=Europe/Paris`, { redirect: 'manual' });
+    const state = new URL(start.headers.get('location') ?? '', url).searchParams.get('state') ?? '';
+    const oauth = start.headers.getSetCookie().find((line) => line.startsWith('crewdeck_oauth='))?.split(';')[0] ?? '';
+    const callback = await fetch(`${url}/api/auth/github/callback?${new URLSearchParams({ code: 'fake-code', state })}`, { redirect: 'manual', headers: { cookie: oauth } });
+    expect(callback.status).toBe(302);
+    const [pilot] = await sql<{ id: string }>('SELECT id FROM pilots WHERE github_user_id = $1', [SENDER.id]);
+    return pilot;
+  };
+
   const installations = () =>
     sql<{ installation_id: string; account_login: string; account_id: string; sender_id: string; pilot_id: string | null; suspended: boolean }>(
       'SELECT installation_id, account_login, account_id, sender_id, pilot_id, suspended FROM github_installations',
@@ -165,14 +206,7 @@ describe('GitHub webhooks against PostgreSQL', () => {
       expect(await installations()).toEqual([expect.objectContaining({ pilot_id: null })]);
       expect(probe.seen).toEqual([{ handler: 'installation', event: expect.objectContaining({ pilotId: null, action: 'created' }), scope: null }]);
 
-      fakes.github.reset();
-      fakes.github.seedUser(SENDER);
-      const start = await fetch(`${url}/api/auth/github/start?timeZone=Europe/Paris`, { redirect: 'manual' });
-      const state = new URL(start.headers.get('location') ?? '', url).searchParams.get('state') ?? '';
-      const oauth = start.headers.getSetCookie().find((line) => line.startsWith('crewdeck_oauth='))?.split(';')[0] ?? '';
-      const callback = await fetch(`${url}/api/auth/github/callback?${new URLSearchParams({ code: 'fake-code', state })}`, { redirect: 'manual', headers: { cookie: oauth } });
-      expect(callback.status).toBe(302);
-      const [pilot] = await sql<{ id: string }>('SELECT id FROM pilots WHERE github_user_id = $1', [SENDER.id]);
+      const pilot = await signIn();
 
       expect(await installations()).toEqual([expect.objectContaining({ pilot_id: pilot?.id })]);
       probe.seen.length = 0;
@@ -188,6 +222,22 @@ describe('GitHub webhooks against PostgreSQL', () => {
 
       expect(await installations()).toEqual([expect.objectContaining({ pilot_id: null, sender_id: '9100777' })]);
     });
+
+    it('is linked when its sender signs in while it is being indexed', async () => {
+      await sql('TRUNCATE pilots CASCADE');
+      // `created` has read that its sender is no Pilote, and its write waits: the sign-in runs in between.
+      const lock = await holding(
+        `INSERT INTO github_installations (installation_id, account_login, account_id, sender_id) VALUES ($1, 'octo-fixture', 9100001, 9100001)`,
+        [INSTALLATION_ID],
+      );
+      expect((await deliverWebhook(url, { event: 'installation', payload: created })).status).toBe(202);
+      await waitingOnALock();
+      const pilot = await signIn();
+      await lock.release();
+      await dispatcher.settled();
+
+      expect(await installations()).toEqual([expect.objectContaining({ pilot_id: pilot?.id })]);
+    });
   });
 
   it('installation.deleted removes it, after its handler ran with its Pilote', async () => {
@@ -198,6 +248,21 @@ describe('GitHub webhooks against PostgreSQL', () => {
 
     expect(await installations()).toEqual([]);
     expect(probe.seen).toEqual([{ handler: 'installation', event: expect.objectContaining({ pilotId, action: 'deleted' }), scope: pilotId }]);
+  });
+
+  it('dispatches in the order of reception even when the first delivery’s record ends last', async () => {
+    const createdId = 'b6b5c2f0-1111-4c3d-9e8f-0000000000c1';
+    // The record of `created` waits on this lock; `deleted`, received after, is recorded first.
+    const lock = await holding(`INSERT INTO github_deliveries (delivery_id, event) VALUES ($1, 'installation')`, [createdId]);
+    const first = deliverWebhook(url, { event: 'installation', payload: created, deliveryId: createdId });
+    await waitingOnALock();
+    expect((await deliverWebhook(url, { event: 'installation', payload: deleted })).status).toBe(202);
+    await lock.release();
+    expect((await first).status).toBe(202);
+    await dispatcher.settled();
+
+    expect(probe.seen.map((seen) => seen.event.action)).toEqual(['created', 'deleted']);
+    expect(await installations()).toEqual([]);
   });
 
   it('installation.suspend and unsuspend set suspended', async () => {
@@ -271,15 +336,20 @@ describe('GitHub webhooks against PostgreSQL', () => {
 
     it('logs a handler’s exception by delivery id and event name, never the payload, and runs the other handlers', async () => {
       const deliveryId = 'b6b5c2f0-1111-4c3d-9e8f-000000000004';
-      probe.before = (handler) => {
-        if (handler === 'issues:first') throw new Error('the handler failed');
+      probe.before = (handler, event) => {
+        // What a careless handler might throw: the payload in its message and as a property of the error.
+        const issue = event.payload['issue'] as { body: string };
+        if (handler === 'issues:first') throw Object.assign(new Error(`cannot read ${issue.body}`), { details: event.payload, code: 'probe.failed' });
       };
 
       expect((await deliver('issues', issueOpened(7), deliveryId)).status).toBe(202);
 
       expect(probe.seen.map((seen) => seen.handler)).toEqual(['issues:second']);
       const failure = lines.map((line) => JSON.parse(line) as Record<string, unknown>).find((line) => line['msg'] === 'webhook handler failed');
-      expect(failure).toMatchObject({ deliveryId, event: 'issues', action: 'opened', installationId: INSTALLATION_ID, err: { message: 'the handler failed' } });
+      expect(failure).toMatchObject({ deliveryId, event: 'issues', action: 'opened', installationId: INSTALLATION_ID, err: { type: 'Error', code: 'probe.failed' } });
+      expect((failure?.['err'] as { stack: string }).stack).toContain('webhooks.spec.ts');
+      const output = lines.join('');
+      for (const secret of ['secret-issue-body-7-5d1c', 'Ticket 7', 'fixture-app']) expect(output).not.toContain(secret);
     });
   });
 

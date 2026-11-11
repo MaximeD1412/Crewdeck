@@ -3,6 +3,7 @@ import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { runInPilotScope } from '../../scope/scope.context.js';
 import { GitHubInstallations } from './installations.js';
 import { actionOf, installationFactsOf, installationIdOf, type WebhookPayload } from './payload.js';
+import { safeError } from './safe-error.js';
 
 /**
  * What a handler gets of a delivery. `payload` stays in memory: a handler
@@ -64,7 +65,8 @@ export interface AcceptedDelivery {
  * `unsuspend`; `deleted` once its handlers ran, so that they still know its
  * Pilote), then resolves the Pilote and calls each handler of the event in
  * that Pilote's scope. A handler that throws is logged by delivery id and
- * event name, never the payload, and the others still run.
+ * event name, never the payload nor the error's message (`safeError`), and
+ * the others still run.
  */
 @Injectable()
 export class WebhookDispatcher implements OnApplicationShutdown {
@@ -77,15 +79,29 @@ export class WebhookDispatcher implements OnApplicationShutdown {
     @InjectPinoLogger(WebhookDispatcher.name) private readonly logger: PinoLogger,
   ) {}
 
-  /** Queues `delivery` behind the ones of its installation; returns at once. */
-  enqueue(delivery: AcceptedDelivery): void {
+  /**
+   * Queues `delivery` behind the ones of its installation, and returns at
+   * once: its place is taken when it is received, so that a record which ends
+   * after the next delivery's does not reorder them. It runs only if
+   * `recorded` resolves to `true` (its first reception); a duplicate, or a
+   * record that failed, gives up its place.
+   */
+  enqueue(delivery: AcceptedDelivery, recorded: Promise<boolean>): void {
+    const accepted = recorded.then(
+      (first) => first,
+      () => false,
+    );
     const installationId = installationIdOf(delivery.payload);
     if (installationId === undefined) {
-      this.logger.info({ deliveryId: delivery.deliveryId, event: delivery.event }, 'webhook without an installation, not dispatched');
+      void accepted.then((first) => {
+        if (first) this.logger.info({ deliveryId: delivery.deliveryId, event: delivery.event }, 'webhook without an installation, not dispatched');
+      });
       return;
     }
     const previous = this.queues.get(installationId) ?? Promise.resolve();
-    const next = previous.then(() => this.dispatch(installationId, delivery));
+    const next = previous.then(async () => {
+      if (await accepted) await this.dispatch(installationId, delivery);
+    });
     this.queues.set(installationId, next);
     void next.finally(() => {
       if (this.queues.get(installationId) === next) this.queues.delete(installationId);
@@ -113,12 +129,12 @@ export class WebhookDispatcher implements OnApplicationShutdown {
         try {
           await (pilotId === null ? handler(context) : runInPilotScope(pilotId, () => handler(context)));
         } catch (error) {
-          this.logger.error({ ...log, err: error }, 'webhook handler failed');
+          this.logger.error({ ...log, err: safeError(error) }, 'webhook handler failed');
         }
       }
       if (event === 'installation' && action === 'deleted') await this.installations.deleted(installationId);
     } catch (error) {
-      this.logger.error({ ...log, err: error }, 'webhook dispatch failed');
+      this.logger.error({ ...log, err: safeError(error) }, 'webhook dispatch failed');
     }
   }
 

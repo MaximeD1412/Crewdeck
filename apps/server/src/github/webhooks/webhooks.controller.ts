@@ -66,8 +66,10 @@ export class WebhooksController {
     const payload = parse(body);
 
     if (event === 'ping') return reply(response, 200, { ok: true });
-    if (!(await this.deliveries.record(deliveryId, event, receivedAt))) return reply(response, 200, { duplicate: true });
-    this.dispatcher.enqueue({ deliveryId, event, payload, receivedAt });
+    // Queued before the record's first await: the order of reception, whichever record ends first.
+    const recorded = this.deliveries.record(deliveryId, event, receivedAt);
+    this.dispatcher.enqueue({ deliveryId, event, payload, receivedAt }, recorded);
+    if (!(await recorded)) return reply(response, 200, { duplicate: true });
     reply(response, 202, { accepted: true });
   }
 }

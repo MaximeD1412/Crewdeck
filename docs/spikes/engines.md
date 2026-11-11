@@ -2,9 +2,10 @@
 
 > **State:** Claude Code done on the founder's subscription, except the limit
 > event (scenario 6, recorded when it happens) and `bypassPermissions`
-> (scenario 9a, to be run by the founder). Codex: version, sign-in state,
-> models and Skills discovery recorded; every scenario that needs a model
-> waits for an OpenAI API key. No scenario so far breaks a story; the
+> (scenario 9a, to be run by the founder). Codex: version, sign-in states
+> (none, API key), models, Skills discovery and the quota reached on an API
+> key recorded; every scenario that runs a model waits for credit on the
+> OpenAI key. No scenario so far breaks a story; the
 > one that came closest, a permission request waiting for hours, works
 > once the Runner's MCP server sends progress notifications (scenario 2).
 
@@ -19,7 +20,7 @@ RUNNER-4, RUNNER-5 and RUNNER-6 replay.
 |---|---|
 | Machine | Linux (WSL2), x86_64 |
 | Claude Code | `claude --version` → `2.1.319 (Claude Code)`; Compte IA: the founder's subscription (`subscriptionType: "Claude Max"`). No API key tried (the founder's choice for this session). |
-| Codex | `codex --version` → `codex-cli 0.167.1` (`npm i -g @openai/codex@0.167.1`). No API key yet; a ChatGPT sign-in is not tried (ADR 0004). |
+| Codex | `codex --version` → `codex-cli 0.167.1` (`npm i -g @openai/codex@0.167.1`). Signed in by the founder's OpenAI API key, whose account has no credit yet (every turn ends « Quota exceeded »); a ChatGPT sign-in is not tried (ADR 0004). |
 | Repository | A throwaway one, `git init` in a temporary folder, scrubbed to `/home/pilote/spike` |
 | Model | `haiku` (Haiku 5.5) for every Claude scenario but 6 (`sonnet`) |
 
@@ -83,7 +84,7 @@ sentence, with `--include-partial-messages`.
 
 **Verdict: works.**
 
-**Codex**: waits for an API key (`exec --json` and app-server
+**Codex**: waits for credit on the OpenAI key (`exec --json` and app-server
 `turn/start`).
 
 ## 2. A permission request that waits for hours
@@ -135,7 +136,7 @@ request in the same Session, answered `deny`), `deny`, and `allow`.
 **Verdict: works with a caveat** (the Runner keeps the call alive with
 progress notifications, or Claude aborts it after 30 minutes).
 
-**Codex**: waits for an API key (`item/commandExecution/requestApproval`
+**Codex**: waits for credit on the OpenAI key (`item/commandExecution/requestApproval`
 and `item/fileChange/requestApproval`, server requests of the app-server,
 answered `{decision: "accept" | "acceptForSession" | "decline" | "cancel"}`).
 
@@ -173,7 +174,7 @@ received « Bleu » and finished the Skill. A hook is not subject to the
 
 **Verdict: works.**
 
-**Codex**: waits for an API key (`item/tool/requestUserInput`, a server
+**Codex**: waits for credit on the OpenAI key (`item/tool/requestUserInput`, a server
 request of the app-server; Codex has no hooks for it).
 
 ## 4. Interrupt, then resume
@@ -197,7 +198,7 @@ control request `{"type":"control_request","request_id":"drv-1","request":{"subt
 
 **Verdict: works.**
 
-**Codex**: waits for an API key (`turn/interrupt`, then `thread/resume`).
+**Codex**: waits for credit on the OpenAI key (`turn/interrupt`, then `thread/resume`).
 
 ## 5. A Session that survives a Runner restart
 
@@ -225,7 +226,7 @@ the Session is interrupted while the Runner is away, until it is resumed.
 **Verdict: works with a caveat** (the in-flight turn is lost; the Runner
 says so in the Session and resends).
 
-**Codex**: waits for an API key (`thread/resume` after killing
+**Codex**: waits for credit on the OpenAI key (`thread/resume` after killing
 `app-server`).
 
 ## 6. Limits and usage
@@ -250,10 +251,27 @@ says so in the Session and resends).
 **Verdict: works with a caveat** (the windows and cost are there; the
 limit-reached event is still to record).
 
-**Codex**: `account/rateLimits/read` without an account answers
-`{"error":{"code":-32600,"message":"codex account authentication required to read rate limits"}}`.
-With an API key: waits (`thread/tokenUsage/updated`, `turn.completed.usage`
-for `exec`).
+**Codex**:
+
+- `account/rateLimits/read` without an account answers
+  `{"error":{"code":-32600,"message":"codex account authentication required to read rate limits"}}`;
+  with an API key (`07-c-app-server-api-key`), `account/rateLimits/read` and
+  `account/usage/read` answer « chatgpt authentication required to read
+  rate limits » / « … token usage »: an API key has no windows and no
+  account usage through Codex. Its spend (US-55) has to come from the tokens
+  of each turn (`thread/tokenUsage/updated`, `turn.completed.usage` for
+  `exec`) priced by the Runner, or from OpenAI's own billing.
+- **The quota reached on an API key** (the founder's key has no credit):
+  app-server (`06-a-quota-exceeded-app-server`): `thread/status/changed`
+  to `systemError`, an `error` notification `{error: {message: "Quota
+  exceeded. Check your plan and billing details.", codexErrorInfo:
+  "usageLimitExceeded"}, willRetry: false, threadId, turnId}`, then
+  `turn/completed` with `turn.status: "failed"` and the same `error`;
+  3 s after `turn/start`. `exec --json` (`06-b-quota-exceeded-exec`):
+  `thread.started`, `turn.started`, `error` and `turn.failed` with only the
+  message (no `codexErrorInfo`), exit code 1. The Boucle's adapter
+  recognises the message; the app-server gives a code.
+- Usage figures of a real turn: wait for credit on the key.
 
 ## 7. Authentication states
 
@@ -293,10 +311,14 @@ empty `CODEX_HOME`):
 - `CODEX_HOME` under `/tmp` gives a warning (« Refusing to create helper
   binaries under temporary dir »): the Runner's `~/.crewdeck/` is not
   affected.
-- API key (`OPENAI_API_KEY`, `codex login --with-api-key`): waits.
+- Signed in by API key (`codex login --with-api-key`, the key on stdin,
+  stored in `CODEX_HOME`), `07-c-app-server-api-key`: `account/read` →
+  `{account: {type: "apiKey"}, requiresOpenaiAuth: true}`; `model/list` the
+  same nine models; `codex login status` exits 0. A model outside the plan:
+  waits for credit on the key.
 
 **Verdict: works** (Claude subscription and not signed in; Codex not
-signed in); API keys *en attente*.
+signed in and API key); the Claude API key is left out by the founder.
 
 ## 8. Skills mounting
 
@@ -411,8 +433,8 @@ come from the protocol of 0.167.1 (`codex app-server generate-ts`) and are
 | `question` | server request `item/tool/requestUserInput` | none (no one to ask) |
 | `permission-request` | server requests `item/commandExecution/requestApproval`, `item/fileChange/requestApproval`; answered `{decision}` | none (`--approve-for-me` or the bypass flag, scenario 9) |
 | `usage` | `thread/tokenUsage/updated`; `account/rateLimits/updated`, `account/rateLimits/read` | `turn.completed.usage` |
-| `limit-reached` | `error` notification / `turn/completed` failed, to confirm | `turn.failed`, to confirm |
-| `auth-required` | `account/read` → `{account: null, requiresOpenaiAuth: true}` (**observed**) | `turn.failed` after `error` « 401 Unauthorized » (**observed**); `codex login status` exit 1 |
+| `limit-reached` | `error` notification with `codexErrorInfo: "usageLimitExceeded"`, then `turn/completed` with `status: "failed"` (**observed**, API key without credit) | `error` then `turn.failed` « Quota exceeded. Check your plan and billing details. », exit 1 (**observed**) |
+| `auth-required` | `account/read` → `{account: null, requiresOpenaiAuth: true}` (**observed**; signed in: `account: {type: "apiKey"}`) | `turn.failed` after `error` « 401 Unauthorized » (**observed**); `codex login status` exit 1 |
 | `result` | `turn/completed` | `turn.completed` |
 | `error` | `error` notification; a JSON-RPC `error` response (**observed** for `account/rateLimits/read`) | `error`, `item.completed` with `item.type: "error"` (**observed**), `turn.failed`, a non-zero exit |
 

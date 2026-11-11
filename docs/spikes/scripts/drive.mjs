@@ -14,6 +14,13 @@
 // {"untilType": "result", "timeoutMs": n}, {"untilMatch": "regex"},
 // {"untilPending": true}, {"sleep": ms}, {"kill": "SIGKILL"},
 // {"closeStdin": true}, {"untilExit": true}.
+// untilType and untilMatch take "capture": {"name": "dot.path"}, a value of
+// the matched line that later sends use as "{{name}}".
+//
+// With --serverRequests on (Codex app-server), a JSON-RPC request from the
+// Moteur (a line with "method" and "id") is written to <dir>/pending/<id>.json
+// and held until <dir>/answers/<id>.json exists; its content is sent back as
+// the "result".
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -56,7 +63,34 @@ readline.createInterface({ input: child.stdout }).on('line', (line) => {
   } catch {}
   lines.push({ line, parsed });
   notify();
+  if (opts.serverRequests === 'on' && parsed?.method && parsed.id !== undefined && !('result' in parsed))
+    holdServerRequest(parsed);
 });
+
+async function holdServerRequest(req) {
+  const id = String(req.id);
+  fs.mkdirSync(path.join(dir, 'pending'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'answers'), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, 'pending', `${id}.json`),
+    JSON.stringify({ at: new Date().toISOString(), request: req }, null, 2),
+  );
+  const file = path.join(dir, 'answers', `${id}.json`);
+  while (!(fs.existsSync(file) && fs.readFileSync(file, 'utf8').trim())) {
+    if (exited) return;
+    await sleep(500);
+  }
+  fs.rmSync(path.join(dir, 'pending', `${id}.json`), { force: true });
+  write({ id: req.id, result: JSON.parse(fs.readFileSync(file, 'utf8')) });
+}
+
+const vars = {};
+const dig = (obj, p) => p.split('.').reduce((o, k) => (o == null ? o : o[k]), obj);
+const fill = (obj) => JSON.parse(JSON.stringify(obj).replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? ''));
+const capture = (step, l) => {
+  for (const [k, p] of Object.entries(step.capture ?? {})) vars[k] = dig(l.parsed, p);
+  if (step.capture) timeline('captured', vars);
+};
 child.stderr.on('data', (d) => {
   fs.appendFileSync(out('stderr.txt'), d);
   timeline('stderr', d.toString());
@@ -99,14 +133,16 @@ async function run() {
         write(
           typeof step.send === 'string'
             ? { type: 'user', message: { role: 'user', content: step.send } }
-            : step.send,
+            : fill(step.send),
         );
       else if (step.interrupt)
         write({ type: 'control_request', request_id: `drv-${++reqId}`, request: { subtype: 'interrupt' } });
       else if (step.control)
         write({ type: 'control_request', request_id: `drv-${++reqId}`, request: step.control });
-      else if (step.untilType) await waitFor((l) => l.parsed?.type === step.untilType, step.timeoutMs);
-      else if (step.untilMatch) await waitFor((l) => new RegExp(step.untilMatch).test(l.line), step.timeoutMs);
+      else if (step.untilType)
+        capture(step, await waitFor((l) => l.parsed?.type === step.untilType, step.timeoutMs));
+      else if (step.untilMatch)
+        capture(step, await waitFor((l) => new RegExp(step.untilMatch).test(l.line), step.timeoutMs));
       else if (step.untilPending) {
         const p = path.join(dir, 'pending');
         const deadline = Date.now() + (step.timeoutMs ?? 600000);

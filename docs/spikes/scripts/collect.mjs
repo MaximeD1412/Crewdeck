@@ -54,7 +54,20 @@ const table = [
   ],
   ['claude', '08-skills-mounting', '08-skills-mounting', ['08-skills-mounting'], []],
   ['claude', '09-permission-modes', '09-permission-modes', ['09-a-bypass', '09-b-auto', '09-c-auto-outside'], []],
-  ['codex', '07-auth-states', '07-auth-states', ['07-a-app-server-not-signed-in', '07-b-exec-not-signed-in'], []],
+  [
+    'codex',
+    '06-limits-usage',
+    '06-limits-usage',
+    ['06-a-quota-exceeded-app-server', '06-b-quota-exceeded-exec'],
+    [],
+  ],
+  [
+    'codex',
+    '07-auth-states',
+    '07-auth-states',
+    ['07-a-app-server-not-signed-in', '07-b-exec-not-signed-in', '07-c-app-server-api-key'],
+    [],
+  ],
 ];
 
 const missing = [];

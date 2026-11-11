@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "approver": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "device",
+            "runner"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "type": "object"
+    },
+    "proof": {
+      "pattern": "^[A-Za-z0-9_-]*$",
+      "type": "string"
+    },
+    "vaultKeyVersion": {
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "type": "integer"
+    },
+    "wrap": {
+      "additionalProperties": false,
+      "properties": {
+        "ciphertext": {
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "enc": {
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "tag": {
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ciphertext",
+        "enc",
+        "tag"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "approver",
+    "proof",
+    "vaultKeyVersion",
+    "wrap"
+  ],
+  "title": "RunnerApproveDevice",
+  "type": "object"
+}

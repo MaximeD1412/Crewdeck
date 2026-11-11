@@ -10,7 +10,8 @@ type Row = ComposantData<typeof Timeline>['rows'][number];
  * row per milestone, its bar from its start week over its span on a track of
  * as many columns as weeks. From 1280 px the label is beside the bar and the
  * progress in it; below, each row is a line (label, detail, progress) above
- * its bar. Every row says its period to screen readers.
+ * its bar. Every row says its progress (the line's copy, hidden from 1280 px)
+ * and its period to screen readers.
  */
 export class PasserelleTimeline extends PasserelleElement<typeof Timeline> {
   static override styles = [
@@ -152,8 +153,14 @@ export class PasserelleTimeline extends PasserelleElement<typeof Timeline> {
         .head > :first-child {
           display: block;
         }
+        /* The bar's copy is drawn, under the track's aria-hidden; the line's is the one said. */
         .line .meta {
-          display: none;
+          position: absolute;
+          width: var(--cd-stroke);
+          height: var(--cd-stroke);
+          overflow: hidden;
+          clip-path: inset(50%);
+          white-space: nowrap;
         }
         .bar .meta {
           display: inline;

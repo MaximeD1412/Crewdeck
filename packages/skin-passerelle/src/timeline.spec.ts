@@ -22,6 +22,17 @@ const box = (el: Element) => el.getBoundingClientRect();
 const week = (el: Element, index: number) => inside(el, `.weeks > span:nth-child(${index + 1})`);
 const bar = (el: Element, row: number) => inside(el, `.rows > li:nth-child(${row + 1}) .bar`);
 
+/** The text of `root` a screen reader reaches: none under `aria-hidden`, `display: none` or `visibility: hidden`. */
+const spoken = (root: Element): string => {
+  const style = getComputedStyle(root);
+  if (root.getAttribute('aria-hidden') === 'true' || style.display === 'none' || style.visibility === 'hidden') return '';
+  return [...root.childNodes]
+    .map((node) => (node instanceof Element ? spoken(node) : node.nodeType === Node.TEXT_NODE ? (node.textContent ?? '') : ''))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
 describe.each([
   [390, 844],
   [1280, 800],
@@ -62,8 +73,18 @@ describe.each([
     expect(textOf(rows[0]?.querySelector('.period'))).toBe('S45');
     expect(textOf(rows[2]?.querySelector('.period'))).toBe('de S47 à S49');
     expect(textOf(rows[2]?.querySelector('small'))).toBe('bloqué par #51 · fin estimée 4 déc.');
-    const visibleMeta = [...(rows[1]?.querySelectorAll('.meta') ?? [])].filter((meta) => box(meta).width > 0);
+    const visibleMeta = [...(rows[1]?.querySelectorAll('.meta') ?? [])].filter((meta) => box(meta).width > 0 && getComputedStyle(meta).clipPath === 'none');
     expect(visibleMeta.map(textOf)).toEqual(['3/5']);
+  });
+
+  it('says each row’s progress to screen readers, once', async () => {
+    const el = await render(COMPOSANTS.Timeline, data);
+    const rows = [...(el.shadowRoot?.querySelectorAll('.rows > li') ?? [])];
+    expect(rows.map((row) => spoken(row))).toEqual([
+      'Agenda terminé le 6 nov. S45',
+      'Planning fin estimée 20 nov. 3/5 de S46 à S47',
+      'Rappels bloqué par #51 · fin estimée 4 déc. 0/3 de S47 à S49',
+    ]);
   });
 });
 

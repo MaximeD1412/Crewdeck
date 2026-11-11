@@ -10,6 +10,7 @@ import {
 import { connexion, connexionErreur } from './connexion.js';
 import type { Scenario } from './define.js';
 import { menuPlus } from './menu-plus.js';
+import { parametres } from './parametres.js';
 import { resynchronisation } from './resynchronisation.js';
 
 export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed } from './define.js';
@@ -21,6 +22,7 @@ const SCENARIOS: readonly Scenario[] = [
   connexion,
   connexionErreur,
   menuPlus,
+  parametres,
   resynchronisation,
   ...composantsRows,
   composantsTextField,

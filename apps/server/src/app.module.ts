@@ -17,6 +17,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { RunnersModule } from './runners/runners.module.js';
 import { ScopeModule } from './scope/scope.module.js';
+import { SettingsModule } from './settings/settings.module.js';
 import { WebModule } from './web/web.module.js';
 
 export interface AppModuleOptions {
@@ -59,6 +60,7 @@ export class AppModule {
         AuthModule,
         PilotsModule,
         RunnersModule,
+        SettingsModule,
         WebModule.forRoot(env),
         ...imports,
       ],

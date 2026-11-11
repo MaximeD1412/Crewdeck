@@ -100,7 +100,7 @@ describe('the GitHub App', () => {
       parseEnv({ ...production, CREWDECK_ENV, PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1' }),
     ).toThrow(
       expect.objectContaining({
-        keys: ['GITHUB_APP_ID', 'GITHUB_APP_PRIVATE_KEY', 'GITHUB_APP_CLIENT_ID', 'GITHUB_APP_CLIENT_SECRET', 'GITHUB_APP_SLUG'],
+        keys: ['GITHUB_APP_ID', 'GITHUB_APP_PRIVATE_KEY', 'GITHUB_APP_CLIENT_ID', 'GITHUB_APP_CLIENT_SECRET', 'GITHUB_APP_SLUG', 'GITHUB_WEBHOOK_SECRET'],
       }),
     );
   });

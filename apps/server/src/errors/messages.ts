@@ -8,6 +8,7 @@ export const MESSAGES = {
   'auth.origin': 'Cette requête ne vient pas de la page de Crewdeck.',
   'auth.required': 'Connecte-toi pour continuer.',
   'fake-github.not-found': 'Ce fichier n’existe pas sur le faux GitHub.',
+  'github.bad-signature': 'La signature de ce webhook GitHub n’est pas valide.',
   'github.branch-protected': 'Une protection de branche refuse cette écriture.',
   'github.head-moved': 'La PR a changé depuis la dernière vérification.',
   'github.process-json-invalid': 'Le fichier .process.json du dépôt n’est pas du JSON valide.',

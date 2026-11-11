@@ -66,4 +66,14 @@ describe('« Runner et Comptes IA » in the page', () => {
     expect(page()?.data).toMatchObject({ command: 'crewdeck-runner login codex' });
     expect((page()?.data['engines'] as { models: unknown[] }[])[0]?.models).toEqual(CLAUDE.models);
   });
+
+  it('gives the Cadre the Runner’s presence and the Moteurs connected, once live', () => {
+    const cadre = () => root.querySelector<WithData>('cd-cadre')?.data;
+    store.markLive();
+    expect(cadre()).toMatchObject({ status: 'online', statusDetail: 'Claude Code', live: true });
+
+    store.applyEvent({ seq: 3, type: 'runner.upserted', payload: { ...RUNNER, state: 'offline' }, at: AT });
+
+    expect(cadre()).toMatchObject({ status: 'offline', live: false });
+  });
 });

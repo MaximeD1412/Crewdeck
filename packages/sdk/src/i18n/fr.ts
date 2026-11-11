@@ -40,6 +40,7 @@ export const fr = {
   'cadre.nav': 'Menu',
   'cadre.panel': 'Panneau',
   'cadre.status.offline': 'Runner hors ligne',
+  'cadre.status.offlineSince': 'depuis {time}',
   'cadre.status.online': 'Runner en ligne',
   'cadre.status.resync': 'Resynchronisation…',
   'cadre.status.resyncDetail': 'Actions sensibles indisponibles',

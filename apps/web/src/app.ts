@@ -81,7 +81,7 @@ export const boot = async ({
     root,
     state: () => {
       const state = store.getState();
-      return { ...state, slices: { pilot: state.slices.pilot !== undefined ? state.slices.pilot : pilot } };
+      return { ...state, slices: { ...state.slices, pilot: state.slices.pilot !== undefined ? state.slices.pilot : pilot } };
     },
   });
   const onUnhandled = (event: PromiseRejectionEvent) => {

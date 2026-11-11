@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import { zScenarioRun } from '@crewdeck/contracts';
+import { LINK_ATTEMPTS_PER_MINUTE, zScenarioRun } from '@crewdeck/contracts';
 import pg from 'pg';
 import { inject } from 'vitest';
 import { createApp } from '../../src/app.js';
@@ -75,6 +75,23 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
       await sql('INSERT INTO scenario_parent DEFAULT VALUES');
 
       expect(await sql('SELECT id FROM scenario_parent')).toEqual([{ id: 1 }]);
+    });
+
+    it('forgets the link attempts of the scenario before: its binary is not rate limited', async () => {
+      const link = () =>
+        app.getUrl().then((url) =>
+          fetch(`${url}/api/runner/link`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ shortId: 'ZZZZ', machine: 'm', os: 'linux', arch: 'amd64', wsl: false, runnerVersion: '0.0.0', engines: ['claude'] }),
+          }),
+        );
+      for (let attempt = 0; attempt < LINK_ATTEMPTS_PER_MINUTE; attempt++) await link();
+      expect((await link()).status).toBe(429);
+
+      await post(app, 'blank');
+
+      expect((await link()).status).toBe(404);
     });
 
     it('signs a scenario’s Pilote in: its session cookie opens /api/me', async () => {

@@ -59,13 +59,15 @@ test.describe('the Cadre at 1280 px', () => {
     await expectAccessible(page);
   });
 
-  test('the keyboard goes through the entries in order, then the page', async ({ page, scenario }) => {
+  test('the keyboard goes through the entries in order, the Pilote at the foot, then the page', async ({ page, scenario }) => {
     await scenario('a-toi-menu-plus');
 
     for (const label of ALL) {
       await page.keyboard.press('Tab');
       await expect(entry(page, label)).toBeFocused();
     }
+    await page.keyboard.press('Tab');
+    await expect(cadre(page).getByRole('button', { name: 'octocat' })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(pageLink(page)).toBeFocused();
   });
@@ -78,7 +80,8 @@ test.describe('the Cadre at 1280 px', () => {
     await expect(cadre(page).locator(':scope > cd-menu-item').locator('[aria-current="page"]')).toHaveAccessibleName('Idées');
   });
 
-  test('the library shows the Cadre’s examples, the Pilote at the foot of the default one', async ({ page }) => {
+  test('the library shows the Cadre’s examples, the Pilote at the foot of the default one', async ({ page, scenario }) => {
+    await scenario('composants');
     await page.goto('/parametres/composants?c=Cadre');
 
     const preview = page.locator('cd-card').filter({ has: page.getByRole('heading', { level: 2, name: /^Aperçu/ }) });

@@ -1,0 +1,21 @@
+[
+  {
+    "kind": "auth-required",
+    "reason": "Not logged in · Please run /login",
+    "seq": 1
+  },
+  {
+    "costUsdMicros": 0,
+    "inputTokens": 0,
+    "kind": "usage",
+    "outputTokens": 0,
+    "seq": 2
+  },
+  {
+    "costUsdMicros": 0,
+    "engineSessionId": "4bbdaf99-c22a-4f97-a292-54c67d18250e",
+    "kind": "result",
+    "seq": 3,
+    "status": "error"
+  }
+]

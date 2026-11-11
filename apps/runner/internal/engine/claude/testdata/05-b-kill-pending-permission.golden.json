@@ -1,0 +1,32 @@
+[
+  {
+    "callId": "toolu_01R9eDZuWmF31TbJVixt743J",
+    "detail": "Create restart.txt with touch",
+    "kind": "tool-call",
+    "seq": 1,
+    "target": "touch restart.txt",
+    "tool": "Bash"
+  },
+  {
+    "kind": "usage",
+    "seq": 2,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 16
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 23
+      }
+    ]
+  },
+  {
+    "code": "exit",
+    "kind": "error",
+    "message": "Claude Code s’est arrêté sur une erreur.",
+    "seq": 3
+  }
+]

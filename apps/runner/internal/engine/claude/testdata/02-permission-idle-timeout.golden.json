@@ -1,0 +1,70 @@
+[
+  {
+    "callId": "toolu_01RnEkML9mCR3gkFqQJB126x",
+    "detail": "Create empty file denied.txt",
+    "kind": "tool-call",
+    "seq": 1,
+    "target": "touch denied.txt",
+    "tool": "Bash"
+  },
+  {
+    "kind": "usage",
+    "seq": 2,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 13
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 22
+      }
+    ]
+  },
+  {
+    "callId": "toolu_01RnEkML9mCR3gkFqQJB126x",
+    "detail": "\u003ctool_use_error\u003eError calling tool (Bash): MCP server \"spike\" tool \"permission_prompt\" sent no response or progress for 1829s; aborting. If this server is configured in your MCP settings, set a per-server \"timeout\" (ms) to allow longer silent runs for just this server; otherwise set CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT (ms) globally (0 disables).\u003c/tool_use_error\u003e",
+    "kind": "tool-result",
+    "ok": false,
+    "seq": 3
+  },
+  {
+    "final": true,
+    "from": "agent",
+    "kind": "message",
+    "seq": 4,
+    "text": "I did not run `touch denied.txt` successfully, so I can't say done. The Bash call failed with an error that the MCP server \"spike\" sent no response to its `permission_prompt` for 1829 seconds, so the command was aborted. I don't know whether the file was created. The command never ran, or it was never approved, and the error doesn't say which.\n\nI didn't retry, because the call may be waiting on a permission prompt that you need to answer. If you want me to try again, tell me and I'll run the same command once more."
+  },
+  {
+    "kind": "usage",
+    "seq": 5,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 25
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 23
+      }
+    ]
+  },
+  {
+    "costUsdMicros": 1588,
+    "inputTokens": 40801,
+    "kind": "usage",
+    "outputTokens": 437,
+    "seq": 6
+  },
+  {
+    "costUsdMicros": 1588,
+    "engineSessionId": "237b9662-a9ef-449f-b8a2-c7cbb834a90a",
+    "kind": "result",
+    "seq": 7,
+    "status": "ok"
+  }
+]

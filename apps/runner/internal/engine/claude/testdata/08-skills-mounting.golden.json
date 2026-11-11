@@ -1,0 +1,69 @@
+[
+  {
+    "callId": "toolu_01JRP2hJEThNfAJrWNiZgnaj",
+    "kind": "tool-call",
+    "seq": 1,
+    "target": "crewdeck-spike:dire-bonjour",
+    "tool": "Skill"
+  },
+  {
+    "callId": "toolu_01JRP2hJEThNfAJrWNiZgnaj",
+    "detail": "Launching skill: crewdeck-spike:dire-bonjour",
+    "kind": "tool-result",
+    "ok": true,
+    "seq": 2
+  },
+  {
+    "kind": "usage",
+    "seq": 3,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 18
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 23
+      }
+    ]
+  },
+  {
+    "final": true,
+    "from": "agent",
+    "kind": "message",
+    "seq": 4,
+    "text": "Bonjour du Skill dire-bonjour SKILL-OK"
+  },
+  {
+    "kind": "usage",
+    "seq": 5,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 19
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 23
+      }
+    ]
+  },
+  {
+    "costUsdMicros": 1419,
+    "inputTokens": 40921,
+    "kind": "usage",
+    "outputTokens": 88,
+    "seq": 6
+  },
+  {
+    "costUsdMicros": 1419,
+    "engineSessionId": "3bf9383d-2763-4555-ae21-81443cd96e87",
+    "kind": "result",
+    "seq": 7,
+    "status": "ok"
+  }
+]

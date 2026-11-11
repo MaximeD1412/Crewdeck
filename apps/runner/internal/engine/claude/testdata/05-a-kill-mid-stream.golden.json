@@ -1,0 +1,526 @@
+[
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 1,
+    "text": "1"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 2,
+    "text": ". Les"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 3,
+    "text": " nuages fl"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 4,
+    "text": "ottent au"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 5,
+    "text": "-dessus de"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 6,
+    "text": " nos"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 7,
+    "text": " têtes s"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 8,
+    "text": "ans j"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 9,
+    "text": "amais v"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 10,
+    "text": "raiment s"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 11,
+    "text": "'ar"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 12,
+    "text": "rêter.\n2."
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 13,
+    "text": " Ils sont fa"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 14,
+    "text": "its de min"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 15,
+    "text": "uscules gouttelett"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 16,
+    "text": "es d'eau "
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 17,
+    "text": "ou de c"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 18,
+    "text": "ristaux de"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 19,
+    "text": " glace.\n3. Ch"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 20,
+    "text": "aque n"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 21,
+    "text": "uage cont"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 22,
+    "text": "ient par"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 23,
+    "text": "fois des"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 24,
+    "text": " milliers de t"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 25,
+    "text": "onnes d'eau en"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 26,
+    "text": " suspension.\n4."
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 27,
+    "text": " Leur for"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 28,
+    "text": "me change"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 29,
+    "text": " s"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 30,
+    "text": "ans c"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 31,
+    "text": "esse,"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 32,
+    "text": " au g"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 33,
+    "text": "ré des"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 34,
+    "text": " vents et de la"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 35,
+    "text": " température.\n5. Les c"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 36,
+    "text": "um"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 37,
+    "text": "ulus "
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 38,
+    "text": "ressemblent à de"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 39,
+    "text": " g"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 40,
+    "text": "ros co"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 41,
+    "text": "uss"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 42,
+    "text": "ins bl"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 43,
+    "text": "ancs b"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 44,
+    "text": "ien d"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 45,
+    "text": "od"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 46,
+    "text": "us"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 47,
+    "text": ".\n6. Les st"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 48,
+    "text": "ratus for"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 49,
+    "text": "ment un"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 50,
+    "text": " vo"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 51,
+    "text": "ile g"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 52,
+    "text": "ris uniforme q"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 53,
+    "text": "ui cou"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 54,
+    "text": "vre le "
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 55,
+    "text": "ciel ent"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 56,
+    "text": "ier.\n7. Les c"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 57,
+    "text": "irrus,"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 58,
+    "text": " très"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 59,
+    "text": " h"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 60,
+    "text": "auts, sont f"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 61,
+    "text": "ins com"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 62,
+    "text": "me des m"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 63,
+    "text": "èches de c"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 64,
+    "text": "heveux.\n8."
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 65,
+    "text": " Les cumulonimbus"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 66,
+    "text": ", e"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 67,
+    "text": "ux, ann"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 68,
+    "text": "oncent sou"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 69,
+    "text": "vent or"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 70,
+    "text": "ages"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 71,
+    "text": " et aver"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 72,
+    "text": "ses viol"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 73,
+    "text": "entes.\n9. V"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 74,
+    "text": "us"
+  },
+  {
+    "code": "exit",
+    "kind": "error",
+    "message": "Claude Code s’est arrêté sur une erreur.",
+    "seq": 75
+  }
+]

@@ -104,6 +104,8 @@ func newRoot(m *machine) *cobra.Command {
 	root.AddCommand(newUninstallCommand(m))
 	root.AddCommand(newUpdateCommand(m, &server))
 	root.AddCommand(newContratCommand())
+	root.AddCommand(newMCPCommand())
+	root.AddCommand(newHookCommand())
 	return root
 }
 
@@ -134,6 +136,6 @@ func main() {
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		os.Exit(exitCode(err))
 	}
 }

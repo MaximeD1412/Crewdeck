@@ -1,0 +1,84 @@
+[
+  {
+    "callId": "toolu_012R67zjzeHF3VUDTv5A1gPf",
+    "detail": "Create restart.txt with touch",
+    "kind": "tool-call",
+    "seq": 1,
+    "target": "touch restart.txt",
+    "tool": "Bash"
+  },
+  {
+    "command": "touch restart.txt",
+    "kind": "permission-request",
+    "requestId": "toolu_012R67zjzeHF3VUDTv5A1gPf",
+    "seq": 2,
+    "tool": "Bash"
+  },
+  {
+    "kind": "usage",
+    "seq": 3,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 16
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 23
+      }
+    ]
+  },
+  {
+    "callId": "toolu_012R67zjzeHF3VUDTv5A1gPf",
+    "detail": "(Bash completed with no output)",
+    "kind": "tool-result",
+    "ok": true,
+    "seq": 4
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 5,
+    "text": "fait"
+  },
+  {
+    "final": true,
+    "from": "agent",
+    "kind": "message",
+    "seq": 6,
+    "text": "fait"
+  },
+  {
+    "kind": "usage",
+    "seq": 7,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 17
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 23
+      }
+    ]
+  },
+  {
+    "costUsdMicros": 618,
+    "inputTokens": 41209,
+    "kind": "usage",
+    "outputTokens": 232,
+    "seq": 8
+  },
+  {
+    "costUsdMicros": 618,
+    "engineSessionId": "5b000000-0000-4000-8000-000000000005",
+    "kind": "result",
+    "seq": 9,
+    "status": "ok"
+  }
+]

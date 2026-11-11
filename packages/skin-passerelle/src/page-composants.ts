@@ -1,4 +1,4 @@
-import { PageComposants, t } from '@crewdeck/sdk';
+import { CD_ACTION, PageComposants, t, type CdActionDetail } from '@crewdeck/sdk';
 import { css, html, nothing, type PropertyValues } from 'lit';
 import { PasserelleElement, sharedStyles } from './base.js';
 import { fillSlots } from './slots.js';
@@ -10,14 +10,25 @@ const hrefOf = (name: string) => `/parametres/composants?c=${encodeURIComponent(
 const isPlainClick = (event: MouseEvent) =>
   event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 
+/** A name as the search compares it: lower case, without its accents. */
+const fold = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+
+type Openable = HTMLElement & { data: Record<string, unknown> };
+
 /**
  * `cd-page-composants`: the library of Composants. The catalogue by category
  * (its rows are links, a plain click emits `select`), then the selected
  * Composant: the preview of each example (the real element, its `data` and
  * Emplacements set from the example, its links and actions kept inside the
- * preview), its description, its data, actions and Emplacements.
+ * preview), its description, its data, actions and Emplacements. At 1280 px a
+ * search over the names narrows the catalogue; on the phone a Select of every
+ * Composant takes the catalogue's place. An example that is open (`open:
+ * true`, a Dialog) is previewed closed, beside a button that opens it, and its
+ * `close` closes it: a modal would otherwise cover the library.
  */
 export class PasserellePageComposants extends PasserelleElement<typeof PageComposants> {
+  static override properties = { query: { state: true } };
+
   static override styles = [
     sharedStyles,
     css`
@@ -69,6 +80,24 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
       }
       .stage {
         min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--cd-space-2);
+      }
+      .stage > :last-child {
+        align-self: stretch;
+      }
+      .side {
+        display: flex;
+        flex-direction: column;
+        gap: var(--cd-space-3);
+        min-width: 0;
+      }
+      /* The phone picks a Composant through the Select, the search and the groups are for 1280 px. */
+      .search,
+      .catalogue {
+        display: none;
       }
       /* Focusable: the keyboard scrolls a table wider than the phone. */
       .scroll-x {
@@ -120,6 +149,15 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
         :host {
           gap: var(--cd-space-6);
         }
+        .picker {
+          display: none;
+        }
+        .search {
+          display: block;
+        }
+        .catalogue {
+          display: flex;
+        }
         .lib {
           display: grid;
           grid-template-columns: var(--cd-sidebar-width) minmax(0, 1fr);
@@ -135,6 +173,12 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
   ];
 
   protected readonly composant = PageComposants;
+  declare query: string;
+
+  constructor() {
+    super();
+    this.query = '';
+  }
 
   private select(event: MouseEvent, name: string) {
     if (!isPlainClick(event)) return;
@@ -157,16 +201,66 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
     const { tag, examples } = this.data.selected;
     const stages = this.shadowRoot?.querySelectorAll<HTMLElement>('.stage') ?? [];
     examples.forEach((example, index) => {
-      const element = document.createElement(tag) as HTMLElement & { data: unknown };
-      element.data = example.data;
+      const element = document.createElement(tag) as Openable;
       element.append(...fillSlots(example.slots));
-      stages[index]?.replaceChildren(element);
+      if (example.data['open'] !== true) {
+        element.data = example.data;
+        stages[index]?.replaceChildren(element);
+        return;
+      }
+      element.data = { ...example.data, open: false };
+      element.addEventListener(CD_ACTION, (event) => {
+        if ((event as CustomEvent<CdActionDetail>).detail.action === 'close') element.data = { ...element.data, open: false };
+      });
+      const opener = document.createElement('cd-button') as Openable;
+      opener.data = { label: t('composants.page.openExample', { name: example.name }), variant: 'secondary', size: 'md' };
+      opener.addEventListener('click', () => (element.data = { ...element.data, open: true }));
+      stages[index]?.replaceChildren(opener, element);
     });
   }
 
-  private renderCatalogue() {
+  private renderSide() {
     const { groups, selected } = this.data;
+    const options = groups.flatMap((group) =>
+      group.composants.map((entry) => ({
+        value: entry.name,
+        label: `${entry.name} · ${t(`composants.category.${group.category}`)}`,
+        disabled: false,
+      })),
+    );
+    return html`<div class="side">
+      <cd-select
+        class="picker"
+        .data=${{ name: 'composant', label: t('composants.page.select'), value: selected.name, options, help: null, state: null }}
+        @change=${(event: Event) => this.emit('select', { name: (event.currentTarget as HTMLElement & { value: string }).value })}
+      ></cd-select>
+      <cd-text-field
+        class="search"
+        .data=${{
+          name: 'search',
+          label: t('composants.page.search'),
+          value: '',
+          placeholder: null,
+          help: null,
+          error: null,
+          state: null,
+          multiline: false,
+          maxLength: null,
+        }}
+        @input=${(event: Event) => (this.query = (event.currentTarget as HTMLElement & { value: string }).value)}
+      ></cd-text-field>
+      ${this.renderCatalogue()}
+    </div>`;
+  }
+
+  private renderCatalogue() {
+    const { selected } = this.data;
+    const query = fold(this.query.trim());
+    const groups = this.data.groups
+      .map((group) => ({ ...group, composants: group.composants.filter((entry) => fold(entry.name).includes(query)) }))
+      .filter((group) => group.composants.length > 0);
     return html`<nav class="catalogue" aria-label=${t('composants.page.catalogue')}>
+      ${groups.length === 0 ? html`<p class="none">${t('composants.page.noMatch')}</p>` : nothing}
       ${groups.map(
         (group) =>
           html`<cd-card .data=${{ title: t(`composants.category.${group.category}`), flush: true }}>
@@ -264,7 +358,7 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
       <cd-page-header
         .data=${{ title: t('composants.page.title'), count: selected.name, back: { label: t('composants.page.back'), href: '/parametres' } }}
       ></cd-page-header>
-      <div class="lib">${this.renderCatalogue()} ${this.renderContract()}</div>
+      <div class="lib">${this.renderSide()} ${this.renderContract()}</div>
     `;
   }
 }

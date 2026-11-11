@@ -18,6 +18,7 @@ export default defineConfig({
           name: 'web',
           globals: true,
           environment: 'happy-dom',
+          setupFiles: ['vitest.happy-dom.ts'],
           include: ['src/**/*.spec.ts'],
           exclude: ['src/keys/**'],
         },

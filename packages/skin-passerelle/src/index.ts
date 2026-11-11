@@ -12,9 +12,11 @@ import { PasserelleCadre } from './cadre.js';
 import { PasserelleCapture } from './capture.js';
 import { PasserelleCard } from './card.js';
 import { PasserelleCheckRow } from './check-row.js';
+import { PasserelleCheckbox } from './checkbox.js';
 import { PasserelleChip } from './chip.js';
 import { PasserelleCodeBlock } from './code-block.js';
 import { PasserelleDecisionRow } from './decision-row.js';
+import { PasserelleDialog } from './dialog.js';
 import { PasserelleEmpty } from './empty.js';
 import { PasserelleIdeaRow } from './idea-row.js';
 import { PasserelleIconButton } from './icon-button.js';
@@ -28,13 +30,18 @@ import { PasserellePageHeader } from './page-header.js';
 import { PasserellePageIntrouvable } from './page-introuvable.js';
 import { PasserelleProcessTrack } from './process-track.js';
 import { PasserelleProjectFilter } from './project-filter.js';
+import { PasserelleRadio } from './radio.js';
+import { PasserelleSelect } from './select.js';
+import { PasserelleSettingRow } from './setting-row.js';
 import { PasserelleStat } from './stat.js';
 import { PasserelleStatusBadge } from './status-badge.js';
 import { PasserelleStatusDot } from './status-dot.js';
 import { PasserelleTabs } from './tabs.js';
+import { PasserelleTextField } from './text-field.js';
 import { PasserelleTicketRow } from './ticket-row.js';
 import { PasserelleTicketTree } from './ticket-tree.js';
 import { PasserelleTimeline } from './timeline.js';
+import { PasserelleToggle } from './toggle.js';
 import { PasserelleUsageMeter } from './usage-meter.js';
 
 export default defineSkin({
@@ -51,8 +58,10 @@ export default defineSkin({
     PageIntrouvable: PasserellePageIntrouvable,
     Card: PasserelleCard,
     CodeBlock: PasserelleCodeBlock,
+    Dialog: PasserelleDialog,
     KeyValue: PasserelleKeyValue,
     ListRow: PasserelleListRow,
+    SettingRow: PasserelleSettingRow,
     DecisionRow: PasserelleDecisionRow,
     IdeaRow: PasserelleIdeaRow,
     TicketRow: PasserelleTicketRow,
@@ -66,12 +75,17 @@ export default defineSkin({
     Timeline: PasserelleTimeline,
     Banner: PasserelleBanner,
     Button: PasserelleButton,
+    Checkbox: PasserelleCheckbox,
     Chip: PasserelleChip,
     Empty: PasserelleEmpty,
     Icon: PasserelleIcon,
     IconButton: PasserelleIconButton,
+    Radio: PasserelleRadio,
+    Select: PasserelleSelect,
     StatusBadge: PasserelleStatusBadge,
     StatusDot: PasserelleStatusDot,
     Tabs: PasserelleTabs,
+    TextField: PasserelleTextField,
+    Toggle: PasserelleToggle,
   },
 });

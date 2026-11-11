@@ -65,6 +65,11 @@ func runRunner(cmd *cobra.Command, server string) error {
 	if err != nil {
 		return err
 	}
+	// The vault opens at start: a Runner that cannot open it does not run.
+	vault, err := openVault(store)
+	if err != nil {
+		return err
+	}
 	if server != "" {
 		linked.Server = server
 	}
@@ -74,11 +79,13 @@ func runRunner(cmd *cobra.Command, server string) error {
 	}
 	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	logger := slog.New(slog.NewTextHandler(cmd.ErrOrStderr(), nil))
+	logger.Info("vault opened", "vaultKeyVersion", vault.Version)
 	client := protocol.New(protocol.Config{
 		Server:  linked.Server,
 		Token:   linked.Token,
 		Machine: machine,
-		Logger:  slog.New(slog.NewTextHandler(cmd.ErrOrStderr(), nil)),
+		Logger:  logger,
 	})
 	return refusal(client.Run(ctx))
 }

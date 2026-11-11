@@ -16,6 +16,11 @@ export interface OpenSession {
   readonly pilotId: string;
 }
 
+/** A session found by its cookie, and whether its expiry slid: the cookie then slides too. */
+export interface FoundSession extends OpenSession {
+  readonly slid: boolean;
+}
+
 /**
  * The `WebSession`s (server side, so that a logout or an expired GitHub
  * sign-in ends them at once): the cookie holds a random token, the row its
@@ -45,19 +50,20 @@ export class WebSessions {
    * The open session of `token`, sliding its expiry: unscoped, the only lookup
    * made before a scope exists (it is what gives the request its Pilote).
    */
-  async find(token: string, now = new Date()): Promise<OpenSession | undefined> {
+  async find(token: string, now = new Date()): Promise<FoundSession | undefined> {
     const session = await this.prisma.unscoped.webSession.findUnique({
       where: { tokenHash: hashOf(token) },
       select: { id: true, pilotId: true, lastSeenAt: true, expiresAt: true },
     });
     if (!session || session.expiresAt <= now) return undefined;
-    if (now.getTime() - session.lastSeenAt.getTime() >= SLIDE_EVERY_MS) {
+    const slid = now.getTime() - session.lastSeenAt.getTime() >= SLIDE_EVERY_MS;
+    if (slid) {
       await this.prisma.unscoped.webSession.updateMany({
         where: { id: session.id },
         data: { lastSeenAt: now, expiresAt: new Date(now.getTime() + SESSION_TTL_SECONDS * 1000) },
       });
     }
-    return { id: session.id, pilotId: session.pilotId };
+    return { id: session.id, pilotId: session.pilotId, slid };
   }
 
   /** Ends one session of the scope's Pilote. */

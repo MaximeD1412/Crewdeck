@@ -3,6 +3,7 @@ import pg from 'pg';
 import { inject } from 'vitest';
 import { zGithubToken, zMe } from '@crewdeck/contracts';
 import { parseEnv } from '../../src/config/env.js';
+import { userTokenRefused } from '../../src/github/github.errors.js';
 import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
@@ -191,6 +192,28 @@ describe('sign in with GitHub against PostgreSQL', () => {
       await expectEnvelope(await call('/api/me', cookie), 401, 'auth.required');
     });
 
+    it('keeps a sign-in that completes while an earlier refresh is pending, then refused', async () => {
+      const cookie = await signedIn();
+      await sql(`UPDATE github_user_tokens SET access_expires_at = now() + interval '1 minute'`);
+      // GitHub answers the refresh late, and refuses it: the Pilote signed in again meanwhile.
+      let refuse = (): void => undefined;
+      vi.spyOn(fakes.github, 'refreshUserToken').mockImplementation(
+        () => new Promise((_resolve, reject) => { refuse = () => reject(userTokenRefused()); }),
+      );
+      const pending = call('/api/github/token', cookie, { method: 'POST' });
+      await vi.waitFor(() => expect(fakes.github.refreshUserToken).toHaveBeenCalled());
+      const again = await signedIn();
+
+      refuse();
+      const res = await pending;
+
+      expect(res.status).toBe(200);
+      expect(zGithubToken.parse(await res.json()).accessToken).toBe('ghu_fake_2');
+      expect((await call('/api/me', again)).status).toBe(200);
+      expect(await sql('SELECT pilot_id FROM github_user_tokens')).toHaveLength(1);
+      expect(await sql('SELECT id FROM web_sessions')).toHaveLength(2);
+    });
+
     it('signs the Pilote out when the refresh token has expired', async () => {
       const cookie = await signedIn();
       await sql(`UPDATE github_user_tokens SET access_expires_at = now(), refresh_expires_at = now()`);
@@ -230,10 +253,14 @@ describe('sign in with GitHub against PostgreSQL', () => {
       const cookie = await signedIn();
       await sql(`UPDATE web_sessions SET last_seen_at = now() - interval '2 hours', expires_at = now() + interval '1 day'`);
 
-      await call('/api/me', cookie);
+      const res = await call('/api/me', cookie);
+      const again = await call('/api/me', cookie);
 
       const [row] = await sql<{ days: number }>(`SELECT round(extract(epoch FROM expires_at - now()) / 86400)::int AS days FROM web_sessions`);
       expect(row?.days).toBe(30);
+      // The browser's cookie slides with it, else it would end 30 days after the sign-in.
+      expect(setCookies(res).get('crewdeck_session')).toMatch(new RegExp(`^${cookie}; Max-Age=2592000; Path=/; HttpOnly; SameSite=Lax`));
+      expect(setCookies(again).has('crewdeck_session')).toBe(false);
     });
   });
 

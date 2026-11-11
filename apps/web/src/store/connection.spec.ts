@@ -1,5 +1,5 @@
 import { WS_CLOSE, type ClientMessage, type Me, type ServerMessage, type State } from '@crewdeck/contracts';
-import { createConnection, type Connection, type SocketLike } from './connection.js';
+import { createConnection, PONG_TIMEOUT_MS, type Connection, type SocketLike } from './connection.js';
 import { createStore, type Store } from './store.js';
 
 const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris' };
@@ -236,11 +236,46 @@ describe('what the page tells the server', () => {
     const { socket } = await liveAt(7);
     vi.advanceTimersByTime(25_000);
     expect(socket.sent).toEqual([{ type: 'ping' }]);
+    socket.receive({ type: 'pong' });
     vi.advanceTimersByTime(25_000);
     expect(socket.sent).toEqual([{ type: 'ping' }, { type: 'ping' }]);
+    socket.receive({ type: 'pong' });
     socket.drop();
     vi.advanceTimersByTime(25_000);
     expect(socket.sent).toHaveLength(2);
+  });
+
+  it('a socket still open that stops answering is lost 10 s after the ping it left unanswered, and the page reconnects', async () => {
+    const { socket } = await liveAt(7);
+    // From ping to ping: `liveAt`'s waitFor already moved the fake clock on.
+    vi.advanceTimersToNextTimer();
+    vi.advanceTimersByTime(PONG_TIMEOUT_MS - 1);
+    socket.receive({ type: 'pong' });
+    vi.advanceTimersToNextTimer();
+    expect(socket.sent).toEqual([{ type: 'ping' }, { type: 'ping' }]);
+    expect(store.getState().connection).toBe('live');
+
+    vi.advanceTimersByTime(PONG_TIMEOUT_MS - 1);
+    expect(store.getState().connection).toBe('live');
+    const deadline = new Date(Date.now() + 1);
+    vi.advanceTimersByTime(1);
+    expect(store.getState()).toMatchObject({ connection: 'resync', lostAt: deadline });
+    expect(socket.readyState).toBe(3);
+
+    vi.advanceTimersByTime(1000);
+    expect(MockSocket.all).toHaveLength(2);
+    const next = MockSocket.last();
+    next.open();
+    expect(next.sent[0]).toEqual({ type: 'hello', lastSeq: '7' });
+  });
+
+  it('any message of the server answers for it, an event as well as a pong', async () => {
+    const { socket } = await liveAt(7);
+    vi.advanceTimersToNextTimer();
+    expect(socket.sent).toEqual([{ type: 'ping' }]);
+    socket.receive(pilotEvent(8, 'renamed'));
+    vi.advanceTimersByTime(PONG_TIMEOUT_MS);
+    expect(store.getState()).toMatchObject({ connection: 'live', seq: 8n });
   });
 
   it('sends visibility on every visibilitychange', async () => {
@@ -255,13 +290,33 @@ describe('what the page tells the server', () => {
     ]);
   });
 
-  it('catchUp sends hello with the seq, so that the server replays what the page missed', async () => {
+  it('catchUp puts the page in resync and sends hello with the seq; the replay then live end it', async () => {
     const { connection, socket } = await liveAt(7);
     connection.catchUp();
+    expect(store.getState()).toMatchObject({ connection: 'resync', lostAt: null });
     expect(socket.sent).toEqual([
       { type: 'hello', lastSeq: '7' },
       { type: 'visibility', visible: true },
     ]);
+
+    socket.receive(pilotEvent(8, 'missed'));
+    expect(store.getState().connection).toBe('resync');
+    socket.receive({ type: 'live' });
+    expect(store.getState()).toMatchObject({ connection: 'live', seq: 8n, slices: { pilot: { login: 'missed' } } });
+  });
+
+  it('catchUp answered snapshot-required: resync until the snapshot is applied and the server says live', async () => {
+    const { connection, socket } = await liveAt(7);
+    connection.catchUp();
+    socket.sent.length = 0;
+    snapshot.mockResolvedValueOnce({ seq: 20, pilot: { ...PILOT, login: 'snapshot' } });
+    socket.receive({ type: 'snapshot-required' });
+    await vi.waitFor(() => expect(store.getState().seq).toBe(20n));
+    expect(store.getState().connection).toBe('resync');
+    expect(socket.sent[0]).toEqual({ type: 'hello', lastSeq: '20' });
+
+    socket.receive({ type: 'live' });
+    expect(store.getState()).toMatchObject({ connection: 'live', slices: { pilot: { login: 'snapshot' } } });
   });
 
   it('stop closes the socket, and nothing reconnects nor listens', async () => {

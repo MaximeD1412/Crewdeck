@@ -27,7 +27,7 @@ export interface Connection {
   /** Opens the socket; it reconnects by itself until `stop`. */
   start(): void;
   stop(): void;
-  /** Sends `hello` with the store's `seq`: the server replays what the page missed (after a 409 `realtime.stale`). */
+  /** After a 409 `realtime.stale`: `resync`, and `hello` with the store's `seq`, the server replaying what the page missed until `live`. */
   catchUp(): void;
 }
 
@@ -35,6 +35,8 @@ export interface Connection {
 export const RECONNECT_DELAYS_MS = [1000, 2000, 5000, 10_000] as const;
 /** The server closes a socket silent 60 s. */
 export const PING_INTERVAL_MS = 25_000;
+/** A ping no message of the server followed within this delay: the socket is lost, even if the browser still holds it open. */
+export const PONG_TIMEOUT_MS = 10_000;
 
 const OPEN = 1;
 
@@ -61,8 +63,9 @@ const parse = (data: unknown): ServerMessage | null => {
  * `seq` applied, the snapshot on `snapshot-required`, `live` once the replay
  * is over. A lost socket puts the store in `resync` and reconnects after 1,
  * 2, 5 then 10 s, at once when the tab becomes visible; a skipped `seq`
- * reconnects at once. A socket closed because the session ended (4401) is
- * not opened again.
+ * reconnects at once, and so does a ping left unanswered 10 s (a transport
+ * the browser still holds open). A socket closed because the session ended
+ * (4401) is not opened again.
  */
 export const createConnection = ({
   store,
@@ -76,6 +79,7 @@ export const createConnection = ({
   let attempt = 0;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   let pingTimer: ReturnType<typeof setInterval> | undefined;
+  let pongTimer: ReturnType<typeof setTimeout> | undefined;
   let stopped = true;
 
   const send = (message: Outgoing) => {
@@ -93,6 +97,8 @@ export const createConnection = ({
   /** Forgets the current socket and closes it: its later messages and its close are not this connection's any more. */
   const drop = () => {
     clearInterval(pingTimer);
+    clearTimeout(pongTimer);
+    pongTimer = undefined;
     if (!socket) return;
     const current = socket;
     socket = null;
@@ -146,6 +152,12 @@ export const createConnection = ({
     }
   };
 
+  /** A ping, and the deadline of its answer: any message of the server meets it. */
+  const ping = () => {
+    send({ type: 'ping' });
+    pongTimer ??= setTimeout(() => lost('later'), PONG_TIMEOUT_MS);
+  };
+
   const open = () => {
     if (stopped) return;
     clearTimeout(reconnectTimer);
@@ -154,9 +166,11 @@ export const createConnection = ({
     socket = current;
     current.onopen = () => {
       hello();
-      pingTimer = setInterval(() => send({ type: 'ping' }), PING_INTERVAL_MS);
+      pingTimer = setInterval(ping, PING_INTERVAL_MS);
     };
     current.onmessage = (event) => {
+      clearTimeout(pongTimer);
+      pongTimer = undefined;
       const message = parse(event.data);
       if (message) onMessage(message);
     };
@@ -182,6 +196,10 @@ export const createConnection = ({
       reconnectTimer = undefined;
       drop();
     },
-    catchUp: hello,
+    catchUp() {
+      if (socket?.readyState !== OPEN) return;
+      store.markStale();
+      hello();
+    },
   };
 };

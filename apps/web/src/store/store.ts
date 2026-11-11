@@ -2,8 +2,8 @@ import type { Event, Me, Resource, State } from '@crewdeck/contracts';
 
 /**
  * Where the page stands with the server (ADR 0007): `connecting` at boot,
- * before its first snapshot or replay; `resync` once the socket was lost or
- * a `seq` skipped, until the snapshot or the replay is applied; `live` after.
+ * before its first snapshot or replay; `resync` once the socket was lost, a
+ * `seq` skipped or a command answered stale, until the snapshot or the replay is applied; `live` after.
  */
 export type Connection = 'connecting' | 'resync' | 'live';
 
@@ -45,6 +45,8 @@ export interface Store {
   markLive(): void;
   /** The socket is lost: `resync`, `lostAt` kept from the first loss. */
   markLost(at: Date): void;
+  /** The state is known to be behind (a 409 `realtime.stale`), the socket kept: `resync` until live, no loss time added. */
+  markStale(): void;
 }
 
 type Identified = { readonly id: string };
@@ -119,6 +121,9 @@ export const createStore = (): Store => {
     },
     markLost(at) {
       set({ ...state, connection: 'resync', lostAt: state.lostAt ?? at });
+    },
+    markStale() {
+      set({ ...state, connection: 'resync' });
     },
   };
 };

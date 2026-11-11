@@ -138,6 +138,20 @@ describe('the connection of the state', () => {
     expect(store.getState().lostAt).toEqual(new Date('2026-11-11T15:00:00.000Z'));
   });
 
+  it('markStale: resync while the page catches up, with no time of loss (the socket was not lost), until live', () => {
+    const store = pilotStore();
+    store.markLive();
+    store.markStale();
+    expect(store.getState()).toMatchObject({ connection: 'resync', lostAt: null });
+
+    store.markLost(new Date('2026-11-11T14:12:00.000Z'));
+    store.markStale();
+    expect(store.getState()).toMatchObject({ connection: 'resync', lostAt: new Date('2026-11-11T14:12:00.000Z') });
+
+    store.markLive();
+    expect(store.getState()).toMatchObject({ connection: 'live', lostAt: null });
+  });
+
   it('tells its subscribers each new state, until they stop', () => {
     const store = pilotStore();
     const seen: string[] = [];

@@ -218,13 +218,13 @@
       "categorie": "sec",
       "gravite": "moyenne",
       "titre": "Webhook GitHub falsifié ou rejoué",
-      "statut": "solution choisie",
-      "statutDepuis": "2026-11-10",
+      "statut": "implémenté",
+      "statutDepuis": "2026-11-11",
       "solutions": [
         {
           "texte": "Signature X-Hub-Signature-256 vérifiée en temps constant, livraisons dédoublonnées",
           "ref": "ADR 0002",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [
@@ -396,7 +396,12 @@
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
-          "texte": "Contrat vérifié par le Runner, Décision « Contrat incomplet » pour relancer",
+          "texte": "Contrat déclaré en données, vérifié par le Runner sur le worktree et la PR de l'Étape, verdict envoyé (step.verdict)",
+          "ref": "ADR 0005",
+          "fait": true
+        },
+        {
+          "texte": "Décision « Contrat incomplet » pour relancer",
           "ref": "ADR 0005",
           "fait": false
         }
@@ -498,7 +503,12 @@
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
-          "texte": "Réconciliation de chaque dépôt toutes les 15 min et au démarrage du serveur",
+          "texte": "Tâche de réconciliation toutes les 15 min et 10 s après le démarrage du serveur, un hook par module, par installation liée",
+          "ref": "ADR 0002",
+          "fait": true
+        },
+        {
+          "texte": "Les hooks qui relisent chaque dépôt suivi : ses issues, ses PR, ses checks",
           "ref": "ADR 0002",
           "fait": false
         }
@@ -736,6 +746,11 @@
         {
           "texte": "CI en échec si la génération n'est pas à jour",
           "ref": "ADR 0001",
+          "fait": true
+        },
+        {
+          "texte": "Contrats des Étapes écrits en JSON depuis leurs déclarations zod, embarqués par le Runner, relus par Vitest et go test",
+          "ref": "ADR 0005",
           "fait": true
         }
       ],

@@ -5,16 +5,18 @@ import { SESSION_SECRET, sessionSecret, tokenCipher } from './auth.keys.js';
 import { GithubTokenController } from './github-token.controller.js';
 import { GithubTokens } from './github-tokens.js';
 import { SessionMiddleware } from './session.middleware.js';
+import { SessionWsAuthenticator } from './session.ws-authenticator.js';
 import { TokenCipher } from './token-cipher.js';
 import { WebSessions } from './web-sessions.js';
 
-/** Sign-in with GitHub, the browser's sessions, the Pilote's GitHub tokens (CORE-4). */
+/** Sign-in with GitHub, the browser's sessions (and their sockets, CORE-5), the Pilote's GitHub tokens (CORE-4). */
 @Module({
   controllers: [AuthController, GithubTokenController],
   providers: [
     WebSessions,
     GithubTokens,
     SessionMiddleware,
+    SessionWsAuthenticator,
     { provide: SESSION_SECRET, inject: [ENV], useFactory: sessionSecret },
     { provide: TokenCipher, inject: [ENV], useFactory: tokenCipher },
   ],

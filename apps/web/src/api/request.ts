@@ -26,15 +26,30 @@ const errorOf = async (response: Response): Promise<ApiError> => {
   return new ApiError(envelope.success ? envelope.data : unreadable(response.status));
 };
 
+export type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+
 /**
- * One call to the API on the page's origin, with its session cookie: the
- * answer read with `schema`, nothing for a 204; an `ApiError` otherwise.
+ * One call to the API on the page's origin, with its session cookie, `body`
+ * sent as JSON: the answer read with `schema`, nothing for a 204 or without
+ * `schema`; an `ApiError` otherwise.
  */
+export async function call(method: Method, path: string, body: unknown, schema?: z.ZodType): Promise<unknown> {
+  const headers: Record<string, string> = { accept: 'application/json' };
+  if (body !== undefined) headers['content-type'] = 'application/json';
+  const response = await fetch(path, {
+    method,
+    credentials: 'same-origin',
+    headers,
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  if (!response.ok) throw await errorOf(response);
+  if (!schema || response.status === 204) return undefined;
+  return schema.parse(await response.json());
+}
+
+/** A call without body (the session's routes, which carry no `seq`). */
 export async function request<S extends z.ZodType>(method: 'GET' | 'POST', path: string, schema: S): Promise<z.output<S>>;
 export async function request(method: 'GET' | 'POST', path: string): Promise<void>;
 export async function request(method: 'GET' | 'POST', path: string, schema?: z.ZodType): Promise<unknown> {
-  const response = await fetch(path, { method, credentials: 'same-origin', headers: { accept: 'application/json' } });
-  if (!response.ok) throw await errorOf(response);
-  if (!schema) return undefined;
-  return schema.parse(await response.json());
+  return call(method, path, undefined, schema);
 }

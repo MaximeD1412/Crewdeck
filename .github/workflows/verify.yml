@@ -143,7 +143,7 @@ jobs:
       - name: Check the generated contracts
         run: |
           pnpm exec nx run contracts:generate
-          generated=(packages/contracts/generated apps/runner/internal/contracts)
+          generated=(packages/contracts/generated apps/runner/internal/contracts apps/runner/internal/contrat/contrats packages/contracts/fixtures/contrats/example.json)
           if [ -n "$(git status --porcelain -- "${generated[@]}")" ]; then
             echo "::error::Contrats générés pas à jour : lance pnpm exec nx run contracts:generate"
             git status --short -- "${generated[@]}"

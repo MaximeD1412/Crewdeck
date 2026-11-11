@@ -348,6 +348,10 @@ export const fr = {
   'projectFilter.label': 'Filtrer par Projet',
   'question.answer': 'Répondre',
   'question.kicker': 'Question',
+  'resync.body':
+    'La connexion a été perdue à {time}. Crewdeck reconstruit l’état ; en attendant, ce que tu vois peut être en retard et les Actions sensibles (merger, démarrer la Boucle, approuver une Conception) sont indisponibles.',
+  'resync.sensitiveUnavailable': 'Indisponible pendant la resynchronisation',
+  'resync.title': 'Resynchronisation…',
   'router.notFound.back': 'Retour à « À toi »',
   'router.notFound.title': "Cette page n'existe pas",
   'session.back': 'Retour',

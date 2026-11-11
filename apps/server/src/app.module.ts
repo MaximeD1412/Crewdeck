@@ -8,10 +8,14 @@ import { EnvModule } from './config/env.module.js';
 import { PublicConfigModule } from './config/public-config.controller.js';
 import { ErrorFilter } from './errors/error.filter.js';
 import { GitHubModule } from './github/github.module.js';
+import { ReconciliationModule } from './github/reconciliation/reconciliation.module.js';
+import { WebhooksModule } from './github/webhooks/webhooks.module.js';
 import { HealthModule } from './health/health.module.js';
 import { type LogDestination, loggerParams } from './logging/logger.js';
 import { PilotsModule } from './pilots/me.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { RealtimeModule } from './realtime/realtime.module.js';
+import { RunnersModule } from './runners/runners.module.js';
 import { ScopeModule } from './scope/scope.module.js';
 import { WebModule } from './web/web.module.js';
 
@@ -45,12 +49,16 @@ export class AppModule {
         EnvModule.forRoot(env),
         PrismaModule,
         ScopeModule,
+        RealtimeModule,
         HealthModule,
         PublicConfigModule,
         GitHubModule.forRoot(env),
+        WebhooksModule,
+        ReconciliationModule,
         ...fakes(env),
         AuthModule,
         PilotsModule,
+        RunnersModule,
         WebModule.forRoot(env),
         ...imports,
       ],

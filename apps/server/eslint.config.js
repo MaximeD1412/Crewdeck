@@ -1,13 +1,13 @@
 import base from '../../eslint.config.js';
 
 /** Where the raw client may be used (ADR 0008): the scope itself, auth, the webhooks, the test scenarios, its own module. */
-const UNSCOPED_ALLOWED = ['src/scope/**', 'src/auth/**', 'src/github/webhooks/**', 'src/testing/**', 'src/prisma/**'];
+const UNSCOPED_ALLOWED = ['src/scope/**', 'src/auth/**', 'src/github/webhooks/**', 'src/testing/**', 'src/prisma/**', 'src/realtime/retention.job.ts', 'src/runners/runner-sweep.job.ts'];
 
 const UNSCOPED_MESSAGE =
-  'prisma.unscoped skips the scope of a Pilote (ADR 0008): use prisma.scoped, inside runInPilotScope for a webhook or a job. Allowed only in src/scope/, src/auth/, src/github/webhooks/ (and src/testing/).';
+  'prisma.unscoped skips the scope of a Pilote (ADR 0008): use prisma.scoped, inside runInPilotScope for a webhook or a job. Allowed only in src/scope/, src/auth/, src/github/webhooks/, the retention job of the events, the sweep of the Runners (and src/testing/).';
 
 const RAW_SQL_MESSAGE =
-  'Raw SQL skips the scope of a Pilote (ADR 0008), and prisma.scoped refuses it at run time: query a model through prisma.scoped. Allowed only on prisma.unscoped in src/scope/, src/auth/, src/github/webhooks/ (and src/testing/).';
+  'Raw SQL skips the scope of a Pilote (ADR 0008), and prisma.scoped refuses it at run time: query a model through prisma.scoped. Allowed only on prisma.unscoped in src/scope/, src/auth/, src/github/webhooks/, the retention job of the events, the sweep of the Runners (and src/testing/).';
 
 export default [
   ...base,

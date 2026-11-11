@@ -3,12 +3,16 @@ import { Cadre, PageComposants, PageConnexion, type Skin } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
 import { me as readMe } from './api/auth.js';
+import { ApiError } from './api/request.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
 import { bootSkin } from './registry.js';
 import { startRouter, type Route, type Router } from './router.js';
 import { composantsHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
 import { signInGuard, signInHref } from './sign-in.js';
+import { connection as pageConnection, store as pageStore } from './store/index.js';
+import type { Connection } from './store/connection.js';
+import type { Store } from './store/store.js';
 
 /** The Skins the page knows, by id: at the MVP, the default one. */
 const SKINS: Readonly<Record<string, Skin>> = { passerelle };
@@ -28,12 +32,17 @@ export interface BootOptions {
   readonly me?: () => Promise<Me | null>;
   /** Leaves the page for another document (the GitHub sign-in): `location.assign` by default. */
   readonly leave?: (url: string) => void;
+  /** The page's store and its socket (`store/index.ts`) by default. */
+  readonly store?: Store;
+  readonly connection?: Pick<Connection, 'start' | 'stop'>;
 }
 
 export interface App {
   readonly router: Router;
   readonly bridge: InPageBridge;
   readonly dispatcher: Dispatcher;
+  /** Stops the router, the socket and what listens (the tests). */
+  readonly stop: () => void;
 }
 
 /**
@@ -51,16 +60,39 @@ export const boot = async ({
   dispatcher = pageDispatcher,
   me = readMe,
   leave = (url) => location.assign(url),
+  store = pageStore,
+  connection = pageConnection,
 }: BootOptions): Promise<App> => {
   const [pilot] = await Promise.all([me().catch(() => null), bootSkin(skin, resolveSkin)]);
   dispatcher.listen(document);
   const bridge = createInPageBridge({ dispatch: dispatcher.dispatch });
-  const shell = mountShell({ root, state: () => ({ slices: { pilot } }) });
+  // The Pilote of `/api/me` until the snapshot gives the store's.
+  const shell = mountShell({
+    root,
+    state: () => {
+      const state = store.getState();
+      return { ...state, slices: { pilot: state.slices.pilot !== undefined ? state.slices.pilot : pilot } };
+    },
+  });
+  const unsubscribe = store.subscribe(() => shell.refresh());
+  const onUnhandled = (event: PromiseRejectionEvent) => {
+    if (!(event.reason instanceof ApiError)) return;
+    event.preventDefault();
+    shell.showError(event.reason.message);
+  };
+  window.addEventListener('unhandledrejection', onUnhandled);
   const router = startRouter({ routes, outlet: shell.outlet, onRoute: shell.update, guard: signInGuard(pilot) });
+  if (pilot) connection.start();
   dispatcher.registerAction(PageConnexion, 'signIn', {
     run: () => leave(signInHref(router.current.query['next'], Intl.DateTimeFormat().resolvedOptions().timeZone)),
   });
   dispatcher.registerAction(PageComposants, 'select', { run: ({ name }) => router.navigate(composantsHref(name)) });
   dispatcher.registerAction(Cadre, 'openPilot', { run: () => router.navigate('/parametres') });
-  return { router, bridge, dispatcher };
+  const stop = () => {
+    router.stop();
+    connection.stop();
+    unsubscribe();
+    window.removeEventListener('unhandledrejection', onUnhandled);
+  };
+  return { router, bridge, dispatcher, stop };
 };

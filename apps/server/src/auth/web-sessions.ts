@@ -2,6 +2,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { newId } from '../ids.js';
 import { PrismaService, type ScopedPrisma } from '../prisma/prisma.service.js';
+import { WsRevocations } from '../realtime/ws-revocations.js';
+import { currentPilotId } from '../scope/scope.context.js';
 
 /** A session lasts 30 days from its last use. */
 export const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
@@ -16,19 +18,23 @@ export interface OpenSession {
   readonly pilotId: string;
 }
 
-/** A session found by its cookie, and whether its expiry slid: the cookie then slides too. */
+/** A session found by its cookie, its expiry, and whether it slid: the cookie then slides too. */
 export interface FoundSession extends OpenSession {
+  readonly expiresAt: Date;
   readonly slid: boolean;
 }
 
 /**
  * The `WebSession`s (server side, so that a logout or an expired GitHub
- * sign-in ends them at once): the cookie holds a random token, the row its
- * SHA-256 only.
+ * sign-in ends them at once, their sockets of `/api/ws` too): the cookie
+ * holds a random token, the row its SHA-256 only.
  */
 @Injectable()
 export class WebSessions {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly revocations: WsRevocations,
+  ) {}
 
   /** A new session of `pilotId`, the scope's Pilote, written by `tx`; the token its cookie holds. */
   async open(tx: Pick<ScopedPrisma, 'webSession'>, pilotId: string, userAgent: string | undefined, now = new Date()): Promise<string> {
@@ -57,22 +63,44 @@ export class WebSessions {
     });
     if (!session || session.expiresAt <= now) return undefined;
     const slid = now.getTime() - session.lastSeenAt.getTime() >= SLIDE_EVERY_MS;
+    let { expiresAt } = session;
     if (slid) {
-      await this.prisma.unscoped.webSession.updateMany({
-        where: { id: session.id },
-        data: { lastSeenAt: now, expiresAt: new Date(now.getTime() + SESSION_TTL_SECONDS * 1000) },
-      });
+      expiresAt = new Date(now.getTime() + SESSION_TTL_SECONDS * 1000);
+      await this.prisma.unscoped.webSession.updateMany({ where: { id: session.id }, data: { lastSeenAt: now, expiresAt } });
     }
-    return { id: session.id, pilotId: session.pilotId, slid };
+    return { id: session.id, pilotId: session.pilotId, expiresAt, slid };
   }
 
-  /** Ends one session of the scope's Pilote. */
+  /** When the session `id` expires now (slid by the requests meanwhile), `undefined` once it has ended; never slides it. */
+  async expiryOf(id: string, now = new Date()): Promise<Date | undefined> {
+    const session = await this.prisma.unscoped.webSession.findUnique({ where: { id }, select: { expiresAt: true } });
+    return session && session.expiresAt > now ? session.expiresAt : undefined;
+  }
+
+  /** Ends one session of the scope's Pilote, and its sockets. */
   async close(id: string): Promise<void> {
     await this.prisma.scoped.webSession.deleteMany({ where: { id } });
+    this.revokeSockets(currentPilotId(), [id]);
   }
 
-  /** Ends every session of the scope's Pilote. */
+  /** Ends every session of the scope's Pilote, and their sockets. */
   async closeAll(): Promise<void> {
-    await this.prisma.scoped.webSession.deleteMany({});
+    this.revokeSockets(currentPilotId(), await this.deleteAll(this.prisma.scoped));
+  }
+
+  /**
+   * Deletes every session of the scope's Pilote within `tx`, and returns
+   * their ids: a session opened after it is not among them, its sockets
+   * stay open.
+   */
+  async deleteAll(tx: Pick<ScopedPrisma, 'webSession'>): Promise<string[]> {
+    const ids = (await tx.webSession.findMany({ select: { id: true } })).map(({ id }) => id);
+    if (ids.length > 0) await tx.webSession.deleteMany({ where: { id: { in: ids } } });
+    return ids;
+  }
+
+  /** Ends the sockets of `pilotId`'s sessions `ids`, once the transaction that deleted them has committed. */
+  revokeSockets(pilotId: string, ids: readonly string[]): void {
+    this.revocations.revoke(pilotId, 'session', ids);
   }
 }

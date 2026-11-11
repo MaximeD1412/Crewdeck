@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "arch": {
+      "enum": [
+        "amd64",
+        "arm64"
+      ],
+      "type": "string"
+    },
+    "at": {
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+      "type": "string"
+    },
+    "id": {
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+      "type": "string"
+    },
+    "machine": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "os": {
+      "enum": [
+        "linux",
+        "darwin"
+      ],
+      "type": "string"
+    },
+    "protocolVersion": {
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "type": "integer"
+    },
+    "runnerVersion": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "type": {
+      "const": "hello",
+      "type": "string"
+    },
+    "wsl": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "arch",
+    "at",
+    "id",
+    "machine",
+    "os",
+    "protocolVersion",
+    "runnerVersion",
+    "type",
+    "wsl"
+  ],
+  "title": "RunnerHello",
+  "type": "object"
+}

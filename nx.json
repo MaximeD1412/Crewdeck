@@ -14,7 +14,7 @@
       "!{projectRoot}/**/*_test.go",
       "!{projectRoot}/**/testdata/**/*"
     ],
-    "go": ["{projectRoot}/**/*.go", "{projectRoot}/go.mod", "{projectRoot}/go.sum"],
+    "go": ["{projectRoot}/**/*.go", "{projectRoot}/go.mod", "{projectRoot}/go.sum", "{projectRoot}/internal/contrat/contrats/*.json"],
     "sharedGlobals": [
       "{workspaceRoot}/.mise.toml",
       "{workspaceRoot}/tsconfig.base.json"

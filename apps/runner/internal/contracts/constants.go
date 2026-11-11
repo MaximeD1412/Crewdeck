@@ -4,10 +4,13 @@ package contracts
 
 // The constants of packages/contracts the Runner shares with the server.
 const (
-	CloseReplaced       = 4409
-	CloseUnauthorized   = 4401
-	CloseUpdateRequired = 4426
-	HeartbeatSeconds    = 15
-	OfflineAfterSeconds = 45
-	ProtocolVersion     = 1
+	CloseReplaced         = 4409
+	CloseUnauthorized     = 4401
+	CloseUpdateRequired   = 4426
+	HeartbeatSeconds      = 15
+	LinkAttemptsPerMinute = 10
+	LinkCodeTtlSeconds    = 600
+	LinkPollSeconds       = 2
+	OfflineAfterSeconds   = 45
+	ProtocolVersion       = 1
 )

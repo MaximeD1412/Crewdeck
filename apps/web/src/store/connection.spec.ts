@@ -2,7 +2,7 @@ import { WS_CLOSE, type ClientMessage, type Me, type ServerMessage, type State }
 import { createConnection, PONG_TIMEOUT_MS, type Connection, type SocketLike } from './connection.js';
 import { createStore, type Store } from './store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris' };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
 const AT = '2026-11-11T08:00:00.000Z';
 const LOST = new Date('2026-11-11T14:12:00.000Z');
 

@@ -4,7 +4,7 @@ import { ApiError } from './api/request.js';
 import { boot, type App } from './app.js';
 import { createStore } from './store/store.js';
 
-const PILOT = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris' };
+const PILOT = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
 const AT = '2026-11-11T08:00:00.000Z';
 const STALE = 'L’état a changé depuis ton dernier affichage : vérifie avant de recommencer.';
 

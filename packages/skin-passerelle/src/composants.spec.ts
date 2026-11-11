@@ -66,6 +66,7 @@ const textOf = (el: Element | null | undefined) => el?.textContent?.replace(/\s+
 const TRIGGERS: Readonly<Record<string, (el: Element) => void>> = {
   'ProjectFilter.select': (el) => inside(el, 'cd-chip:nth-of-type(2)', 'button').click(),
   'Tabs.select': (el) => inside(el, 'button[role=tab]:nth-of-type(2)').click(),
+  'Capture.open': (el) => inside(el, 'button').click(),
   'PageComposants.select': (el) => inside(el, 'nav cd-list-row:not(:has(cd-status-badge))', 'a').click(),
 };
 

@@ -7,7 +7,9 @@
 import { defineSkin } from '@crewdeck/sdk';
 import { PasserelleBanner } from './banner.js';
 import { PasserelleButton } from './button.js';
+import { PasserelleCapture } from './capture.js';
 import { PasserelleCard } from './card.js';
+import { PasserelleCheckRow } from './check-row.js';
 import { PasserelleChip } from './chip.js';
 import { PasserelleCodeBlock } from './code-block.js';
 import { PasserelleEmpty } from './empty.js';
@@ -18,10 +20,15 @@ import { PasserelleListRow } from './list-row.js';
 import { PasserellePageComposants } from './page-composants.js';
 import { PasserellePageHeader } from './page-header.js';
 import { PasserellePageIntrouvable } from './page-introuvable.js';
+import { PasserelleProcessTrack } from './process-track.js';
 import { PasserelleProjectFilter } from './project-filter.js';
+import { PasserelleStat } from './stat.js';
 import { PasserelleStatusBadge } from './status-badge.js';
 import { PasserelleStatusDot } from './status-dot.js';
 import { PasserelleTabs } from './tabs.js';
+import { PasserelleTicketTree } from './ticket-tree.js';
+import { PasserelleTimeline } from './timeline.js';
+import { PasserelleUsageMeter } from './usage-meter.js';
 
 export default defineSkin({
   id: 'passerelle',
@@ -36,6 +43,13 @@ export default defineSkin({
     CodeBlock: PasserelleCodeBlock,
     KeyValue: PasserelleKeyValue,
     ListRow: PasserelleListRow,
+    ProcessTrack: PasserelleProcessTrack,
+    UsageMeter: PasserelleUsageMeter,
+    Stat: PasserelleStat,
+    CheckRow: PasserelleCheckRow,
+    Capture: PasserelleCapture,
+    TicketTree: PasserelleTicketTree,
+    Timeline: PasserelleTimeline,
     Banner: PasserelleBanner,
     Button: PasserelleButton,
     Chip: PasserelleChip,

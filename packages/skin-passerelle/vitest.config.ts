@@ -3,7 +3,16 @@ import { defaultServerConditions } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 /** Files and imports under Node; the Composants in a real browser (ADR 0008, test baseline). */
-const BROWSER_SPECS = ['src/composants.spec.ts'];
+const BROWSER_SPECS = [
+  'src/composants.spec.ts',
+  'src/capture.spec.ts',
+  'src/check-row.spec.ts',
+  'src/process-track.spec.ts',
+  'src/stat.spec.ts',
+  'src/ticket-tree.spec.ts',
+  'src/timeline.spec.ts',
+  'src/usage-meter.spec.ts',
+];
 
 export default defineConfig({
   root: import.meta.dirname,

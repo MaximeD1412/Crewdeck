@@ -10,7 +10,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/maximed1412/crewdeck/apps/runner/internal/accounts"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
 	"github.com/spf13/cobra"
@@ -48,6 +51,8 @@ func newRootCommand() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE:  func(cmd *cobra.Command, _ []string) error { return runRunner(cmd, server) },
 	})
+	root.AddCommand(newLoginCommand())
+	root.AddCommand(newLogoutCommand())
 	root.AddCommand(newContratCommand())
 	root.AddCommand(newMCPCommand())
 	root.AddCommand(newHookCommand())
@@ -74,14 +79,43 @@ func runRunner(cmd *cobra.Command, server string) error {
 	if err != nil {
 		return err
 	}
+	keys, err := accounts.Default()
+	if err != nil {
+		return err
+	}
+	socket, err := accounts.DefaultSocket()
+	if err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	client := protocol.New(protocol.Config{
+	logger := slog.New(slog.NewTextHandler(cmd.ErrOrStderr(), nil))
+	var client *protocol.Client
+	reporter := &accounts.Reporter{
+		Engines: runnerEngines(keys),
+		Send:    func(ctx context.Context, m contracts.RunnerCapabilities) error { return client.Send(ctx, m) },
+		Logger:  logger,
+	}
+	report := func(ctx context.Context) {
+		if _, err := reporter.Report(ctx); err != nil && !errors.Is(err, protocol.ErrNotConnected) && ctx.Err() == nil {
+			logger.Warn("capabilities", "error", err)
+		}
+	}
+	client = protocol.New(protocol.Config{
 		Server:  linked.Server,
 		Token:   linked.Token,
 		Machine: machine,
-		Logger:  slog.New(slog.NewTextHandler(cmd.ErrOrStderr(), nil)),
+		Logger:  logger,
+		// What each Moteur can run, on each accepted connection (US-38).
+		OnConnected: report,
 	})
+	// `login` and `logout` ask for them again through the socket.
+	go func() {
+		if err := accounts.Serve(ctx, socket, reporter.Report); err != nil {
+			logger.Warn("accounts socket", "error", err)
+		}
+	}()
+	go reporter.Every(ctx, contracts.CapabilitiesEverySeconds*time.Second)
 	return refusal(client.Run(ctx))
 }
 

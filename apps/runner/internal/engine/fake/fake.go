@@ -23,6 +23,13 @@ type Engine struct {
 	// Caps is what Capabilities returns (its engine set to EngineID); nil, an
 	// installed, known Moteur, connected, with every feature.
 	Caps *contracts.EngineCapabilities
+	// APIKey, when set, makes Capabilities say a Compte IA of `api-key`,
+	// connected, with its Models usable, when it gives a key, and `none`,
+	// `login-required`, every model unusable, when it gives "" (the adapters
+	// read their key the same way, RUNNER-7). Caps wins over it.
+	APIKey func(context.Context) (string, error)
+	// Models are the models Capabilities lists when Caps is nil.
+	Models []contracts.EngineCapabilitiesModelsElem
 	// Events are what every run emits, their seq and instant set by the run.
 	Events []contracts.EngineEvent
 	// Err is what Wait returns once the events are emitted (a Moteur that
@@ -42,20 +49,40 @@ func (e *Engine) ID() contracts.EngineId {
 	return e.EngineID
 }
 
-func (e *Engine) Capabilities(context.Context) (contracts.EngineCapabilities, error) {
+func (e *Engine) Capabilities(ctx context.Context) (contracts.EngineCapabilities, error) {
 	if e.Caps != nil {
 		caps := *e.Caps
 		caps.Engine = e.ID()
 		return caps, nil
 	}
-	return contracts.EngineCapabilities{
+	caps := contracts.EngineCapabilities{
 		Engine:       e.ID(),
 		Installed:    true,
 		KnownVersion: true,
 		Account:      contracts.EngineCapabilitiesAccount{Kind: contracts.EngineCapabilitiesAccountKindSubscription, State: contracts.EngineCapabilitiesAccountStateConnected},
 		Models:       []contracts.EngineCapabilitiesModelsElem{},
 		Features:     contracts.EngineCapabilitiesFeatures{Interrupt: true, Resume: true, Questions: true, Permissions: true},
-	}, nil
+	}
+	if e.APIKey != nil {
+		key, err := e.APIKey(ctx)
+		if err != nil {
+			return caps, err
+		}
+		caps.Account = contracts.EngineCapabilitiesAccount{Kind: contracts.EngineCapabilitiesAccountKindApiKey, State: contracts.EngineCapabilitiesAccountStateConnected}
+		if key == "" {
+			caps.Account = contracts.EngineCapabilitiesAccount{Kind: contracts.EngineCapabilitiesAccountKindNone, State: contracts.EngineCapabilitiesAccountStateLoginRequired}
+		}
+	}
+	connected := caps.Account.State == contracts.EngineCapabilitiesAccountStateConnected
+	for _, m := range e.Models {
+		m.Usable, m.Reason = connected, nil
+		if !connected {
+			reason := contracts.EngineCapabilitiesModelsElemReasonLoginRequired
+			m.Reason = &reason
+		}
+		caps.Models = append(caps.Models, m)
+	}
+	return caps, nil
 }
 
 func (e *Engine) Start(ctx context.Context, opts engine.StartOptions) (engine.Run, error) {

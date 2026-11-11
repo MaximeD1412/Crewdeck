@@ -61,6 +61,10 @@ type Config struct {
 	Backoff Backoff
 	// OnAccepted is called on each accepted hello.
 	OnAccepted func(contracts.RunnerHelloAccepted)
+	// OnConnected is called on its own goroutine once each accepted
+	// connection can Send (the capabilities, RUNNER-7); its context ends with
+	// the connection.
+	OnConnected func(context.Context)
 }
 
 // Client is the Runner's connection to the server.
@@ -220,6 +224,11 @@ func (c *Client) session(ctx context.Context) (accepted bool, err error) {
 	var lastHeard atomic.Int64
 	lastHeard.Store(time.Now().UnixNano())
 	go c.heartbeat(ctx, conn, &lastHeard, done)
+	if c.cfg.OnConnected != nil {
+		connected, cancel := context.WithCancel(ctx)
+		defer cancel()
+		go c.cfg.OnConnected(connected)
+	}
 
 	for {
 		_, data, err := conn.Read(context.Background())

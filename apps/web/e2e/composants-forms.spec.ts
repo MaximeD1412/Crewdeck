@@ -139,8 +139,16 @@ test.describe('the form Composants and the Dialog in the library (UI-4)', () => 
     if (isPhone()) {
       await expect(page.getByRole('textbox', { name: 'Chercher un Composant' })).toBeHidden();
       await expect(catalogue).toBeHidden();
-      await page.getByRole('combobox', { name: 'Composant', exact: true }).selectOption({ label: 'SettingRow · Parties de page' });
+      const picker = page.getByRole('combobox', { name: 'Composant', exact: true });
+      await picker.selectOption({ label: 'SettingRow · Parties de page' });
       await expect(page).toHaveURL(/\?c=SettingRow$/);
+      await expect(page.locator('cd-setting-row')).toHaveCount(3);
+      // A step back after two choices: the Select says the Composant shown.
+      await picker.selectOption({ label: 'Dialog · Parties de page' });
+      await expect(page).toHaveURL(/\?c=Dialog$/);
+      await page.goBack();
+      await expect(page).toHaveURL(/\?c=SettingRow$/);
+      await expect(picker).toHaveValue('SettingRow');
       await expect(page.locator('cd-setting-row')).toHaveCount(3);
     } else {
       await expect(page.getByRole('combobox', { name: 'Composant', exact: true })).toBeHidden();

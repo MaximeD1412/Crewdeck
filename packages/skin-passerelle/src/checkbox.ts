@@ -50,15 +50,15 @@ export class PasserelleCheckbox extends PasserelleFormElement<typeof Checkbox> {
     this.submit(this.data.name, this.current ? 'on' : null);
   }
 
-  private onChange(event: Event) {
+  /** On `input`, which the browser sends before `change`: whoever hears it reads the new state. */
+  private onInput(event: Event) {
     this.current = (event.target as HTMLInputElement).checked;
     this.submit(this.data.name, this.current ? 'on' : null);
-    this.forwardChange();
   }
 
   protected override render() {
     return html`<label part="choice">
-      <input part="control" type="checkbox" .checked=${live(this.current)} @change=${this.onChange} />
+      <input part="control" type="checkbox" .checked=${live(this.current)} @input=${this.onInput} @change=${this.forwardChange} />
       <span part="label">${this.data.label}</span>
     </label>`;
   }

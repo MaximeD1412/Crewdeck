@@ -79,6 +79,27 @@ describe('Select', () => {
     expect((el as unknown as { value: string }).value).toBe('claude-code');
   });
 
+  it('shows the value its data gives back after the Pilote chose others (a step back in the history)', async () => {
+    const form = newForm();
+    const el = await render(COMPOSANTS.Select, select, {}, form);
+    const native = inside<HTMLSelectElement>(el, 'select');
+    // The page follows each choice into data.value, as the library's Select does with ?c=.
+    form.addEventListener('change', () => {
+      el.data = { ...select, value: native.value };
+    });
+    await userEvent.selectOptions(native, 'claude-code');
+    await settle(el);
+    await userEvent.selectOptions(native, 'codex');
+    await settle(el);
+    el.data = { ...select, value: 'claude-code' };
+    await settle(el);
+    expect([native.value, (el as unknown as { value: string }).value, new FormData(form).get('engine')]).toEqual([
+      'claude-code',
+      'claude-code',
+      'claude-code',
+    ]);
+  });
+
   it('disabled, submits nothing', async () => {
     const form = newForm();
     const el = await render(COMPOSANTS.Select, { ...select, state: 'disabled' }, {}, form);
@@ -139,6 +160,19 @@ describe('Checkbox', () => {
     expect(new FormData(form).get('personal-os')).toBe('on');
     expect(changes).toHaveBeenCalledOnce();
   });
+
+  it('is up to date when its form hears input, before change', async () => {
+    const form = newForm();
+    const el = await render(COMPOSANTS.Checkbox, { name: 'personal-os', label: 'Personal OS', checked: false }, {}, form);
+    const seen: unknown[] = [];
+    for (const type of ['input', 'change'])
+      form.addEventListener(type, () => seen.push([type, (el as unknown as { checked: boolean }).checked, new FormData(form).get('personal-os')]));
+    inside<HTMLInputElement>(el, 'input[type=checkbox]').click();
+    expect(seen).toEqual([
+      ['input', true, 'on'],
+      ['change', true, 'on'],
+    ]);
+  });
 });
 
 describe('Radio', () => {
@@ -161,6 +195,27 @@ describe('Radio', () => {
     inputs[1]?.click();
     expect(new FormData(form).getAll('cadence')).toEqual(['at']);
     expect(inputs.map((input) => input.checked)).toEqual([false, true, false]);
+  });
+
+  it.each([
+    ['a click', async (inputs: HTMLInputElement[]) => inputs[1]?.click()],
+    [
+      'an arrow key',
+      async (inputs: HTMLInputElement[]) => {
+        inputs[0]?.focus();
+        await userEvent.keyboard('{ArrowDown}');
+      },
+    ],
+  ])('is up to date when its form hears input, before change, after %s', async (_how, act) => {
+    const { form, radios, inputs } = await group();
+    const seen: unknown[] = [];
+    const checked = () => radios.map((radio) => (radio as unknown as { checked: boolean }).checked);
+    for (const type of ['input', 'change']) form.addEventListener(type, () => seen.push([type, checked(), new FormData(form).getAll('cadence')]));
+    await act(inputs);
+    expect(seen).toEqual([
+      ['input', [false, true, false], ['at']],
+      ['change', [false, true, false], ['at']],
+    ]);
   });
 
   it('keeps one radio of its group in the tab order, and the arrow keys check the next one', async () => {

@@ -77,12 +77,15 @@ export class PasserelleRadio extends PasserelleFormElement<typeof Radio> {
     this.requestUpdate();
   }
 
-  /** Checks this one and unchecks the rest of its group, as a native group does. */
+  /**
+   * Checks this one and unchecks the rest of its group, as a native group does,
+   * on `input`, which the browser sends before `change`: whoever hears it reads
+   * the new state.
+   */
   private check() {
     const group = this.group();
     for (const peer of group) peer.setChecked(peer === this);
     for (const peer of group) peer.syncTabStop();
-    this.forwardChange();
   }
 
   private syncTabStop() {
@@ -98,7 +101,7 @@ export class PasserelleRadio extends PasserelleFormElement<typeof Radio> {
     const next = group[(group.indexOf(this) + step + group.length) % group.length];
     if (!next || next === this) return;
     next.check();
-    next.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    next.sendInputAndChange();
     next.shadowRoot?.querySelector('input')?.focus();
   }
 
@@ -116,7 +119,8 @@ export class PasserelleRadio extends PasserelleFormElement<typeof Radio> {
         .value=${this.data.value}
         .checked=${live(this.current)}
         tabindex=${this.tabStop() ? '0' : '-1'}
-        @change=${this.check}
+        @input=${this.check}
+        @change=${this.forwardChange}
         @keydown=${this.onKeydown}
       />
       <span part="label">${this.data.label}</span>

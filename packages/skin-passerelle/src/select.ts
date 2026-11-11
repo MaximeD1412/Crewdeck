@@ -49,6 +49,10 @@ export class PasserelleSelect extends PasserelleFormElement<typeof Select> {
 
   protected override updated(changed: PropertyValues): void {
     super.updated(changed);
+    // Once the Pilote has chosen, an option's `selected` attribute no longer
+    // moves the selection (HTML: an option's dirtiness): the native value is set.
+    const native = this.shadowRoot?.querySelector('select');
+    if (native && native.value !== this.current) native.value = this.current;
     this.submit(this.data.name, this.data.state === 'disabled' ? null : this.current);
   }
 

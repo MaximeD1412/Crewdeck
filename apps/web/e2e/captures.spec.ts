@@ -21,6 +21,16 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   'a-toi-menu-plus': async (page, width) => {
     if (width < 1280) await page.getByRole('button', { name: 'Plus' }).click();
   },
+  // The page draws its code once the snapshot is there: its command shown.
+  demarrage: async (page) => {
+    await expect(page.locator('cd-page-demarrage cd-code-block')).toContainText('--link');
+  },
+  'demarrage-liaison-echouee': async (page) => {
+    await expect(page.locator('cd-page-demarrage cd-code-block')).toContainText('--link');
+  },
+  'demarrage-runner-relie': async (page) => {
+    await expect(page.locator('cd-page-demarrage cd-banner')).toContainText('Runner en ligne');
+  },
 };
 
 const names = (process.env['CAPTURES_SCENARIOS'] ?? '')

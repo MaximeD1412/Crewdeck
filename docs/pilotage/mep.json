@@ -227,6 +227,20 @@
       "ajouteLe": "2026-11-11"
     },
     {
+      "id": "env-runner-distribution",
+      "phase": "env",
+      "source": "#43",
+      "titre": "PUBLIC_URL et RUNNER_DIST_DIR pour la distribution du Runner, dans le .env de la prod et du staging",
+      "pourquoi": "La commande des Premiers pas télécharge <PUBLIC_URL>/runner/install.sh : le serveur y écrit PUBLIC_URL comme serveur du Runner, que crewdeck-runner link appelle puis garde dans runner.json. Un PUBLIC_URL faux relie le Runner à un autre serveur, ou à aucun. Les binaires, leurs .sha256 et install.sh sont servis depuis RUNNER_DIST_DIR, que l'image pose à /app/runner (runner:dist) : un RUNNER_DIST_DIR du .env qui pointe ailleurs fait répondre 404 à /runner/*.",
+      "etapes": [
+        "Dans /opt/crewdeck/prod/.env et /opt/crewdeck/staging/.env : PUBLIC_URL comme pour env-public-url ; ne pas écrire RUNNER_DIST_DIR (l'image le pose).",
+        "Vérifier après le déploiement suivant, en prod puis en staging : install.sh répond 200 et porte le bon serveur.",
+        "Vérifier : <PUBLIC_URL>/runner/<version>/linux-amd64.sha256 répond 200, <version> étant la valeur de version= dans install.sh."
+      ],
+      "commande": "curl -fsS https://<domaine>/runner/install.sh | grep -E '^(server|version)='",
+      "ajouteLe": "2026-11-11"
+    },
+    {
       "id": "env-github-token-key",
       "phase": "env",
       "source": "#32",
@@ -288,10 +302,10 @@
       "titre": "Migration account_settings : la table des Paramètres du compte",
       "pourquoi": "PARAM-1 ajoute la table account_settings (une ligne par Pilote, créée à son premier changement ; sans elle, les valeurs par défaut). La migration ne fait que créer la table : compatible avec la version précédente, qui ne la lit pas. deploy.sh l'applique (compose run --rm server migrate), après la répétition sur la dernière sauvegarde en production.",
       "etapes": [
-        "Rien à faire à la main : le déploiement suivant applique 20261116000000_account_settings, sur le staging puis en production.",
+        "Rien à faire à la main : le déploiement suivant applique 20261117000000_account_settings, sur le staging puis en production.",
         "Vérifier après le déploiement : la migration figure dans _prisma_migrations, et /parametres affiche « Compte » avec le fuseau horaire du Pilote."
       ],
-      "commande": "sudo docker compose -p crewdeck-prod --env-file /opt/crewdeck/prod/.env -f /opt/crewdeck/deploy/docker-compose.yml exec db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261116000000_account_settings'\"",
+      "commande": "sudo docker compose -p crewdeck-prod --env-file /opt/crewdeck/prod/.env -f /opt/crewdeck/deploy/docker-compose.yml exec db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261117000000_account_settings'\"",
       "ajouteLe": "2026-11-11"
     }
   ]

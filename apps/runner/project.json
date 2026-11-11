@@ -15,6 +15,7 @@
       "cache": true,
       "inputs": [
         "go",
+        "{projectRoot}/install/*.sh",
         "^production"
       ],
       "options": {
@@ -63,6 +64,24 @@
       ],
       "options": {
         "command": "go build -ldflags \"-X main.version=${CREWDECK_VERSION:-dev}\" -o ../../dist/apps/runner/crewdeck-runner ./cmd/crewdeck-runner",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "dist": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "go",
+        "{projectRoot}/install/*.sh",
+        {
+          "env": "CREWDECK_VERSION"
+        }
+      ],
+      "outputs": [
+        "{workspaceRoot}/dist/runner"
+      ],
+      "options": {
+        "command": "sh install/dist.sh ../../dist/runner",
         "cwd": "{projectRoot}"
       }
     },

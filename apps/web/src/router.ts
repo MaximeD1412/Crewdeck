@@ -69,7 +69,7 @@ const routeOf = (routes: readonly Route[], match: RouteMatch): Route | undefined
   routes.find((route) => route.composant === match.composant && matchPath(route.path, match.path));
 
 /** The page's `data` by default: its route's view, else nothing. */
-const routeData =
+export const routeData =
   (routes: readonly Route[]) =>
   (match: RouteMatch, state?: unknown): unknown =>
     routeOf(routes, match)?.data?.(match, state) ?? {};
@@ -78,7 +78,11 @@ export interface Router {
   readonly current: RouteMatch;
   /** Goes to a page URL of the app (path, query, hash) through the History API. */
   navigate(url: string, options?: { replace?: boolean }): void;
-  /** Gives the page its `data` and its Emplacements again, for a new `state`, the same elements kept. */
+  /**
+   * Renders the current page again for a new state (the store's, a page's
+   * own): the guard asked again, the page's `data` and Emplacements read
+   * again, the same elements kept; `onRoute` only when the guard moved the page.
+   */
   refresh(): void;
   stop(): void;
 }
@@ -129,14 +133,8 @@ export const startRouter = ({
 }: RouterOptions): Router => {
   let current: RouteMatch;
 
-  const paint = (page: Element) => {
-    const now = state();
-    (page as Element & { data: unknown }).data = data(current, now);
-    const slots = routeOf(routes, current)?.slots;
-    if (slots) fillPlaced(page, slots(current, now));
-  };
-
-  const render = () => {
+  const render = (navigated = true) => {
+    const before = location.href;
     const path = normalise(location.pathname);
     const target = Object.hasOwn(redirects, path) ? redirects[path] : undefined;
     if (target) history.replaceState(history.state, '', target + location.search + location.hash);
@@ -151,9 +149,12 @@ export const startRouter = ({
       existing && existing.localName === current.composant.tag && outlet.childElementCount === 1
         ? existing
         : document.createElement(current.composant.tag);
-    paint(page);
+    const now = state();
+    (page as Element & { data: unknown }).data = data(current, now);
+    const slots = routeOf(routes, current)?.slots;
+    if (slots) fillPlaced(page, slots(current, now));
     if (page !== existing || outlet.childElementCount !== 1) outlet.replaceChildren(page);
-    onRoute?.(current);
+    if (navigated || location.href !== before) onRoute?.(current);
   };
 
   const navigate = (url: string, { replace = false }: { replace?: boolean } = {}) => {
@@ -173,7 +174,8 @@ export const startRouter = ({
   };
 
   document.addEventListener('click', onClick);
-  window.addEventListener('popstate', render);
+  const onPopState = () => render();
+  window.addEventListener('popstate', onPopState);
   render();
 
   return {
@@ -181,13 +183,10 @@ export const startRouter = ({
       return current;
     },
     navigate,
-    refresh() {
-      const page = outlet.firstElementChild;
-      if (page) paint(page);
-    },
+    refresh: () => render(false),
     stop() {
       document.removeEventListener('click', onClick);
-      window.removeEventListener('popstate', render);
+      window.removeEventListener('popstate', onPopState);
     },
   };
 };

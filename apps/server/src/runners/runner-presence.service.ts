@@ -93,7 +93,7 @@ export class RunnerPresence {
     return this.serial(pilotId, async () => {
       const now = this.clock.now();
       const back = await this.transactions.run(async (tx) => {
-        const { count } = await tx.runner.updateMany({ where: { id: runnerId, state: 'offline' }, data: { state: 'online', lastSeenAt: now } });
+        const { count } = await tx.runner.updateMany({ where: { id: runnerId, state: 'offline', revokedAt: null }, data: { state: 'online', lastSeenAt: now } });
         if (count === 0) {
           await tx.runner.updateMany({ where: { id: runnerId }, data: { lastSeenAt: now } });
           return false;
@@ -125,7 +125,7 @@ export class RunnerPresence {
 
   private goOffline(pilotId: string, runnerId: string, where: { lastSeenAt?: { lt: Date } }): Promise<boolean> {
     return this.transactions.run(async (tx) => {
-      const { count } = await tx.runner.updateMany({ where: { id: runnerId, state: 'online', ...where }, data: { state: 'offline' } });
+      const { count } = await tx.runner.updateMany({ where: { id: runnerId, state: 'online', revokedAt: null, ...where }, data: { state: 'offline' } });
       if (count === 0) return false;
       await this.writeEvent(tx, pilotId, runnerId);
       return true;

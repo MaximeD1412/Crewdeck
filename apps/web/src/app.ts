@@ -1,5 +1,5 @@
 import type { Me } from '@crewdeck/contracts';
-import { Cadre, PageComposants, PageConnexion, PageParametres, type Skin } from '@crewdeck/sdk';
+import { Cadre, PageComposants, PageConnexion, PageDemarrage, PageParametres, type Skin } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
 import { me as readMe } from './api/auth.js';
@@ -7,8 +7,9 @@ import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
 import { updateSettings } from './api/settings.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
+import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
 import { bootSkin } from './registry.js';
-import { startRouter, type Route, type Router } from './router.js';
+import { routeData, startRouter, type Route, type Router } from './router.js';
 import { composantsHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
 import { signInGuard, signInHref } from './sign-in.js';
@@ -16,6 +17,7 @@ import { client as pageClient, connection as pageConnection, store as pageStore 
 import type { Connection } from './store/connection.js';
 import { createLatencyMeter, type LatencyMeter } from './store/latency.js';
 import type { Store } from './store/store.js';
+import { systemOfBrowser } from './views/demarrage.js';
 
 /** The Skins the page knows, by id: at the MVP, the default one. */
 const SKINS: Readonly<Record<string, Skin>> = { passerelle };
@@ -38,8 +40,8 @@ export interface BootOptions {
   /** The page's store and its socket (`store/index.ts`) by default. */
   readonly store?: Store;
   readonly connection?: Pick<Connection, 'start' | 'stop'>;
-  /** The page's commands (`store/index.ts`) by default. */
-  readonly client?: Pick<Client, 'command'>;
+  /** The page's queries and commands (`store/index.ts`) by default. */
+  readonly client?: Pick<Client, 'command' | 'query'>;
   /** The latency the page measures on its store's live events (CORE-8): started with the socket. */
   readonly latency?: LatencyMeter;
 }
@@ -89,12 +91,27 @@ export const boot = async ({
     shell.showError(event.reason.message);
   };
   window.addEventListener('unhandledrejection', onUnhandled);
-  const router = startRouter({ routes, outlet: shell.outlet, state: store.getState, onRoute: shell.update, guard: signInGuard(pilot) });
-  // The Cadre and the page follow the store: a change made elsewhere shows without a reload.
-  const unsubscribe = store.subscribe(() => {
-    shell.refresh();
-    router.refresh();
+  const gettingStarted = createGettingStarted({ store, client, bootPilot: pilot, origin: location.origin, system: systemOfBrowser(navigator.userAgent) });
+  const signIn = signInGuard(pilot);
+  const started = gettingStartedGuard(gettingStarted.pilot);
+  const pageData = routeData(routes);
+  const router = startRouter({
+    routes,
+    outlet: shell.outlet,
+    onRoute: shell.update,
+    state: store.getState,
+    guard: (match) => started(match) ?? signIn(match),
+    data: (match) => (match.composant === PageDemarrage ? gettingStarted.view() : pageData(match)),
   });
+  // The Cadre and the page follow the store: a change made elsewhere shows without a reload.
+  const unsubscribe = [
+    store.subscribe(() => {
+      gettingStarted.sync();
+      router.refresh();
+      shell.refresh();
+    }),
+    gettingStarted.subscribe(() => router.refresh()),
+  ];
   if (pilot) {
     latency.start();
     connection.start();
@@ -109,11 +126,14 @@ export const boot = async ({
     },
   });
   dispatcher.registerAction(Cadre, 'openPilot', { run: () => router.navigate('/parametres') });
+  dispatcher.registerAction(PageDemarrage, 'selectSystem', { run: ({ system }) => gettingStarted.selectSystem(system) });
+  dispatcher.registerAction(PageDemarrage, 'retry', { run: () => gettingStarted.retry() });
+  dispatcher.registerAction(PageDemarrage, 'continue', { run: () => gettingStarted.advance() });
   const stop = () => {
     router.stop();
     connection.stop();
     latency.stop();
-    unsubscribe();
+    for (const stopListening of unsubscribe) stopListening();
     window.removeEventListener('unhandledrejection', onUnhandled);
   };
   return { router, bridge, dispatcher, stop };

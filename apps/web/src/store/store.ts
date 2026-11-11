@@ -1,4 +1,4 @@
-import type { AccountSettings, Event, Me, Resource, State } from '@crewdeck/contracts';
+import type { AccountSettings, Event, Me, Resource, Runner, RunnerLink, State } from '@crewdeck/contracts';
 
 /**
  * Where the page stands with the server (ADR 0007): `connecting` at boot,
@@ -14,6 +14,10 @@ export type Connection = 'connecting' | 'resync' | 'live';
  */
 export interface Slices {
   readonly pilot: Me | null;
+  /** The Pilote's Runner, `null` while none is linked (RUNNER-3). */
+  readonly runner: Runner | null;
+  /** The Pilote's last link code, `null` before any: « Premiers pas » follows it (RUNNER-3). */
+  readonly 'runner-link': RunnerLink | null;
   readonly settings: AccountSettings | null;
 }
 

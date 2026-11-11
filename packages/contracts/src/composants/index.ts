@@ -21,6 +21,7 @@ import { ListRow } from './list-row.js';
 import { Message } from './message.js';
 import { PageComposants } from './page-composants.js';
 import { PageConnexion } from './page-connexion.js';
+import { PageDemarrage } from './page-demarrage.js';
 import { PageParametres } from './page-parametres.js';
 import { PageHeader } from './page-header.js';
 import { PageIntrouvable } from './page-introuvable.js';
@@ -69,6 +70,7 @@ export * from './list-row.js';
 export * from './message.js';
 export * from './page-composants.js';
 export * from './page-connexion.js';
+export * from './page-demarrage.js';
 export * from './page-parametres.js';
 export * from './page-header.js';
 export * from './page-introuvable.js';
@@ -105,6 +107,7 @@ export const COMPOSANTS = {
   ProjectFilter,
   PageComposants,
   PageConnexion,
+  PageDemarrage,
   PageParametres,
   PageIntrouvable,
   Card,

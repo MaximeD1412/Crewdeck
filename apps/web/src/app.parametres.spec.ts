@@ -4,7 +4,7 @@ import { createDispatcher } from './actions/dispatcher.js';
 import { boot } from './app.js';
 import { createStore } from './store/store.js';
 
-const PILOT = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris' };
+const PILOT = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' } as const;
 
 // Its own file: a page has one Skin, booted once.
 describe('the page’s Paramètres', () => {
@@ -22,7 +22,7 @@ describe('the page’s Paramètres', () => {
       me: async () => PILOT,
       store,
       connection: { start: vi.fn<() => void>(), stop: vi.fn<() => void>() },
-      client: { command },
+      client: { command, query: vi.fn() },
     });
 
     const page = root.querySelector('cd-page-parametres') as HTMLElement;
@@ -31,7 +31,7 @@ describe('the page’s Paramètres', () => {
     expect(slotsOf()).toEqual(['modders']);
 
     const settings = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' };
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, settings });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, settings });
     expect(slotsOf()).toEqual(['account', 'modders']);
     const select = page.querySelector('cd-select') as HTMLElement & { data: { value: string } };
     expect(select.data.value).toBe('Europe/Paris');

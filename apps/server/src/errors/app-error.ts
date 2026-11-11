@@ -3,9 +3,10 @@ import type { ErrorEnvelope } from '@crewdeck/contracts';
 /**
  * The statuses a module may answer with (ADR 0008); no 403: another Pilote's
  * resource is a 404. 500 only for a system we depend on that fails, with its
- * own message (`github.unavailable`): ADR 0008 has no 502.
+ * own message (`github.unavailable`): ADR 0008 has no 502. 429 for a route
+ * that counts its attempts (`runner.link-rate-limited`, ADR 0003).
  */
-export type AppErrorStatus = 400 | 401 | 404 | 409 | 422 | 500;
+export type AppErrorStatus = 400 | 401 | 404 | 409 | 422 | 429 | 500;
 
 /**
  * An error the client caused, or a dependency's failure the page explains, rendered as is in the envelope by the global

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { zMe } from './me.js';
 import { zRunner } from './runner.js';
+import { zRunnerLink } from './runner-link.js';
 import { zAccountSettings } from './settings.js';
 import { zSeq } from '../values.js';
 
@@ -13,6 +14,8 @@ export const STATE_SLICES = {
   pilot: zMe,
   /** The Pilote's Runner, `null` while none is linked. */
   runner: zRunner.nullable(),
+  /** The Pilote's last link code (RUNNER-3), `null` before any: « Premiers pas » follows it. */
+  'runner-link': zRunnerLink.nullable(),
   /** The Paramètres of the account. */
   settings: zAccountSettings,
 } as const;

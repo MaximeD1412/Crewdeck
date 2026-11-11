@@ -122,7 +122,12 @@
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
-          "texte": "Code de liaison avec un secret de 128 bits jamais envoyé au serveur, copié et non saisi ; preuve HMAC sur les deux clés",
+          "texte": "Code de liaison avec un secret de 128 bits jamais envoyé au serveur, copié et non saisi",
+          "ref": "ADR 0003",
+          "fait": true
+        },
+        {
+          "texte": "Preuve HMAC sur les deux clés, avec le secret du code de liaison",
           "ref": "ADR 0003",
           "fait": false
         },

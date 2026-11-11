@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { zMe } from './me.js';
 import { zRunner } from './runner.js';
+import { zAccountSettings } from './settings.js';
 import { zSeq } from '../values.js';
 
 /**
@@ -12,6 +13,8 @@ export const STATE_SLICES = {
   pilot: zMe,
   /** The Pilote's Runner, `null` while none is linked. */
   runner: zRunner.nullable(),
+  /** The Paramètres of the account. */
+  settings: zAccountSettings,
 } as const;
 export type StateKey = keyof typeof STATE_SLICES;
 

@@ -51,6 +51,17 @@ describe('PageDemarrage', () => {
     expect(el.shadowRoot?.querySelector('cd-button')).toBeNull();
   });
 
+  it.each([
+    ['waiting', WAITING],
+    ['failed', { ...WAITING, failure: { reason: 'expired', shortId: '9RTB' } }],
+    ['linked', { ...WAITING, command: null, shortId: null, runner: RUNNER }],
+  ] as const)('gives every Composant it holds its data, without which it renders nothing (%s)', async (_state, data) => {
+    const el = await page(data as Data);
+    const held = all(el, '*').filter((node) => node.tagName.startsWith('CD-'));
+    expect(held.length).toBeGreaterThan(0);
+    expect(held.filter((node) => node.data === undefined).map((node) => node.outerHTML.slice(0, 40))).toEqual([]);
+  });
+
   it('shows no command before the page drew its code', async () => {
     const el = await page({ ...WAITING, command: null, shortId: null });
     expect(el.shadowRoot?.querySelector('cd-code-block')).toBeNull();
@@ -106,7 +117,7 @@ describe('PageDemarrage', () => {
     expect(banner.data).toEqual({ tone: 'go', icon: 'check', title: 'Runner en ligne' });
     expect(textOf(banner)).toBe("Il a répondu à l'instant.");
     expect(child(el, 'cd-key-value').data['items']).toEqual([
-      { label: 'Machine', value: 'atelier-pc', mono: true },
+      { label: 'Machine', value: 'atelier-pc', mono: false },
       { label: 'Système', value: 'Windows (WSL) · amd64', mono: false },
       { label: 'Version', value: 'Runner 0.4.2', mono: false },
     ]);

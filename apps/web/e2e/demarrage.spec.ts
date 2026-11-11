@@ -36,7 +36,8 @@ test.describe('« Premiers pas », the Runner (US-2)', () => {
     await expect(demarrage.getByRole('heading', { level: 1, name: 'Installe le Runner' })).toBeVisible();
     await expect(page.locator('cd-cadre').getByRole('navigation', { name: 'Menu principal' })).toHaveCount(0);
     const { shortId, secret } = await codeOf(page);
-    await expect(demarrage.locator('cd-check-row')).toContainText('En attente du Runner…');
+    await expect(demarrage.getByText('En attente du Runner…')).toBeVisible();
+    await expect(demarrage.getByText('Cette page passe à la suite dès que le Runner se relie à ton compte.')).toBeVisible();
     await expect(demarrage.locator('cd-check-row')).toContainText(`code ${shortId}`);
     await expect(demarrage.getByText('Ce qui reste chez toi')).toBeVisible();
     await expectAccessible(page);

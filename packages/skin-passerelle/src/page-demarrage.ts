@@ -150,7 +150,7 @@ export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarr
             <cd-key-value
               .data=${{
                 items: [
-                  { label: t('demarrage.runner.machine.machine'), value: runner.machine, mono: true },
+                  { label: t('demarrage.runner.machine.machine'), value: runner.machine, mono: false },
                   { label: t('demarrage.runner.machine.system'), value: systemOf(runner), mono: false },
                   { label: t('demarrage.runner.machine.version'), value: t('demarrage.runner.version', { version: runner.runnerVersion }), mono: false },
                 ],
@@ -175,7 +175,7 @@ export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarr
     return html`${this.head(t('demarrage.runner.title'), t('demarrage.runner.lead'))}
       <section aria-label=${t('demarrage.step.runner')}>
         ${this.install()}
-        <cd-card>
+        <cd-card .data=${{}}>
           <div class="waiting">
             <cd-check-row
               .data=${{ name: t('demarrage.runner.waiting'), state: 'running', detail: shortId ? t('demarrage.runner.code', { shortId }) : null, href: null }}

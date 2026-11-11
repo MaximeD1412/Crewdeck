@@ -377,7 +377,7 @@ export const fr = {
   'demarrage.runner.online.text': 'Il a répondu {ago}.',
   'demarrage.runner.online.title': 'Runner en ligne',
   'demarrage.runner.retry': 'Réessayer',
-  'demarrage.runner.retryHelp': '« Réessayer » attend à nouveau ton Runner, avec un nouveau code.',
+  'demarrage.runner.retryHelp': '« Réessayer » attend à nouveau ton Runner, avec le nouveau code.',
   'demarrage.runner.system.linux': 'Linux',
   'demarrage.runner.system.macos': 'macOS',
   'demarrage.runner.system.wsl': 'Windows (WSL)',

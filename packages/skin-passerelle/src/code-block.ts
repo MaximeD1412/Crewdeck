@@ -7,7 +7,7 @@ export const COPIED_MS = 2000;
 
 /**
  * `cd-code-block`: a command and « Copier », which copies it and says « Copié » for 2 s; a local behaviour, no action.
- * The command takes the focus: at 1280 px it scrolls on one line, which the keyboard must reach (WCAG 2.1.1).
+ * The command wraps at every width, as in the mockups: whole on screen, nothing to scroll.
  */
 export class PasserelleCodeBlock extends PasserelleElement<typeof CodeBlock> {
   static override properties = { copied: { state: true } };
@@ -43,10 +43,6 @@ export class PasserelleCodeBlock extends PasserelleElement<typeof CodeBlock> {
         font: var(--cd-font-label-weight) var(--cd-font-caption-size) / 1 var(--cd-font-label-family), sans-serif;
         flex: none;
       }
-      code:focus-visible {
-        outline: var(--cd-stroke) solid var(--cd-accent);
-        outline-offset: var(--cd-stroke);
-      }
       button::after {
         content: '';
         position: absolute;
@@ -55,13 +51,6 @@ export class PasserelleCodeBlock extends PasserelleElement<typeof CodeBlock> {
         top: 50%;
         height: var(--cd-touch);
         transform: translateY(-50%);
-      }
-      @media (min-width: 1280px) {
-        code {
-          white-space: nowrap;
-          overflow-x: auto;
-          scrollbar-width: none;
-        }
       }
     `,
   ];
@@ -94,7 +83,7 @@ export class PasserelleCodeBlock extends PasserelleElement<typeof CodeBlock> {
 
   protected override render() {
     return html`<div part="code" class="code">
-      <code tabindex="0">${this.data.code}</code>
+      <code>${this.data.code}</code>
       <button type="button" @click=${() => void this.copy()}>
         <cd-icon .data=${{ name: this.copied ? 'check' : 'copy', size: 'sm' }}></cd-icon>
         ${this.copied ? t('codeBlock.copied') : t('codeBlock.copy')}

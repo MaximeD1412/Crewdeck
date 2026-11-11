@@ -285,11 +285,6 @@ describe('CodeBlock', () => {
     await el.updateComplete;
     expect(textOf(button)).toBe(t('codeBlock.copy'));
   });
-
-  it('lets the keyboard reach its command, which scrolls at 1280 px', async () => {
-    const el = await render(COMPOSANTS.CodeBlock, { code: 'crewdeck-runner login' });
-    expect(inside(el, 'code').tabIndex).toBe(0);
-  });
 });
 
 describe('PageHeader', () => {

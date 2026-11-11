@@ -22,6 +22,7 @@ func TestEveryFixtureOfTheProtocolDecodesIntoItsGeneratedType(t *testing.T) {
 		TypeHeartbeat:     decodeInto[contracts.RunnerHeartbeat],
 		TypeHeartbeatAck:  decodeInto[contracts.RunnerHeartbeatAck],
 		TypeError:         decodeInto[contracts.RunnerError],
+		TypeStepVerdict:   decodeInto[contracts.RunnerStepVerdict],
 	}
 	entries, err := os.ReadDir(fixturesDir)
 	if err != nil {

@@ -4,6 +4,7 @@ import { zHealth } from './api/health.js';
 import { LINK_ATTEMPTS_PER_MINUTE, LINK_CODE_TTL_SECONDS, LINK_POLL_SECONDS, zRunnerLinkAccepted, zRunnerLinkPairing, zRunnerLinkRequest, zRunnerLinkStatus } from './api/runner-link.js';
 import { zHeartbeat, zHeartbeatAck } from './runner/heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './runner/hello.js';
+import { zStepVerdict } from './runner/step.js';
 import { HEARTBEAT_SECONDS, OFFLINE_AFTER_SECONDS, PROTOCOL_VERSION, RUNNER_WS_CLOSE, zProtocolError, zRunnerEnvelope } from './runner/protocol.js';
 
 /**
@@ -26,6 +27,7 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-heartbeat', schema: zHeartbeat },
   { name: 'runner-heartbeat-ack', schema: zHeartbeatAck },
   { name: 'runner-error', schema: zProtocolError },
+  { name: 'runner-step-verdict', schema: zStepVerdict },
 ];
 
 /**

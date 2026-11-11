@@ -1,0 +1,84 @@
+{
+  "$defs": {
+    "ContratVerdict": {
+      "additionalProperties": false,
+      "properties": {
+        "contractId": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "failedRuleIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "headSha": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "incomplete"
+          ],
+          "type": "string"
+        },
+        "version": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer"
+        },
+        "warningRuleIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "contractId",
+        "failedRuleIds",
+        "status",
+        "version",
+        "warningRuleIds"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "at": {
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+      "type": "string"
+    },
+    "id": {
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+      "type": "string"
+    },
+    "stepRunId": {
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+      "type": "string"
+    },
+    "type": {
+      "const": "step.verdict",
+      "type": "string"
+    },
+    "verdict": {
+      "$ref": "#/$defs/ContratVerdict"
+    }
+  },
+  "required": [
+    "at",
+    "id",
+    "stepRunId",
+    "type",
+    "verdict"
+  ],
+  "title": "RunnerStepVerdict",
+  "type": "object"
+}

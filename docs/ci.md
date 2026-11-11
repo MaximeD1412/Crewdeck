@@ -68,12 +68,12 @@ The toolchain of `.mise.toml` (`jdx/mise-action`), `pnpm install
 
 ```bash
 pnpm exec nx affected -t lint typecheck test build --base=origin/develop   # full: nx run-many -t …
-pnpm exec nx run contracts:generate && git status --porcelain -- packages/contracts/generated apps/runner/internal/contracts
+pnpm exec nx run contracts:generate && git status --porcelain -- packages/contracts/generated apps/runner/internal/contracts apps/runner/internal/contrat/contrats packages/contracts/fixtures/contrats/example.json
 ```
 
 The second line fails with « Contrats générés pas à jour : lance pnpm exec
-nx run contracts:generate » when a schema changed without its JSON Schema or
-Go types: run it and commit what it writes.
+nx run contracts:generate » when a schema or a Contrat changed without its JSON Schema, Go types or
+generated Contrats: run it and commit what it writes.
 
 ### `integration`
 

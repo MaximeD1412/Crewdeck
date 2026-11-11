@@ -43,6 +43,8 @@
         "outputs": [
           "{projectRoot}/generated/json-schema",
           "{workspaceRoot}/apps/runner/internal/contracts/*.go",
+          "{workspaceRoot}/apps/runner/internal/contrat/contrats",
+          "{projectRoot}/fixtures/contrats/example.json",
           "!{workspaceRoot}/apps/runner/internal/contracts/*_test.go"
         ]
       }

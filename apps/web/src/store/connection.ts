@@ -27,7 +27,10 @@ export interface Connection {
   /** Opens the socket; it reconnects by itself until `stop`. */
   start(): void;
   stop(): void;
-  /** After a 409 `realtime.stale`: `resync`, and `hello` with the store's `seq`, the server replaying what the page missed until `live`. */
+  /**
+   * After a 409 `realtime.stale`: `resync`, and `hello` with the store's `seq`, the server replaying what the page missed until `live`.
+   * One `hello` at a time: asked again meanwhile, the next one goes after that `live`, and only its own `live` ends the `resync`.
+   */
   catchUp(): void;
 }
 
@@ -81,6 +84,10 @@ export const createConnection = ({
   let pingTimer: ReturnType<typeof setInterval> | undefined;
   let pongTimer: ReturnType<typeof setTimeout> | undefined;
   let stopped = true;
+  /** A `hello` sent on this socket waits for its `live`; the server answers only the last one it got. */
+  let awaiting = false;
+  /** A catch-up asked while one was waiting: its `hello` goes once the server is `live`. */
+  let again = false;
 
   const send = (message: Outgoing) => {
     if (socket?.readyState === OPEN) socket.send(JSON.stringify(message));
@@ -90,6 +97,7 @@ export const createConnection = ({
 
   const hello = () => {
     const { seq } = store.getState();
+    awaiting = true;
     send({ type: 'hello', lastSeq: seq === null ? null : seq.toString() });
     sendVisibility();
   };
@@ -99,6 +107,7 @@ export const createConnection = ({
     clearInterval(pingTimer);
     clearTimeout(pongTimer);
     pongTimer = undefined;
+    awaiting = again = false;
     if (!socket) return;
     const current = socket;
     socket = null;
@@ -145,6 +154,12 @@ export const createConnection = ({
       }
       case 'live':
         attempt = 0;
+        if (again) {
+          again = false;
+          hello();
+          return;
+        }
+        awaiting = false;
         store.markLive();
         return;
       case 'pong':
@@ -199,7 +214,8 @@ export const createConnection = ({
     catchUp() {
       if (socket?.readyState !== OPEN) return;
       store.markStale();
-      hello();
+      if (awaiting) again = true;
+      else hello();
     },
   };
 };

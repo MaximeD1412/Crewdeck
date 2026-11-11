@@ -305,6 +305,43 @@ describe('what the page tells the server', () => {
     expect(store.getState()).toMatchObject({ connection: 'live', seq: 8n, slices: { pilot: { login: 'missed' } } });
   });
 
+  it('a second catchUp during the first one waits for its live, then sends hello again: the first live does not end it', async () => {
+    const { connection, socket } = await liveAt(7);
+    connection.catchUp();
+    socket.receive(pilotEvent(8, 'first'));
+    socket.sent.length = 0;
+
+    connection.catchUp();
+    expect(socket.sent).toEqual([]);
+    socket.receive({ type: 'live' });
+    expect(store.getState()).toMatchObject({ connection: 'resync', seq: 8n });
+    expect(socket.sent).toEqual([
+      { type: 'hello', lastSeq: '8' },
+      { type: 'visibility', visible: true },
+    ]);
+
+    socket.receive(pilotEvent(9, 'second'));
+    socket.receive({ type: 'live' });
+    expect(store.getState()).toMatchObject({ connection: 'live', seq: 9n, slices: { pilot: { login: 'second' } } });
+  });
+
+  it('a catchUp before the boot is live is the same: the boot’s live is followed by its hello', async () => {
+    snapshot.mockResolvedValueOnce({ seq: 7, pilot: PILOT });
+    const connection = connect();
+    const socket = MockSocket.last();
+    socket.open();
+    socket.receive({ type: 'snapshot-required' });
+    await vi.waitFor(() => expect(store.getState().seq).toBe(7n));
+    socket.sent.length = 0;
+
+    connection.catchUp();
+    socket.receive({ type: 'live' });
+    expect(store.getState().connection).toBe('resync');
+    expect(socket.sent[0]).toEqual({ type: 'hello', lastSeq: '7' });
+    socket.receive({ type: 'live' });
+    expect(store.getState().connection).toBe('live');
+  });
+
   it('catchUp answered snapshot-required: resync until the snapshot is applied and the server says live', async () => {
     const { connection, socket } = await liveAt(7);
     connection.catchUp();

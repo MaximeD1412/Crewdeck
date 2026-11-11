@@ -65,6 +65,9 @@ export class PasserellePageRunner extends PasserelleElement<typeof PageRunner> {
         margin-top: var(--cd-space-3);
         color: var(--cd-muted);
       }
+      .crypto cd-icon {
+        color: var(--cd-go);
+      }
     `,
   ];
 
@@ -95,7 +98,7 @@ export class PasserellePageRunner extends PasserelleElement<typeof PageRunner> {
     return html`<cd-card class="runner" .data=${{ title, label: title }}>
       <cd-status-badge
         slot="actions"
-        .data=${online ? { tone: 'go', label: t('runner.online') } : { tone: 'caution', label: t('runner.offline', { time: formatHour(runner.lastSeenAt) }) }}
+        .data=${online ? { tone: 'go', label: t('runner.online') } : { tone: 'halt', label: t('runner.offline', { time: formatHour(runner.lastSeenAt) }) }}
       ></cd-status-badge>
       <cd-key-value
         .data=${{

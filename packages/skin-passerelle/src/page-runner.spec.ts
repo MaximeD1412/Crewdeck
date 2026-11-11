@@ -98,7 +98,7 @@ describe('PageRunner', () => {
   it('says since when the Runner is offline', async () => {
     const el = await page({ ...ONLINE, runner: { ...RUNNER, state: 'offline' } });
     expect((child(el, 'cd-card.runner').querySelector('cd-status-badge[slot=actions]') as WithData).data).toEqual({
-      tone: 'caution',
+      tone: 'halt',
       label: `hors ligne depuis ${formatHour(RUNNER.lastSeenAt)}`,
     });
   });

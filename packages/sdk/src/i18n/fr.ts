@@ -483,6 +483,7 @@ export const fr = {
   'runner.offline': 'hors ligne depuis {time}',
   'runner.online': 'en ligne',
   'runner.title': 'Runner et Comptes IA',
+  'runner.unknownVersionMeta': 'version que le Runner ne connaît pas encore : une Session peut échouer',
   'session.back': 'Retour',
   'session.close': 'Fermer',
   'session.expand': 'Agrandir',

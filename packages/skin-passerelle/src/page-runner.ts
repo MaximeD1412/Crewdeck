@@ -13,7 +13,8 @@ type Engine = Data['engines'][number];
  * then two columns from 1280 px, the aside first on a phone. The main one: the
  * Emplacement `usage`, « Moteurs et modèles » (a ListRow per model, its
  * Moteur and its Compte IA or why it is not usable; one row for a Moteur
- * without models), « Connecter un Compte IA » with its command. The aside:
+ * without models; a row « version non vérifiée » above the models of a Moteur
+ * whose version the adapter does not know), « Connecter un Compte IA » with its command. The aside:
  * the Runner card, its state badge, its machine and the encryption line.
  */
 export class PasserellePageRunner extends PasserelleElement<typeof PageRunner> {
@@ -75,21 +76,32 @@ export class PasserellePageRunner extends PasserelleElement<typeof PageRunner> {
 
   private engineRows(engine: Engine): TemplateResult[] {
     const name = engineName(engine.engine);
+    const [state, version] = accountBadges(engine);
     if (engine.models.length === 0) {
-      const [badge] = accountBadges(engine);
       return [
         html`<cd-list-row .data=${{ title: name, meta: t('aiAccounts.noModels') }}
-          ><cd-status-badge slot="trailing" .data=${badge}></cd-status-badge
-        ></cd-list-row>`,
+          >${[state, version].map((badge) => (badge ? html`<cd-status-badge slot="trailing" .data=${badge}></cd-status-badge>` : nothing))}</cd-list-row
+        >`,
       ];
     }
+    // A version the adapter does not know heads its models (risk IA-3).
+    const warning = version
+      ? [
+          html`<cd-list-row .data=${{ title: name, meta: t('runner.unknownVersionMeta') }}
+            ><cd-status-badge slot="trailing" .data=${version}></cd-status-badge
+          ></cd-list-row>`,
+        ]
+      : [];
     const account = isConnected(engine) ? t(`aiAccounts.account.${engine.engine}`) : t('aiAccounts.state.loginRequired');
-    return engine.models.map(
-      (model) =>
-        html`<cd-list-row .data=${{ title: model.id, meta: t('runner.modelMeta', { engine: name, detail: modelReason(model) ?? account }) }}
-          ><cd-status-badge slot="trailing" .data=${modelBadge(model)}></cd-status-badge
-        ></cd-list-row>`,
-    );
+    return [
+      ...warning,
+      ...engine.models.map(
+        (model) =>
+          html`<cd-list-row .data=${{ title: model.id, meta: t('runner.modelMeta', { engine: name, detail: modelReason(model) ?? account }) }}
+            ><cd-status-badge slot="trailing" .data=${modelBadge(model)}></cd-status-badge
+          ></cd-list-row>`,
+      ),
+    ];
   }
 
   private runnerCard(runner: Runner): TemplateResult {

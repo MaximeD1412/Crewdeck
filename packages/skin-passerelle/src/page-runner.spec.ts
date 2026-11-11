@@ -73,6 +73,25 @@ describe('PageRunner', () => {
     });
   });
 
+  it('says « version non vérifiée » of a Moteur whose version the adapter does not know, with its models', async () => {
+    const [claude, codex] = ONLINE.engines as [Data['engines'][number], Data['engines'][number]];
+    const el = await page({ ...ONLINE, engines: [{ ...claude, knownVersion: false }, codex] });
+    expect(rows(child(el, 'cd-card.engines')).slice(0, 2)).toEqual([
+      { title: 'Claude Code', meta: t('runner.unknownVersionMeta'), badge: { tone: 'caution', label: 'version non vérifiée' } },
+      { title: 'claude-opus-5-5', meta: 'Claude Code · Compte IA Claude', badge: { tone: 'go', label: 'disponible' } },
+    ]);
+  });
+
+  it('says « version non vérifiée » of a Moteur without models beside its Compte IA’s state', async () => {
+    const [, codex] = COMPOSANTS.PageRunner.examples[0]?.data.engines as Data['engines'];
+    const el = await page({ ...ONLINE, engines: [{ ...(codex as Data['engines'][number]), knownVersion: false }] });
+    const [row] = [...child(el, 'cd-card.engines').querySelectorAll('cd-list-row')];
+    expect([...(row?.querySelectorAll<WithData>('cd-status-badge') ?? [])].map((badge) => badge.data)).toEqual([
+      { tone: 'caution', label: 'connexion requise' },
+      { tone: 'caution', label: 'version non vérifiée' },
+    ]);
+  });
+
   it('shows how to connect a Compte IA, on the machine, never here', async () => {
     const el = await page(ONLINE);
     const connect = child(el, 'cd-card.connect');

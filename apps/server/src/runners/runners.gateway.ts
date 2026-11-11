@@ -69,10 +69,14 @@ export class RunnersGateway implements WsClientHandler, OnModuleInit {
 /** One Runner's socket, from its upgrade to its close. */
 class RunnerSocket implements RunnerLink {
   private credential: RunnerCredential | undefined;
-  private accepted = false;
+  private isAccepted = false;
   private closed = false;
   /** The messages are handled one after the other, in the order they came. */
   private queue: Promise<void> = Promise.resolve();
+
+  get accepted(): boolean {
+    return this.isAccepted;
+  }
 
   constructor(
     private readonly socket: WebSocket,
@@ -147,8 +151,8 @@ class RunnerSocket implements RunnerLink {
       return this.reply({ type: 'error', code: 'protocol.invalid' });
     }
     this.logger.debug({ direction: 'in', type: message.type, bytes });
-    if (message.type === 'hello') return this.accepted ? this.reply({ type: 'error', code: 'protocol.invalid' }) : this.hello(message);
-    if (!this.accepted) return this.reply({ type: 'error', code: 'protocol.hello-required' });
+    if (message.type === 'hello') return this.isAccepted ? this.reply({ type: 'error', code: 'protocol.invalid' }) : this.hello(message);
+    if (!this.isAccepted) return this.reply({ type: 'error', code: 'protocol.hello-required' });
     await this.dispatch(message);
   }
 
@@ -161,9 +165,10 @@ class RunnerSocket implements RunnerLink {
     this.connections.take(this)?.close(RUNNER_WS_CLOSE.replaced, 'replaced');
     // hello.accepted before what the onOnline hooks send (RunnerCommands): the Runner reads nothing else until it.
     await this.presence.connected(this.pilotId, this.runnerId, hello, protocolVersion, () => {
-      if (this.closed) return;
-      this.accepted = true;
+      if (this.closed) return false;
+      this.isAccepted = true;
       this.reply({ type: 'hello.accepted', runnerId: this.runnerId, protocolVersion });
+      return true;
     });
   }
 

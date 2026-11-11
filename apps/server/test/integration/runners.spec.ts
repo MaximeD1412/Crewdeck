@@ -9,6 +9,7 @@ import { parseEnv } from '../../src/config/env.js';
 import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { EventsBus } from '../../src/realtime/events.bus.js';
+import { Transactions } from '../../src/realtime/transactions.js';
 import { RunnerClock } from '../../src/runners/clock.js';
 import { RunnerProtocol } from '../../src/runners/protocol-version.js';
 import { RunnerCommands } from '../../src/runners/runner-commands.service.js';
@@ -227,6 +228,37 @@ describe('the Runner protocol against PostgreSQL', () => {
       await second.expect('heartbeat.ack');
       expect((await rowOf(runner.id)).state).toBe('online');
       expect(app.get(RunnerPresence).isOnline(alice.id)).toBe(true);
+    });
+
+    it('calls onOnline for the new socket only, after its hello.accepted, when it replaces one whose hello is still committing', async () => {
+      const alice = await pilot();
+      const { token } = await createLinkedRunner(prisma, alice.id);
+      const online = vi.fn(() => app.get(RunnerCommands).send(alice.id, { type: 'heartbeat.ack' }));
+      app.get(RunnerPresence).onOnline(alice.id, online);
+      // The first hello's transaction waits until the second socket has replaced the first.
+      const transactions = app.get(Transactions);
+      const run = transactions.run.bind(transactions);
+      let release = (): void => undefined;
+      const held = new Promise<void>((resolve) => (release = resolve));
+      let started = (): void => undefined;
+      const firstStarted = new Promise<void>((resolve) => (started = resolve));
+      vi.spyOn(transactions, 'run').mockImplementationOnce(async (fn) => {
+        started();
+        await held;
+        return run(fn);
+      });
+      const first = await open(token);
+      first.hello();
+      await firstStarted;
+
+      const second = await open(token);
+      second.hello();
+      expect((await first.closed()).code).toBe(RUNNER_WS_CLOSE.replaced);
+      release();
+      await second.expect('heartbeat.ack');
+
+      expect(second.received().map((message) => message.type)).toEqual(['hello.accepted', 'heartbeat.ack']);
+      expect(online).toHaveBeenCalledOnce();
     });
   });
 

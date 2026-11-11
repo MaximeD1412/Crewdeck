@@ -59,9 +59,12 @@ export class RunnerPresence {
   /**
    * An accepted `hello`: the Runner online, its machine as it describes it.
    * `accept` runs once the change is committed and before the `onOnline`
-   * hooks, so that `hello.accepted` reaches the Runner before what a hook sends.
+   * hooks, so that `hello.accepted` reaches the Runner before what a hook
+   * sends; it says whether the socket was accepted. One that was not (closed
+   * meanwhile, a newer one of the same Runner in its place) marks nothing
+   * online: the newer one does, once its own `hello` is accepted.
    */
-  connected(pilotId: string, runnerId: string, hello: Hello, protocolVersion: number, accept: () => void): Promise<void> {
+  connected(pilotId: string, runnerId: string, hello: Hello, protocolVersion: number, accept: () => boolean): Promise<void> {
     return this.serial(pilotId, async () => {
       const now = this.clock.now();
       await this.transactions.run(async (tx) => {
@@ -81,8 +84,7 @@ export class RunnerPresence {
         });
         await this.events.write(tx, pilotId, 'runner.upserted', toRunner(row));
       });
-      accept();
-      this.markOnline(pilotId, runnerId);
+      if (accept()) this.markOnline(pilotId, runnerId);
     });
   }
 

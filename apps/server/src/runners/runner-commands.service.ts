@@ -21,7 +21,8 @@ export class RunnerCommands {
   send(pilotId: string, message: OutgoingRunnerMessage): void {
     const stamped = stamp(message);
     const link = this.connections.of(pilotId);
-    if (!link || !this.presence.isOnline(pilotId)) throw new AppError(422, 'runner.offline', MESSAGES['runner.offline']);
+    // A socket whose hello is not accepted yet (it replaces another) is not one to send to.
+    if (!link?.accepted || !this.presence.isOnline(pilotId)) throw new AppError(422, 'runner.offline', MESSAGES['runner.offline']);
     link.send(stamped);
   }
 }

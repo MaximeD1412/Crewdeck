@@ -15,6 +15,8 @@ export const stamp = (message: OutgoingRunnerMessage): ServerToRunner =>
 export interface RunnerLink {
   readonly pilotId: string;
   readonly runnerId: string;
+  /** Whether its `hello` was accepted: before it, the Runner reads nothing but its answer. */
+  readonly accepted: boolean;
   /** Sends a stamped message (`stamp`). */
   send(message: ServerToRunner): void;
   close(code: number, reason: string): void;

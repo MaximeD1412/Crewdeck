@@ -4,9 +4,10 @@ import { RunnerCommands } from './runner-commands.service.js';
 import { type RunnerLink, RunnerConnections, stamp } from './runner-connections.js';
 import type { RunnerPresence } from './runner-presence.service.js';
 
-const link = (pilotId: string): RunnerLink & { send: Mock<RunnerLink['send']>; close: Mock<RunnerLink['close']> } => ({
+const link = (pilotId: string, accepted = true): RunnerLink & { send: Mock<RunnerLink['send']>; close: Mock<RunnerLink['close']> } => ({
   pilotId,
   runnerId: `${pilotId}-runner`,
+  accepted,
   send: vi.fn<RunnerLink['send']>(),
   close: vi.fn<RunnerLink['close']>(),
 });
@@ -50,15 +51,18 @@ describe('RunnerCommands.send', () => {
   });
 
   it.each([
-    ['no socket', false, true],
-    ['a socket of a Runner swept offline', true, false],
-  ])('throws runner.offline (422) with %s', (_, connected, online) => {
+    ['no socket', false, true, true],
+    ['a socket of a Runner swept offline', true, true, false],
+    ['a socket whose hello is not accepted yet', true, false, true],
+  ])('throws runner.offline (422) with %s', (_, connected, accepted, online) => {
     const connections = new RunnerConnections();
-    if (connected) connections.take(link('alice'));
+    const socket = link('alice', accepted);
+    if (connected) connections.take(socket);
     const send = (): void => new RunnerCommands(connections, presence(online)).send('alice', { type: 'heartbeat.ack' });
 
     expect(send).toThrow(AppError);
     expect(send).toThrow(expect.objectContaining({ status: 422, code: 'runner.offline', message: 'Le Runner est hors ligne.' }));
+    expect(socket.send).not.toHaveBeenCalled();
   });
 
   it('never sends to another Pilote’s Runner', () => {

@@ -198,4 +198,31 @@ describe('startRouter', () => {
     expect(location.pathname).toBe('/a-toi');
     expect(seen).toEqual(['/idees', '/idees/x']);
   });
+  it('refresh renders the same page again with its data read again, and calls onRoute only when the guard moved it', () => {
+    history.replaceState(null, '', '/parametres/composants?c=Banner');
+    outlet = document.createElement('main');
+    document.body.append(outlet);
+    let version = 1;
+    let elsewhere: string | null = null;
+    const routed: string[] = [];
+    router = startRouter({
+      routes,
+      outlet,
+      data: () => ({ version }),
+      onRoute: (match) => routed.push(match.path),
+      guard: (match) => (elsewhere && match.path !== elsewhere ? elsewhere : null),
+    });
+    const page = outlet.firstElementChild as HTMLElement & { data: unknown };
+    version = 2;
+    router.refresh();
+    expect(outlet.firstElementChild).toBe(page);
+    expect(page.data).toEqual({ version: 2 });
+    expect(routed).toEqual(['/parametres/composants']);
+
+    elsewhere = '/a-toi';
+    router.refresh();
+    expect(location.pathname).toBe('/a-toi');
+    expect(outlet.firstElementChild?.localName).toBe('cd-page-a-toi');
+    expect(routed).toEqual(['/parametres/composants', '/a-toi']);
+  });
 });

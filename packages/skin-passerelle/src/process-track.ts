@@ -12,7 +12,9 @@ const MARKS: Readonly<Partial<Record<State, IconName>>> = { done: 'check', halt:
  * its label over its meta, joined by a line, green up to the last one done.
  * The current one is `aria-current="step"`; one turned off has a dashed mark
  * and says « désactivée »; the others say their state to screen readers
- * only. `horizontal` lines them up from 1280 px and stacks them below.
+ * only. `horizontal` lines them up from 1280 px and stacks them below;
+ * `compact` lines them up at every width, each label beside its mark,
+ * without line nor meta.
  */
 export class PasserelleProcessTrack extends PasserelleElement<typeof ProcessTrack> {
   static override styles = [
@@ -105,6 +107,23 @@ export class PasserelleProcessTrack extends PasserelleElement<typeof ProcessTrac
         font: var(--cd-font-meta-weight) var(--cd-font-meta-size) / var(--cd-font-meta-line-height)
           var(--cd-font-meta-family), monospace;
         color: var(--cd-muted);
+      }
+      .compact {
+        flex-direction: row;
+        gap: var(--cd-space-2);
+      }
+      .compact li {
+        flex: 1 1 0;
+        gap: var(--cd-space-2);
+        padding-bottom: 0;
+      }
+      .compact li::before,
+      .compact .meta {
+        display: none;
+      }
+      .compact .text {
+        justify-content: center;
+        padding-top: 0;
       }
       @media (min-width: 1280px) {
         .horizontal {

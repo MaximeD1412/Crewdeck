@@ -6,4 +6,4 @@ import { zSeq } from '../values.js';
  * 0007): the server answers 409 `realtime.stale` when the resource changed
  * since (a later `seq`).
  */
-export const withSeq = <S extends z.ZodObject>(schema: S) => schema.extend({ seq: zSeq });
+export const withSeq = <Shape extends z.ZodRawShape>(schema: z.ZodObject<Shape>) => schema.extend({ seq: zSeq });

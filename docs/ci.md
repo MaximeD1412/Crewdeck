@@ -43,9 +43,10 @@ In parallel, 20 minutes each, read-only token.
 
 ### `secrets`
 
-gitleaks with `.gitleaks.toml` (the default rules plus two exceptions: the
-path `packages/contracts/fixtures/crypto/`, the encryption test vectors, and
-the values `secret-<words>-<4 hex>`, the fakes of the log redaction test):
+gitleaks with `.gitleaks.toml` (the default rules plus three exceptions: the
+path `packages/contracts/fixtures/crypto/`, the encryption test vectors, the
+values `secret-<words>-<4 hex>`, the fakes of the log redaction test, and the
+one fake secret of a link code shared by the tests of the Runner's link):
 
 1. refuses a `.gitleaksignore` and inline allow comments: an exception is
    written in `.gitleaks.toml`, where it is reviewed;

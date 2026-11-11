@@ -18,7 +18,7 @@ export class WebModule {
       imports: [
         ServeStaticModule.forRoot({
           rootPath: env.WEB_DIST_DIR,
-          exclude: ['/api/{*path}', '/runner/{*path}', '/fake-github/{*path}'],
+          exclude: ['/api/{*path}', '/runner/{*path}', '/runner-dist/{*path}', '/fake-github/{*path}'],
         }),
       ],
     };

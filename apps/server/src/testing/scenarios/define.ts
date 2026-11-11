@@ -1,4 +1,5 @@
 import type { PrismaService } from '../../prisma/prisma.service.js';
+import type { RunnerMachine } from '../fake-runner.js';
 import type { Fakes } from '../fakes.js';
 
 /** What a scenario's `seed` gets: the database, already emptied, and the fakes, already reset. */
@@ -12,6 +13,8 @@ export interface ScenarioSeed {
   readonly sessionCookie?: string;
   /** The token of the Runner the scenario links (`createLinkedRunner`): the fake Runner connects with it, and stays « en ligne ». */
   readonly runnerToken?: string;
+  /** That Runner's machine, which the fake Runner says in its `hello` (else its own, `atelier`). */
+  readonly runnerMachine?: RunnerMachine;
 }
 
 /**

@@ -277,7 +277,7 @@ describe('sign in with GitHub against PostgreSQL', () => {
       const res = await call('/api/me', cookie);
 
       expect(res.status).toBe(200);
-      expect(zMe.parse(await res.json())).toEqual({ id: expect.any(String), login: 'octocat', avatarUrl: OCTOCAT.avatarUrl, timeZone: 'Europe/Paris' });
+      expect(zMe.parse(await res.json())).toEqual({ id: expect.any(String), login: 'octocat', avatarUrl: OCTOCAT.avatarUrl, timeZone: 'Europe/Paris', gettingStartedStep: 'runner' });
     });
 
     it('answers 401 auth.required without a cookie, or with a session id forged', async () => {

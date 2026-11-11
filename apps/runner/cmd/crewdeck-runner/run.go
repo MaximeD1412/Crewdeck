@@ -70,7 +70,6 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	// The client of the current connection: a new one after each update attempt.
 	var current atomic.Pointer[protocol.Client]
 	reporter := &accounts.Reporter{
-		Engines: runnerEngines(keys),
 		Send: func(ctx context.Context, m contracts.RunnerCapabilities) error {
 			client := current.Load()
 			if client == nil {
@@ -80,6 +79,9 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		},
 		Logger: logger,
 	}
+	// The adapters, their Sessions watched: a limit or a sign-in they meet
+	// reaches the capabilities. The Sessions (RUNNER-9) start from this registry.
+	reporter.Engines = reporter.Watch(runnerEngines(keys))
 	report := func(ctx context.Context) {
 		if _, err := reporter.Report(ctx); err != nil && !errors.Is(err, protocol.ErrNotConnected) && ctx.Err() == nil {
 			logger.Warn("capabilities", "error", err)

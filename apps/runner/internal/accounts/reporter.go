@@ -96,11 +96,11 @@ func (r *Reporter) Report(ctx context.Context) ([]contracts.EngineCapabilities, 
 	return caps, r.Send(ctx, protocol.NewCapabilities(caps))
 }
 
-// Observe takes an event a Session of `engineID` on `model` emitted: a
+// observe takes an event a Session of `engineID` on `model` emitted (Watch): a
 // `limit-reached` makes the model `quota-reached` until its `resetsAt` (every
 // model of the Moteur when `model` is ""), then, as an `auth-required`,
 // sends the capabilities again. Other events are ignored.
-func (r *Reporter) Observe(ctx context.Context, engineID contracts.EngineId, model string, event contracts.EngineEvent) {
+func (r *Reporter) observe(ctx context.Context, engineID contracts.EngineId, model string, event contracts.EngineEvent) {
 	switch {
 	case event.LimitReached != nil:
 		until := r.now().Add(QuotaFallback)

@@ -88,23 +88,56 @@ func TestReportSendsWhatEachMoteurCanRunInTheOrderOfTheirIds(t *testing.T) {
 	}
 }
 
-func TestALimitMakesTheModelQuotaReachedUntilItsReset(t *testing.T) {
-	var registry engine.Registry
+// startAndDrain starts a Session of `engineID` on `model` through the
+// registry, as the Sessions do, and reads its events to the end.
+func startAndDrain(t *testing.T, registry *engine.Registry, engineID contracts.EngineId, model string) {
+	t.Helper()
+	adapter, ok := registry.Get(engineID)
+	if !ok {
+		t.Fatalf("no adapter for %s", engineID)
+	}
+	run, err := adapter.Start(context.Background(), engine.StartOptions{Model: model, InitialPrompt: "go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range run.Events() {
+	}
+	if err := run.Wait(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// await waits for the n-th message sent.
+func (s *sent) await(t *testing.T, n int) contracts.RunnerCapabilities {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for s.count() < n {
+		if time.Now().After(deadline) {
+			t.Fatalf("sent %d messages, want %d", s.count(), n)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return s.last(t)
+}
+
+func TestALimitASessionMeetsMakesTheModelQuotaReachedUntilItsReset(t *testing.T) {
 	store := Store{Keyring: memoryKeyring{}, Dir: t.TempDir()}
 	if err := store.Set(contracts.EngineIdCodex, "sk-test"); err != nil {
 		t.Fatal(err)
 	}
-	registry.Register(codexWithKey(store))
 	now := time.Date(2026, 11, 11, 8, 0, 0, 0, time.UTC)
-	out := &sent{}
-	reporter := &Reporter{Engines: &registry, Send: out.send, Now: func() time.Time { return now }}
 	resets := now.Add(2 * time.Hour)
+	codex := codexWithKey(store)
+	codex.Events = []contracts.EngineEvent{{LimitReached: &contracts.EngineEventLimitReached{Window: contracts.EngineEventLimitReachedWindow("five-hour"), ResetsAt: &resets}}}
+	var registry engine.Registry
+	registry.Register(codex)
+	out := &sent{}
+	reporter := &Reporter{Send: out.send, Now: func() time.Time { return now }}
+	reporter.Engines = reporter.Watch(&registry)
 
-	reporter.Observe(context.Background(), contracts.EngineIdCodex, "gpt-5.5-pro", contracts.EngineEvent{
-		LimitReached: &contracts.EngineEventLimitReached{Window: contracts.EngineEventLimitReachedWindow("five-hour"), ResetsAt: &resets},
-	})
+	startAndDrain(t, reporter.Engines, contracts.EngineIdCodex, "gpt-5.5-pro")
 
-	caps := out.last(t).Engines
+	caps := out.await(t, 1).Engines
 	if got := model(t, caps, contracts.EngineIdCodex, "gpt-5.5-pro"); got.Usable || got.Reason == nil || *got.Reason != contracts.EngineCapabilitiesModelsElemReasonQuotaReached {
 		t.Fatalf("after the limit: %+v", got)
 	}
@@ -119,17 +152,46 @@ func TestALimitMakesTheModelQuotaReachedUntilItsReset(t *testing.T) {
 	}
 }
 
-func TestAnAuthRequiredSendsTheCapabilitiesAgain(t *testing.T) {
+func TestAnAuthRequiredASessionMeetsSendsTheCapabilitiesAgain(t *testing.T) {
+	claude := &fake.Engine{Events: []contracts.EngineEvent{
+		{Message: &contracts.EngineEventMessage{}},
+		{AuthRequired: &contracts.EngineEventAuthRequired{Reason: "expired"}},
+	}}
 	var registry engine.Registry
-	registry.Register(&fake.Engine{})
+	registry.Register(claude)
 	out := &sent{}
-	reporter := &Reporter{Engines: &registry, Send: out.send}
+	reporter := &Reporter{Send: out.send}
+	reporter.Engines = reporter.Watch(&registry)
 
-	reporter.Observe(context.Background(), contracts.EngineIdClaudeCode, "opus", contracts.EngineEvent{AuthRequired: &contracts.EngineEventAuthRequired{Reason: "expired"}})
-	reporter.Observe(context.Background(), contracts.EngineIdClaudeCode, "opus", contracts.EngineEvent{Message: &contracts.EngineEventMessage{}})
+	startAndDrain(t, reporter.Engines, contracts.EngineIdClaudeCode, "opus")
 
+	out.await(t, 1)
+	time.Sleep(50 * time.Millisecond)
 	if out.count() != 1 {
 		t.Fatalf("sent %d messages, want 1 (only the auth-required)", out.count())
+	}
+}
+
+func TestTheWatchedRegistryPassesEveryEventOnInOrder(t *testing.T) {
+	claude := &fake.Engine{Events: []contracts.EngineEvent{
+		{Message: &contracts.EngineEventMessage{}},
+		{LimitReached: &contracts.EngineEventLimitReached{Window: contracts.EngineEventLimitReachedWindow("five-hour")}},
+	}}
+	var registry engine.Registry
+	registry.Register(claude)
+	reporter := &Reporter{Send: (&sent{}).send}
+	reporter.Engines = reporter.Watch(&registry)
+	adapter, _ := reporter.Engines.Get(contracts.EngineIdClaudeCode)
+	run, err := adapter.Start(context.Background(), engine.StartOptions{Model: "opus", InitialPrompt: "go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []contracts.EngineEvent
+	for event := range run.Events() {
+		got = append(got, event)
+	}
+	if len(got) < 2 || got[0].Message == nil || got[1].LimitReached == nil {
+		t.Fatalf("events %+v", got)
 	}
 }
 

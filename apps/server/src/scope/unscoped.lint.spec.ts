@@ -43,7 +43,7 @@ export const all = (prisma: { scoped: { pilot: { findMany(): Promise<unknown> } 
 `;
 
 describe('ESLint, on prisma.unscoped', () => {
-  it.each(['src/ideas/ideas.service.ts', 'src/github/app.service.ts', 'src/ideas/ideas.service.spec.ts', 'src/realtime/events.replay.ts', 'src/runners/runner-presence.service.ts'])(
+  it.each(['src/ideas/ideas.service.ts', 'src/github/app.service.ts', 'src/ideas/ideas.service.spec.ts', 'src/realtime/events.replay.ts', 'src/runners/runner-presence.service.ts', 'src/metrics/latency.service.ts'])(
     'refuses prisma.unscoped, the raw PrismaClient and raw SQL in %s',
     async (path) => {
       expect(await scopeErrors(path, readsUnscoped)).toEqual([expect.stringContaining('prisma.unscoped')]);
@@ -53,7 +53,7 @@ describe('ESLint, on prisma.unscoped', () => {
     },
   );
 
-  it.each(['src/scope/x.ts', 'src/auth/sessions.service.ts', 'src/github/webhooks/deliveries.service.ts', 'src/testing/x.ts', 'src/prisma/x.ts', 'src/realtime/retention.job.ts', 'src/runners/runner-sweep.job.ts'])(
+  it.each(['src/scope/x.ts', 'src/auth/sessions.service.ts', 'src/github/webhooks/deliveries.service.ts', 'src/testing/x.ts', 'src/prisma/x.ts', 'src/realtime/retention.job.ts', 'src/runners/runner-sweep.job.ts', 'src/metrics/latency.sql.ts', 'src/metrics/latency.retention.ts'])(
     'allows them in %s',
     async (path) => {
       expect(await scopeErrors(path, readsUnscoped)).toEqual([]);

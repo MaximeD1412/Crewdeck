@@ -172,3 +172,26 @@ describe('the connection of the state', () => {
     expect(seen).toEqual(['resync', 'live']);
   });
 });
+
+describe('onEvent', () => {
+  it('tells each applied event, live once the store is live, never an ignored one or a gap', () => {
+    const store = pilotStore();
+    store.applySnapshot(snapshot(4));
+    const seen: [number, boolean][] = [];
+    const stop = store.onEvent((event, live) => seen.push([event.seq, live]));
+
+    store.applyEvent(pilotEvent(5, 'replayed'));
+    store.markLive();
+    store.applyEvent(pilotEvent(6, 'live'));
+    store.applyEvent(pilotEvent(6, 'again'));
+    store.applyEvent(pilotEvent(9, 'gap'));
+    stop();
+    store.markLive();
+    store.applyEvent(pilotEvent(7, 'after stop'));
+
+    expect(seen).toEqual([
+      [5, false],
+      [6, true],
+    ]);
+  });
+});

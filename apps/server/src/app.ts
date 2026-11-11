@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { AppModule, type AppModuleOptions } from './app.module.js';
 import type { Env } from './config/env.js';
 import { readRawBody, WEBHOOKS_PATH } from './github/webhooks/raw-body.js';
+import { LATENCY_PATH, readBeaconBody } from './metrics/beacon-body.js';
 
 // The messages of a schema's issues reach the page through `fields`: French, as every error message.
 z.config(z.locales.fr());
@@ -27,10 +28,12 @@ const serveDocs = (app: INestApplication): void => {
  * `/api/ws` (ADR 0007) on the same HTTP server, with `ws` (without an
  * adapter, Nest would look for socket.io). The webhooks' body is read raw,
  * before the JSON parser Nest mounts at `init`: their signature is of its
- * bytes.
+ * bytes. The latency's `text/plain` body (`sendBeacon`) is read as JSON
+ * before it too.
  */
 export const mountApi = (app: INestApplication): void => {
   app.use(WEBHOOKS_PATH, readRawBody);
+  app.use(LATENCY_PATH, readBeaconBody);
   app.setGlobalPrefix('api', { exclude: ['fake-github/{*path}'] });
   app.useWebSocketAdapter(new WsAdapter(app));
 };

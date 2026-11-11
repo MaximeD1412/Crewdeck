@@ -1,5 +1,5 @@
 import { COMPOSANTS, t } from '@crewdeck/sdk';
-import { userEvent } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
 import { deepActiveElement, inside, render, settle, textOf } from './testing/browser.js';
 
 const select = {
@@ -194,5 +194,15 @@ describe('SettingRow', () => {
     expect(textOf(inside(el, '.label'))).toBe('Nom du Projet');
     expect(textOf(inside(el, '.help'))).toBe('Son nom dans la console.');
     expect(inside<HTMLSlotElement>(el, 'slot').assignedElements().map((node) => textOf(node))).toEqual(['contrôle']);
+  });
+
+  it('puts its control under its text on the phone, beside it at 1280 px', async () => {
+    const el = await render(COMPOSANTS.SettingRow, { label: 'Rôle Review', help: 'Le Moteur de la revue.', origin: 'compte' }, { default: '<span>contrôle</span>' });
+    const text = () => inside(el, '.text').getBoundingClientRect();
+    const control = () => inside(el, '.control').getBoundingClientRect();
+    await page.viewport(390, 844);
+    expect(control().top).toBeGreaterThanOrEqual(text().bottom);
+    await page.viewport(1280, 800);
+    expect([control().top, control().left >= text().right]).toEqual([text().top, true]);
   });
 });

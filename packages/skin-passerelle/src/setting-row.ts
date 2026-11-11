@@ -5,8 +5,8 @@ import { PasserelleElement, sharedStyles } from './base.js';
 /**
  * `cd-setting-row`: a setting of the Paramètres, its label, its help and where
  * its value comes from (« Hérité du compte », « Modifié pour ce Projet »),
- * then its control in the default Emplacement. Rows that follow each other are
- * parted by a line.
+ * then its control in the default Emplacement: under them on the phone, beside
+ * them at 1280 px. Rows that follow each other are parted by a line.
  */
 export class PasserelleSettingRow extends PasserelleElement<typeof SettingRow> {
   static override styles = [
@@ -63,6 +63,20 @@ export class PasserelleSettingRow extends PasserelleElement<typeof SettingRow> {
         display: flex;
         flex-direction: column;
         gap: var(--cd-space-2);
+      }
+      @media (min-width: 1280px) {
+        .setting {
+          flex-direction: row;
+          align-items: flex-start;
+          gap: var(--cd-space-8);
+        }
+        .text {
+          flex: 1;
+        }
+        .control {
+          width: var(--cd-aside-width);
+          flex: none;
+        }
       }
     `,
   ];

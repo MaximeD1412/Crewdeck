@@ -48,7 +48,7 @@ export class PasserelleDialog extends PasserelleElement<typeof Dialog> {
         display: flex;
         align-items: center;
         gap: var(--cd-space-3);
-        padding: var(--cd-space-2) var(--cd-space-2) var(--cd-space-2) var(--cd-space-4);
+        padding: var(--cd-space-4) var(--cd-space-4) var(--cd-space-2);
       }
       h2 {
         flex: 1;
@@ -73,6 +73,8 @@ export class PasserelleDialog extends PasserelleElement<typeof Dialog> {
         gap: var(--cd-space-2);
         padding: var(--cd-space-3) var(--cd-space-4) var(--cd-space-4);
         border-top: thin solid var(--cd-line);
+        /* The native button of a slotted cd-button fills it (button.ts). */
+        --passerelle-button-width: 100%;
       }
       .actions[hidden] {
         display: none;
@@ -84,7 +86,8 @@ export class PasserelleDialog extends PasserelleElement<typeof Dialog> {
         dialog {
           margin: auto;
           width: var(--cd-dialog-width);
-          height: auto;
+          /* Not auto: a modal dialog is fixed with inset 0, auto would stretch it to the screen. */
+          height: fit-content;
           max-height: 90vh;
           border: thin solid var(--cd-line-strong);
           border-radius: var(--cd-radius-lg);
@@ -98,6 +101,9 @@ export class PasserelleDialog extends PasserelleElement<typeof Dialog> {
         }
         .actions ::slotted(*) {
           width: auto;
+        }
+        .actions {
+          --passerelle-button-width: auto;
         }
       }
     `,

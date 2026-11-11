@@ -118,7 +118,7 @@ test.describe('the form Composants and the Dialog in the library (UI-4)', () => 
     if (isPhone()) expect(box).toMatchObject({ x: 0, y: 0, width: 390, height: 844 });
     else expect(box?.width).toBeLessThan(1280);
     await expectAccessible(page);
-    await capture(page, 'composants-dialog-open');
+    await capture(page, 'composants-dialog-open', { fullPage: false });
 
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();

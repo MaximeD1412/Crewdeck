@@ -39,7 +39,8 @@ export class DecisionsService {
    * `decision.upserted` with `tx`. Every value is readable by the server
    * (ADR 0003): never free text of the Pilote or an agent. A module that has
    * such text (a question, a blocking reason) leaves it out: the page reads it
-   * from GitHub or the Runner.
+   * from GitHub or the Runner. The open one resolved by another transaction
+   * between its read and its update stays resolved: a new one is opened.
    */
   async raise(tx: Tx, input: RaiseInput): Promise<{ decision: Decision; created: boolean }> {
     const parsed = zRaiseInput.safeParse(input);
@@ -47,23 +48,33 @@ export class DecisionsService {
     const { kind, subjectId, params, ...rest } = parsed.data;
     const values = { ...rest, params: params as Prisma.InputJsonValue };
     const open = await tx.decision.findFirst({ where: { kind, subjectId, state: 'open' }, select: { id: true } });
-    const row = open
-      ? await tx.decision.update({ where: { id: open.id }, data: values, select: DECISION_VIEW })
-      : await tx.decision.create({ data: { id: newId(), pilotId: currentPilotId(), kind, subjectId, ...values }, select: DECISION_VIEW });
+    const [updated] = open ? await this.whileOpen(tx, open.id, values) : [];
+    const row =
+      updated ?? (await tx.decision.create({ data: { id: newId(), pilotId: currentPilotId(), kind, subjectId, ...values }, select: DECISION_VIEW }));
     const decision = toDecision(row);
     await this.events.write(tx, currentPilotId(), 'decision.upserted', decision);
-    return { decision, created: !open };
+    return { decision, created: !updated };
   }
 
-  /** Resolves the open Décision of `(kind, subjectId)` with `outcome` and writes `decision.removed`; none open, nothing. */
+  /**
+   * Updates the Décision `id` only if it is still open: one resolved by
+   * another transaction since it was read (and committed, PostgreSQL
+   * re-reading the row it waited for) is left as is, and nothing is returned.
+   */
+  private whileOpen(tx: Tx, id: string, data: Prisma.DecisionUpdateManyMutationInput) {
+    return tx.decision.updateManyAndReturn({ where: { id, state: 'open' }, data, select: DECISION_VIEW });
+  }
+
+  /**
+   * Resolves the open Décision of `(kind, subjectId)` with `outcome` and
+   * writes `decision.removed`; none open (or resolved meanwhile by another
+   * transaction), nothing.
+   */
   async resolve(tx: Tx, kind: DecisionKind, subjectId: string, outcome: string): Promise<Decision | undefined> {
     const open = await tx.decision.findFirst({ where: { kind, subjectId, state: 'open' }, select: { id: true } });
     if (!open) return undefined;
-    const row = await tx.decision.update({
-      where: { id: open.id },
-      data: { state: 'resolved', outcome, resolvedAt: new Date() },
-      select: DECISION_VIEW,
-    });
+    const [row] = await this.whileOpen(tx, open.id, { state: 'resolved', outcome, resolvedAt: new Date() });
+    if (!row) return undefined;
     await this.events.write(tx, currentPilotId(), 'decision.removed', { id: row.id });
     return toDecision(row);
   }

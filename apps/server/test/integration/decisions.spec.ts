@@ -65,6 +65,7 @@ describe('the Décisions against PostgreSQL', () => {
   beforeEach(() => sql('TRUNCATE pilots CASCADE'));
 
   afterEach(() => {
+    vi.restoreAllMocks();
     for (const unsubscribe of unsubscribes.splice(0)) unsubscribe();
     published.length = 0;
   });
@@ -116,6 +117,65 @@ describe('the Décisions against PostgreSQL', () => {
       ]);
       expect(published.map((event) => event.type)).toEqual(['decision.upserted', 'decision.removed', 'decision.upserted']);
       expect(published[1]?.payload).toEqual({ id: first.decision.id });
+    });
+
+    /**
+     * Holds the next call's transaction between its read of the open Décision
+     * and its update, until `release()`; `read` settles once it has read.
+     */
+    const holdAfterRead = () => {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      let hasRead!: () => void;
+      const read = new Promise<void>((resolve) => (hasRead = resolve));
+      const service = decisions as unknown as { whileOpen: (...args: unknown[]) => Promise<unknown> };
+      const original = service.whileOpen.bind(decisions);
+      vi.spyOn(service, 'whileOpen').mockImplementationOnce(async (...args) => {
+        hasRead();
+        await gate;
+        return original(...args);
+      });
+      return { read, release };
+    };
+
+    it('opens a new Décision when the open one is resolved between the read and the update of a raise', async () => {
+      const alice = await pilot();
+      const first = await raise(alice.id);
+      const held = holdAfterRead();
+      const raising = raise(alice.id, { label: '#42 Connexion GitHub, encore' });
+      await held.read;
+      await resolve(alice.id);
+      held.release();
+      const again = await raising;
+
+      expect(again.created).toBe(true);
+      expect(again.decision).toMatchObject({ state: 'open', label: '#42 Connexion GitHub, encore' });
+      expect(again.decision.id).not.toBe(first.decision.id);
+      expect(await sql('SELECT id, state, label FROM decisions ORDER BY created_at, id')).toEqual([
+        { id: first.decision.id, state: 'resolved', label: '#42 Connexion GitHub' },
+        { id: again.decision.id, state: 'open', label: '#42 Connexion GitHub, encore' },
+      ]);
+      expect(published.map((event) => [event.type, (event.payload as { id: string }).id])).toEqual([
+        ['decision.upserted', first.decision.id],
+        ['decision.removed', first.decision.id],
+        ['decision.upserted', again.decision.id],
+      ]);
+      expect(published.every((event) => event.type !== 'decision.upserted' || (event.payload as { state: string }).state === 'open')).toBe(true);
+    });
+
+    it('resolves a Décision once when two resolve it at the same time', async () => {
+      const alice = await pilot();
+      const first = await raise(alice.id);
+      const held = holdAfterRead();
+      const resolving = resolve(alice.id);
+      await held.read;
+      const winner = await runInPilotScope(alice.id, () => transactions.run((tx) => decisions.resolve(tx, BLOCKED.kind, BLOCKED.subjectId, 'dismissed')));
+      held.release();
+
+      expect(winner).toMatchObject({ id: first.decision.id, outcome: 'dismissed' });
+      expect(await resolving).toBeUndefined();
+      expect(await sql('SELECT state, outcome FROM decisions')).toEqual([{ state: 'resolved', outcome: 'dismissed' }]);
+      expect(published.map((event) => event.type)).toEqual(['decision.upserted', 'decision.removed']);
     });
 
     it('does nothing when resolving a subject with no open Décision', async () => {

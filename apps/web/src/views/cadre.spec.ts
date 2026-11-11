@@ -68,6 +68,17 @@ describe('cadreView', () => {
     expect(Cadre.data.safeParse(cadre).success).toBe(true);
   });
 
+  it.each(['connecting', 'resync'] as const)('while %s, shows the Resynchronisation status, the Actions sensibles unavailable', (connection) => {
+    const { cadre } = cadreView({ connection, slices: {} }, at('/a-toi'));
+    expect(cadre).toMatchObject({ status: 'resync', statusDetail: t('cadre.status.resyncDetail') });
+    expect(t('cadre.status.resync')).toBe('Resynchronisation…');
+    expect(Cadre.data.safeParse(cadre).success).toBe(true);
+  });
+
+  it('once live, leaves the Resynchronisation: offline until the Runner’s slice exists', () => {
+    expect(cadreView({ connection: 'live', slices: {} }, at('/a-toi')).cadre).toMatchObject({ status: 'offline', statusDetail: null });
+  });
+
   it('takes the Pilote from the pilot slice', () => {
     const state: CadreState = { slices: { pilot: { login: 'maximed1412', avatarUrl: 'https://avatars.example/u/1' } } };
     expect(cadreView(state, at('/a-toi')).cadre.pilot).toEqual({ login: 'maximed1412', avatarUrl: 'https://avatars.example/u/1' });

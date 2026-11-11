@@ -10,6 +10,10 @@ describe('zClientMessage', () => {
     }
   });
 
+  it('reads the lastSeq the page sends as a decimal string', () => {
+    expect(zClientMessage.parse({ type: 'hello', lastSeq: '12' })).toEqual({ type: 'hello', lastSeq: 12 });
+  });
+
   it('rejects a hello without lastSeq, a visibility without visible, an unknown type', () => {
     for (const message of [{ type: 'hello' }, { type: 'visibility' }, { type: 'event' }, {}]) {
       expect(zClientMessage.safeParse(message).success, JSON.stringify(message)).toBe(false);
@@ -35,6 +39,7 @@ describe('withSeq', () => {
   it('adds the seq the page last applied to a command body', () => {
     const schema = withSeq(z.object({ title: z.string() }));
     expect(schema.parse({ title: 'x', seq: 4 })).toEqual({ title: 'x', seq: 4 });
+    expect(schema.parse({ title: 'x', seq: '4' })).toEqual({ title: 'x', seq: 4 });
     expect(schema.safeParse({ title: 'x' }).success).toBe(false);
   });
 });

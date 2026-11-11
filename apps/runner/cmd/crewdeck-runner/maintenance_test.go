@@ -16,6 +16,7 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/accounts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/service"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
 	"github.com/zalando/go-keyring"
 )
 
@@ -231,18 +232,61 @@ func TestUninstallYesDoesNotAsk(t *testing.T) {
 	}
 }
 
-func TestUninstallRefusesAFolderThatIsTheHome(t *testing.T) {
-	keyring.MockInit()
-	f := newMachineFixture(t, service.Config{OS: "linux", WSL: true})
+func TestUninstallRefusesAFolderThatIsTheHomeBeforeRemovingAnything(t *testing.T) {
+	f, tl := uninstallable(t)
 	t.Setenv("HOME", f.home)
-	t.Setenv("CREWDECK_HOME", f.home)
+	t.Setenv(state.HomeEnv, f.home)
+	// The keys of this Runner, kept in the folder it would remove.
+	for _, id := range accounts.Engines {
+		if err := (accounts.Store{Dir: f.home}).Set(id, "sk-"+string(id)); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	_, err := f.execute(t, "", "uninstall", "--yes")
 	if err == nil || !strings.Contains(err.Error(), "rien n’a été supprimé") {
 		t.Fatalf("uninstall = %v, want a refusal", err)
 	}
-	if _, err := os.Stat(f.binary); err != nil {
-		t.Fatalf("binary: %v, want it kept", err)
+	assertUntouched(t, f, tl, f.home)
+}
+
+func TestUninstallStopsWhenTheKeychainRefusesAKey(t *testing.T) {
+	f, tl := uninstallable(t)
+	keyring.MockInitWithError(errors.New("the keychain is locked"))
+
+	out, err := f.execute(t, "", "uninstall", "--yes")
+	if err == nil || !strings.Contains(err.Error(), "n’a pas pu être retirée du trousseau") || !strings.Contains(err.Error(), "relance « crewdeck-runner uninstall »") {
+		t.Fatalf("uninstall = %v, want the keychain's refusal", err)
+	}
+	if strings.Contains(out, "Runner supprimé") {
+		t.Fatalf("uninstall announced its success: %q", out)
+	}
+	for _, path := range []string{f.state, f.binary, service.File(f.service)} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("%s: %v, want it kept", path, err)
+		}
+	}
+	if calls := tl.calls(t); calls != nil {
+		t.Fatalf("calls %q, want none", calls)
+	}
+}
+
+// assertUntouched: the service, the folder, the binary and the keys of the
+// Runner whose keys are in dir are all still there.
+func assertUntouched(t *testing.T, f *machineFixture, tl *tools, dir string) {
+	t.Helper()
+	for _, path := range []string{f.state, f.binary, service.File(f.service)} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("%s: %v, want it kept", path, err)
+		}
+	}
+	for _, id := range accounts.Engines {
+		if _, err := (accounts.Store{Dir: dir}).Get(id); err != nil {
+			t.Fatalf("key of %s: %v, want it kept", id, err)
+		}
+	}
+	if calls := tl.calls(t); calls != nil {
+		t.Fatalf("calls %q, want none", calls)
 	}
 }
 

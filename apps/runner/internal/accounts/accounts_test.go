@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
@@ -73,5 +74,37 @@ func TestDeleteRemovesTheKeyWhereverItIs(t *testing.T) {
 	// Nothing stored is not an error.
 	if err := store.Delete(contracts.EngineIdClaudeCode); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDeleteSaysWhenTheKeychainHoldingAKeyRefusesIt(t *testing.T) {
+	keyring.MockInit()
+	store := Store{Dir: t.TempDir()}
+	if err := store.Set(contracts.EngineIdCodex, "sk-in-keychain"); err != nil {
+		t.Fatal(err)
+	}
+	keyring.MockInitWithError(errors.New("the keychain is locked"))
+
+	if err := store.Delete(contracts.EngineIdCodex); err == nil || !strings.Contains(err.Error(), "locked") {
+		t.Fatalf("delete = %v, want the keychain's refusal", err)
+	}
+}
+
+func TestDeleteWithoutAKeychainOfAKeyThatWentToTheFileIsNotAnError(t *testing.T) {
+	keyring.MockInitWithError(errors.New("no Secret Service"))
+	store := Store{Dir: t.TempDir()}
+	if err := store.Set(contracts.EngineIdClaudeCode, "sk-ant-test"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.Delete(contracts.EngineIdClaudeCode); err != nil {
+		t.Fatalf("delete = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(store.Dir, "secrets", "claude-code.key")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("the file is still there: %v", err)
+	}
+	// Nothing ever stored, with no keychain either.
+	if err := store.Delete(contracts.EngineIdCodex); err != nil {
+		t.Fatalf("delete of nothing = %v", err)
 	}
 }

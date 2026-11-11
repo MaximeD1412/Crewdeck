@@ -35,6 +35,12 @@ func (s Store) file(engine contracts.EngineId) string {
 	return filepath.Join(s.Dir, "secrets", string(engine)+".key")
 }
 
+// marker, empty, says the key of the Moteur went to the keychain: a
+// keychain that does not answer then may still hold it.
+func (s Store) marker(engine contracts.EngineId) string {
+	return filepath.Join(s.Dir, "keychain", string(engine))
+}
+
 // Get gives the key of a Moteur; ErrNoKey when none is stored.
 func (s Store) Get(engine contracts.EngineId) (string, error) {
 	if key, err := keyring.Get(Service, string(engine)); err == nil {
@@ -53,7 +59,7 @@ func (s Store) Get(engine contracts.EngineId) (string, error) {
 // Set stores the key of a Moteur, in the keychain or, when none answers, in its file.
 func (s Store) Set(engine contracts.EngineId, key string) error {
 	if err := keyring.Set(Service, string(engine), key); err == nil {
-		return nil
+		return s.mark(engine)
 	}
 	dir := filepath.Dir(s.file(engine))
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -68,13 +74,34 @@ func (s Store) Set(engine contracts.EngineId, key string) error {
 	return nil
 }
 
-// Delete removes the key of a Moteur from the keychain and from its file;
-// nothing stored is not an error, nor a keychain that does not answer (Set
-// then used the file).
+// mark records that the key of the Moteur is in the keychain.
+func (s Store) mark(engine contracts.EngineId) error {
+	dir := filepath.Dir(s.marker(engine))
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("accounts: create %s: %w", dir, err)
+	}
+	if err := os.WriteFile(s.marker(engine), nil, 0o600); err != nil {
+		return fmt.Errorf("accounts: mark the key of %s: %w", engine, err)
+	}
+	return nil
+}
+
+// Delete removes the key of a Moteur from the keychain and from its file.
+// Nothing stored is not an error, nor a keychain that does not answer when
+// the key never went to it (Set then used the file); a keychain that holds
+// it and refuses is.
 func (s Store) Delete(engine contracts.EngineId) error {
-	_ = keyring.Delete(Service, string(engine))
+	err := keyring.Delete(Service, string(engine))
+	if err != nil && !errors.Is(err, keyring.ErrNotFound) {
+		if _, marked := os.Stat(s.marker(engine)); marked == nil {
+			return fmt.Errorf("accounts: delete the key of %s from the keychain: %w", engine, err)
+		}
+	}
 	if err := os.Remove(s.file(engine)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("accounts: delete the key of %s: %w", engine, err)
+	}
+	if err := os.Remove(s.marker(engine)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("accounts: delete the mark of %s: %w", engine, err)
 	}
 	return nil
 }

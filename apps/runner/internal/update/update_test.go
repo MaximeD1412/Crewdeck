@@ -205,3 +205,62 @@ func TestAMissingBuildKeepsTheOldBinary(t *testing.T) {
 		t.Fatal("the binary changed")
 	}
 }
+
+func TestRedirectionsAreNotFollowed(t *testing.T) {
+	other := &release{version: "v2", binary: []byte("build of elsewhere")}
+	elsewhere := other.serve(t)
+	linked := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		http.Redirect(w, req, elsewhere.URL+req.URL.Path, http.StatusFound)
+	}))
+	t.Cleanup(linked.Close)
+	f := newFixture(t, linked.URL)
+
+	if err := f.updater.Install(context.Background(), "v2"); err == nil {
+		t.Fatal("an update through a redirection was installed")
+	}
+	if _, err := f.updater.Latest(context.Background()); err == nil {
+		t.Fatal("the latest version was read through a redirection")
+	}
+	if f.installed(t) != "old build" || other.hits.Load() != 0 {
+		t.Fatalf("binary %q, downloads elsewhere %d", f.installed(t), other.hits.Load())
+	}
+}
+
+func TestAnAttemptWithoutAVersionWaitsTenMinutesWhenTheServerFails(t *testing.T) {
+	unavailable := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(unavailable.Close)
+	f := newFixture(t, unavailable.URL)
+
+	if err := f.updater.Apply(context.Background(), ""); err == nil || !strings.Contains(err.Error(), "503") {
+		t.Fatalf("attempt without a version: %v", err)
+	}
+	if next := f.updater.NextAttempt(); !next.Equal(f.now.Add(Every)) {
+		t.Fatalf("next attempt at %v, want %v", next, f.now.Add(Every))
+	}
+	var soon *TooSoonError
+	if err := f.updater.Apply(context.Background(), ""); !errors.As(err, &soon) {
+		t.Fatalf("second attempt: %v", err)
+	}
+}
+
+func TestAnAttemptThatCannotBeKeptStillWaitsTenMinutes(t *testing.T) {
+	rel := &release{version: "v2", binary: []byte("tampered"), sum: strings.Repeat("0", 64)}
+	f := newFixture(t, rel.serve(t).URL)
+	// Dir is a file: the instant of the attempt cannot be written.
+	if err := os.WriteFile(f.updater.Dir, []byte("not a folder"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := f.updater.Apply(context.Background(), "v2"); !errors.Is(err, ErrChecksumMismatch) {
+		t.Fatalf("attempt: %v", err)
+	}
+	if next := f.updater.NextAttempt(); !next.Equal(f.now.Add(Every)) {
+		t.Fatalf("next attempt at %v, want %v", next, f.now.Add(Every))
+	}
+	var soon *TooSoonError
+	if err := f.updater.Apply(context.Background(), "v2"); !errors.As(err, &soon) {
+		t.Fatalf("second attempt: %v", err)
+	}
+}

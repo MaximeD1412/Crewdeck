@@ -126,32 +126,35 @@ func accepted(in io.Reader) bool {
 	return false
 }
 
+// uninstall checks everything it is about to remove before removing
+// anything; then the keys come first, as a keychain that refuses leaves the
+// Runner whole, to uninstall again once it is unlocked.
 func (m *machine) uninstall(ctx context.Context, out io.Writer) error {
 	cfg, err := m.service()
 	if err != nil {
-		return err
-	}
-	if err := service.Uninstall(ctx, cfg); err != nil {
 		return err
 	}
 	store, err := state.Default()
 	if err != nil {
 		return err
 	}
-	keys := accounts.Store{Dir: store.Dir}
-	for _, id := range accounts.Engines {
-		if err := keys.Delete(id); err != nil {
-			return err
-		}
-	}
 	if err := removable(store.Dir); err != nil {
-		return err
-	}
-	if err := os.RemoveAll(store.Dir); err != nil {
 		return err
 	}
 	binary, err := m.executable()
 	if err != nil {
+		return err
+	}
+	keys := accounts.Store{Dir: store.Dir}
+	for _, id := range accounts.Engines {
+		if err := keys.Delete(id); err != nil {
+			return fmt.Errorf("La clé d’API de %s n’a pas pu être retirée du trousseau (%v) : le Runner n’est pas désinstallé. Déverrouille le trousseau, puis relance « crewdeck-runner uninstall ».", engineNames[id], err)
+		}
+	}
+	if err := service.Uninstall(ctx, cfg); err != nil {
+		return err
+	}
+	if err := os.RemoveAll(store.Dir); err != nil {
 		return err
 	}
 	if err := os.Remove(binary); err != nil && !errors.Is(err, os.ErrNotExist) {

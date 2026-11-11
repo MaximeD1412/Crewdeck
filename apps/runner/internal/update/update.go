@@ -1,9 +1,9 @@
 // Package update is the Runner's self-update (ADR 0004, RUNNER-8): a Runner
 // the server no longer speaks to (`hello.rejected` `update-required`), or
 // `crewdeck-runner update`, downloads `GET /runner/<version>/<os>-<arch>`
-// and its `.sha256` from the server it is linked to, over HTTPS, verifies
-// the SHA-256, writes the new build next to the binary and renames it over
-// it, atomically. A bad checksum keeps the old binary. The automatic
+// and its `.sha256` from the server it is linked to, over HTTPS and without
+// following any redirection, verifies the SHA-256, writes the new build next
+// to the binary and renames it over it, atomically. A bad checksum keeps the old binary. The automatic
 // attempts are at most one every ten minutes, across restarts.
 package update
 
@@ -64,6 +64,10 @@ type Updater struct {
 	// Now defaults to time.Now.
 	Now    func() time.Time
 	Logger *slog.Logger
+
+	// attempted is the last automatic attempt of this process, kept even
+	// when it could not be written in Dir.
+	attempted time.Time
 }
 
 func (u *Updater) now() time.Time {
@@ -73,11 +77,15 @@ func (u *Updater) now() time.Time {
 	return u.Now()
 }
 
+// client follows no redirection: the builds, their checksums and the
+// latest version come from the linked server itself, never from elsewhere.
 func (u *Updater) client() *http.Client {
-	if u.HTTP == nil {
-		return &http.Client{Timeout: 5 * time.Minute}
+	client := http.Client{Timeout: 5 * time.Minute}
+	if u.HTTP != nil {
+		client = *u.HTTP
 	}
-	return u.HTTP
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return &client
 }
 
 func (u *Updater) logger() *slog.Logger {
@@ -101,14 +109,25 @@ func (u *Updater) Latest(ctx context.Context) (string, error) {
 	return latest.Version, nil
 }
 
-// Apply is an automatic update to `to`: a *TooSoonError less than Every
-// after the last attempt, else Install.
+// Apply is an automatic update to `to` (the server's latest version when
+// empty): a *TooSoonError less than Every after the last attempt, else
+// Install. The attempt counts from its start, whatever fails after it,
+// the version's lookup included.
 func (u *Updater) Apply(ctx context.Context, to string) error {
 	if next, ok := u.nextAttempt(); ok && u.now().Before(next) {
 		return &TooSoonError{Next: next}
 	}
+	u.attempted = u.now().UTC()
 	if err := u.stamp(); err != nil {
-		return err
+		// This process still waits; another one may try sooner.
+		u.logger().Warn("update.stamp-failed", "error", err.Error())
+	}
+	if to == "" {
+		latest, err := u.Latest(ctx)
+		if err != nil {
+			return err
+		}
+		to = latest
 	}
 	return u.Install(ctx, to)
 }
@@ -124,19 +143,21 @@ type stamp struct {
 }
 
 func (u *Updater) nextAttempt() (time.Time, bool) {
-	data, err := os.ReadFile(filepath.Join(u.Dir, stampFile))
-	if err != nil {
+	last := u.attempted
+	if data, err := os.ReadFile(filepath.Join(u.Dir, stampFile)); err == nil {
+		var kept stamp
+		if json.Unmarshal(data, &kept) == nil && kept.AttemptedAt.After(last) {
+			last = kept.AttemptedAt
+		}
+	}
+	if last.IsZero() {
 		return time.Time{}, false
 	}
-	var last stamp
-	if json.Unmarshal(data, &last) != nil || last.AttemptedAt.IsZero() {
-		return time.Time{}, false
-	}
-	return last.AttemptedAt.Add(Every), true
+	return last.Add(Every), true
 }
 
 func (u *Updater) stamp() error {
-	data, err := json.Marshal(stamp{AttemptedAt: u.now().UTC()})
+	data, err := json.Marshal(stamp{AttemptedAt: u.attempted})
 	if err != nil {
 		return err
 	}

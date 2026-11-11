@@ -71,7 +71,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			return refusal(err)
 		}
 		logger.Info("update.required", "version", version, "latestVersion", required.LatestVersion)
-		if err := m.selfUpdate(ctx, updater, required.LatestVersion); err != nil {
+		if err := updater.Apply(ctx, required.LatestVersion); err != nil {
 			logger.Warn("update.failed", "error", err.Error(), "nextAttempt", updater.NextAttempt())
 			if !sleepUntil(ctx, updater.NextAttempt()) {
 				return nil
@@ -81,18 +81,6 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		logger.Info("update.restart", "binary", binary)
 		return m.restart(ctx, binary)
 	}
-}
-
-// selfUpdate installs `to` (the latest version when the server did not say it).
-func (m *machine) selfUpdate(ctx context.Context, updater *update.Updater, to string) error {
-	if to == "" {
-		latest, err := updater.Latest(ctx)
-		if err != nil {
-			return err
-		}
-		to = latest
-	}
-	return updater.Apply(ctx, to)
 }
 
 // sleepUntil waits for at, false when ctx ends first.

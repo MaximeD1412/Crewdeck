@@ -49,6 +49,15 @@ runs:
     # before failing. They take seconds when the mirrors answer, so apt gets
     # two minutes; past that, the job goes on if Chromium launches without
     # them (the runner image already has most of them), and fails otherwise.
+    # TEMPORARY (test/ci-browsers-apt): the Ubuntu mirrors made unreachable,
+    # connections hanging as in the outage of 2026-11-11. Never merged.
+    - name: Simulate unreachable Ubuntu mirrors
+      if: steps.find.outputs.playwright != ''
+      shell: bash
+      run: |
+        echo "192.0.2.1 security.ubuntu.com archive.ubuntu.com azure.archive.ubuntu.com" | sudo tee -a /etc/hosts
+        cat /etc/apt/apt-mirrors.txt 2>/dev/null || true
+
     - name: Install Chromium
       if: steps.find.outputs.playwright != ''
       shell: bash

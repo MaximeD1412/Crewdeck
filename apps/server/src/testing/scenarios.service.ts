@@ -1,5 +1,7 @@
 import type { ScenarioRun } from '@crewdeck/contracts';
+import type { AddressInfo } from 'node:net';
 import { Inject, Injectable } from '@nestjs/common';
+import { HttpAdapterHost } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { FAKES, type Fakes, resetFakes } from './fakes.js';
 import type { Scenario } from './scenarios/index.js';
@@ -14,13 +16,15 @@ export class ScenariosService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(FAKES) private readonly fakes: Fakes,
+    private readonly adapterHost: HttpAdapterHost,
   ) {}
 
-  /** Empties the data tables and resets the fakes, then seeds the scenario. */
+  /** Empties the data tables and resets the fakes, then seeds the scenario, its Runner connected when it links one. */
   async run(scenario: Scenario): Promise<ScenarioRun> {
-    await this.emptyDatabase();
     await resetFakes(this.fakes);
+    await this.emptyDatabase();
     const seeded = await scenario.seed({ prisma: this.prisma, fakes: this.fakes });
+    if (seeded.runnerToken) await this.fakes.runner.connect(this.ownUrl(), seeded.runnerToken);
     return { name: scenario.name, path: scenario.path, sessionCookie: seeded.sessionCookie ?? null };
   }
 
@@ -30,5 +34,11 @@ export class ScenariosService {
       SELECT tablename FROM pg_tables WHERE schemaname = current_schema() AND tablename <> ${MIGRATIONS_TABLE} ORDER BY tablename`;
     if (tables.length === 0) return;
     await this.prisma.unscoped.$executeRawUnsafe(`TRUNCATE TABLE ${tables.map((t) => quote(t.tablename)).join(', ')} RESTART IDENTITY CASCADE`);
+  }
+
+  /** This server's own address, which the fake Runner connects to. */
+  private ownUrl(): string {
+    const { port } = this.adapterHost.httpAdapter.getHttpServer().address() as AddressInfo;
+    return `http://127.0.0.1:${port}`;
   }
 }

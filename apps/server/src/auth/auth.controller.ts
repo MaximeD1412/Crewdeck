@@ -5,6 +5,7 @@ import { appOrigin, type Env, isDeployed } from '../config/env.js';
 import { ENV } from '../config/env.module.js';
 import { AppError } from '../errors/app-error.js';
 import { GITHUB_CLIENT, type GitHubClient } from '../github/github.client.js';
+import { GitHubInstallations } from '../github/webhooks/installations.js';
 import { newId } from '../ids.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Public } from '../scope/public.decorator.js';
@@ -47,6 +48,7 @@ export class AuthController {
     private readonly prisma: PrismaService,
     private readonly sessions: WebSessions,
     private readonly tokens: GithubTokens,
+    private readonly installations: GitHubInstallations,
     private readonly logger: PinoLogger,
   ) {
     this.secure = isDeployed(env);
@@ -100,7 +102,11 @@ export class AuthController {
     response.appendHeader('Set-Cookie', clearCookie(SESSION_COOKIE, { path: '/', secure: this.secure }));
   }
 
-  /** The GitHub user of `code` as a Pilot (created, or their login and avatar refreshed), their tokens stored, a session opened. */
+  /**
+   * The GitHub user of `code` as a Pilot (created, or their login and avatar
+   * refreshed), the installations of the App they made before linked to them,
+   * their tokens stored, a session opened.
+   */
   private async signIn(code: string, timeZone: string, userAgent: string | undefined): Promise<string> {
     const tokens = await this.github.exchangeCode(code, this.callbackUrl);
     const user = await this.github.getAuthenticatedUser(tokens.accessToken);
@@ -110,6 +116,7 @@ export class AuthController {
       update: { login: user.login, avatarUrl: user.avatarUrl },
       select: { id: true },
     });
+    await this.installations.linkPendingTo(pilot.id, user.id);
     return runInPilotScope(pilot.id, () =>
       this.prisma.scoped.$transaction(async (tx) => {
         await this.tokens.store(tx, pilot.id, tokens);

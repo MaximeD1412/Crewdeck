@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { renderJsonSchema } from './generate.js';
-import { registry } from './registry.js';
+import { renderGoConstants, renderJsonSchema } from './generate.js';
+import { goConstants, registry } from './registry.js';
 
 describe('renderJsonSchema', () => {
   it('matches the committed JSON Schema of every registry entry', () => {
@@ -26,5 +26,11 @@ describe('renderJsonSchema', () => {
     const b = renderJsonSchema({ name: 'x', schema: z.object({ a: z.number(), b: z.string() }) });
     expect(a).toBe(b);
     expect(Object.keys(JSON.parse(a))).toEqual([...Object.keys(JSON.parse(a))].sort());
+  });
+
+  it('matches the committed Go constants', () => {
+    const committed = readFileSync(join(import.meta.dirname, '../../../apps/runner/internal/contracts/constants.go'), 'utf8');
+    expect(renderGoConstants(goConstants)).toBe(committed);
+    expect(committed).toMatch(/^\tProtocolVersion += 1$/m);
   });
 });

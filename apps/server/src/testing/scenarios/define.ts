@@ -10,6 +10,8 @@ export interface ScenarioContext {
 export interface ScenarioSeed {
   /** The session cookie, `<name>=<value>`, of the Pilote the scenario signs in (CORE-4). */
   readonly sessionCookie?: string;
+  /** The token of the Runner the scenario links (`createLinkedRunner`): the fake Runner connects with it, and stays « en ligne ». */
+  readonly runnerToken?: string;
 }
 
 /**

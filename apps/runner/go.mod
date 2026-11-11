@@ -2,7 +2,10 @@ module github.com/maximed1412/crewdeck/apps/runner
 
 go 1.27
 
-require github.com/spf13/cobra v1.10.2
+require (
+	github.com/coder/websocket v1.8.15
+	github.com/spf13/cobra v1.10.2
+)
 
 require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

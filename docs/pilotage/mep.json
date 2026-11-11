@@ -252,6 +252,34 @@
       ],
       "commande": "sudo grep -c '^SESSION_SECRET=.\\+' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
       "ajouteLe": "2026-11-11"
+    },
+    {
+      "id": "webhook-github-apps",
+      "phase": "acc",
+      "source": "#41",
+      "titre": "Activer le webhook des deux GitHub Apps vers /api/github/webhooks, avec leur secret",
+      "pourquoi": "Un changement fait sur GitHub (une installation de l'App, une issue, une PR) n'arrive au serveur que par le webhook de l'App (ADR 0002) : sans URL, l'écran ne se met à jour qu'à la réconciliation, toutes les 15 min. Le serveur refuse en 401 toute livraison qui n'est pas signée avec GITHUB_WEBHOOK_SECRET : le secret de l'App et celui du .env sont la même valeur. Les Apps sont créées par INFRA-11.",
+      "etapes": [
+        "github.com > Settings > Developer settings > GitHub Apps > « Crewdeck » > General > Webhook : cocher « Active », Webhook URL https://<domaine>/api/github/webhooks, Webhook secret = la valeur de GITHUB_WEBHOOK_SECRET de /opt/crewdeck/prod/.env.",
+        "Même chose pour « Crewdeck staging » avec https://staging.<domaine>/api/github/webhooks et le secret du staging.",
+        "Vérifier : Advanced > Recent Deliveries > le ping (ou « Redeliver ») répond 200 {\"ok\":true} ; un 401 veut dire que les deux secrets diffèrent."
+      ],
+      "commande": "curl -s -o /dev/null -w '%{http_code}\\n' -X POST https://staging.<domaine>/api/github/webhooks",
+      "ajouteLe": "2026-11-11"
+    },
+    {
+      "id": "env-github-webhook-secret",
+      "phase": "env",
+      "source": "#41",
+      "titre": "GITHUB_WEBHOOK_SECRET dans le .env de la prod et du staging, le même que le secret du webhook de l'App",
+      "pourquoi": "Le serveur vérifie la signature X-Hub-Signature-256 de chaque webhook avec GITHUB_WEBHOOK_SECRET (risque SEC-8) ; il refuse de démarrer sans lui en production et en staging. Une valeur différente de celle de l'App refuse en 401 toutes les livraisons : rien n'arrive plus en temps réel, seule la réconciliation des 15 min rattrape. Changé, il se change dans l'App et dans le .env au même moment.",
+      "etapes": [
+        "openssl rand -hex 32, un secret par environnement : GITHUB_WEBHOOK_SECRET dans /opt/crewdeck/prod/.env, un autre dans /opt/crewdeck/staging/.env.",
+        "Poser chacun comme « Webhook secret » de l'App de son environnement (élément webhook-github-apps).",
+        "Vérifier après le déploiement suivant : le serveur est healthy, et le ping de l'App (Recent Deliveries) répond 200."
+      ],
+      "commande": "sudo grep -c '^GITHUB_WEBHOOK_SECRET=.\\+' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
+      "ajouteLe": "2026-11-11"
     }
   ]
 }

@@ -218,13 +218,13 @@
       "categorie": "sec",
       "gravite": "moyenne",
       "titre": "Webhook GitHub falsifié ou rejoué",
-      "statut": "solution choisie",
-      "statutDepuis": "2026-11-10",
+      "statut": "implémenté",
+      "statutDepuis": "2026-11-11",
       "solutions": [
         {
           "texte": "Signature X-Hub-Signature-256 vérifiée en temps constant, livraisons dédoublonnées",
           "ref": "ADR 0002",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [
@@ -498,7 +498,12 @@
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
-          "texte": "Réconciliation de chaque dépôt toutes les 15 min et au démarrage du serveur",
+          "texte": "Tâche de réconciliation toutes les 15 min et 10 s après le démarrage du serveur, un hook par module, par installation liée",
+          "ref": "ADR 0002",
+          "fait": true
+        },
+        {
+          "texte": "Les hooks qui relisent chaque dépôt suivi : ses issues, ses PR, ses checks",
           "ref": "ADR 0002",
           "fait": false
         }

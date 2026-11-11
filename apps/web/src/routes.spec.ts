@@ -2,12 +2,14 @@ import { emitAction, PageComposants } from '@crewdeck/sdk';
 import { createDispatcher } from './actions/dispatcher.js';
 import { boot } from './app.js';
 
+const PILOT = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris' };
+
 describe('the page’s routes', () => {
   it('open the library of Composants at /parametres/composants?c=, whose select changes ?c=', async () => {
     history.replaceState(null, '', '/parametres/composants?c=Banner');
     const root = document.createElement('div');
     document.body.append(root);
-    const app = await boot({ root, dispatcher: createDispatcher() });
+    const app = await boot({ root, dispatcher: createDispatcher(), me: async () => PILOT });
 
     const page = root.querySelector('cd-page-composants') as HTMLElement & { data: { selected: { name: string } } };
     expect(page.closest('cd-cadre')).toBe(root.firstElementChild);

@@ -2,12 +2,14 @@ import { CD_ACTION, t } from '@crewdeck/sdk';
 import { createDispatcher } from './actions/dispatcher.js';
 import { boot } from './app.js';
 
+const PILOT = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris' };
+
 type WithData = HTMLElement & { data: unknown; updateComplete: Promise<unknown> };
 
 describe('the page', () => {
   afterEach(() => document.body.replaceChildren());
 
-  it('boots the default Skin, listens to cd-action on the document, renders PageIntrouvable for an unknown URL inside the Cadre, which follows the page and whose openPilot leads to /parametres', async () => {
+  it('boots the default Skin, listens to cd-action on the document, reads the Pilote signed in, renders PageIntrouvable for an unknown URL inside the Cadre, which follows the page and whose openPilot leads to /parametres', async () => {
     history.replaceState(null, '', '/nope');
     const root = document.createElement('div');
     document.body.append(root);
@@ -15,13 +17,13 @@ describe('the page', () => {
     const dispatcher = createDispatcher();
     const listen = vi.spyOn(dispatcher, 'listen');
 
-    const app = await boot({ root, dispatcher });
+    const app = await boot({ root, dispatcher, me: async () => PILOT });
 
     expect(listen).toHaveBeenCalledWith(document);
 
     const cadre = root.firstElementChild as WithData;
     expect(cadre.localName).toBe('cd-cadre');
-    expect(cadre.data).toMatchObject({ variant: 'default', current: null });
+    expect(cadre.data).toMatchObject({ variant: 'default', current: null, pilot: { login: 'octocat', avatarUrl: null } });
     expect(cadre.querySelectorAll(':scope > cd-menu-item[slot=menu]')).toHaveLength(9);
     const page = cadre.querySelector('cd-page-introuvable') as WithData;
     expect(customElements.get('cd-page-introuvable')).toBeDefined();

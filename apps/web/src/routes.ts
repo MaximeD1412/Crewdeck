@@ -1,6 +1,7 @@
-import { COMPOSANTS, PageComposants } from '@crewdeck/sdk';
+import { COMPOSANTS, PageComposants, PageConnexion } from '@crewdeck/sdk';
 import type { Route } from './router.js';
 import { composantsView } from './views/composants.js';
+import { connexionView } from './views/connexion.js';
 
 /** The library of Composants' URL for one of them. */
 export const composantsHref = (name: string): string => `/parametres/composants?c=${encodeURIComponent(name)}`;
@@ -9,9 +10,11 @@ export const composantsHref = (name: string): string => `/parametres/composants?
  * The page URLs of ADR 0008 and their page Composant, filled by the page
  * tickets: `/a-toi` → `PageAToi`, `/idees` and `/idees/:id`, `/conceptions`,
  * `/boucle`, `/planning`, `/statistiques`, `/projets`, `/runner`,
- * `/parametres`, `/parametres/composants`. The first route that matches wins.
+ * `/parametres`, `/parametres/composants`; `/connexion` → `PageConnexion`,
+ * the only page open signed out. The first route that matches wins.
  */
 export const ROUTES: readonly Route[] = [
+  { path: '/connexion', composant: PageConnexion, data: (match) => connexionView(match.query) },
   {
     path: '/parametres/composants',
     composant: PageComposants,

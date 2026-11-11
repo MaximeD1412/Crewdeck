@@ -10,6 +10,7 @@ import { EventsReplay } from './events.replay.js';
 import { RealtimeTiming } from './realtime.timing.js';
 import { TabPresence } from './tab-presence.js';
 import { WS_AUTHENTICATORS, type WsAuthenticators, type WsCredential, type WsIdentity } from './ws-authenticators.js';
+import { WS_CLIENTS, type WsClientHandlers, wsClientOf } from './ws-clients.js';
 import { WsRevocations } from './ws-revocations.js';
 
 /** The close code of a server fault (RFC 6455). */
@@ -51,11 +52,16 @@ const loggedType = (message: ClientMessage | undefined): string => message?.type
  *   type and size only, never its content.
  * - The credential the socket was opened with keeps it open: revoked (a
  *   logout, `WsRevocations`) or expired, the socket is closed with 4401.
+ *
+ * A socket opened with `?client=<name>` is not a tab's: it goes to the
+ * `WS_CLIENTS` handler of that name (the Runner's, `src/runners/`), or is
+ * closed with 4400 when there is none.
  */
 @WebSocketGateway({ path: '/api/ws' })
 export class RealtimeGateway implements OnGatewayConnection {
   constructor(
     @Inject(WS_AUTHENTICATORS) private readonly authenticators: WsAuthenticators,
+    @Inject(WS_CLIENTS) private readonly clients: WsClientHandlers,
     private readonly replay: EventsReplay,
     private readonly bus: EventsBus,
     private readonly presence: TabPresence,
@@ -66,6 +72,12 @@ export class RealtimeGateway implements OnGatewayConnection {
 
   /** Called as the socket opens: its listeners are set at once, the messages sent before its principal is known wait for it. */
   handleConnection(socket: WebSocket, request: IncomingMessage): void {
+    const client = wsClientOf(request);
+    if (client !== undefined) {
+      const handler = this.clients.all().find((candidate) => candidate.client === client);
+      if (handler) return handler.handleConnection(socket, request);
+      return socket.close(WS_CLOSE.invalidMessage, 'unknown client');
+    }
     new Connection(socket, this.replay, this.bus, this.presence, this.timing, this.revocations, this.logger).start(this.authenticate(request));
   }
 

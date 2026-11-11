@@ -43,6 +43,8 @@ class ProbeController {
     // What a careless module might log: the sealed values, top level and one level down.
     this.logger.info({ ciphertext: body.ciphertext, idea: { ciphertext: body.ciphertext, wrappedKey: SECRETS.wrappedKey } }, 'idea received');
     this.logger.info({ message: { type: 'session.output', payload: body.payload }, runner: { token: SECRETS.token } }, 'relayed');
+    // A Runner protocol message of the relay (RUNNER-2, SESSION-1), as a handler might log it.
+    this.logger.info({ direction: 'in', message: { type: 'relay', id: 'relay-id', payload: body.payload } }, 'runner message');
     throw new Error('a fault after reading the body');
   }
 
@@ -97,6 +99,19 @@ describe('the logs (SEC-7)', () => {
       expect(output()).not.toContain(secret);
     }
     expect(output()).toContain(REDACT_CENSOR);
+  });
+
+  it('never show the payload of a relay message of the Runner protocol, only its type', async () => {
+    await fetch(`${url}/api/probe/sealed`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ciphertext: SECRETS.ciphertext, payload: SECRETS.payload }),
+    });
+    await vi.waitFor(() => expect(output()).toContain('runner message'));
+    const relay = lines.map((line) => JSON.parse(line) as { msg: string; message?: unknown }).find((line) => line.msg === 'runner message');
+
+    expect(relay?.message).toEqual({ type: 'relay', id: 'relay-id', payload: REDACT_CENSOR });
+    expect(output()).not.toContain(SECRETS.payload);
   });
 
   it('logs an unexpected error with its stack', () => {

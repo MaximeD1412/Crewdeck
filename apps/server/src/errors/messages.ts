@@ -17,6 +17,8 @@ export const MESSAGES = {
   'http.bad-request': 'La requête n’est pas valide.',
   'http.not-found': 'Cette adresse n’existe pas.',
   'realtime.stale': 'L’état a changé depuis ton dernier affichage : vérifie avant de recommencer.',
+  'runner.not-linked': 'Aucun Runner n’est relié à ton compte.',
+  'runner.offline': 'Le Runner est hors ligne.',
   'server.internal': 'Une erreur inattendue est survenue.',
   'testing.unknown-scenario': 'Scénario de test inconnu.',
   'validation.invalid': 'Certaines valeurs ne sont pas valides.',

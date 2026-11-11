@@ -4,6 +4,12 @@ import pg from 'pg';
 import { inject } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { type Env, parseEnv } from '../../src/config/env.js';
+import { RunnerPresence } from '../../src/runners/runner-presence.service.js';
+import { FAKES, type Fakes } from '../../src/testing/fakes.js';
+import { createLinkedRunner } from '../../src/testing/runners.js';
+import { ScenariosService } from '../../src/testing/scenarios.service.js';
+import { defineScenario } from '../../src/testing/scenarios/define.js';
+import { signInPilot } from '../../src/testing/scenarios/sign-in.js';
 
 const databaseUrl = inject('databaseUrl');
 
@@ -94,6 +100,32 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
       const cookie = start.headers.getSetCookie()[0]?.split(';')[0] ?? '';
       const signedIn = await fetch(`${base}${callback.pathname}${callback.search}`, { redirect: 'manual', headers: { cookie } });
       expect(signedIn.headers.get('location')).toBe('/a-toi');
+    });
+
+    it('connects the fake Runner of a scenario that links one, « en ligne » until the next scenario', async () => {
+      const withRunner = defineScenario({
+        name: 'avec-runner',
+        path: '/',
+        seed: async (ctx) => {
+          const seed = await signInPilot(ctx);
+          const [pilot] = await ctx.prisma.unscoped.pilot.findMany({ select: { id: true } });
+          const { token } = await createLinkedRunner(ctx.prisma, pilot?.id ?? '');
+          return { ...seed, runnerToken: token };
+        },
+      });
+
+      await app.get(ScenariosService).run(withRunner);
+
+      const fakes = app.get<Fakes>(FAKES);
+      expect(fakes.runner.connected).toBe(true);
+      const [runner] = await sql<{ pilot_id: string; state: string; runner_version: string }>('SELECT pilot_id, state, runner_version FROM runners');
+      expect(runner).toMatchObject({ state: 'online', runner_version: 'fake' });
+      expect(app.get(RunnerPresence).isOnline(runner?.pilot_id ?? '')).toBe(true);
+
+      await post(app, 'blank');
+
+      expect(fakes.runner.connected).toBe(false);
+      await vi.waitFor(() => expect(app.get(RunnerPresence).isOnline(runner?.pilot_id ?? '')).toBe(false));
     });
 
     it('gives 404 testing.unknown-scenario for an unknown name', async () => {

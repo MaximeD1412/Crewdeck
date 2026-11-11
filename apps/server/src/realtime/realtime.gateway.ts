@@ -9,10 +9,14 @@ import { EventsBus } from './events.bus.js';
 import { EventsReplay } from './events.replay.js';
 import { RealtimeTiming } from './realtime.timing.js';
 import { TabPresence } from './tab-presence.js';
-import { WS_AUTHENTICATORS, type WsAuthenticators } from './ws-authenticators.js';
+import { WS_AUTHENTICATORS, type WsAuthenticators, type WsCredential, type WsIdentity } from './ws-authenticators.js';
+import { WsRevocations } from './ws-revocations.js';
 
 /** The close code of a server fault (RFC 6455). */
 const INTERNAL_ERROR = 1011;
+
+/** The longest delay of `setTimeout`: a later expiry is checked then, and again. */
+const MAX_TIMER_MS = 2 ** 31 - 1;
 
 const bytesOf = (data: RawData): number =>
   Array.isArray(data) ? data.reduce((total, part) => total + part.length, 0) : data instanceof ArrayBuffer ? data.byteLength : data.length;
@@ -45,6 +49,8 @@ const loggedType = (message: ClientMessage | undefined): string => message?.type
  * - `visibility`: kept by `TabPresence`.
  * - Anything else closes the socket with 4400. A message is logged by its
  *   type and size only, never its content.
+ * - The credential the socket was opened with keeps it open: revoked (a
+ *   logout, `WsRevocations`) or expired, the socket is closed with 4401.
  */
 @WebSocketGateway({ path: '/api/ws' })
 export class RealtimeGateway implements OnGatewayConnection {
@@ -54,18 +60,19 @@ export class RealtimeGateway implements OnGatewayConnection {
     private readonly bus: EventsBus,
     private readonly presence: TabPresence,
     private readonly timing: RealtimeTiming,
+    private readonly revocations: WsRevocations,
     @InjectPinoLogger(RealtimeGateway.name) private readonly logger: PinoLogger,
   ) {}
 
   /** Called as the socket opens: its listeners are set at once, the messages sent before its principal is known wait for it. */
   handleConnection(socket: WebSocket, request: IncomingMessage): void {
-    new Connection(socket, this.replay, this.bus, this.presence, this.timing, this.logger).start(this.authenticate(request));
+    new Connection(socket, this.replay, this.bus, this.presence, this.timing, this.revocations, this.logger).start(this.authenticate(request));
   }
 
-  private async authenticate(request: IncomingMessage): Promise<Principal | null> {
+  private async authenticate(request: IncomingMessage): Promise<WsIdentity | null> {
     for (const authenticator of this.authenticators.all()) {
-      const principal = await authenticator.authenticate(request);
-      if (principal) return principal;
+      const identity = await authenticator.authenticate(request);
+      if (identity) return identity;
     }
     return null;
   }
@@ -76,6 +83,8 @@ class Connection {
   private principal: Principal | undefined;
   private readonly waiting: RawData[] = [];
   private silence: NodeJS.Timeout | undefined;
+  private expiry: NodeJS.Timeout | undefined;
+  private untrack: (() => void) | undefined;
   private unsubscribe: (() => void) | undefined;
   /** Incremented by each `hello`: a replay overtaken by a later `hello` sends nothing. */
   private hellos = 0;
@@ -87,19 +96,24 @@ class Connection {
     private readonly bus: EventsBus,
     private readonly presence: TabPresence,
     private readonly timing: RealtimeTiming,
+    private readonly revocations: WsRevocations,
     private readonly logger: PinoLogger,
   ) {}
 
-  start(principal: Promise<Principal | null>): void {
+  start(identity: Promise<WsIdentity | null>): void {
     this.socket.on('message', (data: RawData) => this.receive(data));
     this.socket.on('close', () => this.cleanUp());
     this.armSilence();
-    principal.then(
+    identity.then(
       (found) => {
         if (this.closed) return;
         if (!found) return this.close(WS_CLOSE.unauthorized, 'unauthorized');
-        this.principal = found;
-        if (found.kind === 'pilot') this.presence.open(found.pilotId, this.socket);
+        const { principal, credential } = found;
+        this.principal = principal;
+        this.untrack = this.revocations.track(principal.pilotId, credential, () => this.close(WS_CLOSE.unauthorized, 'revoked'));
+        // Checked again at once: a revocation committed while the socket was authenticated found nothing to close.
+        void this.checkCredential(credential);
+        if (principal.kind === 'pilot') this.presence.open(principal.pilotId, this.socket);
         for (const data of this.waiting.splice(0)) this.handle(data);
       },
       (error: unknown) => {
@@ -177,6 +191,22 @@ class Connection {
     this.socket.send(text);
   }
 
+  /** Closes the socket when its credential has ended, else checks it again when it expires. */
+  private async checkCredential(credential: WsCredential): Promise<void> {
+    let expiresAt: Date | undefined;
+    try {
+      expiresAt = await credential.check();
+    } catch (error) {
+      this.logger.error({ err: error }, 'ws credential check failed');
+      return this.close(INTERNAL_ERROR, 'internal error');
+    }
+    if (this.closed) return;
+    if (!expiresAt || expiresAt.getTime() <= Date.now()) return this.close(WS_CLOSE.unauthorized, 'expired');
+    clearTimeout(this.expiry);
+    this.expiry = setTimeout(() => void this.checkCredential(credential), Math.min(expiresAt.getTime() - Date.now(), MAX_TIMER_MS));
+    this.expiry.unref();
+  }
+
   private armSilence(): void {
     clearTimeout(this.silence);
     this.silence = setTimeout(() => this.close(WS_CLOSE.silent, 'silent'), this.timing.silenceMs);
@@ -193,6 +223,8 @@ class Connection {
     if (this.closed) return;
     this.closed = true;
     clearTimeout(this.silence);
+    clearTimeout(this.expiry);
+    this.untrack?.();
     this.unsubscribe?.();
     this.unsubscribe = undefined;
     this.waiting.length = 0;

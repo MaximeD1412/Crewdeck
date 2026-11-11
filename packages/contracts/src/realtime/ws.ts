@@ -34,5 +34,5 @@ export const zServerMessage = z.discriminatedUnion('type', [
 ]);
 export type ServerMessage = z.infer<typeof zServerMessage>;
 
-/** The close codes of the socket: 4401 no principal, 4400 a message that is not one of `zClientMessage`, 4408 silent too long. */
+/** The close codes of the socket: 4401 no principal, or its session ended (logout, expiry), 4400 a message that is not one of `zClientMessage`, 4408 silent too long. */
 export const WS_CLOSE = { unauthorized: 4401, invalidMessage: 4400, silent: 4408 } as const;

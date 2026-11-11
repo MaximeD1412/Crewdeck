@@ -44,11 +44,13 @@ export class EventsWriter {
     if (!parsed.success) throw new EventPayloadError(type, parsed.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.code}`).join(', '));
 
     const { seq } = await tx.pilot.update({ where: { id: pilotId }, data: { seq: { increment: 1 } }, select: { seq: true } });
+    // At once, the row locked: the places are taken in the order of the seqs.
+    const place = pending.placeOf(pilotId);
     const row = await tx.event.create({
       data: { pilotId, seq, type, payload: parsed.data as Prisma.InputJsonValue, sourceAt: sourceAt ?? null },
       select: { seq: true, type: true, payload: true, at: true, sourceAt: true },
     });
-    pending.push({ pilotId, event: toEvent(row) });
+    place.events.push(toEvent(row));
     return seq;
   }
 }

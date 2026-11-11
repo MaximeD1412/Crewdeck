@@ -111,7 +111,31 @@ describe('the events writer against PostgreSQL', () => {
     expect([...seqs].sort((a, b) => Number(a - b))).toEqual([1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n]);
     const rows = await sql<{ seq: string }>('SELECT seq FROM events WHERE pilot_id = $1 ORDER BY seq', [pilotId]);
     expect(rows.map((row) => row.seq)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8']);
-    expect(published.map(({ event }) => event.seq).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(published.map(({ event }) => event.seq)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it('publishes a Pilote’s events in the order of their seq, even when an earlier commit returns last', async () => {
+    const transaction = prisma.scoped.$transaction.bind(prisma.scoped);
+    let committed!: () => void;
+    let release!: () => void;
+    const firstCommitted = new Promise<void>((resolve) => (committed = resolve));
+    const firstReleased = new Promise<void>((resolve) => (release = resolve));
+    vi.spyOn(prisma.scoped, '$transaction').mockImplementationOnce((async (...args: Parameters<typeof transaction>) => {
+      const result = await transaction(...args);
+      committed();
+      await firstReleased;
+      return result;
+    }) as typeof transaction);
+    const write = () => inScope(() => transactions.run((tx) => writer.write(tx, pilotId, 'pilot.upserted', me())));
+
+    const first = write();
+    await firstCommitted;
+    expect(await write()).toBe(2n);
+    expect(published).toEqual([]);
+    release();
+    expect(await first).toBe(1n);
+
+    expect(published.map(({ event }) => event.seq)).toEqual([1, 2]);
   });
 
   it('throws on a payload that does not match its registered schema, and writes nothing', async () => {

@@ -98,6 +98,50 @@ describe('/api/ws against PostgreSQL', () => {
     });
   });
 
+  describe('the session', () => {
+    it('closes a socket, even one that pings, once its session expires', async () => {
+      const { cookie } = await pilot();
+      await sql(`UPDATE web_sessions SET expires_at = now() + interval '700 milliseconds'`);
+      const client = await open(cookie);
+      const pings = setInterval(() => client.send({ type: 'ping' }), 100);
+
+      try {
+        await client.next('pong');
+        expect(await client.closed()).toEqual({ code: WS_CLOSE.unauthorized, reason: 'expired' });
+      } finally {
+        clearInterval(pings);
+      }
+    });
+
+    it('keeps a socket open past the expiry it was opened with when the session slid meanwhile', async () => {
+      const { cookie } = await pilot();
+      await sql(`UPDATE web_sessions SET expires_at = now() + interval '500 milliseconds'`);
+      const client = await open(cookie);
+      client.send({ type: 'ping' });
+      await client.next('pong');
+      await sql(`UPDATE web_sessions SET expires_at = now() + interval '1 day'`);
+
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      client.send({ type: 'ping' });
+
+      await expect(client.next('pong')).resolves.toEqual({ type: 'pong' });
+    });
+
+    it('closes a socket whose session ended while it was authenticated', async () => {
+      const { id, cookie } = await pilot();
+      const sessions = app.get(WebSessions);
+      const expiryOf = sessions.expiryOf.bind(sessions);
+      vi.spyOn(sessions, 'expiryOf').mockImplementationOnce(async (sessionId) => {
+        await sql('DELETE FROM web_sessions WHERE pilot_id = $1', [id]);
+        return expiryOf(sessionId);
+      });
+
+      const client = await open(cookie);
+
+      expect(await client.closed()).toEqual({ code: WS_CLOSE.unauthorized, reason: 'expired' });
+    });
+  });
+
   describe('hello', () => {
     it('replays every event after lastSeq, in order, then live', async () => {
       const { id, cookie } = await pilot();

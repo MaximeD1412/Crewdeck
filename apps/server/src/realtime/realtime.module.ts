@@ -12,6 +12,7 @@ import { StateController } from './state.controller.js';
 import { TabPresence } from './tab-presence.js';
 import { Transactions } from './transactions.js';
 import { WS_AUTHENTICATORS } from './ws-authenticators.js';
+import { WsRevocations } from './ws-revocations.js';
 
 /**
  * Real time on the server (ADR 0007, CORE-5).
@@ -41,10 +42,11 @@ import { WS_AUTHENTICATORS } from './ws-authenticators.js';
     TabPresence,
     RealtimeTiming,
     RealtimeGateway,
+    WsRevocations,
     EventsRetention,
     { provide: WS_AUTHENTICATORS, useFactory: () => new Registry() },
     { provide: STATE_CONTRIBUTORS, useFactory: () => new Registry() },
   ],
-  exports: [Transactions, EventsWriter, EventsBus, TabPresence, WS_AUTHENTICATORS, STATE_CONTRIBUTORS],
+  exports: [Transactions, EventsWriter, EventsBus, TabPresence, WS_AUTHENTICATORS, WsRevocations, STATE_CONTRIBUTORS],
 })
 export class RealtimeModule {}

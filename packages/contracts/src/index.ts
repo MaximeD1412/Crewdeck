@@ -1,6 +1,7 @@
 export * from './values.js';
 export * from './api/commands.js';
 export * from './api/config.js';
+export * from './api/decisions.js';
 export * from './api/errors.js';
 export * from './api/github-token.js';
 export * from './api/health.js';
@@ -9,6 +10,7 @@ export * from './api/runner.js';
 export * from './api/state.js';
 export * from './api/testing.js';
 export * from './events/index.js';
+export * from './events/decision.js';
 export * from './events/pilot.js';
 export * from './events/runner.js';
 export * from './realtime/ws.js';

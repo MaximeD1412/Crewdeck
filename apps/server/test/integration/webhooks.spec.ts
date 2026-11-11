@@ -339,7 +339,7 @@ describe('GitHub webhooks against PostgreSQL', () => {
       probe.before = (handler, event) => {
         // What a careless handler might throw: the payload in its message and as a property of the error.
         const issue = event.payload['issue'] as { body: string };
-        if (handler === 'issues:first') throw Object.assign(new Error(`cannot read ${issue.body}`), { details: event.payload, code: 'probe.failed' });
+        if (handler === 'issues:first') throw Object.assign(new Error(`cannot read ${issue.body}\n    at secret-frame-9f1e (/x.js:1:2)`), { details: event.payload, code: 'probe.failed' });
       };
 
       expect((await deliver('issues', issueOpened(7), deliveryId)).status).toBe(202);
@@ -349,7 +349,7 @@ describe('GitHub webhooks against PostgreSQL', () => {
       expect(failure).toMatchObject({ deliveryId, event: 'issues', action: 'opened', installationId: INSTALLATION_ID, err: { type: 'Error', code: 'probe.failed' } });
       expect((failure?.['err'] as { stack: string }).stack).toContain('webhooks.spec.ts');
       const output = lines.join('');
-      for (const secret of ['secret-issue-body-7-5d1c', 'Ticket 7', 'fixture-app']) expect(output).not.toContain(secret);
+      for (const secret of ['secret-issue-body-7-5d1c', 'secret-frame-9f1e', 'Ticket 7', 'fixture-app']) expect(output).not.toContain(secret);
     });
   });
 

@@ -1,0 +1,1 @@
+{"type":"user","message":{"role":"user","content":"Read README.md, then run `ls` with the Bash tool, then say in one sentence what this repository holds."}}

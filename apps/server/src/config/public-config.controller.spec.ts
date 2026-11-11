@@ -24,7 +24,15 @@ describe('GET /api/config', () => {
       githubApiUrl: 'https://api.github.com',
       githubWebUrl: 'https://github.com',
       appSlug: 'crewdeck-staging',
+      runnerServer: started.url,
     });
+  });
+
+  it('names the server of the Runner’s install command outside production only', async () => {
+    const started = await boot({ PUBLIC_URL: 'https://staging.crewdeck.example' });
+    app = started.app;
+
+    expect(await (await fetch(`${started.url}/api/config`)).json()).toMatchObject({ runnerServer: 'https://staging.crewdeck.example' });
   });
 
   it('gives the GitHub of GITHUB_API_URL and GITHUB_WEB_URL', async () => {
@@ -42,6 +50,7 @@ describe('GET /api/config', () => {
       githubApiUrl: `${started.url}/fake-github`,
       githubWebUrl: `${started.url}/fake-github`,
       appSlug: 'crewdeck',
+      runnerServer: started.url,
     });
   });
 

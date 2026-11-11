@@ -9,6 +9,7 @@ import {
   composantsTextField,
 } from './composants.js';
 import { connexion, connexionErreur } from './connexion.js';
+import { demarrage, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
 import type { Scenario } from './define.js';
 import { menuPlus } from './menu-plus.js';
 import { resynchronisation } from './resynchronisation.js';
@@ -21,6 +22,9 @@ const SCENARIOS: readonly Scenario[] = [
   composants,
   connexion,
   connexionErreur,
+  demarrage,
+  demarrageLiaisonEchouee,
+  demarrageRunnerRelie,
   menuPlus,
   resynchronisation,
   ...composantsRows,

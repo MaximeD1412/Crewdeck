@@ -3,6 +3,7 @@ package accounts
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -212,5 +213,95 @@ func TestEverySendsTheCapabilitiesOnEachTick(t *testing.T) {
 	<-done
 	if out.count() < 2 {
 		t.Fatalf("sent %d messages in 2 s", out.count())
+	}
+}
+
+func TestTwoLimitsOfAModelKeepTheLaterResetWhateverTheirOrder(t *testing.T) {
+	now := time.Date(2026, 11, 11, 8, 0, 0, 0, time.UTC)
+	short, long := now.Add(10*time.Minute), now.Add(2*time.Hour)
+	for _, order := range [][]time.Time{{short, long}, {long, short}} {
+		claude := &fake.Engine{Models: []contracts.EngineCapabilitiesModelsElem{{Id: "opus", Label: "Opus"}}}
+		for _, resets := range order {
+			resets := resets
+			claude.Events = append(claude.Events, contracts.EngineEvent{LimitReached: &contracts.EngineEventLimitReached{Window: contracts.EngineEventLimitReachedWindow("five-hour"), ResetsAt: &resets}})
+		}
+		var registry engine.Registry
+		registry.Register(claude)
+		var clock atomic.Pointer[time.Time]
+		clock.Store(&now)
+		reporter := &Reporter{Send: (&sent{}).send, Now: func() time.Time { return *clock.Load() }}
+		reporter.Engines = reporter.Watch(&registry)
+
+		startAndDrain(t, reporter.Engines, contracts.EngineIdClaudeCode, "opus")
+
+		half := now.Add(30 * time.Minute)
+		clock.Store(&half)
+		if got := model(t, reporter.Capabilities(context.Background()), contracts.EngineIdClaudeCode, "opus"); got.Usable {
+			t.Fatalf("limits %v: usable after the short reset, before the long one", order)
+		}
+		after := long.Add(time.Second)
+		clock.Store(&after)
+		if got := model(t, reporter.Capabilities(context.Background()), contracts.EngineIdClaudeCode, "opus"); !got.Usable {
+			t.Fatalf("limits %v: still quota-reached after the long reset", order)
+		}
+	}
+}
+
+func TestALimitIsRecordedBeforeTheSessionReadsIt(t *testing.T) {
+	claude := &fake.Engine{
+		Models: []contracts.EngineCapabilitiesModelsElem{{Id: "opus", Label: "Opus"}},
+		Events: []contracts.EngineEvent{{LimitReached: &contracts.EngineEventLimitReached{Window: contracts.EngineEventLimitReachedWindow("five-hour")}}},
+	}
+	var registry engine.Registry
+	registry.Register(claude)
+	reporter := &Reporter{Send: (&sent{}).send}
+	reporter.Engines = reporter.Watch(&registry)
+	adapter, _ := reporter.Engines.Get(contracts.EngineIdClaudeCode)
+	run, err := adapter.Start(context.Background(), engine.StartOptions{Model: "opus", InitialPrompt: "go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for event := range run.Events() {
+		if event.LimitReached != nil {
+			if got := model(t, reporter.Capabilities(context.Background()), contracts.EngineIdClaudeCode, "opus"); got.Usable {
+				t.Fatalf("the Session read the limit before it was recorded: %+v", got)
+			}
+		}
+	}
+}
+
+func TestTheRelayEndsWhenItsSessionIsCancelledAndNobodyReads(t *testing.T) {
+	claude := &fake.Engine{Events: []contracts.EngineEvent{
+		{Message: &contracts.EngineEventMessage{}},
+		{Message: &contracts.EngineEventMessage{}},
+	}}
+	var registry engine.Registry
+	registry.Register(claude)
+	reporter := &Reporter{Send: (&sent{}).send}
+	reporter.Engines = reporter.Watch(&registry)
+	adapter, _ := reporter.Engines.Get(contracts.EngineIdClaudeCode)
+	ctx, cancel := context.WithCancel(context.Background())
+	run, err := adapter.Start(ctx, engine.StartOptions{Model: "opus", InitialPrompt: "go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(20 * time.Millisecond) // the relay holds the first event
+	cancel()
+	_ = run.Wait()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		select {
+		case _, open := <-run.Events():
+			if open {
+				t.Fatal("the relay still held an event after its Session was cancelled")
+			}
+			return
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the relay never ended")
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }

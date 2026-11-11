@@ -9,7 +9,7 @@ import (
 
 // Watch gives the adapters of `registry` with every Run they start watched
 // by the Reporter: a `limit-reached` or an `auth-required` of a Session
-// reaches observe, and so the next capabilities. The Runner drives its
+// is recorded, and reaches the next capabilities. The Runner drives its
 // Sessions through this registry (run.go), and the Reporter asks it too.
 func (r *Reporter) Watch(registry *engine.Registry) *engine.Registry {
 	var watched engine.Registry
@@ -40,17 +40,28 @@ func (w watchedEngine) Resume(ctx context.Context, opts engine.ResumeOptions) (e
 	return w.watch(ctx, run, opts.Model), nil
 }
 
-// watch passes the run's events on, in order, and has the Reporter observe
-// them; the capabilities they call for are sent beside, never in the way.
+// watch passes the run's events on, in order. A `limit-reached` is recorded
+// before it is passed on, so the limits keep the order of the stream; the
+// capabilities it calls for are sent beside, never in the way. Once ctx ends,
+// the events nobody reads any more are dropped, still recorded, and the
+// relay ends with the adapter's stream.
 func (w watchedEngine) watch(ctx context.Context, run engine.Run, model string) engine.Run {
 	events := make(chan contracts.EngineEvent)
 	go func() {
 		defer close(events)
+		reading := true
 		for event := range run.Events() {
-			if event.LimitReached != nil || event.AuthRequired != nil {
-				go w.reporter.observe(context.WithoutCancel(ctx), w.ID(), model, event)
+			if w.reporter.record(w.ID(), model, event) {
+				go w.reporter.report(context.WithoutCancel(ctx))
 			}
-			events <- event
+			if !reading {
+				continue
+			}
+			select {
+			case events <- event:
+			case <-ctx.Done():
+				reading = false
+			}
 		}
 	}()
 	return watchedRun{Run: run, events: events}

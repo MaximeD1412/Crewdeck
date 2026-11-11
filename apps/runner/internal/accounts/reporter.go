@@ -96,11 +96,12 @@ func (r *Reporter) Report(ctx context.Context) ([]contracts.EngineCapabilities, 
 	return caps, r.Send(ctx, protocol.NewCapabilities(caps))
 }
 
-// observe takes an event a Session of `engineID` on `model` emitted (Watch): a
-// `limit-reached` makes the model `quota-reached` until its `resetsAt` (every
-// model of the Moteur when `model` is ""), then, as an `auth-required`,
-// sends the capabilities again. Other events are ignored.
-func (r *Reporter) observe(ctx context.Context, engineID contracts.EngineId, model string, event contracts.EngineEvent) {
+// record takes an event a Session of `engineID` on `model` emitted (Watch)
+// and says whether the capabilities must be sent again: a `limit-reached`
+// makes the model `quota-reached` until its `resetsAt` (every model of the
+// Moteur when `model` is ""), the later end kept when a limit is already
+// running; an `auth-required` changes the Compte IA. Other events, false.
+func (r *Reporter) record(engineID contracts.EngineId, model string, event contracts.EngineEvent) bool {
 	switch {
 	case event.LimitReached != nil:
 		until := r.now().Add(QuotaFallback)
@@ -108,18 +109,26 @@ func (r *Reporter) observe(ctx context.Context, engineID contracts.EngineId, mod
 			until = *event.LimitReached.ResetsAt
 		}
 		r.mu.Lock()
+		defer r.mu.Unlock()
 		if r.quota == nil {
 			r.quota = map[contracts.EngineId]map[string]time.Time{}
 		}
 		if r.quota[engineID] == nil {
 			r.quota[engineID] = map[string]time.Time{}
 		}
-		r.quota[engineID][model] = until
-		r.mu.Unlock()
+		if running, ok := r.quota[engineID][model]; !ok || until.After(running) || !r.now().Before(running) {
+			r.quota[engineID][model] = until
+		}
+		return true
 	case event.AuthRequired != nil:
+		return true
 	default:
-		return
+		return false
 	}
+}
+
+// report sends the capabilities, logging a failure.
+func (r *Reporter) report(ctx context.Context) {
 	if _, err := r.Report(ctx); err != nil {
 		r.logger().Warn("capabilities", "error", err)
 	}

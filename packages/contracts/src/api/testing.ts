@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { zDecision, zDecisionKind } from './decisions.js';
 
 /**
  * `POST /api/testing/scenarios/:name`, outside production only: the scenario
@@ -19,3 +20,16 @@ export type ScenarioRun = z.infer<typeof zScenarioRun>;
  */
 export const zTestingPilotUpdate = z.object({ login: z.string().min(1).max(39) });
 export type TestingPilotUpdate = z.infer<typeof zTestingPilotUpdate>;
+
+/**
+ * `POST /api/testing/decisions`, outside production only: raises a Décision
+ * for the Pilote signed in through `DecisionsService.raise`, as its module
+ * would, with its `decision.upserted` event. No module raises one yet: the
+ * end-to-end tests of « À toi » do it with this.
+ */
+export const zTestingDecisionRaise = zDecision.omit({ id: true, state: true, outcome: true, createdAt: true, resolvedAt: true });
+export type TestingDecisionRaise = z.infer<typeof zTestingDecisionRaise>;
+
+/** `POST /api/testing/decisions/resolve`, outside production only: resolves the open one, with its `decision.removed`. */
+export const zTestingDecisionResolve = z.object({ kind: zDecisionKind, subjectId: z.string().min(1), outcome: z.string().min(1) });
+export type TestingDecisionResolve = z.infer<typeof zTestingDecisionResolve>;

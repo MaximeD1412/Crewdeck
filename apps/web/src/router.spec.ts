@@ -127,6 +127,69 @@ describe('startRouter', () => {
     expect(page.data).toEqual({ c: 'Button' });
   });
 
+  it('fills the page’s Emplacements from its route and the state, the same elements kept on refresh()', () => {
+    let zone = 'Europe/Paris';
+    history.replaceState(null, '', '/parametres');
+    outlet = document.createElement('main');
+    document.body.append(outlet);
+    const PageParametres = page('PageParametres', 'cd-page-parametres');
+    router = startRouter({
+      routes: [
+        {
+          path: '/parametres',
+          composant: PageParametres,
+          slots: (_match, state) => [
+            {
+              tag: 'cd-card',
+              slot: 'account',
+              data: { title: 'Compte' },
+              children: [{ tag: 'cd-select', data: { value: (state as { zone: string }).zone } }],
+            },
+            { tag: 'cd-list-row', slot: 'modders', text: 'Bibliothèque' },
+          ],
+        },
+      ],
+      outlet,
+      state: () => ({ zone }),
+    });
+    const pageElement = outlet.firstElementChild as HTMLElement;
+    const card = pageElement.querySelector(':scope > cd-card[slot=account]') as HTMLElement & { data: unknown };
+    const select = card.querySelector(':scope > cd-select') as HTMLElement & { data: unknown };
+    expect(card.data).toEqual({ title: 'Compte' });
+    expect(select.data).toEqual({ value: 'Europe/Paris' });
+    expect(pageElement.querySelector(':scope > cd-list-row[slot=modders]')?.textContent).toBe('Bibliothèque');
+
+    zone = 'Asia/Tokyo';
+    router.refresh();
+    expect(outlet.firstElementChild).toBe(pageElement);
+    expect(pageElement.querySelector(':scope > cd-card')).toBe(card);
+    expect(card.querySelector(':scope > cd-select')).toBe(select);
+    expect(select.data).toEqual({ value: 'Asia/Tokyo' });
+  });
+
+  it('empties an Emplacement its route no longer fills', () => {
+    let filled = true;
+    history.replaceState(null, '', '/parametres');
+    outlet = document.createElement('main');
+    document.body.append(outlet);
+    router = startRouter({
+      routes: [
+        {
+          path: '/parametres',
+          composant: page('PageParametres', 'cd-page-parametres'),
+          slots: () => [...(filled ? [{ tag: 'cd-card' as const, slot: 'account' }] : []), { tag: 'cd-list-row' as const, slot: 'modders' }],
+        },
+      ],
+      outlet,
+    });
+    const pageElement = outlet.firstElementChild as HTMLElement;
+    const row = pageElement.querySelector('cd-list-row');
+    filled = false;
+    router.refresh();
+    expect([...pageElement.children].map((child) => child.localName)).toEqual(['cd-list-row']);
+    expect(pageElement.firstElementChild).toBe(row);
+  });
+
   it('sends / to « À toi »', () => {
     start('/');
     expect(location.pathname).toBe('/a-toi');

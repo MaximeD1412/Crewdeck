@@ -1,16 +1,18 @@
 import type { Me } from '@crewdeck/contracts';
-import { Cadre, PageComposants, PageConnexion, type Skin } from '@crewdeck/sdk';
+import { Cadre, PageComposants, PageConnexion, PageParametres, type Skin } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
 import { me as readMe } from './api/auth.js';
+import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
+import { updateSettings } from './api/settings.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
 import { bootSkin } from './registry.js';
 import { startRouter, type Route, type Router } from './router.js';
 import { composantsHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
 import { signInGuard, signInHref } from './sign-in.js';
-import { connection as pageConnection, store as pageStore } from './store/index.js';
+import { client as pageClient, connection as pageConnection, store as pageStore } from './store/index.js';
 import type { Connection } from './store/connection.js';
 import type { Store } from './store/store.js';
 
@@ -35,6 +37,8 @@ export interface BootOptions {
   /** The page's store and its socket (`store/index.ts`) by default. */
   readonly store?: Store;
   readonly connection?: Pick<Connection, 'start' | 'stop'>;
+  /** The page's commands (`store/index.ts`) by default. */
+  readonly client?: Pick<Client, 'command'>;
 }
 
 export interface App {
@@ -62,6 +66,7 @@ export const boot = async ({
   leave = (url) => location.assign(url),
   store = pageStore,
   connection = pageConnection,
+  client = pageClient,
 }: BootOptions): Promise<App> => {
   const [pilot] = await Promise.all([me().catch(() => null), bootSkin(skin, resolveSkin)]);
   dispatcher.listen(document);
@@ -74,19 +79,28 @@ export const boot = async ({
       return { ...state, slices: { pilot: state.slices.pilot !== undefined ? state.slices.pilot : pilot } };
     },
   });
-  const unsubscribe = store.subscribe(() => shell.refresh());
   const onUnhandled = (event: PromiseRejectionEvent) => {
     if (!(event.reason instanceof ApiError)) return;
     event.preventDefault();
     shell.showError(event.reason.message);
   };
   window.addEventListener('unhandledrejection', onUnhandled);
-  const router = startRouter({ routes, outlet: shell.outlet, onRoute: shell.update, guard: signInGuard(pilot) });
+  const router = startRouter({ routes, outlet: shell.outlet, state: store.getState, onRoute: shell.update, guard: signInGuard(pilot) });
+  // The Cadre and the page follow the store: a change made elsewhere shows without a reload.
+  const unsubscribe = store.subscribe(() => {
+    shell.refresh();
+    router.refresh();
+  });
   if (pilot) connection.start();
   dispatcher.registerAction(PageConnexion, 'signIn', {
     run: () => leave(signInHref(router.current.query['next'], Intl.DateTimeFormat().resolvedOptions().timeZone)),
   });
   dispatcher.registerAction(PageComposants, 'select', { run: ({ name }) => router.navigate(composantsHref(name)) });
+  dispatcher.registerAction(PageParametres, 'change', {
+    run: async ({ name, value }) => {
+      if (name === 'timeZone' && typeof value === 'string') await updateSettings(client, { timeZone: value });
+    },
+  });
   dispatcher.registerAction(Cadre, 'openPilot', { run: () => router.navigate('/parametres') });
   const stop = () => {
     router.stop();

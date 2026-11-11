@@ -11,6 +11,7 @@ import { createStore } from './store.js';
  */
 export const store = createStore();
 store.registerSlice('pilot', { shape: 'single' });
+store.registerSlice('settings', { shape: 'single' });
 
 export const client = createClient({
   seq: () => store.getState().seq,

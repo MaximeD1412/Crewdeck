@@ -3,6 +3,7 @@ import {
   LINK_CODE_TTL_SECONDS,
   RUNNER_WS_CLOSE,
   zMe,
+  type RunnerLinkRequest,
   zRunner,
   zRunnerLink,
   zRunnerLinkAccepted,
@@ -113,7 +114,7 @@ describe('linking a Runner against PostgreSQL', () => {
   };
 
   /** The Runner's side up to `pending` with its pairing, as `crewdeck-runner link` does it. */
-  const linkAndPair = async (shortId: string, machine: Partial<typeof MACHINE> = {}) => {
+  const linkAndPair = async (shortId: string, machine: Partial<Omit<RunnerLinkRequest, 'shortId'>> = {}) => {
     const res = await binary('/api/runner/link', { ...MACHINE, ...machine, shortId });
     expect(res.status).toBe(202);
     const accepted = zRunnerLinkAccepted.parse(await res.json());
@@ -124,7 +125,7 @@ describe('linking a Runner against PostgreSQL', () => {
   const confirm = async (tab: Tab, id: string) => page(tab, `/api/runner/link-codes/${id}/confirm`, { pairing: { browser: 'opaque' }, seq: (await state(tab)).seq });
 
   /** The whole link: the code, the Runner pending, the page's confirmation, the token. */
-  const link = async (tab: Tab, machine: Partial<typeof MACHINE> = {}) => {
+  const link = async (tab: Tab, machine: Partial<Omit<RunnerLinkRequest, 'shortId'>> = {}) => {
     const code = await drawCode(tab);
     const { linkId } = await linkAndPair(code.shortId, machine);
     const res = await confirm(tab, code.id);

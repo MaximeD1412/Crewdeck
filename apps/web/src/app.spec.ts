@@ -11,7 +11,11 @@ type WithData = HTMLElement & { data: unknown; updateComplete: Promise<unknown> 
 const quiet = () => {
   const store = createStore();
   store.registerSlice('pilot', { shape: 'single' });
-  return { store, connection: { start: vi.fn<() => void>(), stop: vi.fn<() => void>() } };
+  return {
+    store,
+    connection: { start: vi.fn<() => void>(), stop: vi.fn<() => void>() },
+    latency: { start: vi.fn<() => void>(), stop: vi.fn<() => void>() },
+  };
 };
 
 describe('the page', () => {
@@ -29,6 +33,7 @@ describe('the page', () => {
     const app = await boot({ root, dispatcher, me: async () => PILOT, ...options });
 
     expect(options.connection.start).toHaveBeenCalledTimes(1);
+    expect(options.latency.start).toHaveBeenCalledTimes(1);
 
     expect(listen).toHaveBeenCalledWith(document);
 
@@ -51,5 +56,6 @@ describe('the page', () => {
     await vi.waitFor(() => expect(location.pathname).toBe('/parametres'));
     expect(cadre.data).toMatchObject({ current: 'parametres' });
     app.stop();
+    expect(options.latency.stop).toHaveBeenCalledTimes(1);
   });
 });

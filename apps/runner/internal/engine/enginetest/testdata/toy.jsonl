@@ -1,0 +1,7 @@
+{"t":"init","session":"toy-1"}
+{"fake":"await-stdin"}
+{"t":"say","text":"Bonjour"}
+{"t":"ask","id":"q-1","title":"Quelle couleur ?","options":["Bleu","Rouge"]}
+{"fake":"await-stdin"}
+{"t":"say","text":"Bleu, donc."}
+{"t":"done","session":"toy-1"}

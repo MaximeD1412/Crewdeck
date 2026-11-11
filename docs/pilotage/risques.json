@@ -528,7 +528,12 @@
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
-          "texte": "Délai mesuré de la source à l'écran, p95 des 7 derniers jours visible",
+          "texte": "Délai mesuré de la source à l'écran par la page, p95 des 7 derniers jours calculé par le serveur",
+          "ref": "ADR 0007",
+          "fait": true
+        },
+        {
+          "texte": "p95 des 7 derniers jours visible dans la santé des statistiques",
           "ref": "ADR 0007",
           "fait": false
         }

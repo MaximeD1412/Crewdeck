@@ -3,12 +3,13 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { exampleContrat } from '../fixtures/contrats/example.js';
 import { zContrat } from './contrats/index.js';
-import { contratFileName, embeddedContrats, renderContrat, renderGoConstants, renderJsonSchema } from './generate.js';
-import { goConstants, registry } from './registry.js';
+import { contratFileName, embeddedContrats, renderContrat, renderGoConstants, renderGoUnion, renderJsonSchema } from './generate.js';
+import { generatedEntries, goConstants, goUnions } from './registry.js';
 
 describe('renderJsonSchema', () => {
-  it('matches the committed JSON Schema of every registry entry', () => {
-    for (const entry of registry) {
+  it('matches the committed JSON Schema of every registry entry and of every option of a union', () => {
+    expect(generatedEntries.map((entry) => entry.name)).toContain('engine-event-tool-call');
+    for (const entry of generatedEntries) {
       const committed = readFileSync(
         join(import.meta.dirname, '../generated/json-schema', `${entry.name}.schema.json`),
         'utf8',
@@ -34,6 +35,31 @@ describe('renderJsonSchema', () => {
     const committed = readFileSync(join(import.meta.dirname, '../../../apps/runner/internal/contracts/constants.go'), 'utf8');
     expect(renderGoConstants(goConstants)).toBe(committed);
     expect(committed).toMatch(/^\tProtocolVersion += 1$/m);
+  });
+});
+
+describe('renderGoUnion', () => {
+  const goDir = join(import.meta.dirname, '../../../apps/runner/internal/contracts');
+
+  it('matches the committed Go file of every union', () => {
+    for (const union of goUnions) {
+      expect(renderGoUnion(union), union.name).toBe(readFileSync(join(goDir, `${union.name}.go`), 'utf8'));
+    }
+  });
+
+  it('holds one pointer per option, its kind constant, and dispatches on the discriminator', () => {
+    const go = renderGoUnion({
+      name: 'agent-step',
+      discriminator: 'kind',
+      options: [
+        { value: 'tool-call', schema: z.object({ kind: z.literal('tool-call') }) },
+        { value: 'error', schema: z.object({ kind: z.literal('error') }) },
+      ],
+    });
+    expect(go).toContain('type AgentStep struct {\n\tError    *AgentStepError\n\tToolCall *AgentStepToolCall\n}\n');
+    expect(go).toMatch(/^\tAgentStepKindToolCall = "tool-call"$/m);
+    expect(go).toContain('var head struct {\n\t\tKind string `json:"kind"`\n\t}');
+    expect(go).toContain('\tcase AgentStepKindError:\n\t\tu.Error = new(AgentStepError)\n\t\treturn json.Unmarshal(data, u.Error)\n');
   });
 });
 

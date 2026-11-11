@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -55,7 +56,7 @@ type config struct {
 	resume     *string
 	exit       int
 	answer     func(contracts.EngineEvent) engine.Answer
-	onEvent    func(context.Context, engine.Run, contracts.EngineEvent)
+	onEvent    []func(context.Context, engine.Run, contracts.EngineEvent)
 	directives []Directive
 	loggedEnv  []string
 }
@@ -82,9 +83,10 @@ func WithDirectives(directives ...Directive) Option {
 }
 
 // WithOnEvent calls the function on each event, after it is collected and
-// before a request is answered: a test sends, interrupts there.
+// before a request is answered: a test sends, interrupts there. Several are
+// called in the order given.
 func WithOnEvent(onEvent func(context.Context, engine.Run, contracts.EngineEvent)) Option {
-	return func(c *config) { c.onEvent = onEvent }
+	return func(c *config) { c.onEvent = append(c.onEvent, onEvent) }
 }
 
 // WithLoggedEnv has the fake binary log the values of these variables, in
@@ -172,8 +174,8 @@ func Replay(t testing.TB, e engine.Engine, stream, golden string, opts ...Option
 				break
 			}
 			replayed.Events = append(replayed.Events, event)
-			if cfg.onEvent != nil {
-				cfg.onEvent(ctx, run, event)
+			for _, onEvent := range cfg.onEvent {
+				onEvent(ctx, run, event)
 			}
 			if id := requestID(event); id != "" {
 				if err := run.Answer(ctx, id, cfg.answer(event)); err != nil {
@@ -318,12 +320,21 @@ func compare(t testing.TB, path string, got []byte) {
 func FakeBinary(t testing.TB) string {
 	t.Helper()
 	out := filepath.Join(t.TempDir(), "fake-engine")
-	build := exec.Command(goTool(), "build", "-o", out, fakeEnginePackage)
-	build.Dir = moduleRoot() // whatever the test's working directory
-	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("enginetest: build the fake binary: %v\n%s", err, output)
+	if err := Build(fakeEnginePackage, out); err != nil {
+		t.Fatalf("enginetest: build the fake binary: %v", err)
 	}
 	return out
+}
+
+// Build builds a command of the Runner's module (its import path) to out:
+// what a test runs of the Runner itself (`crewdeck-runner mcp permission`).
+func Build(pkg, out string) error {
+	build := exec.Command(goTool(), "build", "-o", out, pkg)
+	build.Dir = moduleRoot() // whatever the test's working directory
+	if output, err := build.CombinedOutput(); err != nil {
+		return fmt.Errorf("go build %s: %v\n%s", pkg, err, output)
+	}
+	return nil
 }
 
 // moduleRoot is apps/runner, three folders above this file.

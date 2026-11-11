@@ -1,0 +1,75 @@
+[
+  {
+    "callId": "toolu_01RenKrX1daPLdrS5s85UX29",
+    "detail": "Run 40-second timer script in foreground",
+    "kind": "tool-call",
+    "seq": 1,
+    "target": "node -e \"setTimeout(() =\u003e console.log('fini'), 40000)\"",
+    "tool": "Bash"
+  },
+  {
+    "kind": "usage",
+    "seq": 2,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 15
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 22
+      }
+    ]
+  },
+  {
+    "callId": "toolu_01RenKrX1daPLdrS5s85UX29",
+    "detail": "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed. Correction to the text above: this call was stopped while running, not refused before it ran. It may have run in part or in full, and its changes may have been written. No permission prompt was involved. Work it started elsewhere (a remote command, a background process) may still be running, so check before starting the same work again. The instruction to stop and wait still stands.\n\nNote: The user's next message may contain a correction or preference. Pay close attention — if they explain what went wrong or how they'd prefer you to work, consider saving that to memory for future sessions.",
+    "kind": "tool-result",
+    "ok": false,
+    "seq": 3
+  },
+  {
+    "costUsdMicros": 1183,
+    "inputTokens": 20299,
+    "kind": "usage",
+    "outputTokens": 128,
+    "seq": 4
+  },
+  {
+    "costUsdMicros": 1183,
+    "engineSessionId": "4a000000-0000-4000-8000-000000000014",
+    "kind": "result",
+    "seq": 5,
+    "status": "interrupted"
+  },
+  {
+    "final": false,
+    "from": "agent",
+    "kind": "message",
+    "seq": 6,
+    "text": "reçu après interruption"
+  },
+  {
+    "final": true,
+    "from": "agent",
+    "kind": "message",
+    "seq": 7,
+    "text": "reçu après interruption"
+  },
+  {
+    "costUsdMicros": 1480,
+    "inputTokens": 20743,
+    "kind": "usage",
+    "outputTokens": 9,
+    "seq": 8
+  },
+  {
+    "costUsdMicros": 1480,
+    "engineSessionId": "4a000000-0000-4000-8000-000000000014",
+    "kind": "result",
+    "seq": 9,
+    "status": "ok"
+  }
+]

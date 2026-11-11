@@ -1,0 +1,39 @@
+[
+  {
+    "final": true,
+    "from": "agent",
+    "kind": "message",
+    "seq": 1,
+    "text": "ok"
+  },
+  {
+    "kind": "usage",
+    "seq": 2,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 18
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 23
+      }
+    ]
+  },
+  {
+    "costUsdMicros": 1112,
+    "inputTokens": 20253,
+    "kind": "usage",
+    "outputTokens": 4,
+    "seq": 3
+  },
+  {
+    "costUsdMicros": 1112,
+    "engineSessionId": "46f148a1-2cb9-42e0-b69d-98ff57ff287b",
+    "kind": "result",
+    "seq": 4,
+    "status": "ok"
+  }
+]

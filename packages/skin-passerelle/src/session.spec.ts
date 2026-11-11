@@ -138,6 +138,28 @@ describe('Session', () => {
       await append(el, 'Un de plus');
       expect(log.scrollTop).toBe(0);
     });
+
+    it('follows again only once the Pilote is back at the bottom, not past where it was', async () => {
+      const { el, log } = await tall();
+      await vi.waitFor(() => expect(atBottom(log)).toBe(true));
+      const oldBottom = log.scrollTop;
+      const scrollTo = async (top: number) => {
+        log.scrollTop = top;
+        log.dispatchEvent(new Event('scroll'));
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      };
+      await scrollTo(0);
+      for (const n of [1, 2, 3, 4, 5, 6, 7, 8]) await append(el, `Arrivé pendant la lecture ${n}`);
+      const reading = oldBottom + 100;
+      expect(log.scrollHeight - log.clientHeight).toBeGreaterThan(reading + 100);
+      await scrollTo(reading);
+      await append(el, 'Encore un');
+      expect(log.scrollTop).toBe(reading);
+
+      await scrollTo(log.scrollHeight);
+      await append(el, 'Le dernier');
+      await vi.waitFor(() => expect(atBottom(log)).toBe(true));
+    });
   });
 });
 

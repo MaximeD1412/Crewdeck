@@ -132,15 +132,17 @@ export class PasserelleSession extends PasserelleElement<typeof Session> {
   }
 
   /**
-   * A scroll up unpins the log, one back to the bottom pins it again. The
-   * log's own scrolls do not count: content that grew since then is not the
-   * Pilote scrolling up.
+   * A scroll up unpins the log; only one back to the bottom pins it again.
+   * While pinned, the log's own scrolls do not unpin it: content that grew
+   * since it followed is not the Pilote scrolling up. Once unpinned, past
+   * where it last followed is not the bottom: what came meanwhile is still
+   * to read.
    */
   private onScroll() {
     const log = this.log;
     if (!log) return;
     const atBottom = log.scrollHeight - log.clientHeight - log.scrollTop <= BOTTOM_SLACK;
-    this.pinned = atBottom || log.scrollTop >= this.followedTo;
+    this.pinned = atBottom || (this.pinned && log.scrollTop >= this.followedTo);
   }
 
   private observe() {

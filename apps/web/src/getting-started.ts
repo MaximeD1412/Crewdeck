@@ -115,6 +115,8 @@ export const createGettingStarted = ({
   let advancing: GettingStartedStep | null = null;
   /** Its answer, and the store's pilot it was given over. */
   let answered: { readonly me: Me; readonly over: Me | null | undefined } | null = null;
+  /** The vault opens once, whichever comes first: the confirmation's answer, or the store showing the page's code linked. */
+  let unlocking = false;
 
   const notify = () => {
     for (const listener of [...listeners]) listener();
@@ -124,6 +126,12 @@ export const createGettingStarted = ({
     const slice = store.getState().slices.pilot;
     if (answered && answered.over === slice) return answered.me;
     return slice !== undefined ? slice : bootPilot;
+  };
+
+  const openVault = () => {
+    if (unlocking) return;
+    unlocking = true;
+    void unlockVault();
   };
 
   const draw = async () => {
@@ -165,7 +173,7 @@ export const createGettingStarted = ({
       setTimeout(sync, CONFIRM_RETRY_MS);
       return;
     }
-    await unlockVault();
+    openVault();
   };
 
   function sync() {
@@ -173,8 +181,10 @@ export const createGettingStarted = ({
     const me = pilot();
     if (answered && answered.over !== slices.pilot) answered = null;
     if (!me || me.gettingStartedStep !== 'runner' || slices.runner === undefined || slices['runner-link'] === undefined) return;
-    if (slices.runner) return;
     const last = slices['runner-link'];
+    // The confirmation went through even when its answer was lost: its event says so.
+    if (code && last?.id === code.id && last.state === 'linked') openVault();
+    if (slices.runner) return;
     if (!started) {
       started = true;
       if (last) failed.add(last.id);

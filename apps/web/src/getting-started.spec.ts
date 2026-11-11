@@ -189,6 +189,51 @@ describe('createGettingStarted', () => {
     }
   });
 
+  it('opens the vault once its code is linked, even when the confirmation’s answer was lost on its way back', async () => {
+    vi.useFakeTimers();
+    try {
+      // The server applied the confirmation, its answer never reached the page.
+      answers[`/api/runner/link-codes/${LINK_ID}/confirm`] = () => {
+        throw new Error('réseau');
+      };
+      snapshot();
+      await vi.advanceTimersByTimeAsync(0);
+      event('runner-link.upserted', link(pending()));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(unlocks).toBe(0);
+
+      event('runner-link.upserted', link({ ...pending(), state: 'linked' }));
+      event('runner.upserted', RUNNER);
+      await vi.advanceTimersByTimeAsync(CONFIRM_RETRY_MS * 2);
+      expect(unlocks).toBe(1);
+      expect(commands.filter((c) => c.path.endsWith('/confirm'))).toHaveLength(1);
+      event('runner-link.upserted', link({ ...pending(), state: 'linked' }));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(unlocks).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('opens the vault once when both the confirmation’s answer and the linked event arrive', async () => {
+    snapshot();
+    await flush();
+    event('runner-link.upserted', link(pending()));
+    await flush();
+    event('runner-link.upserted', link({ ...pending(), state: 'linked' }));
+    event('runner.upserted', RUNNER);
+    await flush();
+    expect(unlocks).toBe(1);
+  });
+
+  it('does not open the vault for a linked code it did not draw', async () => {
+    snapshot();
+    await flush();
+    event('runner-link.upserted', link({ ...pending(), id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7f', state: 'linked' }));
+    await flush();
+    expect(unlocks).toBe(0);
+  });
+
   it('rejects its code when the Runner’s proof does not match the key the server relayed, and confirms nothing', async () => {
     snapshot();
     await flush();

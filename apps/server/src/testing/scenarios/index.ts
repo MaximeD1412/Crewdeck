@@ -2,6 +2,7 @@ import { blank } from './blank.js';
 import {
   composants,
   composantsDialog,
+  composantsFigures,
   composantsRows,
   composantsSession,
   composantsSettingRow,
@@ -26,6 +27,7 @@ const SCENARIOS: readonly Scenario[] = [
   composantsTextField,
   composantsSettingRow,
   composantsDialog,
+  ...composantsFigures,
   ...composantsSession,
 ];
 

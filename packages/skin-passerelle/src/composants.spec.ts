@@ -19,6 +19,7 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
   'DecisionRow.open': (el) => inside(el, '.open').click(),
   'IdeaRow.open': (el) => inside(el, '.open').click(),
   'AgentRow.open': (el) => inside(el, 'button').click(),
+  'Capture.open': (el) => inside(el, 'button').click(),
   'PageComposants.select': (el) => inside(el, 'nav cd-list-row:not(:has(cd-status-badge))', 'a').click(),
   'Session.stop': (el) => inside(el, 'cd-button.stop', 'button').click(),
   'Session.resume': async (el) => {

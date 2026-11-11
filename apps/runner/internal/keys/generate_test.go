@@ -84,6 +84,7 @@ type pairingCase struct {
 	Secret           b64    `json:"secret"`
 	RunnerPrivateKey b64    `json:"runnerPrivateKey"`
 	RunnerPublicKey  b64    `json:"runnerPublicKey"`
+	DevicePrivateKey b64    `json:"devicePrivateKey"`
 	DevicePublicKey  b64    `json:"devicePublicKey"`
 	RunnerProof      b64    `json:"runnerProof"`
 	DeviceProof      b64    `json:"deviceProof"`
@@ -272,7 +273,8 @@ func generatePairingVectors() pairingVectors {
 			c.Secret = must(randomBytes(16))
 			runner := must(GenerateKeyPair())
 			c.RunnerPrivateKey, c.RunnerPublicKey = runner.Bytes(), PublicKeyBytes(runner)
-			c.DevicePublicKey = PublicKeyBytes(must(GenerateKeyPair()))
+			device := must(GenerateKeyPair())
+			c.DevicePrivateKey, c.DevicePublicKey = device.Bytes(), PublicKeyBytes(device)
 			c.ShortID = EncodeBase32(must(randomBytes(3)))[:4]
 		})
 		c.Code = c.ShortID + "-" + EncodeBase32(c.Secret)

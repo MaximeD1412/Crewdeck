@@ -147,3 +147,66 @@ func TestItemVectorsOpen(t *testing.T) {
 		}
 	}
 }
+
+// web-pairing.json is written by the browser's test run (pairing.spec.ts), from
+// the « first-appareil » case: the Runner verifies the page's proof, unlocks the
+// vault from its wrap, finds the same key in the Appareil's wrap, and opens the
+// item the browser sealed.
+func TestWhatTheBrowserPairedOpens(t *testing.T) {
+	type wireWrap struct {
+		Enc        b64 `json:"enc"`
+		Ciphertext b64 `json:"ciphertext"`
+		Tag        b64 `json:"tag"`
+	}
+	var v struct {
+		Case     string `json:"case"`
+		DeviceID string `json:"deviceId"`
+		RunnerID string `json:"runnerId"`
+		Confirm  struct {
+			Proof           b64      `json:"proof"`
+			VaultKeyVersion int      `json:"vaultKeyVersion"`
+			RunnerVaultWrap wireWrap `json:"runnerVaultWrap"`
+			DeviceVaultWrap wireWrap `json:"deviceVaultWrap"`
+		} `json:"confirm"`
+		Item itemCase `json:"item"`
+	}
+	readVectors(t, "web-pairing.json", &v)
+	var pairings pairingVectors
+	readVectors(t, "link-pairing.json", &pairings)
+	var c pairingCase
+	for _, p := range pairings.Cases {
+		if p.Name == v.Case {
+			c = p
+		}
+	}
+	if c.Name == "" {
+		t.Fatalf("no case %q", v.Case)
+	}
+
+	if !VerifyPairingProof(v.Confirm.Proof, ProofLabelDevice, c.Secret, c.ShortID, c.DevicePublicKey, c.RunnerPublicKey) {
+		t.Fatal("the browser's device proof does not verify")
+	}
+	if v.Confirm.VaultKeyVersion != 1 {
+		t.Fatalf("version %d", v.Confirm.VaultKeyVersion)
+	}
+	rw := v.Confirm.RunnerVaultWrap
+	vault, err := Unlock(privateKeyOf(c.RunnerPrivateKey), c.DevicePublicKey, v.RunnerID, 1, Wrap{Enc: rw.Enc, Ciphertext: rw.Ciphertext, Tag: rw.Tag})
+	if err != nil {
+		t.Fatalf("unlock: %v", err)
+	}
+	dw := v.Confirm.DeviceVaultWrap
+	deviceKey, err := OpenWrap(privateKeyOf(c.DevicePrivateKey), c.DevicePublicKey, Wrap{Enc: dw.Enc, Ciphertext: dw.Ciphertext, Tag: dw.Tag}, []byte(InfoVaultWrap), VaultWrapAAD(v.DeviceID, 1))
+	if err != nil || !bytes.Equal(deviceKey, vault.key) {
+		t.Fatalf("the Appareil's wrap holds another key: %v", err)
+	}
+	got, err := vault.OpenItem(SealedItem{Key: v.Item.Key, Ciphertext: v.Item.Ciphertext}, v.Item.AAD)
+	if err != nil || !bytes.Equal(got, v.Item.Plaintext) {
+		t.Fatalf("the browser's item: %q, %v", got, err)
+	}
+	// And the Runner seals it again byte for byte from the same seed.
+	withDeterministicRandom(t, v.Item.Seed)
+	again, err := vault.SealItem(v.Item.Plaintext, v.Item.AAD)
+	if err != nil || !bytes.Equal(again.Key, v.Item.Key) || !bytes.Equal(again.Ciphertext, v.Item.Ciphertext) {
+		t.Fatalf("resealed differently: %v", err)
+	}
+}

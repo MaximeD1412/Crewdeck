@@ -94,9 +94,14 @@ describe('TicketRow', () => {
     expect(textOf(document.activeElement)).toBe('Reprendre');
   });
 
-  it.each([390, 1280])('is 56 to 72 px tall at %i px for a one-line title', async (width) => {
+  it.each([
+    [390, 'jalon Actualités'],
+    [1280, 'jalon Actualités'],
+    [390, null],
+    [1280, null],
+  ] as const)('is 56 to 72 px tall at %i px for a one-line title, with the meta %s', async (width, meta) => {
     await page.viewport(width, 800);
-    const el = await render(TicketRow, { ...ready, title: 'Agenda', state: 'revue-visuelle' });
+    const el = await render(TicketRow, { ...ready, title: 'Agenda', meta, state: 'revue-visuelle' });
     const { height } = inside(el, '[part=row]').getBoundingClientRect();
     expect(height).toBeGreaterThanOrEqual(56);
     expect(height).toBeLessThanOrEqual(72);

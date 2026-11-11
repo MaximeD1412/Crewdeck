@@ -16,6 +16,8 @@ export const rowStyles = css`
     display: grid;
     gap: 0 var(--cd-space-3);
     align-items: start;
+    /* DESIGN.md « Density »: 56 px at least, a row without meta included. */
+    min-height: 3.5rem;
     padding: var(--cd-space-3) var(--cd-space-4) var(--cd-space-3) 0;
     color: var(--cd-ink);
   }

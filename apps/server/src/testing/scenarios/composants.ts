@@ -10,6 +10,15 @@ export const composants = defineScenario({
   seed: () => ({}),
 });
 
+/** The library opened on each row Composant (UI-5), `composants-<name in lower case>`. */
+export const composantsRows = ['DecisionRow', 'IdeaRow', 'TicketRow', 'AgentRow'].map((name) =>
+  defineScenario({
+    name: `composants-${name.toLowerCase()}`,
+    path: `/parametres/composants?c=${name}`,
+    seed: () => ({}),
+  }),
+);
+
 /** The library opened on each Composant of tracks and figures (UI-6), `composants-<name in lower case>`. */
 export const composantsFigures = ['ProcessTrack', 'UsageMeter', 'Stat', 'CheckRow', 'Capture', 'TicketTree', 'Timeline'].map(
   (name) =>

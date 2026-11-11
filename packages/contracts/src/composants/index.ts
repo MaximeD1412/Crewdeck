@@ -1,3 +1,4 @@
+import { AgentRow } from './agent-row.js';
 import { Banner } from './banner.js';
 import { Button } from './button.js';
 import { Cadre, MenuItem } from './cadre.js';
@@ -6,8 +7,10 @@ import { Card } from './card.js';
 import { CheckRow } from './check-row.js';
 import { Chip } from './chip.js';
 import { CodeBlock } from './code-block.js';
+import { DecisionRow } from './decision-row.js';
 import type { AnyComposant } from './define.js';
 import { Empty } from './empty.js';
+import { IdeaRow } from './idea-row.js';
 import { IconButton } from './icon-button.js';
 import { Icon } from './icon.js';
 import { KeyValue } from './key-value.js';
@@ -21,11 +24,13 @@ import { Stat } from './stat.js';
 import { StatusBadge } from './status-badge.js';
 import { StatusDot } from './status-dot.js';
 import { Tabs } from './tabs.js';
+import { TicketRow } from './ticket-row.js';
 import { TicketTree } from './ticket-tree.js';
 import { Timeline } from './timeline.js';
 import { UsageMeter } from './usage-meter.js';
 
 export * from './action.js';
+export * from './agent-row.js';
 export * from './banner.js';
 export * from './button.js';
 export * from './cadre.js';
@@ -34,9 +39,11 @@ export * from './card.js';
 export * from './check-row.js';
 export * from './chip.js';
 export * from './code-block.js';
+export * from './decision-row.js';
 export * from './define.js';
 export * from './empty.js';
 export * from './icon-button.js';
+export * from './idea-row.js';
 export * from './icon.js';
 export * from './icons.js';
 export * from './key-value.js';
@@ -50,7 +57,7 @@ export * from './stat.js';
 export * from './status-badge.js';
 export * from './status-dot.js';
 export * from './tabs.js';
-export * from './ticket-row-state.js';
+export * from './ticket-row.js';
 export * from './ticket-tree.js';
 export * from './timeline.js';
 export * from './tone.js';
@@ -72,6 +79,10 @@ export const COMPOSANTS = {
   CodeBlock,
   KeyValue,
   ListRow,
+  DecisionRow,
+  IdeaRow,
+  TicketRow,
+  AgentRow,
   ProcessTrack,
   UsageMeter,
   Stat,

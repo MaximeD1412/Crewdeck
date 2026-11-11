@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { defineComposant } from './define.js';
-import { zTicketRowState } from './ticket-row-state.js';
+import { TICKET_ROW_STATES } from './ticket-row.js';
 
 const zNode = z.object({
   number: z.int().positive(),
   title: z.string(),
-  state: zTicketRowState,
+  state: z.enum(TICKET_ROW_STATES).meta({ title: 'TicketRowState' }),
   depth: z.int().nonnegative(),
   blockedBy: z.string().nullable(),
   critical: z.boolean(),

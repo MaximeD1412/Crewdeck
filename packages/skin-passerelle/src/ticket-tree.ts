@@ -1,19 +1,7 @@
-import { t, TicketTree, type TicketRowState, type Tone } from '@crewdeck/sdk';
+import { t, TicketTree } from '@crewdeck/sdk';
 import { css, html, nothing } from 'lit';
 import { PasserelleElement, sharedStyles } from './base.js';
-
-/** The tone of each state's badge (`design/components.js`, `TICKET`), as on a TicketRow. */
-const TONES: Readonly<Record<TicketRowState, Tone>> = {
-  pret: 'neutral',
-  'en-cours': 'accent',
-  'en-review': 'accent',
-  checks: 'accent',
-  bloque: 'halt',
-  'revue-visuelle': 'caution',
-  interrompu: 'caution',
-  merge: 'go',
-  attente: 'neutral',
-};
+import { TICKET_TONES } from './ticket-row.js';
 
 /**
  * `cd-ticket-tree`: the open Tickets as a list, each indented by its depth
@@ -110,7 +98,7 @@ export class PasserelleTicketTree extends PasserelleElement<typeof TicketTree> {
               ${critical ? html`<span class="visually-hidden">${t('ticketTree.critical')}</span>` : nothing}
               ${blockedBy === null ? nothing : html`<small class="blocked">${t('ticketTree.blockedBy', { ticket: blockedBy })}</small>`}
             </span>
-            <cd-status-badge .data=${{ tone: TONES[state], label: t(`ticketRow.state.${state}`) }}></cd-status-badge>
+            <cd-status-badge .data=${{ tone: TICKET_TONES[state], label: t(`ticketRow.state.${state}`) }}></cd-status-badge>
           </li>`,
         )}
       </ul>

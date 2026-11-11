@@ -1,10 +1,10 @@
-import type { Decision } from '@crewdeck/contracts';
+import type { Decision, Me } from '@crewdeck/contracts';
 import { MenuItem } from '@crewdeck/sdk';
 import { createDispatcher } from './actions/dispatcher.js';
 import { boot, type App } from './app.js';
 import { createStore } from './store/store.js';
 
-const PILOT = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris' };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
 const CREWDECK = '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a01';
 const AT = '2026-11-11T08:00:00.000Z';
 
@@ -37,7 +37,7 @@ interface PageData {
 const store = createStore();
 store.registerSlice('pilot', { shape: 'single' });
 store.registerSlice('runner', { shape: 'single' });
-store.registerSlice('decision', { shape: 'collection', key: 'decisions' });
+store.registerSlice('decision', { shape: 'collection', snapshotKey: 'decisions' });
 let app: App;
 let root: HTMLElement;
 
@@ -60,7 +60,7 @@ afterAll(() => app.stop());
 describe('« À toi » follows the store', () => {
   it('lists the snapshot’s open Décisions, the Cadre counting them', () => {
     expect(pageData()).toMatchObject({ total: 0, decisions: [] });
-    store.applySnapshot({ seq: 3, pilot: PILOT, runner: null, decisions: [decision(1)] });
+    store.applySnapshot({ seq: 3, pilot: PILOT, runner: null, 'runner-link': null, devices: [], decisions: [decision(1)] });
     store.markLive();
     expect(pageData().decisions.map((row) => row.title)).toEqual(['#1 Ticket']);
     expect(aToiCount()).toBe(1);

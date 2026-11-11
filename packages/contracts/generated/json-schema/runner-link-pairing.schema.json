@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "pairing": {
+      "additionalProperties": false,
+      "properties": {
+        "proof": {
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "runnerPublicKey": {
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "proof",
+        "runnerPublicKey"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "pairing"
+  ],
+  "title": "RunnerLinkPairing",
+  "type": "object"
+}

@@ -1,20 +1,24 @@
 import type { Me } from '@crewdeck/contracts';
-import { Cadre, PageAToi, PageComposants, PageConnexion, type Skin } from '@crewdeck/sdk';
+import { Cadre, PageAToi, PageComposants, PageConnexion, PageDemarrage, type Skin } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
 import { me as readMe } from './api/auth.js';
+import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
+import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
+import { createPageKeys, type PageKeys } from './keys/index.js';
 import { bootSkin } from './registry.js';
-import { startRouter, type Route, type Router } from './router.js';
+import { routeData, startRouter, type Route, type Router } from './router.js';
 import { aToiHref, composantsHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
 import { signInGuard, signInHref } from './sign-in.js';
-import { connection as pageConnection, store as pageStore } from './store/index.js';
+import { client as pageClient, connection as pageConnection, store as pageStore } from './store/index.js';
 import type { Connection } from './store/connection.js';
 import { createLatencyMeter, type LatencyMeter } from './store/latency.js';
 import type { Store } from './store/store.js';
 import { decisionViews } from './views/decisions/registry.js';
+import { systemOfBrowser } from './views/demarrage.js';
 
 /** The Skins the page knows, by id: at the MVP, the default one. */
 const SKINS: Readonly<Record<string, Skin>> = { passerelle };
@@ -37,8 +41,11 @@ export interface BootOptions {
   /** The page's store and its socket (`store/index.ts`) by default. */
   readonly store?: Store;
   readonly connection?: Pick<Connection, 'start' | 'stop'>;
+  readonly client?: Pick<Client, 'command' | 'query'>;
   /** The latency the page measures on its store's live events (CORE-8): started with the socket. */
   readonly latency?: LatencyMeter;
+  /** This browser's Appareil and the vault (E2E-2): IndexedDB and WebCrypto by default. */
+  readonly keys?: Pick<PageKeys, 'linkKeys' | 'nameDevice' | 'unlockVault'>;
 }
 
 export interface App {
@@ -66,7 +73,9 @@ export const boot = async ({
   leave = (url) => location.assign(url),
   store = pageStore,
   connection = pageConnection,
+  client = pageClient,
   latency = createLatencyMeter({ store }),
+  keys = createPageKeys({ store, client, userAgent: navigator.userAgent }),
 }: BootOptions): Promise<App> => {
   const [pilot] = await Promise.all([me().catch(() => null), bootSkin(skin, resolveSkin)]);
   dispatcher.listen(document);
@@ -85,19 +94,37 @@ export const boot = async ({
     shell.showError(event.reason.message);
   };
   window.addEventListener('unhandledrejection', onUnhandled);
+  const gettingStarted = createGettingStarted({
+    store,
+    client,
+    bootPilot: pilot,
+    origin: location.origin,
+    system: systemOfBrowser(navigator.userAgent),
+    keys: keys.linkKeys,
+    unlockVault: () => keys.unlockVault(),
+  });
+  const signIn = signInGuard(pilot);
+  const started = gettingStartedGuard(gettingStarted.pilot);
+  const pageData = routeData(routes, () => store.getState());
   const router = startRouter({
     routes,
     outlet: shell.outlet,
-    state: () => store.getState(),
     onRoute: shell.update,
-    guard: signInGuard(pilot),
+    guard: (match) => started(match) ?? signIn(match),
+    data: (match) => (match.composant === PageDemarrage ? gettingStarted.view() : pageData(match)),
   });
-  // A new state of the store: the Cadre and the page shown get their data again (ADR 0007, no reload).
-  const unsubscribe = store.subscribe(() => {
-    shell.refresh();
-    router.refresh();
-  });
+  const unsubscribe = [
+    store.subscribe(() => {
+      gettingStarted.sync();
+      router.refresh();
+      shell.refresh();
+    }),
+    gettingStarted.subscribe(() => router.refresh()),
+  ];
   if (pilot) {
+    // The Appareil named before the snapshot, which says which one is `current`.
+    await keys.nameDevice();
+    void keys.unlockVault();
     latency.start();
     connection.start();
   }
@@ -125,11 +152,14 @@ export const boot = async ({
     },
   });
   dispatcher.registerAction(PageAToi, 'note-idea', { run: () => router.navigate('/idees') });
+  dispatcher.registerAction(PageDemarrage, 'selectSystem', { run: ({ system }) => gettingStarted.selectSystem(system) });
+  dispatcher.registerAction(PageDemarrage, 'retry', { run: () => gettingStarted.retry() });
+  dispatcher.registerAction(PageDemarrage, 'continue', { run: () => gettingStarted.advance() });
   const stop = () => {
     router.stop();
     connection.stop();
     latency.stop();
-    unsubscribe();
+    for (const stopListening of unsubscribe) stopListening();
     window.removeEventListener('unhandledrejection', onUnhandled);
   };
   return { router, bridge, dispatcher, stop };

@@ -5,7 +5,10 @@ import { PasserelleElement, sharedStyles } from './base.js';
 /** How long « Copié » stays. */
 export const COPIED_MS = 2000;
 
-/** `cd-code-block`: a command and « Copier », which copies it and says « Copié » for 2 s; a local behaviour, no action. */
+/**
+ * `cd-code-block`: a command and « Copier », which copies it and says « Copié » for 2 s; a local behaviour, no action.
+ * The command wraps at every width, as in the mockups: whole on screen, nothing to scroll.
+ */
 export class PasserelleCodeBlock extends PasserelleElement<typeof CodeBlock> {
   static override properties = { copied: { state: true } };
   static override styles = [
@@ -48,13 +51,6 @@ export class PasserelleCodeBlock extends PasserelleElement<typeof CodeBlock> {
         top: 50%;
         height: var(--cd-touch);
         transform: translateY(-50%);
-      }
-      @media (min-width: 1280px) {
-        code {
-          white-space: nowrap;
-          overflow-x: auto;
-          scrollbar-width: none;
-        }
       }
     `,
   ];

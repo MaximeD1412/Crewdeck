@@ -47,11 +47,12 @@ personal use, not shippable.
 |---|---|
 | `crewdeck-runner link <code>` | Links this machine to the account (the installer runs it) |
 | `crewdeck-runner login claude\|codex` | Connects a **Compte IA**: runs the Moteur's own sign-in (`claude` then `/login`, `codex login`) or asks for an API key, stored in the OS keychain when there is one, else a file of mode 600 |
-| `crewdeck-runner status` | Link, server, Moteurs and models usable and why not (US-38) |
-| `crewdeck-runner restart` | Restarts the service |
+| `crewdeck-runner status [--json]` | Link, service, connection, version and update available, Moteurs and models usable and why not (US-38); exit 1 when not linked |
+| `crewdeck-runner start` / `stop` / `restart` | Starts, stops, restarts the service (`systemctl --user`, `launchctl`) |
+| `crewdeck-runner update` | Updates the binary to the version of the server it is linked to (`GET /runner/latest`), checksum verified, then restarts the service |
 | `crewdeck-runner appareils approuver <code>` | Trusts an **Appareil** from the machine |
-| `crewdeck-runner logs` | The service's log (no Session content) |
-| `crewdeck-runner uninstall` | Removes the service, the binary and `~/.crewdeck/` after a confirmation |
+| `crewdeck-runner logs [-f] [-n 200]` | The service's log, `journalctl` or `~/.crewdeck/runner.log` (no Session content) |
+| `crewdeck-runner uninstall [--yes]` | Removes the service, the binary, `~/.crewdeck/` and the API keys of the keychain after a confirmation |
 
 A failed link says why and prints the command again (US-2): code expired,
 code already used, server unreachable, system not supported, no **Moteur**

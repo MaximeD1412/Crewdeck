@@ -64,7 +64,7 @@ export const matchRoute = (routes: readonly Route[], url: string | URL): RouteMa
 };
 
 /** The state of a router without a store: nothing received yet. */
-export const NO_STATE: StoreState = { seq: null, connection: 'connecting', lostAt: null, slices: {} };
+export const NO_STATE: StoreState = { seq: null, connection: 'connecting', lostAt: null, slices: {}, vaultState: 'locked' };
 
 /**
  * Whether two `data` hold the same values: plain objects and arrays compared
@@ -84,9 +84,9 @@ export const sameData = (a: unknown, b: unknown): boolean => {
   );
 };
 
-/** The page's `data` by default: its route's view, else nothing. */
-const routeData =
-  (routes: readonly Route[], state: () => StoreState) =>
+/** The page's `data` by default: its route's view, from the match and the store's state, else nothing. */
+export const routeData =
+  (routes: readonly Route[], state: () => StoreState = () => NO_STATE) =>
   (match: RouteMatch): unknown =>
     routes.find((route) => route.composant === match.composant && matchPath(route.path, match.path))?.data?.(match, state()) ?? {};
 
@@ -95,9 +95,11 @@ export interface Router {
   /** Goes to a page URL of the app (path, query, hash) through the History API. */
   navigate(url: string, options?: { replace?: boolean }): void;
   /**
-   * Gives the page shown its `data` again, for a new state of the store: same
-   * URL, same element. Data with the same values is not given again, so a page
-   * that does not read what changed is left as is (what was typed, an open Dialog).
+   * Renders the current page again for a new state (the store's, a page's
+   * own): the guard asked again, the page's `data` read again; `onRoute`
+   * only when the guard moved the page. Data with the same values as the
+   * last given is not given again, so a page that does not read what changed
+   * is left as is (what was typed, an open Dialog).
    */
   refresh(): void;
   stop(): void;
@@ -107,9 +109,9 @@ export interface RouterOptions {
   readonly routes: readonly Route[];
   /** Where the page Composant is rendered. */
   readonly outlet: HTMLElement;
-  /** The `data` of the page. By default, its route's `data`, from the match and `state`. */
+  /** The `data` of the page; CORE-6's view functions give it from the store. By default, its route's `data`, from the match and `state`. */
   readonly data?: (match: RouteMatch) => unknown;
-  /** The store's state the routes' views read: nothing received by default. */
+  /** The store's state the routes' views read, for the default `data`: nothing received by default. */
   readonly state?: () => StoreState;
   /** Called after each render, with the match. */
   readonly onRoute?: (match: RouteMatch) => void;
@@ -138,20 +140,12 @@ const linkOf = (event: MouseEvent): URL | null => {
  * `outlet`, then follows `navigate()`, the same-origin links (shadow roots
  * included) and the browser's back and forward.
  */
-export const startRouter = ({
-  routes,
-  state = () => NO_STATE,
-  outlet,
-  data = routeData(routes, state),
-  onRoute,
-  redirects = REDIRECTS,
-  guard,
-}: RouterOptions): Router => {
+export const startRouter = ({ routes, outlet, state, data = routeData(routes, state), onRoute, redirects = REDIRECTS, guard }: RouterOptions): Router => {
   let current: RouteMatch;
-  /** The `data` last given to the page shown. */
   let given: unknown;
 
-  const render = () => {
+  const render = (navigated = true) => {
+    const before = location.href;
     const path = normalise(location.pathname);
     const target = Object.hasOwn(redirects, path) ? redirects[path] : undefined;
     if (target) history.replaceState(history.state, '', target + location.search + location.hash);
@@ -166,10 +160,11 @@ export const startRouter = ({
       existing && existing.localName === current.composant.tag && outlet.childElementCount === 1
         ? existing
         : document.createElement(current.composant.tag);
-    given = data(current);
-    (page as Element & { data: unknown }).data = given;
+    const next = data(current);
+    if (page !== existing || !sameData(given, next)) (page as Element & { data: unknown }).data = next;
+    given = next;
     if (page !== existing || outlet.childElementCount !== 1) outlet.replaceChildren(page);
-    onRoute?.(current);
+    if (navigated || location.href !== before) onRoute?.(current);
   };
 
   const navigate = (url: string, { replace = false }: { replace?: boolean } = {}) => {
@@ -189,7 +184,8 @@ export const startRouter = ({
   };
 
   document.addEventListener('click', onClick);
-  window.addEventListener('popstate', render);
+  const onPopState = () => render();
+  window.addEventListener('popstate', onPopState);
   render();
 
   return {
@@ -197,17 +193,10 @@ export const startRouter = ({
       return current;
     },
     navigate,
-    refresh() {
-      const page = outlet.firstElementChild;
-      if (!page || page.localName !== current.composant.tag) return;
-      const next = data(current);
-      if (sameData(given, next)) return;
-      given = next;
-      (page as Element & { data: unknown }).data = next;
-    },
+    refresh: () => render(false),
     stop() {
       document.removeEventListener('click', onClick);
-      window.removeEventListener('popstate', render);
+      window.removeEventListener('popstate', onPopState);
     },
   };
 };

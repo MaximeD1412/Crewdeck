@@ -22,6 +22,7 @@ import { Message } from './message.js';
 import { PageAToi } from './page-a-toi.js';
 import { PageComposants } from './page-composants.js';
 import { PageConnexion } from './page-connexion.js';
+import { PageDemarrage } from './page-demarrage.js';
 import { PageHeader } from './page-header.js';
 import { PageIntrouvable } from './page-introuvable.js';
 import { PermissionRequest } from './permission-request.js';
@@ -70,6 +71,7 @@ export * from './message.js';
 export * from './page-a-toi.js';
 export * from './page-composants.js';
 export * from './page-connexion.js';
+export * from './page-demarrage.js';
 export * from './page-header.js';
 export * from './page-introuvable.js';
 export * from './permission-request.js';
@@ -106,6 +108,7 @@ export const COMPOSANTS = {
   PageAToi,
   PageComposants,
   PageConnexion,
+  PageDemarrage,
   PageIntrouvable,
   Card,
   CodeBlock,

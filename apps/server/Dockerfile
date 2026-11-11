@@ -53,16 +53,7 @@ RUN --mount=type=cache,id=crewdeck-go-mod,target=/go/pkg/mod go mod download
 COPY apps/runner/ ./
 RUN --mount=type=cache,id=crewdeck-go-mod,target=/go/pkg/mod \
     --mount=type=cache,id=crewdeck-go-build,target=/root/.cache/go-build \
-    set -eu; \
-    out="/runner/$CREWDECK_COMMIT"; \
-    mkdir -p "$out"; \
-    for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do \
-      os="${target%/*}"; arch="${target#*/}"; \
-      CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath \
-        -ldflags "-s -w -X main.version=$CREWDECK_COMMIT" \
-        -o "$out/$os-$arch" ./cmd/crewdeck-runner; \
-      (cd "$out" && sha256sum "$os-$arch" > "$os-$arch.sha256"); \
-    done
+    CREWDECK_VERSION="$CREWDECK_COMMIT" sh install/dist.sh /runner
 
 # ---- the image
 FROM node:${NODE_VERSION}-bookworm-slim

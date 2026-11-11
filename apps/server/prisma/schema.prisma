@@ -14,25 +14,44 @@ datasource db {
   provider = "postgresql"
 }
 
+/// The steps of « Premiers pas » (US-2, RUNNER-3), in order.
+enum GettingStartedStep {
+  runner
+  ai_accounts @map("ai-accounts")
+  projects
+  done
+
+  @@map("getting_started_step")
+}
+
 /// A Pilote (CONTEXT.md): global, the scope's own key (ADR 0008), created by
 /// their first sign-in with GitHub (CORE-4). `seq` is the number of its last
-/// event (CORE-5). Ids are
-/// UUIDv7, generated in code (`src/ids.ts`).
+/// event (CORE-5), `lastSeq` the one of the last event about the Pilote
+/// themselves (`pilot.upserted`). Ids are UUIDv7, generated in code
+/// (`src/ids.ts`).
 model Pilot {
-  id             String               @id @db.Uuid
-  githubUserId   BigInt               @unique @map("github_user_id")
-  login          String
-  avatarUrl      String?              @map("avatar_url")
-  timeZone       String               @map("time_zone")
-  seq            BigInt               @default(0)
-  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz
-  githubToken    GithubUserToken?
-  webSessions    WebSession[]
-  events         Event[]
-  installations  GitHubInstallation[]
-  runners        Runner[]
-  latencySamples LatencySample[]
-  decisions      Decision[]
+  id                 String               @id @db.Uuid
+  githubUserId       BigInt               @unique @map("github_user_id")
+  login              String
+  avatarUrl          String?              @map("avatar_url")
+  timeZone           String               @map("time_zone")
+  gettingStartedStep GettingStartedStep   @default(runner) @map("getting_started_step")
+  seq                BigInt               @default(0)
+  lastSeq            BigInt               @default(0) @map("last_seq")
+  /// The version of the Pilote's vault key (ADR 0003, E2E-2): 0 before the
+  /// first Appareil wrapped one, then 1; E2E-4 rotates it.
+  vaultKeyVersion    Int                  @default(0) @map("vault_key_version")
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  githubToken        GithubUserToken?
+  webSessions        WebSession[]
+  events             Event[]
+  installations      GitHubInstallation[]
+  runners            Runner[]
+  runnerLinkCodes    RunnerLinkCode[]
+  latencySamples     LatencySample[]
+  devices            Device[]
+  vaultKeyWraps      VaultKeyWrap[]
+  decisions          Decision[]
 
   @@map("pilots")
 }
@@ -138,6 +157,119 @@ model Runner {
   @@index([pilotId])
   @@index([state, lastSeenAt])
   @@map("runners")
+}
+
+enum RunnerLinkState {
+  waiting
+  pending
+  linked
+  failed
+  expired
+
+  @@map("runner_link_state")
+}
+
+enum RunnerLinkFailure {
+  expired
+  already_used       @map("already-used")
+  unsupported_system @map("unsupported-system")
+  no_engine          @map("no-engine")
+  pairing_mismatch   @map("pairing-mismatch")
+  device_not_trusted @map("device-not-trusted")
+
+  @@map("runner_link_failure")
+}
+
+/// A link code the page drew (ADR 0003, RUNNER-3): the server knows only its
+/// `shortId`, never its secret. `waiting` for a Runner, `pending` once one
+/// called `POST /api/runner/link` with it (`pendingRunner` its machine), then
+/// `linked` when the page confirmed it, `failed` (`failureReason`) or
+/// `expired` 10 minutes after its creation. The pairings (E2E-2) hold only
+/// public keys, proofs and wraps: the page's (`browserPairing`), the Runner's
+/// (`runnerPairing`), the page's answer to it (`confirmPairing`). `deviceId`
+/// is the Appareil of the page that drew it; `runnerId` is drawn once a
+/// Runner took it (its vault wrap binds it), the Runner created with it at
+/// the confirmation.
+model RunnerLinkCode {
+  id             String             @id @db.Uuid
+  pilotId        String             @map("pilot_id") @db.Uuid
+  shortId        String             @map("short_id")
+  state          RunnerLinkState    @default(waiting)
+  failureReason  RunnerLinkFailure? @map("failure_reason")
+  browserPairing Json               @map("browser_pairing")
+  runnerPairing  Json?              @map("runner_pairing")
+  confirmPairing Json?              @map("confirm_pairing")
+  pendingRunner  Json?              @map("pending_runner")
+  /// The Runner it links, drawn when it becomes `pending`.
+  runnerId       String?            @map("runner_id") @db.Uuid
+  deviceId       String?            @map("device_id") @db.Uuid
+  expiresAt      DateTime           @map("expires_at") @db.Timestamptz
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  lastSeq        BigInt             @default(0) @map("last_seq")
+  pilot          Pilot              @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@unique([shortId], map: "runner_link_codes_short_id_live_key", where: raw("state IN ('waiting', 'pending')"))
+  @@index([pilotId, createdAt])
+  @@index([shortId])
+  @@index([state, expiresAt])
+  @@map("runner_link_codes")
+}
+
+enum DeviceState {
+  pending
+  trusted
+  revoked
+
+  @@map("device_state")
+}
+
+/// An Appareil (ADR 0003, E2E-2): a browser of the Pilote with its X25519 key
+/// pair, the server holding only the 32-byte public key. Created `pending`
+/// by the page that draws a link code; `trusted` once it holds the vault key
+/// (`approvedAt`); `revoked` by the Pilote (E2E-4). `lastSeenAt` follows its
+/// `X-Crewdeck-Device` header, at most once an hour.
+model Device {
+  id         String      @id @db.Uuid
+  pilotId    String      @map("pilot_id") @db.Uuid
+  name       String
+  publicKey  Bytes       @map("public_key")
+  state      DeviceState @default(pending)
+  approvedAt DateTime?   @map("approved_at") @db.Timestamptz
+  revokedAt  DateTime?   @map("revoked_at") @db.Timestamptz
+  lastSeenAt DateTime?   @map("last_seen_at") @db.Timestamptz
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  pilot      Pilot       @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@index([pilotId, createdAt])
+  @@map("devices")
+}
+
+enum VaultKeyHolderType {
+  device
+  runner
+
+  @@map("vault_key_holder_type")
+}
+
+/// The Pilote's vault key wrapped for one key holder (ADR 0003, E2E-2): an
+/// authenticated HPKE wrap (`docs/security/e2e.md`), its additional data
+/// `"<holderId>:<vaultKeyVersion>"`. The server never sees the key itself.
+model VaultKeyWrap {
+  id              String             @id @db.Uuid
+  pilotId         String             @map("pilot_id") @db.Uuid
+  holderType      VaultKeyHolderType @map("holder_type")
+  /// A Device's or a Runner's id.
+  holderId        String             @map("holder_id") @db.Uuid
+  vaultKeyVersion Int                @map("vault_key_version")
+  enc             Bytes
+  ciphertext      Bytes
+  tag             Bytes
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  pilot           Pilot              @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@unique([holderType, holderId, vaultKeyVersion])
+  @@index([pilotId, holderId])
+  @@map("vault_key_wraps")
 }
 
 /// A webhook delivery GitHub sent (ADR 0002), by its `X-GitHub-Delivery`:

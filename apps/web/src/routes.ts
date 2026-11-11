@@ -1,4 +1,4 @@
-import { COMPOSANTS, PageAToi, PageComposants, PageConnexion } from '@crewdeck/sdk';
+import { COMPOSANTS, PageAToi, PageComposants, PageConnexion, PageDemarrage } from '@crewdeck/sdk';
 import type { Route } from './router.js';
 import { aToiView } from './views/a-toi.js';
 import { composantsView } from './views/composants.js';
@@ -15,7 +15,9 @@ export const aToiHref = (projectId: string | null): string => (projectId ? `/a-t
  * tickets: `/a-toi` → `PageAToi`, `/idees` and `/idees/:id`, `/conceptions`,
  * `/boucle`, `/planning`, `/statistiques`, `/projets`, `/runner`,
  * `/parametres`, `/parametres/composants`; `/connexion` → `PageConnexion`,
- * the only page open signed out. The first route that matches wins.
+ * the only page open signed out; `/demarrage` → `PageDemarrage`, whose data
+ * `app.ts` gives from « Premiers pas »' state (`getting-started.ts`). The
+ * first route that matches wins.
  */
 export const ROUTES: readonly Route[] = [
   {
@@ -25,6 +27,7 @@ export const ROUTES: readonly Route[] = [
       aToiView(state.slices.decision?.values() ?? [], match.query, { runnerOnline: state.slices.runner?.state === 'online' }),
   },
   { path: '/connexion', composant: PageConnexion, data: (match) => connexionView(match.query) },
+  { path: '/demarrage', composant: PageDemarrage },
   {
     path: '/parametres/composants',
     composant: PageComposants,

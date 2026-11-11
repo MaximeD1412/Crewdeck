@@ -1,11 +1,11 @@
 import type { Event, Me, State } from '@crewdeck/contracts';
 import { createStore } from './store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris' };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
 const AT = '2026-11-11T08:00:00.000Z';
 
 const pilotEvent = (seq: number, login: string): Event => ({ seq, type: 'pilot.upserted', payload: { ...PILOT, login }, at: AT });
-const snapshot = (seq: number, pilot: Me = PILOT): State => ({ seq, pilot, runner: null, decisions: [] });
+const snapshot = (seq: number, pilot: Me = PILOT): State => ({ seq, pilot, runner: null, 'runner-link': null, devices: [], decisions: [] });
 
 const pilotStore = () => {
   const store = createStore();
@@ -15,7 +15,7 @@ const pilotStore = () => {
 
 describe('the store at boot', () => {
   it('is connecting, with no seq, no loss and no slice', () => {
-    expect(pilotStore().getState()).toEqual({ seq: null, connection: 'connecting', lostAt: null, slices: {} });
+    expect(pilotStore().getState()).toEqual({ seq: null, connection: 'connecting', lostAt: null, slices: {}, vaultState: 'locked' });
   });
 });
 
@@ -54,6 +54,7 @@ describe('applyEvent, around the seq', () => {
         connection: 'resync',
         lostAt: new Date('2026-11-11T14:12:00.000Z'),
         slices: { pilot: PILOT },
+        vaultState: 'locked',
       });
     } finally {
       vi.useRealTimers();
@@ -110,15 +111,6 @@ describe('the slices', () => {
     expect([...slice()]).toEqual([[IDEA_B.id, IDEA_B]]);
   });
 
-  it('a collection may read its snapshot under another key than its resource: decision under decisions', () => {
-    const store = createStore();
-    store.registerSlice('decision', { shape: 'collection', key: 'decisions' });
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, decisions: [IDEA_A] } as unknown as State);
-    expect([...(store.getState().slices.decision ?? [])]).toEqual([[IDEA_A.id, IDEA_A]]);
-    store.applyEvent({ seq: 2, type: 'decision.removed', payload: { id: IDEA_A.id }, at: AT });
-    expect([...(store.getState().slices.decision ?? [])]).toEqual([]);
-  });
-
   it('a slice is registered once', () => {
     const store = pilotStore();
     expect(() => store.registerSlice('pilot', { shape: 'single' })).toThrow(/pilot/);
@@ -130,7 +122,32 @@ describe('applySnapshot', () => {
     const store = pilotStore();
     store.applySnapshot(snapshot(9, { ...PILOT, login: 'before' }));
     store.applySnapshot(snapshot(3));
-    expect(store.getState()).toEqual({ seq: 3n, connection: 'connecting', lostAt: null, slices: { pilot: PILOT } });
+    expect(store.getState()).toEqual({ seq: 3n, connection: 'connecting', lostAt: null, slices: { pilot: PILOT }, vaultState: 'locked' });
+  });
+});
+
+describe('a slice under another key of the snapshot', () => {
+  it('reads the Appareils from `devices`, then their `device.*` events', () => {
+    const store = createStore();
+    store.registerSlice('device', { shape: 'collection', snapshotKey: 'devices' });
+    const device = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a74', name: 'Chrome sur Linux', state: 'pending', approvedAt: null, revokedAt: null, lastSeenAt: null, current: true } as const;
+    store.applySnapshot({ ...snapshot(1), devices: [device] });
+    expect([...(store.getState().slices.device ?? [])]).toEqual([[device.id, device]]);
+
+    store.applyEvent({ seq: 2, type: 'device.upserted', payload: { ...device, state: 'trusted', approvedAt: AT, current: false }, at: AT });
+    expect(store.getState().slices.device?.get(device.id)).toMatchObject({ state: 'trusted' });
+  });
+});
+
+describe('the vault state', () => {
+  it('is locked at boot, then what the vault says, each change told once', () => {
+    const store = pilotStore();
+    const seen: string[] = [];
+    store.subscribe((state) => seen.push(state.vaultState));
+    store.setVaultState('unlocked');
+    store.setVaultState('unlocked');
+    store.setVaultState('no-device');
+    expect(seen).toEqual(['unlocked', 'no-device']);
   });
 });
 

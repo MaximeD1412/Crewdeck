@@ -15,6 +15,9 @@ signed in by subscription, models `haiku` (Haiku 5.5) and `sonnet` (scenario 6).
 - `<scenario>.hook.jsonl`: what the `AskUserQuestion` `PreToolUse` hook
   received (`direction: "in"`) and answered (`"out"`, its stdout under
   `stdout`).
+- `<name>.golden.json`: the normalised events the adapter gives of the
+  recording replayed by the fake binary (`claude_test.go`, without `raw`
+  and `at`); `go test ./internal/engine/claude/ -update` rewrites them.
 
 | Scenario | Recordings |
 |---|---|

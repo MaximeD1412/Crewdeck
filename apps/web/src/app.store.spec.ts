@@ -1,10 +1,11 @@
+import type { Me } from '@crewdeck/contracts';
 import { Banner, t } from '@crewdeck/sdk';
 import { createDispatcher } from './actions/dispatcher.js';
 import { ApiError } from './api/request.js';
 import { boot, type App } from './app.js';
 import { createStore } from './store/store.js';
 
-const PILOT = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris' };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
 const AT = '2026-11-11T08:00:00.000Z';
 const STALE = 'L’état a changé depuis ton dernier affichage : vérifie avant de recommencer.';
 
@@ -37,7 +38,7 @@ afterAll(() => app.stop());
 describe('the page’s Cadre follows its store', () => {
   it('shows the Pilote of /api/me until the snapshot, then the pilot slice’s', () => {
     expect(cadre.data).toMatchObject({ status: 'resync', pilot: { login: 'octocat' } });
-    store.applySnapshot({ seq: 3, pilot: { ...PILOT, login: 'from-snapshot' }, runner: null, decisions: [] });
+    store.applySnapshot({ seq: 3, pilot: { ...PILOT, login: 'from-snapshot' }, runner: null, 'runner-link': null, devices: [], decisions: [] });
     store.markLive();
     expect(cadre.data).toMatchObject({ status: 'offline', statusDetail: null, pilot: { login: 'from-snapshot' } });
     expect(banners()).toEqual([]);

@@ -42,13 +42,11 @@ const MOCKUP: readonly Seeded[] = [
 /** The Pilote signed in, and the mockup's Décisions open for them, as their modules would have raised them. */
 const seedDecisions = async (ctx: ScenarioContext) => {
   const seed = await signInPilot(ctx);
-  const [pilot] = await ctx.prisma.unscoped.pilot.findMany({ select: { id: true } });
-  if (!pilot) throw new Error('the scenario signed no Pilote in');
   const now = Date.now();
   await ctx.prisma.unscoped.decision.createMany({
     data: MOCKUP.map(({ project, age, metaParts, ...decision }) => ({
       id: newId(),
-      pilotId: pilot.id,
+      pilotId: seed.pilotId,
       ...decision,
       ...project,
       metaParts: [...metaParts],

@@ -22,6 +22,65 @@ type RunnerHelloAccepted struct {
 
 	// Type corresponds to the JSON schema field "type".
 	Type string `json:"type"`
+
+	// VaultKeyWrap corresponds to the JSON schema field "vaultKeyWrap".
+	VaultKeyWrap *RunnerHelloAcceptedVaultKeyWrap `json:"vaultKeyWrap,omitempty,omitzero"`
+}
+
+type RunnerHelloAcceptedVaultKeyWrap struct {
+	// Ciphertext corresponds to the JSON schema field "ciphertext".
+	Ciphertext string `json:"ciphertext"`
+
+	// Enc corresponds to the JSON schema field "enc".
+	Enc string `json:"enc"`
+
+	// Tag corresponds to the JSON schema field "tag".
+	Tag string `json:"tag"`
+
+	// VaultKeyVersion corresponds to the JSON schema field "vaultKeyVersion".
+	VaultKeyVersion int `json:"vaultKeyVersion"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerHelloAcceptedVaultKeyWrap) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["ciphertext"]; raw != nil && !ok {
+		return fmt.Errorf("field ciphertext in RunnerHelloAcceptedVaultKeyWrap: required")
+	}
+	if _, ok := raw["enc"]; raw != nil && !ok {
+		return fmt.Errorf("field enc in RunnerHelloAcceptedVaultKeyWrap: required")
+	}
+	if _, ok := raw["tag"]; raw != nil && !ok {
+		return fmt.Errorf("field tag in RunnerHelloAcceptedVaultKeyWrap: required")
+	}
+	if _, ok := raw["vaultKeyVersion"]; raw != nil && !ok {
+		return fmt.Errorf("field vaultKeyVersion in RunnerHelloAcceptedVaultKeyWrap: required")
+	}
+	type Plain RunnerHelloAcceptedVaultKeyWrap
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Ciphertext)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Ciphertext", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Enc)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Enc", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Tag)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Tag", `^[A-Za-z0-9_-]*$`)
+	}
+	if 9007199254740991 < plain.VaultKeyVersion {
+		return fmt.Errorf("field %s: must be <= %v", "vaultKeyVersion", 9007199254740991)
+	}
+	if 0 >= plain.VaultKeyVersion {
+		return fmt.Errorf("field %s: must be > %v", "vaultKeyVersion", 0)
+	}
+	*j = RunnerHelloAcceptedVaultKeyWrap(plain)
+	return nil
 }
 
 // UnmarshalJSON implements json.Unmarshaler.

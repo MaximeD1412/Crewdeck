@@ -1,8 +1,12 @@
+/// <reference types="vite/client" />
+// What the core loads before the Skin (apps/web/src/main.ts): the tokens and the document's ground.
+import './tokens.css';
+import './document.css';
 import { COMPOSANTS, t } from '@crewdeck/sdk';
 import { userEvent } from 'vitest/browser';
-import { actionsOf, defineAll, inside, render, settle, textOf } from './browser.testing.js';
+import { actionsOf, defineSkin, inside, render, settle, textOf } from './testing/dom.js';
 
-beforeAll(defineAll);
+beforeAll(defineSkin);
 afterEach(() => document.body.replaceChildren());
 
 const IDLE = { placeholder: 'Écrire à l’agent, ou dicter', hint: null, state: 'idle', value: '', dictation: true } as const;

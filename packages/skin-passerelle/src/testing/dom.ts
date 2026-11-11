@@ -1,32 +1,20 @@
-/// <reference types="vite/client" />
 /**
- * What the Skin's browser specs share: the elements defined as the core does
- * at boot, the tokens and the ground loaded, and helpers to render a Composant,
- * reach inside its shadow roots and collect its `cd-action`s. Not built.
+ * What the browser specs of the Skin share: the Skin's elements defined as the
+ * core does at boot, an element rendered from its data and Emplacements, and
+ * the means to look inside shadow roots and catch the `cd-action`s. Never part
+ * of the Skin's build.
  */
-// What the core loads before the Skin (apps/web/src/main.ts): the tokens and the document's ground.
-import './tokens.css';
-import './document.css';
 import { CD_ACTION, COMPOSANTS, type AnyComposant, type CdActionDetail } from '@crewdeck/sdk';
 import type { LitElement } from 'lit';
-import passerelle from './index.js';
-import { fillSlots } from './slots.js';
+import passerelle from '../index.js';
+import { fillSlots } from '../slots.js';
 
 /** What the core does at boot: each implementation under its canonical tag. */
-export const defineAll = (): void => {
+export const defineSkin = (): void => {
   for (const [name, impl] of Object.entries(passerelle.composants)) {
     const declaration = COMPOSANTS[name as keyof typeof COMPOSANTS];
     if (impl && !customElements.get(declaration.tag)) customElements.define(declaration.tag, impl);
   }
-};
-
-export const render = async (declaration: AnyComposant, data: unknown, slots: Record<string, string> = {}) => {
-  const el = document.createElement(declaration.tag) as LitElement & { data: unknown };
-  el.data = data;
-  el.append(...fillSlots(slots));
-  document.body.append(el);
-  await settle(el);
-  return el;
 };
 
 /** Waits for `root` and every Composant rendered inside it, through their shadow roots. */
@@ -38,6 +26,16 @@ export const settle = async (root: Element): Promise<void> => {
       if (el !== root) await settle(el);
     }
   }
+};
+
+/** `declaration`'s element with `data` and its Emplacements, in the document, rendered. */
+export const render = async (declaration: AnyComposant, data: unknown, slots: Record<string, string> = {}) => {
+  const el = document.createElement(declaration.tag) as LitElement & { data: unknown };
+  el.data = data;
+  el.append(...fillSlots(slots));
+  document.body.append(el);
+  await settle(el);
+  return el;
 };
 
 /** The element inside `host` at `selectors`, one per shadow root crossed. */
@@ -64,5 +62,5 @@ export const actionsOf = async (act: () => unknown): Promise<CdActionDetail[]> =
   return details;
 };
 
+/** An element's text, its white space collapsed. */
 export const textOf = (el: Element | null | undefined) => el?.textContent?.replace(/\s+/g, ' ').trim();
-

@@ -18,3 +18,12 @@ const kebab = (name: string) => name.replace(/(?<!^)[A-Z]/g, (c) => `-${c}`).toL
 export const composantsSession: readonly Scenario[] = SESSION_COMPOSANTS.map((name) =>
   defineScenario({ name: `composants-${kebab(name)}`, path: `/parametres/composants?c=${name}`, seed: () => ({}) }),
 );
+
+/** The library opened on each row Composant (UI-5), `composants-<name in lower case>`. */
+export const composantsRows = ['DecisionRow', 'IdeaRow', 'TicketRow', 'AgentRow'].map((name) =>
+  defineScenario({
+    name: `composants-${name.toLowerCase()}`,
+    path: `/parametres/composants?c=${name}`,
+    seed: () => ({}),
+  }),
+);

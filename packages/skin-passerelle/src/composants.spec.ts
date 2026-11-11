@@ -1,16 +1,23 @@
+/// <reference types="vite/client" />
+// What the core loads before the Skin (apps/web/src/main.ts): the tokens and the document's ground.
+import './tokens.css';
+import './document.css';
 import { COMPOSANTS, t, zCdActionDetail } from '@crewdeck/sdk';
 import type { LitElement } from 'lit';
-import { actionsOf, defineAll, inside, render, settle, textOf } from './browser.testing.js';
 import { COPIED_MS } from './code-block.js';
 import passerelle from './index.js';
+import { actionsOf, defineSkin, inside, render, settle, textOf } from './testing/dom.js';
 
-beforeAll(defineAll);
+beforeAll(defineSkin);
 
 /** How each declared action is set off from the first example: a test fails for an action without one. */
 const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unknown>> = {
   'Cadre.openPilot': (el) => inside(el, 'button.pilot').click(),
   'ProjectFilter.select': (el) => inside(el, 'cd-chip:nth-of-type(2)', 'button').click(),
   'Tabs.select': (el) => inside(el, 'button[role=tab]:nth-of-type(2)').click(),
+  'DecisionRow.open': (el) => inside(el, '.open').click(),
+  'IdeaRow.open': (el) => inside(el, '.open').click(),
+  'AgentRow.open': (el) => inside(el, 'button').click(),
   'PageComposants.select': (el) => inside(el, 'nav cd-list-row:not(:has(cd-status-badge))', 'a').click(),
   'Session.stop': (el) => inside(el, 'cd-button.stop', 'button').click(),
   'Session.resume': async (el) => {

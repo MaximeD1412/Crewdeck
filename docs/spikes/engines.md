@@ -5,7 +5,8 @@
 > (scenario 9a, to be run by the founder). Codex: version, sign-in states
 > (none, API key), models, Skills discovery and the quota reached on an API
 > key recorded; the scenarios that run a model are **not tested**: the
-> founder's OpenAI key has no credit and none will be added for now. No
+> founder's OpenAI key has no credit and none will be added for now. What is
+> left goes to RUNNER-15 (#144). No
 > scenario so far breaks a story; the
 > one that came closest, a permission request waiting for hours, works
 > once the Runner's MCP server sends progress notifications (scenario 2).
@@ -433,8 +434,8 @@ process), the MCP progress notifications (they never reach stdout), `system/stat
 Observed so far: the not-signed-in states and the listings. The other rows
 come from the protocol of 0.167.1 (`codex app-server generate-ts`) and are
 *to confirm*: they need a model to run, not tested for lack of credit on
-the OpenAI key. RUNNER-6 starts from them and records its own streams once a
-Compte IA Codex can run a turn.
+the OpenAI key. RUNNER-15 (#144) records them once a Compte IA Codex can
+run a turn; RUNNER-6 waits for it.
 
 | Normalised | app-server (Sessions the Pilote drives) | `exec --json` (Boucle) |
 |---|---|---|
@@ -465,10 +466,13 @@ Compte IA Codex can run a turn.
   `codex app-server generate-ts`. **Codex is not proven on a running turn**
   (no credit on the founder's OpenAI key): its approvals held for hours, its
   question, interrupt and resume, its usage figures are taken from the
-  protocol, not observed. RUNNER-6 records them before its adapter relies on
-  them; does an approval request survive hours, as Claude's needed a
-  keep-alive, is the first thing to check. Until then Claude Code is the
+  protocol, not observed. RUNNER-15 (#144) records them, and blocks
+  RUNNER-6; whether an approval request survives hours (Claude's needed a
+  keep-alive) is the first thing it checks. Until then Claude Code is the
   only proven Moteur.
+- **What RUNNER-15 also takes over**: the Claude limit event
+  (`record-limit.sh` when a window is full) and scenario 9a
+  (`bypassPermissions`, run by the founder).
 - **Runner restart**: the turn in progress is lost; the Runner keeps what it
   streamed, marks the Session interrupted, and sends a message on resume
   (US-60).

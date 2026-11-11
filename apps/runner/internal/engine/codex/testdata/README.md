@@ -4,7 +4,7 @@ Recorded by the spike RUNNER-1 ([`docs/spikes/engines.md`](../../../../../../doc
 with **Codex 0.167.1** (`codex --version` → `codex-cli 0.167.1`), first
 with **no account**, then signed in by an **OpenAI API key without credit**
 (every turn ends « Quota exceeded »): the scenarios that run a model are not
-tested, no credit being added for now.
+tested, no credit being added for now; RUNNER-15 (#144) records them.
 
 - `<name>.jsonl`: the stdout of `codex app-server` (JSON-RPC, one message per
   line) or of `codex exec --json`, exactly as emitted.

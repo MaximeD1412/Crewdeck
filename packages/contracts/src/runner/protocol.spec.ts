@@ -63,4 +63,12 @@ describe('the Runner protocol', () => {
     expect(zHelloRejected.parse({ ...withoutLatest, reason: 'revoked' })).toMatchObject({ reason: 'revoked' });
     expect(zHelloRejected.safeParse({ ...rejected, reason: 'expired' }).success).toBe(false);
   });
+
+  it('refuses a step.verdict without its StepRun, or with a status other than passed or incomplete', () => {
+    const message = fixture('step.verdict') as { verdict: object };
+    const withoutStepRun: Record<string, unknown> = { ...message };
+    delete withoutStepRun.stepRunId;
+    expect(zRunnerToServer.safeParse(withoutStepRun).success).toBe(false);
+    expect(zRunnerToServer.safeParse({ ...message, verdict: { ...message.verdict, status: 'failed' } }).success).toBe(false);
+  });
 });

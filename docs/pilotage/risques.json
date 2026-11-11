@@ -396,7 +396,12 @@
       "statutDepuis": "2026-11-10",
       "solutions": [
         {
-          "texte": "Contrat vérifié par le Runner, Décision « Contrat incomplet » pour relancer",
+          "texte": "Contrat déclaré en données, vérifié par le Runner sur le worktree et la PR de l'Étape, verdict envoyé (step.verdict)",
+          "ref": "ADR 0005",
+          "fait": true
+        },
+        {
+          "texte": "Décision « Contrat incomplet » pour relancer",
           "ref": "ADR 0005",
           "fait": false
         }
@@ -741,6 +746,11 @@
         {
           "texte": "CI en échec si la génération n'est pas à jour",
           "ref": "ADR 0001",
+          "fait": true
+        },
+        {
+          "texte": "Contrats des Étapes écrits en JSON depuis leurs déclarations zod, embarqués par le Runner, relus par Vitest et go test",
+          "ref": "ADR 0005",
           "fait": true
         }
       ],

@@ -47,6 +47,7 @@ func newRootCommand() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE:  func(cmd *cobra.Command, _ []string) error { return runRunner(cmd, server) },
 	})
+	root.AddCommand(newContratCommand())
 	return root
 }
 

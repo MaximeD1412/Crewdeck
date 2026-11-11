@@ -2,6 +2,7 @@ import { type DynamicModule, Module, type ModuleMetadata } from '@nestjs/common'
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod';
+import { AuthModule } from './auth/auth.module.js';
 import { type Env, usesFakes } from './config/env.js';
 import { EnvModule } from './config/env.module.js';
 import { PublicConfigModule } from './config/public-config.controller.js';
@@ -9,6 +10,7 @@ import { ErrorFilter } from './errors/error.filter.js';
 import { GitHubModule } from './github/github.module.js';
 import { HealthModule } from './health/health.module.js';
 import { type LogDestination, loggerParams } from './logging/logger.js';
+import { PilotsModule } from './pilots/me.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ScopeModule } from './scope/scope.module.js';
 import { WebModule } from './web/web.module.js';
@@ -47,6 +49,8 @@ export class AppModule {
         PublicConfigModule,
         GitHubModule.forRoot(env),
         ...fakes(env),
+        AuthModule,
+        PilotsModule,
         WebModule.forRoot(env),
         ...imports,
       ],

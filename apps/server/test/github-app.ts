@@ -1,4 +1,4 @@
-import { generateKeyPairSync } from 'node:crypto';
+import { generateKeyPairSync, randomBytes } from 'node:crypto';
 
 let privateKey: string | undefined;
 
@@ -22,4 +22,10 @@ export const githubAppEnv = (): Record<string, string> => ({
   GITHUB_APP_CLIENT_ID: 'Iv23-test-client',
   GITHUB_APP_CLIENT_SECRET: 'test-client-secret',
   GITHUB_APP_SLUG: 'crewdeck-test',
+});
+
+/** The sign-in's keys (CORE-4), drawn for the run, as the server's `.env` has them (base64). */
+export const authKeysEnv = (): Record<string, string> => ({
+  GITHUB_TOKEN_KEY: randomBytes(32).toString('base64'),
+  SESSION_SECRET: randomBytes(32).toString('base64'),
 });

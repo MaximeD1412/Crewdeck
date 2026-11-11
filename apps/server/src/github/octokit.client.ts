@@ -28,7 +28,7 @@ import type { PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
 import type { Env } from '../config/env.js';
 import { AppError } from '../errors/app-error.js';
-import { branchProtected, githubUnavailable, headMoved, processJsonInvalid } from './github.errors.js';
+import { branchProtected, githubUnavailable, headMoved, processJsonInvalid, userTokenRefused } from './github.errors.js';
 import type { GitHubClient } from './github.client.js';
 import { GitHubReadForbiddenError, installReadGuard } from './read-guard.js';
 
@@ -550,6 +550,7 @@ export class OctokitGitHubClient implements GitHubClient {
         // A refused code comes back as a 200 with an `error`; nothing of it is logged but its code.
         const code = z.object({ error: z.string() }).safeParse(data);
         this.logger.warn({ oauthError: code.success ? code.data.error : 'unexpected shape' }, 'GitHub refused the user authorization');
+        if (code.success) throw userTokenRefused();
         throw githubUnavailable();
       }
       const now = Date.now();

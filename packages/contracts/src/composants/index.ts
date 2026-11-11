@@ -16,6 +16,7 @@ import { Icon } from './icon.js';
 import { KeyValue } from './key-value.js';
 import { ListRow } from './list-row.js';
 import { PageComposants } from './page-composants.js';
+import { PageConnexion } from './page-connexion.js';
 import { PageHeader } from './page-header.js';
 import { PageIntrouvable } from './page-introuvable.js';
 import { ProcessTrack } from './process-track.js';
@@ -49,6 +50,7 @@ export * from './icons.js';
 export * from './key-value.js';
 export * from './list-row.js';
 export * from './page-composants.js';
+export * from './page-connexion.js';
 export * from './page-header.js';
 export * from './page-introuvable.js';
 export * from './process-track.js';
@@ -74,6 +76,7 @@ export const COMPOSANTS = {
   PageHeader,
   ProjectFilter,
   PageComposants,
+  PageConnexion,
   PageIntrouvable,
   Card,
   CodeBlock,

@@ -32,7 +32,8 @@ export const GITHUB_CLIENT = Symbol('GITHUB_CLIENT');
  * client is the second fence. Every merge passes the SHA the gate judged.
  *
  * Errors are `AppError`s: `github.head-moved` (409), `github.branch-protected`
- * (422), `github.unavailable` (500) for anything else.
+ * (422), `github.user-token-refused` (401) for a user grant GitHub refuses,
+ * `github.unavailable` (500) for anything else.
  */
 export interface GitHubClient {
   // --- The user authorization (sign-in, CORE-4)

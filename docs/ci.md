@@ -94,8 +94,8 @@ Locally, run only the files you touched
 ### `e2e`
 
 The projects in scope with an `e2e` target (`apps/web`, INFRA-4), against
-the same PostgreSQL service, Chromium from the Playwright cache (keyed by its
-version). On failure, `apps/web/test-results/` is kept 7 days as the
+the same PostgreSQL service, migrated first (`server:migrate`, as `pnpm db:up`
+does locally), Chromium from the Playwright cache (keyed by its version). On failure, `apps/web/test-results/` is kept 7 days as the
 artifact `e2e-results`. With no `e2e` target in scope, the job installs no
 browser and passes.
 

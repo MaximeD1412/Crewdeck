@@ -22,6 +22,7 @@ export const githubAppEnv = (): Record<string, string> => ({
   GITHUB_APP_CLIENT_ID: 'Iv23-test-client',
   GITHUB_APP_CLIENT_SECRET: 'test-client-secret',
   GITHUB_APP_SLUG: 'crewdeck-test',
+  GITHUB_WEBHOOK_SECRET: 'test-webhook-secret-not-a-real-one',
 });
 
 /** The sign-in's keys (CORE-4), drawn for the run, as the server's `.env` has them (base64). */

@@ -22,6 +22,7 @@ database_url="postgresql://crewdeck:crewdeck@$db:5432/crewdeck"
 # The variables the server requires in production and staging, dummies: a key of its own, never an App's.
 github_app=(
   -e GITHUB_APP_ID=1 -e GITHUB_APP_SLUG=crewdeck-smoke -e GITHUB_APP_CLIENT_ID=smoke -e GITHUB_APP_CLIENT_SECRET=smoke
+  -e GITHUB_WEBHOOK_SECRET=smoke
   -e GITHUB_APP_PRIVATE_KEY="$(openssl genrsa 2048 2>/dev/null | base64 -w0)"
   -e GITHUB_TOKEN_KEY="$(openssl rand -base64 32)" -e SESSION_SECRET="$(openssl rand -base64 48)"
 )

@@ -30,7 +30,14 @@ const zBase64Key = (bytes: number, { atLeast = false } = {}) =>
     .refine((key) => (atLeast ? key.length >= bytes : key.length === bytes), `${atLeast ? 'At least ' : ''}${bytes} bytes, in base64`);
 
 /** The variables of the GitHub App, required where the server talks to the real GitHub. */
-const GITHUB_APP_KEYS = ['GITHUB_APP_ID', 'GITHUB_APP_PRIVATE_KEY', 'GITHUB_APP_CLIENT_ID', 'GITHUB_APP_CLIENT_SECRET', 'GITHUB_APP_SLUG'] as const;
+const GITHUB_APP_KEYS = [
+  'GITHUB_APP_ID',
+  'GITHUB_APP_PRIVATE_KEY',
+  'GITHUB_APP_CLIENT_ID',
+  'GITHUB_APP_CLIENT_SECRET',
+  'GITHUB_APP_SLUG',
+  'GITHUB_WEBHOOK_SECRET',
+] as const;
 
 /** The keys of the sign-in (CORE-4), required where Pilotes sign in for good. */
 const AUTH_KEYS = ['GITHUB_TOKEN_KEY', 'SESSION_SECRET'] as const;
@@ -63,6 +70,12 @@ export const zEnv = z
     GITHUB_APP_CLIENT_ID: z.string().min(1).optional(),
     GITHUB_APP_CLIENT_SECRET: z.string().min(1).optional(),
     GITHUB_APP_SLUG: z.string().min(1).optional(),
+    /**
+     * The App's webhook secret: `X-Hub-Signature-256` is its HMAC of each
+     * delivery (PROJET-1). Unset in development and test, every delivery is
+     * refused.
+     */
+    GITHUB_WEBHOOK_SECRET: z.string().min(1).optional(),
     /** GitHub's API and site: GitHub.com's unless set. */
     GITHUB_API_URL: zHttpUrl.default('https://api.github.com'),
     GITHUB_WEB_URL: zHttpUrl.default('https://github.com'),

@@ -117,9 +117,8 @@ func startRunner(t *testing.T, binary, server string) *lockedBuffer {
 	t.Helper()
 	home := t.TempDir()
 	dir := filepath.Join(home, ".crewdeck")
-	if err := (state.Store{Dir: dir}).Save(state.State{Server: server, RunnerID: "runner-id", Token: "rnr_token"}); err != nil {
-		t.Fatal(err)
-	}
+	// A linked Runner holds its key and its vault's envelope: run opens them at start.
+	linkedHome(t, dir, server)
 	var env []string
 	for _, kv := range os.Environ() {
 		if !strings.HasPrefix(kv, "INVOCATION_ID=") && !strings.HasPrefix(kv, "XPC_SERVICE_NAME=") && !strings.HasPrefix(kv, state.HomeEnv+"=") {

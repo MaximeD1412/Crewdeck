@@ -6,18 +6,23 @@ import {
   zRunnerLink,
   zRunnerLinkConfirm,
   zRunnerLinkFailure,
+  zRunnerLinkReject,
   zRunnerLinkRequest,
   zRunnerLinkStatus,
   zShortId,
 } from '../index.js';
 
 const SECRET = 'M2PXA7QK9VZ3T8W4R6N1B5C0DE';
+const KEY = 'Yfery35HM-eYbPAm7LdhTYCeN5erL97LmNKhUPk930U';
+const WRAP = { enc: KEY, ciphertext: 'A'.repeat(64), tag: KEY };
+const CONFIRM = { proof: KEY, vaultKeyVersion: 1, runnerVaultWrap: WRAP, deviceVaultWrap: WRAP };
 const LINK = {
   id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a01',
   shortId: '7KQ4',
   state: 'waiting',
   failureReason: null,
   expiresAt: '2026-11-11T08:10:00.000Z',
+  runnerId: null,
   runnerPairing: null,
 };
 
@@ -49,14 +54,23 @@ describe('the link API', () => {
     expect(zRunnerLinkFailure.safeParse({ shortId: '7KQ4', reason: 'no-engine', os: 'Linux', arch: 'x86_64' }).success).toBe(false);
   });
 
-  it('confirms with an opaque pairing and the seq of the code', () => {
-    expect(zRunnerLinkConfirm.parse({ pairing: {}, seq: '12' })).toEqual({ pairing: {}, seq: 12 });
-    expect(zRunnerLinkConfirm.safeParse({ pairing: 'clair', seq: 12 }).success).toBe(false);
+  it('confirms with the page’s proof, the vault wraps and the seq of the code', () => {
+    expect(zRunnerLinkConfirm.parse({ pairing: CONFIRM, seq: '12' })).toEqual({ pairing: CONFIRM, seq: 12 });
+    const { deviceVaultWrap: _absent, ...relink } = CONFIRM;
+    expect(zRunnerLinkConfirm.parse({ pairing: relink, seq: 12 }).pairing.deviceVaultWrap).toBeUndefined();
+    expect(zRunnerLinkConfirm.safeParse({ pairing: {}, seq: 12 }).success).toBe(false);
+    expect(zRunnerLinkConfirm.safeParse({ pairing: { ...CONFIRM, vaultKeyVersion: 0 }, seq: 12 }).success).toBe(false);
+  });
+
+  it('rejects a code with pairing-mismatch only', () => {
+    expect(zRunnerLinkReject.parse({ reason: 'pairing-mismatch', seq: 3 })).toEqual({ reason: 'pairing-mismatch', seq: 3 });
+    expect(zRunnerLinkReject.safeParse({ reason: 'expired', seq: 3 }).success).toBe(false);
   });
 
   it('answers the binary pending, linked with its token, or failed with a reason', () => {
     expect(zRunnerLinkStatus.parse({ state: 'pending' })).toEqual({ state: 'pending' });
-    expect(zRunnerLinkStatus.parse({ state: 'linked', runnerId: LINK.id, token: 'a'.repeat(43), pairing: {} })).toMatchObject({ state: 'linked' });
+    const pairing = { proof: KEY, vaultKeyVersion: 1, runnerVaultWrap: WRAP };
+    expect(zRunnerLinkStatus.parse({ state: 'linked', runnerId: LINK.id, token: 'a'.repeat(43), pairing })).toMatchObject({ state: 'linked', pairing });
     expect(zRunnerLinkStatus.parse({ state: 'failed', reason: 'expired' })).toMatchObject({ reason: 'expired' });
     expect(zRunnerLinkStatus.safeParse({ state: 'waiting' }).success).toBe(false);
   });

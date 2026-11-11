@@ -35,6 +35,11 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	if err != nil {
 		return err
 	}
+	// The vault opens at start: a Runner that cannot open it does not run.
+	vault, err := openVault(store)
+	if err != nil {
+		return err
+	}
 	if server != "" {
 		linked.Server = server
 	}
@@ -48,6 +53,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		return err
 	}
 	logger := logging.New(cmd.ErrOrStderr())
+	logger.Info("vault.opened", "vaultKeyVersion", vault.Version)
 	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	updater := &update.Updater{

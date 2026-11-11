@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { zVaultKeyWrap } from '../keys/pairing.js';
 import { zId } from '../values.js';
 import { runnerMessage } from './envelope.js';
 
@@ -22,8 +23,16 @@ export const zHello = runnerMessage('hello', {
 });
 export type Hello = z.infer<typeof zHello>;
 
-/** Server → Runner: the connection is accepted, in `protocolVersion` (the Runner's own, this one or the one before). */
-export const zHelloAccepted = runnerMessage('hello.accepted', { runnerId: zId, protocolVersion: z.int().positive() });
+/**
+ * Server → Runner: the connection is accepted, in `protocolVersion` (the
+ * Runner's own, this one or the one before), with the Runner's wrap of the
+ * current vault key (none before the first pairing).
+ */
+export const zHelloAccepted = runnerMessage('hello.accepted', {
+  runnerId: zId,
+  protocolVersion: z.int().positive(),
+  vaultKeyWrap: zVaultKeyWrap.optional(),
+});
 export type HelloAccepted = z.infer<typeof zHelloAccepted>;
 
 /**

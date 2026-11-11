@@ -1,4 +1,5 @@
 import {
+  DEVICE_HEADER,
   LINK_ATTEMPTS_PER_MINUTE,
   LINK_CODE_TTL_SECONDS,
   RUNNER_WS_CLOSE,
@@ -11,6 +12,8 @@ import {
   zRunnerLinkConfirmed,
   zRunnerLinkStatus,
   zState,
+  zDevice,
+  zHelloAccepted,
 } from '@crewdeck/contracts';
 import type { INestApplication } from '@nestjs/common';
 import pg from 'pg';
@@ -25,6 +28,7 @@ import { RunnerLinkLimiter } from '../../src/runners/link/link-limiter.js';
 import { RunnerLinkSweep } from '../../src/runners/link/runner-link-sweep.job.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
 import { createLinkedRunner } from '../../src/testing/runners.js';
+import { pairingSides, type PairingSides } from '../fakes/pairing.js';
 import { connectRunner, type FakeRunnerClient } from '../fakes/runner.js';
 import { expectEnvelope, expectFields, startApp } from '../route-baseline.js';
 
@@ -70,6 +74,7 @@ describe('linking a Runner against PostgreSQL', () => {
   beforeEach(async () => {
     await sql('TRUNCATE pilots CASCADE');
     app.get(RunnerLinkLimiter).reset();
+    sent.length = 0;
   });
 
   afterEach(async () => {
@@ -89,51 +94,82 @@ describe('linking a Runner against PostgreSQL', () => {
     return { id, cookie: `${SESSION_COOKIE}=${token}` };
   };
 
-  /** A request of the page: its cookie and its origin. */
-  const page = (tab: Tab, path: string, body?: unknown): Promise<Response> =>
-    fetch(`${url}${path}`, {
+  /** Every body a request of these tests sent: none may carry a secret nor a vault key. */
+  const sent: string[] = [];
+
+  /** A request of the page: its cookie and its origin, its Appareil in `X-Crewdeck-Device` once it has one. */
+  const page = (tab: Tab, path: string, body?: unknown, deviceId?: string): Promise<Response> => {
+    const text = body === undefined ? undefined : JSON.stringify(body);
+    if (text) sent.push(text);
+    return fetch(`${url}${path}`, {
       method: body === undefined ? 'GET' : 'POST',
-      headers: { cookie: tab.cookie, origin: ORIGIN, 'content-type': 'application/json' },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      headers: { cookie: tab.cookie, origin: ORIGIN, 'content-type': 'application/json', ...(deviceId ? { [DEVICE_HEADER]: deviceId } : {}) },
+      ...(text === undefined ? {} : { body: text }),
     });
+  };
 
   /** A request of the binary or of `install.sh`: no session. */
-  const binary = (path: string, body?: unknown): Promise<Response> =>
-    fetch(`${url}${path}`, {
+  const binary = (path: string, body?: unknown): Promise<Response> => {
+    const text = body === undefined ? undefined : JSON.stringify(body);
+    if (text) sent.push(text);
+    return fetch(`${url}${path}`, {
       method: body === undefined ? 'GET' : 'POST',
       headers: { 'content-type': 'application/json' },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(text === undefined ? {} : { body: text }),
     });
+  };
 
   const state = async (tab: Tab) => zState.parse(await (await page(tab, '/api/state')).json());
 
-  const drawCode = async (tab: Tab) => {
-    const res = await page(tab, '/api/runner/link-codes', { pairing: {} });
+  /** The page draws a code for its Appareil: a new one, or the one `deviceId` names. */
+  const drawCode = async (tab: Tab, sides: PairingSides = pairingSides(), deviceId?: string) => {
+    const res = await page(tab, '/api/runner/link-codes', { pairing: sides.browser() }, deviceId);
     expect(res.status).toBe(201);
-    return zRunnerLinkCodeCreated.parse(await res.json());
+    return { ...zRunnerLinkCodeCreated.parse(await res.json()), sides };
   };
 
+  type Code = Awaited<ReturnType<typeof drawCode>>;
+
   /** The Runner's side up to `pending` with its pairing, as `crewdeck-runner link` does it. */
-  const linkAndPair = async (shortId: string, machine: Partial<Omit<RunnerLinkRequest, 'shortId'>> = {}) => {
-    const res = await binary('/api/runner/link', { ...MACHINE, ...machine, shortId });
+  const linkAndPair = async (code: Code, machine: Partial<Omit<RunnerLinkRequest, 'shortId'>> = {}) => {
+    const res = await binary('/api/runner/link', { ...MACHINE, ...machine, shortId: code.shortId });
     expect(res.status).toBe(202);
     const accepted = zRunnerLinkAccepted.parse(await res.json());
-    expect((await binary(`/api/runner/link/${accepted.linkId}/pairing`, { pairing: { runner: 'opaque' } })).status).toBe(204);
+    expect((await binary(`/api/runner/link/${accepted.linkId}/pairing`, { pairing: code.sides.runner(code.shortId) })).status).toBe(204);
     return accepted;
   };
 
-  const confirm = async (tab: Tab, id: string) => page(tab, `/api/runner/link-codes/${id}/confirm`, { pairing: { browser: 'opaque' }, seq: (await state(tab)).seq });
+  /** The page confirms: the first Appareil wraps a new vault key for itself and the Runner, a trusted one for the Runner only. */
+  const confirm = async (tab: Tab, code: Code, { version = 1, first = true } = {}) =>
+    page(tab, `/api/runner/link-codes/${code.id}/confirm`, { pairing: code.sides.confirm(code.shortId, version, first), seq: (await state(tab)).seq }, code.deviceId);
 
   /** The whole link: the code, the Runner pending, the page's confirmation, the token. */
-  const link = async (tab: Tab, machine: Partial<Omit<RunnerLinkRequest, 'shortId'>> = {}) => {
-    const code = await drawCode(tab);
-    const { linkId } = await linkAndPair(code.shortId, machine);
-    const res = await confirm(tab, code.id);
+  const link = async (
+    tab: Tab,
+    machine: Partial<Omit<RunnerLinkRequest, 'shortId'>> = {},
+    { sides = pairingSides(), deviceId, version = 1, first = true }: { sides?: PairingSides; deviceId?: string; version?: number; first?: boolean } = {},
+  ) => {
+    const code = await drawCode(tab, sides, deviceId);
+    const { linkId } = await linkAndPair(code, machine);
+    const res = await confirm(tab, code, { version, first });
     expect(res.status).toBe(200);
     const { runner } = zRunnerLinkConfirmed.parse(await res.json());
     const status = zRunnerLinkStatus.parse(await (await binary(`/api/runner/link/${linkId}`)).json());
     return { runner, token: status.token ?? '', status, linkId, code };
   };
+
+  /** Every row of every table, as text: none may hold a secret nor a vault key. */
+  const everyColumn = async (): Promise<string> => {
+    const tables = await sql<{ tablename: string }>("SELECT tablename FROM pg_tables WHERE schemaname = 'public'");
+    const rows = await Promise.all(tables.map(({ tablename }) => sql<{ row: string }>(`SELECT row_to_json(t)::text AS row FROM "${tablename}" t`)));
+    return rows.flat().map(({ row }) => row).join('\n');
+  };
+
+  const wrapsOf = (pilotId: string) =>
+    sql<{ holder_type: string; holder_id: string; vault_key_version: number }>(
+      'SELECT holder_type, holder_id, vault_key_version FROM vault_key_wraps WHERE pilot_id = $1 ORDER BY holder_type, created_at',
+      [pilotId],
+    );
 
   const eventsOf = async (pilotId: string, type: string) =>
     (await sql<{ payload: Record<string, unknown> }>('SELECT payload FROM events WHERE pilot_id = $1 AND type = $2 ORDER BY seq', [pilotId, type])).map((row) => row.payload);
@@ -152,7 +188,15 @@ describe('linking a Runner against PostgreSQL', () => {
       expect(code.shortId).toMatch(/^[0-9A-HJKMNP-TV-Z]{4}$/);
       expect(new Date(code.expiresAt).getTime() - Date.now()).toBeGreaterThan((LINK_CODE_TTL_SECONDS - 5) * 1000);
       const slice = (await state(alice))['runner-link'];
-      expect(zRunnerLink.parse(slice)).toEqual({ id: code.id, shortId: code.shortId, state: 'waiting', failureReason: null, expiresAt: code.expiresAt, runnerPairing: null });
+      expect(zRunnerLink.parse(slice)).toEqual({
+        id: code.id,
+        shortId: code.shortId,
+        state: 'waiting',
+        failureReason: null,
+        expiresAt: code.expiresAt,
+        runnerId: null,
+        runnerPairing: null,
+      });
       expect(await eventsOf(alice.id, 'runner-link.upserted')).toEqual([slice]);
     });
 
@@ -169,7 +213,8 @@ describe('linking a Runner against PostgreSQL', () => {
       const alice = await pilot();
 
       await expectFields(await page(alice, '/api/runner/link-codes', { pairing: 'clair' }), ['pairing']);
-      await expectEnvelope(await binary('/api/runner/link-codes', { pairing: {} }), 401, 'auth.required');
+      await expectFields(await page(alice, '/api/runner/link-codes', { pairing: { devicePublicKey: 'court', deviceName: ' ' } }), ['pairing.devicePublicKey', 'pairing.deviceName']);
+      await expectEnvelope(await binary('/api/runner/link-codes', { pairing: pairingSides().browser() }), 401, 'auth.required');
     });
   });
 
@@ -178,10 +223,10 @@ describe('linking a Runner against PostgreSQL', () => {
       const alice = await pilot();
       const code = await drawCode(alice);
 
-      const accepted = await linkAndPair(code.shortId);
+      const accepted = await linkAndPair(code);
 
-      expect(accepted).toEqual({ linkId: code.id, browserPairing: {} });
-      expect((await state(alice))['runner-link']).toMatchObject({ state: 'pending', runnerPairing: { runner: 'opaque' } });
+      expect(accepted).toEqual({ linkId: code.id, browserPairing: code.sides.browser() });
+      expect((await state(alice))['runner-link']).toMatchObject({ state: 'pending', runnerId: expect.any(String), runnerPairing: code.sides.runner(code.shortId) });
       const [row] = await sql<{ pending_runner: unknown }>('SELECT pending_runner FROM runner_link_codes WHERE id = $1', [code.id]);
       expect(row?.pending_runner).toEqual(MACHINE);
     });
@@ -210,11 +255,11 @@ describe('linking a Runner against PostgreSQL', () => {
     it('answers 422 runner.link-code-used to a second machine, the code failed for both', async () => {
       const alice = await pilot();
       const code = await drawCode(alice);
-      await linkAndPair(code.shortId);
+      await linkAndPair(code);
 
       await expectEnvelope(await binary('/api/runner/link', { ...MACHINE, shortId: code.shortId }), 422, 'runner.link-code-used');
       expect((await state(alice))['runner-link']).toMatchObject({ state: 'failed', failureReason: 'already-used' });
-      await expectEnvelope(await confirm(alice, code.id), 409, 'runner.link-not-pending');
+      await expectEnvelope(await confirm(alice, code), 409, 'runner.link-not-pending');
     });
 
     it('takes a code once when two machines link with it at the same time: the second 422 runner.link-code-used, the code failed', async () => {
@@ -274,12 +319,15 @@ describe('linking a Runner against PostgreSQL', () => {
       const alice = await pilot();
       const code = await drawCode(alice);
 
-      await expectEnvelope(await binary(`/api/runner/link/${code.id}/pairing`, { pairing: {} }), 409, 'runner.link-not-pending');
-      await linkAndPair(code.shortId);
-      await expectEnvelope(await binary(`/api/runner/link/${code.id}/pairing`, { pairing: {} }), 409, 'runner.link-not-pending');
-      await expectEnvelope(await binary(`/api/runner/link/${newId()}/pairing`, { pairing: {} }), 404, 'runner.link-code-unknown');
-      await expectEnvelope(await binary('/api/runner/link/pas-un-id/pairing', { pairing: {} }), 404, 'runner.link-code-unknown');
+      const pairing = code.sides.runner(code.shortId);
+
+      await expectEnvelope(await binary(`/api/runner/link/${code.id}/pairing`, { pairing }), 409, 'runner.link-not-pending');
+      await linkAndPair(code);
+      await expectEnvelope(await binary(`/api/runner/link/${code.id}/pairing`, { pairing }), 409, 'runner.link-not-pending');
+      await expectEnvelope(await binary(`/api/runner/link/${newId()}/pairing`, { pairing }), 404, 'runner.link-code-unknown');
+      await expectEnvelope(await binary('/api/runner/link/pas-un-id/pairing', { pairing }), 404, 'runner.link-code-unknown');
       await expectFields(await binary(`/api/runner/link/${code.id}/pairing`, {}), ['pairing']);
+      await expectFields(await binary(`/api/runner/link/${code.id}/pairing`, { pairing: { runnerPublicKey: 'x', proof: '' } }), ['pairing.runnerPublicKey', 'pairing.proof']);
     });
   });
 
@@ -301,29 +349,29 @@ describe('linking a Runner against PostgreSQL', () => {
       const alice = await pilot();
       const code = await drawCode(alice);
 
-      await expectEnvelope(await confirm(alice, code.id), 409, 'runner.link-not-pending');
+      await expectEnvelope(await confirm(alice, code), 409, 'runner.link-not-pending');
       await binary('/api/runner/link', { ...MACHINE, shortId: code.shortId });
-      await expectEnvelope(await confirm(alice, code.id), 409, 'runner.link-not-pending');
+      await expectEnvelope(await confirm(alice, code), 409, 'runner.link-not-pending');
     });
 
     it('answers 409 realtime.stale with the seq of an older state of the code', async () => {
       const alice = await pilot();
       const code = await drawCode(alice);
       const before = (await state(alice)).seq;
-      await linkAndPair(code.shortId);
+      await linkAndPair(code);
 
-      await expectEnvelope(await page(alice, `/api/runner/link-codes/${code.id}/confirm`, { pairing: {}, seq: before }), 409, 'realtime.stale');
+      await expectEnvelope(await page(alice, `/api/runner/link-codes/${code.id}/confirm`, { pairing: code.sides.confirm(code.shortId), seq: before }), 409, 'realtime.stale');
     });
 
     it('answers 404 for another Pilote’s code or an id that is none, 401 without a session, 400 with fields', async () => {
       const alice = await pilot('alice');
       const bob = await pilot('bob');
       const code = await drawCode(alice);
-      await linkAndPair(code.shortId);
+      await linkAndPair(code);
 
-      await expectEnvelope(await confirm(bob, code.id), 404, 'runner.link-code-unknown');
-      await expectEnvelope(await page(alice, '/api/runner/link-codes/pas-un-id/confirm', { pairing: {}, seq: 0 }), 404, 'runner.link-code-unknown');
-      await expectEnvelope(await binary(`/api/runner/link-codes/${code.id}/confirm`, { pairing: {}, seq: 0 }), 401, 'auth.required');
+      await expectEnvelope(await confirm(bob, code), 404, 'runner.link-code-unknown');
+      await expectEnvelope(await page(alice, '/api/runner/link-codes/pas-un-id/confirm', { pairing: code.sides.confirm(code.shortId), seq: 0 }), 404, 'runner.link-code-unknown');
+      await expectEnvelope(await binary(`/api/runner/link-codes/${code.id}/confirm`, { pairing: code.sides.confirm(code.shortId), seq: 0 }), 401, 'auth.required');
       await expectFields(await page(alice, `/api/runner/link-codes/${code.id}/confirm`, { pairing: [] }), ['pairing', 'seq']);
       expect((await state(alice)).runner).toBeNull();
     });
@@ -336,7 +384,7 @@ describe('linking a Runner against PostgreSQL', () => {
       socket.hello();
       await socket.expect('hello.accepted');
 
-      const second = await link(alice, { machine: 'portable' });
+      const second = await link(alice, { machine: 'portable' }, { deviceId: first.code.deviceId, sides: first.code.sides, first: false });
 
       expect((await socket.closed()).code).toBe(RUNNER_WS_CLOSE.unauthorized);
       const again = await connectRunner(url, first.token);
@@ -349,11 +397,148 @@ describe('linking a Runner against PostgreSQL', () => {
     it('answers 409 to a pending code past its 10 minutes, the code expired', async () => {
       const alice = await pilot();
       const code = await drawCode(alice);
-      await linkAndPair(code.shortId);
+      await linkAndPair(code);
       advance(LINK_CODE_TTL_SECONDS + 1);
 
-      await expectEnvelope(await confirm(alice, code.id), 409, 'runner.link-not-pending');
+      await expectEnvelope(await confirm(alice, code), 409, 'runner.link-not-pending');
       expect((await state(alice))['runner-link']).toMatchObject({ state: 'expired', failureReason: 'expired' });
+    });
+  });
+
+  describe('the first Appareil (E2E-2)', () => {
+    it('ends a full link with a trusted Appareil, a Runner and two wraps of version 1, device.upserted in the confirm’s transaction', async () => {
+      const alice = await pilot();
+
+      const { runner, code, status, token } = await link(alice);
+
+      const devices = (await state(alice)).devices;
+      expect(devices).toEqual([expect.objectContaining({ id: code.deviceId, name: 'Chrome sur Linux', state: 'trusted', approvedAt: expect.any(String), current: false })]);
+      expect(await wrapsOf(alice.id)).toEqual([
+        { holder_type: 'device', holder_id: code.deviceId, vault_key_version: 1 },
+        { holder_type: 'runner', holder_id: runner.id, vault_key_version: 1 },
+      ]);
+      expect(status.runnerId).toBe(runner.id);
+      expect(status.pairing).toEqual({ proof: code.sides.confirm(code.shortId).proof, vaultKeyVersion: 1, runnerVaultWrap: code.sides.confirm(code.shortId).runnerVaultWrap });
+      const [pilotRow] = await sql<{ vault_key_version: number }>('SELECT vault_key_version FROM pilots WHERE id = $1', [alice.id]);
+      expect(pilotRow?.vault_key_version).toBe(1);
+      // xmin: the transaction that inserted the row.
+      const events = await sql<{ type: string; payload: { state?: string }; tx: string }>('SELECT type, payload, xmin::text AS tx FROM events WHERE pilot_id = $1 ORDER BY seq', [alice.id]);
+      const trusted = events.find((event) => event.type === 'device.upserted' && event.payload.state === 'trusted');
+      const created = events.find((event) => event.type === 'runner.upserted');
+      expect(zDevice.parse(trusted?.payload)).toMatchObject({ state: 'trusted' });
+      expect(trusted?.tx).toBe(created?.tx);
+      // Drawn pending; seen (`lastSeenAt`) when its page confirms; trusted by the confirmation.
+      expect(events.filter((event) => event.type === 'device.upserted').map((event) => event.payload.state)).toEqual(['pending', 'pending', 'trusted']);
+
+      const socket = await connectRunner(url, token);
+      sockets.push(socket);
+      socket.hello();
+      expect(zHelloAccepted.parse(await socket.expect('hello.accepted')).vaultKeyWrap).toEqual({ vaultKeyVersion: 1, ...code.sides.confirm(code.shortId).runnerVaultWrap });
+    });
+
+    it('never sends nor stores the link’s secret nor the vault key', async () => {
+      const alice = await pilot();
+
+      const { code } = await link(alice);
+
+      const columns = await everyColumn();
+      for (const leak of code.sides.leaks()) {
+        expect(sent.join('\n')).not.toContain(leak);
+        expect(columns).not.toContain(leak);
+      }
+      // What the server keeps instead: the public keys.
+      expect(columns).toContain(Buffer.from(code.sides.devicePublicKey, 'base64url').toString('hex'));
+    });
+
+    it('reuses the Appareil its page names with the same key; a new one for another key or another Pilote’s', async () => {
+      const alice = await pilot('alice');
+      const bob = await pilot('bob');
+      const first = await drawCode(alice);
+
+      const again = await drawCode(alice, first.sides, first.deviceId);
+      const otherKey = await drawCode(alice, pairingSides(), first.deviceId);
+      const bobs = await drawCode(bob, first.sides, first.deviceId);
+
+      expect(again.deviceId).toBe(first.deviceId);
+      expect(otherKey.deviceId).not.toBe(first.deviceId);
+      expect(bobs.deviceId).not.toBe(first.deviceId);
+      expect((await state(alice)).devices.map((device) => device.id).sort()).toEqual([first.deviceId, otherKey.deviceId].sort());
+    });
+
+    it('relinks from a trusted Appareil: the same vault key wrapped for the new Runner, its version unchanged', async () => {
+      const alice = await pilot();
+      const first = await link(alice);
+
+      const second = await link(alice, { machine: 'portable' }, { deviceId: first.code.deviceId, sides: first.code.sides, first: false });
+
+      expect(second.code.deviceId).toBe(first.code.deviceId);
+      expect(await wrapsOf(alice.id)).toEqual([
+        { holder_type: 'device', holder_id: first.code.deviceId, vault_key_version: 1 },
+        { holder_type: 'runner', holder_id: first.runner.id, vault_key_version: 1 },
+        { holder_type: 'runner', holder_id: second.runner.id, vault_key_version: 1 },
+      ]);
+      expect(second.status.pairing?.vaultKeyVersion).toBe(1);
+      const [pilotRow] = await sql<{ vault_key_version: number }>('SELECT vault_key_version FROM pilots WHERE id = $1', [alice.id]);
+      expect(pilotRow?.vault_key_version).toBe(1);
+    });
+
+    it('answers 422 devices.not-trusted to a relink from an untrusted browser: the code failed device-not-trusted, no Runner, no wrap', async () => {
+      const alice = await pilot();
+      const first = await link(alice);
+      const code = await drawCode(alice);
+      const { linkId } = await linkAndPair(code);
+
+      await expectEnvelope(await confirm(alice, code, { first: false }), 422, 'devices.not-trusted');
+
+      expect((await state(alice))['runner-link']).toMatchObject({ id: code.id, state: 'failed', failureReason: 'device-not-trusted' });
+      expect(await (await binary(`/api/runner/link/${linkId}`)).json()).toEqual({ state: 'failed', reason: 'device-not-trusted' });
+      expect((await state(alice)).runner?.id).toBe(first.runner.id);
+      expect(await wrapsOf(alice.id)).toHaveLength(2);
+    });
+
+    it('answers 422 runner.link-pairing-invalid to a confirmation the vault cannot take, the code still pending', async () => {
+      const alice = await pilot();
+      const code = await drawCode(alice);
+      await linkAndPair(code);
+
+      await expectEnvelope(await confirm(alice, code, { first: false }), 422, 'runner.link-pairing-invalid');
+      await expectEnvelope(await confirm(alice, code, { version: 2 }), 422, 'runner.link-pairing-invalid');
+
+      expect((await state(alice))['runner-link']).toMatchObject({ state: 'pending' });
+      expect(await wrapsOf(alice.id)).toEqual([]);
+      expect((await confirm(alice, code)).status).toBe(200);
+    });
+  });
+
+  describe('POST /api/runner/link-codes/:id/reject', () => {
+    it('fails the pending code pairing-mismatch: the binary reads it, the page draws a new code', async () => {
+      const alice = await pilot();
+      const code = await drawCode(alice);
+      const { linkId } = await linkAndPair(code);
+
+      const res = await page(alice, `/api/runner/link-codes/${code.id}/reject`, { reason: 'pairing-mismatch', seq: (await state(alice)).seq });
+
+      expect(res.status).toBe(204);
+      expect((await state(alice))['runner-link']).toMatchObject({ id: code.id, state: 'failed', failureReason: 'pairing-mismatch' });
+      expect((await eventsOf(alice.id, 'runner-link.upserted')).at(-1)).toMatchObject({ state: 'failed', failureReason: 'pairing-mismatch' });
+      expect(await (await binary(`/api/runner/link/${linkId}`)).json()).toEqual({ state: 'failed', reason: 'pairing-mismatch' });
+      expect(await wrapsOf(alice.id)).toEqual([]);
+    });
+
+    it('answers 409 to a code not pending or an older seq, 404 to another Pilote’s, 401 without a session, 400 with fields', async () => {
+      const alice = await pilot('alice');
+      const bob = await pilot('bob');
+      const code = await drawCode(alice);
+      const before = (await state(alice)).seq;
+      const reject = (tab: Tab, seq: number, id = code.id) => page(tab, `/api/runner/link-codes/${id}/reject`, { reason: 'pairing-mismatch', seq });
+
+      await expectEnvelope(await reject(alice, before), 409, 'runner.link-not-pending');
+      await linkAndPair(code);
+      await expectEnvelope(await reject(alice, before), 409, 'realtime.stale');
+      await expectEnvelope(await reject(bob, 0), 404, 'runner.link-code-unknown');
+      await expectEnvelope(await binary(`/api/runner/link-codes/${code.id}/reject`, { reason: 'pairing-mismatch', seq: 0 }), 401, 'auth.required');
+      await expectFields(await page(alice, `/api/runner/link-codes/${code.id}/reject`, { reason: 'expired' }), ['reason', 'seq']);
+      expect((await state(alice))['runner-link']).toMatchObject({ state: 'pending' });
     });
   });
 
@@ -361,14 +546,15 @@ describe('linking a Runner against PostgreSQL', () => {
     it('is pending, then linked with the token exactly once', async () => {
       const alice = await pilot();
       const code = await drawCode(alice);
-      const { linkId } = await linkAndPair(code.shortId);
+      const { linkId } = await linkAndPair(code);
       expect(await (await binary(`/api/runner/link/${linkId}`)).json()).toEqual({ state: 'pending' });
-      expect((await confirm(alice, code.id)).status).toBe(200);
+      expect((await confirm(alice, code)).status).toBe(200);
 
       const first = zRunnerLinkStatus.parse(await (await binary(`/api/runner/link/${linkId}`)).json());
       const second = zRunnerLinkStatus.parse(await (await binary(`/api/runner/link/${linkId}`)).json());
 
-      expect(first).toEqual({ state: 'linked', runnerId: expect.any(String), token: expect.any(String), pairing: { browser: 'opaque' } });
+      const { deviceVaultWrap: _, ...linked } = code.sides.confirm(code.shortId);
+      expect(first).toEqual({ state: 'linked', runnerId: expect.any(String), token: expect.any(String), pairing: linked });
       expect(second).toEqual({ state: 'linked', runnerId: first.runnerId });
       const socket = await connectRunner(url, first.token);
       sockets.push(socket);
@@ -384,7 +570,7 @@ describe('linking a Runner against PostgreSQL', () => {
       clock.now = () => new Date();
 
       const used = await drawCode(alice);
-      await linkAndPair(used.shortId);
+      await linkAndPair(used);
       await binary('/api/runner/link', { ...MACHINE, shortId: used.shortId });
       expect(await (await binary(`/api/runner/link/${used.id}`)).json()).toEqual({ state: 'failed', reason: 'already-used' });
 

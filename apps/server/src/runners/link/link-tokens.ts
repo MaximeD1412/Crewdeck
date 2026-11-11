@@ -1,10 +1,11 @@
-import type { Pairing } from '@crewdeck/contracts';
+import type { LinkedPairing } from '@crewdeck/contracts';
 import { Injectable } from '@nestjs/common';
 
 /** What the binary gets on its first `linked` answer. */
 export interface LinkHandoff {
   readonly token: string;
-  readonly pairing: Pairing;
+  /** The device's proof and the Runner's wrap of the vault key. */
+  readonly pairing: LinkedPairing;
 }
 
 /**

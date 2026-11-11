@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { RunnerTokens } from '../auth/runner-tokens.js';
+import { DevicesModule } from '../devices/devices.module.js';
 import { RunnerClock } from './clock.js';
 import { RunnerDistController } from './distribution/runner-dist.controller.js';
 import { RunnerLinkLimiter } from './link/link-limiter.js';
@@ -23,6 +24,7 @@ import { RunnerProtocol } from './protocol-version.js';
  * and its link (`link/`, RUNNER-3).
  */
 @Module({
+  imports: [DevicesModule],
   controllers: [RunnersController, RunnerLinkCodesController, RunnerLinkController, RunnerDistController],
   providers: [
     RunnerTokens,

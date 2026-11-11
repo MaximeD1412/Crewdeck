@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { zDevice } from './devices.js';
 import { zMe } from './me.js';
 import { zRunner } from './runner.js';
 import { zRunnerLink } from './runner-link.js';
@@ -15,6 +16,8 @@ export const STATE_SLICES = {
   runner: zRunner.nullable(),
   /** The Pilote's last link code (RUNNER-3), `null` before any: « Premiers pas » follows it. */
   'runner-link': zRunnerLink.nullable(),
+  /** The Pilote's Appareils (E2E-2), newest first; `current` is `false`, each page sets its own. */
+  devices: z.array(zDevice),
 } as const;
 export type StateKey = keyof typeof STATE_SLICES;
 

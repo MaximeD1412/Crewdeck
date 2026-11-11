@@ -3,10 +3,46 @@
   "additionalProperties": false,
   "properties": {
     "pairing": {
-      "additionalProperties": {},
-      "propertyNames": {
-        "type": "string"
+      "additionalProperties": false,
+      "properties": {
+        "proof": {
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "runnerVaultWrap": {
+          "additionalProperties": false,
+          "properties": {
+            "ciphertext": {
+              "pattern": "^[A-Za-z0-9_-]*$",
+              "type": "string"
+            },
+            "enc": {
+              "pattern": "^[A-Za-z0-9_-]*$",
+              "type": "string"
+            },
+            "tag": {
+              "pattern": "^[A-Za-z0-9_-]*$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "ciphertext",
+            "enc",
+            "tag"
+          ],
+          "type": "object"
+        },
+        "vaultKeyVersion": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer"
+        }
       },
+      "required": [
+        "proof",
+        "runnerVaultWrap",
+        "vaultKeyVersion"
+      ],
       "type": "object"
     },
     "reason": {
@@ -14,7 +50,9 @@
         "expired",
         "already-used",
         "unsupported-system",
-        "no-engine"
+        "no-engine",
+        "pairing-mismatch",
+        "device-not-trusted"
       ],
       "type": "string"
     },

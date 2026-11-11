@@ -39,9 +39,20 @@ export class PasserelleIdeaRow extends PasserelleElement<typeof IdeaRow> {
         justify-content: flex-start;
         margin-top: var(--cd-space-2);
       }
+      /* On a phone, the title and meta only (design/screens/crewdeck/idees.html). */
+      .context,
+      .facts {
+        display: none;
+      }
       @media (min-width: 1280px) {
         .row {
           grid-template-columns: var(--cd-rail) var(--cd-icon-box) minmax(0, 1fr) auto auto;
+        }
+        .context {
+          display: -webkit-box;
+        }
+        .facts {
+          display: flex;
         }
         .actions {
           grid-column: auto;

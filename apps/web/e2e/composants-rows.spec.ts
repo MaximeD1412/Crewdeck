@@ -51,6 +51,11 @@ test.describe('the row Composants in the library (/parametres/composants?c=<Name
       await expect(page.locator(tag)).toHaveCount(examples.length);
       await expect(page.locator(tag).first()).toBeVisible();
       await expectAccessible(page);
+      // From 1280 px the table of its data fits its card: a long type (an enum of states) breaks at its spaces.
+      if ((page.viewportSize()?.width ?? 0) >= 1280) {
+        const table = page.getByRole('group', { name: 'Données' });
+        expect(await table.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+      }
 
       const heights = await oneLineHeights(page, tag, ONE_LINE[name] ?? {});
       expect(heights.length).toBeGreaterThan(0);

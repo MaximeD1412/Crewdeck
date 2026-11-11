@@ -129,12 +129,9 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
           gap: var(--cd-space-6);
           align-items: start;
         }
-        /* Room enough: the name and the type on one line, the description takes the rest. */
-        td code {
-          white-space: nowrap;
-        }
+        /* Room enough: a type on one line unless it is a long union, which breaks at its spaces; the description takes the rest. */
         th:last-child {
-          width: 100%;
+          width: 60%;
         }
       }
     `,

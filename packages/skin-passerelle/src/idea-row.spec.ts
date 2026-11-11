@@ -63,6 +63,18 @@ describe('IdeaRow', () => {
     ]);
   });
 
+  it('below 1280 px, keeps its title and meta only, as the list of Idées shows them on a phone', async () => {
+    await page.viewport(390, 844);
+    const el = await render(IdeaRow, analysed);
+    expect(inside(el, '.title').checkVisibility()).toBe(true);
+    expect(inside(el, '.meta').checkVisibility()).toBe(true);
+    expect(inside(el, '.context').checkVisibility()).toBe(false);
+    expect(inside(el, '.facts').checkVisibility()).toBe(false);
+    await page.viewport(1280, 800);
+    expect(inside(el, '.context').checkVisibility()).toBe(true);
+    expect(inside(el, '.facts').checkVisibility()).toBe(true);
+  });
+
   it('without an analysis, has neither summary nor facts', async () => {
     const el = await render(IdeaRow, untriaged);
     expect(el.shadowRoot?.querySelector('.context')).toBeNull();

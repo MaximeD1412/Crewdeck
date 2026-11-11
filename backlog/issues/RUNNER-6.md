@@ -6,7 +6,7 @@ type: feature
 priority: P1
 size: M
 milestone: M2 Runner and Projets
-blocked_by: [RUNNER-4]
+blocked_by: [RUNNER-4, RUNNER-15]
 adr: [0004]
 risques: [IA-2, IA-3]
 stories: [US-9, US-38, US-39, US-40, US-55]
@@ -66,3 +66,4 @@ Nothing.
 ## Dependencies
 
 - RUNNER-4.
+- RUNNER-15: the Codex streams of a running turn, which RUNNER-1 could not record (no credit on the OpenAI key).

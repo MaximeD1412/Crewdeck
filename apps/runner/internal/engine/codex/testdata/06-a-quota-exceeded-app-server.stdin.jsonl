@@ -1,0 +1,4 @@
+{"method":"initialize","id":1,"params":{"clientInfo":{"name":"crewdeck-spike","title":"Crewdeck spike","version":"0.0.0"},"capabilities":null}}
+{"method":"initialized"}
+{"method":"thread/start","id":2,"params":{"model":"gpt-6-luna","cwd":"/home/pilote/spike","approvalPolicy":"on-request","sandbox":"workspace-write"}}
+{"method":"turn/start","id":3,"params":{"threadId":"01a1caae-f95c-7003-9232-13ea8e95d546","input":[{"type":"text","text":"Lis README.md, lance `ls` dans le terminal, puis dis en une phrase ce que contient ce dépôt.","text_elements":[]}]}}

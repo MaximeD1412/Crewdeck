@@ -1,0 +1,7 @@
+{"method":"initialize","id":1,"params":{"clientInfo":{"name":"crewdeck-spike","title":"Crewdeck spike","version":"0.0.0"},"capabilities":null}}
+{"method":"initialized"}
+{"method":"account/read","id":2,"params":{"refreshToken":false}}
+{"method":"model/list","id":3,"params":{}}
+{"method":"skills/list","id":4,"params":{"cwds":["/home/pilote/spike"],"forceReload":true}}
+{"method":"account/rateLimits/read","id":5}
+{"method":"thread/start","id":6,"params":{"cwd":"/home/pilote/spike"}}

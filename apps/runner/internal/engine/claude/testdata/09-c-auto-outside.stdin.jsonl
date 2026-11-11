@@ -1,0 +1,1 @@
+{"type":"user","message":{"role":"user","content":"Avec l'outil Write, crée `/home/pilote/outside/note.txt` contenant « hors du dépôt ». Puis, avec l'outil Bash, lance exactement `rm -rf /home/pilote/outside/dummy`. Résume en une phrase."}}

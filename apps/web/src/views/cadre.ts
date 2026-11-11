@@ -1,3 +1,4 @@
+import type { Connection } from '../store/store.js';
 import { NAV_IDS, t, type Cadre, type ComposantData, type IconName, type MenuItem, type NavId } from '@crewdeck/sdk';
 
 export type CadreData = ComposantData<typeof Cadre>;
@@ -11,11 +12,13 @@ export interface PilotSlice {
 
 /**
  * What the Cadre reads of the store. Each slice is registered by its ticket:
- * `pilot` by CORE-6; the Resynchronisation (CORE-6), the Runner (RUNNER-2),
+ * `pilot` and the connection by CORE-6; the Runner (RUNNER-2),
  * the Décisions count (ATOI-1) and the metas of Projets and Runner
  * (PROJET-2, RUNNER-7) add theirs here.
  */
 export interface CadreState {
+  /** The store's connection; without it (no store), the Cadre is not resynchronising. */
+  readonly connection?: Connection;
   readonly slices: {
     readonly pilot?: PilotSlice | null;
   };
@@ -63,21 +66,23 @@ const entryOf = (path: string): NavId | null => {
 
 /**
  * The Cadre's data and its menu's for the page at `route` (pure): the current
- * entry from the URL, the Pilote from the `pilot` slice. Until their slices
- * exist, the status is `offline` with no detail, nothing is live and no entry
- * has a count.
+ * entry from the URL, the Pilote from the `pilot` slice, the status `resync`
+ * while the connection is not `live` (ADR 0007). Until their slices exist,
+ * the status is otherwise `offline` with no detail, nothing is live and no
+ * entry has a count.
  */
 export const cadreView = (state: CadreState, route: { readonly path: string }): CadreView => {
   const bare = BARE_PATHS.has(route.path);
   const current = bare ? null : entryOf(route.path);
   const label = (id: NavId) => t(`cadre.menu.${id}.label`);
+  const resync = state.connection !== undefined && state.connection !== 'live';
   return {
     cadre: {
       variant: bare ? 'bare' : 'default',
       current,
       screenLabel: current ? label(current) : t('cadre.brand'),
-      status: 'offline',
-      statusDetail: null,
+      status: resync ? 'resync' : 'offline',
+      statusDetail: resync ? t('cadre.status.resyncDetail') : null,
       live: false,
       pilot: state.slices.pilot ? { login: state.slices.pilot.login, avatarUrl: state.slices.pilot.avatarUrl } : null,
     },

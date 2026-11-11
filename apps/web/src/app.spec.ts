@@ -1,10 +1,18 @@
 import { CD_ACTION, t } from '@crewdeck/sdk';
 import { createDispatcher } from './actions/dispatcher.js';
 import { boot } from './app.js';
+import { createStore } from './store/store.js';
 
 const PILOT = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris' };
 
 type WithData = HTMLElement & { data: unknown; updateComplete: Promise<unknown> };
+
+/** A store of its own and a connection that opens nothing. */
+const quiet = () => {
+  const store = createStore();
+  store.registerSlice('pilot', { shape: 'single' });
+  return { store, connection: { start: vi.fn<() => void>(), stop: vi.fn<() => void>() } };
+};
 
 describe('the page', () => {
   afterEach(() => document.body.replaceChildren());
@@ -17,7 +25,10 @@ describe('the page', () => {
     const dispatcher = createDispatcher();
     const listen = vi.spyOn(dispatcher, 'listen');
 
-    const app = await boot({ root, dispatcher, me: async () => PILOT });
+    const options = quiet();
+    const app = await boot({ root, dispatcher, me: async () => PILOT, ...options });
+
+    expect(options.connection.start).toHaveBeenCalledTimes(1);
 
     expect(listen).toHaveBeenCalledWith(document);
 
@@ -39,6 +50,6 @@ describe('the page', () => {
     );
     await vi.waitFor(() => expect(location.pathname).toBe('/parametres'));
     expect(cadre.data).toMatchObject({ current: 'parametres' });
-    app.router.stop();
+    app.stop();
   });
 });

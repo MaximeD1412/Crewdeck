@@ -11,7 +11,7 @@ import { currentPilotId } from '../scope/scope.context.js';
 export class MeDto extends createZodDto(zMe) {}
 
 /** What of the Pilote's row the page sees: `GET /api/me`, the `pilot` slice of `GET /api/state`, the payload of `pilot.upserted`. */
-const ME = { id: true, login: true, avatarUrl: true, timeZone: true } as const;
+export const ME = { id: true, login: true, avatarUrl: true, timeZone: true } as const;
 
 /** `GET /api/me`: who is signed in, which the page asks first. */
 @Controller('me')

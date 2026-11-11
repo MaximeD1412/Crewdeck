@@ -47,7 +47,6 @@ describe('zDay', () => {
 describe.each([
   ['zUsdMicros', zUsdMicros],
   ['zEurCents', zEurCents],
-  ['zSeq', zSeq],
 ])('%s', (_name, schema) => {
   it('accepts zero and a positive integer', () => {
     expect(schema.parse(0)).toBe(0);
@@ -61,6 +60,25 @@ describe.each([
 
   it('rejects a number written as a string', () => {
     expect(schema.safeParse('42').success).toBe(false);
+  });
+});
+
+describe('zSeq', () => {
+  it('accepts zero and a positive integer, as a number or its decimal string (BigInt-safe in JSON), and gives a number', () => {
+    expect(zSeq.parse(0)).toBe(0);
+    expect(zSeq.parse(42)).toBe(42);
+    expect(zSeq.parse('0')).toBe(0);
+    expect(zSeq.parse('42')).toBe(42);
+  });
+
+  it('rejects -1, 1.5, a string that is not a decimal integer, and beyond the safe integers', () => {
+    for (const value of [-1, 1.5, '-1', '1.5', '', ' 4', '042', '4e2', '0x10', '9007199254740993', null]) {
+      expect(zSeq.safeParse(value).success, JSON.stringify(value)).toBe(false);
+    }
+  });
+
+  it('is written back as a number', () => {
+    expect(zSeq.encode(42)).toBe(42);
   });
 });
 

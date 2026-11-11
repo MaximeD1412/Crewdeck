@@ -12,6 +12,7 @@
 import { type Bytes, concat, own, utf8 } from './bytes.js';
 import { publicKeyOf } from './crypto.js';
 import { type Entropy, replaceEntropy } from './entropy.js';
+import type { DeviceStore, StoredDevice } from './device-store.js';
 
 const STREAM_LABEL = utf8('crewdeck/test/random');
 
@@ -86,3 +87,18 @@ export const withFixedRandom = <T>(bytes: Uint8Array, run: () => Promise<T>): Pr
 /** The first `length` bytes of the seed's stream. */
 export const deterministicBytes = (seed: Uint8Array, length: number): Promise<Bytes> =>
   deterministicStream(seed)(length);
+
+/** The device store in memory, for the specs that do not test IndexedDB. */
+export const memoryDeviceStore = (initial: StoredDevice | null = null): DeviceStore & { current: () => StoredDevice | null } => {
+  let device = initial;
+  return {
+    current: () => device,
+    getDevice: async () => device,
+    saveDevice: async (next) => {
+      device = next;
+    },
+    clearDevice: async () => {
+      device = null;
+    },
+  };
+};

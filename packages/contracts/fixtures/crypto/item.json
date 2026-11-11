@@ -1,0 +1,34 @@
+{
+  "description": "Items under the vault key (docs/security/e2e.md « First Appareil (E2E-2) »): the vault key as an Appareil holds it, its wrap for itself, and items sealed by the Runner's Vault.SealItem. Byte strings are base64url without padding. Every random byte (keys, ephemeral keys, nonces) comes from the deterministic stream of the case's seed, see docs/security/e2e.md « Test vectors ».",
+  "vault": {
+    "seed": "Y3Jld2RlY2staXRlbS92YXVsdA",
+    "deviceId": "dev_01J9ZQ3M",
+    "vaultKeyVersion": 1,
+    "devicePrivateKey": "HpS9EjVwnIYzM_qWgEVftv71rqpIr5-JPEE4aOAaxaE",
+    "devicePublicKey": "G66tf7NtzFwTuMRQsXycMQBdtICYUJm3f3P5FsGLjWc",
+    "vaultKey": "M2R0Pfnf_rCBjvV-kIOBd7R_TFqX_nbyO6MM7Siy8oI",
+    "wrap": {
+      "enc": "CRc5IXMqxqagU91hn8eJlWmt0p_F38f-iEiOGyiRhT8",
+      "ciphertext": "cR0KfEyiwKT3qJFWM66ZQ19eEKZ_8CWdTb7AXxGTYJImv2K6YB_gkMEZvctp1xQ3",
+      "tag": "Uy59k4e8eplBWNnVO3g87uM9VN6RUK4TVkRUOvNento"
+    }
+  },
+  "items": [
+    {
+      "name": "idea-text",
+      "seed": "Y3Jld2RlY2staXRlbS9pZGVhLXRleHQ",
+      "aad": "aWRlYV8wMUo5WlE0Qzp0ZXh0",
+      "plaintext": "VW5lIElkw6llIDogbm90ZXIgw6AgbGEgdm9peCBkZXB1aXMgbGUgdMOpbMOpcGhvbmUu",
+      "key": "M4MQ1Gj2dSvmeh5MzKrYuHNKMED5nkhXnN0_Us0mySTNDLAxA3r3gXpp2moRdZlxOYdEMmnWRSdYEy93",
+      "ciphertext": "6Glry4te74tnEO8Wn0WO5sEUflA6mltpYFtE9SxZzOFRm9Jqixr0olpCm3x3ysS_bwcQ1dZixrP2YrTI0LkGC0eo-xfh0l3E-AJKmFBw6A"
+    },
+    {
+      "name": "empty-plaintext",
+      "seed": "Y3Jld2RlY2staXRlbS9lbXB0eS1wbGFpbnRleHQ",
+      "aad": "aWRlYV8wMUo5WlE0QzpyZWFzb24",
+      "plaintext": "",
+      "key": "HfjTOPe3ah3-vUiHA_cI1EBwwe8hnMTdYVRFfIFUTDYjZ77MflLn8kjgEK95ZPCTHrQOkdoiXp_cxHOE",
+      "ciphertext": "v-Lzbmdxq9XPYzZjE2H0clLd0uGCE44SUvR1VA"
+    }
+  ]
+}

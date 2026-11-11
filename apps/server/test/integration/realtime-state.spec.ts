@@ -67,6 +67,7 @@ describe('the snapshot and the retention against PostgreSQL', () => {
         pilot: { id: alice.id, login: 'alice', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner' },
         runner: null,
         'runner-link': null,
+        devices: [],
         settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' },
       });
     });

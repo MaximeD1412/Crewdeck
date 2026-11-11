@@ -10,7 +10,7 @@ import "unicode/utf8"
 
 type RunnerLinkStatus struct {
 	// Pairing corresponds to the JSON schema field "pairing".
-	Pairing RunnerLinkStatusPairing `json:"pairing,omitempty,omitzero"`
+	Pairing *RunnerLinkStatusPairing `json:"pairing,omitempty,omitzero"`
 
 	// Reason corresponds to the JSON schema field "reason".
 	Reason *RunnerLinkStatusReason `json:"reason,omitempty,omitzero"`
@@ -25,13 +25,101 @@ type RunnerLinkStatus struct {
 	Token *string `json:"token,omitempty,omitzero"`
 }
 
-type RunnerLinkStatusPairing map[string]interface{}
+type RunnerLinkStatusPairing struct {
+	// Proof corresponds to the JSON schema field "proof".
+	Proof string `json:"proof"`
+
+	// RunnerVaultWrap corresponds to the JSON schema field "runnerVaultWrap".
+	RunnerVaultWrap RunnerLinkStatusPairingRunnerVaultWrap `json:"runnerVaultWrap"`
+
+	// VaultKeyVersion corresponds to the JSON schema field "vaultKeyVersion".
+	VaultKeyVersion int `json:"vaultKeyVersion"`
+}
+
+type RunnerLinkStatusPairingRunnerVaultWrap struct {
+	// Ciphertext corresponds to the JSON schema field "ciphertext".
+	Ciphertext string `json:"ciphertext"`
+
+	// Enc corresponds to the JSON schema field "enc".
+	Enc string `json:"enc"`
+
+	// Tag corresponds to the JSON schema field "tag".
+	Tag string `json:"tag"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerLinkStatusPairingRunnerVaultWrap) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["ciphertext"]; raw != nil && !ok {
+		return fmt.Errorf("field ciphertext in RunnerLinkStatusPairingRunnerVaultWrap: required")
+	}
+	if _, ok := raw["enc"]; raw != nil && !ok {
+		return fmt.Errorf("field enc in RunnerLinkStatusPairingRunnerVaultWrap: required")
+	}
+	if _, ok := raw["tag"]; raw != nil && !ok {
+		return fmt.Errorf("field tag in RunnerLinkStatusPairingRunnerVaultWrap: required")
+	}
+	type Plain RunnerLinkStatusPairingRunnerVaultWrap
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Ciphertext)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Ciphertext", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Enc)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Enc", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Tag)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Tag", `^[A-Za-z0-9_-]*$`)
+	}
+	*j = RunnerLinkStatusPairingRunnerVaultWrap(plain)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerLinkStatusPairing) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["proof"]; raw != nil && !ok {
+		return fmt.Errorf("field proof in RunnerLinkStatusPairing: required")
+	}
+	if _, ok := raw["runnerVaultWrap"]; raw != nil && !ok {
+		return fmt.Errorf("field runnerVaultWrap in RunnerLinkStatusPairing: required")
+	}
+	if _, ok := raw["vaultKeyVersion"]; raw != nil && !ok {
+		return fmt.Errorf("field vaultKeyVersion in RunnerLinkStatusPairing: required")
+	}
+	type Plain RunnerLinkStatusPairing
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Proof)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Proof", `^[A-Za-z0-9_-]*$`)
+	}
+	if 9007199254740991 < plain.VaultKeyVersion {
+		return fmt.Errorf("field %s: must be <= %v", "vaultKeyVersion", 9007199254740991)
+	}
+	if 0 >= plain.VaultKeyVersion {
+		return fmt.Errorf("field %s: must be > %v", "vaultKeyVersion", 0)
+	}
+	*j = RunnerLinkStatusPairing(plain)
+	return nil
+}
 
 type RunnerLinkStatusReason string
 
 const RunnerLinkStatusReasonAlreadyUsed RunnerLinkStatusReason = "already-used"
+const RunnerLinkStatusReasonDeviceNotTrusted RunnerLinkStatusReason = "device-not-trusted"
 const RunnerLinkStatusReasonExpired RunnerLinkStatusReason = "expired"
 const RunnerLinkStatusReasonNoEngine RunnerLinkStatusReason = "no-engine"
+const RunnerLinkStatusReasonPairingMismatch RunnerLinkStatusReason = "pairing-mismatch"
 const RunnerLinkStatusReasonUnsupportedSystem RunnerLinkStatusReason = "unsupported-system"
 
 var enumValues_RunnerLinkStatusReason = []interface{}{
@@ -39,6 +127,8 @@ var enumValues_RunnerLinkStatusReason = []interface{}{
 	"already-used",
 	"unsupported-system",
 	"no-engine",
+	"pairing-mismatch",
+	"device-not-trusted",
 }
 
 // UnmarshalJSON implements json.Unmarshaler.

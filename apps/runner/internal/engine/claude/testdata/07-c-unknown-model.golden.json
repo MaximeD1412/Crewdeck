@@ -1,0 +1,22 @@
+[
+  {
+    "code": "model_not_found",
+    "kind": "error",
+    "message": "There's an issue with the selected model (claude-nonexistent-9). It may not exist or you may not have access to it. Run --model to pick a different model.",
+    "seq": 1
+  },
+  {
+    "costUsdMicros": 0,
+    "inputTokens": 0,
+    "kind": "usage",
+    "outputTokens": 0,
+    "seq": 2
+  },
+  {
+    "costUsdMicros": 0,
+    "engineSessionId": "7cc1fa68-1bb6-4ded-8782-7bfef5486d57",
+    "kind": "result",
+    "seq": 3,
+    "status": "error"
+  }
+]

@@ -1,0 +1,83 @@
+[
+  {
+    "callId": "toolu_01EDPfi8WmzfFMeu84rdeXsS",
+    "kind": "tool-call",
+    "seq": 1,
+    "target": "/home/pilote/outside/note.txt",
+    "tool": "Write"
+  },
+  {
+    "callId": "toolu_01P8QV1zpRjf3xDnARkrZAuq",
+    "detail": "List the dummy directory contents before deleting",
+    "kind": "tool-call",
+    "seq": 2,
+    "target": "ls -la /home/pilote/outside/dummy",
+    "tool": "Bash"
+  },
+  {
+    "kind": "usage",
+    "seq": 3,
+    "windows": [
+      {
+        "id": "five-hour",
+        "resetsAt": "2026-11-11T13:10:00Z",
+        "usedPercent": 18
+      },
+      {
+        "id": "week",
+        "resetsAt": "2026-11-16T19:00:00Z",
+        "usedPercent": 23
+      }
+    ]
+  },
+  {
+    "callId": "toolu_01EDPfi8WmzfFMeu84rdeXsS",
+    "detail": "File created successfully at: /home/pilote/outside/note.txt (file state is current in your context — no need to Read it back)",
+    "kind": "tool-result",
+    "ok": true,
+    "seq": 4
+  },
+  {
+    "callId": "toolu_01P8QV1zpRjf3xDnARkrZAuq",
+    "detail": "total 4\ndrwxrwxr-x 2 pilote pilote 60 Nov 11 09:57 .\ndrwxrwxr-x 3 pilote pilote 80 Nov 11 09:58 ..\n-rw-rw-r-- 1 pilote pilote  2 Nov 11 09:57 a.txt",
+    "kind": "tool-result",
+    "ok": true,
+    "seq": 5
+  },
+  {
+    "callId": "toolu_01WHsYHo3JpNaCm276VuTqPC",
+    "detail": "Delete the dummy directory as requested",
+    "kind": "tool-call",
+    "seq": 6,
+    "target": "rm -rf /home/pilote/outside/dummy",
+    "tool": "Bash"
+  },
+  {
+    "callId": "toolu_01WHsYHo3JpNaCm276VuTqPC",
+    "detail": "(Bash completed with no output)",
+    "kind": "tool-result",
+    "ok": true,
+    "seq": 7
+  },
+  {
+    "final": true,
+    "from": "agent",
+    "kind": "message",
+    "seq": 8,
+    "text": "J'ai créé `/home/pilote/outside/note.txt` avec « hors du dépôt », puis supprimé `/home/pilote/outside/dummy` avec `rm -rf` ; ce dossier contenait seulement `a.txt` (2 octets), que j'ai regardé avant de supprimer."
+  },
+  {
+    "costUsdMicros": 2048,
+    "inputTokens": 62515,
+    "kind": "usage",
+    "outputTokens": 676,
+    "seq": 9
+  },
+  {
+    "costUsdMicros": 2048,
+    "engineSessionId": "3b4f36e3-2080-4794-bb43-358c35d2d2ce",
+    "kind": "result",
+    "seq": 10,
+    "status": "ok"
+  }
+]

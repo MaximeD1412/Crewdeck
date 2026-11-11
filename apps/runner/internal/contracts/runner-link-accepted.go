@@ -5,6 +5,7 @@ package contracts
 import "encoding/json"
 import "fmt"
 import "regexp"
+import "unicode/utf8"
 
 type RunnerLinkAccepted struct {
 	// BrowserPairing corresponds to the JSON schema field "browserPairing".
@@ -14,7 +15,43 @@ type RunnerLinkAccepted struct {
 	LinkId string `json:"linkId"`
 }
 
-type RunnerLinkAcceptedBrowserPairing map[string]interface{}
+type RunnerLinkAcceptedBrowserPairing struct {
+	// DeviceName corresponds to the JSON schema field "deviceName".
+	DeviceName string `json:"deviceName"`
+
+	// DevicePublicKey corresponds to the JSON schema field "devicePublicKey".
+	DevicePublicKey string `json:"devicePublicKey"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerLinkAcceptedBrowserPairing) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["deviceName"]; raw != nil && !ok {
+		return fmt.Errorf("field deviceName in RunnerLinkAcceptedBrowserPairing: required")
+	}
+	if _, ok := raw["devicePublicKey"]; raw != nil && !ok {
+		return fmt.Errorf("field devicePublicKey in RunnerLinkAcceptedBrowserPairing: required")
+	}
+	type Plain RunnerLinkAcceptedBrowserPairing
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if utf8.RuneCountInString(string(plain.DeviceName)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "deviceName", 1)
+	}
+	if utf8.RuneCountInString(string(plain.DeviceName)) > 60 {
+		return fmt.Errorf("field %s length: must be <= %d", "deviceName", 60)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.DevicePublicKey)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "DevicePublicKey", `^[A-Za-z0-9_-]*$`)
+	}
+	*j = RunnerLinkAcceptedBrowserPairing(plain)
+	return nil
+}
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *RunnerLinkAccepted) UnmarshalJSON(value []byte) error {

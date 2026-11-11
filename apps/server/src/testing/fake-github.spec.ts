@@ -221,9 +221,19 @@ describe('FakeGitHub', () => {
       const refreshed = await github.refreshUserToken(tokens.refreshToken);
 
       expect(await github.getAuthenticatedUser(refreshed.accessToken)).toEqual({ id: 1, login: 'pilote', avatarUrl: 'https://avatars.example/u/1' });
-      await expect(github.exchangeCode('other', 'x')).rejects.toMatchObject({ code: 'github.unavailable' });
+      await expect(github.exchangeCode('other', 'x')).rejects.toMatchObject({ code: 'github.user-token-refused' });
       expect(github.authorizeUrl('st4te', 'http://localhost:4200/cb')).toBe('/fake-github/login/oauth/authorize?client_id=fake&redirect_uri=http%3A%2F%2Flocalhost%3A4200%2Fcb&state=st4te');
     });
+  });
+
+  it('refuses a refresh token used twice, as GitHub does', async () => {
+    const github = new FakeGitHub();
+    github.seedUser({ id: 1, login: 'pilote', avatarUrl: 'https://avatars.example/u/1' });
+    const tokens = await github.exchangeCode('fake-code', 'x');
+
+    await github.refreshUserToken(tokens.refreshToken);
+
+    await expect(github.refreshUserToken(tokens.refreshToken)).rejects.toMatchObject({ status: 401, code: 'github.user-token-refused' });
   });
 
   describe('calls and reset', () => {

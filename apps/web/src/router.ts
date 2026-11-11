@@ -84,6 +84,11 @@ export interface RouterOptions {
   /** Called after each render, with the match. */
   readonly onRoute?: (match: RouteMatch) => void;
   readonly redirects?: Readonly<Record<string, string>>;
+  /**
+   * Before each render, the URL to show in place of the one matched, or
+   * `null` to show it: the sign-in's guard (`app.ts`). Its URL is not guarded again.
+   */
+  readonly guard?: (match: RouteMatch) => string | null;
 }
 
 /** A click the app handles: the main button, no modifier, a same-origin page URL in this tab. */
@@ -103,7 +108,7 @@ const linkOf = (event: MouseEvent): URL | null => {
  * `outlet`, then follows `navigate()`, the same-origin links (shadow roots
  * included) and the browser's back and forward.
  */
-export const startRouter = ({ routes, outlet, data = routeData(routes), onRoute, redirects = REDIRECTS }: RouterOptions): Router => {
+export const startRouter = ({ routes, outlet, data = routeData(routes), onRoute, redirects = REDIRECTS, guard }: RouterOptions): Router => {
   let current: RouteMatch;
 
   const render = () => {
@@ -111,6 +116,11 @@ export const startRouter = ({ routes, outlet, data = routeData(routes), onRoute,
     const target = Object.hasOwn(redirects, path) ? redirects[path] : undefined;
     if (target) history.replaceState(history.state, '', target + location.search + location.hash);
     current = matchRoute(routes, location.href);
+    const elsewhere = guard?.(current);
+    if (elsewhere) {
+      history.replaceState(null, '', elsewhere);
+      current = matchRoute(routes, location.href);
+    }
     const existing = outlet.firstElementChild;
     const page =
       existing && existing.localName === current.composant.tag && outlet.childElementCount === 1

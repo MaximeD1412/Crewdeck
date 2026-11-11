@@ -1,5 +1,6 @@
-import { githubAppEnv, testPrivateKey } from '../../test/github-app.js';
-import { loadEnv, parseEnv, usesFakes } from './env.js';
+import { randomBytes } from 'node:crypto';
+import { authKeysEnv, githubAppEnv, testPrivateKey } from '../../test/github-app.js';
+import { appOrigin, loadEnv, parseEnv, usesFakes } from './env.js';
 
 const DATABASE_URL = 'postgresql://crewdeck:crewdeck@localhost:5432/crewdeck';
 
@@ -17,6 +18,7 @@ describe('parseEnv', () => {
   });
 
   it('reads the given values', () => {
+    const keys = authKeysEnv();
     expect(
       parseEnv({
         NODE_ENV: 'production',
@@ -28,6 +30,7 @@ describe('parseEnv', () => {
         WEB_DIST_DIR: '/app/web',
         RUNNER_DIST_DIR: '/app/runner',
         ...githubAppEnv(),
+        ...keys,
         GITHUB_API_URL: 'https://ghe.example/api/v3',
         GITHUB_WEB_URL: 'https://ghe.example',
       }),
@@ -41,6 +44,8 @@ describe('parseEnv', () => {
       WEB_DIST_DIR: '/app/web',
       RUNNER_DIST_DIR: '/app/runner',
       ...githubAppEnv(),
+      GITHUB_TOKEN_KEY: Buffer.from(keys.GITHUB_TOKEN_KEY, 'base64'),
+      SESSION_SECRET: Buffer.from(keys.SESSION_SECRET, 'base64'),
       GITHUB_API_URL: 'https://ghe.example/api/v3',
       GITHUB_WEB_URL: 'https://ghe.example',
     });
@@ -58,7 +63,7 @@ describe('parseEnv', () => {
 
   it.each(['production', 'staging'])('requires PUBLIC_URL in %s', (CREWDECK_ENV) => {
     expect(() =>
-      parseEnv({ CREWDECK_ENV, DATABASE_URL, PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1', ...githubAppEnv() }),
+      parseEnv({ CREWDECK_ENV, DATABASE_URL, PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1', ...githubAppEnv(), ...authKeysEnv() }),
     ).toThrow(expect.objectContaining({ keys: ['PUBLIC_URL'] }));
   });
 
@@ -68,7 +73,7 @@ describe('parseEnv', () => {
 
   it('requires the production values in staging', () => {
     expect(() =>
-      parseEnv({ CREWDECK_ENV: 'staging', PUBLIC_URL: 'https://staging.crewdeck.example', DATABASE_URL, ...githubAppEnv() }),
+      parseEnv({ CREWDECK_ENV: 'staging', PUBLIC_URL: 'https://staging.crewdeck.example', DATABASE_URL, ...githubAppEnv(), ...authKeysEnv() }),
     ).toThrow(expect.objectContaining({ keys: ['PROD_PUBLIC_URL', 'PROD_GITHUB_APP_ID'] }));
   });
 
@@ -81,13 +86,14 @@ describe('parseEnv', () => {
         PROD_GITHUB_APP_ID: '1',
         DATABASE_URL,
         ...githubAppEnv(),
+        ...authKeysEnv(),
       }),
     ).toMatchObject({ PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1' });
   });
 });
 
 describe('the GitHub App', () => {
-  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL };
+  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...authKeysEnv() };
 
   it.each(['production', 'staging'])('is required in %s', (CREWDECK_ENV) => {
     expect(() =>
@@ -139,7 +145,7 @@ describe('CREWDECK_FAKES', () => {
 
   it.each(['production', 'staging'])('is refused on the %s server', (CREWDECK_ENV) => {
     const values = { CREWDECK_ENV, PUBLIC_URL: 'https://x.crewdeck.example', PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1', DATABASE_URL };
-    expect(() => parseEnv({ ...values, ...githubAppEnv(), NODE_ENV: 'development', CREWDECK_FAKES: '1' })).toThrow(
+    expect(() => parseEnv({ ...values, ...githubAppEnv(), ...authKeysEnv(), NODE_ENV: 'development', CREWDECK_FAKES: '1' })).toThrow(
       expect.objectContaining({ keys: ['CREWDECK_FAKES'] }),
     );
   });
@@ -164,5 +170,45 @@ describe('loadEnv', () => {
 
     expect(exit).toHaveBeenCalledWith(1);
     expect(error.mock.calls.join('\n')).toMatch(/PORT[\s\S]*DATABASE_URL/);
+  });
+});
+
+describe('the sign-in keys', () => {
+  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...githubAppEnv() };
+
+  it.each(['production', 'staging'])('are required in %s', (CREWDECK_ENV) => {
+    expect(() => parseEnv({ ...production, CREWDECK_ENV, PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1' })).toThrow(
+      expect.objectContaining({ keys: ['GITHUB_TOKEN_KEY', 'SESSION_SECRET'] }),
+    );
+  });
+
+  it.each(['development', 'test'])('are optional in %s', (CREWDECK_ENV) => {
+    expect(parseEnv({ CREWDECK_ENV, DATABASE_URL })).not.toHaveProperty('GITHUB_TOKEN_KEY');
+  });
+
+  it('reads them as their bytes, SESSION_SECRET as long as openssl rand -base64 48 makes it', () => {
+    const tokenKey = randomBytes(32);
+    const secret = randomBytes(48);
+
+    const env = parseEnv({ ...production, GITHUB_TOKEN_KEY: tokenKey.toString('base64'), SESSION_SECRET: secret.toString('base64') });
+
+    expect(env.GITHUB_TOKEN_KEY?.equals(tokenKey)).toBe(true);
+    expect(env.SESSION_SECRET?.equals(secret)).toBe(true);
+  });
+
+  it.each([
+    ['GITHUB_TOKEN_KEY', randomBytes(16).toString('base64')],
+    ['GITHUB_TOKEN_KEY', randomBytes(48).toString('base64')],
+    ['GITHUB_TOKEN_KEY', 'not base64!'],
+    ['SESSION_SECRET', randomBytes(16).toString('base64')],
+  ])('refuses %s=%s', (key, value) => {
+    expect(() => parseEnv({ ...production, ...authKeysEnv(), [key]: value })).toThrow(expect.objectContaining({ keys: [key] }));
+  });
+});
+
+describe('appOrigin', () => {
+  it('is the origin of PUBLIC_URL, else the page of pnpm dev', () => {
+    expect(appOrigin(parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL, PUBLIC_URL: 'https://crewdeck.example/a-toi' }))).toBe('https://crewdeck.example');
+    expect(appOrigin(parseEnv({ CREWDECK_ENV: 'development', DATABASE_URL }))).toBe('http://localhost:4200');
   });
 });

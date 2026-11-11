@@ -503,10 +503,18 @@ describe('OctokitGitHubClient', () => {
       expect(body).toEqual({ client_id: 'Iv23-test-client', client_secret: 'test-client-secret', code: 'c0de', redirect_uri: 'https://crewdeck.example/api/auth/callback' });
     });
 
-    it('throws github.unavailable for a code GitHub refuses', async () => {
+    it('throws github.user-token-refused for a code or a refresh token GitHub refuses', async () => {
       server.use(http.post(`${WEB}/login/oauth/access_token`, () => HttpResponse.json({ error: 'bad_verification_code', error_description: 'x' })));
+      const client = new OctokitGitHubClient(env, logger());
 
-      await expect(new OctokitGitHubClient(env, logger()).exchangeCode('stale', 'https://x.example/cb')).rejects.toMatchObject({ code: 'github.unavailable' });
+      await expect(client.exchangeCode('stale', 'https://x.example/cb')).rejects.toMatchObject({ status: 401, code: 'github.user-token-refused' });
+      await expect(client.refreshUserToken('ghr_revoked')).rejects.toMatchObject({ status: 401, code: 'github.user-token-refused' });
+    });
+
+    it('throws github.unavailable when GitHub fails the grant', async () => {
+      server.use(http.post(`${WEB}/login/oauth/access_token`, () => HttpResponse.json({ message: 'Not Found' }, { status: 404 })));
+
+      await expect(new OctokitGitHubClient(env, logger()).refreshUserToken('ghr_x')).rejects.toMatchObject({ code: 'github.unavailable' });
     });
 
     it('reads the user a token belongs to', async () => {

@@ -20,6 +20,7 @@ const TRIGGERS: Readonly<Record<string, (el: Element) => void>> = {
   'IdeaRow.open': (el) => inside(el, '.open').click(),
   'AgentRow.open': (el) => inside(el, 'button').click(),
   'PageComposants.select': (el) => inside(el, 'nav cd-list-row:not(:has(cd-status-badge))', 'a').click(),
+  'PageConnexion.signIn': (el) => inside(el, 'cd-button', 'button').click(),
 };
 
 afterEach(() => document.body.replaceChildren());
@@ -350,6 +351,26 @@ describe('PageIntrouvable', () => {
     const link = el.shadowRoot?.querySelector('a');
     expect(link?.getAttribute('href')).toBe('/a-toi');
     expect(link?.textContent?.trim()).toBe(t('router.notFound.back'));
+  });
+});
+
+describe('PageConnexion', () => {
+  it('welcomes the Pilote, with the GitHub button and its help, and no banner', async () => {
+    const el = await render(COMPOSANTS.PageConnexion, { error: null });
+    expect(textOf(el.shadowRoot?.querySelector('h1'))).toBe(t('connexion.title'));
+    expect(textOf(el.shadowRoot?.querySelector('[part=lead]'))).toBe(t('connexion.lead'));
+    expect(textOf(el.shadowRoot?.querySelector('[part=help]'))).toBe(t('connexion.help'));
+    const button = el.shadowRoot?.querySelector('cd-button') as HTMLElement & { data: unknown };
+    expect(button.data).toMatchObject({ label: t('connexion.button'), variant: 'primary', icon: 'github' });
+    expect(el.shadowRoot?.querySelector('cd-banner')).toBeNull();
+  });
+
+  it.each(['state-mismatch', 'denied', 'github-unavailable'] as const)('shows the halt banner of %s above the button', async (error) => {
+    const el = await render(COMPOSANTS.PageConnexion, { error });
+    const banner = el.shadowRoot?.querySelector('cd-banner') as HTMLElement & { data: unknown };
+    expect(banner.data).toMatchObject({ tone: 'halt', title: t(`connexion.error.${error}`) });
+    expect(inside(banner, '[role=alert]')).toBeTruthy();
+    expect(banner.compareDocumentPosition(el.shadowRoot?.querySelector('cd-button') as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

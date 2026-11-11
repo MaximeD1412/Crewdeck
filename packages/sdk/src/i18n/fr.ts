@@ -5,6 +5,7 @@
  * `composants.<Name>.*` (`composantKeys`).
  */
 export const fr = {
+  'api.unreadable': 'Le serveur ne répond pas, réessaie dans un instant.',
   'cadre.brand': 'Crewdeck',
   'cadre.close': 'Fermer',
   'cadre.live': 'En direct',
@@ -144,6 +145,9 @@ export const fr = {
   'composants.PageComposants.data.groups': 'Les Composants par catégorie',
   'composants.PageComposants.data.selected': 'Le Composant ouvert, avec son contrat et ses exemples',
   'composants.PageComposants.description': 'La bibliothèque des Composants, générée de leurs déclarations : chacun avec ses données, ses actions, ses Emplacements et un aperçu de ses exemples.',
+  'composants.PageConnexion.actions.signIn': 'Part se connecter avec GitHub',
+  'composants.PageConnexion.data.error': 'Pourquoi la dernière connexion a échoué, ou rien',
+  'composants.PageConnexion.description': 'La page de connexion : la bienvenue, le bouton « Continuer avec GitHub » et, après un échec, sa raison au-dessus.',
   'composants.PageHeader.data.back': 'Le lien de retour, son libellé et son adresse',
   'composants.PageHeader.data.count': 'Ce qu’elle compte, à côté du titre',
   'composants.PageHeader.data.title': 'Le titre de la page',
@@ -231,6 +235,13 @@ export const fr = {
   'composants.page.slots': 'Emplacements',
   'composants.page.title': 'Bibliothèque de Composants',
   'composants.page.version': 'version {version}',
+  'connexion.button': 'Continuer avec GitHub',
+  'connexion.error.denied': 'Tu as refusé l’accès à GitHub : Crewdeck en a besoin pour suivre tes Projets.',
+  'connexion.error.github-unavailable': 'GitHub ne répond pas, réessaie dans un instant.',
+  'connexion.error.state-mismatch': 'La connexion n’a pas abouti, recommence.',
+  'connexion.help': 'Tu te connectes avec ton compte GitHub : aucun mot de passe de plus à retenir.',
+  'connexion.lead': 'Pilote tes Projets avec des agents IA, de l’Idée au Ticket livré, en temps réel.',
+  'connexion.title': 'Bienvenue sur Crewdeck',
   'dialog.close': 'Fermer',
   'ideaRow.effort': 'Effort {effort}',
   'ideaRow.impact': 'Impact {impact}',

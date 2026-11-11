@@ -176,4 +176,26 @@ describe('startRouter', () => {
     const event = click(link('/idees'));
     expect(event.defaultPrevented).toBe(false);
   });
+
+  it('sends the page its guard names elsewhere, in place of the URL, with its query', () => {
+    history.replaceState(null, '', '/idees?x=1');
+    outlet = document.createElement('main');
+    document.body.append(outlet);
+    const seen: string[] = [];
+    router = startRouter({
+      routes,
+      outlet,
+      guard: (match) => {
+        seen.push(match.path);
+        return match.path === '/a-toi' ? null : `/a-toi?from=${encodeURIComponent(match.path)}`;
+      },
+    });
+    expect(location.pathname + location.search).toBe('/a-toi?from=%2Fidees');
+    expect(outlet.firstElementChild?.localName).toBe('cd-page-a-toi');
+    expect(router.current.query).toEqual({ from: '/idees' });
+
+    router.navigate('/idees/x');
+    expect(location.pathname).toBe('/a-toi');
+    expect(seen).toEqual(['/idees', '/idees/x']);
+  });
 });

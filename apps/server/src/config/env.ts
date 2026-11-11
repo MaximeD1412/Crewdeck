@@ -18,8 +18,25 @@ const zPrivateKey = z
   })
   .refine((pem) => PEM.test(pem), 'A PEM private key, or its base64');
 
+/**
+ * A key in base64 (`openssl rand -base64 32`), read back as its bytes: exactly
+ * `bytes` of them, or at least as many with `atLeast`.
+ */
+const zBase64Key = (bytes: number, { atLeast = false } = {}) =>
+  z
+    .string()
+    .regex(/^[A-Za-z0-9+/]+={0,2}$/, 'Base64 (openssl rand -base64 32)')
+    .transform((value) => Buffer.from(value, 'base64'))
+    .refine((key) => (atLeast ? key.length >= bytes : key.length === bytes), `${atLeast ? 'At least ' : ''}${bytes} bytes, in base64`);
+
 /** The variables of the GitHub App, required where the server talks to the real GitHub. */
 const GITHUB_APP_KEYS = ['GITHUB_APP_ID', 'GITHUB_APP_PRIVATE_KEY', 'GITHUB_APP_CLIENT_ID', 'GITHUB_APP_CLIENT_SECRET', 'GITHUB_APP_SLUG'] as const;
+
+/** The keys of the sign-in (CORE-4), required where Pilotes sign in for good. */
+const AUTH_KEYS = ['GITHUB_TOKEN_KEY', 'SESSION_SECRET'] as const;
+
+/** Where the page is served without `PUBLIC_URL`: Vite's dev server (`apps/web/vite.config.ts`). */
+const DEV_APP_URL = 'http://localhost:4200';
 
 /** The server's environment, parsed once at boot (`main.ts`). */
 export const zEnv = z
@@ -27,7 +44,11 @@ export const zEnv = z
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     /** Where this server runs: one image, two Compose projects (ADR 0009). */
     CREWDECK_ENV: z.enum(['production', 'staging', 'development', 'test']),
-    /** The URL the Pilote opens; required outside development and test. */
+    /**
+     * The URL the Pilote opens, the page's origin (the `APP_URL` of CORE-4):
+     * the OAuth callback's and the `Origin` every non-`GET` must carry.
+     * Required outside development and test, `http://localhost:4200` there.
+     */
     PUBLIC_URL: zHttpUrl.optional(),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
@@ -45,6 +66,14 @@ export const zEnv = z
     /** GitHub's API and site: GitHub.com's unless set. */
     GITHUB_API_URL: zHttpUrl.default('https://api.github.com'),
     GITHUB_WEB_URL: zHttpUrl.default('https://github.com'),
+    /**
+     * 32 bytes in base64: encrypts the Pilotes' GitHub tokens at rest (ADR
+     * 0002). Losing it signs every Pilote out. Required outside development
+     * and test, drawn at each boot there.
+     */
+    GITHUB_TOKEN_KEY: zBase64Key(32).optional(),
+    /** At least 32 bytes in base64: signs the sign-in's short-lived cookie. Same rule as GITHUB_TOKEN_KEY. */
+    SESSION_SECRET: zBase64Key(32, { atLeast: true }).optional(),
     /**
      * `1`: the fake GitHub (and the fake Runner) in place of the real ones,
      * with the test scenarios (`pnpm dev`, the end-to-end tests). Refused in
@@ -65,6 +94,7 @@ export const zEnv = z
     if (deployed) {
       require('PUBLIC_URL', 'outside development and test');
       for (const key of GITHUB_APP_KEYS) require(key, 'outside development and test');
+      for (const key of AUTH_KEYS) require(key, 'outside development and test');
     }
     if (env.CREWDECK_FAKES !== undefined && (deployed || env.NODE_ENV === 'production')) {
       context.addIssue({ code: 'custom', path: ['CREWDECK_FAKES'], message: 'Refused in production: the fakes never replace GitHub there' });
@@ -75,6 +105,12 @@ export const zEnv = z
     }
   });
 export type Env = z.infer<typeof zEnv>;
+
+/** Whether this server runs for real Pilotes: production or staging. */
+export const isDeployed = (env: Env): boolean => env.CREWDECK_ENV === 'production' || env.CREWDECK_ENV === 'staging';
+
+/** The page's origin (`https://crewdeck.example`): `PUBLIC_URL`'s, else Vite's dev server. */
+export const appOrigin = (env: Env): string => new URL(env.PUBLIC_URL ?? DEV_APP_URL).origin;
 
 /** Whether the fakes replace GitHub and the Runner (`CREWDECK_FAKES=1`). */
 export const usesFakes = (env: Env): boolean => env.CREWDECK_FAKES === '1';

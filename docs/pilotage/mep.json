@@ -196,6 +196,62 @@
       ],
       "commande": "curl -s https://staging.<domaine>/api/config",
       "ajouteLe": "2026-11-10"
+    },
+    {
+      "id": "callback-github-apps",
+      "phase": "acc",
+      "source": "#32",
+      "titre": "Poser l'URL de callback de la connexion dans les deux GitHub Apps",
+      "pourquoi": "« Continuer avec GitHub » envoie le Pilote sur l'autorisation de la GitHub App de l'environnement, qui le renvoie sur <PUBLIC_URL>/api/auth/github/callback : GitHub refuse une redirect_uri absente des « Callback URL » de l'App, et la connexion échoue avant même d'arriver au serveur. Le serveur renouvelle le jeton du Pilote (8 h) par son refresh token : l'App doit garder l'expiration des jetons d'utilisateur. Les Apps sont créées par INFRA-11.",
+      "etapes": [
+        "github.com > Settings > Developer settings > GitHub Apps > « Crewdeck » > General : dans « Callback URL », https://<domaine>/api/auth/github/callback.",
+        "Même chose pour « Crewdeck staging » avec https://staging.<domaine>/api/auth/github/callback.",
+        "Dans les deux, Optional features : laisser « User-to-server token expiration » activé.",
+        "Vérifier : sur le staging, « Continuer avec GitHub » mène à l'autorisation de GitHub puis revient sur /a-toi, connecté."
+      ],
+      "commande": "curl -sI 'https://staging.<domaine>/api/auth/github/start?next=%2Fa-toi' | grep -i '^location'",
+      "ajouteLe": "2026-11-11"
+    },
+    {
+      "id": "env-public-url",
+      "phase": "env",
+      "source": "#32",
+      "titre": "PUBLIC_URL dans le .env de la prod et du staging, l'URL exacte que le Pilote ouvre",
+      "pourquoi": "PUBLIC_URL (l'APP_URL du ticket) donne au serveur l'origine de la page : il en tire l'URL de callback envoyée à GitHub, le refus des requêtes d'une autre Origin (auth.origin) et le cookie Secure. En production et en staging, le serveur refuse de démarrer sans elle ; une valeur qui n'est pas celle de la barre d'adresse refuse toutes les requêtes du Pilote connecté.",
+      "etapes": [
+        "Dans /opt/crewdeck/prod/.env : PUBLIC_URL=https://<domaine>, sans chemin ni barre finale.",
+        "Dans /opt/crewdeck/staging/.env : PUBLIC_URL=https://staging.<domaine>.",
+        "Vérifier après le déploiement suivant : le serveur est healthy, et la redirection de /api/auth/github/start porte redirect_uri=<PUBLIC_URL>/api/auth/github/callback."
+      ],
+      "commande": "curl -sI 'https://<domaine>/api/auth/github/start' | grep -i '^location'",
+      "ajouteLe": "2026-11-11"
+    },
+    {
+      "id": "env-github-token-key",
+      "phase": "env",
+      "source": "#32",
+      "titre": "GITHUB_TOKEN_KEY dans le .env de la prod et du staging, et sa copie dans le gestionnaire de mots de passe",
+      "pourquoi": "Les jetons GitHub des Pilotes sont chiffrés au repos avec GITHUB_TOKEN_KEY (AES-256-GCM, ADR 0002) ; le serveur refuse de démarrer sans elle en production et en staging. Perdue ou changée, plus aucun jeton ne se déchiffre : chaque Pilote est déconnecté et doit se reconnecter. Les sauvegardes de la base ne servent à rien sans elle : elle se garde hors du VPS.",
+      "etapes": [
+        "openssl rand -base64 32, une clé par environnement : GITHUB_TOKEN_KEY dans /opt/crewdeck/prod/.env, une autre dans /opt/crewdeck/staging/.env.",
+        "Copier la clé de la production dans le gestionnaire de mots de passe du fondateur, à côté du mot de passe des sauvegardes.",
+        "Vérifier après le déploiement suivant : le serveur est healthy, et une connexion puis POST /api/github/token depuis la page répondent 200."
+      ],
+      "commande": "sudo grep -c '^GITHUB_TOKEN_KEY=.\\+' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
+      "ajouteLe": "2026-11-11"
+    },
+    {
+      "id": "env-session-secret",
+      "phase": "env",
+      "source": "#32",
+      "titre": "SESSION_SECRET dans le .env de la prod et du staging",
+      "pourquoi": "SESSION_SECRET signe le cookie court de la connexion (crewdeck_oauth, l'état envoyé à GitHub, 10 minutes) ; le serveur refuse de démarrer sans lui en production et en staging (32 octets au moins). Changé, seules les connexions en cours à ce moment-là échouent (« La connexion n'a pas abouti ») : les sessions ouvertes restent.",
+      "etapes": [
+        "openssl rand -base64 48, un secret par environnement : SESSION_SECRET dans /opt/crewdeck/prod/.env et dans /opt/crewdeck/staging/.env.",
+        "Vérifier après le déploiement suivant : le serveur est healthy, et une connexion par GitHub revient sur /a-toi."
+      ],
+      "commande": "sudo grep -c '^SESSION_SECRET=.\\+' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
+      "ajouteLe": "2026-11-11"
     }
   ]
 }

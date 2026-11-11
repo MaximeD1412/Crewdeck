@@ -14,6 +14,8 @@ export default defineConfig({
     environment: 'node',
     include: ['test/integration/**/*.spec.ts'],
     globalSetup: ['test/integration/database.ts'],
+    // One database for the run, which a scenario empties: one file at a time.
+    fileParallelism: false,
     restoreMocks: true,
     testTimeout: 30_000,
     hookTimeout: 60_000,

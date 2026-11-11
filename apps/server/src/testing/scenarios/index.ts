@@ -1,5 +1,6 @@
 import { blank } from './blank.js';
 import { composants, composantsDialog, composantsRows, composantsSettingRow, composantsTextField } from './composants.js';
+import { connexion, connexionErreur } from './connexion.js';
 import type { Scenario } from './define.js';
 import { menuPlus } from './menu-plus.js';
 
@@ -9,6 +10,8 @@ export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed 
 const SCENARIOS: readonly Scenario[] = [
   blank,
   composants,
+  connexion,
+  connexionErreur,
   menuPlus,
   ...composantsRows,
   composantsTextField,

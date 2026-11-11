@@ -41,6 +41,11 @@ export interface Store {
   applySnapshot(state: State): void;
   /** Applies the event that follows the `seq`; ignores one already applied; a later one is a gap. */
   applyEvent(event: Event): EventOutcome;
+  /**
+   * Calls `fn` after each event applied, `live` when the store was `live` as
+   * it came (not replayed after a `hello`); returns the function that stops.
+   */
+  onEvent(fn: (event: Event, live: boolean) => void): () => void;
   /** The replay or the snapshot is applied: what follows is live. */
   markLive(): void;
   /** The socket is lost: `resync`, `lostAt` kept from the first loss. */
@@ -59,6 +64,7 @@ type Identified = { readonly id: string };
 export const createStore = (): Store => {
   const shapes = new Map<string, SliceShape>();
   const listeners = new Set<(state: StoreState) => void>();
+  const eventListeners = new Set<(event: Event, live: boolean) => void>();
   let state: StoreState = { seq: null, connection: 'connecting', lostAt: null, slices: {} };
 
   const set = (next: StoreState) => {
@@ -93,6 +99,12 @@ export const createStore = (): Store => {
         listeners.delete(fn);
       };
     },
+    onEvent(fn) {
+      eventListeners.add(fn);
+      return () => {
+        eventListeners.delete(fn);
+      };
+    },
     registerSlice(resource, { shape }) {
       if (shapes.has(resource)) throw new Error(`La tranche ${resource} est déjà enregistrée`);
       shapes.set(resource, shape);
@@ -113,7 +125,9 @@ export const createStore = (): Store => {
         set({ ...state, connection: 'resync', lostAt: state.lostAt ?? new Date() });
         return 'gap';
       }
+      const live = state.connection === 'live';
       set({ ...state, seq, slices: applyChange(event) });
+      for (const listener of [...eventListeners]) listener(event, live);
       return 'applied';
     },
     markLive() {

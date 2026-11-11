@@ -136,6 +136,7 @@ func (r *Run) play(ctx context.Context, events []contracts.EngineEvent, err erro
 		select {
 		case r.events <- engine.Stamp(contracts.EngineEvent{Result: &contracts.EngineEventResult{Status: contracts.EngineEventResultStatusInterrupted}}, seq+1, r.now()):
 		case <-ctx.Done():
+			r.err = ctx.Err()
 		}
 	}
 	for _, event := range events {

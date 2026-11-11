@@ -217,3 +217,26 @@ func TestCancellingTheContextOfResumeEndsARunWhoseEventsAreNotRead(t *testing.T)
 		t.Fatal("Wait still blocked 5 s after the cancel")
 	}
 }
+
+func TestCancellingTheContextBeforeTheInterruptedResultIsReadEndsWithTheContextsError(t *testing.T) {
+	e := &fake.Engine{Events: []contracts.EngineEvent{message("Bonjour"), ok()}}
+	ctx, cancel := context.WithCancel(context.Background())
+	run, _ := e.Start(ctx, engine.StartOptions{})
+	if err := run.Interrupt(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	done := make(chan error, 1)
+	go func() { done <- run.Wait() }()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Wait %v, want context.Canceled", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Wait still blocked 5 s after the cancel")
+	}
+	if rest := drain(t, run); len(rest) != 0 {
+		t.Fatalf("after the cancel %+v", rest)
+	}
+}

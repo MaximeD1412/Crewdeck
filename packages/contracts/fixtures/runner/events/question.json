@@ -1,0 +1,17 @@
+{
+  "kind": "question",
+  "seq": 4,
+  "at": "2026-11-11T08:52:13.000Z",
+  "requestId": "toolu_01QuestionSpike000000001",
+  "title": "Quelle couleur choisir ?",
+  "options": [
+    {
+      "label": "Bleu",
+      "detail": "Calme et sobre"
+    },
+    {
+      "label": "Rouge"
+    }
+  ],
+  "multiple": false
+}

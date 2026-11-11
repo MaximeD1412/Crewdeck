@@ -1,5 +1,7 @@
 import type { z } from 'zod';
 import { zHealth } from './api/health.js';
+import { zEngineCapabilities } from './runner/engines.js';
+import { zEngineEvent } from './runner/events.js';
 import { zHeartbeat, zHeartbeatAck } from './runner/heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './runner/hello.js';
 import { zStepVerdict } from './runner/step.js';
@@ -21,6 +23,38 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-heartbeat-ack', schema: zHeartbeatAck },
   { name: 'runner-error', schema: zProtocolError },
   { name: 'runner-step-verdict', schema: zStepVerdict },
+  { name: 'engine-capabilities', schema: zEngineCapabilities },
+];
+
+/**
+ * The discriminated unions the Runner reads or writes, which go-jsonschema
+ * cannot type: each option is a registry entry of its own, named
+ * `<name>-<discriminator value>` (Go type `EngineEventToolCall` for
+ * `engine-event` and `tool-call`), and the union is a Go struct holding one
+ * pointer per option, written by `contracts:generate` to `<name>.go`.
+ */
+export interface GoUnion {
+  name: string;
+  discriminator: string;
+  options: readonly { value: string; schema: z.ZodObject }[];
+}
+
+const goUnion = <D extends string>(
+  name: string,
+  discriminator: D,
+  union: { options: readonly (z.ZodObject & { shape: Record<D, z.ZodLiteral<string>> })[] },
+): GoUnion => ({
+  name,
+  discriminator,
+  options: union.options.map((schema) => ({ value: schema.shape[discriminator].value, schema })),
+});
+
+export const goUnions: readonly GoUnion[] = [goUnion('engine-event', 'kind', zEngineEvent)];
+
+/** Every schema written as JSON Schema and Go: the registry, then each option of the unions. */
+export const generatedEntries: readonly { name: string; schema: z.ZodType }[] = [
+  ...registry,
+  ...goUnions.flatMap((union) => union.options.map((option) => ({ name: `${union.name}-${option.value}`, schema: option.schema }))),
 ];
 
 /**

@@ -1,0 +1,120 @@
+{
+  "$defs": {
+    "EngineId": {
+      "enum": [
+        "claude-code",
+        "codex"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "account": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "subscription",
+            "api-key",
+            "none"
+          ],
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "connected",
+            "login-required"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "state"
+      ],
+      "type": "object"
+    },
+    "engine": {
+      "$ref": "#/$defs/EngineId"
+    },
+    "features": {
+      "additionalProperties": false,
+      "properties": {
+        "interrupt": {
+          "type": "boolean"
+        },
+        "permissions": {
+          "type": "boolean"
+        },
+        "questions": {
+          "type": "boolean"
+        },
+        "resume": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "interrupt",
+        "permissions",
+        "questions",
+        "resume"
+      ],
+      "type": "object"
+    },
+    "installed": {
+      "type": "boolean"
+    },
+    "knownVersion": {
+      "type": "boolean"
+    },
+    "models": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "login-required",
+              "quota-reached",
+              "not-in-plan"
+            ],
+            "type": "string"
+          },
+          "usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "usable"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "version": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "account",
+    "engine",
+    "features",
+    "installed",
+    "knownVersion",
+    "models"
+  ],
+  "title": "EngineCapabilities",
+  "type": "object"
+}

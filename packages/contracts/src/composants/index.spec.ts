@@ -15,7 +15,7 @@ describe('COMPOSANTS', () => {
   it.each([
     ['cadre', ['PageHeader', 'ProjectFilter']],
     ['page', ['PageComposants', 'PageIntrouvable']],
-    ['partie', ['Card', 'CodeBlock', 'KeyValue', 'ListRow']],
+    ['partie', ['AgentRow', 'Card', 'CodeBlock', 'DecisionRow', 'IdeaRow', 'KeyValue', 'ListRow', 'TicketRow']],
     ['signal', ['Banner', 'Button', 'Chip', 'Empty', 'Icon', 'IconButton', 'StatusBadge', 'StatusDot', 'Tabs']],
   ])('puts the base Composants of %s in their category', (category, names) => {
     for (const name of names) expect(COMPOSANTS[name as keyof typeof COMPOSANTS].category, name).toBe(category);

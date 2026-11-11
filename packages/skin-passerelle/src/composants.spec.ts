@@ -2,71 +2,22 @@
 // What the core loads before the Skin (apps/web/src/main.ts): the tokens and the document's ground.
 import './tokens.css';
 import './document.css';
-import { CD_ACTION, COMPOSANTS, t, zCdActionDetail, type AnyComposant, type CdActionDetail } from '@crewdeck/sdk';
+import { COMPOSANTS, t, zCdActionDetail } from '@crewdeck/sdk';
 import type { LitElement } from 'lit';
 import { COPIED_MS } from './code-block.js';
 import passerelle from './index.js';
-import { fillSlots } from './slots.js';
+import { actionsOf, defineSkin, inside, render, settle, textOf } from './testing/dom.js';
 
-/** What the core does at boot: each implementation under its canonical tag. */
-beforeAll(() => {
-  for (const [name, impl] of Object.entries(passerelle.composants)) {
-    const declaration = COMPOSANTS[name as keyof typeof COMPOSANTS];
-    if (impl && !customElements.get(declaration.tag)) customElements.define(declaration.tag, impl);
-  }
-});
-
-const render = async (declaration: AnyComposant, data: unknown, slots: Record<string, string> = {}) => {
-  const el = document.createElement(declaration.tag) as LitElement & { data: unknown };
-  el.data = data;
-  el.append(...fillSlots(slots));
-  document.body.append(el);
-  await settle(el);
-  return el;
-};
-
-/** Waits for `root` and every Composant rendered inside it, through their shadow roots. */
-const settle = async (root: Element): Promise<void> => {
-  const pending = [root, ...root.querySelectorAll('*'), ...(root.shadowRoot?.querySelectorAll('*') ?? [])];
-  for (const el of pending) {
-    if (el.localName.startsWith('cd-')) {
-      await (el as LitElement).updateComplete;
-      if (el !== root) await settle(el);
-    }
-  }
-};
-
-/** The element inside `host` at `selectors`, one per shadow root crossed. */
-const inside = <E extends Element = HTMLElement>(host: Element, ...selectors: string[]): E => {
-  let node: Element = host;
-  for (const selector of selectors) {
-    const next = (node.shadowRoot ?? node).querySelector(selector);
-    if (!next) throw new Error(`nothing at ${selectors.join(' >>> ')}`);
-    node = next;
-  }
-  return node as E;
-};
-
-/** The `cd-action`s reaching the document while `act` runs. */
-const actionsOf = async (act: () => unknown): Promise<CdActionDetail[]> => {
-  const details: CdActionDetail[] = [];
-  const listener = (event: Event) => details.push((event as CustomEvent<CdActionDetail>).detail);
-  document.addEventListener(CD_ACTION, listener);
-  try {
-    await act();
-  } finally {
-    document.removeEventListener(CD_ACTION, listener);
-  }
-  return details;
-};
-
-const textOf = (el: Element | null | undefined) => el?.textContent?.replace(/\s+/g, ' ').trim();
+beforeAll(defineSkin);
 
 /** How each declared action is set off from the first example: a test fails for an action without one. */
 const TRIGGERS: Readonly<Record<string, (el: Element) => void>> = {
   'Cadre.openPilot': (el) => inside(el, 'button.pilot').click(),
   'ProjectFilter.select': (el) => inside(el, 'cd-chip:nth-of-type(2)', 'button').click(),
   'Tabs.select': (el) => inside(el, 'button[role=tab]:nth-of-type(2)').click(),
+  'DecisionRow.open': (el) => inside(el, '.open').click(),
+  'IdeaRow.open': (el) => inside(el, '.open').click(),
+  'AgentRow.open': (el) => inside(el, 'button').click(),
   'PageComposants.select': (el) => inside(el, 'nav cd-list-row:not(:has(cd-status-badge))', 'a').click(),
 };
 

@@ -66,6 +66,24 @@ export const matchRoute = (routes: readonly Route[], url: string | URL): RouteMa
 /** The state of a router without a store: nothing received yet. */
 export const NO_STATE: StoreState = { seq: null, connection: 'connecting', lostAt: null, slices: {} };
 
+/**
+ * Whether two `data` hold the same values: plain objects and arrays compared
+ * field by field, anything else by identity (`Object.is`).
+ */
+export const sameData = (a: unknown, b: unknown): boolean => {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) return a.length === (b as unknown[]).length && a.every((value, i) => sameData(value, (b as unknown[])[i]));
+  const plain = (value: object) => [Object.prototype, null].includes(Object.getPrototypeOf(value));
+  if (!plain(a) || !plain(b)) return false;
+  const keys = Object.keys(a);
+  return (
+    keys.length === Object.keys(b).length &&
+    keys.every((key) => Object.hasOwn(b, key) && sameData((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]))
+  );
+};
+
 /** The page's `data` by default: its route's view, else nothing. */
 const routeData =
   (routes: readonly Route[], state: () => StoreState) =>
@@ -76,7 +94,11 @@ export interface Router {
   readonly current: RouteMatch;
   /** Goes to a page URL of the app (path, query, hash) through the History API. */
   navigate(url: string, options?: { replace?: boolean }): void;
-  /** Gives the page shown its `data` again, for a new state of the store: same URL, same element. */
+  /**
+   * Gives the page shown its `data` again, for a new state of the store: same
+   * URL, same element. Data with the same values is not given again, so a page
+   * that does not read what changed is left as is (what was typed, an open Dialog).
+   */
   refresh(): void;
   stop(): void;
 }
@@ -126,6 +148,8 @@ export const startRouter = ({
   guard,
 }: RouterOptions): Router => {
   let current: RouteMatch;
+  /** The `data` last given to the page shown. */
+  let given: unknown;
 
   const render = () => {
     const path = normalise(location.pathname);
@@ -142,7 +166,8 @@ export const startRouter = ({
       existing && existing.localName === current.composant.tag && outlet.childElementCount === 1
         ? existing
         : document.createElement(current.composant.tag);
-    (page as Element & { data: unknown }).data = data(current);
+    given = data(current);
+    (page as Element & { data: unknown }).data = given;
     if (page !== existing || outlet.childElementCount !== 1) outlet.replaceChildren(page);
     onRoute?.(current);
   };
@@ -174,7 +199,11 @@ export const startRouter = ({
     navigate,
     refresh() {
       const page = outlet.firstElementChild;
-      if (page && page.localName === current.composant.tag) (page as Element & { data: unknown }).data = data(current);
+      if (!page || page.localName !== current.composant.tag) return;
+      const next = data(current);
+      if (sameData(given, next)) return;
+      given = next;
+      (page as Element & { data: unknown }).data = next;
     },
     stop() {
       document.removeEventListener('click', onClick);

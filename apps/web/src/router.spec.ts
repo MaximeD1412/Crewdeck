@@ -1,6 +1,6 @@
 import { defineComposant, PageIntrouvable } from '@crewdeck/sdk';
 import { z } from 'zod';
-import { matchRoute, startRouter, type Route, type Router } from './router.js';
+import { matchRoute, sameData, startRouter, type Route, type Router } from './router.js';
 import type { StoreState } from './store/store.js';
 
 const page = (name: string, tag: `cd-${string}`) =>
@@ -141,6 +141,19 @@ describe('startRouter', () => {
     router.refresh();
     expect(outlet.firstElementChild).toBe(page);
     expect(page.data).toEqual({ seq: 2n });
+    const shown = page.data;
+    state = { ...state, connection: 'resync' };
+    router.refresh();
+    expect(page.data).toBe(shown);
+  });
+
+  it('sameData compares plain objects and arrays by their values, anything else by identity', () => {
+    expect(sameData({ a: [1, { b: 'x' }], c: null }, { a: [1, { b: 'x' }], c: null })).toBe(true);
+    expect(sameData({ a: [1] }, { a: [2] })).toBe(false);
+    expect(sameData({ a: 1 }, { a: 1, b: undefined })).toBe(false);
+    expect(sameData([1], { 0: 1 })).toBe(false);
+    expect(sameData(new Date(0), new Date(0))).toBe(false);
+    expect(sameData(Number.NaN, Number.NaN)).toBe(true);
   });
 
   it('sends / to « À toi »', () => {

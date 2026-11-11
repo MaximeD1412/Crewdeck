@@ -159,10 +159,12 @@ class RunnerSocket implements RunnerLink {
     }
     const protocolVersion = Math.min(hello.protocolVersion, this.protocol.version);
     this.connections.take(this)?.close(RUNNER_WS_CLOSE.replaced, 'replaced');
-    await this.presence.connected(this.pilotId, this.runnerId, hello, protocolVersion);
-    if (this.closed) return;
-    this.accepted = true;
-    this.reply({ type: 'hello.accepted', runnerId: this.runnerId, protocolVersion });
+    // hello.accepted before what the onOnline hooks send (RunnerCommands): the Runner reads nothing else until it.
+    await this.presence.connected(this.pilotId, this.runnerId, hello, protocolVersion, () => {
+      if (this.closed) return;
+      this.accepted = true;
+      this.reply({ type: 'hello.accepted', runnerId: this.runnerId, protocolVersion });
+    });
   }
 
   private async dispatch(message: Exclude<RunnerToServer, Hello>): Promise<void> {

@@ -278,10 +278,44 @@ describe('the Runner protocol against PostgreSQL', () => {
       const { runner } = await createLinkedRunner(prisma, alice.id);
       await sql(`UPDATE runners SET state = 'online', last_seen_at = now() - interval '1 minute' WHERE id = $1`, [runner.id]);
 
+      const offline = vi.fn();
+      app.get(RunnerPresence).onOffline(alice.id, offline);
+
       expect(await app.get(RunnerSweep).sweep()).toBe(1);
 
       expect((await rowOf(runner.id)).state).toBe('offline');
       expect((await eventsOf(alice.id)).map((event) => event.payload.state)).toEqual(['offline']);
+      // The transition was committed: its hooks hear of it, though the process never saw the Runner online.
+      expect(offline).toHaveBeenCalledExactlyOnceWith(runner.id);
+      expect(await app.get(RunnerSweep).sweep()).toBe(0);
+      expect(offline).toHaveBeenCalledOnce();
+    });
+
+    it('calls onOffline once when the socket of a Runner swept offline then closes', async () => {
+      const alice = await pilot();
+      const { runner, token } = await createLinkedRunner(prisma, alice.id);
+      const socket = await online(token);
+      const offline = vi.fn();
+      app.get(RunnerPresence).onOffline(alice.id, offline);
+      advance(46);
+      await app.get(RunnerSweep).sweep();
+
+      await socket.close();
+
+      await vi.waitFor(() => expect(app.get(RunnerPresence).isOnline(alice.id)).toBe(false));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(offline).toHaveBeenCalledExactlyOnceWith(runner.id);
+    });
+
+    it('sends hello.accepted before what an onOnline hook sends', async () => {
+      const alice = await pilot();
+      const { token } = await createLinkedRunner(prisma, alice.id);
+      app.get(RunnerPresence).onOnline(alice.id, () => app.get(RunnerCommands).send(alice.id, { type: 'heartbeat.ack' }));
+
+      const socket = await online(token);
+      await socket.expect('heartbeat.ack');
+
+      expect(socket.received().map((message) => message.type)).toEqual(['hello.accepted', 'heartbeat.ack']);
     });
 
     it('removes a hook with what onOnline returns', async () => {

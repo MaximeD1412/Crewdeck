@@ -56,8 +56,12 @@ export class RunnerPresence {
     return this.hook(this.offlineHooks, pilotId, handler);
   }
 
-  /** An accepted `hello`: the Runner online, its machine as it describes it. */
-  connected(pilotId: string, runnerId: string, hello: Hello, protocolVersion: number): Promise<void> {
+  /**
+   * An accepted `hello`: the Runner online, its machine as it describes it.
+   * `accept` runs once the change is committed and before the `onOnline`
+   * hooks, so that `hello.accepted` reaches the Runner before what a hook sends.
+   */
+  connected(pilotId: string, runnerId: string, hello: Hello, protocolVersion: number, accept: () => void): Promise<void> {
     return this.serial(pilotId, async () => {
       const now = this.clock.now();
       await this.transactions.run(async (tx) => {
@@ -77,6 +81,7 @@ export class RunnerPresence {
         });
         await this.events.write(tx, pilotId, 'runner.upserted', toRunner(row));
       });
+      accept();
       this.markOnline(pilotId, runnerId);
     });
   }
@@ -102,8 +107,8 @@ export class RunnerPresence {
   /** The Runner's socket closed: offline at once. */
   disconnected(pilotId: string, runnerId: string): Promise<void> {
     return this.serial(pilotId, async () => {
-      await this.goOffline(pilotId, runnerId, {});
-      this.markOffline(pilotId, runnerId);
+      const changed = await this.goOffline(pilotId, runnerId, {});
+      this.markOffline(pilotId, runnerId, changed);
     });
   }
 
@@ -111,7 +116,7 @@ export class RunnerPresence {
   expire(pilotId: string, runnerId: string, cutoff: Date): Promise<boolean> {
     return this.serial(pilotId, async () => {
       const changed = await this.goOffline(pilotId, runnerId, { lastSeenAt: { lt: cutoff } });
-      if (changed) this.markOffline(pilotId, runnerId);
+      if (changed) this.markOffline(pilotId, runnerId, changed);
       return changed;
     });
   }
@@ -136,9 +141,16 @@ export class RunnerPresence {
     if (was !== runnerId) this.call(this.onlineHooks, pilotId, runnerId);
   }
 
-  private markOffline(pilotId: string, runnerId: string): void {
-    if (this.online.get(pilotId) !== runnerId) return;
-    this.online.delete(pilotId);
+  /**
+   * Offline in memory, with its hooks: when this process had the Runner
+   * online, or when the row went offline (`committed`) without this process
+   * knowing it online (a row left online by a server restarted). Never for a
+   * Runner that another one of the Pilote has replaced.
+   */
+  private markOffline(pilotId: string, runnerId: string, committed: boolean): void {
+    const current = this.online.get(pilotId);
+    if (current === runnerId) this.online.delete(pilotId);
+    else if (current !== undefined || !committed) return;
     this.call(this.offlineHooks, pilotId, runnerId);
   }
 

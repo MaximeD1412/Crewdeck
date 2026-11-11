@@ -19,7 +19,7 @@ signed in by subscription, models `haiku` (Haiku 5.5) and `sonnet` (scenario 6).
 | Scenario | Recordings |
 |---|---|
 | 1 A plain turn | `01-plain-turn` |
-| 2 A permission request held for hours | `02-permission-allow`, `02-permission-deny` |
+| 2 A permission request held for hours | `02-permission-idle-timeout` (aborted after 30 min of silence), `02-permission-allow`, `02-permission-deny` (kept alive by progress), `02-permission-idle-timeout-off` |
 | 3 A Skill's question held by a hook | `03-a-updated-input`, `03-b-deny-reason`, `03-c-held-2h` |
 | 4 Interrupt then resume | `04-interrupt`, `04-resume` |
 | 5 Runner restart | `05-a-kill-mid-stream`, `05-a-resume`, `05-b-kill-pending-permission`, `05-b-resume` |

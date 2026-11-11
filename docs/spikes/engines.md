@@ -4,7 +4,9 @@
 > event (scenario 6, recorded when it happens) and `bypassPermissions`
 > (scenario 9a, to be run by the founder). Codex: version, sign-in state,
 > models and Skills discovery recorded; every scenario that needs a model
-> waits for an OpenAI API key. No scenario so far breaks a story.
+> waits for an OpenAI API key. No scenario so far breaks a story; the
+> one that came closest, a permission request waiting for hours, works
+> once the Runner's MCP server sends progress notifications (scenario 2).
 
 [ADR 0004](../adr/0004-the-runner.md) says the spike comes first: prove on the
 founder's machine every behaviour the PRD relies on before an adapter is
@@ -86,11 +88,30 @@ sentence, with `--include-partial-messages`.
 
 ## 2. A permission request that waits for hours
 
-**Claude** (`02-permission-allow`, `02-permission-deny`): default permission
-mode, a message asking to run `touch <file>` with `Bash`. Two Sessions at
-once, each request left unanswered for 2 h 05 min, then one answered
-`allow` (followed by a second request in the same Session, answered `deny`),
-the other `deny`.
+**Claude**: default permission mode, a message asking to run `touch
+<file>` with `Bash`, the request left unanswered.
+
+**A silent MCP call is aborted after about 30 minutes**
+(`02-permission-idle-timeout`): with nothing sent back, Claude Code gives up
+at 1829 s and the tool result is « Error calling tool (Bash): MCP server
+"spike" tool "permission_prompt" sent no response or progress for 1829s;
+aborting. If this server is configured in your MCP settings, set a
+per-server "timeout" (ms) to allow longer silent runs for just this server;
+otherwise set CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT (ms) globally (0 disables). »
+The model then says the command did not run, or (in a second Session) asks
+again with a new `tool_use_id`. Checked in a minute with
+`CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT=20000`: a silent call is aborted at 29 s,
+a call that gets an MCP `notifications/progress` (with the `progressToken`
+of the call's `_meta`) every 5 s is still pending after 60 s. **The
+Runner's MCP server sends a progress notification while a request waits
+for the Pilote** (every minute here); `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT=0`
+is the fallback.
+
+Then, with the keep-alive (`02-permission-allow`, `02-permission-deny`) and
+without it but with `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT=0`
+(`02-permission-idle-timeout-off`): three Sessions at once, each request
+left unanswered for 2 h 05 min, then answered `allow` (followed by a second
+request in the same Session, answered `deny`), `deny`, and `allow`.
 
 - The request reaches the MCP server as `tools/call` on
   `permission_prompt` with `arguments: {tool_name, input, tool_use_id}` and
@@ -100,9 +121,19 @@ the other `deny`.
 - While it waits, stdout shows only `system/status` `requesting`: nothing in
   the stream says a request is pending. The Runner knows it from its own MCP
   server.
-- Result after 2 h: *en attente* (filled in when the holds are answered).
+- After 2 h 05 min (requests at 09:22:23, answers at 11:27:37 UTC; 125
+  progress notifications each in the kept-alive Sessions):
+  - `allow`: the command runs, Claude says « Done. »; the second request of
+    the Session, answered `deny`, comes back to the model as the tool result
+    « Refusé par le Pilote. » (the `message`, as written) and it does not
+    retry;
+  - `deny`: the same, with « Refusé par le Pilote après deux heures. »;
+  - `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT=0` without any progress: the call
+    waited 2 h 05 min too and was allowed.
+- `result.permission_denials` lists the denied calls of the turn.
 
-**Verdict: en attente.**
+**Verdict: works with a caveat** (the Runner keeps the call alive with
+progress notifications, or Claude aborts it after 30 minutes).
 
 **Codex**: waits for an API key (`item/commandExecution/requestApproval`
 and `item/fileChange/requestApproval`, server requests of the app-server,
@@ -135,10 +166,12 @@ answer in `permissionDecisionReason`. Claude reads it, but as an error
 (« PreToolUse:AskUserQuestion hook error: Le Pilote a répondu : Rouge »).
 The adapter uses `allow` + `updatedInput.answers`.
 
-A third run (`03-c-held-2h`) holds the question for 2 h 05 min: *en
-attente*.
+A third run (`03-c-held-2h`) held the question for 2 h 05 min (hook input
+at 08:52:13, answer at 10:57:13 UTC, `duration_ms` 7 503 465): Claude
+received « Bleu » and finished the Skill. A hook is not subject to the
+30-minute limit of MCP calls (scenario 2); only its own `timeout` counts.
 
-**Verdict: works** (the 2-hour hold, *en attente*).
+**Verdict: works.**
 
 **Codex**: waits for an API key (`item/tool/requestUserInput`, a server
 request of the app-server; Codex has no hooks for it).
@@ -353,7 +386,7 @@ unavailable model an `error` with its code.
 | `message` | `stream_event` with `event.type: "content_block_delta"`, `delta.type: "text_delta"` (streaming); `assistant` whose `message.content[]` has `type: "text"` (the whole message) |
 | `tool-call` | `assistant` content `type: "tool_use"` `{id, name, input}`; its outcome in the next `user` content `type: "tool_result"` `{tool_use_id, content, is_error}` |
 | `question` | the `PreToolUse` hook's input with `tool_name: "AskUserQuestion"` (`tool_input.questions`); answered by the hook's output, `allow` + `updatedInput.answers` |
-| `permission-request` | MCP `tools/call` on the `--permission-prompt-tool` server, `arguments: {tool_name, input, tool_use_id}`; answered by its result `{"behavior":"allow","updatedInput":…}` / `{"behavior":"deny","message":…}` |
+| `permission-request` | MCP `tools/call` on the `--permission-prompt-tool` server, `arguments: {tool_name, input, tool_use_id}`; kept alive by `notifications/progress`; answered by its result `{"behavior":"allow","updatedInput":…}` / `{"behavior":"deny","message":…}` |
 | `usage` | `rate_limit_event.rate_limit_info.unifiedWindows` (5-hour and 7-day windows: `utilization`, `resetsAt`); `result.usage`, `result.modelUsage`, `result.total_cost_usd` (cumulative per process, `costBasis: "list"` on a subscription) |
 | `limit-reached` | expected: `rate_limit_event` with `status` other than `allowed`, and the turn's error; *to confirm with `06-b-limit-reached`* |
 | `auth-required` | `initialize` response `account.tokenSource: "none"` (before any turn); `assistant` with `error: "authentication_failed"` |
@@ -361,7 +394,8 @@ unavailable model an `error` with its code.
 | `error` | `assistant` with `error` (e.g. `"model_not_found"`, `api_error_status: 404`) and `result.is_error: true`, `terminal_reason: "api_error"`; a non-zero exit or a `SIGKILL` |
 
 Not normalised, used by the adapter itself: `system/init` (session id,
-model, Skills), `system/status`, `system/thinking_tokens`, the
+model, Skills; it comes again with each new user message in the same
+process), the MCP progress notifications (they never reach stdout), `system/status`, `system/thinking_tokens`, the
 `system/task_*` events of background tools, `control_response`.
 
 ### Codex
@@ -390,7 +424,9 @@ come from the protocol of 0.167.1 (`codex app-server generate-ts`) and are
   sources the Pilote's user settings, hooks included, apply); `--session-id`
   to choose the id; the question hook answers with `allow` +
   `updatedInput.answers`; the hook's `timeout` must cover a question that
-  waits for hours (10800 s here); which permission mode the Pilote's
+  waits for hours (10800 s here); the permission MCP server sends
+  `notifications/progress` while a request waits, or Claude aborts it after
+  about 30 minutes (scenario 2); which permission mode the Pilote's
   Sessions use (scenario 9).
 - **RUNNER-6 (Codex)**: check the account before starting a turn; the
   Pilote's `~/.agents/skills` show up in a Session; types generated from

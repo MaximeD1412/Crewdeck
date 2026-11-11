@@ -82,7 +82,25 @@ async function handle(msg) {
         path.join(dir, 'pending', `${id}.json`),
         JSON.stringify({ at: new Date().toISOString(), params: msg.params }, null, 2),
       );
+      // Claude Code aborts a call silent for ~30 min; a progress
+      // notification every SPIKE_PROGRESS_MS keeps it alive.
+      const token = msg.params?._meta?.progressToken;
+      const every = Number(process.env.SPIKE_PROGRESS_MS ?? 0);
+      let progress = 0;
+      const keepAlive =
+        every > 0 && token !== undefined
+          ? setInterval(
+              () =>
+                send({
+                  jsonrpc: '2.0',
+                  method: 'notifications/progress',
+                  params: { progressToken: token, progress: ++progress, message: 'En attente du Pilote' },
+                }),
+              every,
+            )
+          : null;
       const decision = await waitForAnswer(id);
+      if (keepAlive) clearInterval(keepAlive);
       fs.rmSync(path.join(dir, 'pending', `${id}.json`), { force: true });
       return send({ jsonrpc: '2.0', id: msg.id, result: { content: [{ type: 'text', text: decision }] } });
     }

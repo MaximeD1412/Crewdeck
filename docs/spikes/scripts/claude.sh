@@ -22,7 +22,7 @@ mkdir -p "$dir"
 rm -rf "$dir/pending" "$dir/answers"
 
 cat >"$dir/mcp.json" <<EOF
-{"mcpServers":{"spike":{"command":"node","args":["$here/perm-mcp.mjs"],"env":{"SPIKE_DIR":"$dir"}}}}
+{"mcpServers":{"spike":{"command":"node","args":["$here/perm-mcp.mjs"],"env":{"SPIKE_DIR":"$dir","SPIKE_PROGRESS_MS":"${SPIKE_PROGRESS_MS:-0}"}}}}
 EOF
 cat >"$dir/settings.json" <<EOF
 {"hooks":{"PreToolUse":[{"matcher":"AskUserQuestion","hooks":[{"type":"command","command":"SPIKE_DIR=$dir node $here/question-hook.mjs","timeout":10800}]}]}}

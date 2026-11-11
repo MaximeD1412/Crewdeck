@@ -90,6 +90,7 @@ func newRoot(m *machine) *cobra.Command {
 		},
 	})
 	root.AddCommand(newLinkCommand(&server))
+	root.AddCommand(newDevicesCommand(&server))
 	root.AddCommand(&cobra.Command{
 		Use:   "run",
 		Short: "Connect to the server and stay connected, in the foreground",

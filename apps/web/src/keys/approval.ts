@@ -64,9 +64,11 @@ export const parseDeviceCode = (text: string): DeviceCode | null => {
   return code;
 };
 
-const newProof = (secret: Uint8Array, newPublicKey: Uint8Array): Promise<Bytes> => hmacSha256(secret, concat(utf8(DEVICE_PROOF_LABELS.new), newPublicKey));
+/** `proof_N`, the new page's. */
+export const newDeviceProof = (secret: Uint8Array, newPublicKey: Uint8Array): Promise<Bytes> => hmacSha256(secret, concat(utf8(DEVICE_PROOF_LABELS.new), newPublicKey));
 
-const approveProof = (secret: Uint8Array, newPublicKey: Uint8Array, approverPublicKey: Uint8Array): Promise<Bytes> =>
+/** `proof_A`, the approver's. */
+export const approveDeviceProof = (secret: Uint8Array, newPublicKey: Uint8Array, approverPublicKey: Uint8Array): Promise<Bytes> =>
   hmacSha256(secret, concat(utf8(DEVICE_PROOF_LABELS.approve), newPublicKey, approverPublicKey));
 
 /** The calls the approval makes, `client`'s in the page, a fake server in the tests. */
@@ -129,7 +131,7 @@ export const createDeviceApproval = ({ devices, vault, api, userAgent, onDevice 
       const { publicKey } = await unnamed();
       const secret = await entropy().bytes(16);
       try {
-        const proof = await newProof(secret, publicKey);
+        const proof = await newDeviceProof(secret, publicKey);
         const created = await api.register({ publicKey: toBase64Url(publicKey), name: deviceNameOf(userAgent), proof: toBase64Url(proof) });
         return { id: created.id, shortId: created.shortId, expiresAt: created.expiresAt, secret: encodeBase32(secret) };
       } finally {
@@ -146,7 +148,7 @@ export const createDeviceApproval = ({ devices, vault, api, userAgent, onDevice 
       const approverPublicKey = fromBase64Url(approval.approver.publicKey);
       const secret = decodeBase32(code.secret);
       try {
-        const expected = await approveProof(secret, stored.publicKey, approverPublicKey);
+        const expected = await approveDeviceProof(secret, stored.publicKey, approverPublicKey);
         if (!constantTimeEqual(expected, fromBase64Url(approval.proof))) return 'invalid';
       } finally {
         secret.fill(0);
@@ -160,7 +162,7 @@ export const createDeviceApproval = ({ devices, vault, api, userAgent, onDevice 
       const device = await api.pending(code.shortId);
       const secret = decodeBase32(code.secret);
       try {
-        const expected = await newProof(secret, fromBase64Url(device.publicKey));
+        const expected = await newDeviceProof(secret, fromBase64Url(device.publicKey));
         return constantTimeEqual(expected, fromBase64Url(device.proof)) ? { code, device } : 'mismatch';
       } finally {
         secret.fill(0);
@@ -176,7 +178,7 @@ export const createDeviceApproval = ({ devices, vault, api, userAgent, onDevice 
       const vaultKey = await vault.rawVaultKeyForWrap();
       try {
         const wrap = await sealWrap(self.privateKey, newPublicKey, vaultKey, INFO.vaultWrap, utf8(vaultWrapAad(device.id, version)));
-        const proof = await approveProof(secret, newPublicKey, self.publicKey);
+        const proof = await approveDeviceProof(secret, newPublicKey, self.publicKey);
         return await api.approve(device.id, {
           approver: { type: 'device', id: self.deviceId },
           vaultKeyVersion: version,

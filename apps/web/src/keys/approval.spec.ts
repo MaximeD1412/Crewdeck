@@ -1,6 +1,6 @@
 import type { ApproveDevice, Device, DeviceApproval, NewDeviceRequest, PendingDevice, VaultKeyWrap } from '@crewdeck/contracts';
 import { server } from 'vitest/browser';
-import { type ApprovalApi, createDeviceApproval, deviceCodeText, deviceCodeUri, parseDeviceCode } from './approval.js';
+import { type ApprovalApi, approveDeviceProof, createDeviceApproval, deviceCodeText, deviceCodeUri, newDeviceProof, parseDeviceCode } from './approval.js';
 import { fromBase64Url, toBase64Url, utf8 } from './bytes.js';
 import { generateKeyPair, publicKeyOf } from './crypto.js';
 import { memoryDeviceStore, x25519FromPrivateKey } from './testing.js';
@@ -177,6 +177,17 @@ describe('a new Appareil approved by its code', () => {
     if (checked === 'mismatch') throw new Error('mismatch');
     await expect(other.keys.approve(checked)).rejects.toThrow(/holds no vault key/);
     expect(fake.wrap()).toBeNull();
+  });
+});
+
+describe('the proofs of a new Appareil', () => {
+  // The vectors of docs/security/e2e.md « New Appareil », the Runner's too (internal/keys/device_test.go).
+  it('are the bytes the Runner computes', async () => {
+    const secret = Uint8Array.from({ length: 16 }, (_, i) => i);
+    const newKey = new Uint8Array(32).fill(0x11);
+    const approverKey = new Uint8Array(32).fill(0x22);
+    expect(toBase64Url(await newDeviceProof(secret, newKey))).toBe('NULG3lc4ksC0AGvvSApBzn65aDVMCw9mpjhkRngplZE');
+    expect(toBase64Url(await approveDeviceProof(secret, newKey, approverKey))).toBe('txJX8MrtUMCD9-qgPpWAKf61I4PBvdBhEq27LOMt5mE');
   });
 });
 

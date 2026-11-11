@@ -1,5 +1,13 @@
 import { blank } from './blank.js';
-import { composants, composantsDialog, composantsFigures, composantsRows, composantsSettingRow, composantsTextField } from './composants.js';
+import {
+  composants,
+  composantsDialog,
+  composantsFigures,
+  composantsRows,
+  composantsSession,
+  composantsSettingRow,
+  composantsTextField,
+} from './composants.js';
 import { connexion, connexionErreur } from './connexion.js';
 import type { Scenario } from './define.js';
 import { menuPlus } from './menu-plus.js';
@@ -18,6 +26,7 @@ const SCENARIOS: readonly Scenario[] = [
   composantsSettingRow,
   composantsDialog,
   ...composantsFigures,
+  ...composantsSession,
 ];
 
 const byName = new Map(SCENARIOS.map((scenario) => [scenario.name, scenario]));

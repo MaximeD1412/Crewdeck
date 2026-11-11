@@ -15,6 +15,7 @@ import { PasserelleCheckRow } from './check-row.js';
 import { PasserelleCheckbox } from './checkbox.js';
 import { PasserelleChip } from './chip.js';
 import { PasserelleCodeBlock } from './code-block.js';
+import { PasserelleComposer } from './composer.js';
 import { PasserelleDecisionRow } from './decision-row.js';
 import { PasserelleDialog } from './dialog.js';
 import { PasserelleEmpty } from './empty.js';
@@ -24,12 +25,16 @@ import { PasserelleIcon } from './icon.js';
 import { PasserelleKeyValue } from './key-value.js';
 import { PasserelleListRow } from './list-row.js';
 import { PasserelleMenuItem } from './menu-item.js';
+import { PasserelleMessage } from './message.js';
 import { PasserellePageComposants } from './page-composants.js';
 import { PasserellePageConnexion } from './page-connexion.js';
 import { PasserellePageHeader } from './page-header.js';
 import { PasserellePageIntrouvable } from './page-introuvable.js';
+import { PasserellePermissionRequest } from './permission-request.js';
 import { PasserelleProcessTrack } from './process-track.js';
 import { PasserelleProjectFilter } from './project-filter.js';
+import { PasserelleQuestion } from './question.js';
+import { PasserelleSession } from './session.js';
 import { PasserelleRadio } from './radio.js';
 import { PasserelleSelect } from './select.js';
 import { PasserelleSettingRow } from './setting-row.js';
@@ -41,6 +46,7 @@ import { PasserelleTextField } from './text-field.js';
 import { PasserelleTicketRow } from './ticket-row.js';
 import { PasserelleTicketTree } from './ticket-tree.js';
 import { PasserelleTimeline } from './timeline.js';
+import { PasserelleToolCall } from './tool-call.js';
 import { PasserelleToggle } from './toggle.js';
 import { PasserelleUsageMeter } from './usage-meter.js';
 
@@ -61,6 +67,12 @@ export default defineSkin({
     Dialog: PasserelleDialog,
     KeyValue: PasserelleKeyValue,
     ListRow: PasserelleListRow,
+    Session: PasserelleSession,
+    Message: PasserelleMessage,
+    ToolCall: PasserelleToolCall,
+    Question: PasserelleQuestion,
+    PermissionRequest: PasserellePermissionRequest,
+    Composer: PasserelleComposer,
     SettingRow: PasserelleSettingRow,
     DecisionRow: PasserelleDecisionRow,
     IdeaRow: PasserelleIdeaRow,

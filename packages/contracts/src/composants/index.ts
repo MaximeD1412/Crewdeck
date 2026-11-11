@@ -8,6 +8,7 @@ import { CheckRow } from './check-row.js';
 import { Checkbox } from './checkbox.js';
 import { Chip } from './chip.js';
 import { CodeBlock } from './code-block.js';
+import { Composer } from './composer.js';
 import { DecisionRow } from './decision-row.js';
 import type { AnyComposant } from './define.js';
 import { Dialog } from './dialog.js';
@@ -17,12 +18,16 @@ import { IconButton } from './icon-button.js';
 import { Icon } from './icon.js';
 import { KeyValue } from './key-value.js';
 import { ListRow } from './list-row.js';
+import { Message } from './message.js';
 import { PageComposants } from './page-composants.js';
 import { PageConnexion } from './page-connexion.js';
 import { PageHeader } from './page-header.js';
 import { PageIntrouvable } from './page-introuvable.js';
+import { PermissionRequest } from './permission-request.js';
 import { ProcessTrack } from './process-track.js';
 import { ProjectFilter } from './project-filter.js';
+import { Question } from './question.js';
+import { Session } from './session.js';
 import { Radio } from './radio.js';
 import { Select } from './select.js';
 import { SettingRow } from './setting-row.js';
@@ -34,6 +39,7 @@ import { TextField } from './text-field.js';
 import { TicketRow } from './ticket-row.js';
 import { TicketTree } from './ticket-tree.js';
 import { Timeline } from './timeline.js';
+import { ToolCall } from './tool-call.js';
 import { Toggle } from './toggle.js';
 import { UsageMeter } from './usage-meter.js';
 
@@ -48,6 +54,7 @@ export * from './check-row.js';
 export * from './checkbox.js';
 export * from './chip.js';
 export * from './code-block.js';
+export * from './composer.js';
 export * from './decision-row.js';
 export * from './define.js';
 export * from './dialog.js';
@@ -58,12 +65,16 @@ export * from './icon.js';
 export * from './icons.js';
 export * from './key-value.js';
 export * from './list-row.js';
+export * from './message.js';
 export * from './page-composants.js';
 export * from './page-connexion.js';
 export * from './page-header.js';
 export * from './page-introuvable.js';
+export * from './permission-request.js';
 export * from './process-track.js';
 export * from './project-filter.js';
+export * from './question.js';
+export * from './session.js';
 export * from './radio.js';
 export * from './select.js';
 export * from './setting-row.js';
@@ -77,6 +88,7 @@ export * from './ticket-tree.js';
 export * from './timeline.js';
 export * from './toggle.js';
 export * from './tone.js';
+export * from './tool-call.js';
 export * from './usage-meter.js';
 
 /**
@@ -97,6 +109,12 @@ export const COMPOSANTS = {
   Dialog,
   KeyValue,
   ListRow,
+  Session,
+  Message,
+  ToolCall,
+  Question,
+  PermissionRequest,
+  Composer,
   SettingRow,
   DecisionRow,
   IdeaRow,

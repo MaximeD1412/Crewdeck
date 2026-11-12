@@ -1,14 +1,16 @@
 import { type InstallationRepository, REPOSITORIES_MAX, type Repository } from '@crewdeck/contracts';
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
+import { AppError } from '../../errors/app-error.js';
 import { newId } from '../../ids.js';
-import { PrismaService } from '../../prisma/prisma.service.js';
 import { PROJECT_VIEW, toProject } from '../../projects/project.view.js';
 import { EventsWriter, type WriteOptions } from '../../realtime/events.writer.js';
 import { STATE_CONTRIBUTORS, type StateContributor, type StateContributors } from '../../realtime/state-contributors.js';
 import { Transactions, type Tx } from '../../realtime/transactions.js';
+import { runInPilotScope } from '../../scope/scope.context.js';
 import { GITHUB_CLIENT, type GitHubClient } from '../github.client.js';
 import { ReconcileHooks } from '../reconciliation/reconciliation.service.js';
 import { GitHubEvents } from '../webhooks/dispatcher.js';
+import { GitHubInstallations } from '../webhooks/installations.js';
 import type { WebhookPayload } from '../webhooks/payload.js';
 
 /** « Has code »: at least this many commits on the default branch (an initial commit alone is a new repository). */
@@ -72,7 +74,13 @@ const githubIdsAt = (payload: WebhookPayload, key: string): number[] => {
  * repository it reads its metadata, its default branch and how many commits
  * that branch has, never a file. A repository the installation no longer
  * reaches is deleted (`repository.removed`) and its Projet marked
- * `accessLost`; back, it takes the Projet's `repositoryId` again.
+ * `accessLost`; back, it takes the Projet's `repositoryId` again. An
+ * installation GitHub no longer has (its `installation.deleted` lost) is
+ * removed as that webhook would have.
+ *
+ * A Pilote's changes run one after the other, GitHub's reads included: a
+ * removal never lands between a sync's read and its write, to be undone by
+ * what the sync read before it.
  */
 @Injectable()
 export class Repositories implements OnModuleInit {
@@ -80,10 +88,13 @@ export class Repositories implements OnModuleInit {
     @Inject(GITHUB_CLIENT) private readonly github: GitHubClient,
     private readonly githubEvents: GitHubEvents,
     private readonly hooks: ReconcileHooks,
-    private readonly prisma: PrismaService,
     private readonly transactions: Transactions,
     private readonly events: EventsWriter,
+    private readonly installations: GitHubInstallations,
   ) {}
+
+  /** The last change queued per Pilote. */
+  private readonly queues = new Map<string, Promise<unknown>>();
 
   onModuleInit(): void {
     this.githubEvents.on('installation', async ({ pilotId, installationId, action, sourceAt }) => {
@@ -101,25 +112,38 @@ export class Repositories implements OnModuleInit {
   /**
    * Reads the installation's repositories from GitHub (`only` those, when
    * given), then writes what changed in one transaction; with `prune`, the
-   * rows of this installation GitHub no longer lists are removed.
+   * rows of this installation GitHub no longer lists are removed. The
+   * commits are counted each time: a force push can take them back.
    */
-  async sync(pilotId: string, installationId: number, options: Origin & { readonly only?: ReadonlySet<number>; readonly prune: boolean }): Promise<void> {
-    const listed = await this.github.listInstallationRepositories(installationId);
+  sync(pilotId: string, installationId: number, options: Origin & { readonly only?: ReadonlySet<number>; readonly prune: boolean }): Promise<void> {
+    return this.serial(pilotId, () => this.syncNow(pilotId, installationId, options));
+  }
+
+  /** `installation_repositories.removed`: the repositories GitHub named. */
+  remove(pilotId: string, githubIds: readonly number[], origin: Origin): Promise<void> {
+    return this.serial(pilotId, () => this.removeNow(pilotId, githubIds, origin));
+  }
+
+  /** `installation.deleted`: every repository of the installation. */
+  removeInstallation(pilotId: string, installationId: number, origin: Origin): Promise<void> {
+    return this.serial(pilotId, () => this.removeInstallationNow(pilotId, installationId, origin));
+  }
+
+  private async syncNow(pilotId: string, installationId: number, options: Origin & { readonly only?: ReadonlySet<number>; readonly prune: boolean }): Promise<void> {
+    let listed: InstallationRepository[];
+    try {
+      listed = await this.github.listInstallationRepositories(installationId);
+    } catch (error) {
+      if (!(error instanceof AppError && error.code === 'github.installation-gone')) throw error;
+      await this.removeInstallationNow(pilotId, installationId, options);
+      await this.installations.deleted(installationId);
+      return;
+    }
     const wanted = options.only ? listed.filter((repo) => options.only?.has(repo.id)) : listed;
-    const known = new Map(
-      (
-        await this.prisma.scoped.repository.findMany({
-          where: { githubId: { in: wanted.map((repo) => BigInt(repo.id)) } },
-          select: { githubId: true, defaultBranch: true, hasCode: true },
-        })
-      ).map((row) => [Number(row.githubId), row]),
-    );
     const facts: RepositoryFacts[] = [];
     for (const repo of wanted) {
       const defaultBranch = await this.github.getDefaultBranch(repo);
-      const prior = known.get(repo.id);
-      // Commits are not taken back: code once seen on the same branch stays.
-      const hasCode = prior?.hasCode === true && prior.defaultBranch === defaultBranch ? true : (await this.github.countCommits(repo, defaultBranch, HAS_CODE_COMMITS)) >= HAS_CODE_COMMITS;
+      const hasCode = (await this.github.countCommits(repo, defaultBranch, HAS_CODE_COMMITS)) >= HAS_CODE_COMMITS;
       facts.push({ repo, defaultBranch, hasCode });
     }
     await this.transactions.run(async (tx) => {
@@ -133,8 +157,7 @@ export class Repositories implements OnModuleInit {
     });
   }
 
-  /** `installation_repositories.removed`: the repositories GitHub named. */
-  async remove(pilotId: string, githubIds: readonly number[], origin: Origin): Promise<void> {
+  private async removeNow(pilotId: string, githubIds: readonly number[], origin: Origin): Promise<void> {
     if (githubIds.length === 0) return;
     await this.transactions.run(async (tx) => {
       const rows = await tx.repository.findMany({ where: { githubId: { in: githubIds.map(BigInt) } }, select: { id: true } });
@@ -142,8 +165,7 @@ export class Repositories implements OnModuleInit {
     });
   }
 
-  /** `installation.deleted`: every repository of the installation. */
-  async removeInstallation(pilotId: string, installationId: number, origin: Origin): Promise<void> {
+  private async removeInstallationNow(pilotId: string, installationId: number, origin: Origin): Promise<void> {
     await this.transactions.run(async (tx) => {
       const rows = await tx.repository.findMany({ where: { installationId: BigInt(installationId) }, select: { id: true } });
       await this.removeRows(tx, pilotId, rows, origin);
@@ -189,6 +211,24 @@ export class Repositories implements OnModuleInit {
       const seq = await this.events.write(tx, pilotId, 'project.upserted', toProject(lost), this.writeOptions(origin));
       await tx.project.update({ where: { id: project.id }, data: { lastSeq: seq } });
     }
+  }
+
+  /** Runs `fn` in `pilotId`'s scope, after the Pilote's changes already queued, whether they failed or not. */
+  private serial<T>(pilotId: string, fn: () => Promise<T>): Promise<T> {
+    const previous = this.queues.get(pilotId) ?? Promise.resolve();
+    const run = previous.then(
+      () => runInPilotScope(pilotId, fn),
+      () => runInPilotScope(pilotId, fn),
+    );
+    const settled = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.queues.set(pilotId, settled);
+    void settled.then(() => {
+      if (this.queues.get(pilotId) === settled) this.queues.delete(pilotId);
+    });
+    return run;
   }
 
   private writeOptions({ sourceAt }: Origin): WriteOptions {

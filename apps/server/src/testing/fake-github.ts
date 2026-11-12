@@ -24,7 +24,7 @@ import type {
   UserTokens,
 } from '@crewdeck/contracts';
 import type { GitHubClient } from '../github/github.client.js';
-import { branchProtected, githubUnavailable, headMoved, processJsonInvalid, userTokenRefused } from '../github/github.errors.js';
+import { branchProtected, githubUnavailable, headMoved, installationGone, processJsonInvalid, userTokenRefused } from '../github/github.errors.js';
 import type { Fake } from './fakes.js';
 
 /** A file's content: text, or the bytes of an image (the captures). */
@@ -122,6 +122,8 @@ export class FakeGitHub implements GitHubClient, Fake {
   private accessTokens = new Map<string, number>();
   private refreshTokens = new Map<string, number>();
   private installations = new Set<number>();
+  /** The installations uninstalled on GitHub: `github.installation-gone`, not `github.unavailable`. */
+  private uninstalled = new Set<number>();
   private counter = 0;
 
   reset(): void {
@@ -133,6 +135,7 @@ export class FakeGitHub implements GitHubClient, Fake {
     this.accessTokens = new Map();
     this.refreshTokens = new Map();
     this.installations = new Set();
+    this.uninstalled = new Set();
     this.counter = 0;
   }
 
@@ -147,6 +150,12 @@ export class FakeGitHub implements GitHubClient, Fake {
 
   seedInstallation(installationId: number): void {
     this.installations.add(installationId);
+  }
+
+  /** The App uninstalled on GitHub, as when the Pilote removes it (its webhook may be lost). */
+  uninstall(installationId: number): void {
+    this.installations.delete(installationId);
+    this.uninstalled.add(installationId);
   }
 
   /** A repository with one commit on its default branch (`main`). */
@@ -207,6 +216,14 @@ export class FakeGitHub implements GitHubClient, Fake {
     const sha = this.commit(new Map([...this.files(parent), ...Object.entries(files)]), [parent]);
     this.moveBranch(fake, branch, sha);
     return Promise.resolve(sha);
+  }
+
+  /** A force push of one commit, without a parent, holding the branch's current files: its history rewritten. */
+  squashBranch(repo: RepoRef, branch: string): string {
+    const fake = this.repo(repo);
+    const sha = this.commit(new Map(this.files(this.head(fake, branch))));
+    this.moveBranch(fake, branch, sha);
+    return sha;
   }
 
   protectBranch(repo: RepoRef, name: string): void {
@@ -308,7 +325,7 @@ export class FakeGitHub implements GitHubClient, Fake {
   listInstallationRepositories(installationId: number): Promise<InstallationRepository[]> {
     this.record('listInstallationRepositories', installationId);
     return this.run(() => {
-      if (!this.installations.has(installationId)) throw githubUnavailable();
+      this.installed(installationId);
       return [...this.repos.values()].filter((repo) => repo.installationId === installationId).map((repo) => ({ ...repo.ref, private: repo.private }));
     });
   }
@@ -534,6 +551,12 @@ export class FakeGitHub implements GitHubClient, Fake {
   private async run<T>(fn: () => T): Promise<T> {
     await Promise.resolve();
     return fn();
+  }
+
+  /** What `listInstallationRepositories` says of an installation: `github.installation-gone` uninstalled, `github.unavailable` never seeded. */
+  private installed(installationId: number): void {
+    if (this.uninstalled.has(installationId)) throw installationGone();
+    if (!this.installations.has(installationId)) throw githubUnavailable();
   }
 
   private next(): number {

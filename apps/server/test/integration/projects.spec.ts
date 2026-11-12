@@ -1,10 +1,11 @@
 import { zProject, zProjectList, zRepository, zState } from '@crewdeck/contracts';
 import type { INestApplication } from '@nestjs/common';
 import pg from 'pg';
-import { inject } from 'vitest';
+import { inject, vi } from 'vitest';
 import { SESSION_COOKIE } from '../../src/auth/cookies.js';
 import { WebSessions } from '../../src/auth/web-sessions.js';
 import { appOrigin, parseEnv } from '../../src/config/env.js';
+import { githubUnavailable } from '../../src/github/github.errors.js';
 import { Reconciliation } from '../../src/github/reconciliation/reconciliation.service.js';
 import { WebhookDispatcher } from '../../src/github/webhooks/dispatcher.js';
 import { newId } from '../../src/ids.js';
@@ -206,6 +207,75 @@ describe('the Dépôts GitHub and the Projets against PostgreSQL', () => {
       expect((await state(alice)).repositories.map((repository) => repository.name)).toEqual(['fixture-app']);
     });
 
+    it('the reconciliation counts the commits again: a history rewritten to one commit has no code any more', async () => {
+      await install();
+      fakes.github.squashBranch(APP_REPO, 'main');
+
+      await app.get(Reconciliation).run();
+
+      expect((await state(alice)).repositories.map(({ name, hasCode }) => ({ name, hasCode }))).toEqual([
+        { name: 'fixture-app', hasCode: false },
+        { name: 'new-idea', hasCode: false },
+      ]);
+    });
+
+    it('a removal delivered while the reconciliation reads GitHub is applied after it, never undone by it', async () => {
+      const [withCode] = await install();
+      const [project] = zProjectList.parse(await (await follow(alice, [withCode?.id ?? ''])).json()).items;
+      let release = (): void => undefined;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const read = fakes.github.getDefaultBranch.bind(fakes.github);
+      const paused = vi.spyOn(fakes.github, 'getDefaultBranch').mockImplementationOnce(async (repo) => {
+        await gate;
+        return read(repo);
+      });
+      try {
+        // The reconciliation has listed both repositories, and waits on GitHub.
+        const reconciling = app.get(Reconciliation).run();
+        await vi.waitFor(() => expect(paused).toHaveBeenCalled());
+
+        fakes.github.removeFromInstallation(APP_REPO);
+        expect((await deliverWebhook(url, { event: 'installation_repositories', payload: repositoriesEvent('removed', [APP_REPO]) })).status).toBe(202);
+        await Promise.race([dispatcher.settled(), new Promise((resolve) => setTimeout(resolve, 300))]);
+        release();
+        await reconciling;
+        await dispatcher.settled();
+      } finally {
+        paused.mockRestore();
+      }
+
+      const after = await state(alice);
+      expect(after.repositories.map((repository) => repository.name)).toEqual(['new-idea']);
+      expect(after.projects).toEqual([expect.objectContaining({ id: project?.id, accessLost: true })]);
+    });
+
+    it('the reconciliation finds an installation uninstalled whose webhook was lost: its repositories leave, their Projets lose access, the installation leaves the index', async () => {
+      const [withCode] = await install();
+      const [project] = zProjectList.parse(await (await follow(alice, [withCode?.id ?? ''])).json()).items;
+      fakes.github.uninstall(INSTALLATION_ID);
+
+      await app.get(Reconciliation).run();
+
+      const after = await state(alice);
+      expect(after.repositories).toEqual([]);
+      expect(after.projects).toEqual([expect.objectContaining({ id: project?.id, accessLost: true })]);
+      expect(await sql('SELECT installation_id FROM github_installations WHERE installation_id = $1', [INSTALLATION_ID])).toEqual([]);
+    });
+
+    it('keeps the repositories when GitHub only fails for a while', async () => {
+      await install();
+      const failing = vi.spyOn(fakes.github, 'listInstallationRepositories').mockRejectedValueOnce(githubUnavailable());
+      try {
+        await app.get(Reconciliation).run();
+      } finally {
+        failing.mockRestore();
+      }
+
+      expect((await state(alice)).repositories.map((repository) => repository.name)).toEqual(['fixture-app', 'new-idea']);
+    });
+
     it('installation.deleted removes every repository of the installation', async () => {
       await install();
 
@@ -266,6 +336,18 @@ describe('the Dépôts GitHub and the Projets against PostgreSQL', () => {
       const envelope = await expectEnvelope(await follow(alice, [second?.id ?? '', first?.id ?? '']), 422, 'project.already-followed');
 
       expect(envelope.message).toBe('Ce dépôt est déjà un Projet.');
+      expect(await sql('SELECT id FROM projects')).toHaveLength(1);
+    });
+
+    it('follows a repository once when two tabs follow it at the same time: the other gets 422 project.already-followed or 409 realtime.stale, never a 500', async () => {
+      const [first] = await install();
+      const { seq } = await state(alice);
+
+      const responses = await Promise.all([follow(alice, [first?.id ?? ''], seq), follow(alice, [first?.id ?? ''], seq)]);
+
+      const statuses = responses.map((res) => res.status).sort();
+      expect(statuses[0]).toBe(201);
+      expect([409, 422]).toContain(statuses[1]);
       expect(await sql('SELECT id FROM projects')).toHaveLength(1);
     });
 

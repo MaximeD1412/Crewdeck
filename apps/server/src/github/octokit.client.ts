@@ -29,7 +29,7 @@ import type { PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
 import type { Env } from '../config/env.js';
 import { AppError } from '../errors/app-error.js';
-import { branchProtected, githubUnavailable, headMoved, processJsonInvalid, userTokenRefused } from './github.errors.js';
+import { branchProtected, githubUnavailable, headMoved, installationGone, processJsonInvalid, userTokenRefused } from './github.errors.js';
 import type { GitHubClient } from './github.client.js';
 import { GitHubReadForbiddenError, installReadGuard } from './read-guard.js';
 
@@ -142,10 +142,13 @@ const INSTALLATION_TOKEN_ROUTE = /\/app\/installations\/\d+\/access_tokens$/;
 const isStaleInstallation = (error: unknown): boolean =>
   isFailure(error) && (error.status === 401 || (error.status === 404 && INSTALLATION_TOKEN_ROUTE.test(error.request?.url ?? '')));
 
-/** A resource GitHub does not have: never the 404 of an installation's token, which says the installation is gone. */
+/** GitHub's 404 to an installation's token: it has no such installation (uninstalled). */
+const isInstallationNotFound = (error: unknown): boolean => isFailure(error) && error.status === 404 && INSTALLATION_TOKEN_ROUTE.test(error.request?.url ?? '');
+
 /** GitHub's answer to the commits of a repository without any: a 409. */
 const isEmptyRepository = (error: unknown): boolean => isFailure(error) && error.status === 409;
 
+/** A resource GitHub does not have: never the 404 of an installation's token, which says the installation is gone. */
 const isNotFound = (error: unknown): boolean =>
   isFailure(error) && error.status === 404 && !INSTALLATION_TOKEN_ROUTE.test(error.request?.url ?? '');
 
@@ -214,10 +217,15 @@ export class OctokitGitHubClient implements GitHubClient {
 
   listInstallationRepositories(installationId: number): Promise<InstallationRepository[]> {
     return this.call(async () => {
-      const raws = await this.all(this.request(this.forInstallation(installationId)), 'GET /installation/repositories', {}, (data) =>
-        z.object({ repositories: z.array(zRawRepository) }).parse(data).repositories,
-      );
-      return raws.map((raw) => ({ owner: raw.owner.login, name: raw.name, id: raw.id, private: raw.private }));
+      try {
+        const raws = await this.all(this.request(this.forInstallation(installationId)), 'GET /installation/repositories', {}, (data) =>
+          z.object({ repositories: z.array(zRawRepository) }).parse(data).repositories,
+        );
+        return raws.map((raw) => ({ owner: raw.owner.login, name: raw.name, id: raw.id, private: raw.private }));
+      } catch (error) {
+        if (isInstallationNotFound(error)) throw installationGone();
+        throw error;
+      }
     });
   }
 

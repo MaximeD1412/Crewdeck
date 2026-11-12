@@ -3,6 +3,7 @@ import { Body, Controller, Get, Inject, Injectable, type OnModuleInit, Param, Po
 import { createZodDto, ZodResponse } from 'nestjs-zod';
 import { AppError, notFound, unprocessable } from '../errors/app-error.js';
 import { MESSAGES } from '../errors/messages.js';
+import { Prisma } from '../generated/prisma/client.js';
 import { GITHUB_CLIENT, type GitHubClient } from '../github/github.client.js';
 import { REPOSITORY_VIEW } from '../github/repositories/repositories.js';
 import { newId } from '../ids.js';
@@ -24,6 +25,10 @@ export const listProjects = async (tx: Pick<Tx, 'project'>): Promise<Project[]> 
   (await tx.project.findMany({ select: PROJECT_VIEW, orderBy: [{ displayName: 'asc' }, { fullName: 'asc' }] })).map(toProject);
 
 const repositoryNotFound = (): AppError => notFound('project.repository-not-found', MESSAGES['project.repository-not-found']);
+const alreadyFollowed = (): AppError => unprocessable('project.already-followed', MESSAGES['project.already-followed']);
+
+/** A unique index of `projects` refused the row: another command followed the repository first. */
+const isUniqueViolation = (error: unknown): boolean => error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 
 /**
  * The Projets (US-3, PROJET-2): following a Dépôt GitHub makes it a Projet,
@@ -44,28 +49,38 @@ export class Projects {
    * 404 `project.repository-not-found` for a repository unknown or another
    * Pilote's, 422 `project.already-followed` for one already a Projet, 409
    * `realtime.stale` for one changed since `seq`. `.process.json` is read
-   * before the transaction, which checks again.
+   * before the transaction, which checks again; two commands at once on the
+   * same repository: the unique index lets one through, the other is 422.
    */
   async follow(pilotId: string, { repositoryIds, seq }: FollowProjects): Promise<Project[]> {
     const ids = [...new Set(repositoryIds)];
     const repositories = await this.prisma.scoped.repository.findMany({ where: { id: { in: ids } }, select: { ...REPOSITORY_VIEW, githubId: true } });
     if (repositories.length !== ids.length) throw repositoryNotFound();
     if ((await this.prisma.scoped.project.count({ where: { repositoryId: { in: ids } } })) > 0) {
-      throw unprocessable('project.already-followed', MESSAGES['project.already-followed']);
+      throw alreadyFollowed();
     }
     const names = new Map<string, ReturnType<typeof projectNamesOf>>();
     for (const repository of repositories) {
       const ref = { owner: repository.owner, name: repository.name, id: Number(repository.githubId) };
       names.set(repository.id, projectNamesOf(await this.processJson(ref, repository.defaultBranch), repository));
     }
+    try {
+      return await this.write(pilotId, ids, names, BigInt(seq));
+    } catch (error) {
+      if (isUniqueViolation(error)) throw alreadyFollowed();
+      throw error;
+    }
+  }
+
+  private write(pilotId: string, ids: readonly string[], names: ReadonlyMap<string, ReturnType<typeof projectNamesOf>>, seq: bigint): Promise<Project[]> {
     return this.transactions.run(async (tx) => {
       const projects: Project[] = [];
       for (const id of ids) {
         const repository = await tx.repository.findUnique({ where: { id }, select: { ...REPOSITORY_VIEW, githubId: true, lastSeq: true } });
         if (!repository) throw repositoryNotFound();
-        assertFresh(repository.lastSeq, BigInt(seq));
+        assertFresh(repository.lastSeq, seq);
         if ((await tx.project.count({ where: { OR: [{ repositoryId: id }, { githubRepoId: repository.githubId }] } })) > 0) {
-          throw unprocessable('project.already-followed', MESSAGES['project.already-followed']);
+          throw alreadyFollowed();
         }
         const projectId = newId();
         const row = await tx.project.create({

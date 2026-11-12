@@ -34,6 +34,8 @@ export const GITHUB_CLIENT = Symbol('GITHUB_CLIENT');
  *
  * Errors are `AppError`s: `github.head-moved` (409), `github.branch-protected`
  * (422), `github.user-token-refused` (401) for a user grant GitHub refuses,
+ * `github.installation-gone` (404) when GitHub has no such installation any
+ * more (`listInstallationRepositories`),
  * `github.unavailable` (500) for anything else.
  */
 export interface GitHubClient {

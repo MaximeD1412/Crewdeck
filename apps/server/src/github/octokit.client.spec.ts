@@ -96,6 +96,14 @@ describe('OctokitGitHubClient', () => {
         { owner: 'o', name: 'r3', id: 3, private: true },
       ]);
     });
+
+    it('says github.installation-gone when GitHub has no installation to give a token for, github.unavailable for another failure', async () => {
+      server.use(http.post(`${API}/app/installations/42/access_tokens`, () => HttpResponse.json({ message: 'Not Found' }, { status: 404 })));
+      await expect(new OctokitGitHubClient(env, logger()).listInstallationRepositories(42)).rejects.toMatchObject({ status: 404, code: 'github.installation-gone' });
+
+      server.use(http.post(`${API}/app/installations/42/access_tokens`, () => HttpResponse.json({ message: 'Bad credentials' }, { status: 401 })));
+      await expect(new OctokitGitHubClient(env, logger()).listInstallationRepositories(42)).rejects.toMatchObject({ code: 'github.unavailable' });
+    });
   });
 
   describe('labels', () => {

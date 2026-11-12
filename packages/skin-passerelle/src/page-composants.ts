@@ -257,8 +257,12 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
     const { selected } = this.data;
     const query = fold(this.query.trim());
     const groups = this.data.groups
-      .map((group) => ({ ...group, composants: group.composants.filter((entry) => fold(entry.name).includes(query)) }))
-      .filter((group) => group.composants.length > 0);
+      .map((group) => ({
+        ...group,
+        composants: group.composants.filter((entry) => fold(entry.name).includes(query)),
+        provided: (group.provided ?? []).filter((entry) => fold(entry.name).includes(query)),
+      }))
+      .filter((group) => group.composants.length + group.provided.length > 0);
     return html`<nav class="catalogue" aria-label=${t('composants.page.catalogue')}>
       ${groups.length === 0 ? html`<p class="none">${t('composants.page.noMatch')}</p>` : nothing}
       ${groups.map(
@@ -282,6 +286,7 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
                   : nothing}
               </cd-list-row>`;
             })}
+            ${group.provided.map((entry) => html`<cd-list-row .data=${{ title: entry.name, meta: entry.meta }}></cd-list-row>`)}
           </cd-card>`,
       )}
     </nav>`;

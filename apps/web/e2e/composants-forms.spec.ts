@@ -155,7 +155,9 @@ test.describe('the form Composants and the Dialog in the library (UI-4)', () => 
       const search = page.getByRole('textbox', { name: 'Chercher un Composant' });
       await search.fill('DIALÔG');
       await expect(catalogue.getByRole('link')).toHaveText(['Dialog']);
-      await expect(catalogue.getByRole('heading', { level: 2 })).toHaveText([/^Parties de page/]);
+      // The core's ConfirmDialog follows the search too, a row without a link (CORE-7).
+      await expect(catalogue.getByRole('heading', { level: 2 })).toHaveText([/^Parties de page/, /^Signaux et contrôles/]);
+      await expect(catalogue).toContainText('ConfirmDialog');
       await search.fill('zzz');
       await expect(catalogue).toContainText('Aucun Composant ne porte ce nom.');
       await search.fill('');

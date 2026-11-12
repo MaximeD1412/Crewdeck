@@ -7,6 +7,7 @@ import {
   composantsSession,
   composantsSettingRow,
   composantsTextField,
+  confirmDialog,
 } from './composants.js';
 import { connexion, connexionErreur } from './connexion.js';
 import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
@@ -36,6 +37,7 @@ const SCENARIOS: readonly Scenario[] = [
   composantsTextField,
   composantsSettingRow,
   composantsDialog,
+  confirmDialog,
   ...composantsFigures,
   ...composantsSession,
 ];

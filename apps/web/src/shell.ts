@@ -1,4 +1,5 @@
 import { Banner, Cadre, MenuItem } from '@crewdeck/sdk';
+import { announcer as pageAnnouncer, type Announcer } from './announcer.js';
 import type { RouteMatch } from './router.js';
 import { bannersView, type BannerView } from './views/banners.js';
 import { cadreView, type CadreState } from './views/cadre.js';
@@ -26,6 +27,8 @@ export interface ShellOptions {
   readonly root: HTMLElement;
   /** What the Cadre reads of the store; nothing without a store (signed out). */
   readonly state?: () => ShellState;
+  /** The aria-live region the core speaks through (the dispatcher's refusals); the page's by default. */
+  readonly announcer?: Announcer;
 }
 
 const EMPTY: ShellState = { slices: {} };
@@ -34,13 +37,14 @@ const EMPTY: ShellState = { slices: {} };
  * Mounts the Cadre (US-23) into `root`: a `cd-cadre` holding the router's
  * outlet, its `menu` Emplacement filled with one `cd-menu-item` per entry,
  * the same elements from page to page, and its `banner` Emplacement with the
- * core's Banners (the Resynchronisation, an unhandled API error).
+ * core's Banners (the Resynchronisation, an unhandled API error). After the
+ * outlet, the page's aria-live region, which no navigation replaces.
  */
-export const mountShell = ({ root, state = () => EMPTY }: ShellOptions): Shell => {
+export const mountShell = ({ root, state = () => EMPTY, announcer = pageAnnouncer }: ShellOptions): Shell => {
   const cadre = document.createElement(Cadre.tag) as WithData;
   const outlet = document.createElement('div');
   outlet.style.display = 'contents';
-  cadre.append(outlet);
+  cadre.append(outlet, announcer.element);
   root.replaceChildren(cadre);
   const items: WithData[] = [];
   const banners = new Map<BannerView['key'], WithData>();

@@ -1,6 +1,7 @@
-import { defineComposant, emitAction } from '@crewdeck/sdk';
+import { defineComposant, emitAction, sensitive, t } from '@crewdeck/sdk';
 import { z } from 'zod';
-import { createDispatcher } from './dispatcher.js';
+import type { StoreState } from '../store/store.js';
+import { createDispatcher, type SensitiveConfirmation } from './dispatcher.js';
 
 const Ligne = defineComposant({
   name: 'Ligne',
@@ -72,5 +73,119 @@ describe('the cd-action dispatcher', () => {
 
   it('refuses a second handler for the same action', () => {
     expect(() => dispatcher.registerAction(Ligne, 'open', { run })).toThrow(/Ligne.*open/);
+  });
+});
+
+const Porte = defineComposant({
+  name: 'Porte',
+  version: 1,
+  tag: 'cd-porte-dispatch',
+  category: 'partie',
+  description: 'Une porte de test.',
+  data: z.object({}),
+  actions: { merge: sensitive('merge', z.object({ id: z.string() })), peek: z.object({}) },
+  slots: [],
+  examples: [{ name: 'nominal', data: {} }],
+});
+
+describe('the dispatcher, for an Action sensible', () => {
+  const live: StoreState = { seq: 7n, connection: 'live', lostAt: null, slices: {}, vaultState: 'unlocked' };
+  let state: StoreState;
+  let answer: (confirmed: boolean) => void;
+  const confirm = vi.fn(
+    () =>
+      new Promise<boolean>((resolve) => {
+        answer = resolve;
+      }),
+  );
+  const announce = vi.fn();
+  const run = vi.fn();
+  const confirmation: SensitiveConfirmation<{ id: string }> = (payload) => ({
+    title: `Merger ${payload.id} ?`,
+    confirmLabel: 'Merger',
+    icon: 'merge',
+    consequences: { lead: 'Le Ticket part sur develop.' },
+  });
+  let dispatcher: ReturnType<typeof createDispatcher>;
+  let stop: () => void;
+
+  const emit = () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    emitAction(host, Porte, 'merge', { id: '#12' });
+  };
+
+  beforeEach(() => {
+    state = live;
+    confirm.mockClear();
+    announce.mockClear();
+    run.mockClear();
+    dispatcher = createDispatcher({ declarations: { Porte }, state: () => state, confirm, announce });
+    dispatcher.registerAction(Porte, 'merge', { run, confirmation });
+    stop = dispatcher.listen(document);
+  });
+
+  afterEach(() => {
+    stop();
+    document.body.replaceChildren();
+  });
+
+  it('opens the confirmation with what the action declares, and runs nothing on « Annuler »', async () => {
+    emit();
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(confirm).toHaveBeenCalledWith({
+      action: 'merge',
+      title: 'Merger #12 ?',
+      confirmLabel: 'Merger',
+      icon: 'merge',
+      consequences: { lead: 'Le Ticket part sur develop.' },
+    });
+    answer(false);
+    await vi.waitFor(() => expect(confirm.mock.results[0]?.value).resolves.toBe(false));
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('runs the handler once on confirm, with the seq captured when the dialog opened', async () => {
+    emit();
+    state = { ...live, seq: 9n };
+    answer(true);
+    await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+    expect(run).toHaveBeenCalledWith({ id: '#12' }, { seq: 7n });
+  });
+
+  it('during the Resynchronisation, opens no dialog, runs nothing and announces why', () => {
+    state = { ...live, connection: 'resync' };
+    emit();
+    expect(confirm).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    expect(announce).toHaveBeenCalledWith(t('resync.sensitiveUnavailable'));
+  });
+
+  it('runs nothing when the Resynchronisation starts while the Pilote confirms, and announces why', async () => {
+    emit();
+    state = { ...live, connection: 'resync' };
+    answer(true);
+    await vi.waitFor(() => expect(announce).toHaveBeenCalledWith(t('resync.sensitiveUnavailable')));
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('opens one confirmation at a time', () => {
+    emit();
+    emit();
+    expect(confirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses at registration an Action sensible without its confirmation', () => {
+    const other = createDispatcher({ declarations: { Porte } });
+    // @ts-expect-error: the types already ask for it; the boot checks it for plain JavaScript too.
+    expect(() => other.registerAction(Porte, 'merge', { run })).toThrow(/Porte\.merge.*confirmation/);
+  });
+
+  it('runs a free action of the same Composant at once, without a dialog', () => {
+    const peek = vi.fn();
+    dispatcher.registerAction(Porte, 'peek', { run: peek });
+    emitAction(document.body, Porte, 'peek', {});
+    expect(peek).toHaveBeenCalledWith({});
+    expect(confirm).not.toHaveBeenCalled();
   });
 });

@@ -298,10 +298,13 @@ describe('PageHeader', () => {
 
 describe('PageComposants', () => {
   const example = COMPOSANTS.PageComposants.examples[0];
+  // The catalogue's links: the rows of what the core provides have none.
+  const links = (el: Element) =>
+    [...(el.shadowRoot?.querySelectorAll('nav cd-list-row') ?? [])].filter((row) => row.shadowRoot?.querySelector('a'));
 
   it('lists the catalogue as links to ?c=, the open one badged « ouvert »', async () => {
     const el = await render(COMPOSANTS.PageComposants, example?.data);
-    const rows = [...(el.shadowRoot?.querySelectorAll('nav cd-list-row') ?? [])];
+    const rows = links(el);
     expect(rows.map((row) => inside(row, 'a').getAttribute('href'))).toEqual([
       '/parametres/composants?c=PageHeader',
       '/parametres/composants?c=Banner',
@@ -314,7 +317,7 @@ describe('PageComposants', () => {
 
   it('names each row of the catalogue by its Composant alone, its tag and version in the open one’s card', async () => {
     const el = await render(COMPOSANTS.PageComposants, example?.data);
-    const rows = [...(el.shadowRoot?.querySelectorAll('nav cd-list-row') ?? [])];
+    const rows = links(el);
     expect(rows.map((row) => textOf(inside(row, 'a')))).toEqual(['PageHeader', 'Banner', 'Button']);
     expect(textOf(inside(el, '.contract .identity'))).toBe(`cd-banner · ${t('composants.page.version', { version: 1 })}`);
   });

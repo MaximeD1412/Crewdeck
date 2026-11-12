@@ -1,4 +1,4 @@
-import { COMPOSANTS, defineComposant, PageComposants, t, zIconName, zTone } from '@crewdeck/sdk';
+import { COMPOSANTS, defineComposant, PageComposants, sensitive, t, zIconName, zTone } from '@crewdeck/sdk';
 import { z } from 'zod';
 import { composantsView, typeOf } from './composants.js';
 
@@ -55,10 +55,33 @@ describe('composantsView', () => {
     ]);
   });
 
-  it('gives the actions with their description, free until the Actions sensibles are declared (CORE-7)', () => {
+  it('gives the actions with their description, sensitive when declared with sensitive()', () => {
     expect(composantsView(COMPOSANTS, 'Tabs').selected.actions).toEqual([
       { name: 'select', sensitive: false, description: t('composants.Tabs.actions.select') },
     ]);
+    const Porte = defineComposant({
+      name: 'Porte',
+      version: 1,
+      tag: 'cd-porte-view',
+      category: 'partie',
+      description: 'Une porte.',
+      data: z.object({}),
+      actions: { merge: sensitive('merge', z.object({ id: z.string() })), peek: z.object({}) },
+      slots: [],
+      examples: [{ name: 'nominal', data: {} }],
+    });
+    expect(composantsView({ Porte }, 'Porte').selected.actions.map(({ name, sensitive }) => ({ name, sensitive }))).toEqual([
+      { name: 'merge', sensitive: true },
+      { name: 'peek', sensitive: false },
+    ]);
+  });
+
+  it('lists the core’s ConfirmDialog in « Signaux et contrôles », provided by the product, never selectable', () => {
+    const view = composantsView(COMPOSANTS, 'ConfirmDialog');
+    const signal = view.groups.find((group) => group.category === 'signal');
+    expect(signal?.provided).toEqual([{ name: 'ConfirmDialog', meta: t('composants.confirmDialog.meta') }]);
+    expect(view.groups.filter((group) => group.category !== 'signal').map((group) => group.provided ?? [])).toEqual([[], [], []]);
+    expect(view.selected.name).toBe('Cadre');
   });
 
   it.each([null, 'Nope', 'constructor'])('with ?c=%s, opens the first Composant of the catalogue', (name) => {

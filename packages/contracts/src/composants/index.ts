@@ -79,6 +79,7 @@ export * from './question.js';
 export * from './session.js';
 export * from './radio.js';
 export * from './select.js';
+export * from './sensitive.js';
 export * from './setting-row.js';
 export * from './stat.js';
 export * from './status-badge.js';

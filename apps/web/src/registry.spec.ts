@@ -1,5 +1,7 @@
 import { defineComposant, defineSkin, type Skin } from '@crewdeck/sdk';
 import { z } from 'zod';
+import { CONFIRM_TAG, CrewdeckConfirm } from './dialogs/confirm.js';
+import main from './main.ts?raw';
 import { bootSkin } from './registry.js';
 
 let run = 0;
@@ -62,6 +64,26 @@ describe('bootSkin', () => {
     });
 
     await expect(bootSkin(skin, async () => skin, { declarations: all })).rejects.toThrow(/Fantome/);
+  });
+
+  it('keeps crewdeck-confirm the core’s: a Skin’s ConfirmDialog fails its boot, its own define of the tag throws', async () => {
+    const all = declarations();
+    const skin = defineSkin({
+      id: 'usurpateur',
+      parent: null,
+      targets: ['pc'],
+      composants: { Ligne: element(), Carte: element(), ConfirmDialog: element() } as never,
+    });
+
+    await expect(bootSkin(skin, async () => skin, { declarations: all })).rejects.toThrow(/ConfirmDialog/);
+    expect(() => customElements.define(CONFIRM_TAG, element())).toThrow();
+    expect(customElements.get(CONFIRM_TAG)).toBe(CrewdeckConfirm);
+  });
+
+  it('defines crewdeck-confirm before any Skin’s module evaluates: main imports it before the app', () => {
+    const imports = [...main.matchAll(/^import .*'(.+)';$/gm)].map((m) => m[1]);
+    expect(imports.indexOf('./dialogs/confirm.js')).toBeGreaterThan(-1);
+    expect(imports.indexOf('./dialogs/confirm.js')).toBeLessThan(imports.findIndex((path) => path.endsWith('/app.js')));
   });
 
   it('fails the boot on a cycle of parents', async () => {

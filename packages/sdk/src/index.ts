@@ -1,6 +1,8 @@
 /**
  * What a Skin may import (ADR 0006): the Composants' declarations,
- * `defineSkin`, `emitAction`, the bridge's contract, `t()` and the formatters.
+ * `defineSkin`, `emitAction`, `sensitive()` (an action the core confirms), the
+ * bridge's contract, `t()` and the formatters. Never the core's handlers nor
+ * its confirmation (`crewdeck-confirm`): a Skin may ask, never confirm.
  * A Skin never imports `@crewdeck/contracts` itself.
  */
 export * from '@crewdeck/contracts/composants';

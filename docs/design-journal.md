@@ -149,3 +149,25 @@ the founder outside the repository.
   whose own tool reads labels (Crewdeck's Boucle) needs them as labels too.
   **To generalise**: an option of `backlog.json` to add `priority:` and
   `size:` labels.
+
+## The Runner's Miroir (2026-11-12)
+
+- The dotfiles' ADR 0006 gives their agents one channel, the Miroir; the
+  Pilote asked that Crewdeck's agents work the same way (dotfiles round,
+  E13 b, then round G here, every recommendation taken).
+- The Miroir lives in the Runner (`~/.crewdeck/miroir.db`): the server never
+  reads content (ADR 0002, 0003) (ADR 0010).
+- The server forwards content-free `github.changed` events through ADR
+  0007's numbered events: the replay and the snapshot come for free; tabs
+  receive them to keep their `seq` without gaps, the store ignores them
+  (ADR 0010).
+- A read-only « Miroir » token per installation, restricted to the Projets'
+  repositories, 1 h, renewed while linked (ADR 0010, SEC-6).
+- Go with `modernc.org/sqlite`; the dotfiles' commands under
+  `crewdeck-runner miroir`, and a `mirror` shim in each Session's `PATH` so
+  that the official Skills keep the dotfiles skills' commands (ADR 0010).
+- `crewdeck-runner status` shows the Miroir's state; nothing in the page
+  (ADR 0010).
+- Decided alone: the Runner's reconciliation runs every 15 min, the
+  server's interval; blocked-by changes, which no App event carries, come
+  with it.

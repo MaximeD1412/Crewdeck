@@ -1,6 +1,7 @@
 # The Runner: a Go binary that drives the official agent programs
 
-> **Status:** accepted, 2026-11-10.
+> **Status:** accepted, 2026-11-10. Amended by [ADR 0010](0010-the-runners-miroir.md)
+> on the Runner's state (`miroir.db`) and commands (`crewdeck-runner miroir`).
 
 ## Context
 

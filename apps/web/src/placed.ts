@@ -6,6 +6,8 @@
 export interface PlacedNode {
   readonly tag: `cd-${string}`;
   readonly slot?: string;
+  /** Its `id`, for the core to find what it placed (a button whose click it handles). */
+  readonly id?: string;
   readonly data?: unknown;
   readonly text?: string;
   readonly children?: readonly PlacedNode[];
@@ -25,6 +27,7 @@ export const fillPlaced = (host: Element, nodes: readonly PlacedNode[]): void =>
     const element = (index >= 0 ? free.splice(index, 1)[0] : document.createElement(node.tag)) as WithData;
     if (node.slot === undefined) element.removeAttribute('slot');
     else element.slot = node.slot;
+    if (node.id !== undefined) element.id = node.id;
     if (node.data !== undefined) element.data = node.data;
     if (node.text !== undefined) {
       if (element.textContent !== node.text) element.textContent = node.text;

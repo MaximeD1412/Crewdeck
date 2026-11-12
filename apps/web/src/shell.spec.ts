@@ -1,4 +1,4 @@
-import { Banner, Cadre, MenuItem } from '@crewdeck/sdk';
+import { Banner, Cadre, MenuItem, t } from '@crewdeck/sdk';
 import type { ShellState } from './shell.js';
 import { matchRoute } from './router.js';
 import { ROUTES } from './routes.js';
@@ -94,4 +94,26 @@ describe('mountShell', () => {
     shell.update(at('/idees'));
     expect(banners(root)).toEqual([]);
   });
+
+  it('offers to approve a browser with no Appareil in a Banner whose button it reports, never on a bare page', () => {
+    const root = document.createElement('div');
+    const device = { id: 'dev_1', name: 'Chrome sur Linux', state: 'trusted', approvedAt: null, revokedAt: null, lastSeenAt: null, current: false } as const;
+    const clicked: string[] = [];
+    const state: ShellState = { connection: 'live', lostAt: null, vaultState: 'no-device', slices: { device: new Map([[device.id, device]]) } };
+    const shell = mountShell({ root, state: () => state, onBannerAction: (key) => clicked.push(key) });
+    shell.update(at('/parametres'));
+    expect(banners(root)).toEqual([
+      { data: { tone: 'caution', title: t('devices.banner.title'), icon: 'lock' }, text: t('devices.banner.body') },
+    ]);
+    const button = root.querySelector<WithData>(`${Banner.tag} > cd-button[slot=actions]`);
+    expect(button?.data).toEqual({ label: t('devices.banner.approve'), variant: 'primary', size: 'sm' });
+    shell.refresh();
+    expect(root.querySelector(`${Banner.tag} > cd-button[slot=actions]`)).toBe(button);
+    (button as unknown as HTMLElement).click();
+    expect(clicked).toEqual(['device']);
+
+    shell.update(at('/demarrage'));
+    expect(banners(root)).toEqual([]);
+  });
 });
+

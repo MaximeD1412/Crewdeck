@@ -1,4 +1,6 @@
-import { Banner, Cadre, MenuItem } from '@crewdeck/sdk';
+import type { Device } from '@crewdeck/contracts';
+import { Banner, Button, Cadre, MenuItem, type ComposantData } from '@crewdeck/sdk';
+import type { VaultState } from './keys/vault.js';
 import type { RouteMatch } from './router.js';
 import { bannersView, type BannerView } from './views/banners.js';
 import { cadreView, type CadreState } from './views/cadre.js';
@@ -20,12 +22,17 @@ export interface Shell {
 export interface ShellState extends CadreState {
   /** When the page lost the state (the store's `lostAt`). */
   readonly lostAt?: Date | null;
+  /** Where this browser stands with the vault key: `no-device` offers to approve it. */
+  readonly vaultState?: VaultState;
+  readonly slices: CadreState['slices'] & { readonly device?: ReadonlyMap<string, Device> };
 }
 
 export interface ShellOptions {
   readonly root: HTMLElement;
   /** What the Cadre reads of the store; nothing without a store (signed out). */
   readonly state?: () => ShellState;
+  /** A Banner's button was clicked: « Approuver cet Appareil » (`device`). */
+  readonly onBannerAction?: (key: BannerView['key']) => void;
 }
 
 const EMPTY: ShellState = { slices: {} };
@@ -36,7 +43,7 @@ const EMPTY: ShellState = { slices: {} };
  * the same elements from page to page, and its `banner` Emplacement with the
  * core's Banners (the Resynchronisation, an unhandled API error).
  */
-export const mountShell = ({ root, state = () => EMPTY }: ShellOptions): Shell => {
+export const mountShell = ({ root, state = () => EMPTY, onBannerAction }: ShellOptions): Shell => {
   const cadre = document.createElement(Cadre.tag) as WithData;
   const outlet = document.createElement('div');
   outlet.style.display = 'contents';
@@ -47,8 +54,39 @@ export const mountShell = ({ root, state = () => EMPTY }: ShellOptions): Shell =
   let route: RouteMatch | null = null;
   let error: string | null = null;
 
-  const renderBanners = (current: ShellState) => {
-    const views = bannersView({ connection: current.connection ?? 'live', lostAt: current.lostAt ?? null }, error);
+  /** The Banner's text, then its button in `actions`, the same one kept from one state to the next. */
+  const fillBanner = (element: WithData, view: BannerView) => {
+    let button = element.querySelector<WithData>(`:scope > ${Button.tag}[slot=actions]`);
+    const text = view.text ?? '';
+    const node = [...element.childNodes].find((child) => child.nodeType === Node.TEXT_NODE);
+    if (node) node.textContent = text;
+    else element.prepend(text);
+    if (view.action === undefined) {
+      button?.remove();
+      return;
+    }
+    if (!button) {
+      button = document.createElement(Button.tag) as WithData;
+      button.slot = 'actions';
+      const key = view.key;
+      button.addEventListener('click', () => onBannerAction?.(key));
+      element.append(button);
+    }
+    button.data = { label: view.action, variant: 'primary', size: 'sm' } satisfies ComposantData<typeof Button>;
+  };
+
+  const renderBanners = (current: ShellState, bare: boolean) => {
+    const all = bannersView(
+      {
+        connection: current.connection ?? 'live',
+        lostAt: current.lostAt ?? null,
+        ...(current.vaultState ? { vaultState: current.vaultState } : {}),
+        slices: current.slices.device ? { device: current.slices.device } : {},
+      },
+      error,
+    );
+    // A bare page (the sign-in, « Premiers pas ») has no room for an offer.
+    const views = bare ? all.filter((view) => view.key !== 'device') : all;
     const kept = new Set(views.map((view) => view.key));
     for (const [key, element] of banners) {
       if (kept.has(key)) continue;
@@ -66,7 +104,7 @@ export const mountShell = ({ root, state = () => EMPTY }: ShellOptions): Shell =
         cadre.insertBefore(element, next);
       }
       element.data = view.data;
-      element.textContent = view.text;
+      fillBanner(element, view);
       next = element;
     }
   };
@@ -85,7 +123,7 @@ export const mountShell = ({ root, state = () => EMPTY }: ShellOptions): Shell =
       }
       item.data = data;
     });
-    renderBanners(current);
+    renderBanners(current, view.cadre.variant === 'bare');
     cadre.data = view.cadre;
   };
 

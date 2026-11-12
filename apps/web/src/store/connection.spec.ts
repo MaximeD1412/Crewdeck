@@ -74,7 +74,7 @@ const connect = () => {
 
 /** A connection already live at `seq`, its first socket opened. */
 const liveAt = async (seq: number) => {
-  snapshot.mockResolvedValueOnce({ seq, pilot: PILOT, runner: null, 'runner-link': null, devices: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
+  snapshot.mockResolvedValueOnce({ seq, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
   const connection = connect();
   const socket = MockSocket.last();
   socket.open();
@@ -102,7 +102,7 @@ afterEach(() => {
 
 describe('the boot of the connection', () => {
   it('goes connecting → snapshot → live: hello without seq, GET /api/state applied, hello with its seq, then live', async () => {
-    snapshot.mockResolvedValueOnce({ seq: 7, pilot: PILOT, runner: null, 'runner-link': null, devices: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
+    snapshot.mockResolvedValueOnce({ seq: 7, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
     connect();
     const socket = MockSocket.last();
     expect(socket.url).toBe('ws://crewdeck.test/api/ws');
@@ -326,7 +326,7 @@ describe('what the page tells the server', () => {
   });
 
   it('a catchUp before the boot is live is the same: the boot’s live is followed by its hello', async () => {
-    snapshot.mockResolvedValueOnce({ seq: 7, pilot: PILOT, runner: null, 'runner-link': null, devices: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
+    snapshot.mockResolvedValueOnce({ seq: 7, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
     const connection = connect();
     const socket = MockSocket.last();
     socket.open();
@@ -346,7 +346,7 @@ describe('what the page tells the server', () => {
     const { connection, socket } = await liveAt(7);
     connection.catchUp();
     socket.sent.length = 0;
-    snapshot.mockResolvedValueOnce({ seq: 20, runner: null, 'runner-link': null, devices: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, pilot: { ...PILOT, login: 'snapshot' } });
+    snapshot.mockResolvedValueOnce({ seq: 20, runner: null, 'runner-link': null, 'ai-account': [], devices: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, pilot: { ...PILOT, login: 'snapshot' } });
     socket.receive({ type: 'snapshot-required' });
     await vi.waitFor(() => expect(store.getState().seq).toBe(20n));
     expect(store.getState().connection).toBe('resync');

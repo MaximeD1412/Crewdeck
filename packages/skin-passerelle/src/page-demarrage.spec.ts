@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import './tokens.css';
-import { COMPOSANTS, t, type ComposantData, type PageDemarrage } from '@crewdeck/sdk';
+import { COMPOSANTS, EXAMPLE_ENGINES, EXAMPLE_ENGINES_NONE, t, type ComposantData, type EngineAccount, type PageDemarrage } from '@crewdeck/sdk';
 import { actionsOf, defineSkin, inside, render, textOf } from './testing/dom.js';
 
 beforeAll(defineSkin);
@@ -10,7 +10,18 @@ type Data = ComposantData<typeof PageDemarrage>;
 type WithData = HTMLElement & { data: Record<string, unknown> };
 
 const COMMAND = 'curl -fsSL https://crewdeck.example/runner/install.sh | sh -s -- --link 7KQ4-M2PXA7QK9VZ3T8W4R6N1B5C0DE';
-const WAITING: Data = { step: 'runner', login: 'octocat', system: 'linux', command: COMMAND, shortId: '7KQ4', failure: null, runner: null, busy: false };
+const WAITING: Data = {
+  step: 'runner',
+  login: 'octocat',
+  system: 'linux',
+  command: COMMAND,
+  shortId: '7KQ4',
+  failure: null,
+  runner: null,
+  busy: false,
+  engines: [],
+  usable: false,
+};
 const RUNNER = {
   machine: 'atelier-pc',
   os: 'linux',
@@ -139,16 +150,91 @@ describe('PageDemarrage', () => {
     expect(await actionsOf(() => child(el, 'cd-button.continue').click())).toEqual([]);
   });
 
-  it.each([
-    ['ai-accounts', 'Connecte tes Comptes IA', ['Runner:done', 'Comptes IA:current', 'Projets:todo']],
-    ['projects', 'Choisis tes Projets', ['Runner:done', 'Comptes IA:done', 'Projets:current']],
-  ] as const)('the %s step shows an Empty and « Continuer » until its ticket', async (step, title, track) => {
-    const el = await page({ ...WAITING, step, runner: RUNNER });
-    expect(steps(el)).toEqual(track);
-    expect(child(el, 'cd-page-header').data).toEqual({ title });
+  it('the projects step shows an Empty and « Continuer » until its ticket', async () => {
+    const el = await page({ ...WAITING, step: 'projects', runner: RUNNER });
+    expect(steps(el)).toEqual(['Runner:done', 'Comptes IA:done', 'Projets:current']);
+    expect(child(el, 'cd-page-header').data).toEqual({ title: 'Choisis tes Projets' });
     expect(child(el, 'cd-empty').data['title']).toBe('Cette étape arrive bientôt');
     expect(el.shadowRoot?.querySelector('cd-tabs')).toBeNull();
     const details = await actionsOf(() => inside(el, 'cd-button.continue', 'button').click());
     expect(details).toEqual([{ composant: 'PageDemarrage', action: 'continue', payload: {} }]);
+  });
+});
+
+describe('PageDemarrage, the Comptes IA step', () => {
+  const ACCOUNTS: Data = { ...WAITING, step: 'ai-accounts', command: null, shortId: null, runner: RUNNER, engines: [...EXAMPLE_ENGINES], usable: true };
+  const NONE: Data = { ...ACCOUNTS, engines: [...EXAMPLE_ENGINES_NONE], usable: false };
+
+  const card = (el: Element, engine: string) => child(el, `cd-card[data-engine=${engine}]`);
+  const badges = (host: Element) => [...host.querySelectorAll<WithData>('cd-status-badge[slot=actions]')].map((badge) => badge.data);
+  const rows = (host: Element) =>
+    [...host.querySelectorAll<WithData>('cd-list-row')].map((row) => ({
+      title: row.data['title'],
+      meta: row.data['meta'],
+      badge: (row.querySelector('cd-status-badge') as WithData | null)?.data,
+    }));
+
+  it('shows each Moteur, its Compte IA, its models and why one is not usable, and the command of the one not connected', async () => {
+    const el = await page(ACCOUNTS);
+    expect(steps(el)).toEqual(['Runner:done', 'Comptes IA:current', 'Projets:todo']);
+    expect(child(el, 'cd-page-header').data).toEqual({ title: 'Connecte tes Comptes IA' });
+    expect(textOf(inside(el, '[part=lead]'))).toBe('Tu les connectes sur le Runner, jamais dans le navigateur. Voici ce qu’il voit, Moteur par Moteur.');
+    const claude = card(el, 'claude-code');
+    expect(claude.data).toEqual({ title: 'Claude Code', flush: true });
+    expect(badges(claude)).toEqual([{ tone: 'go', label: 'connecté · abonnement' }]);
+    expect(rows(claude)).toEqual([
+      { title: 'claude-opus-5-5', meta: undefined, badge: { tone: 'go', label: 'disponible' } },
+      { title: 'claude-sonnet-5-5', meta: undefined, badge: { tone: 'go', label: 'disponible' } },
+      { title: 'claude-fable-5-1', meta: 'indisponible avec cet abonnement', badge: { tone: 'halt', label: 'indisponible' } },
+    ]);
+    expect(claude.querySelector('cd-code-block')).toBeNull();
+    const codex = card(el, 'codex');
+    expect(codex.data).toEqual({ title: 'Codex', flush: true });
+    expect(badges(codex)).toEqual([{ tone: 'caution', label: 'connexion requise' }]);
+    expect(textOf(codex.querySelector('p') as HTMLElement)).toBe('Avec ta clé API :');
+    expect((codex.querySelector('cd-code-block') as WithData).data).toEqual({ code: 'crewdeck-runner login codex' });
+    expect(el.shadowRoot?.querySelector('cd-banner')).toBeNull();
+    expect(textOf(inside(el, '.help'))).toBe(t('demarrage.aiAccounts.help'));
+    expect(child(el, 'cd-button.continue').data).not.toHaveProperty('state');
+    const details = await actionsOf(() => inside(el, 'cd-button.continue', 'button').click());
+    expect(details).toEqual([{ composant: 'PageDemarrage', action: 'continue', payload: {} }]);
+  });
+
+  it('without a usable Moteur, shows the caution Banner, both commands, and a disabled « Continuer » that emits nothing', async () => {
+    const el = await page(NONE);
+    const banner = child(el, 'cd-banner');
+    expect(banner.data).toEqual({ tone: 'caution', icon: 'alert', title: 'Aucun Moteur utilisable' });
+    expect(textOf(banner)).toBe(t('demarrage.aiAccounts.none.text'));
+    expect(textOf(card(el, 'claude-code').querySelector('p') as HTMLElement)).toBe('Avec ton abonnement Claude ou ta clé API :');
+    expect(all(el, 'cd-code-block').map((block) => block.data['code'])).toEqual(['crewdeck-runner login claude', 'crewdeck-runner login codex']);
+    expect(child(el, 'cd-button.continue').data).toMatchObject({ label: 'Continuer', state: 'disabled' });
+    expect(textOf(inside(el, '.help'))).toBe('« Continuer » s’active dès qu’un Moteur peut tourner.');
+    expect(await actionsOf(() => inside(el, 'cd-button.continue', 'button').click())).toEqual([]);
+  });
+
+  it('says « connecté · clé API », a quota reached, a version it does not know, and a Moteur not installed', async () => {
+    const [claude] = EXAMPLE_ENGINES as [EngineAccount, EngineAccount];
+    const el = await page({
+      ...ACCOUNTS,
+      engines: [
+        { ...claude, kind: 'api-key', knownVersion: false, models: [{ id: 'claude-opus-5-5', label: 'Opus 5.5', usable: false, reason: 'quota-reached' }] },
+        { engine: 'codex', installed: false, knownVersion: true, kind: 'none', state: 'login-required', models: [], command: 'crewdeck-runner login codex' },
+      ],
+    });
+    expect(badges(card(el, 'claude-code'))).toEqual([
+      { tone: 'go', label: 'connecté · clé API' },
+      { tone: 'caution', label: 'version non vérifiée' },
+    ]);
+    expect(rows(card(el, 'claude-code'))).toEqual([{ title: 'claude-opus-5-5', meta: undefined, badge: { tone: 'caution', label: 'quota atteint' } }]);
+    expect(badges(card(el, 'codex'))).toEqual([{ tone: 'caution', label: 'non installé' }]);
+  });
+
+  it.each([
+    ['some usable', ACCOUNTS],
+    ['none usable', NONE],
+  ] as const)('gives every Composant it holds its data (%s)', async (_state, data) => {
+    const el = await page(data);
+    const held = all(el, '*').filter((node) => node.tagName.startsWith('CD-'));
+    expect(held.filter((node) => node.data === undefined).map((node) => node.outerHTML.slice(0, 40))).toEqual([]);
   });
 });

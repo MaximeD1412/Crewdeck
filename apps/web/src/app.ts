@@ -1,5 +1,5 @@
 import type { Me } from '@crewdeck/contracts';
-import { Cadre, PageComposants, PageConnexion, PageDemarrage, PageParametres, type Skin } from '@crewdeck/sdk';
+import { Cadre, PageComposants, PageConnexion, PageDemarrage, PageParametres, PageRunner, type Skin } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
 import { me as readMe } from './api/auth.js';
@@ -21,6 +21,7 @@ import { createLatencyMeter, type LatencyMeter } from './store/latency.js';
 import type { Store } from './store/store.js';
 import { systemOfBrowser } from './views/demarrage.js';
 import { ADD_DEVICE_ID } from './views/devices.js';
+import { runnerView } from './views/runner.js';
 
 /** The Skins the page knows, by id: at the MVP, the default one. */
 const SKINS: Readonly<Record<string, Skin>> = { passerelle };
@@ -89,13 +90,7 @@ export const boot = async ({
     root,
     state: () => {
       const state = store.getState();
-      return {
-        ...state,
-        slices: {
-          pilot: state.slices.pilot !== undefined ? state.slices.pilot : pilot,
-          ...(state.slices.device ? { device: state.slices.device } : {}),
-        },
-      };
+      return { ...state, slices: { ...state.slices, pilot: state.slices.pilot !== undefined ? state.slices.pilot : pilot } };
     },
     // « Approuver cet Appareil »: this browser's code, until a trusted Appareil or the Runner approves it.
     onBannerAction: (key) => {
@@ -132,7 +127,12 @@ export const boot = async ({
     onRoute: shell.update,
     state: store.getState,
     guard: (match) => started(match) ?? signIn(match),
-    data: (match) => (match.composant === PageDemarrage ? gettingStarted.view() : pageData(match)),
+    data: (match) => {
+      if (match.composant === PageDemarrage) return gettingStarted.view();
+      if (match.composant !== PageRunner) return pageData(match);
+      const { slices } = store.getState();
+      return runnerView({ runner: slices.runner ?? null, accounts: slices['ai-account']?.values() ?? [] });
+    },
   });
   // The Cadre and the page follow the store: a change made elsewhere shows without a reload.
   const unsubscribe = [

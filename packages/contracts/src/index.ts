@@ -1,4 +1,5 @@
 export * from './values.js';
+export * from './api/ai-accounts.js';
 export * from './api/commands.js';
 export * from './api/config.js';
 export * from './api/devices.js';
@@ -14,6 +15,7 @@ export * from './api/sensitive-actions.js';
 export * from './api/state.js';
 export * from './api/testing.js';
 export * from './events/index.js';
+export * from './events/ai-account.js';
 export * from './events/device.js';
 export * from './events/pilot.js';
 export * from './events/runner.js';

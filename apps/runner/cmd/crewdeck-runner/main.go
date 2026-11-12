@@ -97,6 +97,8 @@ func newRoot(m *machine) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE:  func(cmd *cobra.Command, _ []string) error { return m.run(cmd, server) },
 	})
+	root.AddCommand(newLoginCommand())
+	root.AddCommand(newLogoutCommand())
 	root.AddCommand(newStatusCommand(m))
 	for _, action := range []service.Action{service.ActionStart, service.ActionStop, service.ActionRestart} {
 		root.AddCommand(newControlCommand(m, action))

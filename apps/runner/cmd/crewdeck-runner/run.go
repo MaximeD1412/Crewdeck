@@ -6,9 +6,12 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sync/atomic"
 	"syscall"
 	"time"
 
+	"github.com/maximed1412/crewdeck/apps/runner/internal/accounts"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/logging"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/service"
@@ -54,8 +57,43 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	}
 	logger := logging.New(cmd.ErrOrStderr())
 	logger.Info("vault.opened", "vaultKeyVersion", vault.Version)
+	keys, err := accounts.Default()
+	if err != nil {
+		return err
+	}
+	socket, err := accounts.DefaultSocket()
+	if err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// The client of the current connection: a new one after each update attempt.
+	var current atomic.Pointer[protocol.Client]
+	reporter := &accounts.Reporter{
+		Send: func(ctx context.Context, m contracts.RunnerCapabilities) error {
+			client := current.Load()
+			if client == nil {
+				return protocol.ErrNotConnected
+			}
+			return client.Send(ctx, m)
+		},
+		Logger: logger,
+	}
+	// The adapters, their Sessions watched: a limit or a sign-in they meet
+	// reaches the capabilities. The Sessions (RUNNER-9) start from this registry.
+	reporter.Engines = reporter.Watch(runnerEngines(keys))
+	report := func(ctx context.Context) {
+		if _, err := reporter.Report(ctx); err != nil && !errors.Is(err, protocol.ErrNotConnected) && ctx.Err() == nil {
+			logger.Warn("capabilities", "error", err)
+		}
+	}
+	// `login` and `logout` ask for them again through the socket.
+	go func() {
+		if err := accounts.Serve(ctx, socket, reporter.Report); err != nil {
+			logger.Warn("accounts socket", "error", err)
+		}
+	}()
+	go reporter.Every(ctx, contracts.CapabilitiesEverySeconds*time.Second)
 	updater := &update.Updater{
 		Server: linked.Server,
 		Binary: binary,
@@ -70,7 +108,10 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			Token:   linked.Token,
 			Machine: described,
 			Logger:  logger,
+			// What each Moteur can run, on each accepted connection (US-38).
+			OnConnected: report,
 		})
+		current.Store(client)
 		err := client.Run(ctx)
 		var required *protocol.UpdateRequiredError
 		if !errors.As(err, &required) {

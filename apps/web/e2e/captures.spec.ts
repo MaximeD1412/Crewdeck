@@ -58,6 +58,18 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await page.locator('cd-page-parametres > cd-card[slot=devices]').getByRole('button', { name: 'Ajouter un Appareil' }).click();
     await expect(page.getByLabel('Colle le code affiché sur le nouvel Appareil')).toBeFocused();
   },
+  'demarrage-comptes-ia': async (page) => {
+    await expect(page.locator('cd-page-demarrage cd-card[data-engine=claude-code]')).toContainText('connecté · abonnement');
+  },
+  'demarrage-comptes-ia-aucun': async (page) => {
+    await expect(page.locator('cd-page-demarrage cd-banner')).toContainText('Aucun Moteur utilisable');
+  },
+  runner: async (page) => {
+    await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('en ligne');
+  },
+  'runner-hors-ligne': async (page) => {
+    await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('hors ligne');
+  },
 };
 
 /** The scenarios whose capture is the screen, not the whole page: a modal over it. */

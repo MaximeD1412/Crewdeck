@@ -12,8 +12,9 @@ export default defineConfig({
     proxy: {
       '/api': { target: 'http://localhost:3000', changeOrigin: true, ws: true, xfwd: true },
       '/fake-github': { target: 'http://localhost:3000', changeOrigin: true, xfwd: true },
-      // The Runner's install script and binaries (RUNNER-3), which the install command fetches from the page's origin.
-      '/runner': { target: 'http://localhost:3000', changeOrigin: true, xfwd: true },
+      // The Runner's install script and binaries (RUNNER-3), which the install command fetches from the page's origin;
+      // `/runner` itself is the page « Runner et Comptes IA ».
+      '^/runner/': { target: 'http://localhost:3000', changeOrigin: true, xfwd: true },
     },
   },
   preview: { port: 4300, host: 'localhost' },

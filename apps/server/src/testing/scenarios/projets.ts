@@ -15,8 +15,9 @@ interface SeededRepository {
 
 /**
  * The Pilote's installation with `repositories`, as the webhooks would leave
- * it: in the fake GitHub (where following reads `.process.json`) and in
- * `repositories`, with a Projet for those that name one.
+ * it: in the fake GitHub (where following reads `.process.json`, and those
+ * with code have two commits) and in `repositories`, with a Projet for those
+ * that name one: a reconciliation finds them as they are.
  */
 export const seedRepositories = async (ctx: ScenarioContext, pilotId: string, repositories: readonly SeededRepository[]): Promise<void> => {
   const owner = OCTOCAT.login;
@@ -25,7 +26,9 @@ export const seedRepositories = async (ctx: ScenarioContext, pilotId: string, re
   });
   for (const [index, { name, hasCode, project }] of repositories.entries()) {
     const githubId = 72000001 + index;
-    ctx.fakes.github.seedRepo({ owner, name, id: githubId, installationId: SCENARIO_INSTALLATION_ID });
+    const ref = ctx.fakes.github.seedRepo({ owner, name, id: githubId, installationId: SCENARIO_INSTALLATION_ID });
+    // « Has code » as GitHub would count it: a commit past the initial one, which the reconciliation counts again.
+    if (hasCode) await ctx.fakes.github.pushCommit(ref, 'main', { 'src/index.ts': `// ${name}\n` });
     const id = newId();
     const fullName = `${owner}/${name}`;
     await ctx.prisma.unscoped.repository.create({

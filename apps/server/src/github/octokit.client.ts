@@ -215,13 +215,27 @@ export class OctokitGitHubClient implements GitHubClient {
     });
   }
 
+  /**
+   * A token of its cache refused (401: revoked, the App uninstalled) is
+   * dropped and a new one asked, once; GitHub's 404 to that new token is
+   * `github.installation-gone`.
+   */
   listInstallationRepositories(installationId: number): Promise<InstallationRepository[]> {
+    const list = async (): Promise<InstallationRepository[]> => {
+      const raws = await this.all(this.request(this.forInstallation(installationId)), 'GET /installation/repositories', {}, (data) =>
+        z.object({ repositories: z.array(zRawRepository) }).parse(data).repositories,
+      );
+      return raws.map((raw) => ({ owner: raw.owner.login, name: raw.name, id: raw.id, private: raw.private }));
+    };
     return this.call(async () => {
       try {
-        const raws = await this.all(this.request(this.forInstallation(installationId)), 'GET /installation/repositories', {}, (data) =>
-          z.object({ repositories: z.array(zRawRepository) }).parse(data).repositories,
-        );
-        return raws.map((raw) => ({ owner: raw.owner.login, name: raw.name, id: raw.id, private: raw.private }));
+        try {
+          return await list();
+        } catch (error) {
+          if (!(isFailure(error) && error.status === 401)) throw error;
+          this.installations.delete(installationId);
+          return await list();
+        }
       } catch (error) {
         if (isInstallationNotFound(error)) throw installationGone();
         throw error;

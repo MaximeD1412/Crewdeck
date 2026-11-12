@@ -1,4 +1,4 @@
-import { zProject, zProjectList, zRepository, zState } from '@crewdeck/contracts';
+import { zProject, zProjectList, zRepository, zScenarioRun, zState } from '@crewdeck/contracts';
 import type { INestApplication } from '@nestjs/common';
 import pg from 'pg';
 import { inject, vi } from 'vitest';
@@ -282,6 +282,24 @@ describe('the Dépôts GitHub and the Projets against PostgreSQL', () => {
       await deliver('installation', deleted);
 
       expect((await state(alice)).repositories).toEqual([]);
+    });
+  });
+
+  describe('the scenarios', () => {
+    it.each(['projets', 'demarrage-projets'])('%s: the reconciliation finds its repositories as seeded, code included, and writes nothing', async (name) => {
+      const run = zScenarioRun.parse(await (await fetch(`${url}/api/testing/scenarios/${name}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).json());
+      const tab = { id: '', cookie: run.sessionCookie ?? '' };
+      const rows = () => sql<{ name: string; has_code: boolean }>('SELECT name, has_code FROM repositories ORDER BY name');
+      const before = { state: await state(tab), rows: await rows() };
+      expect(before.rows.filter((row) => row.has_code)).not.toEqual([]);
+
+      await app.get(Reconciliation).run();
+
+      expect(await rows()).toEqual(before.rows);
+      const after = await state(tab);
+      expect(after.repositories).toEqual(before.state.repositories);
+      expect(after.projects).toEqual(before.state.projects);
+      expect(after.seq).toBe(before.state.seq);
     });
   });
 

@@ -22,13 +22,15 @@ const row = (device: Device): PlacedNode => ({
  * trusted Appareils, the oldest first, the current one named; « Ajouter un
  * Appareil »; and, while only one holds the vault key, the Banner that says
  * a second one keeps the encrypted data from being lost (OPS-1). None before
- * the snapshot gave the Appareils.
+ * the snapshot gave the Appareils, nor while none is trusted: no Appareil to
+ * approve from (« Premiers pas » makes the first one).
  */
 export const devicesCard = (devices: ReadonlyMap<string, Device> | undefined): PlacedNode | null => {
   if (!devices) return null;
   const trusted = [...devices.values()]
     .filter((device) => device.state === 'trusted')
     .sort((a, b) => (a.approvedAt ?? '').localeCompare(b.approvedAt ?? ''));
+  if (trusted.length === 0) return null;
   const add: PlacedNode = {
     tag: 'cd-button',
     slot: 'actions',

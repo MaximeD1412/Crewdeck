@@ -54,7 +54,9 @@ describe('devicesCard', () => {
     expect(two?.children).not.toContainEqual(SINGLE);
   });
 
-  it('is none until the snapshot gave the Appareils', () => {
+  it('is none until the snapshot gave the Appareils, nor while none is trusted (no Appareil to approve from)', () => {
     expect(devicesCard(undefined)).toBeNull();
+    expect(devicesCard(new Map())).toBeNull();
+    expect(devicesCard(new Map([['dev_9', { id: 'dev_9', name: 'Safari sur iOS', state: 'pending', approvedAt: null, revokedAt: null, lastSeenAt: null, current: true }]]))).toBeNull();
   });
 });

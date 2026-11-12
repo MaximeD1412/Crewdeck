@@ -18,14 +18,15 @@ const byId = (...devices: Device[]) => new Map(devices.map((one) => [one.id, one
 const SINGLE = { tag: 'cd-banner', data: { tone: 'caution', title: t('devices.single'), icon: 'shield' } };
 
 describe('devicesCard', () => {
-  it('lists the trusted Appareils, the current one named, and offers to add one', () => {
+  it('lists the trusted Appareils, this page’s one named (the slice’s `current` is every tab’s, false), and offers to add one', () => {
     const card = devicesCard(
       byId(
-        device('dev_1', 'Chrome sur Linux', { current: true }),
+        device('dev_1', 'Chrome sur Linux'),
         device('dev_2', 'Safari sur iOS', { approvedAt: '2026-11-10T09:00:00.000Z' }),
         device('dev_3', 'Firefox sur Android', { state: 'pending', approvedAt: null }),
         device('dev_4', 'Edge sur Windows', { state: 'revoked' }),
       ),
+      'dev_1',
     );
     expect(card).toEqual({
       tag: 'cd-card',

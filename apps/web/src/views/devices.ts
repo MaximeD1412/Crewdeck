@@ -5,27 +5,28 @@ import type { PlacedNode } from '../placed.js';
 /** The id of « Ajouter un Appareil », whose click opens the core's approval dialog (`app.ts`). */
 export const ADD_DEVICE_ID = 'crewdeck-add-device';
 
-const row = (device: Device): PlacedNode => ({
+const row = (device: Device, current: boolean): PlacedNode => ({
   tag: 'cd-list-row',
   data: {
     title: device.name,
     ...(device.approvedAt ? { meta: t('devices.approvedAt', { date: formatDate(device.approvedAt) }) } : {}),
     icon: 'key',
   } satisfies ComposantData<typeof ListRow>,
-  children: device.current
+  children: current
     ? [{ tag: 'cd-status-badge', slot: 'trailing', data: { tone: 'accent', label: t('devices.current') } satisfies ComposantData<typeof StatusBadge> }]
     : [],
 });
 
 /**
  * The « Appareils » section of the Paramètres (pure, E2E-3): the Pilote's
- * trusted Appareils, the oldest first, the current one named; « Ajouter un
+ * trusted Appareils, the oldest first, this page's one (`currentId`, the
+ * slice's `current` being every tab's) named; « Ajouter un
  * Appareil »; and, while only one holds the vault key, the Banner that says
  * a second one keeps the encrypted data from being lost (OPS-1). None before
  * the snapshot gave the Appareils, nor while none is trusted: no Appareil to
  * approve from (« Premiers pas » makes the first one).
  */
-export const devicesCard = (devices: ReadonlyMap<string, Device> | undefined): PlacedNode | null => {
+export const devicesCard = (devices: ReadonlyMap<string, Device> | undefined, currentId?: string | null): PlacedNode | null => {
   if (!devices) return null;
   const trusted = [...devices.values()]
     .filter((device) => device.state === 'trusted')
@@ -43,6 +44,6 @@ export const devicesCard = (devices: ReadonlyMap<string, Device> | undefined): P
     tag: 'cd-card',
     slot: 'devices',
     data: { title: t('devices.title'), label: t('devices.label'), count: trusted.length } satisfies ComposantData<typeof Card>,
-    children: [add, ...single, ...trusted.map(row)],
+    children: [add, ...single, ...trusted.map((device) => row(device, device.id === currentId))],
   };
 };

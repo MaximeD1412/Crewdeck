@@ -35,6 +35,9 @@ export const setCurrentDevice = (deviceId: string | null): void => {
   currentDevice = deviceId;
 };
 
+/** This browser's Appareil once known: the one each page names « cet Appareil ». */
+export const currentDeviceId = (): string | null => currentDevice;
+
 /**
  * One call to the API on the page's origin, with its session cookie, `body`
  * sent as JSON: the answer read with `schema`, nothing for a 204 or without

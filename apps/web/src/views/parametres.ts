@@ -54,7 +54,7 @@ const account = (settings: AccountSettings, zones: readonly string[]): PlacedNod
 
 /**
  * The Emplacements of the Paramètres (pure, US-82): « Appareils » once the
- * snapshot gave them (E2E-3), « Compte » with the time zone once it gave the
+ * snapshot gave them, this page's own named (E2E-3), « Compte » with the time zone once it gave the
  * settings (a zone the list lacks, an alias, kept among the options), then
  * « Pour les Moddeurs ». The other sections are their tickets'.
  */
@@ -62,8 +62,9 @@ export const parametresView = (
   settings: AccountSettings | null | undefined,
   zones: readonly string[],
   devices?: ReadonlyMap<string, Device>,
+  currentDeviceId?: string | null,
 ): readonly PlacedNode[] => [
-  ...[devicesCard(devices)].filter((node) => node !== null),
+  ...[devicesCard(devices, currentDeviceId)].filter((node) => node !== null),
   ...(settings ? [account(settings, zones)] : []),
   modders(),
 ];

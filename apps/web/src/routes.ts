@@ -1,4 +1,5 @@
 import { COMPOSANTS, PageComposants, PageConnexion, PageDemarrage, PageParametres } from '@crewdeck/sdk';
+import { currentDeviceId } from './api/request.js';
 import type { Route } from './router.js';
 import type { StoreState } from './store/store.js';
 import { composantsView } from './views/composants.js';
@@ -25,7 +26,7 @@ export const ROUTES: readonly Route[] = [
     composant: PageParametres,
     slots: (_match, state) => {
       const slices = (state as StoreState | undefined)?.slices;
-      return parametresView(slices?.settings, timeZones(), slices?.device);
+      return parametresView(slices?.settings, timeZones(), slices?.device, currentDeviceId());
     },
   },
   {

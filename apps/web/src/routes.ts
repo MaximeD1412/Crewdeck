@@ -1,7 +1,9 @@
-import { COMPOSANTS, PageComposants, PageConnexion, PageDemarrage } from '@crewdeck/sdk';
+import { COMPOSANTS, PageComposants, PageConnexion, PageDemarrage, PageParametres } from '@crewdeck/sdk';
 import type { Route } from './router.js';
+import type { StoreState } from './store/store.js';
 import { composantsView } from './views/composants.js';
 import { connexionView } from './views/connexion.js';
+import { parametresView, timeZones } from './views/parametres.js';
 
 /** The library of Composants' URL for one of them. */
 export const composantsHref = (name: string): string => `/parametres/composants?c=${encodeURIComponent(name)}`;
@@ -18,6 +20,11 @@ export const composantsHref = (name: string): string => `/parametres/composants?
 export const ROUTES: readonly Route[] = [
   { path: '/connexion', composant: PageConnexion, data: (match) => connexionView(match.query) },
   { path: '/demarrage', composant: PageDemarrage },
+  {
+    path: '/parametres',
+    composant: PageParametres,
+    slots: (_match, state) => parametresView((state as StoreState | undefined)?.slices.settings, timeZones()),
+  },
   {
     path: '/parametres/composants',
     composant: PageComposants,

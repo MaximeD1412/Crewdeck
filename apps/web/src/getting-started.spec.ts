@@ -1,4 +1,4 @@
-import type { BrowserPairing, ConfirmPairing, Me, Runner, RunnerLink, RunnerPairing, State } from '@crewdeck/contracts';
+import { DEFAULT_ACCOUNT_SETTINGS, type BrowserPairing, type ConfirmPairing, type Me, type Runner, type RunnerLink, type RunnerPairing, type State } from '@crewdeck/contracts';
 import type { z } from 'zod';
 import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
@@ -97,7 +97,7 @@ describe('createGettingStarted', () => {
   };
 
   const snapshot = (overrides: Partial<State> = {}) =>
-    store.applySnapshot({ seq: seq++, pilot: ME, runner: null, 'runner-link': null, devices: [], ...overrides });
+    store.applySnapshot({ seq: seq++, pilot: ME, runner: null, 'runner-link': null, devices: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, ...overrides });
   const event = (type: 'runner-link.upserted' | 'runner.upserted' | 'pilot.upserted', payload: unknown) =>
     store.applyEvent({ seq: seq++, type, payload, at: AT } as Parameters<Store['applyEvent']>[0]);
   const flush = () => new Promise((resolve) => setTimeout(resolve, 0));

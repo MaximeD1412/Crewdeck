@@ -1,4 +1,4 @@
-import { type Event, type LatencyBatch, type Me, zLatencyBatch } from '@crewdeck/contracts';
+import { DEFAULT_ACCOUNT_SETTINGS, type Event, type LatencyBatch, type Me, zLatencyBatch } from '@crewdeck/contracts';
 import { createLatencyMeter, FLUSH_AFTER_MS, FLUSH_AT_SAMPLES, type LatencyMeter } from './latency.js';
 import { createStore, type Store } from './store.js';
 
@@ -21,7 +21,7 @@ describe('the latency meter', () => {
     vi.useFakeTimers({ now: NOW });
     store = createStore();
     store.registerSlice('pilot', { shape: 'single' });
-    store.applySnapshot({ seq: 0, pilot: PILOT, runner: null, 'runner-link': null, devices: [] });
+    store.applySnapshot({ seq: 0, pilot: PILOT, runner: null, 'runner-link': null, devices: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
     sent = [];
     beacons = [];
     visibility = 'visible';

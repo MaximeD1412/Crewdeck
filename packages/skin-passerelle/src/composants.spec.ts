@@ -58,6 +58,12 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     await settle(el);
     inside(el, 'cd-button.continue', 'button').click();
   },
+  'PageParametres.change': (el) => {
+    const native = inside<HTMLSelectElement>(el.querySelector('cd-select') as Element, 'select');
+    native.value = 'Asia/Tokyo';
+    native.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    native.dispatchEvent(new Event('change', { bubbles: true }));
+  },
 };
 
 afterEach(() => document.body.replaceChildren());

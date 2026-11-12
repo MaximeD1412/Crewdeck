@@ -12,6 +12,7 @@ import { connexion, connexionErreur } from './connexion.js';
 import { demarrage, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
 import type { Scenario } from './define.js';
 import { menuPlus } from './menu-plus.js';
+import { parametres } from './parametres.js';
 import { resynchronisation } from './resynchronisation.js';
 
 export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed } from './define.js';
@@ -26,6 +27,7 @@ const SCENARIOS: readonly Scenario[] = [
   demarrageLiaisonEchouee,
   demarrageRunnerRelie,
   menuPlus,
+  parametres,
   resynchronisation,
   ...composantsRows,
   composantsTextField,

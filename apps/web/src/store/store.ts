@@ -1,4 +1,4 @@
-import type { Device, Event, Me, Resource, Runner, RunnerLink, State } from '@crewdeck/contracts';
+import type { AccountSettings, Device, Event, Me, Resource, Runner, RunnerLink, State } from '@crewdeck/contracts';
 import type { VaultState } from '../keys/vault.js';
 
 /**
@@ -21,6 +21,7 @@ export interface Slices {
   readonly 'runner-link': RunnerLink | null;
   /** The Pilote's Appareils, by id (E2E-2), from the snapshot's `devices`. */
   readonly device: ReadonlyMap<string, Device>;
+  readonly settings: AccountSettings | null;
 }
 
 export interface StoreState {

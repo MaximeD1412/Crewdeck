@@ -3,6 +3,7 @@ import { zDevice } from './devices.js';
 import { zMe } from './me.js';
 import { zRunner } from './runner.js';
 import { zRunnerLink } from './runner-link.js';
+import { zAccountSettings } from './settings.js';
 import { zSeq } from '../values.js';
 
 /**
@@ -18,6 +19,8 @@ export const STATE_SLICES = {
   'runner-link': zRunnerLink.nullable(),
   /** The Pilote's Appareils (E2E-2), newest first; `current` is `false`, each page sets its own. */
   devices: z.array(zDevice),
+  /** The Paramètres of the account. */
+  settings: zAccountSettings,
 } as const;
 export type StateKey = keyof typeof STATE_SLICES;
 

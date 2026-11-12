@@ -1,13 +1,16 @@
 import { PageIntrouvable, type AnyComposant } from '@crewdeck/sdk';
+import { fillPlaced, type PlacedNode } from './placed.js';
 
 /**
- * A page URL (French, ADR 0008), `:name` for a parameter, its page Composant
- * and, for a page that needs none of the store, the view giving its `data`.
+ * A page URL (French, ADR 0008), `:name` for a parameter, its page Composant,
+ * the view giving its `data` and the one giving the Composants of its
+ * Emplacements, from the match and the router's `state` (the store's).
  */
 export interface Route {
   readonly path: string;
   readonly composant: AnyComposant;
-  readonly data?: (match: RouteMatch) => unknown;
+  readonly data?: (match: RouteMatch, state?: unknown) => unknown;
+  readonly slots?: (match: RouteMatch, state?: unknown) => readonly PlacedNode[];
 }
 
 export interface RouteMatch {
@@ -62,11 +65,14 @@ export const matchRoute = (routes: readonly Route[], url: string | URL): RouteMa
   return { path, composant: PageIntrouvable, params: {}, query, panel };
 };
 
+const routeOf = (routes: readonly Route[], match: RouteMatch): Route | undefined =>
+  routes.find((route) => route.composant === match.composant && matchPath(route.path, match.path));
+
 /** The page's `data` by default: its route's view, else nothing. */
 export const routeData =
   (routes: readonly Route[]) =>
-  (match: RouteMatch): unknown =>
-    routes.find((route) => route.composant === match.composant && matchPath(route.path, match.path))?.data?.(match) ?? {};
+  (match: RouteMatch, state?: unknown): unknown =>
+    routeOf(routes, match)?.data?.(match, state) ?? {};
 
 export interface Router {
   readonly current: RouteMatch;
@@ -74,8 +80,8 @@ export interface Router {
   navigate(url: string, options?: { replace?: boolean }): void;
   /**
    * Renders the current page again for a new state (the store's, a page's
-   * own): the guard asked again, the page's `data` read again; `onRoute`
-   * only when the guard moved the page.
+   * own): the guard asked again, the page's `data` and Emplacements read
+   * again, the same elements kept; `onRoute` only when the guard moved the page.
    */
   refresh(): void;
   stop(): void;
@@ -86,7 +92,9 @@ export interface RouterOptions {
   /** Where the page Composant is rendered. */
   readonly outlet: HTMLElement;
   /** The `data` of the page; CORE-6's view functions give it from the store. By default, its route's `data`. */
-  readonly data?: (match: RouteMatch) => unknown;
+  readonly data?: (match: RouteMatch, state?: unknown) => unknown;
+  /** What the views read: the store's state (`app.ts`); nothing by default. */
+  readonly state?: () => unknown;
   /** Called after each render, with the match. */
   readonly onRoute?: (match: RouteMatch) => void;
   readonly redirects?: Readonly<Record<string, string>>;
@@ -114,7 +122,15 @@ const linkOf = (event: MouseEvent): URL | null => {
  * `outlet`, then follows `navigate()`, the same-origin links (shadow roots
  * included) and the browser's back and forward.
  */
-export const startRouter = ({ routes, outlet, data = routeData(routes), onRoute, redirects = REDIRECTS, guard }: RouterOptions): Router => {
+export const startRouter = ({
+  routes,
+  outlet,
+  data = routeData(routes),
+  state = () => undefined,
+  onRoute,
+  redirects = REDIRECTS,
+  guard,
+}: RouterOptions): Router => {
   let current: RouteMatch;
 
   const render = (navigated = true) => {
@@ -133,7 +149,10 @@ export const startRouter = ({ routes, outlet, data = routeData(routes), onRoute,
       existing && existing.localName === current.composant.tag && outlet.childElementCount === 1
         ? existing
         : document.createElement(current.composant.tag);
-    (page as Element & { data: unknown }).data = data(current);
+    const now = state();
+    (page as Element & { data: unknown }).data = data(current, now);
+    const slots = routeOf(routes, current)?.slots;
+    if (slots) fillPlaced(page, slots(current, now));
     if (page !== existing || outlet.childElementCount !== 1) outlet.replaceChildren(page);
     if (navigated || location.href !== before) onRoute?.(current);
   };

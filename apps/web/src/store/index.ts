@@ -14,6 +14,7 @@ store.registerSlice('pilot', { shape: 'single' });
 store.registerSlice('runner', { shape: 'single' });
 store.registerSlice('runner-link', { shape: 'single' });
 store.registerSlice('device', { shape: 'collection', snapshotKey: 'devices' });
+store.registerSlice('settings', { shape: 'single' });
 
 export const client = createClient({
   seq: () => store.getState().seq,

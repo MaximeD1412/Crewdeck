@@ -12,6 +12,8 @@ import (
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/github"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/github/githubtest"
+	"github.com/vektah/gqlparser/v2"
+	"github.com/vektah/gqlparser/v2/ast"
 )
 
 type staticToken string
@@ -19,6 +21,14 @@ type staticToken string
 func (s staticToken) Token(context.Context) (string, error) { return string(s), nil }
 
 var now = time.Date(2026, 11, 12, 10, 0, 0, 0, time.UTC)
+
+// newFake is a fake GitHub that refuses, as GitHub does, a query its schema refuses.
+func newFake(t *testing.T, dirs ...string) *githubtest.Server {
+	t.Helper()
+	fake := githubtest.New(t, dirs...)
+	fake.Schema(githubtest.GitHubSchema)
+	return fake
+}
 
 func newClient(fake *githubtest.Server) *Client {
 	return &Client{
@@ -50,7 +60,7 @@ func assertRows(t *testing.T, path, statement string, want [][]any, args ...any)
 }
 
 func TestFetchObjectOfAnIssueStoresItsFieldsAndRelations(t *testing.T) {
-	fake := githubtest.New(t, "testdata/graphql")
+	fake := newFake(t, "testdata/graphql")
 	store, path := openStore(t)
 	o, err := newClient(fake).FetchObject(context.Background(), "acme/atelier", 38)
 	if err != nil {
@@ -81,7 +91,7 @@ func TestFetchObjectOfAnIssueStoresItsFieldsAndRelations(t *testing.T) {
 }
 
 func TestFetchObjectOfAPullStoresItsOwnParts(t *testing.T) {
-	fake := githubtest.New(t, "testdata/graphql")
+	fake := newFake(t, "testdata/graphql")
 	store, path := openStore(t)
 	for _, number := range []int{45, 44} {
 		o, err := newClient(fake).FetchObject(context.Background(), "acme/atelier", number)
@@ -131,13 +141,13 @@ func page(nodes any, more bool, cursor string) map[string]any {
 func emptyIssue(number int, comments map[string]any) map[string]any {
 	empty := page([]any{}, false, "")
 	return map[string]any{"repository": map[string]any{"issueOrPullRequest": map[string]any{
-		"__typename": "Issue", "number": number, "title": "Beaucoup de commentaires", "body": "", "state": "OPEN", "url": "https://github.com/acme/atelier/issues/50",
+		"__typename": "Issue", "number": number, "title": "Beaucoup de commentaires", "body": "", "issueState": "OPEN", "url": "https://github.com/acme/atelier/issues/50",
 		"updatedAt": "2026-11-10T09:00:00Z", "labels": empty, "assignees": empty, "comments": comments, "subIssues": empty, "blockedBy": empty,
 	}}}
 }
 
 func TestFetchObjectCompletesACommentListOfMoreThanAHundredByItsPagedQuery(t *testing.T) {
-	fake := githubtest.New(t, "testdata/graphql")
+	fake := newFake(t, "testdata/graphql")
 	fake.Reply("MirrorObject", map[string]any{"owner": "acme", "name": "atelier", "number": 50}, emptyIssue(50, page(comments(50, 0, 100), true, "c100")))
 	fake.Reply("MirrorObjectComments", map[string]any{"number": 50, "after": "c100"}, map[string]any{"repository": map[string]any{"issueOrPullRequest": map[string]any{"page": page(comments(50, 100, 150), false, "c150")}}})
 	store, path := openStore(t)
@@ -158,8 +168,57 @@ func TestFetchObjectCompletesACommentListOfMoreThanAHundredByItsPagedQuery(t *te
 	}
 }
 
+func reviewComments(thread string, from, to int) []map[string]any {
+	var nodes []map[string]any
+	for i := from; i < to; i++ {
+		nodes = append(nodes, map[string]any{"id": fmt.Sprintf("PRRC_%s_%03d", thread, i), "author": map[string]any{"login": "octo"}, "body": fmt.Sprintf("Remarque %d", i),
+			"path": "apps/runner/internal/mirror/store.go", "line": i + 1, "createdAt": "2026-11-09T10:00:00Z", "pullRequestReview": nil})
+	}
+	return nodes
+}
+
+func TestFetchObjectCompletesTheReviewThreadsAndAThreadOfMoreThanAHundredComments(t *testing.T) {
+	fake := newFake(t, "testdata/graphql")
+	empty := page([]any{}, false, "")
+	fake.Reply("MirrorObject", map[string]any{"owner": "acme", "name": "atelier", "number": 51}, map[string]any{"repository": map[string]any{"issueOrPullRequest": map[string]any{
+		"__typename": "PullRequest", "number": 51, "title": "Une longue revue", "body": "", "pullState": "OPEN", "url": "https://github.com/acme/atelier/pull/51",
+		"updatedAt": "2026-11-10T09:00:00Z", "labels": empty, "assignees": empty, "comments": empty,
+		"headRefName": "feat/51", "headRefOid": "cccccccccccccccccccccccccccccccccccccccc", "baseRefName": "develop", "isDraft": false, "mergeable": "MERGEABLE",
+		"closingIssuesReferences": empty, "commits": empty, "reviews": empty,
+		// A first thread of 130 comments, then a second thread on the threads' next page.
+		"reviewThreads": page([]any{map[string]any{"id": "PRRT_a", "comments": page(reviewComments("a", 0, 100), true, "a100")}}, true, "t1"),
+	}}})
+	fake.Reply("MirrorThreadComments", map[string]any{"id": "PRRT_a", "after": "a100"}, map[string]any{"node": map[string]any{"page": page(reviewComments("a", 100, 130), false, "a130")}})
+	fake.Reply("MirrorObjectReviewThreads", map[string]any{"number": 51, "after": "t1"}, map[string]any{"repository": map[string]any{"issueOrPullRequest": map[string]any{
+		"page": page([]any{map[string]any{"id": "PRRT_b", "comments": page(reviewComments("b", 0, 2), false, "b2")}}, false, "t2"),
+	}}})
+	store, path := openStore(t)
+
+	o, err := newClient(fake).FetchObject(context.Background(), "acme/atelier", 51)
+	if err != nil {
+		t.Fatalf("FetchObject: %v", err)
+	}
+	put(t, store, o)
+	if n := count(t, path, "SELECT count(*) FROM review_comments WHERE number = 51"); n != 132 {
+		t.Errorf("%d review comments, want 132", n)
+	}
+	assertRows(t, path, "SELECT id, path, line, body FROM review_comments WHERE id IN ('PRRC_a_129', 'PRRC_b_001') ORDER BY id", [][]any{
+		{"PRRC_a_129", "apps/runner/internal/mirror/store.go", 130, "Remarque 129"},
+		{"PRRC_b_001", "apps/runner/internal/mirror/store.go", 2, "Remarque 1"},
+	})
+	if n := count(t, path, "SELECT count(*) FROM search WHERE kind = 'comment' AND number = 51"); n != 132 {
+		t.Errorf("%d search rows of the review comments, want 132", n)
+	}
+	if n := count(t, path, "SELECT count(*) FROM search WHERE search MATCH '\"Remarque 129\"' AND number = 51"); n != 1 {
+		t.Errorf("the thread's last comment is not searchable (%d)", n)
+	}
+	if a, b := fake.Count("MirrorThreadComments"), fake.Count("MirrorObjectReviewThreads"); a != 1 || b != 1 {
+		t.Errorf("%d paged queries of a thread's comments and %d of the threads, want 1 and 1", a, b)
+	}
+}
+
 func TestFetchingADeletedOrTransferredIssueRemovesItsRelationsAndSearchRows(t *testing.T) {
-	fake := githubtest.New(t, "testdata/graphql")
+	fake := newFake(t, "testdata/graphql")
 	store, path := openStore(t)
 	put(t, store, Object{Repository: "acme/atelier", Number: 60, Title: "Bientôt transféré", Body: "Corps", State: "OPEN",
 		Labels: []string{"bug"}, Assignees: []string{"octo"}, Comments: []Comment{{ID: "IC_60", Body: "Un commentaire"}},
@@ -192,14 +251,14 @@ func TestFetchingADeletedOrTransferredIssueRemovesItsRelationsAndSearchRows(t *t
 }
 
 func TestFetchChecksStoresTheCheckRunsAndCommitStatusesOfASHA(t *testing.T) {
-	fake := githubtest.New(t, "testdata/graphql")
+	fake := newFake(t, "testdata/graphql")
 	store, path := openStore(t)
 	sha := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	checks, err := newClient(fake).FetchChecks(context.Background(), "acme/atelier", sha)
 	if err != nil {
 		t.Fatalf("FetchChecks: %v", err)
 	}
-	if err := store.Update(func(tx *sql.Tx) error { return PutChecks(tx, "acme/atelier", sha, checks) }); err != nil {
+	if err := store.Update(func(tx *sql.Tx) error { return PutChecks(tx, "acme/atelier", sha, "SUCCESS", checks) }); err != nil {
 		t.Fatal(err)
 	}
 	assertRows(t, path, "SELECT sha, typename, name, status, conclusion, details_url, started_at, completed_at FROM checks ORDER BY typename", [][]any{
@@ -214,7 +273,7 @@ func TestFetchChecksStoresTheCheckRunsAndCommitStatusesOfASHA(t *testing.T) {
 }
 
 func TestFetchCollectionsReadsLabelsMilestonesAndReleases(t *testing.T) {
-	fake := githubtest.New(t, "testdata/graphql")
+	fake := newFake(t, "testdata/graphql")
 	got, err := newClient(fake).FetchCollections(context.Background(), "acme/atelier")
 	if err != nil {
 		t.Fatalf("FetchCollections: %v", err)
@@ -250,7 +309,7 @@ func TestGitHubsRefusalsLimitsAndOutagesAreTyped(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			fake := githubtest.New(t, "testdata/graphql")
+			fake := newFake(t, "testdata/graphql")
 			fake.Fail("", tc.failure, 1)
 			_, err := newClient(fake).FetchObject(context.Background(), "acme/atelier", 38)
 			if !tc.check(err) {
@@ -260,7 +319,7 @@ func TestGitHubsRefusalsLimitsAndOutagesAreTyped(t *testing.T) {
 	}
 
 	t.Run("a GraphQL rate limit", func(t *testing.T) {
-		fake := githubtest.New(t, "testdata/graphql")
+		fake := newFake(t, "testdata/graphql")
 		fake.ReplyErrors("MirrorObject", map[string]any{"owner": "acme", "name": "atelier", "number": 38}, []map[string]any{{"type": "RATE_LIMITED", "message": "API rate limit exceeded"}})
 		var limited *LimitedError
 		if _, err := newClient(fake).FetchObject(context.Background(), "acme/atelier", 38); !errors.As(err, &limited) || !limited.RetryAt.Equal(now.Add(time.Minute)) {
@@ -278,7 +337,7 @@ func TestGitHubsRefusalsLimitsAndOutagesAreTyped(t *testing.T) {
 	})
 
 	t.Run("a repository the token cannot see", func(t *testing.T) {
-		fake := githubtest.New(t, "testdata/graphql")
+		fake := newFake(t, "testdata/graphql")
 		fake.Reply("MirrorObject", map[string]any{"owner": "acme", "name": "secret"}, map[string]any{"repository": nil})
 		if _, err := newClient(fake).FetchObject(context.Background(), "acme/secret", 1); !errors.Is(err, ErrRefused) {
 			t.Errorf("FetchObject = %v", err)
@@ -287,7 +346,7 @@ func TestGitHubsRefusalsLimitsAndOutagesAreTyped(t *testing.T) {
 }
 
 func TestFetchRefusesARepositoryThatIsNotOwnerSlashName(t *testing.T) {
-	fake := githubtest.New(t, "testdata/graphql")
+	fake := newFake(t, "testdata/graphql")
 	for _, repo := range []string{"atelier", "acme/atelier/pulls", "../acme/atelier", "acme/"} {
 		if _, err := newClient(fake).FetchObject(context.Background(), repo, 1); err == nil {
 			t.Errorf("repo %q accepted", repo)
@@ -295,5 +354,35 @@ func TestFetchRefusesARepositoryThatIsNotOwnerSlashName(t *testing.T) {
 	}
 	if len(fake.Calls()) != 0 {
 		t.Error("a bad repository reached GitHub")
+	}
+}
+
+// Every query the Miroir sends, the paged ones the fixtures do not reach included.
+func miroirQueries() map[string]string {
+	queries := map[string]string{
+		"MirrorObject": objectQuery, "MirrorThreadComments": threadCommentsQuery, "MirrorChecks": checksQuery,
+		"MirrorLabels": labelsQuery, "MirrorMilestones": milestonesQuery, "MirrorReleases": releasesQuery,
+		"MirrorIssues": issuesWalkQuery, "MirrorPulls": pullsWalkQuery,
+	}
+	for _, p := range []objectPage{labelsPage, assigneesPage, commentsPage, subIssuesPage, blockedByPage, closingIssuesPage, commitsPage, reviewsPage, threadsPage} {
+		queries[p.operation] = p.query
+	}
+	return queries
+}
+
+func TestEveryQueryOfTheMiroirIsValidAgainstGitHubsSchema(t *testing.T) {
+	schema, err := gqlparser.LoadSchema(&ast.Source{Name: "github", Input: githubtest.GitHubSchema})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for operation, q := range miroirQueries() {
+		doc, errs := gqlparser.LoadQuery(schema, q)
+		if errs != nil {
+			t.Errorf("%s: %v", operation, errs)
+			continue
+		}
+		if len(doc.Operations) != 1 || doc.Operations[0].Name != operation {
+			t.Errorf("%s: the query names another operation", operation)
+		}
 	}
 }

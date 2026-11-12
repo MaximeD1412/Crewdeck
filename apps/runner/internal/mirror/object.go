@@ -283,9 +283,13 @@ func DeleteObject(tx *sql.Tx, repository string, number int) error {
 	return nil
 }
 
-// PutChecks replaces, in tx, the checks of the commit sha.
-func PutChecks(tx *sql.Tx, repository, sha string, checks []Check) error {
+// PutChecks replaces, in tx, the checks of the commit sha, read when its
+// rollup's state was state.
+func PutChecks(tx *sql.Tx, repository, sha, state string, checks []Check) error {
 	if err := exec(tx, "DELETE FROM checks WHERE repository = ? AND sha = ?", repository, sha); err != nil {
+		return err
+	}
+	if err := exec(tx, "INSERT OR REPLACE INTO checks_read (repository, sha, state) VALUES (?, ?, ?)", repository, sha, null(state)); err != nil {
 		return err
 	}
 	for _, c := range checks {
@@ -295,11 +299,6 @@ func PutChecks(tx *sql.Tx, repository, sha string, checks []Check) error {
 		}
 	}
 	return nil
-}
-
-// setChecksState records, in tx, the rollup's state of a PR's head last read.
-func setChecksState(tx *sql.Tx, repository string, number int, state string) error {
-	return exec(tx, "UPDATE pulls SET checks_state = ? WHERE repository = ? AND number = ?", null(state), repository, number)
 }
 
 // PutCollections replaces, in tx, the repository's labels, milestones and releases.

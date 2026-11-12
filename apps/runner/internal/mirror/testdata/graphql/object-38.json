@@ -12,7 +12,7 @@
         "number": 38,
         "title": "Le store du Miroir",
         "body": "Corps confidentiel du ticket trente-huit",
-        "state": "OPEN",
+        "issueState": "OPEN",
         "stateReason": null,
         "url": "https://github.com/acme/atelier/issues/38",
         "createdAt": "2026-11-01T08:00:00Z",

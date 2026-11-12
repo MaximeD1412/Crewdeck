@@ -103,6 +103,25 @@ func TestOpenTightensTheModeOfAnExistingFile(t *testing.T) {
 	}
 }
 
+func TestOpenTightensTheModeOfAnExistingFolder(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "crewdeck")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	store, err := Open(filepath.Join(dir, "miroir.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer store.Close()
+	info, _ := os.Stat(dir)
+	if mode := info.Mode().Perm(); mode != 0o700 {
+		t.Errorf("folder mode %o, want 700", mode)
+	}
+}
+
 func TestOpenRebuildsADatabaseOfAnotherSchemaVersionEmpty(t *testing.T) {
 	store, path := openStore(t)
 	if err := store.PutProjects([]Project{atelier}); err != nil {
@@ -197,12 +216,12 @@ func TestPutProjectsDeletesTheCopyOfARepositoryNoLongerAProjet(t *testing.T) {
 			if err := PutCollections(tx, repo, []Label{{Name: "bug"}}, nil, nil); err != nil {
 				return err
 			}
-			if err := PutChecks(tx, repo, "abc", []Check{{Typename: "CheckRun", Name: "ci"}}); err != nil {
+			if err := PutChecks(tx, repo, "abc", "SUCCESS", []Check{{Typename: "CheckRun", Name: "ci"}}); err != nil {
 				return err
 			}
 		}
 		// The checks of a repository whose objects the copy does not have.
-		return PutChecks(tx, "acme/ancien", "abc", []Check{{Typename: "CheckRun", Name: "ci"}})
+		return PutChecks(tx, "acme/ancien", "abc", "SUCCESS", []Check{{Typename: "CheckRun", Name: "ci"}})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +238,7 @@ func TestPutProjectsDeletesTheCopyOfARepositoryNoLongerAProjet(t *testing.T) {
 	if n := count(t, path, "SELECT count(*) FROM checks WHERE repository = 'acme/ancien'"); n != 0 {
 		t.Errorf("checks keeps %d rows of acme/ancien", n)
 	}
-	for _, table := range []string{"issues", "issue_labels", "repo_labels", "checks", "search"} {
+	for _, table := range []string{"issues", "issue_labels", "repo_labels", "checks", "checks_read", "search"} {
 		if n := count(t, path, "SELECT count(*) FROM "+table+" WHERE repository = 'acme/outils'"); n != 0 {
 			t.Errorf("%s keeps %d rows of acme/outils", table, n)
 		}

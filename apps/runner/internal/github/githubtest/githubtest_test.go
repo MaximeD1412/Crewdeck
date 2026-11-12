@@ -2,15 +2,41 @@ package githubtest
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
+// recorder is a test whose failures the fake's own tests read.
+type recorder struct {
+	testing.TB
+	mu     sync.Mutex
+	errors []string
+}
+
+func (r *recorder) Errorf(format string, args ...any) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.errors = append(r.errors, fmt.Sprintf(format, args...))
+}
+
+func (r *recorder) failures() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.errors...)
+}
+
 func post(t *testing.T, s *Server, operation string, variables map[string]any) (int, map[string]any, http.Header) {
 	t.Helper()
-	body, _ := json.Marshal(map[string]any{"query": "query " + operation + " { x }", "operationName": operation, "variables": variables})
+	return postQuery(t, s, "query "+operation+" { x }", operation, variables)
+}
+
+func postQuery(t *testing.T, s *Server, query, operation string, variables map[string]any) (int, map[string]any, http.Header) {
+	t.Helper()
+	body, _ := json.Marshal(map[string]any{"query": query, "operationName": operation, "variables": variables})
 	request, _ := http.NewRequest(http.MethodPost, s.URL+"/graphql", strings.NewReader(string(body)))
 	request.Header.Set("Authorization", "bearer ghs_mirror")
 	response, err := http.DefaultClient.Do(request)
@@ -88,5 +114,50 @@ func TestRESTAnswersByMethodAndPath(t *testing.T) {
 	}
 	if calls := s.Calls(); len(calls) != 2 || calls[0].Path != "/repos/acme/atelier/issues/38/dependencies/blocked_by" || calls[0].Operation != "" {
 		t.Errorf("calls %+v", calls)
+	}
+}
+
+func TestASchemaMakesTheFakeRefuseWhatGitHubWouldRefuse(t *testing.T) {
+	r := &recorder{TB: t}
+	s := New(r)
+	s.Schema(GitHubSchema)
+	s.Reply("Number", map[string]any{"owner": "acme"}, map[string]any{"repository": map[string]any{"issueOrPullRequest": map[string]any{"number": 38}}})
+
+	valid := "query Number($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { issueOrPullRequest(number: $number) { ... on Issue { number } } } }"
+	if _, out, _ := postQuery(t, s, valid, "Number", map[string]any{"owner": "acme", "name": "atelier", "number": 38}); out["data"] == nil || len(r.failures()) != 0 {
+		t.Fatalf("a valid query: %v %v", out, r.failures())
+	}
+	refused := map[string]struct {
+		query     string
+		variables map[string]any
+		reason    string
+	}{
+		"an unknown field": {
+			"query Number($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { nameWithOwner stars } }",
+			map[string]any{"owner": "acme", "name": "atelier"}, "stars",
+		},
+		"one name for the states of an issue and a PR": {
+			"query Number($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { issueOrPullRequest(number: $number) { ... on Issue { state } ... on PullRequest { state } } } }",
+			map[string]any{"owner": "acme", "name": "atelier", "number": 38}, "conflict",
+		},
+		"a variable of another type": {
+			valid, map[string]any{"owner": "acme", "name": "atelier", "number": []any{38}}, "number",
+		},
+		"a missing variable": {
+			valid, map[string]any{"owner": "acme", "number": 38}, "name",
+		},
+	}
+	for name, c := range refused {
+		t.Run(name, func(t *testing.T) {
+			before := len(r.failures())
+			status, out, _ := postQuery(t, s, c.query, "Number", c.variables)
+			failures := r.failures()[before:]
+			if status != http.StatusOK || out["data"] != nil || out["errors"] == nil {
+				t.Errorf("answer %d %v, want GitHub's errors", status, out)
+			}
+			if len(failures) != 1 || !strings.Contains(failures[0], c.reason) {
+				t.Errorf("the test's failures %q, want one naming %q", failures, c.reason)
+			}
+		})
 	}
 }

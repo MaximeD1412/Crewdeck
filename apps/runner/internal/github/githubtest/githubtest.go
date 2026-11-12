@@ -10,10 +10,15 @@
 // It answers a request of its operation whose variables include its own (a
 // null variable matches an absent one); the fixture naming the most variables
 // wins, then the one loaded last, so that a later folder overrides an earlier.
+//
+// Once given a schema (Schema, GitHubSchema), the fake validates every
+// GraphQL request against it, as GitHub does before running it: a query or
+// variables it refuses fail the test and get GitHub's errors.
 package githubtest
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,7 +31,17 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/vektah/gqlparser/v2"
+	"github.com/vektah/gqlparser/v2/ast"
+	"github.com/vektah/gqlparser/v2/validator"
 )
+
+// GitHubSchema is the part of GitHub's GraphQL schema the Runner's queries
+// select (schema/github.graphql).
+//
+//go:embed schema/github.graphql
+var GitHubSchema string
 
 // Call is a request the fake received.
 type Call struct {
@@ -97,6 +112,7 @@ type Server struct {
 	rest     map[string]rest
 	failures []failure
 	calls    []Call
+	schema   *ast.Schema
 }
 
 // New starts a fake loading the fixtures of dirs, in order.
@@ -110,6 +126,46 @@ func New(t testing.TB, dirs ...string) *Server {
 		s.Load(dir)
 	}
 	return s
+}
+
+// Schema makes the fake validate every GraphQL request against sdl.
+func (s *Server) Schema(sdl string) {
+	s.t.Helper()
+	schema, err := gqlparser.LoadSchema(&ast.Source{Name: "schema", Input: sdl})
+	if err != nil {
+		s.t.Fatalf("githubtest: the schema: %v", err)
+	}
+	s.mu.Lock()
+	s.schema = schema
+	s.mu.Unlock()
+}
+
+// invalid is what GitHub would refuse of the query and its variables, "" when nothing.
+func (s *Server) invalid(query string, variables []byte) string {
+	s.mu.Lock()
+	schema := s.schema
+	s.mu.Unlock()
+	if schema == nil {
+		return ""
+	}
+	doc, errs := gqlparser.LoadQuery(schema, query)
+	if errs != nil {
+		return errs.Error()
+	}
+	var values map[string]any
+	if len(variables) > 0 && string(variables) != "null" {
+		decoder := json.NewDecoder(bytes.NewReader(variables))
+		decoder.UseNumber()
+		if err := decoder.Decode(&values); err != nil {
+			return err.Error()
+		}
+	}
+	for _, op := range doc.Operations {
+		if _, err := validator.VariableValues(schema, op, values); err != nil {
+			return err.Error()
+		}
+	}
+	return ""
 }
 
 // Load adds the GraphQL fixtures of dir (*.json), overriding the earlier ones
@@ -210,16 +266,29 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	isGraphQL := r.Method == http.MethodPost && r.URL.Path == "/graphql"
 	if isGraphQL {
 		var request struct {
-			Query         string         `json:"query"`
-			OperationName string         `json:"operationName"`
-			Variables     map[string]any `json:"variables"`
+			Query         string          `json:"query"`
+			OperationName string          `json:"operationName"`
+			Variables     json.RawMessage `json:"variables"`
 		}
 		body, _ := io.ReadAll(r.Body)
 		if err := json.Unmarshal(body, &request); err != nil || request.OperationName == "" || request.Query == "" {
 			http.Error(w, `{"message":"Problems parsing JSON"}`, http.StatusBadRequest)
 			return
 		}
-		call.Operation, call.Variables = request.OperationName, request.Variables
+		call.Operation = request.OperationName
+		if len(request.Variables) > 0 {
+			_ = json.Unmarshal(request.Variables, &call.Variables)
+		}
+		if reason := s.invalid(request.Query, request.Variables); reason != "" {
+			s.mu.Lock()
+			s.calls = append(s.calls, call)
+			s.mu.Unlock()
+			s.t.Errorf("githubtest: GitHub refuses %s: %s", call.Operation, reason)
+			w.Header().Set("Content-Type", "application/json")
+			out, _ := json.Marshal(map[string]any{"errors": []any{map[string]any{"message": reason}}})
+			w.Write(out)
+			return
+		}
 	}
 	s.mu.Lock()
 	s.calls = append(s.calls, call)

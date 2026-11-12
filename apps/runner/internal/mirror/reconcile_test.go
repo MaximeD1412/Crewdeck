@@ -19,7 +19,7 @@ func newMirror(t *testing.T, fake *githubtest.Server) (*Mirror, string) {
 }
 
 func TestReconcileOnAnEmptyCopyFillsItAndMarksTheProjetFilled(t *testing.T) {
-	fake := githubtest.New(t, "testdata/graphql")
+	fake := newFake(t, "testdata/graphql")
 	m, path := newMirror(t, fake)
 
 	result, err := m.Reconcile(context.Background(), "acme/atelier")
@@ -45,7 +45,7 @@ func TestReconcileOnAnEmptyCopyFillsItAndMarksTheProjetFilled(t *testing.T) {
 }
 
 func TestReconcileOnAFullCopyFetchesOnlyTheChangedObjectsAndRemovesTheUnlisted(t *testing.T) {
-	fake := githubtest.New(t, "testdata/graphql")
+	fake := newFake(t, "testdata/graphql")
 	m, path := newMirror(t, fake)
 	if _, err := m.Reconcile(context.Background(), "acme/atelier"); err != nil {
 		t.Fatal(err)
@@ -100,7 +100,7 @@ func TestReconcileOnAFullCopyFetchesOnlyTheChangedObjectsAndRemovesTheUnlisted(t
 }
 
 func TestReconcileRefetchesTheChecksOfAnOpenPRWhoseRollupChanged(t *testing.T) {
-	fake := githubtest.New(t, "testdata/graphql")
+	fake := newFake(t, "testdata/graphql")
 	m, _ := newMirror(t, fake)
 	if _, err := m.Reconcile(context.Background(), "acme/atelier"); err != nil {
 		t.Fatal(err)
@@ -120,7 +120,7 @@ func TestReconcileRefetchesTheChecksOfAnOpenPRWhoseRollupChanged(t *testing.T) {
 }
 
 func TestReconcileRefetchesAnOpenIssueWhoseBlockersChanged(t *testing.T) {
-	fake := githubtest.New(t, "testdata/graphql")
+	fake := newFake(t, "testdata/graphql")
 	m, _ := newMirror(t, fake)
 	if _, err := m.Reconcile(context.Background(), "acme/atelier"); err != nil {
 		t.Fatal(err)
@@ -144,7 +144,7 @@ func TestReconcileRefetchesAnOpenIssueWhoseBlockersChanged(t *testing.T) {
 }
 
 func TestReconcileOfARepositoryNotAProjetChangesNothing(t *testing.T) {
-	fake := githubtest.New(t, "testdata/graphql")
+	fake := newFake(t, "testdata/graphql")
 	m, _ := newMirror(t, fake)
 	if _, err := m.Reconcile(context.Background(), "acme/inconnu"); !errors.Is(err, ErrNotAProject) {
 		t.Errorf("Reconcile = %v, want ErrNotAProject", err)
@@ -155,7 +155,7 @@ func TestReconcileOfARepositoryNotAProjetChangesNothing(t *testing.T) {
 }
 
 func TestAReconciliationThatFailsDoesNotMarkTheProjetFilled(t *testing.T) {
-	fake := githubtest.New(t, "testdata/graphql")
+	fake := newFake(t, "testdata/graphql")
 	m, path := newMirror(t, fake)
 	fake.Fail("MirrorObject", githubtest.BadGateway(), 1)
 	if _, err := m.Reconcile(context.Background(), "acme/atelier"); !errors.Is(err, ErrUnavailable) {
@@ -165,5 +165,51 @@ func TestAReconciliationThatFailsDoesNotMarkTheProjetFilled(t *testing.T) {
 	// The next one finishes the filling.
 	if result, err := m.Reconcile(context.Background(), "acme/atelier"); err != nil || !result.Filled {
 		t.Errorf("Reconcile = %+v, %v", result, err)
+	}
+}
+
+func TestAReadOfTheChecksThatFailedIsReadAgainByTheNextReconciliation(t *testing.T) {
+	fake := newFake(t, "testdata/graphql")
+	m, path := newMirror(t, fake)
+	fake.Fail("MirrorChecks", githubtest.BadGateway(), 1)
+	if _, err := m.Reconcile(context.Background(), "acme/atelier"); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("Reconcile = %v, want ErrUnavailable", err)
+	}
+	// The PR is in the copy, its head and rollup with it, but not its checks.
+	fake.Reset()
+	result, err := m.Reconcile(context.Background(), "acme/atelier")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Checks != 1 || !result.Filled || fake.Count("MirrorChecks") != 1 {
+		t.Errorf("result %+v, %d checks fetched: want the checks read again, then the Projet filled", result, fake.Count("MirrorChecks"))
+	}
+	if n := count(t, path, "SELECT count(*) FROM checks WHERE sha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'"); n == 0 {
+		t.Error("no check of the open PR's head")
+	}
+}
+
+func TestTheChecksOfANewHeadWhoseReadFailedAreReadAgain(t *testing.T) {
+	fake := newFake(t, "testdata/graphql")
+	m, path := newMirror(t, fake)
+	if _, err := m.Reconcile(context.Background(), "acme/atelier"); err != nil {
+		t.Fatal(err)
+	}
+	fake.Load("testdata/changed")
+	fake.Fail("MirrorChecks", githubtest.RateLimited(now.Add(time.Hour)), 1)
+	var limited *LimitedError
+	if _, err := m.Reconcile(context.Background(), "acme/atelier"); !errors.As(err, &limited) {
+		t.Fatalf("Reconcile = %v, want a LimitedError", err)
+	}
+	fake.Reset()
+	result, err := m.Reconcile(context.Background(), "acme/atelier")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Checks != 1 || fake.Count("MirrorChecks") != 1 {
+		t.Errorf("result %+v: want the new head's checks read again", result)
+	}
+	if n := count(t, path, "SELECT count(*) FROM checks WHERE sha = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'"); n != 2 {
+		t.Errorf("%d checks of the new head, want 2", n)
 	}
 }

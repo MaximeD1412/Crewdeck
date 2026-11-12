@@ -12,7 +12,7 @@
         "number": 45,
         "title": "Le store, la PR",
         "body": "Corps confidentiel de la PR",
-        "state": "OPEN",
+        "pullState": "OPEN",
         "url": "https://github.com/acme/atelier/pull/45",
         "createdAt": "2026-11-03T08:00:00Z",
         "updatedAt": "2026-11-11T16:00:00Z",

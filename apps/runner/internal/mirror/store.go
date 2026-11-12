@@ -60,6 +60,10 @@ func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), dirMode); err != nil {
 		return nil, fmt.Errorf("mirror: create the copy's folder: %w", err)
 	}
+	// MkdirAll keeps the mode of a folder that already exists.
+	if err := os.Chmod(filepath.Dir(path), dirMode); err != nil {
+		return nil, fmt.Errorf("mirror: chmod the copy's folder: %w", err)
+	}
 	// Created mode 600 before SQLite opens it, so that it never is readable by others.
 	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, fileMode)
 	if err != nil {
@@ -250,7 +254,7 @@ type Project struct {
 var repositoryTables = []string{
 	"issues", "issue_labels", "issue_assignees", "comments", "sub_issues", "blocked_by",
 	"pulls", "pull_commits", "closing_issues", "reviews", "review_comments",
-	"checks", "repo_labels", "milestones", "releases", "search",
+	"checks", "checks_read", "repo_labels", "milestones", "releases", "search",
 }
 
 // PutProjects makes the copy's Projets these: adds the new ones (unfilled),

@@ -265,8 +265,10 @@ func connectionField(field, selection, after string) string {
 	return fmt.Sprintf("%s(first: %d%s) { %s nodes { %s } }", field, pageSize, after, pageInfo, selection)
 }
 
+// An issue's state and a PR's are of two enums: GraphQL refuses one response
+// name for both, even in exclusive fragments, so each has its alias.
 var issueFields = strings.Join([]string{
-	"number title body state stateReason url createdAt updatedAt closedAt author { login } milestone { number }",
+	"number title body issueState: state stateReason url createdAt updatedAt closedAt author { login } milestone { number }",
 	connectionField("labels", labelsSelection, ""),
 	connectionField("assignees", assigneesSelection, ""),
 	connectionField("comments", commentsSelection, ""),
@@ -276,7 +278,7 @@ var issueFields = strings.Join([]string{
 }, " ")
 
 var pullFields = strings.Join([]string{
-	"number title body state url createdAt updatedAt closedAt mergedAt author { login } milestone { number }",
+	"number title body pullState: state url createdAt updatedAt closedAt mergedAt author { login } milestone { number }",
 	connectionField("labels", labelsSelection, ""),
 	connectionField("assignees", assigneesSelection, ""),
 	connectionField("comments", commentsSelection, ""),
@@ -385,7 +387,8 @@ type objectNode struct {
 	Number      int    `json:"number"`
 	Title       string `json:"title"`
 	Body        string `json:"body"`
-	State       string `json:"state"`
+	IssueState  string `json:"issueState"`
+	PullState   string `json:"pullState"`
 	StateReason string `json:"stateReason"`
 	URL         string `json:"url"`
 	CreatedAt   string `json:"createdAt"`
@@ -442,7 +445,7 @@ func (c *Client) FetchObject(ctx context.Context, repository string, number int)
 	}
 	o := Object{
 		Repository: repository, Number: number, IsPull: node.Typename == "PullRequest",
-		Title: node.Title, Body: node.Body, State: node.State, StateReason: node.StateReason, URL: node.URL,
+		Title: node.Title, Body: node.Body, State: node.IssueState + node.PullState, StateReason: node.StateReason, URL: node.URL,
 		Author: login(node.Author), CreatedAt: node.CreatedAt, UpdatedAt: node.UpdatedAt, ClosedAt: node.ClosedAt,
 	}
 	if node.Milestone != nil {

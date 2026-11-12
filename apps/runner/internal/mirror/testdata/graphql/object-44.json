@@ -12,7 +12,7 @@
         "number": 44,
         "title": "Une PR fusionnée",
         "body": "Corps fusionné",
-        "state": "MERGED",
+        "pullState": "MERGED",
         "url": "https://github.com/acme/atelier/pull/44",
         "createdAt": "2026-11-03T08:00:00Z",
         "updatedAt": "2026-11-02T09:00:00Z",

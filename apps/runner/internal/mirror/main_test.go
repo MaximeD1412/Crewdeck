@@ -12,7 +12,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/maximed1412/crewdeck/apps/runner/internal/github/githubtest"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/logging"
 )
 
@@ -100,7 +99,7 @@ func walk(v any, visit func(key, value string)) {
 
 func TestTheMirrorsLogNamesWhatItDidButNoneOfItsContent(t *testing.T) {
 	var own syncBuffer
-	fake := githubtest.New(t, "testdata/graphql")
+	fake := newFake(t, "testdata/graphql")
 	m, _ := newMirror(t, fake)
 	m.Logger = logging.New(&own)
 	m.GitHub.Logger = m.Logger

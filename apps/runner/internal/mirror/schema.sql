@@ -102,7 +102,7 @@ CREATE TABLE pulls (
   mergeable        TEXT,  -- MERGEABLE, CONFLICTING, UNKNOWN
   merge_commit_oid TEXT,
   merged_at        TEXT,
-  checks_state     TEXT,  -- the rollup's state of head_oid when last read: SUCCESS, FAILURE, PENDING…
+  checks_state     TEXT,  -- the rollup's state of head_oid as the PR was read: SUCCESS, FAILURE, PENDING…
   PRIMARY KEY (repository, number),
   FOREIGN KEY (repository, number) REFERENCES issues (repository, number) ON DELETE CASCADE
 );
@@ -166,6 +166,15 @@ CREATE TABLE checks (
   started_at   TEXT,
   completed_at TEXT,
   PRIMARY KEY (repository, sha, typename, name)
+);
+
+-- The commits whose checks were read, with the rollup's state they were read
+-- at: written with the checks, so that a read that failed is read again.
+CREATE TABLE checks_read (
+  repository TEXT NOT NULL,
+  sha        TEXT NOT NULL,
+  state      TEXT,
+  PRIMARY KEY (repository, sha)
 );
 
 CREATE TABLE repo_labels (

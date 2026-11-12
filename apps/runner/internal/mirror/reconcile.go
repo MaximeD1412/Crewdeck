@@ -66,8 +66,9 @@ func (m *Mirror) Refresh(ctx context.Context, repository string, number int) (go
 	return gone, nil
 }
 
-// refreshChecks fetches the checks of a PR's head and records the rollup's
-// state the walk saw, so that the next walk refetches them only when it changes.
+// refreshChecks fetches the checks of a PR's head and records, with them, the
+// rollup's state the walk saw: the next walk reads them again only when it
+// changes, or when this read did not finish.
 func (m *Mirror) refreshChecks(ctx context.Context, repository string, number int, sha, state string) error {
 	started := m.now()
 	checks, err := m.GitHub.FetchChecks(ctx, repository, sha)
@@ -77,12 +78,7 @@ func (m *Mirror) refreshChecks(ctx context.Context, repository string, number in
 	if err != nil {
 		return err
 	}
-	if err := m.Store.Update(func(tx *sql.Tx) error {
-		if err := PutChecks(tx, repository, sha, checks); err != nil {
-			return err
-		}
-		return setChecksState(tx, repository, number, state)
-	}); err != nil {
+	if err := m.Store.Update(func(tx *sql.Tx) error { return PutChecks(tx, repository, sha, state, checks) }); err != nil {
 		return err
 	}
 	m.logger().Debug("mirror checks", "repository", repository, "number", number, "sha", sha, "count", len(checks), "duration_ms", m.now().Sub(started).Milliseconds())
@@ -122,10 +118,11 @@ type listed struct {
 
 // copied is an object as the copy has it, in the walk's terms.
 type copied struct {
-	updatedAt   string
-	headOid     string
-	checksState string
-	blockedBy   string
+	updatedAt  string
+	headOid    string
+	checksRead bool   // the checks of headOid were read…
+	readState  string // …when its rollup's state was this
+	blockedBy  string
 }
 
 func blockerKey(repository string, number int) string {
@@ -202,7 +199,7 @@ func (m *Mirror) Reconcile(ctx context.Context, repository string) (Result, erro
 		if l.StatusCheckRollup != nil {
 			rollup = l.StatusCheckRollup.State
 		}
-		if open && (!ok || c.headOid != l.HeadRefOid || c.checksState != rollup) {
+		if open && (!ok || c.headOid != l.HeadRefOid || !c.checksRead || c.readState != rollup) {
 			if err := m.refreshChecks(ctx, repository, l.Number, l.HeadRefOid, rollup); err != nil {
 				return result, err
 			}
@@ -270,8 +267,10 @@ func (s *Store) filledAt(repository string) (bool, error) {
 
 // copied is the repository's objects as the copy has them, by number.
 func (s *Store) copied(repository string) (map[int]copied, error) {
-	rows, err := s.db.Query(`SELECT i.number, coalesce(i.updated_at, ''), coalesce(p.head_oid, ''), coalesce(p.checks_state, '')
-		FROM issues i LEFT JOIN pulls p ON p.repository = i.repository AND p.number = i.number WHERE i.repository = ?`, repository)
+	rows, err := s.db.Query(`SELECT i.number, coalesce(i.updated_at, ''), coalesce(p.head_oid, ''), r.sha IS NOT NULL, coalesce(r.state, '')
+		FROM issues i LEFT JOIN pulls p ON p.repository = i.repository AND p.number = i.number
+		LEFT JOIN checks_read r ON r.repository = p.repository AND r.sha = p.head_oid
+		WHERE i.repository = ?`, repository)
 	if err != nil {
 		return nil, fmt.Errorf("mirror: read the copy: %w", err)
 	}
@@ -279,7 +278,7 @@ func (s *Store) copied(repository string) (map[int]copied, error) {
 	for rows.Next() {
 		var number int
 		var c copied
-		if err := rows.Scan(&number, &c.updatedAt, &c.headOid, &c.checksState); err != nil {
+		if err := rows.Scan(&number, &c.updatedAt, &c.headOid, &c.checksRead, &c.readState); err != nil {
 			rows.Close()
 			return nil, err
 		}

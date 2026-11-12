@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { RunnerTokens } from '../auth/runner-tokens.js';
 import { DevicesModule } from '../devices/devices.module.js';
+import { AiAccounts, AiAccountsController, AiAccountState } from './ai-accounts/ai-accounts.js';
 import { RunnerClock } from './clock.js';
 import { RunnerDistController } from './distribution/runner-dist.controller.js';
 import { RunnerLinkLimiter } from './link/link-limiter.js';
@@ -21,11 +22,12 @@ import { RunnerProtocol } from './protocol-version.js';
 /**
  * The Pilote's Runner (ADR 0004): its socket (`RunnersGateway`, a client of
  * `/api/ws`), its presence, the commands sent to it, `GET /api/runner`,
- * and its link (`link/`, RUNNER-3).
+ * its link (`link/`, RUNNER-3), and what each Moteur can run on it
+ * (`ai-accounts/`, RUNNER-7).
  */
 @Module({
   imports: [DevicesModule],
-  controllers: [RunnersController, RunnerLinkCodesController, RunnerLinkController, RunnerDistController],
+  controllers: [RunnersController, AiAccountsController, RunnerLinkCodesController, RunnerLinkController, RunnerDistController],
   providers: [
     RunnerTokens,
     RunnerClock,
@@ -43,6 +45,8 @@ import { RunnerProtocol } from './protocol-version.js';
     RunnerLinks,
     RunnerLinkSweep,
     RunnerLinkState,
+    AiAccounts,
+    AiAccountState,
   ],
   exports: [RunnerPresence, RunnerCommands, RunnerDispatcher, RunnerClock],
 })

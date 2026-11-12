@@ -1,5 +1,6 @@
+import type { AiAccount, Runner } from '@crewdeck/contracts';
 import type { Connection } from '../store/store.js';
-import { NAV_IDS, t, type Cadre, type ComposantData, type IconName, type MenuItem, type NavId } from '@crewdeck/sdk';
+import { formatHour, NAV_IDS, t, type Cadre, type ComposantData, type IconName, type MenuItem, type NavId } from '@crewdeck/sdk';
 
 export type CadreData = ComposantData<typeof Cadre>;
 export type MenuItemData = ComposantData<typeof MenuItem>;
@@ -21,6 +22,10 @@ export interface CadreState {
   readonly connection?: Connection;
   readonly slices: {
     readonly pilot?: PilotSlice | null;
+    /** The Pilote's Runner (RUNNER-2): its presence is the Cadre's status. */
+    readonly runner?: Pick<Runner, 'state' | 'lastSeenAt'> | null;
+    /** The Comptes IA (RUNNER-7): the Moteurs connected are the status's detail. */
+    readonly 'ai-account'?: { values(): Iterable<Pick<AiAccount, 'engine' | 'installed' | 'kind' | 'state'>> };
   };
 }
 
@@ -65,25 +70,43 @@ const entryOf = (path: string): NavId | null => {
 };
 
 /**
+ * The Runner's presence: online with the Moteurs connected (« Claude Code,
+ * Codex »), or offline since its last heartbeat (« depuis 14:02 »); offline
+ * without detail while none is linked.
+ */
+const runnerStatus = ({ runner, 'ai-account': accounts }: CadreState['slices']): Pick<CadreData, 'status' | 'statusDetail'> => {
+  if (runner?.state !== 'online') {
+    return { status: 'offline', statusDetail: runner ? t('cadre.status.offlineSince', { time: formatHour(runner.lastSeenAt) }) : null };
+  }
+  const connected = [...(accounts?.values() ?? [])]
+    .filter(({ installed, kind, state }) => installed && state === 'connected' && kind !== 'none')
+    .map(({ engine }) => t(`aiAccounts.engine.${engine}`));
+  return { status: 'online', statusDetail: connected.length > 0 ? connected.join(', ') : null };
+};
+
+/**
  * The Cadre's data and its menu's for the page at `route` (pure): the current
  * entry from the URL, the Pilote from the `pilot` slice, the status `resync`
- * while the connection is not `live` (ADR 0007). Until their slices exist,
- * the status is otherwise `offline` with no detail, nothing is live and no
- * entry has a count.
+ * while the connection is not `live` (ADR 0007), else the Runner's presence,
+ * « En direct » while it is online. Until their slices exist, the status is
+ * `offline` with no detail and no entry has a count.
  */
 export const cadreView = (state: CadreState, route: { readonly path: string }): CadreView => {
   const bare = BARE_PATHS.has(route.path);
   const current = bare ? null : entryOf(route.path);
   const label = (id: NavId) => t(`cadre.menu.${id}.label`);
   const resync = state.connection !== undefined && state.connection !== 'live';
+  const { status, statusDetail } = resync
+    ? { status: 'resync' as const, statusDetail: t('cadre.status.resyncDetail') }
+    : runnerStatus(state.slices);
   return {
     cadre: {
       variant: bare ? 'bare' : 'default',
       current,
       screenLabel: current ? label(current) : t('cadre.brand'),
-      status: resync ? 'resync' : 'offline',
-      statusDetail: resync ? t('cadre.status.resyncDetail') : null,
-      live: false,
+      status,
+      statusDetail,
+      live: status === 'online',
       pilot: state.slices.pilot ? { login: state.slices.pilot.login, avatarUrl: state.slices.pilot.avatarUrl } : null,
     },
     menu: NAV_IDS.map((id) => ({

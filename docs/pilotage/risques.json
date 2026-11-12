@@ -275,7 +275,7 @@
         {
           "texte": "Clé API toujours possible pour chaque Moteur",
           "ref": "ADR 0004",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [
@@ -295,7 +295,7 @@
         {
           "texte": "Codex par clé API au MVP ; abonnement seulement si OpenAI l'accorde",
           "ref": "ADR 0004",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

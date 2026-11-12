@@ -12,6 +12,13 @@ const MIGRATIONS_TABLE = '_prisma_migrations';
 
 const quote = (identifier: string): string => `"${identifier.replaceAll('"', '""')}"`;
 
+/** How many times the TRUNCATE is tried when PostgreSQL picks it as a deadlock's victim. */
+const TRUNCATE_ATTEMPTS = 5;
+
+/** PostgreSQL's `deadlock detected`, as Prisma's driver adapter reports it. */
+const isDeadlock = (error: unknown): boolean =>
+  (error as { meta?: { driverAdapterError?: { cause?: { originalCode?: string } } } }).meta?.driverAdapterError?.cause?.originalCode === '40P01';
+
 @Injectable()
 export class ScenariosService {
   constructor(
@@ -31,12 +38,25 @@ export class ScenariosService {
     return { name: scenario.name, path: scenario.path, sessionCookie: seeded.sessionCookie ?? null };
   }
 
-  /** Every table of the current schema, the models' and any other, but the migrations': every Pilote's, so unscoped. */
+  /**
+   * Every table of the current schema, the models' and any other, but the
+   * migrations': every Pilote's, so unscoped. The previous scenario's fake
+   * Runner, just disconnected, may still be writing its Runner offline: when
+   * PostgreSQL resolves that deadlock against the TRUNCATE, it is tried again.
+   */
   private async emptyDatabase(): Promise<void> {
     const tables = await this.prisma.unscoped.$queryRaw<{ tablename: string }[]>`
       SELECT tablename FROM pg_tables WHERE schemaname = current_schema() AND tablename <> ${MIGRATIONS_TABLE} ORDER BY tablename`;
     if (tables.length === 0) return;
-    await this.prisma.unscoped.$executeRawUnsafe(`TRUNCATE TABLE ${tables.map((t) => quote(t.tablename)).join(', ')} RESTART IDENTITY CASCADE`);
+    const truncate = `TRUNCATE TABLE ${tables.map((t) => quote(t.tablename)).join(', ')} RESTART IDENTITY CASCADE`;
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        await this.prisma.unscoped.$executeRawUnsafe(truncate);
+        return;
+      } catch (error) {
+        if (!isDeadlock(error) || attempt === TRUNCATE_ATTEMPTS) throw error;
+      }
+    }
   }
 
   /** This server's own address, which the fake Runner connects to. */

@@ -5,6 +5,8 @@ package contracts
 import "encoding/json"
 import "fmt"
 import "reflect"
+import "regexp"
+import "time"
 import "unicode/utf8"
 
 type EngineCapabilities struct {
@@ -301,5 +303,55 @@ func (j *EngineId) UnmarshalJSON(value []byte) error {
 		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_EngineId, v)
 	}
 	*j = EngineId(v)
+	return nil
+}
+
+type RunnerCapabilities struct {
+	// At corresponds to the JSON schema field "at".
+	At time.Time `json:"at"`
+
+	// Engines corresponds to the JSON schema field "engines".
+	Engines []EngineCapabilities `json:"engines"`
+
+	// Id corresponds to the JSON schema field "id".
+	Id string `json:"id"`
+
+	// Type corresponds to the JSON schema field "type".
+	Type string `json:"type"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerCapabilities) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["at"]; raw != nil && !ok {
+		return fmt.Errorf("field at in RunnerCapabilities: required")
+	}
+	if _, ok := raw["engines"]; raw != nil && !ok {
+		return fmt.Errorf("field engines in RunnerCapabilities: required")
+	}
+	if _, ok := raw["id"]; raw != nil && !ok {
+		return fmt.Errorf("field id in RunnerCapabilities: required")
+	}
+	if _, ok := raw["type"]; raw != nil && !ok {
+		return fmt.Errorf("field type in RunnerCapabilities: required")
+	}
+	type Plain RunnerCapabilities
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if len(plain.Engines) > 16 {
+		return fmt.Errorf("field %s length: must be <= %d", "engines", 16)
+	}
+	if matched, _ := regexp.MatchString(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`, string(plain.Id)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Id", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
+	}
+	if plain.Type != "capabilities" {
+		return fmt.Errorf("field %s: must be equal to %s", "type", "capabilities")
+	}
+	*j = RunnerCapabilities(plain)
 	return nil
 }

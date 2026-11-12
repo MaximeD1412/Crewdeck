@@ -341,3 +341,44 @@ func TestTheServerAddressBecomesTheRunnerSocket(t *testing.T) {
 		t.Error("ftp: want an error")
 	}
 }
+
+func TestOnConnectedCanSendOnEachAcceptedConnection(t *testing.T) {
+	received := make(chan contracts.RunnerCapabilities, 4)
+	s := newFakeServer(t, func(ctx context.Context, conn *websocket.Conn, n int) {
+		accept(ctx, conn)
+		var message contracts.RunnerCapabilities
+		for {
+			if err := readJSON(ctx, conn, &message); err != nil {
+				return
+			}
+			if message.Type == TypeCapabilities {
+				received <- message
+				if n == 1 {
+					conn.CloseNow()
+					return
+				}
+			}
+		}
+	})
+	var client *Client
+	client = newClient(s.url, func(c *Config) {
+		c.OnConnected = func(ctx context.Context) {
+			if err := client.Send(ctx, NewCapabilities(nil)); err != nil {
+				t.Errorf("Send from OnConnected: %v", err)
+			}
+		}
+	})
+	stop, result := run(t, client)
+	for range 2 {
+		select {
+		case message := <-received:
+			if message.Engines == nil {
+				t.Fatalf("capabilities %+v: engines must be a list", message)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("capabilities not sent on each connection")
+		}
+	}
+	stop()
+	_ = awaitResult(t, result)
+}

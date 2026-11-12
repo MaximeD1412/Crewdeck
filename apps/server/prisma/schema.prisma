@@ -48,6 +48,7 @@ model Pilot {
   runners            Runner[]
   runnerLinkCodes    RunnerLinkCode[]
   latencySamples     LatencySample[]
+  aiAccounts         AiAccount[]
   devices            Device[]
   vaultKeyWraps      VaultKeyWrap[]
 
@@ -322,4 +323,50 @@ model LatencySample {
   @@index([pilotId, at])
   @@index([at])
   @@map("latency_samples")
+}
+
+/// A Moteur (`zEngineId`).
+enum EngineId {
+  claude_code @map("claude-code")
+  codex
+
+  @@map("engine_id")
+}
+
+/// How a Compte IA is connected (`ENGINE_ACCOUNT_KINDS`).
+enum AiAccountKind {
+  subscription
+  api_key      @map("api-key")
+  none
+
+  @@map("ai_account_kind")
+}
+
+/// Whether a Compte IA can run (`ENGINE_ACCOUNT_STATES`).
+enum AiAccountState {
+  connected
+  login_required @map("login-required")
+
+  @@map("ai_account_state")
+}
+
+/// A Compte IA (US-38, RUNNER-7): what one Moteur can run on the Pilote's
+/// Runner, from its last `capabilities` message, one row per Moteur. Its kind
+/// and state only: no credential field, ever (PRD, « Principles »), the key
+/// stays on the Runner. `models` is `zAiAccountModel[]`.
+model AiAccount {
+  id           String         @id @db.Uuid
+  pilotId      String         @map("pilot_id") @db.Uuid
+  engine       EngineId
+  installed    Boolean
+  version      String?
+  knownVersion Boolean        @map("known_version")
+  kind         AiAccountKind
+  state        AiAccountState
+  models       Json
+  reportedAt   DateTime       @map("reported_at") @db.Timestamptz
+  pilot        Pilot          @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@unique([pilotId, engine])
+  @@map("ai_accounts")
 }

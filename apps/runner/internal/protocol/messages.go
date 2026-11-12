@@ -17,6 +17,7 @@ const (
 	TypeHeartbeatAck  = "heartbeat.ack"
 	TypeError         = "error"
 	TypeStepVerdict   = "step.verdict"
+	TypeCapabilities  = "capabilities"
 )
 
 // Machine is what the Runner says of itself in its hello.
@@ -61,4 +62,14 @@ func typeOf(data []byte) (string, error) {
 		return "", fmt.Errorf("protocol: not a message of the protocol: %w", err)
 	}
 	return envelope.Type, nil
+}
+
+// NewCapabilities is the capabilities message of `engines`: what each Moteur
+// can run, never a credential.
+func NewCapabilities(engines []contracts.EngineCapabilities) contracts.RunnerCapabilities {
+	at := now()
+	if engines == nil {
+		engines = []contracts.EngineCapabilities{}
+	}
+	return contracts.RunnerCapabilities{Type: TypeCapabilities, Id: newID(at), At: at, Engines: engines}
 }

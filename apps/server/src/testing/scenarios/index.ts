@@ -10,10 +10,11 @@ import {
   confirmDialog,
 } from './composants.js';
 import { connexion, connexionErreur } from './connexion.js';
-import { demarrage, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
+import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
 import type { Scenario } from './define.js';
 import { menuPlus } from './menu-plus.js';
 import { resynchronisation } from './resynchronisation.js';
+import { runner, runnerHorsLigne } from './runner.js';
 
 export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed } from './define.js';
 
@@ -26,8 +27,12 @@ const SCENARIOS: readonly Scenario[] = [
   demarrage,
   demarrageLiaisonEchouee,
   demarrageRunnerRelie,
+  demarrageComptesIa,
+  demarrageComptesIaAucun,
   menuPlus,
   resynchronisation,
+  runner,
+  runnerHorsLigne,
   ...composantsRows,
   composantsTextField,
   composantsSettingRow,

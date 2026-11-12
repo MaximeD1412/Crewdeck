@@ -6,6 +6,7 @@ import type {
   CombinedStatus,
   CommitRef,
   GitHubUser,
+  InstallationRepository,
   InstallationToken,
   InstallationTokenOptions,
   Issue,
@@ -45,13 +46,15 @@ export interface GitHubClient {
 
   // --- Installations
   installationToken(installationId: number, options?: InstallationTokenOptions): Promise<InstallationToken>;
-  listInstallationRepositories(installationId: number): Promise<RepoRef[]>;
+  listInstallationRepositories(installationId: number): Promise<InstallationRepository[]>;
 
   // --- Metadata, never a body
   listLabels(repo: RepoRef): Promise<Label[]>;
   getBranch(repo: RepoRef, name: string): Promise<Branch | null>;
   /** The name of the repository's default branch. */
   getDefaultBranch(repo: RepoRef): Promise<string>;
+  /** How many commits `branch` has, counted up to `max`; 0 for an empty repository. Reads no file nor diff. */
+  countCommits(repo: RepoRef, branch: string, max: number): Promise<number>;
   /** A page of issues (PRs left out), most recently updated first. */
   listIssues(repo: RepoRef, query: IssueQuery): Promise<IssuePage>;
   getPullRequest(repo: RepoRef, number: number): Promise<PullRequest | null>;

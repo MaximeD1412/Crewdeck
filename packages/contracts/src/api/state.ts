@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { zAiAccount } from './ai-accounts.js';
 import { zDevice } from './devices.js';
 import { zMe } from './me.js';
+import { REPOSITORIES_MAX, zProject, zRepository } from './projects.js';
 import { zRunner } from './runner.js';
 import { zRunnerLink } from './runner-link.js';
 import { zSeq } from '../values.js';
@@ -21,6 +22,10 @@ export const STATE_SLICES = {
   'ai-account': z.array(zAiAccount),
   /** The Pilote's Appareils (E2E-2), newest first; `current` is `false`, each page sets its own. */
   devices: z.array(zDevice),
+  /** The Pilote's Projets (PROJET-2), by name. */
+  projects: z.array(zProject),
+  /** The Dépôts GitHub their installations reach and they do not follow yet (PROJET-2), by name, at most `REPOSITORIES_MAX`. */
+  repositories: z.array(zRepository).max(REPOSITORIES_MAX),
 } as const;
 export type StateKey = keyof typeof STATE_SLICES;
 

@@ -19,6 +19,10 @@ export const zRepoRef = z.object({
 });
 export type RepoRef = z.infer<typeof zRepoRef>;
 
+/** A repository an installation of the App can reach, and whether it is private. */
+export const zInstallationRepository = zRepoRef.extend({ private: z.boolean() });
+export type InstallationRepository = z.infer<typeof zInstallationRepository>;
+
 /** A user access token of the App's user authorization (8 h) and its refresh token (6 months). */
 export const zUserTokens = z.object({
   accessToken: z.string().min(1),

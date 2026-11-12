@@ -6,6 +6,7 @@ import type {
   CombinedStatus,
   CommitRef,
   GitHubUser,
+  InstallationRepository,
   InstallationToken,
   InstallationTokenOptions,
   Issue,
@@ -60,7 +61,8 @@ interface FakePullRequest extends PullRequest {
 
 interface FakeRepo {
   readonly ref: RepoRef;
-  readonly installationId: number | undefined;
+  installationId: number | undefined;
+  readonly private: boolean;
   readonly defaultBranch: string;
   readonly branches: Map<string, { sha: string; protected: boolean }>;
   readonly labels: Map<string, Label>;
@@ -77,6 +79,8 @@ export interface SeedRepo {
   readonly name: string;
   readonly id?: number;
   readonly installationId?: number;
+  /** True by default, as most of a Pilote's repositories. */
+  readonly private?: boolean;
   readonly defaultBranch?: string;
   /** The files of the first commit of the default branch. */
   readonly files?: Record<string, FileContent>;
@@ -153,6 +157,7 @@ export class FakeGitHub implements GitHubClient, Fake {
     this.repos.set(this.key(ref), {
       ref,
       installationId: seed.installationId,
+      private: seed.private ?? true,
       defaultBranch,
       branches: new Map([[defaultBranch, { sha: this.commit(new Map(Object.entries(seed.files ?? {}))), protected: false }]]),
       labels: new Map(),
@@ -190,6 +195,11 @@ export class FakeGitHub implements GitHubClient, Fake {
    * exist) with `files` over its current ones; the open PRs of that head move
    * with it. Its SHA, to test `github.head-moved`.
    */
+  /** Takes the repository out of its installation, as the Pilote unticking it on GitHub. */
+  removeFromInstallation(repo: RepoRef): void {
+    this.repo(repo).installationId = undefined;
+  }
+
   async pushCommit(repo: RepoRef, branch: string, files: Record<string, FileContent> = {}): Promise<string> {
     const fake = this.repo(repo);
     if (!fake.branches.has(branch)) fake.branches.set(branch, { sha: this.head(fake, fake.defaultBranch), protected: false });
@@ -295,11 +305,11 @@ export class FakeGitHub implements GitHubClient, Fake {
     });
   }
 
-  listInstallationRepositories(installationId: number): Promise<RepoRef[]> {
+  listInstallationRepositories(installationId: number): Promise<InstallationRepository[]> {
     this.record('listInstallationRepositories', installationId);
     return this.run(() => {
       if (!this.installations.has(installationId)) throw githubUnavailable();
-      return [...this.repos.values()].filter((repo) => repo.installationId === installationId).map((repo) => repo.ref);
+      return [...this.repos.values()].filter((repo) => repo.installationId === installationId).map((repo) => ({ ...repo.ref, private: repo.private }));
     });
   }
 
@@ -321,6 +331,14 @@ export class FakeGitHub implements GitHubClient, Fake {
   getDefaultBranch(repo: RepoRef): Promise<string> {
     this.record('getDefaultBranch', repo);
     return this.run(() => this.repo(repo).defaultBranch);
+  }
+
+  countCommits(repo: RepoRef, branch: string, max: number): Promise<number> {
+    this.record('countCommits', repo, branch, max);
+    return this.run(() => {
+      const head = this.repo(repo).branches.get(branch);
+      return head === undefined ? 0 : Math.min(this.ancestors(head.sha).size, max);
+    });
   }
 
   listIssues(repo: RepoRef, query: IssueQuery): Promise<IssuePage> {

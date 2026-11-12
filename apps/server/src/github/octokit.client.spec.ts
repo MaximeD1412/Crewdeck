@@ -76,7 +76,7 @@ describe('OctokitGitHubClient', () => {
     });
 
     it('lists the repositories of an installation, every page', async () => {
-      const page = (ids: number[]) => ids.map((id) => ({ id, name: `r${id}`, owner: { login: 'o' } }));
+      const page = (ids: number[]) => ids.map((id) => ({ id, name: `r${id}`, owner: { login: 'o' }, private: id !== 2 }));
       server.use(
         ...installation(),
         http.get(`${API}/installation/repositories`, ({ request }) => {
@@ -91,9 +91,9 @@ describe('OctokitGitHubClient', () => {
       const repos = await new OctokitGitHubClient(env, logger()).listInstallationRepositories(42);
 
       expect(repos).toEqual([
-        { owner: 'o', name: 'r1', id: 1 },
-        { owner: 'o', name: 'r2', id: 2 },
-        { owner: 'o', name: 'r3', id: 3 },
+        { owner: 'o', name: 'r1', id: 1, private: true },
+        { owner: 'o', name: 'r2', id: 2, private: false },
+        { owner: 'o', name: 'r3', id: 3, private: true },
       ]);
     });
   });
@@ -393,6 +393,26 @@ describe('OctokitGitHubClient', () => {
 
       expect(await client.listSubIssues(repo, 3)).toEqual([expect.not.objectContaining({ body: expect.anything() })]);
       expect(await client.listIssueDependencies(repo, 3)).toEqual([{ owner: 'other', name: 'lib', number: 9, state: 'closed' }]);
+    });
+
+    it('counts the commits of a branch, up to a maximum', async () => {
+      let query: URLSearchParams | undefined;
+      server.use(
+        ...installation(),
+        http.get(`${API}/repos/o/r/commits`, ({ request }) => {
+          query = new URL(request.url).searchParams;
+          return HttpResponse.json([{ sha: SHA }, { sha: SHA }]);
+        }),
+      );
+
+      expect(await new OctokitGitHubClient(env, logger()).countCommits(repo, 'main', 2)).toBe(2);
+      expect(Object.fromEntries(query ?? [])).toMatchObject({ sha: 'main', per_page: '2' });
+    });
+
+    it('counts no commit in an empty repository', async () => {
+      server.use(...installation(), http.get(`${API}/repos/o/r/commits`, () => HttpResponse.json({ message: 'Git Repository is empty.' }, { status: 409 })));
+
+      expect(await new OctokitGitHubClient(env, logger()).countCommits(repo, 'main', 2)).toBe(0);
     });
 
     it('gives null for a branch that does not exist', async () => {

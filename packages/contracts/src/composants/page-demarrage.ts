@@ -4,6 +4,7 @@ import { zLinkFailureReason } from '../api/runner-link.js';
 import { zRunner } from '../api/runner.js';
 import { defineComposant } from './define.js';
 import { EXAMPLE_ENGINES, EXAMPLE_ENGINES_NONE, zEngineAccount } from './engine-account.js';
+import { EXAMPLE_REPOSITORIES, RepositoryPicker } from './repository-picker.js';
 
 /** The systems of the install command's tabs: the same command, a help line each. */
 export const DEMARRAGE_SYSTEMS = ['linux', 'macos', 'wsl'] as const;
@@ -21,6 +22,16 @@ const RUNNER = {
   lastSeenAt: '2026-11-11T14:12:00.000Z',
 } as const;
 
+/** The picker of the Projets' step, as it shows for « Premiers pas ». */
+const PICKER: z.input<typeof RepositoryPicker.data> = {
+  context: 'demarrage',
+  repositories: [...EXAMPLE_REPOSITORIES],
+  installUrl: 'https://github.com/apps/crewdeck/installations/new?state=demarrage',
+  busy: false,
+};
+/** The other steps show no picker: an empty one. */
+const NO_PICKER: z.input<typeof RepositoryPicker.data> = { context: 'demarrage', repositories: [], installUrl: null, busy: false };
+
 /**
  * « Premiers pas » (US-2, `/demarrage`), in the bare Cadre: the track of its
  * steps, then the step the Pilote is at. The Runner's step shows the install
@@ -31,13 +42,14 @@ const RUNNER = {
  * shows each Moteur of `engines`, its Compte IA, its models and, when not
  * connected, the command that connects it; « Continuer » only once `usable`
  * (a Rôle can run on one of them), else disabled under the Banner « Aucun
- * Moteur utilisable ». The Projets (PROJET-2) show an Empty and « Continuer »
- * until their ticket. `command` is `null` until the page drew its code;
- * `busy` while a command is on its way.
+ * Moteur utilisable ». The Projets' step shows the RepositoryPicker of
+ * `picker` (PROJET-2): its `follow` goes up to the page's dispatcher, its
+ * `later` becomes the page's `continue`. `command` is `null` until the page
+ * drew its code; `busy` while a command is on its way.
  */
 export const PageDemarrage = defineComposant({
   name: 'PageDemarrage',
-  version: 2,
+  version: 3,
   tag: 'cd-page-demarrage',
   category: 'page',
   description: 'Les Premiers pas : le Runner, les Comptes IA, les Projets.',
@@ -52,13 +64,14 @@ export const PageDemarrage = defineComposant({
     busy: z.boolean(),
     engines: z.array(zEngineAccount),
     usable: z.boolean(),
+    picker: RepositoryPicker.data,
   }),
   actions: { selectSystem: z.object({ system: zDemarrageSystem }), retry: z.object({}), continue: z.object({}) },
   slots: [],
   examples: [
     {
       name: 'en attente du Runner',
-      data: { step: 'runner', login: 'octocat', system: 'linux', command: COMMAND, shortId: '7KQ4', failure: null, runner: null, busy: false, engines: [], usable: false },
+      data: { step: 'runner', login: 'octocat', system: 'linux', command: COMMAND, shortId: '7KQ4', failure: null, runner: null, busy: false, engines: [], usable: false, picker: NO_PICKER },
     },
     {
       name: 'liaison échouée',
@@ -73,11 +86,12 @@ export const PageDemarrage = defineComposant({
         busy: false,
         engines: [],
         usable: false,
+        picker: NO_PICKER,
       },
     },
     {
       name: 'Runner relié',
-      data: { step: 'runner', login: 'octocat', system: 'wsl', command: null, shortId: null, failure: null, runner: RUNNER, busy: false, engines: [], usable: false },
+      data: { step: 'runner', login: 'octocat', system: 'wsl', command: null, shortId: null, failure: null, runner: RUNNER, busy: false, engines: [], usable: false, picker: NO_PICKER },
     },
     {
       name: 'Comptes IA',
@@ -92,6 +106,7 @@ export const PageDemarrage = defineComposant({
         busy: false,
         engines: [...EXAMPLE_ENGINES],
         usable: true,
+        picker: NO_PICKER,
       },
     },
     {
@@ -107,11 +122,24 @@ export const PageDemarrage = defineComposant({
         busy: false,
         engines: [...EXAMPLE_ENGINES_NONE],
         usable: false,
+        picker: NO_PICKER,
       },
     },
     {
       name: 'Projets',
-      data: { step: 'projects', login: 'octocat', system: 'linux', command: null, shortId: null, failure: null, runner: RUNNER, busy: false, engines: [], usable: false },
+      data: {
+        step: 'projects',
+        login: 'octocat',
+        system: 'linux',
+        command: null,
+        shortId: null,
+        failure: null,
+        runner: RUNNER,
+        busy: false,
+        engines: [],
+        usable: false,
+        picker: PICKER,
+      },
     },
   ],
 });

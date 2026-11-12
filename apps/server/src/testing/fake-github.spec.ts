@@ -202,11 +202,25 @@ describe('FakeGitHub', () => {
       expect(await github.getCombinedStatus(repo, sha)).toEqual({ state: 'pending', statuses: [] });
     });
 
+    it('counts the commits of a branch, up to a maximum', async () => {
+      const { github, repo } = setup();
+
+      expect(await github.countCommits(repo, 'main', 2)).toBe(1);
+      await github.pushCommit(repo, 'main', { 'a.ts': 'a' });
+      await github.pushCommit(repo, 'main', { 'a.ts': 'b' });
+      expect(await github.countCommits(repo, 'main', 2)).toBe(2);
+      expect(await github.countCommits(repo, 'nope', 2)).toBe(0);
+    });
+
     it('lists the repositories of an installation and gives tokens for it only', async () => {
       const github = new FakeGitHub();
       const repo = github.seedRepo({ owner: 'o', name: 'r', installationId: 5 });
+      const open = github.seedRepo({ owner: 'o', name: 'public', installationId: 5, private: false });
 
-      expect(await github.listInstallationRepositories(5)).toEqual([repo]);
+      expect(await github.listInstallationRepositories(5)).toEqual([
+        { ...repo, private: true },
+        { ...open, private: false },
+      ]);
       expect(await github.installationToken(5, { repositoryIds: [repo.id] })).toMatchObject({ token: expect.stringMatching(/^ghs_fake/) });
       await expect(github.installationToken(6)).rejects.toMatchObject({ code: 'github.unavailable' });
     });

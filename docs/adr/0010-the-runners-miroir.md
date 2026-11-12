@@ -68,28 +68,46 @@ Crewdeck has two constraints the dotfiles do not:
   change.
 - **The server's own writes do not wait for their webhook**: a merge, a
   label or a branch the server makes ([ADR 0002](0002-github-app.md))
-  writes its envelope as soon as GitHub accepted it (a merge also writes
-  one for each issue the PR closes), in the transaction that records the
-  gesture; the webhook that follows only repeats it.
+  writes its envelope as soon as GitHub accepted it, in the transaction
+  that records the gesture: a merge writes a `pull` for the PR, an `issue`
+  for each issue it closes, and a `push` for the base branch with the merge
+  commit (`ref`, `sha`), so that a document merged into the integration
+  branch is reindexed at once; the webhook that follows only repeats it.
 - **The App's events** ([ADR 0002](0002-github-app.md)) gain
   `pull_request_review_comment`, `issue_dependencies`, `release`, `label`
   and `milestone`, so that every object the Miroir copies has an event; the
   Boucle reads blocked-by changes from `issue_dependencies` too.
 - **The Runner protocol gets its own replay** (`packages/contracts/src/runner/`):
-  `hello` carries `mirrorAfter` (the last `github_changes.seq` the Runner
-  applied, null for none); after `hello.accepted` the server sends the
-  envelopes after it, in order, then each new one live, as `github.changed
-  { seq, envelope }`; a `mirrorAfter` it no longer has (older than 7 days),
-  or null, gets `mirror.resync` first, then the live stream. The Runner
-  stores its cursor in the database, in the transaction that applies an
-  envelope.
+  the Runner keeps **one cursor per Projet** (the last `github_changes.seq`
+  of that Projet it applied), stored in the transaction that applies the
+  envelope. `hello` carries `mirrorAfter`, the lowest of them (null for
+  none); after `hello.accepted` the server sends the envelopes after it, in
+  order, then each new one live, as `github.changed { seq, envelope }`; the
+  Runner skips an envelope whose Projet's cursor is already at or past its
+  `seq`. A `mirrorAfter` the server no longer has (older than 7 days), or
+  null, gets `mirror.resync { seq }` first, `seq` being the last envelope it
+  holds for the Pilote, then the live stream: the Runner reconciles each
+  Projet, then sets its cursor to that `seq`; the live envelopes that come
+  meanwhile wait and are applied after their Projet's reconciliation.
+- **Older never overwrites newer**: every object stored keeps GitHub's
+  `updated_at`, and a fetch or a reconciliation page never replaces a row
+  with an older one. Envelopes, reconciliations and read-throughs can then
+  run in any order.
 - **The Runner fetches the content itself**: for each envelope, the object
   it names, with its comments, reviews, relations and checks; a `push` to
   the integration branch reindexes the documentation; `label`, `milestone`
-  and `release` reread that collection. An envelope is applied (its cursor
-  moved) only once its fetch succeeded; a failed fetch (GitHub refusing,
-  limiting or down) is retried with a backoff (1 s doubling to 5 min) and
-  holds the later envelopes of its Projet behind it.
+  and `release` reread that collection. An envelope is applied (its
+  Projet's cursor moved) once its fetch has an answer:
+  - the object, stored;
+  - `404` or `410` (deleted, or transferred out of the repository): the
+    object is removed from the copy, the envelope applied;
+  - `429`, a rate limit, a `5xx` or no network: retried with a backoff (1 s
+    doubling to 5 min), the later envelopes of its Projet waiting behind it,
+    those of the other Projets not;
+  - another `401` or `403` (the App lost the repository): the « Miroir »
+    token is renewed once and the fetch retried; still refused, the Projet
+    is en retard with that reason (« accès au dépôt refusé »), its
+    envelopes wait until a reconciliation succeeds.
 - **A reconciliation** when the Runner starts, after a `mirror.resync`, and
   every 15 min, the server's own interval: every issue and PR by pages, the
   labels, milestones and releases, and the documentation index (the
@@ -109,7 +127,7 @@ Crewdeck has two constraints the dotfiles do not:
   is complete; then **live** while the Runner's socket is connected, its
   replay is done and no envelope of the Projet waits to be applied; else
   **en retard** since its last applied envelope or reconciliation
-  (`syncedAt`).
+  (`syncedAt`), with its reason when there is one.
 - A read of one object from a Projet that is not live first fetches it
   from GitHub; a list first runs the Projet's reconciliation of open issues
   and PRs. When that read fails, the copy answers as it is, with the

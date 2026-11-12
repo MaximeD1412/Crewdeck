@@ -174,6 +174,10 @@ the founder outside the repository.
   (ADR 0010).
 - Decided alone: the Runner's reconciliation runs every 15 min, the
   server's interval, and also reindexes the documentation.
+- Second Revue croisée (after the console's amendments): one cursor per
+  Projet, a `seq` with `mirror.resync`, « older never overwrites newer »
+  through GitHub's `updated_at`, the answers of a fetch (404, 410, rate
+  limit, refused), and the server's merge writes a `push` too (ADR 0010).
 - `ready` in Crewdeck has no week or iteration (no Project board): the
   ADR spells out its keys and sort instead of pointing to the dotfiles.
 

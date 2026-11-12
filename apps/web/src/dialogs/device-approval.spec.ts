@@ -124,6 +124,23 @@ describe('crewdeck-new-device', () => {
     expect(labels(NEW_DEVICE_TAG)).toEqual([t('devices.close'), t('devices.new.retry')]);
   });
 
+  it('does not say « Appareil approuvé » while the vault stays closed; « Réessayer » opens it again, without a new code', async () => {
+    const { store, keys, unlockVault } = newDevice();
+    unlockVault.mockResolvedValueOnce('locked');
+    await expect.poll(() => shadow(NEW_DEVICE_TAG).querySelectorAll('code').length).toBe(2);
+    store.upsert({ ...PENDING, state: 'trusted' });
+    await expect.poll(() => textOf(NEW_DEVICE_TAG)).toContain(t('devices.new.unopened'));
+    expect(shadow(NEW_DEVICE_TAG).querySelector('[role=alert]')?.textContent).toBe(t('devices.new.unopened'));
+    expect(heading(NEW_DEVICE_TAG)).not.toBe(t('devices.new.approved.title'));
+    expect(labels(NEW_DEVICE_TAG)).toEqual([t('devices.close'), t('devices.new.unopened.retry')]);
+
+    button(NEW_DEVICE_TAG, t('devices.new.unopened.retry')).click();
+    await expect.poll(() => heading(NEW_DEVICE_TAG)).toBe(t('devices.new.approved.title'));
+    expect(unlockVault).toHaveBeenCalledTimes(2);
+    expect(keys.adopt).toHaveBeenCalledTimes(1);
+    expect(keys.register).toHaveBeenCalledTimes(1);
+  });
+
   it('says the server’s refusal (too many pending Appareils)', async () => {
     const message = 'Trois Appareils attendent déjà leur approbation.';
     newDevice({ register: vi.fn(async () => Promise.reject(new ApiError({ status: 422, code: 'devices.too-many-pending', message }))) });

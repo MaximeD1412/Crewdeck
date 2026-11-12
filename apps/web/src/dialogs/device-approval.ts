@@ -189,6 +189,8 @@ type NewDeviceStep =
   | { readonly kind: 'registering' }
   | { readonly kind: 'waiting'; readonly code: NewDeviceCode; readonly adopting: boolean }
   | { readonly kind: 'approved' | 'expired' | 'invalid' }
+  /** Approved and adopted, but the vault did not open (its wrap not fetched, or not opened): « Réessayer » opens it again. */
+  | { readonly kind: 'unopened'; readonly busy: boolean }
   | { readonly kind: 'failed'; readonly message: string };
 
 /**
@@ -261,11 +263,23 @@ export class CrewdeckNewDevice extends CoreDialog {
         this.step = { kind: 'invalid' };
         return;
       }
-      await this.options.unlockVault();
-      this.step = { kind: 'approved' };
     } catch (error) {
       this.step = { kind: 'failed', message: messageOf(error) };
+      return;
     }
+    await this.openVault();
+  }
+
+  /** « Appareil approuvé » only once the vault is open: until then, « Réessayer ». */
+  private async openVault() {
+    this.step = { kind: 'unopened', busy: true };
+    let state: VaultState = 'locked';
+    try {
+      state = await this.options.unlockVault();
+    } catch {
+      // Says the same as a vault that stays locked.
+    }
+    this.step = state === 'unlocked' ? { kind: 'approved' } : { kind: 'unopened', busy: false };
   }
 
   protected override updated(changed: PropertyValues): void {
@@ -302,6 +316,8 @@ export class CrewdeckNewDevice extends CoreDialog {
         return html`<p role="status">${t('devices.new.expired.text')}</p>`;
       case 'invalid':
         return html`<p role="alert" class="error">${t('devices.new.invalid')}</p>`;
+      case 'unopened':
+        return step.busy ? html`<p role="status">${t('devices.new.opening')}</p>` : html`<p role="alert" class="error">${t('devices.new.unopened')}</p>`;
       case 'failed':
         return html`<p role="alert" class="error">${step.message}</p>`;
       case 'waiting': {
@@ -317,10 +333,14 @@ export class CrewdeckNewDevice extends CoreDialog {
   }
 
   protected actions(): TemplateResult {
-    const kind = this.step.kind;
+    const step = this.step;
+    const kind = step.kind;
     const retry = kind === 'expired' || kind === 'invalid' || kind === 'failed';
     return html`<button type="button" class=${kind === 'approved' ? 'primary' : 'ghost'} @click=${this.close}>${t('devices.close')}</button>
-      ${retry ? html`<button type="button" class="primary" @click=${() => void this.register()}>${t('devices.new.retry')}</button>` : nothing}`;
+      ${retry ? html`<button type="button" class="primary" @click=${() => void this.register()}>${t('devices.new.retry')}</button>` : nothing}
+      ${step.kind === 'unopened' && !step.busy
+        ? html`<button type="button" class="primary" @click=${() => void this.openVault()}>${t('devices.new.unopened.retry')}</button>`
+        : nothing}`;
   }
 }
 

@@ -44,6 +44,20 @@ const openAppareils = async (page: Page) => {
   await expect(appareilsCard(page)).toBeVisible();
 };
 
+/**
+ * The vault of `page` opened: only an opened vault holds the key a wrap
+ * seals, so « Ajouter un Appareil » asks for a code there, and says
+ * « … n’a pas encore ouvert tes données chiffrées » elsewhere.
+ */
+const expectVaultOpen = async (page: Page) => {
+  await appareilsCard(page).getByRole('button', { name: 'Ajouter un Appareil' }).click();
+  const dialog = approveDevice(page);
+  await expect(dialog.getByLabel('Colle le code affiché sur le nouvel Appareil')).toBeVisible();
+  await expect(dialog).not.toContainText('n’a pas encore ouvert tes données chiffrées');
+  await dialog.getByRole('button', { name: 'Annuler' }).click();
+  await expect(approveDevice(page)).toHaveCount(0);
+};
+
 /** « Ajouter un Appareil », the code pasted, « Continuer ». */
 const pasteCode = async (page: Page, code: string) => {
   await appareilsCard(page).getByRole('button', { name: 'Ajouter un Appareil' }).click();
@@ -111,12 +125,16 @@ test('a new browser shows its code, which the trusted Appareil approves by pasti
   expect(sentNew.some((line) => /GET \S+\/api\/devices\/[^/]+\/vault-key-wrap /.test(line))).toBe(true);
   await expect(deviceBanner(fresh)).toHaveCount(0);
   await shown.getByRole('button', { name: 'Fermer' }).click();
+  // Its vault really open: the wrap the trusted one sealed opened with its own key.
+  await fresh.getByRole('navigation', { name: 'Paramètres / Sections' }).getByRole('link', { name: 'Appareils' }).click();
+  await expectVaultOpen(fresh);
   // After a reload too: the vault opens from what this browser keeps.
   await openAppareils(fresh);
   await expect(deviceBanner(fresh)).toHaveCount(0);
   const rows = appareilsCard(fresh).locator('cd-list-row');
   await expect(rows).toHaveCount(2);
   await expect(rows.filter({ hasText: 'cet Appareil' })).toContainText(name);
+  await expectVaultOpen(fresh);
 
   // The code used, then a code that expired: refused, the dialog says so.
   for (const refused of [code, `7K2Q-${SOME_SECRET}`]) {
@@ -148,6 +166,8 @@ test('a new Appareil’s code expires after 10 minutes: « Code expiré », and 
   await expect(shown.locator('code')).toHaveCount(0);
   await expectAccessible(page);
 
+  // The page's clock back to the server's: the new code's 10 minutes start from it.
+  await page.clock.setSystemTime(new Date());
   await shown.getByRole('button', { name: 'Recommencer' }).click();
   await expect(shown.getByRole('heading', { name: 'Approuver cet Appareil' })).toBeVisible();
   await expect(shown.locator('code').first()).toHaveText(CODE);

@@ -1,0 +1,23 @@
+{
+  "operation": "MirrorObject",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "number": 60
+  },
+  "data": {
+    "repository": {
+      "issueOrPullRequest": null
+    }
+  },
+  "errors": [
+    {
+      "type": "NOT_FOUND",
+      "path": [
+        "repository",
+        "issueOrPullRequest"
+      ],
+      "message": "Could not resolve to an issue or pull request with the number of 60."
+    }
+  ]
+}

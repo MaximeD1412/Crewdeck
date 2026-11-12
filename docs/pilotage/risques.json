@@ -857,7 +857,7 @@
         {
           "texte": "miroir.db en droits 600 dans ~/.crewdeck (700), jamais dans les logs du Runner",
           "ref": "ADR 0010",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Le serveur ne transmet que des enveloppes sans contenu",

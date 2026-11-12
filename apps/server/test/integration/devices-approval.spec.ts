@@ -172,6 +172,17 @@ describe('a new Appareil approved by its code, against PostgreSQL', () => {
       await register(alice);
     });
 
+    it(`keeps ${PENDING_DEVICES_MAX} live codes when registrations arrive at once: the others are 422 devices.too-many-pending`, async () => {
+      const alice = await pilot();
+      const answers = await Promise.all(Array.from({ length: 12 }, () => page(alice, '/api/devices', { body: newDeviceSide().request() })));
+
+      expect(answers.filter((res) => res.status === 201)).toHaveLength(PENDING_DEVICES_MAX);
+      expect(answers.filter((res) => res.status === 422)).toHaveLength(12 - PENDING_DEVICES_MAX);
+      for (const res of answers.filter((answer) => answer.status === 422)) await expectEnvelope(res, 422, 'devices.too-many-pending');
+      const [{ count }] = await sql<{ count: string }>(`SELECT count(*) FROM devices WHERE pilot_id = $1 AND state = 'pending'`, [alice.id]);
+      expect(Number(count)).toBe(PENDING_DEVICES_MAX);
+    });
+
     it('answers 400 with the fields, 401 without a session', async () => {
       const alice = await pilot();
       await expectFields(await page(alice, '/api/devices', { body: { name: '' } }), ['publicKey', 'name', 'proof']);

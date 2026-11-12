@@ -56,11 +56,15 @@ export class DeviceApprovals {
     private readonly clock: DeviceClock,
   ) {}
 
-  /** A new `pending` Appareil of the current Pilote, its code live for 10 minutes; 422 past 3 live codes. */
+  /** A new `pending` Appareil of the current Pilote, its code live for 10 minutes; 422 past 3 live codes, registrations at once included. */
   async register(pilotId: string, request: NewDeviceRequest): Promise<DeviceCreated> {
     for (let attempt = 1; ; attempt++) {
       try {
         return await this.transactions.run(async (tx) => {
+          // The Pilote's row locked first (the lock `EventsWriter` takes for the `seq`,
+          // taken earlier): two registrations at once count one after the other, and the
+          // second sees the first's code, so no more than 3 live codes ever exist.
+          await tx.pilot.update({ where: { id: pilotId }, data: { seq: { increment: 0 } }, select: { id: true } });
           const now = this.clock.now();
           // An expired code frees its short id.
           await tx.device.updateMany({ where: { state: 'pending', shortId: { not: null }, expiresAt: { lte: now } }, data: { shortId: null } });

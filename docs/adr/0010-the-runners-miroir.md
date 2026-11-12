@@ -66,6 +66,11 @@ Crewdeck has two constraints the dotfiles do not:
   dates only, which [ADR 0003](0003-privacy-and-end-to-end-encryption.md)'s
   table already lets the server read; no content. The tabs' `events` do not
   change.
+- **The server's own writes do not wait for their webhook**: a merge, a
+  label or a branch the server makes ([ADR 0002](0002-github-app.md))
+  writes its envelope as soon as GitHub accepted it (a merge also writes
+  one for each issue the PR closes), in the transaction that records the
+  gesture; the webhook that follows only repeats it.
 - **The App's events** ([ADR 0002](0002-github-app.md)) gain
   `pull_request_review_comment`, `issue_dependencies`, `release`, `label`
   and `milestone`, so that every object the Miroir copies has an event; the

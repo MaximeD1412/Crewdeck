@@ -22,8 +22,8 @@ export class PasserelleCheckbox extends PasserelleFormElement<typeof Checkbox> {
       }
       small {
         color: var(--cd-muted);
-        font: var(--cd-font-caption-weight) var(--cd-font-caption-size) / var(--cd-font-caption-line-height)
-          var(--cd-font-caption-family), sans-serif;
+        font: var(--cd-font-meta-weight) var(--cd-font-meta-size) / var(--cd-font-meta-line-height)
+          var(--cd-font-meta-family), monospace;
       }
       input:checked {
         background: var(--cd-accent);

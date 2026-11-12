@@ -21,7 +21,7 @@ const followLabel = (count: number): string =>
  * Card « Tes dépôts GitHub » holds a Checkbox per repository, its meta saying
  * whether it already has code; « Suivre <n> Projets » (`follow`) is disabled
  * with its reason at none or past `FOLLOW_PROJECTS_MAX`, « Plus tard »
- * (`later`) beside it in « Premiers pas »; the Inventaire's footnote and the
+ * (`later`) under it in « Premiers pas »; the Inventaire's footnote and the
  * link to GitHub's installation page under them. Without any repository, an
  * Empty whose action is that link. What is checked stays checked while the
  * search hides it, and leaves once the repository leaves `repositories`.
@@ -100,11 +100,6 @@ export class PasserelleRepositoryPicker extends PasserelleElement<typeof Reposit
       @media (min-width: 1280px) {
         .repos {
           padding: 0 var(--cd-space-5) var(--cd-space-2);
-        }
-        .actions {
-          flex-direction: row-reverse;
-          justify-content: flex-start;
-          --passerelle-button-width: auto;
         }
       }
     `,

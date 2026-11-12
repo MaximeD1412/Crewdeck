@@ -36,6 +36,7 @@ export const MESSAGES = {
   'runner.not-linked': 'Aucun Runner n’est relié à ton compte.',
   'runner.offline': 'Le Runner est hors ligne.',
   'runner.token-invalid': 'Ce Runner n’est plus relié à ton compte : relie-le de nouveau depuis la page « Premiers pas ».',
+  'sensitive-action.stale': 'L’état a changé pendant que tu confirmais : vérifie et confirme de nouveau.',
   'server.internal': 'Une erreur inattendue est survenue.',
   'testing.unknown-scenario': 'Scénario de test inconnu.',
   'validation.invalid': 'Certaines valeurs ne sont pas valides.',

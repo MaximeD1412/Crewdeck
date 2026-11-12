@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ActionDeclaration, ActionSchemaOf } from './sensitive.js';
 
 /**
  * The library page's groups (US-23): « Cadre et menu », « Pages », « Parties
@@ -18,7 +19,7 @@ export interface ComposantExample<Data extends z.ZodObject, Slot extends string>
 export interface ComposantSpec<
   Name extends string,
   Data extends z.ZodObject,
-  Actions extends Record<string, z.ZodType>,
+  Actions extends Record<string, ActionDeclaration>,
   Slot extends string,
 > {
   /** PascalCase, the key of the Composant in a Skin. */
@@ -31,7 +32,10 @@ export interface ComposantSpec<
   readonly description: string;
   /** What the element receives in its `data` property. */
   readonly data: Data;
-  /** The payload schema of each action the element emits as a `cd-action`. */
+  /**
+   * The payload schema of each action the element emits as a `cd-action`, or
+   * `sensitive(id, schema)` for an Action sensible.
+   */
   readonly actions: Actions;
   /** The names of its Emplacements, native `<slot>`s of its shadow root. */
   readonly slots: readonly Slot[];
@@ -43,7 +47,7 @@ export interface ComposantSpec<
 export type ComposantDeclaration<
   Name extends string = string,
   Data extends z.ZodObject = z.ZodObject,
-  Actions extends Record<string, z.ZodType> = Record<string, z.ZodType>,
+  Actions extends Record<string, ActionDeclaration> = Record<string, ActionDeclaration>,
   Slot extends string = string,
 > = ComposantSpec<Name, Data, Actions, Slot>;
 
@@ -55,9 +59,9 @@ export type ComposantData<C extends AnyComposant> = z.output<C['data']>;
 /** The names of a Composant's actions. */
 export type ComposantAction<C extends AnyComposant> = Extract<keyof C['actions'], string>;
 /** The payload a Composant emits with one of its actions. */
-export type ComposantPayload<C extends AnyComposant, A extends ComposantAction<C>> = z.input<C['actions'][A]>;
+export type ComposantPayload<C extends AnyComposant, A extends ComposantAction<C>> = z.input<ActionSchemaOf<C['actions'][A]>>;
 /** The payload the core's handler receives, once validated. */
-export type ComposantParsedPayload<C extends AnyComposant, A extends ComposantAction<C>> = z.output<C['actions'][A]>;
+export type ComposantParsedPayload<C extends AnyComposant, A extends ComposantAction<C>> = z.output<ActionSchemaOf<C['actions'][A]>>;
 
 const PASCAL_CASE = /^[A-Z][a-zA-Z0-9]*$/;
 const CD_TAG = /^cd-[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
@@ -74,7 +78,7 @@ const check = (condition: boolean, name: string, message: string): void => {
 export const defineComposant = <
   const Name extends string,
   Data extends z.ZodObject,
-  Actions extends Record<string, z.ZodType>,
+  Actions extends Record<string, ActionDeclaration>,
   const Slot extends string = never,
 >(
   spec: ComposantSpec<Name, Data, Actions, Slot>,

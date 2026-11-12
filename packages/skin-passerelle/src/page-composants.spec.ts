@@ -63,6 +63,42 @@ describe('the library’s search', () => {
   });
 });
 
+describe('what the core provides, in the catalogue', () => {
+  const withConfirm = {
+    ...library,
+    groups: [
+      library.groups[0],
+      { ...library.groups[1], provided: [{ name: 'ConfirmDialog', meta: t('composants.confirmDialog.meta') }] },
+    ],
+  };
+  const provided = (el: Element) => [...(el.shadowRoot?.querySelectorAll('nav cd-list-row') ?? [])].filter((row) => !row.shadowRoot?.querySelector('a'));
+
+  it('is a row with its meta after the group’s Composants, no link, not in the Select', async () => {
+    const el = await render(COMPOSANTS.PageComposants, withConfirm);
+    const rows = provided(el);
+    expect(rows).toHaveLength(1);
+    const row = rows[0] as Element;
+    expect(textOf(inside(row, '.title'))).toBe('ConfirmDialog');
+    expect(textOf(inside(row, '.meta'))).toBe(t('composants.confirmDialog.meta'));
+    expect(row.previousElementSibling?.localName).toBe('cd-list-row');
+    const options = [...inside(el, 'cd-select', 'select').querySelectorAll('option')].map((option) => textOf(option));
+    expect(options.some((label) => label?.startsWith('ConfirmDialog'))).toBe(false);
+    const details = await actionsOf(async () => (row as HTMLElement).click());
+    expect(details).toEqual([]);
+  });
+
+  it('follows the search', async () => {
+    const el = await render(COMPOSANTS.PageComposants, withConfirm);
+    await userEvent.fill(inside(el, 'cd-text-field', 'input'), 'confirm');
+    await settle(el);
+    expect(provided(el)).toHaveLength(1);
+    expect(groupTitles(el)).toEqual([t('composants.category.signal')]);
+    await userEvent.fill(inside(el, 'cd-text-field', 'input'), 'banner');
+    await settle(el);
+    expect(provided(el)).toHaveLength(0);
+  });
+});
+
 describe('the library’s Select', () => {
   it('lists every Composant as « <Name> · <group> », the open one chosen', async () => {
     const el = await render(COMPOSANTS.PageComposants, library);

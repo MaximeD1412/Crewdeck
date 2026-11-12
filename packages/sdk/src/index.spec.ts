@@ -6,7 +6,7 @@ describe('the SDK', () => {
   });
 
   it('exports what a Skin needs', () => {
-    for (const name of ['defineComposant', 'defineSkin', 'emitAction', 't', 'formatRelative', 'formatHour', 'formatDay', 'formatDate', 'formatNumber', 'formatPercent', 'formatEuros', 'composantKeys', 'missingComposantKeys']) {
+    for (const name of ['defineComposant', 'defineSkin', 'emitAction', 't', 'formatRelative', 'formatHour', 'formatDay', 'formatDate', 'formatNumber', 'formatPercent', 'formatEuros', 'composantKeys', 'missingComposantKeys', 'sensitive', 'actionSchema', 'sensitiveActionOf']) {
       expect(typeof sdk[name as keyof typeof sdk], name).toBe('function');
     }
     expect(sdk.COMPOSANTS.PageIntrouvable.tag).toBe('cd-page-introuvable');

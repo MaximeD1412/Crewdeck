@@ -2,7 +2,9 @@ import {
   COMPOSANT_CATEGORIES,
   composantKeys,
   fr,
+  sensitiveActionOf,
   t,
+  type ActionDeclaration,
   type AnyComposant,
   type ComposantData,
   type MessageKey,
@@ -65,10 +67,16 @@ const say = (key: string, fallback = ''): string => (Object.hasOwn(fr, key) ? t(
 
 const byName = (a: AnyComposant, b: AnyComposant) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
 
+/** What the core provides itself, by category: the `crewdeck-confirm` of the Actions sensibles (CORE-7). */
+const PROVIDED: Partial<Record<(typeof COMPOSANT_CATEGORIES)[number], { name: string; meta: MessageKey }[]>> = {
+  signal: [{ name: 'ConfirmDialog', meta: 'composants.confirmDialog.meta' }],
+};
+
 /**
  * The data of the library's page (`/parametres/composants?c=<Name>`, US-23),
- * from the declarations: the Composants by category, sorted by name, then the
- * one `name` opens, the first of the catalogue when it is absent or unknown.
+ * from the declarations: the Composants by category, sorted by name, with
+ * what the core provides in it (no preview, never opened), then the one
+ * `name` opens, the first of the catalogue when it is absent or unknown.
  */
 export const composantsView = (
   declarations: Readonly<Record<string, AnyComposant>>,
@@ -81,6 +89,7 @@ export const composantsView = (
       .filter((declaration) => declaration.category === category)
       .sort(byName)
       .map(({ name, version }) => ({ name, version })),
+    ...(PROVIDED[category] ? { provided: PROVIDED[category].map(({ name, meta }) => ({ name, meta: t(meta) })) } : {}),
   })).filter((group) => group.composants.length > 0);
 
   const first = groups[0]?.composants[0]?.name;
@@ -103,10 +112,9 @@ export const composantsView = (
         type: typeOf(schema),
         description: say(keys.data[field] ?? ''),
       })),
-      // Every action is free until CORE-7 declares the Actions sensibles.
-      actions: Object.keys(declaration.actions).map((action) => ({
+      actions: Object.entries<ActionDeclaration>(declaration.actions).map(([action, declared]) => ({
         name: action,
-        sensitive: false,
+        sensitive: sensitiveActionOf(declared) !== null,
         description: say(keys.actions[action] ?? ''),
       })),
       slots: declaration.slots.map((slot) => ({ name: slot, description: say(keys.slots[slot] ?? '') })),

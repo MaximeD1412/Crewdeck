@@ -194,7 +194,9 @@
         }
       ],
       "tickets": [
-        "RUNNER-10"
+        "RUNNER-10",
+        "MIROIR-2",
+        "MIROIR-4"
       ]
     },
     {
@@ -863,7 +865,11 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "MIROIR-1",
+        "MIROIR-3",
+        "MIROIR-5"
+      ]
     },
     {
       "id": "AGT-7",
@@ -889,7 +895,12 @@
           "fait": false
         }
       ],
-      "tickets": []
+      "tickets": [
+        "MIROIR-4",
+        "MIROIR-6",
+        "RUNNER-10",
+        "RUNNER-12"
+      ]
     }
   ]
 }

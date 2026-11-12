@@ -75,9 +75,11 @@ Crewdeck has two constraints the dotfiles do not:
   applied, null for none); after `hello.accepted` the server sends the
   envelopes after it, in order, then each new one live, as `github.changed
   { seq, envelope }`; a `mirrorAfter` it no longer has (older than 7 days),
-  or null, gets `mirror.resync` first, then the live stream. The Runner
-  stores its cursor in the database, in the transaction that applies an
-  envelope.
+  or null, gets `mirror.resync` first, then the live stream. The end of
+  the replay is `mirror.live { seq }`, after which the copy may be live;
+  the Pilote's Projets come before it, and again on each change, as
+  `mirror.projects`. The Runner stores its cursor in the database, in the
+  transaction that applies an envelope.
 - **The Runner fetches the content itself**: for each envelope, the object
   it names, with its comments, reviews, relations and checks; a `push` to
   the integration branch reindexes the documentation; `label`, `milestone`

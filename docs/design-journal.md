@@ -177,6 +177,12 @@ the founder outside the repository.
 - `ready` in Crewdeck has no week or iteration (no Project board): the
   ADR spells out its keys and sort instead of pointing to the dotfiles.
 
+- Découpage (2026-11-12): the Runner must know the Pilote's Projets and
+  when the replay is over, which the ADR did not say; `mirror.projects` and
+  `mirror.live { seq }` added to ADR 0010 (MIROIR-1). INFRA-11 is amended
+  for the five events rather than a new `externe` ticket: its Apps were not
+  created yet.
+
 ### Observations
 
 - An ADR that points to another repository's ADR for its contract leaves

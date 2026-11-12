@@ -118,8 +118,8 @@
       "categorie": "sec",
       "gravite": "elevee",
       "titre": "Notre serveur substitue une clé publique et lit les Sessions",
-      "statut": "solution choisie",
-      "statutDepuis": "2026-11-10",
+      "statut": "implémenté",
+      "statutDepuis": "2026-11-12",
       "solutions": [
         {
           "texte": "Code de liaison avec un secret de 128 bits jamais envoyé au serveur, copié et non saisi",
@@ -134,7 +134,7 @@
         {
           "texte": "Nouvel Appareil approuvé par un QR code portant son propre secret de 128 bits, depuis un Appareil de confiance",
           "ref": "ADR 0003",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

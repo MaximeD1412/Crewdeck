@@ -1,7 +1,8 @@
 # One GitHub App for sign-in, repositories, webhooks and merges
 
 > **Status:** accepted, 2026-11-10. Amended by [ADR 0010](0010-the-runners-miroir.md)
-> on the tokens the server mints: a read-only « Miroir » token beside the Session's.
+> on the tokens the server mints (a read-only « Miroir » token beside the
+> Session's) and on the App's events (five more).
 
 ## Context
 

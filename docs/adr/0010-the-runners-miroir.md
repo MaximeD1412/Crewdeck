@@ -2,7 +2,8 @@
 
 > **Status:** accepted, 2026-11-12. Amends [ADR 0002](0002-github-app.md)
 > on the tokens the server mints (a « Miroir » token beside the Session's)
-> and [ADR 0004](0004-the-runner.md) on the Runner's state and commands.
+> and the App's events, and [ADR 0004](0004-the-runner.md) on the Runner's
+> state, protocol and commands.
 
 ## Context
 
@@ -22,9 +23,10 @@ Crewdeck has two constraints the dotfiles do not:
   US-60). A copy with content can only live on the Pilote's machine;
 - the server already learns every change from the App's webhooks and
   already numbers its events per Pilote, with a replay after a lost
-  connection and a snapshot on a gap; the Runner is one of its WebSocket's
-  clients ([ADR 0007](0007-real-time.md)). The server is already, for the
-  Runner, what the dotfiles' relay is for their Miroir.
+  connection and a snapshot on a gap, for the tabs
+  ([ADR 0007](0007-real-time.md)); the Runner has its own protocol, without
+  that replay yet. The server can be, for the Runner, what the dotfiles'
+  relay is for their Miroir.
 
 ## Decision
 
@@ -36,38 +38,58 @@ Crewdeck has two constraints the dotfiles do not:
   binaries stay static and cross-compiled, FTS5 included), WAL. The schema
   is versioned; a new version rebuilds the copy (`crewdeck-runner miroir
   rebuild`).
-- **What it holds**: the same as the dotfiles' Miroir (their ADR 0006, «
-  What is copied »), for the repositories of the Pilote's Projets: issues
-  and PRs since always, comments, sub-issues and blocked-by relations, the
-  labels (`priority:` and `size:` included: the App cannot read Project
-  boards), reviews and review comments, the checks of open PRs' heads and of
-  merge commits, milestones, releases. Not diffs, file contents outside the
-  documentation index, captures, workflow logs.
-- **The documentation index**: the same files (`docs/**/*.md`,
-  `backlog/**/*.md`, `design/DESIGN.md`, `AGENTS.md`, `CONTEXT.md`) as on
-  `origin/<integration branch>`, read from the Runner's own clone
-  (`~/.crewdeck/repos/<owner>/<repo>`) after a `git fetch`, FTS5.
+- **What it holds**, for the repositories of the Pilote's Projets: every
+  issue and PR since the repository's creation (title, body, state and its
+  reason, labels, assignees, milestone, author, dates), their comments,
+  sub-issues, parent and blocked-by relations; for a PR also its head and
+  base branches, head SHA, draft, mergeable, merge commit, closing issues,
+  commits (SHA and message), reviews and review comments; the checks (check
+  runs and commit statuses) of open PRs' heads and of merge commits; the
+  repository's labels, milestones and releases. Priority and size are the
+  labels `priority:P<n>` and `size:<S>`: the App cannot read Project boards.
+  Not copied: diffs, file contents outside the documentation index,
+  captures, workflow runs and logs.
+- **The documentation index**: `docs/**/*.md`, `backlog/**/*.md`,
+  `design/DESIGN.md`, `AGENTS.md` and `CONTEXT.md` as on `origin/<integration
+  branch>`, read from the Runner's own clone
+  (`~/.crewdeck/repos/<owner>/<repo>`) after a `git fetch`, FTS5, reindexed
+  when that branch's head moves.
 
 ### How it follows GitHub
 
-- **The server forwards each webhook as an envelope without content**: a
-  new event type `github.changed`, payload `{ projectId, repository, kind:
-  'issue'|'pull'|'push'|'check', number, sha, ref, action, at }` (the
-  fields a webhook gives as metadata, null when absent), written in the
-  Pilote's `events` like any other change ([ADR 0007](0007-real-time.md)):
-  numbered, kept 7 days, replayed to the Runner after a reconnection. Tabs
-  receive it too, to keep their `seq` without gaps; the page's store
-  ignores the type. Nothing more is stored on the server: the envelope only
-  holds what the webhook handler already reads ([ADR 0003](0003-privacy-and-end-to-end-encryption.md)'s
-  table is unchanged).
+- **The server keeps each webhook's envelope, without content**, in a
+  table of its own, `github_changes` (`pilotId`, `seq` from its own counter
+  on the Pilote's row, `projectId`, `repository`, `kind`: `issue`, `pull`,
+  `push`, `check`, `release`, `label`, `milestone`; `number`, `sha`, `ref`,
+  `action`, `at`; a field the webhook does not give is null), kept 7 days,
+  for every webhook of a followed repository. Identifiers, states and
+  dates only, which [ADR 0003](0003-privacy-and-end-to-end-encryption.md)'s
+  table already lets the server read; no content. The tabs' `events` do not
+  change.
+- **The App's events** ([ADR 0002](0002-github-app.md)) gain
+  `pull_request_review_comment`, `issue_dependencies`, `release`, `label`
+  and `milestone`, so that every object the Miroir copies has an event; the
+  Boucle reads blocked-by changes from `issue_dependencies` too.
+- **The Runner protocol gets its own replay** (`packages/contracts/src/runner/`):
+  `hello` carries `mirrorAfter` (the last `github_changes.seq` the Runner
+  applied, null for none); after `hello.accepted` the server sends the
+  envelopes after it, in order, then each new one live, as `github.changed
+  { seq, envelope }`; a `mirrorAfter` it no longer has (older than 7 days),
+  or null, gets `mirror.resync` first, then the live stream. The Runner
+  stores its cursor in the database, in the transaction that applies an
+  envelope.
 - **The Runner fetches the content itself**: for each envelope, the object
-  it names (with its comments, reviews and checks), or a reindex of the
-  documentation on a push to the integration branch. A snapshot instead of
-  a replay (the Runner was offline more than 7 days) runs a full
-  reconciliation.
-- **A reconciliation** at the Runner's start, after a snapshot, and every
-  15 min, the server's own interval: every issue and PR by pages (which
-  also brings the blocked-by changes no webhook carries).
+  it names, with its comments, reviews, relations and checks; a `push` to
+  the integration branch reindexes the documentation; `label`, `milestone`
+  and `release` reread that collection. An envelope is applied (its cursor
+  moved) only once its fetch succeeded; a failed fetch (GitHub refusing,
+  limiting or down) is retried with a backoff (1 s doubling to 5 min) and
+  holds the later envelopes of its Projet behind it.
+- **A reconciliation** when the Runner starts, after a `mirror.resync`, and
+  every 15 min, the server's own interval: every issue and PR by pages, the
+  labels, milestones and releases, and the documentation index (the
+  integration branch's head compared with the indexed one). It also
+  catches deletions and any change whose webhook was lost.
 - **The « Miroir » token**: the server mints, at the Runner's request
   (`mirror.token` in the Runner protocol), an installation token per App
   installation, restricted to the repositories of the Pilote's Projets and
@@ -78,29 +100,52 @@ Crewdeck has two constraints the dotfiles do not:
 
 ### Freshness
 
-The same rules as the dotfiles (their ADR 0006, « Freshness »): a Projet's
-copy is **live** while the Runner's socket is connected with no event
-missing, else **en retard** since its last applied event; every answer of
-`crewdeck-runner miroir` carries `freshness`; a read of an object en retard
-first fetches it from GitHub, a list first runs a reconciliation of its
-Projet; the gates still act on GitHub's own state (the server merges with
-the SHA it judged, [ADR 0002](0002-github-app.md)).
+- Each Projet's copy is **en remplissage** until its first reconciliation
+  is complete; then **live** while the Runner's socket is connected, its
+  replay is done and no envelope of the Projet waits to be applied; else
+  **en retard** since its last applied envelope or reconciliation
+  (`syncedAt`).
+- A read of one object from a Projet that is not live first fetches it
+  from GitHub; a list first runs the Projet's reconciliation of open issues
+  and PRs. When that read fails, the copy answers as it is, with the
+  warning. A Projet en remplissage never answers a list from its partial
+  copy: `issue|pr list` go to GitHub and pass its answer through, `ready`
+  exits 3 (« Miroir en remplissage pour <Projet> »).
+- The gates still act on GitHub's own state: the server merges with the
+  SHA it judged ([ADR 0002](0002-github-app.md)), a claim rereads GitHub.
 
 ### The agents' commands
 
-- `crewdeck-runner miroir issue view|list`, `pr view|list`, `ready`,
-  `search`, `sql`, `status`, `sync`, `rebuild`: the dotfiles' `mirror`
-  commands, their flags and their JSON field names (`gh --json`'s).
+`crewdeck-runner miroir <command>`, the repository being the current
+directory's (a Session's worktree) or `--repo <owner/name>`:
+
+| Command | Answer |
+|---|---|
+| `issue view <n> --json <fields>` | One JSON object with `gh issue view --json`'s field names: `number`, `title`, `body`, `state`, `stateReason`, `url`, `labels` (`[{ name }]`), `assignees` (`[{ login }]`), `milestone` (`{ title, dueOn }`), `author` (`{ login }`), `comments` (`[{ author, body, createdAt }]`), `createdAt`, `updatedAt`, `closedAt`, plus `blockedBy` (`[number]`), `parent` (number or null), `subIssues` (`[number]`) |
+| `pr view <n> --json <fields>` | Likewise `gh pr view --json`'s: those of an issue, plus `headRefName`, `headRefOid`, `baseRefName`, `isDraft`, `mergeable`, `mergeCommit`, `closingIssuesReferences`, `commits`, `reviews`, `statusCheckRollup` (as `gh` gives it: `__typename`, `name`, `status`, `conclusion`, `detailsUrl`) |
+| `issue list`, `pr list` | A JSON array; flags `--state`, `--label`, `--head`, `--author`, `--json`, `--limit` as `gh`'s |
+| `ready [--all] [--numbers N,…]` | One JSON object per line, open `ready-for-agent` issues: `number`, `title`, `labels`, `assignees`, `milestone`, `due`, `priority`, `size`, `blockedBy`, `openBlockers`, `available`; sorted by available first, milestone due date then number, priority (`P0` first), size (`XS` to `XL`), number. There is no week or iteration in Crewdeck: no such key |
+| `search "<text>" [--kind issue\|comment\|doc]` | `{ freshness, rows: [{ kind, repository, number, path, title, snippet }] }` |
+| `sql "<select>"` | `{ freshness, rows }`, on a read-only connection |
+| `status [--json]` | Per Projet: state, `syncedAt`, the socket's link, the size of the copy |
+| `sync [--repo]`, `rebuild` | A reconciliation now; drop and refill |
+
+- The answers of `view`, `list` and `ready` keep `gh`'s shape, so that a
+  `jq` filter written for `gh` works unchanged; their freshness is on
+  stderr, only when the Projet is not live: « Miroir en retard pour
+  <Projet> : dernière synchro il y a <durée> » or « Miroir en remplissage
+  pour <Projet> ».
 - A Session's `PATH` (`~/.crewdeck/sessions/<id>/bin/`, RUNNER-10) holds a
   `mirror` shim (`exec crewdeck-runner miroir "$@"`) beside its `gh` shim,
   so that a Skill derived from a dotfiles skill keeps its commands as they
   are; `mirror gh <args>` and the `gh` shim both run `crewdeck-runner gh`,
   which, after the real `gh` answered, refreshes in the copy the issue or PR
-  the command named.
-- `crewdeck-runner status` gets one line: « Miroir : à jour », or «
-  Miroir : en retard depuis <durée> » (French, as the Runner's other
-  messages). Nothing in the page: a late copy already shows as « Runner
-  hors ligne ».
+  the command named (with its relations), or runs the reconciliation of
+  open issues and PRs when it names none (a GraphQL mutation).
+- `crewdeck-runner status` gets one line: « Miroir : à jour », «
+  Miroir : en remplissage » or « Miroir : en retard depuis <durée> »
+  (French, as the Runner's other messages). Nothing in the page: a late
+  copy already shows as « Runner hors ligne ».
 
 ## Options that lost
 
@@ -117,8 +162,11 @@ the SHA it judged, [ADR 0002](0002-github-app.md)).
 
 ## Consequences
 
-- Tickets: the server's `github.changed` events and the `mirror.token`
-  message (`apps/server/src/github/`, `packages/contracts/src/runner/`);
+- Tickets: the server's `github_changes`, the App's new events, the
+  protocol's `mirrorAfter`, `github.changed`, `mirror.resync` and
+  `mirror.token` (`apps/server/src/github/`, `apps/server/src/runners/`,
+  `packages/contracts/src/runner/`); a ticket `externe` to add the five
+  events to both Apps;
   the Runner's Miroir (`apps/runner/internal/mirror/`); RUNNER-10 amended
   (the `mirror` shim, `crewdeck-runner gh` refreshing the copy); RUNNER-12
   amended (the official Skills read through `mirror`).

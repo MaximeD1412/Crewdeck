@@ -112,7 +112,7 @@ abstract class CoreDialog extends LitElement {
   protected abstract body(): TemplateResult;
   protected abstract actions(): TemplateResult;
   /** Stops what the dialog started (a timer, a camera, a subscription). */
-  protected teardown(): void {}
+  protected abstract teardown(): void;
 
   protected get dialog(): HTMLDialogElement {
     const dialog = this.shadowRoot?.querySelector('dialog');

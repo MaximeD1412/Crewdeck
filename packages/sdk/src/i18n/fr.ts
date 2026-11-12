@@ -451,7 +451,7 @@ export const fr = {
   'devices.new.qr': 'QR code de cet Appareil',
   'devices.new.registering': 'Préparation du code…',
   'devices.new.retry': 'Recommencer',
-  'devices.new.runner': 'Sans autre Appareil de confiance, sur la machine de ton Runner :',
+  'devices.new.runner': 'Sans autre Appareil de confiance, sur la machine de ton Runner',
   'devices.new.title': 'Approuver cet Appareil',
   'devices.new.waiting': 'En attente de l’approbation…',
   'devices.single': 'Un seul Appareil lit tes données chiffrées : ajoute ton téléphone pour ne rien perdre.',

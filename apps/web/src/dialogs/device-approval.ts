@@ -277,7 +277,7 @@ export class CrewdeckNewDevice extends CoreDialog {
     if (this.drawn === uri) return;
     this.drawn = uri;
     // The library's black on white: what any camera reads, whatever the Skin's colours.
-    void QRCode.toCanvas(canvas, uri, { width: 224, margin: 2, errorCorrectionLevel: 'M' });
+    void QRCode.toCanvas(canvas, uri, { width: 224, margin: 4, errorCorrectionLevel: 'M' });
   }
 
   protected heading(): string {
@@ -310,7 +310,7 @@ export class CrewdeckNewDevice extends CoreDialog {
         return html`<p class="lead">${t('devices.new.lead')}</p>
           <canvas role="img" aria-label=${t('devices.new.qr')}></canvas>
           ${this.copyLine(text, t('devices.new.code'))} ${this.copyLine(`crewdeck-runner appareils approuver ${text}`, t('devices.new.runner'))}
-          <p class="muted">${t('devices.new.expires', { time: minutes(left) })}</p>
+          <p>${t('devices.new.expires', { time: minutes(left) })}</p>
           <p role="status">${t('devices.new.waiting')}</p>`;
       }
     }

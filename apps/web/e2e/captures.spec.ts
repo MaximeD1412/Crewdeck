@@ -6,7 +6,16 @@
 import type { Page } from '@playwright/test';
 import { openConfirm } from './confirm.js';
 import { expect, test } from './fixtures.js';
+import { linkFirstAppareil } from './runner-link.js';
 import { routeSocket } from './socket.js';
+
+/** The Paramètres' « Appareils », this browser linked first: its first trusted Appareil (E2E-3). */
+const appareils = async (page: Page) => {
+  await linkFirstAppareil(page, undefined);
+  await page.goto('/parametres');
+  await page.getByRole('navigation', { name: 'Paramètres / Sections' }).getByRole('link', { name: 'Appareils' }).click();
+  await expect(page.locator('cd-page-parametres > cd-card[slot=devices]')).toBeVisible();
+};
 
 /** What a scenario's capture shows beyond its page: a sheet or a dialog opened, by width. */
 const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<void>>> = {
@@ -34,10 +43,25 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   'demarrage-runner-relie': async (page) => {
     await expect(page.locator('cd-page-demarrage cd-banner')).toContainText('Runner en ligne');
   },
+  // A new Appareil: the Cadre's Banner, then its dialog with the QR code and the code (E2E-3).
+  'appareil-a-approuver': async (page) => {
+    await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('Cet Appareil ne lit pas encore');
+  },
+  'appareil-a-approuver-code': async (page) => {
+    await page.locator('#app > cd-cadre > cd-banner[slot=banner]').getByRole('button', { name: 'Approuver cet Appareil' }).click();
+    await expect(page.getByRole('img', { name: 'QR code de cet Appareil' })).toBeVisible();
+    await expect(page.locator('crewdeck-new-device code').first()).toHaveText(/^[0-9A-Z]{4}-[0-9A-Z]{26}$/);
+  },
+  appareils,
+  'appareils-ajouter': async (page) => {
+    await appareils(page);
+    await page.locator('cd-page-parametres > cd-card[slot=devices]').getByRole('button', { name: 'Ajouter un Appareil' }).click();
+    await expect(page.getByLabel('Colle le code affiché sur le nouvel Appareil')).toBeFocused();
+  },
 };
 
 /** The scenarios whose capture is the screen, not the whole page: a modal over it. */
-const SCREEN_ONLY: ReadonlySet<string> = new Set(['confirm-dialog']);
+const SCREEN_ONLY: ReadonlySet<string> = new Set(['confirm-dialog', 'appareil-a-approuver-code', 'appareils-ajouter']);
 
 const names = (process.env['CAPTURES_SCENARIOS'] ?? '')
   .split(',')

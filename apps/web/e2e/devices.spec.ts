@@ -78,7 +78,7 @@ test('a new browser shows its code, which the trusted Appareil approves by pasti
   const context = await otherBrowser(browser, testInfo, run.sessionCookie ?? '');
   const fresh = await context.newPage();
   const sentNew = recorded(fresh);
-  await fresh.goto('/a-toi');
+  await fresh.goto('/parametres');
   await expect(deviceBanner(fresh)).toContainText('Cet Appareil ne lit pas encore tes Sessions ni le texte de tes Idées.');
   await expectAccessible(fresh);
   await deviceBanner(fresh).getByRole('button', { name: 'Approuver cet Appareil' }).click();

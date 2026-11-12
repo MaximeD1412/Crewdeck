@@ -19,12 +19,13 @@ const withTrustedElsewhere = async (ctx: ScenarioContext) => {
 
 /**
  * A new Appareil (E2E-3, US-60): the Pilote signed in from a browser that
- * holds no Appareil while another one is trusted. The Cadre's Banner offers
+ * holds no Appareil while another one is trusted, on the Paramètres (« À
+ * toi » has no page yet). The Cadre's Banner offers
  * « Approuver cet Appareil »; the state `code` opens its dialog (QR code and
  * code).
  */
-export const appareilAApprouver = defineScenario({ name: 'appareil-a-approuver', path: '/a-toi', seed: withTrustedElsewhere });
-export const appareilAApprouverCode = defineScenario({ name: 'appareil-a-approuver-code', path: '/a-toi', seed: withTrustedElsewhere });
+export const appareilAApprouver = defineScenario({ name: 'appareil-a-approuver', path: '/parametres', seed: withTrustedElsewhere });
+export const appareilAApprouverCode = defineScenario({ name: 'appareil-a-approuver-code', path: '/parametres', seed: withTrustedElsewhere });
 
 /** The Pilote before their first Appareil, with the code of a new Appareil that expired before any approval. */
 const beforeFirstAppareil = async (ctx: ScenarioContext) => {

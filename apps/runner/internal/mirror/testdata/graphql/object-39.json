@@ -1,0 +1,64 @@
+{
+  "operation": "MirrorObject",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "number": 39
+  },
+  "data": {
+    "repository": {
+      "issueOrPullRequest": {
+        "__typename": "Issue",
+        "number": 39,
+        "title": "Une idée abandonnée",
+        "body": "Corps abandonné du trente-neuf",
+        "state": "CLOSED",
+        "stateReason": "NOT_PLANNED",
+        "url": "https://github.com/acme/atelier/issues/39",
+        "createdAt": "2026-11-01T08:00:00Z",
+        "updatedAt": "2026-11-05T12:00:00Z",
+        "closedAt": "2026-11-05T12:00:00Z",
+        "author": {
+          "login": "pilote"
+        },
+        "milestone": null,
+        "labels": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "assignees": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "comments": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "parent": null,
+        "subIssues": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "blockedBy": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        }
+      }
+    }
+  }
+}

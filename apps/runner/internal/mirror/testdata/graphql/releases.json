@@ -1,0 +1,29 @@
+{
+  "operation": "MirrorReleases",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "after": null
+  },
+  "data": {
+    "repository": {
+      "releases": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        },
+        "nodes": [
+          {
+            "tagName": "v0.3.0",
+            "name": "0.3.0",
+            "description": "Notes de version confidentielles",
+            "isDraft": false,
+            "isPrerelease": true,
+            "createdAt": "2026-11-01T00:00:00Z",
+            "publishedAt": "2026-11-01T01:00:00Z"
+          }
+        ]
+      }
+    }
+  }
+}

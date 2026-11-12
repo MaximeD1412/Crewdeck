@@ -1,0 +1,165 @@
+{
+  "operation": "MirrorObject",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "number": 45
+  },
+  "data": {
+    "repository": {
+      "issueOrPullRequest": {
+        "__typename": "PullRequest",
+        "number": 45,
+        "title": "Le store, la PR",
+        "body": "Corps confidentiel de la PR",
+        "state": "OPEN",
+        "url": "https://github.com/acme/atelier/pull/45",
+        "createdAt": "2026-11-03T08:00:00Z",
+        "updatedAt": "2026-11-09T09:00:00Z",
+        "closedAt": null,
+        "mergedAt": null,
+        "author": {
+          "login": "agent-bot"
+        },
+        "milestone": {
+          "number": 3
+        },
+        "labels": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "name": "revue-visuelle"
+            }
+          ]
+        },
+        "assignees": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "login": "pilote"
+            }
+          ]
+        },
+        "comments": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "id": "IC_45_5",
+              "author": {
+                "login": "octo"
+              },
+              "body": "Commentaire confidentiel de la PR",
+              "url": "https://github.com/acme/atelier/issues/45#issuecomment-5",
+              "createdAt": "2026-11-02T10:00:00Z",
+              "updatedAt": "2026-11-02T10:05:00Z"
+            }
+          ]
+        },
+        "headRefName": "feat/38-store",
+        "headRefOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "baseRefName": "develop",
+        "isDraft": true,
+        "mergeable": "CONFLICTING",
+        "mergeCommit": null,
+        "statusCheckRollup": {
+          "state": "PENDING"
+        },
+        "closingIssuesReferences": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "number": 38,
+              "repository": {
+                "nameWithOwner": "acme/atelier"
+              }
+            }
+          ]
+        },
+        "commits": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "commit": {
+                "oid": "1111111111111111111111111111111111111111",
+                "message": "feat(runner) : le store, message confidentiel"
+              }
+            },
+            {
+              "commit": {
+                "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "message": "fix(runner) : la suite confidentielle"
+              }
+            }
+          ]
+        },
+        "reviews": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "id": "PRR_45",
+              "author": {
+                "login": "relecteur"
+              },
+              "state": "CHANGES_REQUESTED",
+              "body": "Revue confidentielle",
+              "commit": {
+                "oid": "1111111111111111111111111111111111111111"
+              },
+              "submittedAt": "2026-11-04T09:00:00Z"
+            }
+          ]
+        },
+        "reviewThreads": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "id": "PRRT_45",
+              "comments": {
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "endCursor": null
+                },
+                "nodes": [
+                  {
+                    "id": "PRRC_45",
+                    "author": {
+                      "login": "relecteur"
+                    },
+                    "body": "Remarque de ligne confidentielle",
+                    "path": "apps/runner/internal/mirror/store.go",
+                    "line": 12,
+                    "createdAt": "2026-11-04T09:00:00Z",
+                    "pullRequestReview": {
+                      "id": "PRR_45"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

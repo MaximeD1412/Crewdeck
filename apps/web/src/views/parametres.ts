@@ -1,6 +1,7 @@
-import type { AccountSettings } from '@crewdeck/contracts';
+import type { AccountSettings, Device } from '@crewdeck/contracts';
 import { t, type Card, type ComposantData, type Icon, type ListRow, type Select, type SettingRow } from '@crewdeck/sdk';
 import type { PlacedNode } from '../placed.js';
+import { devicesCard } from './devices.js';
 
 /** The time zones the Pilote may pick: the IANA zones the browser knows. */
 export const timeZones = (): readonly string[] => Intl.supportedValuesOf('timeZone');
@@ -52,12 +53,17 @@ const account = (settings: AccountSettings, zones: readonly string[]): PlacedNod
 };
 
 /**
- * The Emplacements of the Paramètres (pure, US-82): « Compte » with the time
- * zone once the snapshot gave the settings (a zone the list lacks, an alias,
- * kept among the options), then « Pour les Moddeurs ». The other sections are
- * their tickets'.
+ * The Emplacements of the Paramètres (pure, US-82): « Appareils » once the
+ * snapshot gave them (E2E-3), « Compte » with the time zone once it gave the
+ * settings (a zone the list lacks, an alias, kept among the options), then
+ * « Pour les Moddeurs ». The other sections are their tickets'.
  */
-export const parametresView = (settings: AccountSettings | null | undefined, zones: readonly string[]): readonly PlacedNode[] => [
+export const parametresView = (
+  settings: AccountSettings | null | undefined,
+  zones: readonly string[],
+  devices?: ReadonlyMap<string, Device>,
+): readonly PlacedNode[] => [
+  ...[devicesCard(devices)].filter((node) => node !== null),
   ...(settings ? [account(settings, zones)] : []),
   modders(),
 ];

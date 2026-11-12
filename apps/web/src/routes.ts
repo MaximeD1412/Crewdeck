@@ -23,7 +23,10 @@ export const ROUTES: readonly Route[] = [
   {
     path: '/parametres',
     composant: PageParametres,
-    slots: (_match, state) => parametresView((state as StoreState | undefined)?.slices.settings, timeZones()),
+    slots: (_match, state) => {
+      const slices = (state as StoreState | undefined)?.slices;
+      return parametresView(slices?.settings, timeZones(), slices?.device);
+    },
   },
   {
     path: '/parametres/composants',

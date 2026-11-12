@@ -187,6 +187,14 @@ What an agent is asked to do in the **Process**: « Idée », « Conception »,
 « Code » or « Review »; each **Rôle** has one **Moteur** and one model.
 _Avoid_: profil, mode, persona
 
+**Miroir** (`Mirror`):
+The **Runner**'s copy of the state of the work on GitHub (Tickets, PRs,
+their comments, reviews and checks) and the index of the validated
+documents of the **Pilote**'s **Projets**: what the agents read instead of
+GitHub. It stays on the machine, written only from what GitHub answers;
+live, or « en retard » since its last change applied.
+_Avoid_: cache, base locale, réplique, copie locale
+
 ### Interface
 
 **Skin** (`Skin`):

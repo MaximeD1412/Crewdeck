@@ -149,3 +149,37 @@ the founder outside the repository.
   whose own tool reads labels (Crewdeck's Boucle) needs them as labels too.
   **To generalise**: an option of `backlog.json` to add `priority:` and
   `size:` labels.
+
+## The Runner's Miroir (2026-11-12)
+
+- The dotfiles' ADR 0006 gives their agents one channel, the Miroir; the
+  Pilote asked that Crewdeck's agents work the same way (dotfiles round,
+  E13 b, then round G here, every recommendation taken).
+- The Miroir lives in the Runner (`~/.crewdeck/miroir.db`): the server never
+  reads content (ADR 0002, 0003) (ADR 0010).
+- The server keeps content-free envelopes in a `github_changes` table with
+  its own sequence, and the Runner protocol gets its own replay
+  (`hello.mirrorAfter`, `github.changed`, `mirror.resync`): the tabs'
+  `events` stay as they are (ADR 0010; the first draft reused ADR 0007's
+  events, which the Runner's protocol does not replay: Revue croisée R1).
+- The App subscribes to five more events (`pull_request_review_comment`,
+  `issue_dependencies`, `release`, `label`, `milestone`) so that every
+  object copied has its event (ADR 0010, ADR 0002 amended).
+- A read-only « Miroir » token per installation, restricted to the Projets'
+  repositories, 1 h, renewed while linked (ADR 0010, SEC-6).
+- Go with `modernc.org/sqlite`; the dotfiles' commands under
+  `crewdeck-runner miroir`, and a `mirror` shim in each Session's `PATH` so
+  that the official Skills keep the dotfiles skills' commands (ADR 0010).
+- `crewdeck-runner status` shows the Miroir's state; nothing in the page
+  (ADR 0010).
+- Decided alone: the Runner's reconciliation runs every 15 min, the
+  server's interval, and also reindexes the documentation.
+- `ready` in Crewdeck has no week or iteration (no Project board): the
+  ADR spells out its keys and sort instead of pointing to the dotfiles.
+
+### Observations
+
+- An ADR that points to another repository's ADR for its contract leaves
+  the agent without it (Revue croisée R5). **To generalise**: a design that
+  mirrors another project's copies the contract it needs, adapted, and
+  links the other only as its origin.

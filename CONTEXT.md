@@ -108,8 +108,8 @@ _Avoid_: boucle (that is the **Boucle**), cycle, retry
 **Manque** (`ProcessGap`):
 What keeps a **Process** from being activated, shown on its block: an
 **Entrée** nothing feeds, a **Type d'artefact** without a **Source**, a
-capability no attached **Outil** gives, a merge without its checks or a
-**Review** before it.
+capability no attached **Outil** gives, a change of code that merges
+without its checks or a **Review** before it.
 _Avoid_: erreur, warning, avertissement
 
 **Outil** (`Tool`):
@@ -139,11 +139,12 @@ changes it.
 _Avoid_: schéma, spec, format
 
 **Review** (`Review`):
-The **Étape** where an agent judges a **Ticket**'s change of code and gives
-its **Verdict**, on the **Rôle** of the **Pilote**'s choice (another
-**Moteur** than the Code's by default). A **Process** always has one, with
-the checks, before any merge: it can be replaced by another **Rôle**'s,
-never removed.
+The **Étape** where an agent judges an **Artefact** (a **Ticket**'s change of
+code, mockups, a document) and gives its **Verdict**, on the **Rôle** of the
+**Pilote**'s choice (for a change of code, another **Moteur** than the
+Code's by default). A **Process** always has one, with the checks, before a
+change of code merges: it can be replaced by another **Rôle**'s, never
+removed. A document of a **Conception** merges on the **Pilote**'s approval.
 _Avoid_: revue de code (in the UI), relecture, code review
 
 **Revue croisée** (`CrossReview`):
@@ -198,7 +199,8 @@ _Avoid_: agent-loop (in the UI), automate, job, boucle (for a **Retour**)
 
 **Session** (`AgentSession`):
 One conversation of an agent in one **Rôle**, on the **Runner**, with one
-**Moteur**: every **Étape** runs in a **Session**, the **Boucle**'s included,
+**Moteur**: every agent **Étape** runs in a **Session** (a **Commande** or a
+gate of the **Pilote**'s does not), the **Boucle**'s included,
 and the **Pilote** can read and drive any of them. Its content stays between
 the **Runner** and the **Appareils**; while the **Runner** is « hors ligne »
 only its title and state are shown.
@@ -273,8 +275,8 @@ _Avoid_: profil, mode, persona, harness
 
 **Miroir** (`Mirror`):
 The store, on the **Runner**'s machine, of every **Artefact** of the
-**Pilote**'s **Projets** and of the state of their work: what is **Local**
-lives there (with the **Projet**'s folder), the rest is a copy of its
+**Pilote**'s **Projets** and of what their work writes (comments, review
+remarks): what is **Local** lives there (with the **Projet**'s folder), the rest is a copy of its
 **Source**, written only from what the **Source** answers. The agents' one
 channel: they read it, and every write goes to the **Source** first. Live,
 or « en retard » since its last change applied.
@@ -291,7 +293,8 @@ _Avoid_: vérité, origine, master, référentiel
 **Local** (`LocalSource`):
 The **Source** that is the **Projet**'s own folder on the **Runner**'s
 machine (Markdown files the **Pilote** reads and edits by hand) and the
-**Miroir**, for the state of the work. A **Projet** with no **Connecteur** is
+**Miroir**, for what the work writes; the product keeps the state of the
+work (what is taken, what passed) as for any **Projet**. A **Projet** with no **Connecteur** is
 all **Local**.
 _Avoid_: hors ligne, déconnecté, fichiers locaux
 
@@ -375,7 +378,8 @@ _Avoid_: rechargement, refresh
 - « boucle » with a maximum of iterations is a **Retour**; the **Boucle** is
   the **Phase** repeated for each ready **Ticket**.
 - « Étape optionnelle » is gone: an **Étape** is added or removed on the
-  canvas; only the checks and the **Review** before a merge cannot go.
+  canvas; only the checks and the **Review** before a change of code merges
+  cannot go.
 
 - « revue visuelle » was listed among the optional steps as if an agent did
   it: it is the **Pilote**'s gate; the **Revue croisée** is an agent's

@@ -30,8 +30,10 @@
 - **Your Process, our guard-rails.** The **Pilote** draws; the core checks
   every arrow, keeps every **Contrat** and every gate, and refuses to
   activate a **Process** that has a **Manque**.
-- **Before any merge, the checks and a Review.** They can run on any **Rôle**
-  or any CI, never be removed nor bypassed.
+- **Before a change of code merges, the checks and a Review.** They can run
+  on any **Rôle** or any CI, never be removed nor bypassed. A document of a
+  **Conception** or an **Inventaire** merges on the **Pilote**'s approval, its
+  own gate.
 - **One Source per Type d'artefact.** The **Source** wins; a **Copie** is
   written one way from it and never read back.
 - **What runs keeps its version.** A change of the **Process** applies to the
@@ -82,7 +84,7 @@ maximum of iterations.
 
 - **US-92** (MVP) As a Pilote, I want a « Gestion du process » page for each Projet, an infinite canvas where its Phases hold their Étapes linked by arrows, each Étape showing its Entrées, its Sorties and the Outils attached to it, so that I see my whole Process in one place.
 - **US-93** (MVP) As a Pilote, I want to add Étapes from the catalogue (those of the default Modèle, the Revue croisée, the Revue visuelle, a Commande, another Review on the Rôle of my choice), remove them, move them between Phases, add and remove Phases, and attach Outils to an Étape (its Rôle, its Skill, Serveurs MCP, a Commande, the Connecteurs it reads), so that the Process does what my Projet needs.
-- **US-94** (MVP) As a Pilote, I want an arrow accepted only from a Sortie to an Entrée of the same Type d'artefact, and the canvas listing every Manque (an Entrée nothing feeds, a Type d'artefact without a Source, a capability an Étape needs and no attached Outil gives, a merge with no checks or no Review before it), each one pointing at its block, a Process with a Manque not activable, so that a Process I compose always runs.
+- **US-94** (MVP) As a Pilote, I want an arrow accepted only from a Sortie to an Entrée of the same Type d'artefact, and the canvas listing every Manque (an Entrée nothing feeds, a Type d'artefact without a Source, a capability an Étape needs and no attached Outil gives, a change of code that merges with no checks or no Review before it), each one pointing at its block, a Process with a Manque not activable, so that a Process I compose always runs.
 - **US-95** (MVP) As a Pilote, I want to make a Phase repeat for each item of a list (each ready Ticket, each retained Idée), and to draw a Retour from an Étape that judges to an earlier Étape of its Phase with a maximum of iterations (3 by default), reaching it stopping that item with a Décision, so that I set my loops without ever drawing an endless one.
 - **US-96** (MVP) As a Pilote, I want to activate a changed Process as an Action sensible, after seeing what changed since the active version, the new version applying to the work that starts after it while what is in progress finishes on the version it started with, so that moving a block never breaks a Ticket under review.
 - **US-97** (MVP) As a Pilote, I want each new Projet to start from a Modèle de process (« Process Crewdeck » by default: Idée, Conception, Tickets, Boucle, with their Étapes, Rôles and gates as today), and to save a Projet's Process as a Modèle of my own for my next Projets, so that I compose a Process once.
@@ -102,8 +104,8 @@ is **Local** lives there and in the folder, the rest is a copy of its
 The **Source** always wins. The choice of the **Source** itself is US-88, in
 [prd.md](../prd.md#next).
 
-- **US-99** (MVP) As a Pilote, I want a Projet with no Connecteur at all, its documents and its Tickets being Markdown files of its folder on my machine that I can read and edit by hand, my edits on screen in under 2 s, the state of the work (who took a Ticket, its verdicts, its comments) kept on my machine, so that a Projet works without GitHub nor any other account.
-- **US-102** (MVP) As a Pilote, I want to move a Type d'artefact to another Source as an Action sensible, the product moving what exists (the 30 local Tickets become 30 issues), the old place archived or kept as a Copie, the work in progress finishing on the old Source, so that a Type d'artefact never has two Sources.
+- **US-99** (MVP) As a Pilote, I want a Projet with no Connecteur at all, its documents and its Tickets being Markdown files of its folder on my machine that I can read and edit by hand, my edits on screen in under 2 s, the product keeping the state of its work as for any Projet (which Ticket is taken, which verdict passed) while what the work writes (comments, review remarks) stays on my machine, so that a Projet works without GitHub nor any other account.
+- **US-102** (MVP) As a Pilote, I want to move a Type d'artefact to another Source as an Action sensible, no new work of that type starting meanwhile, the work in progress finishing on the old Source, then the product moving everything at once (the 30 local Tickets become 30 issues, with their state and history) and archiving the old place, frozen (kept as a Copie instead once Copies exist, US-100), so that a Type d'artefact never has two Sources, not even for a moment.
 - **US-103** (MVP) As a Pilote, I want the Source to win over the work in progress: a Ticket changed at its Source while an agent works on it keeps the version it was taken with, shows « modifié depuis sa prise » and can be restarted in one click; a Ticket closed at its Source stops, its branch kept and the stop noted in its history, starting again from that branch if it is reopened, so that what my team decides in its tools is never overridden by the agents.
 - **US-100** (next) As a Pilote, I want to add Copies of a Type d'artefact (to another Connecteur, or to a folder of my machine such as an Obsidian vault), written one way from its Source after each change, so that my work is where I read it and backed up where I want.
 - **US-101** (next) As a Pilote, I want a Décision « Copie modifiée hors de sa Source » when someone edits a Copie, offering to overwrite the Copie or to open the Source, the edit never being taken in silently, so that no edit made in the wrong place is lost without my knowing it.
@@ -156,12 +158,13 @@ A **Commande** judges by its exit code, and by a health address when the
   applies to the next work without restarting the server or the **Runner**,
   and a **Ticket** in progress finishes on its version, measured by a
   test **Projet**'s history.
-- MVP: no **Process** with a **Manque** can be activated, and no merge
-  happens without its checks and a **Review**, measured by the product's
+- MVP: no **Process** with a **Manque** can be activated, and no change of
+  code merges without its checks and a **Review**, measured by the product's
   tests on every **Manque** of US-94.
 - Bêta, second extreme case: Tickets and documents on Local or GitHub,
-  mockups through the Stitch and Figma **Serveurs MCP**, their **Review** on
-  Gemini, a **Copie** of the documents in an Obsidian folder, deployments
+  mockups through the Stitch and Figma **Serveurs MCP**, judged by a
+  **Review** of the mockups on a Gemini **Rôle** (an **Étape** of the
+  catalogue, US-93), a **Copie** of the documents in an Obsidian folder, deployments
   to the servers and to Kubernetes by **Commandes**.
 - Lancement, second extreme case whole: Tickets in Jira and documents in
   Confluence as **Sources**, through their **Connecteurs**.
@@ -188,3 +191,8 @@ A **Commande** judges by its exit code, and by a health address when the
   **Phase**, or both. The founder, before the Lancement.
 - How a **Connecteur** that is not GitHub follows its tool in real time from
   the **Runner** (webhooks need a public address): the technical design.
+- For a **Local** **Projet**, which part of the state of the work the server
+  keeps (identifiers, states, verdicts passed or not, as for any **Projet**,
+  [ADR 0001](../../adr/0001-shape-of-the-system.md)) and which stays on the
+  machine (what the work writes): the technical design, reopening ADR 0001
+  and ADR 0010.

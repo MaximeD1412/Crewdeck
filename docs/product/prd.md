@@ -40,8 +40,8 @@
   **Modèle de process** (« Process Crewdeck » by default: Idée → Conception
   → Tickets → Boucle). Every **Étape** declares what it consumes and
   produces and has its **Contrat**, kept by the core; the product checks
-  every arrow and keeps the gates. Before any merge, the checks and a
-  **Review** always run: the Review can run on any **Rôle**, never be
+  every arrow and keeps the gates. Before a change of code merges, the
+  checks and a **Review** always run: the Review can run on any **Rôle**, never be
   removed. The **Skill** that does the work can be replaced, never the
   **Contrat** nor the gates
   ([Gestion du process](features/gestion-du-process.md)).
@@ -199,7 +199,7 @@ bill.
 ### Settings
 The Pilote sets their account once, and each Projet differs where it needs.
 - **US-82** (MVP) As a Pilote, I want complete Paramètres for my account (Rôles and models, notifications, Planifications, Modèles de process, Serveurs MCP and Commandes at the MVP; the Skins, channels and Plafonds join them when the Bêta brings them) and for each Projet, a Projet inheriting my account's Paramètres and changing only what it needs (its Rôles, and its notifications, which a Projet can only turn on or off at the MVP; its Étapes are its Process's), so that I set things once and adapt per Projet.
-- ~~**US-83**~~ removed: the Étapes optionnelles are gone; a Projet's Étapes are added and removed on its canvas (US-93), the Review and the checks staying mandatory before a merge (US-94).
+- ~~**US-83**~~ removed: the Étapes optionnelles are gone; a Projet's Étapes are added and removed on its canvas (US-93), the Review and the checks staying mandatory before a change of code merges (US-94).
 - **US-84** (next) As a Pilote, I want to show, hide and reorder the Composants of my Skin from the Paramètres, without code, so that I see only what I use.
 
 ### Language
@@ -247,7 +247,7 @@ The Pilote sets their account once, and each Projet differs where it needs.
 **Out**:
 - Reselling AI usage: the **Pilote** brings their own **Comptes IA**.
 - A Process without guard-rails: blocks that declare nothing, arrows nobody
-  checks, a merge without checks nor **Review**. Agents without a checked
+  checks, a change of code merged without checks nor **Review**. Agents without a checked
   process is what the competitors and the workflow builders already offer;
   the **Pilote** composes freely within the **Contrats** and the gates.
 - Syncing two tools both ways (a ticket edited in Jira and in the Miroir,

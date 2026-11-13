@@ -110,7 +110,8 @@
       "stories": [
         "US-4",
         "US-68",
-        "US-26"
+        "US-26",
+        "US-99"
       ],
       "html": "design/screens/crewdeck/projet.html",
       "captures": {
@@ -135,6 +136,15 @@
             "390": "design/screens/crewdeck/projet-inventaire-confirmation-390.png",
             "1280": "design/screens/crewdeck/projet-inventaire-confirmation-1280.png"
           }
+        },
+        {
+          "id": "local",
+          "title": "Projet tout en Local",
+          "html": "design/screens/crewdeck/projet-local.html",
+          "captures": {
+            "390": "design/screens/crewdeck/projet-local-390.png",
+            "1280": "design/screens/crewdeck/projet-local-1280.png"
+          }
         }
       ]
     },
@@ -150,7 +160,9 @@
         "US-40",
         "US-48",
         "US-55",
-        "US-68"
+        "US-68",
+        "US-95",
+        "US-105"
       ],
       "html": "design/screens/crewdeck/a-toi.html",
       "captures": {
@@ -192,6 +204,15 @@
           "captures": {
             "390": "design/screens/crewdeck/a-toi-menu-plus-390.png",
             "1280": "design/screens/crewdeck/a-toi-menu-plus-1280.png"
+          }
+        },
+        {
+          "id": "process",
+          "title": "Décisions du Process : lancement échoué, maximum de Retours",
+          "html": "design/screens/crewdeck/a-toi-process.html",
+          "captures": {
+            "390": "design/screens/crewdeck/a-toi-process-390.png",
+            "1280": "design/screens/crewdeck/a-toi-process-1280.png"
           }
         }
       ]
@@ -312,7 +333,8 @@
       "stories": [
         "US-9",
         "US-57",
-        "US-60"
+        "US-60",
+        "US-104"
       ],
       "html": "design/screens/crewdeck/session.html",
       "captures": {
@@ -354,6 +376,15 @@
           "captures": {
             "390": "design/screens/crewdeck/session-runner-hors-ligne-390.png",
             "1280": "design/screens/crewdeck/session-runner-hors-ligne-1280.png"
+          }
+        },
+        {
+          "id": "commande",
+          "title": "Sortie d’une Commande",
+          "html": "design/screens/crewdeck/session-commande.html",
+          "captures": {
+            "390": "design/screens/crewdeck/session-commande-390.png",
+            "1280": "design/screens/crewdeck/session-commande-1280.png"
           }
         }
       ]
@@ -540,7 +571,8 @@
       "title": "Un Ticket",
       "prd": "docs/product/prd.md",
       "stories": [
-        "US-15"
+        "US-15",
+        "US-103"
       ],
       "html": "design/screens/crewdeck/ticket.html",
       "captures": {
@@ -555,6 +587,24 @@
           "captures": {
             "390": "design/screens/crewdeck/ticket-bloque-390.png",
             "1280": "design/screens/crewdeck/ticket-bloque-1280.png"
+          }
+        },
+        {
+          "id": "modifie-a-la-source",
+          "title": "Modifié depuis sa prise",
+          "html": "design/screens/crewdeck/ticket-modifie-a-la-source.html",
+          "captures": {
+            "390": "design/screens/crewdeck/ticket-modifie-a-la-source-390.png",
+            "1280": "design/screens/crewdeck/ticket-modifie-a-la-source-1280.png"
+          }
+        },
+        {
+          "id": "ferme-a-la-source",
+          "title": "Fermé à sa Source",
+          "html": "design/screens/crewdeck/ticket-ferme-a-la-source.html",
+          "captures": {
+            "390": "design/screens/crewdeck/ticket-ferme-a-la-source-390.png",
+            "1280": "design/screens/crewdeck/ticket-ferme-a-la-source-1280.png"
           }
         }
       ]
@@ -627,7 +677,8 @@
       "stories": [
         "US-38",
         "US-55",
-        "US-60"
+        "US-60",
+        "US-73"
       ],
       "html": "design/screens/crewdeck/runner.html",
       "captures": {
@@ -643,6 +694,15 @@
             "390": "design/screens/crewdeck/runner-hors-ligne-390.png",
             "1280": "design/screens/crewdeck/runner-hors-ligne-1280.png"
           }
+        },
+        {
+          "id": "serveurs-mcp",
+          "title": "Serveurs MCP déclarés sur le Runner",
+          "html": "design/screens/crewdeck/runner-serveurs-mcp.html",
+          "captures": {
+            "390": "design/screens/crewdeck/runner-serveurs-mcp-390.png",
+            "1280": "design/screens/crewdeck/runner-serveurs-mcp-1280.png"
+          }
         }
       ]
     },
@@ -654,8 +714,7 @@
         "US-82",
         "US-39",
         "US-18",
-        "US-62",
-        "US-83"
+        "US-62"
       ],
       "html": "design/screens/crewdeck/parametres.html",
       "captures": {
@@ -669,8 +728,8 @@
       "prd": "docs/product/prd.md",
       "stories": [
         "US-82",
-        "US-83",
-        "US-39"
+        "US-39",
+        "US-93"
       ],
       "html": "design/screens/crewdeck/parametres-projet.html",
       "captures": {
@@ -690,6 +749,125 @@
         "390": "design/screens/crewdeck/composants-390.png",
         "1280": "design/screens/crewdeck/composants-1280.png"
       }
+    },
+    {
+      "id": "process",
+      "title": "Gestion du process",
+      "prd": "docs/product/features/gestion-du-process.md",
+      "stories": [
+        "US-92",
+        "US-93",
+        "US-94",
+        "US-95",
+        "US-96",
+        "US-97",
+        "US-98",
+        "US-73",
+        "US-88",
+        "US-99",
+        "US-102",
+        "US-104",
+        "US-105",
+        "US-106"
+      ],
+      "html": "design/screens/gestion-du-process/process.html",
+      "captures": {
+        "390": "design/screens/gestion-du-process/process-390.png",
+        "1280": "design/screens/gestion-du-process/process-1280.png"
+      },
+      "states": [
+        {
+          "id": "manques",
+          "title": "Brouillon avec des Manques",
+          "html": "design/screens/gestion-du-process/process-manques.html",
+          "captures": {
+            "390": "design/screens/gestion-du-process/process-manques-390.png",
+            "1280": "design/screens/gestion-du-process/process-manques-1280.png"
+          }
+        },
+        {
+          "id": "etape",
+          "title": "Une Étape choisie : Entrées, Sorties, Outils, Retour",
+          "html": "design/screens/gestion-du-process/process-etape.html",
+          "captures": {
+            "1280": "design/screens/gestion-du-process/process-etape-1280.png"
+          }
+        },
+        {
+          "id": "phase",
+          "title": "Une Phase choisie : nom, répétition",
+          "html": "design/screens/gestion-du-process/process-phase.html",
+          "captures": {
+            "1280": "design/screens/gestion-du-process/process-phase-1280.png"
+          }
+        },
+        {
+          "id": "catalogue",
+          "title": "Catalogue des Étapes",
+          "html": "design/screens/gestion-du-process/process-catalogue.html",
+          "captures": {
+            "1280": "design/screens/gestion-du-process/process-catalogue-1280.png"
+          }
+        },
+        {
+          "id": "fleche-refusee",
+          "title": "Flèche refusée",
+          "html": "design/screens/gestion-du-process/process-fleche-refusee.html",
+          "captures": {
+            "1280": "design/screens/gestion-du-process/process-fleche-refusee-1280.png"
+          }
+        },
+        {
+          "id": "sources",
+          "title": "Sources des Types d’artefact",
+          "html": "design/screens/gestion-du-process/process-sources.html",
+          "captures": {
+            "1280": "design/screens/gestion-du-process/process-sources-1280.png"
+          }
+        },
+        {
+          "id": "local",
+          "title": "Projet tout en Local, Phase Livraison et Commande « Lancer »",
+          "html": "design/screens/gestion-du-process/process-local.html",
+          "captures": {
+            "390": "design/screens/gestion-du-process/process-local-390.png",
+            "1280": "design/screens/gestion-du-process/process-local-1280.png"
+          }
+        },
+        {
+          "id": "activation",
+          "title": "Activer la nouvelle version",
+          "html": "design/screens/gestion-du-process/process-activation.html",
+          "captures": {
+            "1280": "design/screens/gestion-du-process/process-activation-1280.png"
+          }
+        },
+        {
+          "id": "migration-source",
+          "title": "Changer la Source d’un Type d’artefact",
+          "html": "design/screens/gestion-du-process/process-migration-source.html",
+          "captures": {
+            "1280": "design/screens/gestion-du-process/process-migration-source-1280.png"
+          }
+        },
+        {
+          "id": "migration-en-cours",
+          "title": "Migration de Source en cours",
+          "html": "design/screens/gestion-du-process/process-migration-en-cours.html",
+          "captures": {
+            "390": "design/screens/gestion-du-process/process-migration-en-cours-390.png",
+            "1280": "design/screens/gestion-du-process/process-migration-en-cours-1280.png"
+          }
+        },
+        {
+          "id": "enregistrer-modele",
+          "title": "Enregistrer comme Modèle de process",
+          "html": "design/screens/gestion-du-process/process-enregistrer-modele.html",
+          "captures": {
+            "1280": "design/screens/gestion-du-process/process-enregistrer-modele-1280.png"
+          }
+        }
+      ]
     }
   ]
 }

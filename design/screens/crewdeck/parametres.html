@@ -17,7 +17,6 @@
   .settings-body { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
   .pair-selects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
   .settings-body > ui-card:not(.is-current) { display: none; }
-  .always { display: flex; flex-wrap: wrap; gap: var(--space-2); }
   @media (min-width: 1280px) {
     .settings { display: grid; grid-template-columns: var(--capture-w) minmax(0, 1fr); gap: var(--space-8); align-items: start; }
     .settings-nav { flex-direction: column; margin: 0; padding: 0; position: sticky; top: var(--space-8); gap: var(--space-1); }
@@ -37,7 +36,6 @@
       <a href="#roles" aria-current="true">Rôles et modèles</a>
       <a href="#notifications">Notifications</a>
       <a href="#planifications">Planifications</a>
-      <a href="#etapes">Étapes optionnelles</a>
       <a href="#projets">Par Projet</a>
       <a href="#moddeurs">Pour les Moddeurs</a>
     </nav>
@@ -65,16 +63,6 @@
         <ui-list-row icon="clock" title="Chaque nuit à 01:00" meta="Personal OS · active"><div slot="below" class="cluster"><ui-button size="sm">Mettre en pause</ui-button><ui-button size="sm" variant="danger">Supprimer</ui-button></div></ui-list-row>
         <ui-list-row icon="refresh" title="Quand la fenêtre de Claude se réinitialise" meta="Site mairie · active"><div slot="below" class="cluster"><ui-button size="sm">Mettre en pause</ui-button><ui-button size="sm" variant="danger">Supprimer</ui-button></div></ui-list-row>
         <ui-list-row icon="clock" title="Chaque nuit à 02:00" meta="Crewdeck · en pause depuis hier"><div slot="below" class="cluster"><ui-button size="sm">Reprendre</ui-button><ui-button size="sm" variant="danger">Supprimer</ui-button></div></ui-list-row>
-      </ui-card>
-      <ui-card title="Étapes optionnelles" label="Paramètres / Étapes optionnelles" id="etapes">
-        <p class="text-sm">Par défaut pour tes Projets ; chaque Projet peut les changer.</p>
-        <ui-toggle checked label="Maquettes" help="Les écrans dessinés avant la conception technique."></ui-toggle>
-        <ui-toggle checked label="Revue visuelle" help="Tu relis les captures d’un Ticket qui a des écrans avant son merge."></ui-toggle>
-        <ui-toggle checked label="Revue croisée d’une Conception" help="Un second agent relit le PRD et la conception technique."></ui-toggle>
-        <div class="stack-sm">
-          <span class="field-label">Toujours actives</span>
-          <div class="always"><ui-status-badge>Analyse d’Idée</ui-status-badge><ui-status-badge>Tickets</ui-status-badge><ui-status-badge>Code</ui-status-badge><ui-status-badge>Review</ui-status-badge><ui-status-badge>Checks</ui-status-badge></div>
-        </div>
       </ui-card>
       <ui-card title="Par Projet" label="Paramètres / Par Projet" id="projets" flush>
         <ui-list-row link title="Crewdeck" meta="hérite de ton compte"></ui-list-row>

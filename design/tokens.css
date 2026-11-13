@@ -53,6 +53,11 @@
   --header-height: 3.5rem;
   --tab-bar: 4rem;
   --sidebar-width: 15rem;
+  --sidebar-compact: 4rem;
+  --step-card: 11rem;
+  --gate-card: 8rem;
+  --port-row: 1.25rem;
+  --menu-width: 18rem;
   --aside-width: 20rem;
   --panel-width: 36rem;
   --dialog-width: 30rem;

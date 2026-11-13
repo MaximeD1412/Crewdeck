@@ -115,6 +115,11 @@ spacing:
   header-height: 3.5rem
   tab-bar: 4rem
   sidebar-width: 15rem
+  sidebar-compact: 4rem
+  step-card: 11rem
+  gate-card: 8rem
+  port-row: 1.25rem
+  menu-width: 18rem
   aside-width: 20rem
   panel-width: 36rem
   dialog-width: 30rem
@@ -176,6 +181,7 @@ contracts will use.
 | Waits, limit near, interrupted, incomplete | `caution` on `caution-soft` |
 | Blocked, failed, offline, destructive | `halt` on `halt-soft` (`halt-ink` on a `halt` badge) |
 | Diff lines | `add`, `del` |
+| Canvas: its ground, its arrows (`active` for the selected **Étape**'s, `caution` dashed for a **Retour** or a **Manque**, `halt` dashed for a refused one) | `side`, `control-border` |
 | Dialog backdrop, shadows | `scrim`, `shadow` |
 
 Contrast: every text colour is AA on `ground`, `side`, `panel`, `raised`,
@@ -216,6 +222,15 @@ space before « : ; ? ! » and inside « ».
   and the Runner's state at its foot; the page is `space-10` from it, at most
   `page-max` wide, with an optional aside (`aside-width`) on the right. A
   session opens as a right panel (`panel-width`) over the page.
+- **Gestion du process** (1280 only) takes the whole height: the **Cadre**
+  keeps its icons (`AppShell/Compact`, `sidebar-compact`), the page header,
+  then the editor: the canvas (`side` with a `line` dot grid) and its panel
+  (`aside-width`: Manques, Étape, Sources, with the versions at its foot). At
+  390 the same page is the read-only list (US-98): the Manques first, then
+  one `PhaseGroup` per **Phase** (the ones with a **Manque** open, the
+  longest folded), then the **Sources**; a draft is read with its banner.
+  The panel's sections that are long (an **Étape**'s Entrées et Sorties)
+  fold (`<details class="editor-fold">`).
 - Views are global: every list shows all the **Projets**, filtered by the
   Projet chips under the page title.
 - Density: rows of 56 to 72 px, `space-3` to `space-4` paddings, 2 to 4 px
@@ -226,12 +241,14 @@ space before « : ; ? ! » and inside « ».
 Each is a custom element `ui-<name>`; its root carries `data-name`.
 
 **Shell and navigation**
-- **AppShell** (`AppShell/Default`, `AppShell/Bare`): `ui-app-shell
+- **AppShell** (`AppShell/Default`, `AppShell/Bare`, `AppShell/Compact`): `ui-app-shell
   current="a-toi|idees|conceptions|boucle|planning|statistiques|projets|runner|parametres"
   decisions runner="online|offline|resync"`; renders the **Cadre** (sidebar,
   phone header, tab bar); children are the page; `slot="banner"` above the
   page, `slot="panel"` a right panel (full screen at 390), `slot="overlay"`
   a dialog. `variant="bare"`: no navigation (sign in, getting started).
+  `variant="compact"`: at 1280 the sidebar keeps its icons and the page
+  fills the height (Gestion du process); at 390 the default **Cadre**.
 - **PageHeader** (`PageHeader/Default`): `title`, `count`, `back` (link
   label), children are its actions; a landmark `header`.
 - **ProjectFilter** (`ProjectFilter/Default`): the Projet chips; children
@@ -266,7 +283,8 @@ Each is a custom element `ui-<name>`; its root carries `data-name`.
 - **ListRow** (`ListRow/Default`): a generic row (`title`, `meta`, `icon`),
   children trailing.
 - **ProcessTrack** (`ProcessTrack/Default`): children `ui-step`
-  (`state="done|current|todo|off|halt"`, `label`, `meta`); the stages of a
+  (`state="done|current|todo|off|halt|stopped"`, `stopped` an arrest decided
+  elsewhere, at the **Source**, neither a failure nor a pause; `label`, `meta`); the stages of a
   **Conception**, of the getting started, of a **Ticket**.
 - **UsageMeter** (`UsageMeter/Default`, `UsageMeter/Caution`,
   `UsageMeter/Halt`): `label`, `value` (0 to 100), `detail`.
@@ -283,7 +301,7 @@ Each is a custom element `ui-<name>`; its root carries `data-name`.
   `ui-timeline-row` (`label`, `start`, `span`, `tone`, `meta`).
 
 **Session (US-9)**
-- **Session** (`Session/Default`): `title`, `meta`, `state="active|waiting|stopped|interrupted"`, `resume-disabled` (« Reprendre » disabled, e.g. while the Runner is offline); children messages, then `ui-composer`.
+- **Session** (`Session/Default`): `title`, `meta`, `state="active|waiting|stopped|interrupted|failed"`, `resume-disabled` (« Reprendre » disabled, e.g. while the Runner is offline), `resume-label` and `resume-icon` (« Relancer » for a **Commande**, whose output reads as a session, US-104); children messages, then `ui-composer` (none for a **Commande**).
 - **Message** (`Message/Agent`, `Message/Pilote`): `from`.
 - **ToolCall** (`ToolCall/Default`): `tool`, `target`, `detail`.
 - **Question** (`Question/Default`): `title`; children `ui-option`
@@ -303,6 +321,46 @@ Each is a custom element `ui-<name>`; its root carries `data-name`.
 - **SettingRow** (`SettingRow/Inherited`, `SettingRow/Changed`): `label`,
   `help`, `origin="compte|projet"`; children the control. Shows « Hérité du
   compte » or « Modifié pour ce Projet ».
+
+**Process (Gestion du process, US-92 to US-98)**
+- **ProcessCanvas** (`ProcessCanvas/Default`): `zoom` (percent), `pan="x,y"`
+  (where the view is, in canvas units); children `ui-phase`, then
+  `ui-process-arrow` (`from="<Étape>.<Sortie>"`, `to="<Étape>.<Entrée>"`,
+  `state="active|gap|refused"`) and `ui-loop-back` (`from`, `to`, `max`,
+  `state="active"`), drawn as one SVG layer once the cards are laid out;
+  `slot="toast"` a message at its top, `slot="menu"` a menu opened from the
+  panel, on its right edge; the zoom controls at its foot.
+- **Phase** (`Phase/Default`, `Phase/Repeated`): `name`, `for-each`
+  (« chaque Ticket prêt »: the `accent` top rail), `gaps`, `target` (where
+  an added **Étape** goes), `col`/`row` on the canvas; children
+  `ui-step-card`.
+- **StepCard** (`StepCard/Agent`, `StepCard/Gate`, `StepCard/Command`, `StepCard/Core`):
+  `ref`, `name`, `kind`, `variant`, `col`/`row` in its **Phase**,
+  `selected` (`accent` border), `gaps` (`caution` border and count),
+  `judges` (the Retour handle); children `ui-port` then `ui-tool-chip`. A
+  gate of the **Pilote** is the compact card (`gate-card`, dashed, no
+  **Outils**); `core` (a `line-strong` left rail) is what the product keeps
+  before every merge: the Checks and the Merge.
+- **Port** (`Port/In`, `Port/Out`): `dir`, `name`, the **Type d'artefact**
+  as text, always, then `note` muted (what qualifies it: « retenue »,
+  « des checks », « notée par toi »), `state="active|unfed|compatible|refused"`.
+  An **Entrée** is a hollow dot on the left edge, a **Sortie** a filled one
+  on the right.
+- **ToolChip** (`ToolChip/<Kind>`): `kind="role|skill|mcp|commande|connecteur"`, the **Outil**'s name.
+- **LoopBack** (`LoopBack/Default`): the **Retour**'s badge « Retour · 3 fois
+  au plus » on its dashed `caution` curve.
+- **PhaseGroup** (`PhaseGroup/Default`): the phone's **Phase**, a
+  `<details>`: `name`, `for-each`, `count`, `gaps`, `open`; children
+  `ui-step-row`.
+- **StepRow** (`StepRow/Default`, `StepRow/Gap`): `name`, `kind`, `icon`,
+  `tools`, `flow` (« Entrées → Sorties »), `loop-back`, `gap`.
+- **Stepper** (`Stepper/Default`): `label`, `value`, `unit`, `min`, `max`
+  (a **Retour**'s maximum, 1 to 10).
+- **Menu** (`Menu/Default`): `title`; children `ui-menu-group` (`label`)
+  of `ui-menu-item` (`icon`, `detail`, `selected`, `state="disabled"`): the
+  catalogue of **Étapes**, « Attacher un Outil ».
+- **Toast** (`Toast/<Tone>`): `tone="accent|go|halt"`, `icon`: the reason
+  an arrow is refused.
 
 **Overlays**
 - **Dialog** (`Dialog/Default`): `title`; children body, `slot="actions"`.

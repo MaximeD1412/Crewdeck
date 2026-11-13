@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runner et Comptes IA — Serveurs MCP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+.sub { font: var(--font-label-weight) var(--font-label-size)/var(--font-label-line-height) var(--font-label-family), sans-serif; color: var(--ink); }
+.sub + * { margin-top: calc(var(--space-1) * -1); }
+.crypto { display: flex; gap: var(--space-2); align-items: flex-start; }
+.crypto .icon { color: var(--go); margin-top: var(--space-1); }
+.layout-aside { order: -1; }
+@media (min-width: 1280px) { .layout-aside { order: 0; } }
+</style>
+</head>
+<body>
+<!-- exemple : machine, modèles, usages et Serveurs MCP fictifs -->
+<ui-app-shell screen="Runner et Comptes IA" current="runner" runner="online" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Runner et Comptes IA"></ui-page-header>
+  <div class="layout">
+    <div class="layout-main">
+      <ui-card title="Serveurs MCP" count="2" label="Runner et Comptes IA / Serveurs MCP" flush>
+        <ui-list-row icon="layers" title="Stitch" meta="attaché à « Maquettes » · Site mairie, Personal OS"><ui-status-badge tone="go">déclaré</ui-status-badge></ui-list-row>
+        <ui-list-row icon="layers" title="Figma" meta="attaché à aucune Étape"><ui-status-badge tone="go">déclaré</ui-status-badge></ui-list-row>
+      </ui-card>
+      <ui-card title="Déclarer un Serveur MCP" label="Runner et Comptes IA / Déclarer un Serveur MCP">
+        <p class="text-sm">Sur ta machine, jamais ici : ses secrets restent sur le Runner. Il s’attache ensuite aux Étapes, dans la Gestion du process de chaque Projet.</p>
+        <ui-code-block>crewdeck-runner mcp add figma</ui-code-block>
+      </ui-card>
+      <ui-card title="Usage des Comptes IA" label="Runner et Comptes IA / Usage">
+        <h3 class="sub">Claude · abonnement</h3>
+      <ui-usage-meter label="Fenêtre de 5 h" value="100" detail="16:40">Limite atteinte ; réinitialisation à 16:40.</ui-usage-meter>
+      <ui-usage-meter label="Semaine" value="62" projection="100" detail="lundi">Réinitialisation lundi ; au rythme actuel, la semaine tient jusqu’à jeudi.</ui-usage-meter>
+        <h3 class="sub">Codex · clé API</h3>
+        <!-- exemple : montant fictif -->
+        <ui-key-value><ui-kv label="Dépense estimée du mois">21,60 €</ui-kv></ui-key-value>
+      </ui-card>
+      <ui-card title="Moteurs et modèles" label="Runner et Comptes IA / Moteurs" flush>
+        <ui-list-row title="claude-opus-5-5" meta="Claude Code · Compte IA Claude"><ui-status-badge tone="go">disponible</ui-status-badge></ui-list-row>
+        <ui-list-row title="claude-sonnet-5-5" meta="Claude Code · Compte IA Claude"><ui-status-badge tone="go">disponible</ui-status-badge></ui-list-row>
+        <ui-list-row title="claude-fable-5-1" meta="Claude Code · indisponible avec cet abonnement"><ui-status-badge tone="halt">indisponible</ui-status-badge></ui-list-row>
+        <ui-list-row title="gpt-5.5" meta="Codex · Compte IA Codex"><ui-status-badge tone="go">disponible</ui-status-badge></ui-list-row>
+        <ui-list-row title="gpt-5.5-pro" meta="Codex · Compte IA Codex"><ui-status-badge tone="caution">quota atteint</ui-status-badge></ui-list-row>
+      </ui-card>
+      <ui-card title="Connecter un Compte IA" label="Runner et Comptes IA / Connexion">
+        <p class="text-sm">Sur ta machine, jamais ici :</p>
+        <ui-code-block>crewdeck-runner login claude</ui-code-block>
+      </ui-card>
+    </div>
+    <div class="layout-aside">
+      <ui-card title="Runner" label="Runner et Comptes IA / Runner">
+        <ui-status-badge slot="actions" tone="go">en ligne</ui-status-badge>
+        <ui-key-value>
+          <ui-kv label="Machine">atelier-pc</ui-kv>
+          <ui-kv label="Système">WSL Ubuntu 24.04</ui-kv>
+          <ui-kv label="Version">0.4.2</ui-kv>
+        </ui-key-value>
+        <p class="crypto text-sm"><ui-icon name="lock" size="sm"></ui-icon>Conversations, code et diffs chiffrés de bout en bout entre le Runner et ce navigateur.</p>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

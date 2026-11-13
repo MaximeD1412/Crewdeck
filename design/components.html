@@ -19,6 +19,8 @@
   .demo-shell { height: calc(var(--panel-width) / 2); overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-lg); position: relative; }
   .demo-shell .shell { min-height: 100%; }
   .demo-dialog { position: relative; display: flex; justify-content: center; padding: var(--space-4); background: var(--scrim); border-radius: var(--radius-lg); }
+  .demo-canvas { height: var(--aside-width); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }
+  .demo-canvas ui-process-canvas, .demo-canvas .canvas { height: 100%; }
   .swatches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
   .swatch { display: flex; align-items: center; gap: var(--space-2); font: var(--font-meta-weight) var(--font-meta-size)/var(--font-meta-line-height) var(--font-meta-family), monospace; color: var(--ink-2); }
   .swatch i { width: var(--icon-box); height: var(--icon-box); border-radius: var(--radius); border: 1px solid var(--line-strong); flex: none; }
@@ -77,6 +79,8 @@
         <div class="demo-shell"><ui-app-shell screen="Galerie hors ligne" current="boucle" runner="offline"><ui-page-header title="Boucle"></ui-page-header></ui-app-shell></div></div>
       <div class="specimen"><code>ui-app-shell runner="resync"</code>
         <div class="demo-shell"><ui-app-shell screen="Galerie resync" current="idees" runner="resync"><ui-page-header title="Idées"></ui-page-header></ui-app-shell></div></div>
+      <div class="specimen"><code>ui-app-shell variant="compact" (à 1280 : les icônes seules)</code>
+        <div class="demo-shell"><ui-app-shell variant="compact" screen="Galerie compacte" current="projets" decisions="9"><ui-page-header title="Gestion du process" back="Site mairie"></ui-page-header></ui-app-shell></div></div>
       <div class="specimen"><code>ui-page-header back title count</code>
         <ui-page-header screen="Galerie / Idée" back="Idées" title="Agenda partagé" count="Personal OS"><ui-button>Fusionner…</ui-button><ui-button variant="primary">Retenir</ui-button></ui-page-header></div>
       <div class="specimen"><code>ui-project-filter · ui-chip [selected]</code>
@@ -221,6 +225,43 @@
         <div class="demo-dialog"><ui-dialog title="Noter une Idée"><ui-text-field placeholder="En une phrase" multiline></ui-text-field><ui-button slot="actions" variant="ghost">Annuler</ui-button><ui-button slot="actions" variant="primary">Noter</ui-button></ui-dialog></div></div>
       <div class="specimen"><code>ui-confirm-dialog (Action sensible)</code>
         <div class="demo-dialog"><ui-confirm-dialog title="Merger la PR de #38 ?" action="Merger" icon="merge"><p>La PR <b>#38 Page Planning</b> est mergée dans <code>develop</code>.</p></ui-confirm-dialog></div></div>
+    </div>
+  </section>
+
+  <section aria-label="Galerie / Process">
+    <h2 class="group">08 Process (Gestion du process)</h2>
+    <div class="specimen"><code>ui-process-canvas zoom · ui-phase [for-each] · ui-step-card variant="agent|gate|command" [selected] [gaps] [judges] · ui-process-arrow state="active|gap|refused" · ui-loop-back</code>
+      <div class="demo-canvas"><ui-process-canvas zoom="80">
+        <ui-phase name="Développement" for-each="chaque Ticket prêt">
+          <ui-step-card ref="g-code" name="Code" variant="agent" col="1" row="1"><ui-port dir="in" name="ticket">Ticket</ui-port><ui-port dir="out" name="changement">Changement de code</ui-port><ui-tool-chip kind="role">Code</ui-tool-chip><ui-tool-chip kind="skill">red-green</ui-tool-chip></ui-step-card>
+          <ui-step-card ref="g-review" name="Review" kind="Review" variant="agent" col="2" row="1" judges selected><ui-port dir="in" name="changement" state="active">Changement de code</ui-port><ui-port dir="out" name="verdict" state="active">Verdict</ui-port><ui-tool-chip kind="role">Review</ui-tool-chip><ui-tool-chip kind="mcp">Figma</ui-tool-chip></ui-step-card>
+          <ui-step-card ref="g-rv" name="Revue visuelle" variant="gate" col="3" row="1" judges><ui-port dir="in" name="changement" state="compatible">Changement de code</ui-port><ui-port dir="in" name="maquettes" state="refused">Maquettes</ui-port><ui-port dir="out" name="verdict">Verdict</ui-port></ui-step-card>
+          <ui-step-card ref="g-fusion" name="Fusion" kind="Fusion" variant="agent" col="4" row="1" gaps="1"><ui-port dir="in" name="v" state="unfed">Verdict de la Review</ui-port><ui-port dir="out" name="changement">Changement fusionné</ui-port><ui-tool-chip kind="connecteur">GitHub</ui-tool-chip></ui-step-card>
+          <ui-step-card ref="g-lancer" name="Lancer" variant="command" col="5" row="1"><ui-port dir="in" name="changement">Changement fusionné</ui-port><ui-port dir="out" name="livraison">Livraison</ui-port><ui-tool-chip kind="commande">docker compose up -d</ui-tool-chip></ui-step-card>
+        </ui-phase>
+        <ui-process-arrow from="g-code.changement" to="g-review.changement" state="active"></ui-process-arrow>
+        <ui-process-arrow from="g-code.changement" to="g-rv.changement"></ui-process-arrow>
+        <ui-process-arrow from="g-code.changement" to="g-rv.maquettes" state="refused"></ui-process-arrow>
+        <ui-process-arrow from="g-fusion.changement" to="g-lancer.changement"></ui-process-arrow>
+        <ui-loop-back from="g-review" to="g-code" max="3" state="active"></ui-loop-back>
+        <ui-toast slot="toast" tone="halt" icon="block">Refusée : une Sortie Changement de code ne va que vers une Entrée Changement de code.</ui-toast>
+      </ui-process-canvas></div>
+    </div>
+    <div class="specimens">
+      <div class="specimen"><code>ui-tool-chip kind="role|skill|mcp|commande|connecteur"</code>
+        <div class="cluster"><ui-tool-chip kind="role">Conception</ui-tool-chip><ui-tool-chip kind="skill">product-design</ui-tool-chip><ui-tool-chip kind="mcp">Stitch</ui-tool-chip><ui-tool-chip kind="commande">pnpm test</ui-tool-chip><ui-tool-chip kind="connecteur">GitHub</ui-tool-chip></div></div>
+      <div class="specimen"><code>ui-stepper value min max unit</code>
+        <div class="cluster"><ui-stepper label="Au plus" value="3" unit="fois" min="1" max="10"></ui-stepper><ui-stepper label="Au minimum" value="1" unit="fois" min="1" max="10"></ui-stepper></div></div>
+      <div class="specimen"><code>ui-phase-group [open] [gaps] · ui-step-row [gap] [loop-back] (le téléphone)</code>
+        <ui-phase-group name="Développement" for-each="chaque Ticket prêt" count="2 Étapes · 1 Retour" gaps="1" open>
+          <ui-step-row name="Review" kind="Review" icon="spark" tools="Rôle Review · review" flow="Changement de code → Verdict" loop-back="vers « Code », 3 fois au plus"></ui-step-row>
+          <ui-step-row name="Fusion" kind="Fusion" icon="spark" tools="GitHub" flow="Changement de code, Verdict → Changement fusionné" gap="Rien n’alimente son Entrée « Verdict de la Review »"></ui-step-row>
+        </ui-phase-group>
+        <ui-phase-group name="Conception" count="10 Étapes · 2 Retours"></ui-phase-group></div>
+      <div class="specimen"><code>ui-menu · ui-menu-group · ui-menu-item [selected] [state="disabled"]</code>
+        <ui-menu title="Attacher à « Review »"><ui-menu-group label="Rôle (un seul)"><ui-menu-item icon="user" detail="Codex · gpt-5.5" selected>Review</ui-menu-item><ui-menu-item icon="user" detail="Gemini CLI">Revue Gemini</ui-menu-item></ui-menu-group><ui-menu-group label="Serveur MCP"><ui-menu-item icon="layers" detail="déjà attaché" state="disabled">Stitch</ui-menu-item></ui-menu-group></ui-menu></div>
+      <div class="specimen"><code>ui-toast tone="halt|go|accent"</code>
+        <div class="stack-sm"><ui-toast tone="halt" icon="block">Refusée : elle fermerait un cycle. Revenir en arrière, c’est un Retour.</ui-toast><ui-toast tone="go" icon="check">Version 4 active.</ui-toast><ui-toast tone="accent" icon="info">Retour de « Review » vers « Code », 3 fois au plus.</ui-toast></div></div>
     </div>
   </section>
 </main>

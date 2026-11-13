@@ -1,5 +1,6 @@
-import type { LinkFailureReason, Me, Runner } from '@crewdeck/contracts';
+import type { AiAccount, LinkFailureReason, Me, Runner } from '@crewdeck/contracts';
 import type { ComposantData, DemarrageSystem, PageDemarrage } from '@crewdeck/sdk';
+import { anyUsable, engineAccounts } from './ai-accounts.js';
 
 export type DemarrageView = ComposantData<typeof PageDemarrage>;
 
@@ -22,6 +23,8 @@ export interface DemarrageState {
   readonly origin: string;
   /** `GET /api/config`'s `runnerServer`: `null` in production, where `install.sh` knows its server. */
   readonly server: string | null;
+  /** The `ai-account` slice: the Comptes IA the Runner reported. */
+  readonly accounts: readonly AiAccount[];
 }
 
 /** The install command of ADR 0004 with the full code; `--server` only off production. */
@@ -35,9 +38,10 @@ export const systemOfBrowser = (userAgent: string): DemarrageSystem =>
 /**
  * « Premiers pas »'s data (pure): the Pilote's step (`done` only for the
  * instant before the router leaves the page, read as its last step), the
- * command of the page's code, and the Runner once linked.
+ * command of the page's code, the Runner once linked, and its Moteurs with
+ * whether a Rôle can run on one of them.
  */
-export const demarrageView = ({ pilot, runner, system, code, failure, busy, origin, server }: DemarrageState): DemarrageView => ({
+export const demarrageView = ({ pilot, runner, system, code, failure, busy, origin, server, accounts }: DemarrageState): DemarrageView => ({
   step: pilot.gettingStartedStep === 'done' ? 'projects' : pilot.gettingStartedStep,
   login: pilot.login,
   system,
@@ -56,4 +60,6 @@ export const demarrageView = ({ pilot, runner, system, code, failure, busy, orig
       }
     : null,
   busy,
+  engines: engineAccounts(accounts),
+  usable: anyUsable(accounts),
 });

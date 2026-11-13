@@ -1,4 +1,4 @@
-import { Cadre, MenuItem, t } from '@crewdeck/sdk';
+import { Cadre, formatHour, MenuItem, t } from '@crewdeck/sdk';
 import { cadreView, type CadreState } from './cadre.js';
 
 const empty: CadreState = { slices: {} };
@@ -77,6 +77,41 @@ describe('cadreView', () => {
 
   it('once live, leaves the Resynchronisation: offline until the Runner’s slice exists', () => {
     expect(cadreView({ connection: 'live', slices: {} }, at('/a-toi')).cadre).toMatchObject({ status: 'offline', statusDetail: null });
+  });
+
+  describe('the Runner’s presence', () => {
+    const RUNNER = { state: 'online', lastSeenAt: '2026-11-11T13:02:00.000Z' } as const;
+    const account = (engine: 'claude-code' | 'codex', connected: boolean) => ({
+      engine,
+      installed: true,
+      kind: connected ? ('subscription' as const) : ('none' as const),
+      state: connected ? ('connected' as const) : ('login-required' as const),
+    });
+    const accounts = (...items: ReturnType<typeof account>[]) => new Map(items.map((item) => [item.engine, item]));
+
+    it('online, names the Moteurs connected, and is live', () => {
+      const { cadre } = cadreView(
+        { connection: 'live', slices: { runner: RUNNER, 'ai-account': accounts(account('claude-code', true), account('codex', true)) } },
+        at('/runner'),
+      );
+      expect(cadre).toMatchObject({ status: 'online', statusDetail: 'Claude Code, Codex', live: true });
+      expect(Cadre.data.safeParse(cadre).success).toBe(true);
+    });
+
+    it('online without a Moteur connected, has no detail', () => {
+      const { cadre } = cadreView({ connection: 'live', slices: { runner: RUNNER, 'ai-account': accounts(account('codex', false)) } }, at('/a-toi'));
+      expect(cadre).toMatchObject({ status: 'online', statusDetail: null, live: true });
+    });
+
+    it('offline, says since when, and is not live', () => {
+      const { cadre } = cadreView({ connection: 'live', slices: { runner: { ...RUNNER, state: 'offline' } } }, at('/a-toi'));
+      expect(cadre).toMatchObject({ status: 'offline', statusDetail: `depuis ${formatHour(RUNNER.lastSeenAt)}`, live: false });
+    });
+
+    it('during the Resynchronisation, shows it rather than the Runner', () => {
+      const { cadre } = cadreView({ connection: 'resync', slices: { runner: RUNNER } }, at('/a-toi'));
+      expect(cadre).toMatchObject({ status: 'resync', live: false });
+    });
   });
 
   it('takes the Pilote from the pilot slice', () => {

@@ -1,0 +1,49 @@
+{
+  "operation": "MirrorIssues",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "after": null
+  },
+  "data": {
+    "repository": {
+      "issues": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "c3"
+        },
+        "nodes": [
+          {
+            "number": 38,
+            "updatedAt": "2026-11-11T15:00:00Z",
+            "state": "OPEN",
+            "blockedBy": {
+              "nodes": [
+                {
+                  "number": 35,
+                  "repository": {
+                    "nameWithOwner": "acme/atelier"
+                  }
+                },
+                {
+                  "number": 7,
+                  "repository": {
+                    "nameWithOwner": "acme/outils"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 40,
+            "updatedAt": "2026-11-04T12:00:00Z",
+            "state": "OPEN",
+            "blockedBy": {
+              "nodes": []
+            }
+          }
+        ]
+      }
+    }
+  }
+}

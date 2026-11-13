@@ -6,6 +6,7 @@ import { StateController } from './state.controller.js';
 const pilotSlice: StateContributor = { key: 'pilot', snapshot: () => Promise.reject(new Error('not read at boot')) };
 const runnerSlice: StateContributor = { ...pilotSlice, key: 'runner' };
 const linkSlice: StateContributor = { ...pilotSlice, key: 'runner-link' };
+const aiAccountSlice: StateContributor = { ...pilotSlice, key: 'ai-account' };
 const devicesSlice: StateContributor = { ...pilotSlice, key: 'devices' };
 const decisionsSlice: StateContributor = { ...pilotSlice, key: 'decisions' };
 
@@ -17,13 +18,13 @@ const boot = (contributors: StateContributor[]): void => {
 
 describe('StateController at boot', () => {
   it('starts when every slice of STATE_SLICES has one contributor', () => {
-    expect(() => boot([pilotSlice, runnerSlice, linkSlice, devicesSlice, decisionsSlice])).not.toThrow();
+    expect(() => boot([pilotSlice, runnerSlice, linkSlice, aiAccountSlice, devicesSlice, decisionsSlice])).not.toThrow();
   });
 
   it('refuses to start with a slice missing, repeated or not in STATE_SLICES', () => {
-    expect(() => boot([])).toThrow(/missing \[pilot, runner, runner-link, devices, decisions\]/);
-    expect(() => boot([pilotSlice])).toThrow(/missing \[runner, runner-link, devices, decisions\]/);
-    expect(() => boot([pilotSlice, runnerSlice, linkSlice, devicesSlice, decisionsSlice, pilotSlice])).toThrow(/repeated \[pilot\]/);
+    expect(() => boot([])).toThrow(/missing \[pilot, runner, runner-link, ai-account, devices, decisions\]/);
+    expect(() => boot([pilotSlice])).toThrow(/missing \[runner, runner-link, ai-account, devices, decisions\]/);
+    expect(() => boot([pilotSlice, runnerSlice, linkSlice, aiAccountSlice, devicesSlice, decisionsSlice, pilotSlice])).toThrow(/repeated \[pilot\]/);
     expect(() => boot([pilotSlice, runnerSlice, { ...pilotSlice, key: 'ideas' as never }])).toThrow(/repeated \[ideas\]/);
   });
 });

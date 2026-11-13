@@ -7,6 +7,7 @@ import { ScenariosService } from './scenarios.service.js';
 import { TestingController } from './testing.controller.js';
 import { TestingDecisionsController } from './testing-decisions.controller.js';
 import { TestingPilotController } from './testing-pilot.controller.js';
+import { TestingRunnerController } from './testing-runner.controller.js';
 
 /**
  * The fakes in place of GitHub and the Runner, and the scenarios of the
@@ -27,7 +28,7 @@ export class TestingModule {
     return {
       module: TestingModule,
       imports: [DecisionsModule],
-      controllers: [TestingController, TestingPilotController, TestingDecisionsController, FakeGitHubController],
+      controllers: [TestingController, TestingPilotController, TestingDecisionsController, TestingRunnerController, FakeGitHubController],
       providers: [
         ScenariosService,
         { provide: FAKES, useFactory: createFakes },

@@ -65,6 +65,9 @@ The how-to is here; the why is in the ADRs.
 - **API, errors, lists, dates, money, scope, front data, tests**:
   [0008](docs/adr/0008-conventions.md). Copy its « first files to imitate ».
 - **Infra and delivery**: [0009](docs/adr/0009-infra-and-delivery.md).
+- **Miroir**: the Runner's copy of GitHub and of the documents, the agents'
+  one channel; the server forwards content-free `github.changed` events
+  ([0010](docs/adr/0010-the-runners-miroir.md)).
 
 ### Language
 
@@ -87,6 +90,7 @@ URLs are French (`/a-toi`, `/idees`), API paths English.
 | **Session** | `AgentSession` | `apps/server/src/sessions/` (state), `apps/runner/internal/session/` (content) |
 | **Décision** | `Decision` | `apps/server/src/decisions/`, `/a-toi` |
 | **Runner** / **Moteur** / **Compte IA** / **Rôle** | `Runner` / `Engine` / `AiAccount` / `AgentRole` | `apps/server/src/runners/`, `apps/runner/internal/engine/` |
+| **Miroir** | `Mirror` | `apps/runner/internal/mirror/`, `crewdeck-runner miroir` |
 | **Appareil** | `Device` | `apps/web/src/keys/`, `apps/server/src/devices/` |
 | **Inventaire** | `Inventory` | `apps/server/src/projects/inventory/` |
 | **Revue visuelle** / **Revue croisée** | `VisualReview` / `CrossReview` | `apps/server/src/reviews/` |

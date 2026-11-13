@@ -1,0 +1,27 @@
+{
+  "operation": "MirrorMilestones",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "after": null
+  },
+  "data": {
+    "repository": {
+      "milestones": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        },
+        "nodes": [
+          {
+            "number": 3,
+            "title": "M3 Sessions",
+            "state": "OPEN",
+            "description": "Jalon confidentiel",
+            "dueOn": "2026-12-01T00:00:00Z"
+          }
+        ]
+      }
+    }
+  }
+}

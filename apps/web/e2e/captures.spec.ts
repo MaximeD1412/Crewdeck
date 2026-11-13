@@ -4,6 +4,7 @@
  * `design/screens.json`) into `CAPTURES_DIR`, once per project (390 and 1280 px).
  */
 import type { Page } from '@playwright/test';
+import { openConfirm } from './confirm.js';
 import { expect, test } from './fixtures.js';
 import { routeSocket } from './socket.js';
 
@@ -18,6 +19,8 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await socket.cut();
     await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('15:12');
   },
+  // The core's confirmation of an Action sensible, over the library (CORE-7).
+  'confirm-dialog': openConfirm,
   'a-toi-menu-plus': async (page, width) => {
     if (width < 1280) await page.getByRole('button', { name: 'Plus' }).click();
   },
@@ -31,7 +34,22 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   'demarrage-runner-relie': async (page) => {
     await expect(page.locator('cd-page-demarrage cd-banner')).toContainText('Runner en ligne');
   },
+  'demarrage-comptes-ia': async (page) => {
+    await expect(page.locator('cd-page-demarrage cd-card[data-engine=claude-code]')).toContainText('connecté · abonnement');
+  },
+  'demarrage-comptes-ia-aucun': async (page) => {
+    await expect(page.locator('cd-page-demarrage cd-banner')).toContainText('Aucun Moteur utilisable');
+  },
+  runner: async (page) => {
+    await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('en ligne');
+  },
+  'runner-hors-ligne': async (page) => {
+    await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('hors ligne');
+  },
 };
+
+/** The scenarios whose capture is the screen, not the whole page: a modal over it. */
+const SCREEN_ONLY: ReadonlySet<string> = new Set(['confirm-dialog']);
 
 const names = (process.env['CAPTURES_SCENARIOS'] ?? '')
   .split(',')
@@ -45,6 +63,6 @@ for (const name of names) {
     await scenario(name);
     await page.waitForLoadState('networkidle');
     await PREPARE[name]?.(page, page.viewportSize()?.width ?? 0);
-    await capture(page, name);
+    await capture(page, name, { fullPage: !SCREEN_ONLY.has(name) });
   });
 }

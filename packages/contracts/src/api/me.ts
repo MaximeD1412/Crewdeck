@@ -34,7 +34,9 @@ export type Me = z.infer<typeof zMe>;
  * `POST /api/me/getting-started/advance` (session): the step the page shows
  * and the `seq` it acted on; answers the Pilote at the next step, 409
  * `realtime.stale` when `from` is no longer their step, 422
- * `getting-started.runner-not-linked` leaving `runner` without a Runner.
+ * `getting-started.runner-not-linked` leaving `runner` without a Runner,
+ * 422 `getting-started.no-usable-engine` leaving `ai-accounts` without a
+ * usable Compte IA (`isUsableAccount`).
  */
 export const zGettingStartedAdvance = withSeq(z.object({ from: zGettingStartedStep.exclude(['done']) }));
 export type GettingStartedAdvance = z.infer<typeof zGettingStartedAdvance>;

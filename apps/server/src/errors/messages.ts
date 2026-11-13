@@ -14,6 +14,7 @@ export const MESSAGES = {
   'devices.not-trusted': 'Approuve d’abord cet Appareil depuis un Appareil de confiance.',
   'devices.revoked': 'Cet Appareil a été révoqué.',
   'fake-github.not-found': 'Ce fichier n’existe pas sur le faux GitHub.',
+  'getting-started.no-usable-engine': 'Connecte au moins un Compte IA utilisable.',
   'getting-started.runner-not-linked': 'Relie d’abord un Runner à ton compte.',
   'github.bad-signature': 'La signature de ce webhook GitHub n’est pas valide.',
   'github.branch-protected': 'Une protection de branche refuse cette écriture.',
@@ -34,7 +35,9 @@ export const MESSAGES = {
   'runner.no-engine': 'Aucun Moteur trouvé sur la machine : installe Claude Code ou Codex, puis relance la commande.',
   'runner.not-linked': 'Aucun Runner n’est relié à ton compte.',
   'runner.offline': 'Le Runner est hors ligne.',
+  'sensitive-action.stale': 'L’état a changé pendant que tu confirmais : vérifie et confirme de nouveau.',
   'server.internal': 'Une erreur inattendue est survenue.',
+  'testing.no-runner': 'Aucun Runner de test connecté : lance d’abord un scénario qui en relie un.',
   'testing.unknown-scenario': 'Scénario de test inconnu.',
   'validation.invalid': 'Certaines valeurs ne sont pas valides.',
 } as const satisfies Record<string, string>;

@@ -1,6 +1,8 @@
 # Each Contrat is data, checked by the Runner
 
-> **Status:** accepted, 2026-11-10.
+> **Status:** accepted, 2026-11-10. Amended by [ADR 0011](0011-the-process-as-data.md)
+> (step ids from the catalogue) and [ADR 0012](0012-sources-local-and-github.md)
+> (Artefacts read through the Miroir).
 
 ## Context
 

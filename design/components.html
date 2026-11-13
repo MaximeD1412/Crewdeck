@@ -236,8 +236,8 @@
           <ui-step-card ref="g-code" name="Code" variant="agent" col="1" row="1"><ui-port dir="in" name="ticket">Ticket</ui-port><ui-port dir="out" name="changement">Changement de code</ui-port><ui-tool-chip kind="role">Code</ui-tool-chip><ui-tool-chip kind="skill">red-green</ui-tool-chip></ui-step-card>
           <ui-step-card ref="g-review" name="Review" kind="Review" variant="agent" col="2" row="1" judges selected><ui-port dir="in" name="changement" state="active">Changement de code</ui-port><ui-port dir="out" name="verdict" state="active">Verdict</ui-port><ui-tool-chip kind="role">Review</ui-tool-chip><ui-tool-chip kind="mcp">Figma</ui-tool-chip></ui-step-card>
           <ui-step-card ref="g-rv" name="Revue visuelle" variant="gate" col="3" row="1" judges><ui-port dir="in" name="changement" state="compatible">Changement de code</ui-port><ui-port dir="in" name="maquettes" state="refused">Maquettes</ui-port><ui-port dir="out" name="verdict">Verdict</ui-port></ui-step-card>
-          <ui-step-card ref="g-fusion" name="Fusion" kind="Fusion" variant="agent" col="4" row="1" gaps="1"><ui-port dir="in" name="v" state="unfed">Verdict de la Review</ui-port><ui-port dir="out" name="changement">Changement fusionné</ui-port><ui-tool-chip kind="connecteur">GitHub</ui-tool-chip></ui-step-card>
-          <ui-step-card ref="g-lancer" name="Lancer" variant="command" col="5" row="1"><ui-port dir="in" name="changement">Changement fusionné</ui-port><ui-port dir="out" name="livraison">Livraison</ui-port><ui-tool-chip kind="commande">docker compose up -d</ui-tool-chip></ui-step-card>
+          <ui-step-card ref="g-fusion" name="Merge" kind="par la Boucle" variant="core" col="4" row="1" gaps="1"><ui-port dir="in" name="v" state="unfed" note="de la Review">Verdict</ui-port><ui-port dir="out" name="changement" note="mergé">Changement de code</ui-port><ui-tool-chip kind="connecteur">GitHub</ui-tool-chip></ui-step-card>
+          <ui-step-card ref="g-lancer" name="Lancer" variant="command" col="5" row="1"><ui-port dir="in" name="changement" note="mergé">Changement de code</ui-port><ui-port dir="out" name="livraison">Livraison</ui-port><ui-tool-chip kind="commande">docker compose up -d</ui-tool-chip></ui-step-card>
         </ui-phase>
         <ui-process-arrow from="g-code.changement" to="g-review.changement" state="active"></ui-process-arrow>
         <ui-process-arrow from="g-code.changement" to="g-rv.changement"></ui-process-arrow>
@@ -255,7 +255,7 @@
       <div class="specimen"><code>ui-phase-group [open] [gaps] · ui-step-row [gap] [loop-back] (le téléphone)</code>
         <ui-phase-group name="Développement" for-each="chaque Ticket prêt" count="2 Étapes · 1 Retour" gaps="1" open>
           <ui-step-row name="Review" kind="Review" icon="spark" tools="Rôle Review · review" flow="Changement de code → Verdict" loop-back="vers « Code », 3 fois au plus"></ui-step-row>
-          <ui-step-row name="Fusion" kind="Fusion" icon="spark" tools="GitHub" flow="Changement de code, Verdict → Changement fusionné" gap="Rien n’alimente son Entrée « Verdict de la Review »"></ui-step-row>
+          <ui-step-row name="Merge" kind="par la Boucle" icon="merge" tools="GitHub" flow="Changement de code, Verdict (de la Review) → Changement de code (mergé)" gap="Rien n’alimente son Entrée « Verdict de la Review »"></ui-step-row>
         </ui-phase-group>
         <ui-phase-group name="Conception" count="10 Étapes · 2 Retours"></ui-phase-group></div>
       <div class="specimen"><code>ui-menu · ui-menu-group · ui-menu-item [selected] [state="disabled"]</code>

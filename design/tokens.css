@@ -28,6 +28,15 @@
   --del: #3a1b1b;
   --scrim: #05080acc;
   --shadow: #00000080;
+  --type-idee: #e2d36a;
+  --type-prd: #74a6f4;
+  --type-maquettes: #e48ee6;
+  --type-conception: #a596f7;
+  --type-inventaire: #79d6b9;
+  --type-ticket: #63cf8c;
+  --type-changement: #f08fb2;
+  --type-verdict: #ccd6dc;
+  --type-livraison: #b2d46a;
   --radius-sm: 0.125rem;
   --radius: 0.1875rem;
   --radius-lg: 0.25rem;

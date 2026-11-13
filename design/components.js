@@ -637,7 +637,10 @@
       icon(ic, "icon icon--sm"), h("span", { class: "tool-chip-name" }, ...el.childNodes)));
   });
 
-  // <ui-port dir="in|out" name="prd" state="unfed|compatible|refused|active" note="notée par le Pilote">PRD</ui-port>
+  // The catalogue's Types d'artefact, each with its colour token (--type-<slug>).
+  const ARTIFACT_TYPE = { "Idée": "idee", "PRD": "prd", "Maquettes": "maquettes", "Conception technique": "conception", "Inventaire": "inventaire", "Ticket": "ticket", "Changement de code": "changement", "Verdict": "verdict", "Livraison": "livraison" };
+  // <ui-port dir="in|out" name="prd" type="prd" state="unfed|compatible|refused|active" note="notée par le Pilote">PRD</ui-port>
+  // type: the Type d'artefact's slug, read from the text when omitted.
   // Its data-port, « <Étape ref>:<in|out>:<name> », is what ui-process-arrow names.
   define("ui-port", (el) => {
     const dir = a(el, "dir", "in");
@@ -645,9 +648,10 @@
     const ref = el.closest("ui-step-card")?.getAttribute("ref") || "";
     const label = el.textContent.trim();
     const name = a(el, "name", label.toLowerCase());
+    const type = a(el, "type", ARTIFACT_TYPE[label] || "");
     const dot = h("i", { class: "port-dot", "aria-hidden": "true" });
     const text = h("span", { class: "port-label" }, ...el.childNodes, a(el, "note") ? h("em", { text: ` ${a(el, "note")}` }) : null);
-    el.append(h("div", { class: `port port--${dir}${state ? ` port--${state}` : ""}`, "data-port": `${ref}:${dir}:${name}`, name: `Port/${cap(dir)}` },
+    el.append(h("div", { class: `port port--${dir}${state ? ` port--${state}` : ""}${type ? ` t-${type}` : ""}`, "data-port": `${ref}:${dir}:${name}`, "data-type": type, name: `Port/${cap(dir)}` },
       ...(dir === "in" ? [dot, text] : [text, dot])));
   });
 
@@ -723,39 +727,126 @@
       toast.length ? h("div", { class: "canvas-toast" }, ...toast) : null,
       menu.length ? h("div", { class: "canvas-menu" }, ...menu) : null));
 
+    // The router: each arrow leaves its Sortie to the right, runs in the gutters between the cards
+    // (orthogonal, rounded corners) and enters its Entrée from the left. It tries every one- and
+    // two-detour path through the gutters and keeps the shortest that crosses no card, no Phase's
+    // title and no Retour's badge; arrows from another Sortie take another lane.
     const draw = () => {
+      if (!content.offsetWidth) return; // the canvas is not shown (the phone reads the list)
       const base = content.getBoundingClientRect();
-      const at = (node, where) => {
+      const box = (node, m = 0) => {
         const r = node.getBoundingClientRect();
-        const x = where === "left" ? r.left : where === "right" ? r.right : r.left + r.width / 2;
-        const y = where === "bottom" ? r.bottom : r.top + r.height / 2;
-        return { x: (x - base.left) / zoom, y: (y - base.top) / zoom };
+        return { l: (r.left - base.left) / zoom - m, r: (r.right - base.left) / zoom + m, t: (r.top - base.top) / zoom - m, b: (r.bottom - base.top) / zoom + m };
       };
+      const mid = (node) => { const b = box(node); return { x: (b.l + b.r) / 2, y: (b.t + b.b) / 2 }; };
       svg.setAttribute("width", content.offsetWidth);
       svg.setAttribute("height", content.offsetHeight);
-      const path = (d, cls) => { const p = document.createElementNS(NS, "path"); p.setAttribute("d", d); p.setAttribute("class", cls); svg.append(p); };
-      const order = { undefined: 0, null: 0, gap: 1, active: 2, refused: 3 };
-      for (const ar of [...arrows].sort((x, y) => order[x.state] - order[y.state])) {
-        const [fs, fp] = ar.from.split("."), [ts, tp] = ar.to.split(".");
-        const o = content.querySelector(`[data-port="${fs}:out:${fp}"] .port-dot`);
-        const i = content.querySelector(`[data-port="${ts}:in:${tp}"] .port-dot`);
-        if (!o || !i) { console.warn(`ui-process-arrow : port introuvable ${ar.from} → ${ar.to}`); continue; }
-        const p1 = at(o, "center"), p2 = at(i, "center");
-        // Forward: a smooth S; backward (to a card on the left): a short loop out and back in.
-        const dx = p2.x >= p1.x ? Math.max(40, (p2.x - p1.x) / 2) : 48;
-        path(`M${p1.x},${p1.y} C${p1.x + dx},${p1.y} ${p2.x - dx},${p2.y} ${p2.x},${p2.y}`, `wire${ar.state ? ` wire--${ar.state}` : ""}`);
-      }
+      const gWires = document.createElementNS(NS, "g"), gLoops = document.createElementNS(NS, "g");
+      svg.append(gWires, gLoops);
+      const path = (g, d, cls) => { const p = document.createElementNS(NS, "path"); p.setAttribute("d", d); p.setAttribute("class", cls); g.append(p); };
+      // A polyline with rounded corners (the radius shrinks in a narrow gutter).
+      const rounded = (pts, R) => {
+        const q = pts.filter((p, i) => i === 0 || Math.abs(p.x - pts[i - 1].x) + Math.abs(p.y - pts[i - 1].y) > 0.5);
+        let d = `M${q[0].x},${q[0].y}`;
+        for (let i = 1; i < q.length - 1; i++) {
+          const p0 = q[i - 1], p = q[i], p1 = q[i + 1];
+          const l0 = Math.hypot(p.x - p0.x, p.y - p0.y), l1 = Math.hypot(p1.x - p.x, p1.y - p.y);
+          const r = Math.min(R, i === 1 ? l0 : l0 / 2, i === q.length - 2 ? l1 : l1 / 2);
+          const a0 = { x: p.x - ((p.x - p0.x) / l0) * r, y: p.y - ((p.y - p0.y) / l0) * r };
+          const a1 = { x: p.x + ((p1.x - p.x) / l1) * r, y: p.y + ((p1.y - p.y) / l1) * r };
+          d += ` L${a0.x},${a0.y} Q${p.x},${p.y} ${a1.x},${a1.y}`;
+        }
+        const z = q[q.length - 1];
+        return `${d} L${z.x},${z.y}`;
+      };
+
+      const cards = [...content.querySelectorAll(".step-card")];
+      const obstacles = [...cards.map((c) => ({ node: c, ...box(c, 2) })), ...[...content.querySelectorAll(".phase-head")].map((c) => box(c, 2))];
+
+      // Retours first: their badges are obstacles for the arrows.
       for (const lb of loops) {
         const f = content.querySelector(`[data-ref="${lb.from}"]`), t = content.querySelector(`[data-ref="${lb.to}"]`);
         if (!f || !t) { console.warn(`ui-loop-back : Étape introuvable ${lb.from} → ${lb.to}`); continue; }
-        const p1 = at(f, "bottom"), p2 = at(t, "bottom");
-        const low = Math.max(p1.y, p2.y) + 28;
-        path(`M${p1.x},${p1.y} C${p1.x},${low} ${p2.x},${low} ${p2.x},${p2.y}`, `wire wire--loop${lb.state ? ` wire--loop-${lb.state}` : ""}`);
+        const bf = box(f), bt = box(t);
+        const x1 = (bf.l + bf.r) / 2, x2 = (bt.l + bt.r) / 2;
+        // Below every card of the row it passes under.
+        const under = cards.map((c) => box(c)).filter((b) => b.r > Math.min(x1, x2) && b.l < Math.max(x1, x2) && b.t < Math.max(bf.b, bt.b) && b.b > Math.min(bf.t, bt.t) - 1);
+        const low = Math.max(bf.b, bt.b, ...under.map((b) => b.b)) + 28;
+        path(gLoops, rounded([{ x: x1, y: bf.b }, { x: x1, y: low }, { x: x2, y: low }, { x: x2, y: bt.b }], 14), `wire wire--loop${lb.state ? ` wire--loop-${lb.state}` : ""}`);
         const badge = h("span", { class: `loop-badge${lb.state ? ` loop-badge--${lb.state}` : ""}`, name: "LoopBack/Default" }, icon("undo", "icon icon--sm"), `Retour · ${lb.max} fois au plus`);
-        badge.style.left = `${(p1.x + p2.x) / 2}px`;
+        badge.style.left = `${(x1 + x2) / 2}px`;
         badge.style.top = `${low - 4}px`;
         content.append(badge);
+        obstacles.push(box(badge, 3));
       }
+
+      // The gutters: beside and between the cards, lanes a few units apart.
+      const vLanes = [0, -3, 3, -6, 6], hLanes = [0, -4, 4, -8, 8];
+      const xs = [...new Set(cards.flatMap((c) => { const b = box(c); return [b.r + 10, b.l - 10]; }).flatMap((x) => vLanes.map((o) => Math.round(x + o))))];
+      const ys = [...new Set(cards.flatMap((c) => { const b = box(c); return [b.b + 14, b.t - 14]; }).flatMap((y) => hLanes.map((o) => Math.round(y + o))))];
+      const hits = (s, skip) => obstacles.some((o) => !(o.node && skip.includes(o.node)) &&
+        Math.max(s.x1, s.x2) > o.l && Math.min(s.x1, s.x2) < o.r && Math.max(s.y1, s.y2) > o.t && Math.min(s.y1, s.y2) < o.b);
+      // A Phase's border is a lane no arrow runs along.
+      const routed = [...content.querySelectorAll(".phase")].flatMap((ph) => {
+        const b = box(ph);
+        return [[b.l, b.t, b.r, b.t], [b.l, b.b, b.r, b.b], [b.l, b.t, b.l, b.b], [b.r, b.t, b.r, b.b]].map(([x1, y1, x2, y2]) => ({ x1, y1, x2, y2, src: "phase" }));
+      }); // { x1, y1, x2, y2, src }
+      const cost = (pts, src) => {
+        let c = 0;
+        for (let i = 1; i < pts.length; i++) {
+          const s = { x1: pts[i - 1].x, y1: pts[i - 1].y, x2: pts[i].x, y2: pts[i].y };
+          c += Math.abs(s.x2 - s.x1) + Math.abs(s.y2 - s.y1);
+          const vertical = Math.abs(s.x1 - s.x2) < 0.5;
+          for (const o of routed) {
+            if (o.src === src) continue;
+            const border = o.src === "phase";
+            const ov = Math.abs(o.x1 - o.x2) < 0.5;
+            // Running along another Sortie's arrow (or a border): a lane is taken twice.
+            const along = (p, q, r, t) => Math.max(0, Math.min(Math.max(p, q), Math.max(r, t)) - Math.max(Math.min(p, q), Math.min(r, t)));
+            if (vertical && ov && Math.abs(o.x1 - s.x1) < 4) { const l = along(s.y1, s.y2, o.y1, o.y2); if (l > 0) c += 400 + 4 * l; }
+            else if (!vertical && !ov && Math.abs(o.y1 - s.y1) < 4) { const l = along(s.x1, s.x2, o.x1, o.x2); if (l > 0) c += 400 + 4 * l; }
+            else if (vertical !== ov) {
+              const [v, hz] = vertical ? [s, o] : [o, s];
+              if (v.x1 > Math.min(hz.x1, hz.x2) && v.x1 < Math.max(hz.x1, hz.x2) && hz.y1 > Math.min(v.y1, v.y2) && hz.y1 < Math.max(v.y1, v.y2)) c += border ? 0 : 6;
+            }
+          }
+        }
+        return c + 24 * (pts.length - 2);
+      };
+      // The first segment leaves card A, the last one enters card B: those two cards do not count there.
+      const free = (pts, A, B) => pts.every((p, i) => i === 0 || !hits({ x1: pts[i - 1].x, y1: pts[i - 1].y, x2: p.x, y2: p.y }, [i === 1 ? A : null, i === pts.length - 1 ? B : null]));
+      const route = (p1, p2, A, B, src) => {
+        const cands = [];
+        if (Math.abs(p1.y - p2.y) < 1 && p2.x > p1.x) cands.push([p1, p2]);
+        for (const x of xs) if (x > p1.x + 4 && x < p2.x - 4) cands.push([p1, { x, y: p1.y }, { x, y: p2.y }, p2]);
+        const near = (list, ok, key) => list.filter(ok).sort((u, v) => key(u) - key(v)).slice(0, 6);
+        const x1s = near(xs, (x) => x > p1.x + 4, (x) => x - p1.x), x2s = near(xs, (x) => x < p2.x - 4, (x) => p2.x - x);
+        for (const xa of x1s) for (const xb of x2s) for (const y of ys) cands.push([p1, { x: xa, y: p1.y }, { x: xa, y }, { x: xb, y }, { x: xb, y: p2.y }, p2]);
+        let best = null, bestCost = Infinity;
+        for (const pts of cands) {
+          if (!free(pts, A, B)) continue;
+          const c = cost(pts, src);
+          if (c < bestCost) { best = pts; bestCost = c; }
+        }
+        if (!best) { console.warn("ui-process-arrow : aucun chemin libre"); best = [p1, { x: (p1.x + p2.x) / 2, y: p1.y }, { x: (p1.x + p2.x) / 2, y: p2.y }, p2]; }
+        for (let i = 1; i < best.length; i++) routed.push({ x1: best[i - 1].x, y1: best[i - 1].y, x2: best[i].x, y2: best[i].y, src });
+        return best;
+      };
+
+      const order = { undefined: 0, null: 0, gap: 1, active: 2, refused: 3 };
+      const found = arrows.map((ar) => {
+        const [fs, fp] = ar.from.split("."), [ts, tp] = ar.to.split(".");
+        const o = content.querySelector(`[data-port="${fs}:out:${fp}"]`), i = content.querySelector(`[data-port="${ts}:in:${tp}"]`);
+        if (!o || !i) { console.warn(`ui-process-arrow : port introuvable ${ar.from} → ${ar.to}`); return null; }
+        return { ...ar, o, i, p1: mid(o.querySelector(".port-dot")), p2: mid(i.querySelector(".port-dot")), len: Math.abs(mid(i).x - mid(o).x) + Math.abs(mid(i).y - mid(o).y) };
+      }).filter(Boolean);
+      // Short arrows first: they take the lanes next to their cards, the long ones go around.
+      for (const ar of [...found].sort((x, y) => x.len - y.len)) ar.pts = route(ar.p1, ar.p2, ar.o.closest(".step-card"), ar.i.closest(".step-card"), ar.from);
+      for (const ar of [...found].sort((x, y) => order[x.state] - order[y.state])) {
+        const type = ar.o.dataset.type || ar.i.dataset.type;
+        path(gWires, rounded(ar.pts, 12), `wire${type ? ` t-${type}` : ""}${ar.state ? ` wire--${ar.state}` : ""}`);
+      }
+      if (found.some((ar) => ar.state === "active")) el.querySelector(".canvas").classList.add("has-active");
     };
     (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => requestAnimationFrame(draw));
   });

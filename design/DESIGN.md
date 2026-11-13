@@ -29,6 +29,15 @@ colors:
   del: '#3a1b1b'
   scrim: '#05080acc'
   shadow: '#00000080'
+  type-idee: '#e2d36a'
+  type-prd: '#74a6f4'
+  type-maquettes: '#e48ee6'
+  type-conception: '#a596f7'
+  type-inventaire: '#79d6b9'
+  type-ticket: '#63cf8c'
+  type-changement: '#f08fb2'
+  type-verdict: '#ccd6dc'
+  type-livraison: '#b2d46a'
 typography:
   brand:
     fontFamily: IBM Plex Sans Condensed
@@ -181,7 +190,7 @@ contracts will use.
 | Waits, limit near, interrupted, incomplete | `caution` on `caution-soft` |
 | Blocked, failed, offline, destructive | `halt` on `halt-soft` (`halt-ink` on a `halt` badge) |
 | Diff lines | `add`, `del` |
-| Canvas: its ground, its arrows (`active` for the selected **Étape**'s, `caution` dashed for a **Retour** or a **Manque**, `halt` dashed for a refused one) | `side`, `control-border` |
+| Canvas: its ground; an arrow and its two dots take the colour of their **Type d'artefact** (the others dim while an **Étape** is selected; `caution` dashed for a **Retour** or a **Manque**, `halt` dashed for a refused one) | `side`, `type-idee`, `type-prd`, `type-maquettes`, `type-conception`, `type-inventaire`, `type-ticket`, `type-changement`, `type-verdict`, `type-livraison` |
 | Dialog backdrop, shadows | `scrim`, `shadow` |
 
 Contrast: every text colour is AA on `ground`, `side`, `panel`, `raised`,
@@ -327,7 +336,11 @@ Each is a custom element `ui-<name>`; its root carries `data-name`.
   (where the view is, in canvas units); children `ui-phase`, then
   `ui-process-arrow` (`from="<Étape>.<Sortie>"`, `to="<Étape>.<Entrée>"`,
   `state="active|gap|refused"`) and `ui-loop-back` (`from`, `to`, `max`,
-  `state="active"`), drawn as one SVG layer once the cards are laid out;
+  `state="active"`), drawn as one SVG layer once the cards are laid out:
+  an arrow leaves its **Sortie** to the right, runs in the gutters between
+  the cards (never under one), with rounded corners, and enters its
+  **Entrée** from the left; arrows from different **Sorties** take
+  separate lanes, those from one **Sortie** share their trunk;
   `slot="toast"` a message at its top, `slot="menu"` a menu opened from the
   panel, on its right edge; the zoom controls at its foot.
 - **Phase** (`Phase/Default`, `Phase/Repeated`): `name`, `for-each`
@@ -345,7 +358,9 @@ Each is a custom element `ui-<name>`; its root carries `data-name`.
   as text, always, then `note` muted (what qualifies it: « retenue »,
   « des checks », « notée par toi »), `state="active|unfed|compatible|refused"`.
   An **Entrée** is a hollow dot on the left edge, a **Sortie** a filled one
-  on the right.
+  on the right, both in their type's colour (`type="<slug>"`, else read
+  from the text: `idee`, `prd`, `maquettes`, `conception`, `inventaire`,
+  `ticket`, `changement`, `verdict`, `livraison`).
 - **ToolChip** (`ToolChip/<Kind>`): `kind="role|skill|mcp|commande|connecteur"`, the **Outil**'s name.
 - **LoopBack** (`LoopBack/Default`): the **Retour**'s badge « Retour · 3 fois
   au plus » on its dashed `caution` curve.

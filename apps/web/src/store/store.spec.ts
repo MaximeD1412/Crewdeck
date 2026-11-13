@@ -5,7 +5,7 @@ const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat'
 const AT = '2026-11-11T08:00:00.000Z';
 
 const pilotEvent = (seq: number, login: string): Event => ({ seq, type: 'pilot.upserted', payload: { ...PILOT, login }, at: AT });
-const snapshot = (seq: number, pilot: Me = PILOT): State => ({ seq, pilot, runner: null, 'runner-link': null, 'ai-account': [], devices: [] });
+const snapshot = (seq: number, pilot: Me = PILOT): State => ({ seq, pilot, runner: null, 'runner-link': null, 'ai-account': [], devices: [], decisions: [] });
 
 const pilotStore = () => {
   const store = createStore();

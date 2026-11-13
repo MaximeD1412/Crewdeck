@@ -1,0 +1,40 @@
+{
+  "operation": "MirrorChecks",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "data": {
+    "repository": {
+      "object": {
+        "statusCheckRollup": {
+          "contexts": {
+            "pageInfo": {
+              "hasNextPage": false,
+              "endCursor": null
+            },
+            "nodes": [
+              {
+                "__typename": "CheckRun",
+                "name": "ci",
+                "status": "COMPLETED",
+                "conclusion": "FAILURE",
+                "detailsUrl": "https://github.com/acme/atelier/actions/runs/1",
+                "startedAt": "2026-11-09T09:01:00Z",
+                "completedAt": "2026-11-09T09:05:00Z"
+              },
+              {
+                "__typename": "StatusContext",
+                "context": "vercel",
+                "state": "PENDING",
+                "targetUrl": "https://vercel.example/acme",
+                "createdAt": "2026-11-09T09:02:00Z"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

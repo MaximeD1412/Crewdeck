@@ -5,6 +5,7 @@ import { createFakes, FAKES, type Fakes } from './fakes.js';
 import { ScenariosService } from './scenarios.service.js';
 import { TestingController } from './testing.controller.js';
 import { TestingPilotController } from './testing-pilot.controller.js';
+import { TestingRunnerController } from './testing-runner.controller.js';
 
 /**
  * The fakes in place of GitHub and the Runner, and the scenarios of the
@@ -23,7 +24,7 @@ export class TestingModule {
   static forRoot(): DynamicModule {
     return {
       module: TestingModule,
-      controllers: [TestingController, TestingPilotController, FakeGitHubController],
+      controllers: [TestingController, TestingPilotController, TestingRunnerController, FakeGitHubController],
       providers: [
         ScenariosService,
         { provide: FAKES, useFactory: createFakes },

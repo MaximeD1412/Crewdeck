@@ -1,0 +1,38 @@
+{
+  "operation": "MirrorPulls",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "after": null
+  },
+  "data": {
+    "repository": {
+      "pullRequests": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        },
+        "nodes": [
+          {
+            "number": 45,
+            "updatedAt": "2026-11-11T16:00:00Z",
+            "state": "OPEN",
+            "headRefOid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "statusCheckRollup": {
+              "state": "PENDING"
+            }
+          },
+          {
+            "number": 44,
+            "updatedAt": "2026-11-02T09:00:00Z",
+            "state": "MERGED",
+            "headRefOid": "dddddddddddddddddddddddddddddddddddddddd",
+            "statusCheckRollup": {
+              "state": "SUCCESS"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

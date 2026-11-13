@@ -18,6 +18,7 @@ const BROWSER_SPECS = [
   'src/dialog.spec.ts',
   'src/page-composants.spec.ts',
   'src/page-demarrage.spec.ts',
+  'src/page-runner.spec.ts',
   'src/page-parametres.spec.ts',
   'src/session.spec.ts',
   'src/composer.spec.ts',

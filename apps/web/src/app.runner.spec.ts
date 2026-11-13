@@ -1,0 +1,79 @@
+import { DEFAULT_ACCOUNT_SETTINGS, type AiAccount, type Me, type Runner } from '@crewdeck/contracts';
+import { createDispatcher } from './actions/dispatcher.js';
+import { boot, type App } from './app.js';
+import { createStore } from './store/store.js';
+
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
+const AT = '2026-11-11T14:12:00.000Z';
+const RUNNER: Runner = {
+  id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a71',
+  machine: 'atelier-pc',
+  os: 'linux',
+  arch: 'amd64',
+  wsl: false,
+  runnerVersion: '0.4.2',
+  state: 'online',
+  lastSeenAt: AT,
+  linkedAt: AT,
+};
+const CLAUDE: AiAccount = {
+  id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a72',
+  engine: 'claude-code',
+  installed: true,
+  version: '2.1.3',
+  knownVersion: true,
+  kind: 'subscription',
+  state: 'connected',
+  models: [{ id: 'claude-opus-5-5', label: 'Opus 5.5', usable: true }],
+  reportedAt: AT,
+};
+
+type WithData = HTMLElement & { data: Record<string, unknown> };
+
+describe('« Runner et Comptes IA » in the page', () => {
+  let app: App;
+  let root: HTMLElement;
+  const store = createStore();
+  for (const slice of ['pilot', 'runner', 'runner-link'] as const) store.registerSlice(slice, { shape: 'single' });
+  store.registerSlice('ai-account', { shape: 'collection' });
+  const page = () => root.querySelector<WithData>('cd-page-runner');
+
+  beforeAll(async () => {
+    history.replaceState(null, '', '/runner');
+    root = document.createElement('div');
+    document.body.append(root);
+    app = await boot({ root, dispatcher: createDispatcher(), me: async () => PILOT, store, connection: { start: vi.fn<() => void>(), stop: vi.fn<() => void>() } });
+  });
+
+  afterAll(() => app.stop());
+
+  it('opens at /runner, in the Cadre, with both Moteurs not connected before the snapshot', () => {
+    expect(location.pathname).toBe('/runner');
+    expect(page()?.closest('cd-cadre')).toBe(root.firstElementChild);
+    expect(page()?.data).toMatchObject({ runner: null, command: 'crewdeck-runner login claude' });
+    expect((page()?.data['engines'] as { engine: string; state: string }[]).map(({ engine, state }) => ({ engine, state }))).toEqual([
+      { engine: 'claude-code', state: 'login-required' },
+      { engine: 'codex', state: 'login-required' },
+    ]);
+  });
+
+  it('follows the store: the Runner and the Comptes IA it reports, in real time', () => {
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: RUNNER, 'runner-link': null, 'ai-account': [], devices: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
+    expect(page()?.data).toMatchObject({ runner: { machine: 'atelier-pc', state: 'online' } });
+
+    store.applyEvent({ seq: 2, type: 'ai-account.upserted', payload: CLAUDE, at: AT });
+
+    expect(page()?.data).toMatchObject({ command: 'crewdeck-runner login codex' });
+    expect((page()?.data['engines'] as { models: unknown[] }[])[0]?.models).toEqual(CLAUDE.models);
+  });
+
+  it('gives the Cadre the Runner’s presence and the Moteurs connected, once live', () => {
+    const cadre = () => root.querySelector<WithData>('cd-cadre')?.data;
+    store.markLive();
+    expect(cadre()).toMatchObject({ status: 'online', statusDetail: 'Claude Code', live: true });
+
+    store.applyEvent({ seq: 3, type: 'runner.upserted', payload: { ...RUNNER, state: 'offline' }, at: AT });
+
+    expect(cadre()).toMatchObject({ status: 'offline', live: false });
+  });
+});

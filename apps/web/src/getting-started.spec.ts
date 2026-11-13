@@ -1,4 +1,4 @@
-import { DEFAULT_ACCOUNT_SETTINGS, type BrowserPairing, type ConfirmPairing, type Me, type Runner, type RunnerLink, type RunnerPairing, type State } from '@crewdeck/contracts';
+import { DEFAULT_ACCOUNT_SETTINGS, type AiAccount, type BrowserPairing, type ConfirmPairing, type Me, type Runner, type RunnerLink, type RunnerPairing, type State } from '@crewdeck/contracts';
 import type { z } from 'zod';
 import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
@@ -97,14 +97,15 @@ describe('createGettingStarted', () => {
   };
 
   const snapshot = (overrides: Partial<State> = {}) =>
-    store.applySnapshot({ seq: seq++, pilot: ME, runner: null, 'runner-link': null, devices: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, ...overrides });
-  const event = (type: 'runner-link.upserted' | 'runner.upserted' | 'pilot.upserted', payload: unknown) =>
+    store.applySnapshot({ seq: seq++, pilot: ME, runner: null, 'runner-link': null, 'ai-account': [], devices: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, ...overrides });
+  const event = (type: 'runner-link.upserted' | 'runner.upserted' | 'pilot.upserted' | 'ai-account.upserted', payload: unknown) =>
     store.applyEvent({ seq: seq++, type, payload, at: AT } as Parameters<Store['applyEvent']>[0]);
   const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
   beforeEach(() => {
     store = createStore();
     for (const slice of ['pilot', 'runner', 'runner-link'] as const) store.registerSlice(slice, { shape: 'single' });
+    store.registerSlice('ai-account', { shape: 'collection' });
     seq = 1;
     commands = [];
     adopted = [];
@@ -403,5 +404,27 @@ describe('createGettingStarted', () => {
     };
     await expect(controller.advance()).rejects.toThrow('refused');
     expect(controller.view()).toMatchObject({ busy: false, step: 'runner' });
+  });
+
+  it('at the Comptes IA, « Continuer » waits for a usable Moteur, and the Runner’s report enables it without a reload', () => {
+    const claude: AiAccount = {
+      id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a72',
+      engine: 'claude-code',
+      installed: true,
+      version: '2.1.3',
+      knownVersion: true,
+      kind: 'none',
+      state: 'login-required',
+      models: [],
+      reportedAt: AT,
+    };
+    snapshot({ pilot: { ...ME, gettingStartedStep: 'ai-accounts' }, runner: RUNNER, 'ai-account': [claude] });
+    expect(controller.view()).toMatchObject({ step: 'ai-accounts', usable: false });
+    expect(controller.view().engines.map((engine) => engine.state)).toEqual(['login-required', 'login-required']);
+
+    event('ai-account.upserted', { ...claude, kind: 'subscription', state: 'connected', models: [{ id: 'claude-opus-5-5', label: 'Opus 5.5', usable: true }] });
+
+    expect(controller.view()).toMatchObject({ step: 'ai-accounts', usable: true });
+    expect(controller.view().engines[0]).toMatchObject({ engine: 'claude-code', kind: 'subscription', state: 'connected' });
   });
 });

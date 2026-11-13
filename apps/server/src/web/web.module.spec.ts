@@ -34,7 +34,7 @@ describe('the web build at /', () => {
     await rm(dist, { recursive: true, force: true });
   });
 
-  it.each(['/', '/a-toi', '/idees/42'])('serves index.html at %s', async (path) => {
+  it.each(['/', '/a-toi', '/idees/42', '/runner', '/runner?c=1'])('serves index.html at %s', async (path) => {
     const response = await fetch(`${url}${path}`);
 
     expect(response.status).toBe(200);

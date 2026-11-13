@@ -109,13 +109,11 @@ test.describe('« Premiers pas », the Runner (US-2)', () => {
     // The browser's Appareil, trusted now, opens its own wrap of the vault key.
     expect(sent.some((line) => /GET \S+\/api\/devices\/[^/]+\/vault-key-wrap/.test(line))).toBe(true);
 
-    // « Continuer » through the Comptes IA and the Projets, then « À toi ».
+    // « Continuer » on to the Comptes IA, which wait for the Runner to report a usable one.
     await demarrage.getByRole('button', { name: 'Continuer' }).click();
     await expect(demarrage.getByRole('heading', { level: 1, name: 'Connecte tes Comptes IA' })).toBeVisible();
-    await demarrage.getByRole('button', { name: 'Continuer' }).click();
-    await expect(demarrage.getByRole('heading', { level: 1, name: 'Choisis tes Projets' })).toBeVisible();
-    await demarrage.getByRole('button', { name: 'Continuer' }).click();
-    await expect(page).toHaveURL('/a-toi');
+    await expect(banner(page)).toContainText('Aucun Moteur utilisable');
+    await expect(demarrage.getByRole('button', { name: 'Continuer' })).toBeDisabled();
   });
 
   test('a Runner’s key the server swapped: the page refuses its proof, shows its Banner and a new command; the binary reads why', async ({
@@ -208,5 +206,76 @@ test.describe('« Premiers pas », the Runner (US-2)', () => {
     await expect(demarrage.locator('cd-key-value')).toContainText('Runner 0.4.2');
     await expect(demarrage.locator('cd-code-block')).toHaveCount(0);
     await expectAccessible(page);
+  });
+});
+
+/** What the Runner reports once a Compte IA is connected on the machine (`crewdeck-runner login claude`). */
+const CLAUDE_CONNECTED = {
+  engine: 'claude-code',
+  installed: true,
+  version: '2.1.3',
+  knownVersion: true,
+  account: { kind: 'subscription', state: 'connected' },
+  models: [{ id: 'claude-opus-5-5', label: 'Opus 5.5', usable: true }],
+  features: { interrupt: true, resume: true, questions: true, permissions: true },
+};
+
+const card = (page: Page, engine: string) => page.locator(`cd-page-demarrage cd-card[data-engine=${engine}]`);
+
+test.describe('« Premiers pas », the Comptes IA (US-38)', () => {
+  test('each Moteur as the Runner sees it: its Compte IA, its models usable or why not', async ({ page, scenario, expectAccessible }) => {
+    await scenario('demarrage-comptes-ia');
+
+    const demarrage = page.locator('cd-page-demarrage');
+    await expect(demarrage.getByRole('heading', { level: 1, name: 'Connecte tes Comptes IA' })).toBeVisible();
+    await expect(card(page, 'claude-code')).toContainText('connecté · abonnement');
+    await expect(card(page, 'claude-code').locator('cd-list-row')).toHaveCount(3);
+    await expect(card(page, 'claude-code').locator('cd-list-row').nth(2)).toContainText('indisponible avec cet abonnement');
+    await expect(card(page, 'codex')).toContainText('connexion requise');
+    await expect(card(page, 'codex').locator('cd-code-block')).toContainText('crewdeck-runner login codex');
+    await expect(banner(page)).toHaveCount(0);
+    await expect(demarrage.getByRole('button', { name: 'Continuer' })).toBeEnabled();
+    await expectAccessible(page);
+  });
+
+  test('no Moteur usable: the Banner and « Continuer » disabled, enabled as soon as the Runner reports one, without a reload', async ({
+    page,
+    baseURL,
+    scenario,
+    expectAccessible,
+  }) => {
+    await scenario('demarrage-comptes-ia-aucun');
+
+    const demarrage = page.locator('cd-page-demarrage');
+    const next = demarrage.getByRole('button', { name: 'Continuer' });
+    await expect(banner(page)).toContainText('Aucun Moteur utilisable');
+    await expect(card(page, 'claude-code').locator('cd-code-block')).toContainText('crewdeck-runner login claude');
+    await expect(card(page, 'codex').locator('cd-code-block')).toContainText('crewdeck-runner login codex');
+    await expect(next).toBeDisabled();
+    await expectAccessible(page);
+
+    // The API refuses it too, whatever the page shows.
+    const origin = new URL(baseURL ?? 'http://localhost:4200').origin;
+    const seq = ((await (await page.request.get('/api/state')).json()) as { seq: number }).seq;
+    const refused = await page.request.post('/api/me/getting-started/advance', { data: { from: 'ai-accounts', seq }, headers: { origin } });
+    expect(refused.status()).toBe(422);
+    expect(await refused.json()).toMatchObject({ code: 'getting-started.no-usable-engine' });
+
+    let reloaded = false;
+    page.on('framenavigated', (frame) => {
+      if (frame === page.mainFrame()) reloaded = true;
+    });
+    const reported = await page.request.post('/api/testing/runner/capabilities', { data: { engines: [CLAUDE_CONNECTED] }, headers: { origin } });
+    expect(reported.status(), await reported.text()).toBe(204);
+
+    await expect(next).toBeEnabled();
+    await expect(banner(page)).toHaveCount(0);
+    await expect(card(page, 'claude-code')).toContainText('connecté · abonnement');
+    expect(reloaded).toBe(false);
+
+    await next.click();
+    await expect(demarrage.getByRole('heading', { level: 1, name: 'Choisis tes Projets' })).toBeVisible();
+    await demarrage.getByRole('button', { name: 'Continuer' }).click();
+    await expect(page).toHaveURL('/a-toi');
   });
 });

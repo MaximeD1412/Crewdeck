@@ -9,9 +9,11 @@ import {
 } from '@crewdeck/sdk';
 import { css, html, nothing, type TemplateResult } from 'lit';
 import { PasserelleElement, sharedStyles } from './base.js';
+import { systemOf } from './runner-machine.js';
+import { accountBadges, engineName, isConnected, modelBadge, modelReason } from './engine-accounts.js';
 
 type Data = ComposantData<typeof PageDemarrage>;
-type Runner = NonNullable<Data['runner']>;
+type Engine = Data['engines'][number];
 type StepState = 'done' | 'current' | 'todo' | 'halt';
 
 const STEPS = ['runner', 'ai-accounts', 'projects'] as const;
@@ -26,10 +28,6 @@ const track = ({ step, failure, runner }: Data): { label: string; meta: null; st
   }));
 };
 
-/** « Windows (WSL) · amd64 », « macOS · arm64 ». */
-const systemOf = ({ os, arch, wsl }: Runner): string =>
-  t('demarrage.runner.systemArch', { system: t(`demarrage.runner.system.${wsl ? 'wsl' : os === 'darwin' ? 'macos' : 'linux'}`), arch });
-
 /**
  * `cd-page-demarrage` (`design/screens/crewdeck/demarrage*.html`): the
  * compact track of « Premiers pas », the step's title and lead, then the
@@ -37,8 +35,11 @@ const systemOf = ({ os, arch, wsl }: Runner): string =>
  * CodeBlock of the command and either the waiting CheckRow and « Ce qui reste
  * chez toi », or, after a failure, the halt Banner of its reason above them
  * and « Réessayer » (`retry`) below; once linked, the go Banner, « Ta
- * machine » and « Continuer » (`continue`). The Comptes IA and the Projets:
- * an Empty and « Continuer ».
+ * machine » and « Continuer » (`continue`). The Comptes IA: a flush Card per
+ * Moteur, its Compte IA's badges, its models as ListRows with their badge,
+ * and the command that connects it while it is not; without a usable Moteur,
+ * the caution Banner above them and « Continuer » disabled. The Projets: an
+ * Empty and « Continuer ».
  */
 export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarrage> {
   static override styles = [
@@ -90,6 +91,12 @@ export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarr
       .actions cd-button::part(button) {
         width: 100%;
       }
+      .connect {
+        display: flex;
+        flex-direction: column;
+        gap: var(--cd-space-2);
+        padding: var(--cd-space-3) var(--cd-space-4);
+      }
     `,
   ];
 
@@ -104,12 +111,13 @@ export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarr
     if (system.success) this.emit('selectSystem', { system: system.data });
   }
 
-  private button(className: string, label: string, icon: 'refresh' | undefined, onClick: () => void): TemplateResult {
+  private button(className: string, label: string, icon: 'refresh' | undefined, onClick: () => void, disabled = false): TemplateResult {
     const { busy } = this.data;
+    const state = busy ? { state: 'loading' as const } : disabled ? { state: 'disabled' as const } : {};
     return html`<div class="actions">
       <cd-button
         class=${className}
-        .data=${{ label, variant: 'primary', size: 'md', ...(icon ? { icon } : {}), ...(busy ? { state: 'loading' } : {}) }}
+        .data=${{ label, variant: 'primary', size: 'md', ...(icon ? { icon } : {}), ...state }}
         @click=${() => {
           if (!this.data.busy) onClick();
         }}
@@ -198,13 +206,46 @@ export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarr
       </cd-card>`;
   }
 
-  /** The Comptes IA and the Projets, until their tickets: an Empty and « Continuer ». */
-  private comingStep(step: 'aiAccounts' | 'projects'): TemplateResult {
-    return html`${this.head(t(`demarrage.${step}.title`), t(`demarrage.${step}.lead`))}
-      <section aria-label=${t(step === 'aiAccounts' ? 'demarrage.step.ai-accounts' : 'demarrage.step.projects')}>
-        <cd-empty .data=${{ icon: step === 'aiAccounts' ? 'key' : 'folder', title: t(`demarrage.${step}.empty.title`) }}
-          >${t(`demarrage.${step}.empty.text`)}</cd-empty
-        >
+  /** A Moteur's Card: its Compte IA's badges, then the command that connects it, or its models. */
+  private engineCard(engine: Engine): TemplateResult {
+    const connected = isConnected(engine);
+    return html`<cd-card data-engine=${engine.engine} .data=${{ title: engineName(engine.engine), flush: true }}>
+      ${accountBadges(engine).map((badge) => html`<cd-status-badge slot="actions" .data=${badge}></cd-status-badge>`)}
+      ${connected
+        ? nothing
+        : html`<div class="connect">
+            <p>${t(`demarrage.aiAccounts.connect.${engine.engine}`)}</p>
+            <cd-code-block .data=${{ code: engine.command }}></cd-code-block>
+          </div>`}
+      ${engine.models.map((model) => {
+        const meta = modelReason(model);
+        return html`<cd-list-row .data=${{ title: model.id, ...(meta ? { meta } : {}) }}
+          ><cd-status-badge slot="trailing" .data=${modelBadge(model)}></cd-status-badge
+        ></cd-list-row>`;
+      })}
+    </cd-card>`;
+  }
+
+  private aiAccountsStep(): TemplateResult {
+    const { engines, usable } = this.data;
+    return html`${this.head(t('demarrage.aiAccounts.title'), t('demarrage.aiAccounts.lead'))}
+      <section aria-label=${t('demarrage.step.ai-accounts')}>
+        ${usable
+          ? nothing
+          : html`<cd-banner .data=${{ tone: 'caution', icon: 'alert', title: t('demarrage.aiAccounts.none.title') }}
+              >${t('demarrage.aiAccounts.none.text')}</cd-banner
+            >`}
+        ${engines.map((engine) => this.engineCard(engine))}
+        ${this.button('continue', t('demarrage.continue'), undefined, () => this.emit('continue', {}), !usable)}
+        <p class="help muted">${t(usable ? 'demarrage.aiAccounts.help' : 'demarrage.aiAccounts.none.help')}</p>
+      </section>`;
+  }
+
+  /** The Projets, until their ticket: an Empty and « Continuer ». */
+  private projectsStep(): TemplateResult {
+    return html`${this.head(t('demarrage.projects.title'), t('demarrage.projects.lead'))}
+      <section aria-label=${t('demarrage.step.projects')}>
+        <cd-empty .data=${{ icon: 'folder', title: t('demarrage.projects.empty.title') }}>${t('demarrage.projects.empty.text')}</cd-empty>
         ${this.button('continue', t('demarrage.continue'), undefined, () => this.emit('continue', {}))}
       </section>`;
   }
@@ -214,6 +255,6 @@ export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarr
     return html`<nav part="steps" aria-label=${t('demarrage.steps')}>
         <cd-process-track .data=${{ direction: 'compact', steps: track(this.data) }}></cd-process-track>
       </nav>
-      ${step === 'runner' ? this.runnerStep() : this.comingStep(step === 'ai-accounts' ? 'aiAccounts' : 'projects')}`;
+      ${step === 'runner' ? this.runnerStep() : step === 'ai-accounts' ? this.aiAccountsStep() : this.projectsStep()}`;
   }
 }

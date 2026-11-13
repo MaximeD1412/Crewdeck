@@ -1,6 +1,6 @@
 import { SESSION_COOKIE } from '../../auth/cookies.js';
 import { WebSessions } from '../../auth/web-sessions.js';
-import type { GitHubUser } from '@crewdeck/contracts';
+import type { GettingStartedStep, GitHubUser } from '@crewdeck/contracts';
 import { newId } from '../../ids.js';
 import { WsRevocations } from '../../realtime/ws-revocations.js';
 import { runInPilotScope } from '../../scope/scope.context.js';
@@ -27,12 +27,12 @@ export const seedGitHubUser = ({ fakes }: ScenarioContext): ScenarioSeed => {
  */
 export const signInPilot = async (
   ctx: ScenarioContext,
-  { gettingStartedStep = 'done' }: { gettingStartedStep?: 'runner' | 'done' } = {},
+  { gettingStartedStep = 'done' }: { gettingStartedStep?: GettingStartedStep } = {},
 ): Promise<ScenarioSeed & { pilotId: string }> => {
   seedGitHubUser(ctx);
   const pilot = await ctx.prisma.unscoped.pilot.create({
     // No avatar: the Cadre of the captures shows the initials, not an image that never loads.
-    data: { id: newId(), githubUserId: BigInt(OCTOCAT.id), login: OCTOCAT.login, avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep },
+    data: { id: newId(), githubUserId: BigInt(OCTOCAT.id), login: OCTOCAT.login, avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: gettingStartedStep === 'ai-accounts' ? 'ai_accounts' : gettingStartedStep },
   });
   const token = await runInPilotScope(pilot.id, () => new WebSessions(ctx.prisma, new WsRevocations()).open(ctx.prisma.scoped, pilot.id, undefined));
   return { sessionCookie: `${SESSION_COOKIE}=${token}`, pilotId: pilot.id };

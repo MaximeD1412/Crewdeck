@@ -34,5 +34,8 @@ export const zEngineCapabilities = z.object({
     }),
   ),
   features: z.object({ interrupt: z.boolean(), resume: z.boolean(), questions: z.boolean(), permissions: z.boolean() }),
-});
+})
+  // Its own Go type, `contracts.EngineCapabilities`, generated once with the
+  // `capabilities` message that carries it.
+  .meta({ id: 'EngineCapabilities' });
 export type EngineCapabilities = z.infer<typeof zEngineCapabilities>;

@@ -180,16 +180,23 @@
       "gravite": "moyenne",
       "titre": "Jeton GitHub du Runner volé sur la machine du Pilote",
       "statut": "solution choisie",
-      "statutDepuis": "2026-11-10",
+      "statutDepuis": "2026-11-12",
       "solutions": [
         {
           "texte": "Jeton d'installation limité à un dépôt et à quatre permissions, valable 1 h",
           "ref": "ADR 0002",
           "fait": false
+        },
+        {
+          "texte": "Jeton « Miroir » en lecture seule, limité aux dépôts des Projets, valable 1 h",
+          "ref": "ADR 0010",
+          "fait": false
         }
       ],
       "tickets": [
-        "RUNNER-10"
+        "RUNNER-10",
+        "MIROIR-2",
+        "MIROIR-4"
       ]
     },
     {
@@ -275,7 +282,7 @@
         {
           "texte": "Clé API toujours possible pour chaque Moteur",
           "ref": "ADR 0004",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [
@@ -295,7 +302,7 @@
         {
           "texte": "Codex par clé API au MVP ; abonnement seulement si OpenAI l'accorde",
           "ref": "ADR 0004",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [
@@ -837,6 +844,62 @@
       ],
       "tickets": [
         "BIZ-4"
+      ]
+    },
+    {
+      "id": "SEC-10",
+      "categorie": "sec",
+      "gravite": "moyenne",
+      "titre": "Le contenu des Projets (Tickets, commentaires, documents) est copié sur le disque du Pilote par le Miroir",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-12",
+      "solutions": [
+        {
+          "texte": "miroir.db en droits 600 dans ~/.crewdeck (700), jamais dans les logs du Runner",
+          "ref": "ADR 0010",
+          "fait": true
+        },
+        {
+          "texte": "Le serveur ne transmet que des enveloppes sans contenu",
+          "ref": "ADR 0010",
+          "fait": false
+        }
+      ],
+      "tickets": [
+        "MIROIR-1",
+        "MIROIR-3",
+        "MIROIR-5"
+      ]
+    },
+    {
+      "id": "AGT-7",
+      "categorie": "agt",
+      "gravite": "elevee",
+      "titre": "Un agent agit sur un état périmé lu dans le Miroir",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-12",
+      "solutions": [
+        {
+          "texte": "Lecture d'abord sur GitHub quand le Miroir est en retard",
+          "ref": "ADR 0010",
+          "fait": false
+        },
+        {
+          "texte": "Le serveur merge avec le SHA jugé, les gestes vérifient GitHub",
+          "ref": "ADR 0002",
+          "fait": false
+        },
+        {
+          "texte": "Chaque réponse du Miroir porte son état de fraîcheur",
+          "ref": "ADR 0010",
+          "fait": false
+        }
+      ],
+      "tickets": [
+        "MIROIR-4",
+        "MIROIR-6",
+        "RUNNER-10",
+        "RUNNER-12"
       ]
     }
   ]

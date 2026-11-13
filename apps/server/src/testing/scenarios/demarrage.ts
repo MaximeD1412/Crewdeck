@@ -1,6 +1,8 @@
 import { LINK_CODE_TTL_SECONDS } from '@crewdeck/contracts';
 import { newId } from '../../ids.js';
-import { createLinkedRunner } from '../runners.js';
+import { createAiAccounts, createLinkedRunner } from '../runners.js';
+import type { ScenarioContext } from './define.js';
+import { CLAUDE_SIGNED_OUT, CLAUDE_SUBSCRIPTION, CODEX_SIGNED_OUT } from './engines.js';
 import { defineScenario } from './define.js';
 import { signInPilot } from './sign-in.js';
 
@@ -56,4 +58,35 @@ export const demarrageRunnerRelie = defineScenario({
     const { token } = await createLinkedRunner(ctx.prisma, seed.pilotId, runnerMachine);
     return { ...seed, runnerToken: token, runnerMachine };
   },
+});
+
+/** The Pilote at the Comptes IA step, their Runner online with `engines` reported. */
+const atAiAccounts = async (ctx: ScenarioContext, engines: Parameters<typeof createAiAccounts>[2]) => {
+  const seed = await signInPilot(ctx, { gettingStartedStep: 'ai-accounts' });
+  const runnerMachine = { machine: 'atelier-pc', os: 'linux', arch: 'amd64', wsl: true, runnerVersion: '0.4.2' } as const;
+  const { token } = await createLinkedRunner(ctx.prisma, seed.pilotId, runnerMachine);
+  await createAiAccounts(ctx.prisma, seed.pilotId, engines);
+  return { ...seed, runnerToken: token, runnerMachine };
+};
+
+/**
+ * The Comptes IA step (`demarrage`, state `comptes-ia`): Claude Code
+ * connected by subscription, two models usable and one outside the plan;
+ * Codex without its key. « Continuer » is enabled.
+ */
+export const demarrageComptesIa = defineScenario({
+  name: 'demarrage-comptes-ia',
+  path: '/demarrage',
+  seed: (ctx) => atAiAccounts(ctx, [CLAUDE_SUBSCRIPTION, CODEX_SIGNED_OUT]),
+});
+
+/**
+ * No Moteur usable (`demarrage`, state `comptes-ia-aucun`): both signed out;
+ * the caution Banner, both commands, « Continuer » disabled until the Runner
+ * reports a usable model (`POST /api/testing/runner/capabilities`).
+ */
+export const demarrageComptesIaAucun = defineScenario({
+  name: 'demarrage-comptes-ia-aucun',
+  path: '/demarrage',
+  seed: (ctx) => atAiAccounts(ctx, [CLAUDE_SIGNED_OUT, CODEX_SIGNED_OUT]),
 });

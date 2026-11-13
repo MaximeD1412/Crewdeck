@@ -43,7 +43,8 @@ _Avoid_: workflow, pipeline, méthode
 **Modèle de process** (`ProcessTemplate`):
 A **Process** a new **Projet** starts from, copied into it: « Process
 Crewdeck » (Idée → Conception → Tickets → Boucle, with their **Étapes** and
-gates), the default, or one the **Pilote** saved from a **Projet**.
+gates), the default, or one the **Pilote** saved from a **Projet**'s active
+version (never its **Sources**), listed in the account's **Paramètres**.
 _Avoid_: template (in the UI), gabarit, preset
 
 **Gestion du process** (`ProcessEditor`):
@@ -75,10 +76,17 @@ _Avoid_: repo, Projet (before it is followed)
 One piece of work inside a **Phase**: an agent's, in one **Rôle** with one
 **Skill** (the analysis of an **Idée**, the PRD, the mockups, the technical
 design, the split into **Tickets**, the Code, the **Review**), a gate of the
-**Pilote**'s (the **Revue visuelle**, an approval), or a **Commande**. It
-declares its **Entrées** and **Sorties**, uses its **Outils**, and has one
+**Pilote**'s (the **Revue visuelle**, an approval), a **Commande**, or an
+**Étape du produit**. It declares its **Entrées** and **Sorties**, uses its **Outils**, and has one
 **Contrat**.
 _Avoid_: tâche, job, phase (a **Phase** holds **Étapes**), bloc
+
+**Étape du produit** (`CoreStep`):
+An **Étape** the product runs itself and keeps in every **Process** that
+merges code: « Checks » (the CI of the repository, or **Commandes**, as its
+**Outils**) and « Merge ». Moved like any **Étape**, never removed nor
+added; not in the catalogue. Shown « Crewdeck » on the canvas.
+_Avoid_: étape système, étape obligatoire, Fusion (for the « Merge »)
 
 **Entrée** / **Sortie** (`StepInput` / `StepOutput`):
 What an **Étape** consumes and what it produces, each typed by a **Type
@@ -102,7 +110,8 @@ _Avoid_: livrable, fichier (it may not be one), ressource
 The arrow from an **Étape** that judges (a **Review**, a **Revue croisée**,
 a **Revue visuelle**, a gate) back to an earlier **Étape** of its **Phase**,
 taken while it asks for changes, up to a maximum of iterations (3 by
-default); reaching it stops that item with a **Décision**.
+default); reaching it stops that item with a **Décision** that offers one
+more pass or to stop it.
 _Avoid_: boucle (that is the **Boucle**), cycle, retry
 
 **Manque** (`ProcessGap`):

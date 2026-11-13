@@ -18,6 +18,11 @@ The person who has an account and drives their **Projets** and their agents
 through the **Process**; one account is one **Pilote**.
 _Avoid_: utilisateur, client, propriétaire, owner
 
+**Identité** (`PilotIdentity`):
+A way a **Pilote** signs in: an email address, a Google account or a GitHub
+account; a **Pilote** has one or more.
+_Avoid_: compte (the account is the **Pilote**), login, provider
+
 **Visiteur** (`Visitor`):
 Someone who discovers Crewdeck before signing up, on the demonstration
 **Projet**; not yet a **Pilote**.
@@ -39,6 +44,13 @@ the **Pilote** in « Gestion du process » from a **Modèle de process**. Each
 it started with. « À toi » is not a stage: it gathers the **Décisions** of
 every **Phase**.
 _Avoid_: workflow, pipeline, méthode
+
+**Version** / **Brouillon** (`ProcessVersion` / `ProcessDraft`):
+A **Version** is a numbered, frozen state of a **Projet**'s **Process**
+(« v3 »), the active one being the last activated; the **Brouillon** is the
+one change in progress on it, activated as the next **Version** once it has
+no **Manque**. Work pins the **Version** active when it starts.
+_Avoid_: révision, copie de travail, historique
 
 **Modèle de process** (`ProcessTemplate`):
 A **Process** a new **Projet** starts from, copied into it: « Process
@@ -296,7 +308,9 @@ another tool's)
 The one place that holds a **Type d'artefact** of a **Projet**: **Local** or
 a **Connecteur** (GitHub at the MVP). It always wins: an edit there applies,
 a **Ticket** closed there stops. Moving a type to another **Source** is a
-migration, an **Action sensible**.
+migration, an **Action sensible**. At the MVP the documents (PRD, Maquettes,
+Conception technique, Inventaire) have the **Source** of the code, whose
+repository holds them, and the **Idées** always live in Crewdeck.
 _Avoid_: vérité, origine, master, référentiel
 
 **Local** (`LocalSource`):
@@ -382,6 +396,9 @@ _Avoid_: rechargement, refresh
   large blocks are **Phases**; an **Étape** stays the finer piece of work.
 - « harness » was used for what runs an agent: it is a **Rôle**'s
   **Moteur**; an **Outil** is anything attached to an **Étape**.
+- « Source des Idées » on the canvas: the **Idées** live in Crewdeck,
+  encrypted, before they have a **Projet**; « Crewdeck » is shown, never
+  chosen.
 - « vérité » of an artefact: its **Source**; « sauvegarde » (Obsidian): a
   **Copie**; the **Miroir** is neither, it is the machine's store.
 - « boucle » with a maximum of iterations is a **Retour**; the **Boucle** is

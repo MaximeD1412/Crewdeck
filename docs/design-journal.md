@@ -189,3 +189,99 @@ the founder outside the repository.
   the agent without it (Revue croisée R5). **To generalise**: a design that
   mirrors another project's copies the contract it needs, adapted, and
   links the other only as its origin.
+
+## Gestion du process (2026-11-13)
+
+PRD: `docs/product/features/gestion-du-process.md` (PR #169), mockups PR #170
+(`design/screens/gestion-du-process/`). Worktree `chore/gestion-du-process`.
+
+### Inventory
+
+- The code is at M0 to M2 and part of M3: no Projet, Ticket, Idée,
+  Conception, AgentLoop, AgentSession, StepRun, AgentRole nor Settings table
+  yet (PROJET-2 #157 and PARAM-1 #147 open). Nothing hard-codes the Process's
+  sequence on the server: only `STEP_IDS` (`packages/contracts/src/contrats/define.ts`),
+  `DECISION_KINDS`, `SENSITIVE_ACTION_IDS` and `NAV_IDS`. The configurable
+  Process can be built once, not retrofitted.
+- Sign-in is GitHub only (`Pilot.githubUserId` unique, `apps/server/src/auth/`);
+  US-1 now asks for an email link and Google too (PR #169).
+- The Miroir store exists (`apps/runner/internal/mirror/`, MIROIR-3), wired
+  to nothing; `github.changed` and the replay are MIROIR-1, MIROIR-4.
+- The Runner runs no command other than the Moteurs and its own probes; no
+  Serveur MCP of the Pilote's (only the permission MCP of the Claude adapter).
+- Contradictions found: the PRD keeps the Process out of the repository,
+  while ADR 0002 and 0004 have the server write `.process.json`; the mockup
+  `process-sources` offers GitHub as the Source of the Idées, which ADR 0003
+  keeps encrypted in Crewdeck and which exist before their Projet (US-5);
+  US-60 encrypts the titles of what lives only on the machine, so a Local
+  Projet's state on the server is not « as for any Projet » word for word.
+- Open backlog tickets the refonte changes: PARAM-4 (US-83 removed),
+  BOUCLE-1 to 8 (Tickets no longer only GitHub), CONCEPTION-1 to 10, RUNNER-9,
+  RUNNER-12, PROJET-2 to 5, MIROIR-1 to 6, CORE sign-in.
+
+### Decisions (2026-11-13, round 1: every recommendation taken)
+
+- A Process version is one immutable JSON document (`ProcessDefinition`),
+  a draft per Projet saved on the server; the founder adds that it makes
+  import and export of a Process easy (ADR 0011).
+- The server interprets the active version (PhaseRun, StepRun, a registry
+  of step kinds); « Process Crewdeck » is data, the Boucle is the
+  Développement Phase repeated (ADR 0011).
+- Manques: one pure function of `packages/contracts`, the page live, the
+  server at activation (ADR 0011). Canvas on a grid, no graph library
+  (ADR 0011). « Pour chaque »: a closed list of three (ADR 0011).
+- The server reads the structure and the names of configuration; a
+  Commande's text and health address are sealed under the vault key, which
+  also authenticates them to the Runner (ADR 0011, ADR 0003 amended).
+- A Local Projet's state on the server: the same rows as GitHub's, every
+  text sealed by the Runner; content read through the relay (ADR 0012).
+- A Local folder is a git repository; the Runner's clone has it as
+  `origin` and merges by fast-forward into it; Tickets are
+  `tickets/<n>-<slug>.md` with English front matter, written in place,
+  never committed by the Runner; what the work writes lives in the Miroir
+  (ADR 0012).
+- The Miroir's commands answer for every Source in gh's shapes and carry
+  the agents' writes (ADR 0012, ADR 0010 amended).
+- Commandes: exit code within 30 min, or a service and a health address
+  answering within 120 s; the Pilote's login shell; Serveurs MCP declared
+  on the Runner (ADR 0013).
+- Source migration: a server job, idempotent copy marked with its origin,
+  one-transaction switch; old GitHub issues labelled and locked, a Local
+  folder renamed (ADR 0012).
+- Idées stay in Crewdeck (« Crewdeck » shown, not a choice);
+  `.process.json` is no longer written; sign-in by email link, Google or
+  GitHub in this design (ADR 0014); a Connecteur's real time: webhooks as
+  content-free envelopes, else the Runner polls (ADR 0012).
+
+### Decisions (2026-11-13, round 2)
+
+- The four document types follow the Changement de code's Source at the
+  MVP (they are files of its repository, reviewed on branches): only the
+  Ticket is chosen apart (ADR 0012). A knock-on of C11 on F20 found while
+  writing.
+- The screens the mockups lack (sign-in by email and Google, the Projet's
+  branches and worktree Commandes, the Idée's fixed Source) are described
+  in their tickets with the existing Composants.
+
+### Observations
+
+- F20 (types chosen apart) and C11 (documents reviewed on branches of the
+  code's repository) were each right and together impossible. **To
+  generalise**: after a round, check each answer against the others for
+  pairs that cannot hold at once, not only against the answers that
+  differ from a reco.
+
+### Revue croisée (2026-11-14): 9 remarks, all fixed
+
+- The engine had no lineage: a Ticket's Revue visuelle could not find its
+  Conception's Maquettes (R1); arrows could close a cycle outside any
+  Retour (R2); an Idée without a Projet had no Process (R3).
+- Local originals sat in `miroir.db`, which a rebuild drops (R4): they move
+  to `local.db`. Taking a Ticket kept a hash, not its version (R5).
+- The migration ignored human edits during the copy (R6), mixed up the
+  failure before and after the switch (R7), and froze a repository another
+  group still used (R9). A Commande's place was not sealed (R8).
+- **To generalise**: before committing a technical design, run each new
+  state machine through « a human edits meanwhile » and « it fails after
+  the point of no return », and each store through « what does a rebuild
+  drop ». Every remark here was one of these three.

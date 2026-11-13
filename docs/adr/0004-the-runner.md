@@ -2,7 +2,11 @@
 
 > **Status:** accepted, 2026-11-10. Amended by [ADR 0010](0010-the-runners-miroir.md)
 > on the Runner's state (`miroir.db`), protocol (the Miroir's replay) and
-> commands (`crewdeck-runner miroir`).
+> commands (`crewdeck-runner miroir`). Amended by [ADR 0011](0011-the-process-as-data.md)
+> (no more `.process.json`: the worktree's Commandes are Paramètres),
+> [ADR 0012](0012-sources-local-and-github.md) (the Local folder as the
+> clone's `origin`) and [ADR 0013](0013-commandes-and-serveurs-mcp.md)
+> (Commandes, Serveurs MCP).
 
 ## Context
 

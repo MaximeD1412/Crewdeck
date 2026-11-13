@@ -4,7 +4,8 @@
 > on the tokens the server mints (a « Miroir » token beside the Session's)
 > and the App's events, and [ADR 0004](0004-the-runner.md) on the Runner's
 > state, protocol and commands. Amended by [ADR 0012](0012-sources-local-and-github.md)
-> (every Source answered, the agents' writes through `miroir`).
+> (every Source answered, the agents' writes through `miroir`; a
+> rebuild never touches `local.db`, the Local Projets' originals).
 
 ## Context
 

@@ -39,8 +39,8 @@ engine is built once, configurable from the start.
   - `arrows`: `{ from: { stepId, portId }, to: { stepId, portId } }`;
   - `loopBacks`: `{ from: stepId, to: stepId, max }`, `max` 1 to 10,
     3 by default;
-  - `commands`: `{ id, where: 'project' | 'worktree' }`, their text and
-    health address being in the version's sealed part (below).
+  - `commands`: `{ id }`, their text, health address and place being in
+    the version's sealed part (below).
 - Ids inside a definition are short strings unique in it (`st-code`,
   `ph-dev`), stable across versions, so that a diff and a pinned run name
   the same Étape. Positions are cells of a grid (`col`, `row`), a Phase's
@@ -95,11 +95,15 @@ draft. Each Manque has a kind, the block it points at and a French label:
 | `merge.no-checks` | no Verdict of the `checks` Étape reaches the Merge |
 
 The canvas refuses, before any Manque, what is never drawable: an arrow
-between two different types, a Retour from an Étape that does not judge or
+between two different types, an arrow that closes a cycle (the arrows,
+Retours apart, form a graph without cycles: a loop exists only as a Retour,
+with its maximum), a Retour from an Étape that does not judge or
 to an Étape of another Phase or not before it, a Phase inside a Phase,
 removing `checks`, `merge` or the `review` (its Rôle changes instead), or a
-Phase that holds them. A test per Manque and per refusal, on the same
-fixtures in the page and the server.
+Phase that holds them. `validateDefinition` (same file) checks these
+refusals: the page before each change, the server on every draft save
+(422 `process.invalid`) and at activation. A test per Manque and per
+refusal, on the same fixtures in the page and the server.
 
 ### Drafts, activation, Modèles
 
@@ -133,13 +137,36 @@ fixtures in the page and the server.
   taken after it follows the new version, even if its Conception ran on
   the old one.
 - **A StepRun** (`step_runs`, RUNNER-12's table, gaining `phaseRunId`,
-  `stepId`, `iteration`, `outputs`) is one pass of an Étape. An Étape
-  starts when every Entrée has an Artefact: the item for a Phase's first
-  Entrées, else the `outputs` of the StepRun its arrow comes from, in the
-  same PhaseRun. An arrow leaving a Phase feeds the next Phase: a
-  `forEach` Phase gets each Artefact as an item; a Phase with no `forEach`
-  starts a PhaseRun per arrival, one at a time per Projet, in order (the
-  « Livraison » after each merge).
+  `stepId`, `iteration`, `outputs`) is one pass of an Étape. Its `outputs`
+  are Artefact references `{ portId, type, id, sha? }`: a document or a
+  change of code by the commit it was approved or merged at, so that
+  whoever consumes it later reads that version.
+- **Lineage.** A PhaseRun records `parentPhaseRunId`, the PhaseRun whose
+  output became its item: a Ticket's Développement points to its
+  Conception, a Conception to its Idée. A Ticket written by hand or drafted
+  from an Idée (US-56) has the PhaseRun that created it, or none.
+- **Feeding an Entrée.** An Étape starts when every Entrée is resolved:
+  - a Phase's first Entrées by its item;
+  - an arrow inside the Phase by the latest output of the StepRun it comes
+    from, in the same PhaseRun;
+  - an arrow from another Phase by lineage: the latest output of that
+    Sortie in the nearest ancestor PhaseRun that ran its Étape (the
+    Revue visuelle of Ticket #12 gets the Maquettes its own Conception
+    approved, never another's). An item with no such ancestor gets the
+    Entrée « absente »: the Étape runs and its Skill and Contrat say what an
+    absent Entrée means (a Revue visuelle without Maquettes judges the
+    captures alone).
+- **Starting a PhaseRun.** An arrow into a `forEach` Phase whose type is
+  its `forEach` type turns each Artefact it carries into an item (the
+  Tickets of a Découpage); any other arrow between Phases only feeds by
+  lineage and starts nothing. A Phase with no `forEach` starts a PhaseRun
+  each time its first Entrées get an Artefact, one at a time per Projet,
+  in order (the « Livraison » after each merge).
+- **An Idée without a Projet** (US-5) runs the « Idée » Phase of
+  « Process Crewdeck », pinned to the release, with the account's Rôle
+  Idée: its analysis proposes the target Projet. Once the Projet is set
+  (by the Pilote, or by the Projet being created for it), the Idée's next
+  Phases follow that Projet's Process; a retained Idée waits for it.
 - **Admission** of the items of a `forEach` Phase: `idea.noted` at once;
   `idea.retained` on « Démarrer la Conception » (US-8); `ticket.ready` by the
   Boucle (`AgentLoop`, started, stopped, planned as US-13 and US-62 say), one
@@ -171,8 +198,11 @@ Serveurs MCP and Modèles are configuration the server reads (ADR 0003's
 table gets a row). A Commande's text and its health address are not: the
 version's `sealed` part (`{ wrappedKey, ciphertext }`, one item key wrapped
 by the vault key, AES-256-GCM, additional data `process:<projectId>` or
-`template:<templateId>`) holds `{ commands: { [id]: { run, healthUrl? } } }`.
-The browser seals it; the Runner opens it and runs only what it opened.
+`template:<templateId>`) holds `{ commands: { [id]: { run, where:
+'project' | 'worktree', healthUrl? } } }`. The browser seals it; the Runner
+opens it and runs only what it opened, where the sealed part says, the
+place in the server's message being ignored. The page shows the place from
+the decrypted part.
 Because the server has no vault key, it cannot forge a Commande the
 Runner would run: a compromised server is not code execution on the
 Pilote's machine (risk SEC-11). Replaying a Commande of an older version of

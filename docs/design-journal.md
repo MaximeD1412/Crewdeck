@@ -270,3 +270,18 @@ PRD: `docs/product/features/gestion-du-process.md` (PR #169), mockups PR #170
   generalise**: after a round, check each answer against the others for
   pairs that cannot hold at once, not only against the answers that
   differ from a reco.
+
+### Revue croisée (2026-11-14): 9 remarks, all fixed
+
+- The engine had no lineage: a Ticket's Revue visuelle could not find its
+  Conception's Maquettes (R1); arrows could close a cycle outside any
+  Retour (R2); an Idée without a Projet had no Process (R3).
+- Local originals sat in `miroir.db`, which a rebuild drops (R4): they move
+  to `local.db`. Taking a Ticket kept a hash, not its version (R5).
+- The migration ignored human edits during the copy (R6), mixed up the
+  failure before and after the switch (R7), and froze a repository another
+  group still used (R9). A Commande's place was not sealed (R8).
+- **To generalise**: before committing a technical design, run each new
+  state machine through « a human edits meanwhile » and « it fails after
+  the point of no return », and each store through « what does a rebuild
+  drop ». Every remark here was one of these three.

@@ -49,7 +49,7 @@ and US-60 encrypts the titles of what lives only on the machine.
   (`~/.crewdeck/repos/local/<projectId>`), and its worktrees are made as for
   GitHub ([ADR 0004](0004-the-runner.md)): never the Pilote's checkout. A
   Session's `git push` goes to the folder, where its branch appears.
-- **A local Changement de code** is a branch and a record in the Miroir
+- **A local Changement de code** is a branch and a record of the Runner
   (number, title, body, head and base, state, its reviews and comments),
   numbered from the Projet's counter shared with its Tickets, as GitHub
   shares issues' and PRs'.
@@ -87,8 +87,12 @@ and US-60 encrypts the titles of what lives only on the machine.
   working tree, and never commits them: the folder's git history is the
   Pilote's.
 - **What the work writes** (comments, review remarks, local changes'
-  records) lives in the Miroir (`miroir.db`); `crewdeck-runner uninstall`
-  warns that it goes with it.
+  records, the Projet's number counter) is original data, not a copy: it
+  lives in `~/.crewdeck/local.db` (SQLite, mode 600), apart from
+  `miroir.db`. Its schema moves by versioned migrations that keep the
+  data; `crewdeck-runner miroir rebuild` and a new schema of the Miroir
+  rebuild `miroir.db` only, which reads `local.db` like any Source.
+  `crewdeck-runner uninstall` warns that `local.db` goes with it.
 - **Following the folder**: the Runner watches `tickets/` in the working
   tree and the integration branch's ref (fsnotify, 200 ms debounce), scans
   everything at start and every 60 s, and every 2 s for a folder on a
@@ -142,11 +146,18 @@ answers encrypted for that tab, nothing is stored. The document reader of
 
 ### The Source wins (US-103)
 
+- **Taking a Ticket freezes its version**: the Runner keeps an immutable
+  snapshot of its title and body (`~/.crewdeck/snapshots/<phaseRunId>.json`),
+  and the Sessions of that PhaseRun read their own Ticket from it
+  (`miroir issue view` answers the snapshot, with « modifié depuis sa
+  prise » on stderr when the Source differs). The snapshot goes when the
+  PhaseRun ends.
 - The Runner computes each Ticket's `contentHash` (HMAC-SHA256 of its title
   and body, keyed by a key derived from the vault key, so that it says
-  nothing of the text) for both Sources. The StepRun that takes a Ticket
-  keeps it; a different hash later shows « modifié depuis sa prise » and
-  « Relancer ».
+  nothing of the text) for both Sources. The PhaseRun keeps the hash of its
+  snapshot; a different one later shows « modifié depuis sa prise ».
+  « Relancer » stops that PhaseRun and starts a new one, which takes the
+  Ticket as its Source has it now.
 - A Ticket closed at its Source stops its PhaseRun: the Session is
   interrupted, its change closed with a comment (the PR on GitHub, the
   record on Local), its branch kept, the stop in its history. Reopened, a new
@@ -156,7 +167,7 @@ answers encrypted for that tab, nothing is stored. The document reader of
 
 - The Action sensible `source.migrate` creates a `source_migrations` row
   (`projectId`, `group`, `from`, `to`, `state` `draining | copying |
-  switching | done | failed`, counts, the error's code).
+  verifying | switched | done | failed`, counts, the error's code).
 - **Draining**: no new PhaseRun that reads or writes the group starts; the
   running ones finish on the old Source.
 - **Copying**, by the Runner, idempotent: each copy carries its origin
@@ -168,14 +179,33 @@ answers encrypted for that tab, nothing is stored. The document reader of
   the folder to a repository the Pilote created and installed the App on;
   code to Local clones the repository into an empty folder the Pilote
   picks. Documents move with the code, being its files.
-- **Switching**, one server transaction: the Source, each Ticket's new
-  number (the old one kept, shown « ex-#12 »), the event. Then the old
-  place is frozen: `tickets/` renamed `tickets.archive-<YYYY-MM-DD>/`; issues
-  labelled `crewdeck:archive` and locked, their state unchanged; a
-  repository no longer followed.
-- **Failure**: `failed`, the Décision `source-migration.failed`, the old
-  Source stays the Source and the work resumes on it; « Réessayer » goes on
-  from what was copied.
+- **Verifying**: the agents are drained, the Pilote and their team are
+  not. The Runner compares each object of the old Source (its state and
+  `contentHash`) with what it copied, recopies what changed meanwhile, and
+  repeats until a pass finds no change; then it asks the switch, carrying
+  the fingerprints of that pass.
+- **Switching**, one server transaction, the point of no return: the
+  Source, each Ticket's new number (the old one kept, shown « ex-#12 »),
+  the event. State `switched`.
+- **Finishing**, after it: the old place is frozen, then the Runner
+  compares it once more with the fingerprints of the last pass and carries
+  any late change to the new Source, which now wins; then `done`. Frozen
+  means, by group:
+  - `ticket` leaving Local: `tickets/` renamed `tickets.archive-<YYYY-MM-DD>/`;
+  - `ticket` leaving GitHub: its issues (never its PRs) labelled
+    `crewdeck:archive` and locked, their state unchanged; the repository
+    stays followed while `code` is on GitHub;
+  - `code` leaving GitHub: the product writes nothing more there; the
+    repository stays followed while `ticket` is on GitHub;
+  - `code` leaving Local: the folder is left as it is (it is the Pilote's
+    checkout, and still holds `tickets/` while `ticket` is Local).
+- **Failure before the switch**: `failed`, the Décision
+  `source-migration.failed`, the old Source stays the Source and the work
+  resumes on it; « Réessayer » goes on from what was copied.
+- **Failure after the switch**: the new Source stays the Source; finishing
+  is retried with a backoff, and raises `source-migration.unfinished` when
+  it keeps failing (the old place not yet frozen, named), never a way
+  back.
 
 ### Connecteurs beyond GitHub (Lancement)
 
@@ -211,7 +241,8 @@ design settles the rest.
   `artifact_sources`, `source_migrations`, `source` and sealed titles on
   `tickets` and `code_changes`; the Actions sensibles `source.migrate`; the
   Décisions `merge.local-blocked`, `ticket.local-unreadable`,
-  `source-migration.failed`, `project.folder-missing` (a folder gone, or
+  `source-migration.failed`, `source-migration.unfinished`,
+  `project.folder-missing` (a folder gone, or
   another Runner linked).
 - `apps/runner/internal/source/` holds one package per Source (`local/`,
   `github/`) behind one interface (read, write, watch, copy), used by the

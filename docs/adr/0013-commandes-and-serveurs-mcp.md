@@ -20,10 +20,10 @@ only MCP server was its own permission server.
 ### A Commande
 
 - **Its text is sealed** in the Process's version
-  ([ADR 0011](0011-the-process-as-data.md)): the server sends `command.run
-  { runId, projectId, commandId, sealed, where, ref }`; the Runner opens the
-  sealed part, checks that it names this Projet and this `commandId`, and
-  runs only what it opened.
+  ([ADR 0011](0011-the-process-as-data.md)), with its place (`where`): the
+  server sends `command.run { runId, projectId, commandId, sealed, ref }`;
+  the Runner opens the sealed part, checks that it names this Projet and
+  this `commandId`, and runs only what it opened, where it says.
 - **Where**: `worktree` is the Ticket's worktree at the SHA under judgement;
   `project` is the Projet's folder when it has one, else the Runner's
   checkout of the integration branch (`~/.crewdeck/worktrees/<projet>/integration`),

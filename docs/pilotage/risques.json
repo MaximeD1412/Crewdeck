@@ -1010,6 +1010,11 @@
           "fait": false
         },
         {
+          "texte": "Les flèches ne forment jamais de cycle : une boucle n'existe que comme Retour",
+          "ref": "ADR 0011",
+          "fait": false
+        },
+        {
           "texte": "Chaque Retour a son maximum ; la Review, les Checks et le Merge ne se retirent pas",
           "ref": "ADR 0011",
           "fait": false
@@ -1041,7 +1046,12 @@
           "fait": false
         },
         {
-          "texte": "Bascule en une transaction ; en cas d'échec l'ancienne Source le reste",
+          "texte": "Vérification jusqu'à une passe sans changement, puis rattrapage des modifications tardives après le gel",
+          "ref": "ADR 0012",
+          "fait": false
+        },
+        {
+          "texte": "Bascule en une transaction, point de non-retour : avant, l'ancienne Source le reste ; après, la nouvelle",
           "ref": "ADR 0012",
           "fait": false
         }
@@ -1078,7 +1088,12 @@
       "statutDepuis": "2026-11-14",
       "solutions": [
         {
-          "texte": "crewdeck-runner uninstall prévient avant de supprimer le Miroir",
+          "texte": "Données originales dans local.db, jamais touchées par la reconstruction du Miroir",
+          "ref": "ADR 0012",
+          "fait": false
+        },
+        {
+          "texte": "crewdeck-runner uninstall prévient avant de supprimer local.db",
           "ref": "ADR 0012",
           "fait": false
         }

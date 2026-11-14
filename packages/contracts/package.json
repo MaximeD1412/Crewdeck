@@ -45,6 +45,7 @@
           "{workspaceRoot}/apps/runner/internal/contracts/*.go",
           "{workspaceRoot}/apps/runner/internal/contrat/contrats",
           "{projectRoot}/fixtures/contrats/example.json",
+          "{projectRoot}/fixtures/process/*.json",
           "!{workspaceRoot}/apps/runner/internal/contracts/*_test.go"
         ]
       }

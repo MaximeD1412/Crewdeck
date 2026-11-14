@@ -147,6 +147,40 @@ describe('startRouter', () => {
     expect(page.data).toBe(shown);
   });
 
+  it('fills a route’s Emplacements with their Composants, kept while their kind stays, gone once nothing fills them', () => {
+    history.replaceState(null, '', '/a-toi');
+    outlet = document.createElement('main');
+    document.body.append(outlet);
+    const Card = page('Card', 'cd-card-test');
+    const Other = page('Other', 'cd-other-test');
+    let filled: { composant: typeof Card; data: unknown } | null = { composant: Card, data: { n: 1 } };
+    const withSlots: Route[] = [{ path: '/a-toi', composant: PageAToi, slots: () => ({ aside: filled }) }];
+    router = startRouter({ routes: withSlots, outlet });
+    const host = outlet.firstElementChild as HTMLElement;
+    const placed = () => [...host.children] as (HTMLElement & { data: unknown })[];
+    const [card] = placed();
+    expect(card?.localName).toBe('cd-card-test');
+    expect(card?.slot).toBe('aside');
+    expect(card?.data).toEqual({ n: 1 });
+
+    filled = { composant: Card, data: { n: 2 } };
+    router.refresh();
+    expect(placed()).toEqual([card]);
+    expect(card?.data).toEqual({ n: 2 });
+    const shown = card?.data;
+    filled = { composant: Card, data: { n: 2 } };
+    router.refresh();
+    expect(card?.data).toBe(shown);
+
+    filled = { composant: Other, data: {} };
+    router.refresh();
+    expect(placed().map((el) => el.localName)).toEqual(['cd-other-test']);
+
+    filled = null;
+    router.refresh();
+    expect(placed()).toEqual([]);
+  });
+
   it('sameData compares plain objects and arrays by their values, anything else by identity', () => {
     expect(sameData({ a: [1, { b: 'x' }], c: null }, { a: [1, { b: 'x' }], c: null })).toBe(true);
     expect(sameData({ a: [1] }, { a: [2] })).toBe(false);

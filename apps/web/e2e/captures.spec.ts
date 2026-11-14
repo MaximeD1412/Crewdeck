@@ -42,9 +42,21 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   },
   runner: async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('en ligne');
+    await expect(page.locator('cd-page-runner > cd-usage-card')).toContainText('au rythme actuel');
   },
   'runner-hors-ligne': async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('hors ligne');
+    await expect(page.locator('cd-page-runner > cd-usage-card')).toContainText('Dernière mesure');
+  },
+  // The card « Comptes IA » is filled once the snapshot is there (RUNNER-13).
+  'a-toi': async (page) => {
+    await expect(page.locator('cd-page-a-toi > cd-usage-card')).toContainText('Au rythme actuel');
+  },
+  'a-toi-vide': async (page) => {
+    await expect(page.locator('cd-page-a-toi > cd-usage-card')).toContainText('Au rythme actuel');
+  },
+  'a-toi-runner-hors-ligne': async (page) => {
+    await expect(page.locator('cd-page-a-toi > cd-usage-card')).toContainText('Dernière mesure');
   },
 };
 

@@ -1,4 +1,4 @@
-import type { AiAccount, Decision, Device, Event, Me, Resource, Runner, RunnerLink, State } from '@crewdeck/contracts';
+import type { AiAccount, Decision, Device, Event, Me, Resource, Runner, RunnerLink, State, UsageAccount } from '@crewdeck/contracts';
 import type { VaultState } from '../keys/vault.js';
 
 /**
@@ -25,6 +25,8 @@ export interface Slices {
   readonly device: ReadonlyMap<string, Device>;
   /** The open Décisions (ATOI-1), by id, from the snapshot's `decisions`. */
   readonly decision: ReadonlyMap<string, Decision>;
+  /** The usage of the Comptes IA (RUNNER-13), by the Compte IA's id, from the snapshot's `usage`. */
+  readonly usage: ReadonlyMap<string, UsageAccount>;
 }
 
 export interface StoreState {

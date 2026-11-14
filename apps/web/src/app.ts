@@ -110,6 +110,7 @@ export const boot = async ({
   const router = startRouter({
     routes,
     outlet: shell.outlet,
+    state: () => store.getState(),
     onRoute: shell.update,
     guard: (match) => started(match) ?? signIn(match),
     data: (match) => {

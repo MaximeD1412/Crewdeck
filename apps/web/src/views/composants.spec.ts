@@ -10,7 +10,7 @@ describe('composantsView', () => {
       Object.keys(COMPOSANTS).sort(),
     );
     expect(view.groups[0]?.composants).toEqual([
-      { name: 'Cadre', version: 1 },
+      { name: 'Cadre', version: 2 },
       { name: 'MenuItem', version: 1 },
       { name: 'PageHeader', version: 1 },
       { name: 'ProjectFilter', version: 1 },

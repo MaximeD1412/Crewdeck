@@ -11,8 +11,8 @@ export interface DrawnCode {
 }
 
 export interface DemarrageState {
-  /** The Pilote as the page knows them now: their login and their step. */
-  readonly pilot: Pick<Me, 'login' | 'gettingStartedStep'>;
+  /** The Pilote as the page knows them now: their name and their step. */
+  readonly pilot: Pick<Me, 'displayName' | 'gettingStartedStep'>;
   readonly runner: Runner | null;
   readonly system: DemarrageSystem;
   /** `null` until the page drew its code. */
@@ -43,7 +43,7 @@ export const systemOfBrowser = (userAgent: string): DemarrageSystem =>
  */
 export const demarrageView = ({ pilot, runner, system, code, failure, busy, origin, server, accounts }: DemarrageState): DemarrageView => ({
   step: pilot.gettingStartedStep === 'done' ? 'projects' : pilot.gettingStartedStep,
-  login: pilot.login,
+  displayName: pilot.displayName,
   system,
   command: code && !runner ? installCommand(origin, code, server) : null,
   shortId: code && !runner ? code.shortId : null,

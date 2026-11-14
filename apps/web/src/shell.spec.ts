@@ -69,9 +69,9 @@ describe('mountShell', () => {
 
   it('reads the Pilote from the state it is given', () => {
     const root = document.createElement('div');
-    const shell = mountShell({ root, state: () => ({ slices: { pilot: { login: 'maximed1412', avatarUrl: null } } }) });
+    const shell = mountShell({ root, state: () => ({ slices: { pilot: { displayName: 'maximed1412', avatarUrl: null } } }) });
     shell.update(at('/a-toi'));
-    expect((root.firstElementChild as WithData).data).toMatchObject({ pilot: { login: 'maximed1412', avatarUrl: null } });
+    expect((root.firstElementChild as WithData).data).toMatchObject({ pilot: { displayName: 'maximed1412', avatarUrl: null } });
   });
 
   const banners = (root: HTMLElement) =>

@@ -137,10 +137,16 @@ describe('the Cadre at 1280 px', () => {
   });
 
   it('shows the Pilote’s avatar from its URL', async () => {
-    const el = await cadre(withCounts, { data: { pilot: { login: 'maximed1412', avatarUrl: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=' } } });
+    const el = await cadre(withCounts, { data: { pilot: { displayName: 'maximed1412', avatarUrl: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=' } } });
     const img = shadow(el, '.pilot img');
     expect(img.getAttribute('src')).toMatch(/^data:image\/gif/);
     expect(img.getAttribute('alt')).toBe('');
+  });
+
+  it('names the Pilote by its displayName, its initials standing for a missing avatar', async () => {
+    const el = await cadre(withCounts, { data: { pilot: { displayName: 'pilote', avatarUrl: null } } });
+    expect(textOf(shadow(el, '.pilot .avatar'))).toBe('PI');
+    expect(textOf(shadow(el, '.pilot .name'))).toBe('pilote');
   });
 
   it('hides « En direct » when the Runner is not online, and the Pilote when there is none', async () => {

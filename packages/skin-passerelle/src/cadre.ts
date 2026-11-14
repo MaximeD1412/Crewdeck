@@ -553,9 +553,9 @@ export class PasserelleCadre extends PasserelleElement<typeof Cadre> {
           ${pilot
             ? html`<button class="pilot" type="button" @click=${() => this.emit('openPilot', {})}>
                 <span class="avatar" aria-hidden="true"
-                  >${pilot.avatarUrl ? html`<img src=${pilot.avatarUrl} alt="" />` : pilot.login.slice(0, 2).toUpperCase()}</span
+                  >${pilot.avatarUrl ? html`<img src=${pilot.avatarUrl} alt="" />` : pilot.displayName.slice(0, 2).toUpperCase()}</span
                 >
-                <span class="login">${pilot.login}</span>
+                <span class="name">${pilot.displayName}</span>
               </button>`
             : nothing}
         </div>

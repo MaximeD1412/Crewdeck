@@ -48,6 +48,9 @@ export const formatRelative = (instant: Instant, now: Date = new Date()): string
 /** « 16:40 ». */
 export const formatHour = (instant: Instant): string => hourMinute.format(toDate(instant));
 
+/** « 3 nov. » for an instant, its day in the browser's time zone. */
+export const formatDate = (instant: Instant): string => dayMonth.format(toDate(instant));
+
 /** « 12 nov. » for a `YYYY-MM-DD` day (`zDay`), never shifted by the time zone. */
 export const formatDay = (day: string): string => {
   const [year, month, date] = day.split('-').map(Number) as [number, number, number];

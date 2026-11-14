@@ -9,6 +9,12 @@ export interface StoredDevice {
   readonly deviceId: string | null;
   readonly privateKey: CryptoKey;
   readonly publicKey: Bytes;
+  /**
+   * The public key that sealed this Appareil's wrap of the vault key: absent
+   * when it sealed its own (the first Appareil, E2E-2), the approver's when a
+   * trusted Appareil or the Runner approved it by its code (E2E-3).
+   */
+  readonly senderPublicKey?: Bytes;
 }
 
 export interface DeviceStore {
@@ -53,7 +59,8 @@ export const createDeviceStore = (factory?: IDBFactory): DeviceStore => {
       return stored ?? null;
     },
     async saveDevice(device) {
-      await run('readwrite', (store) => store.put({ deviceId: device.deviceId, privateKey: device.privateKey, publicKey: device.publicKey }, KEY));
+      const { deviceId, privateKey, publicKey, senderPublicKey } = device;
+      await run('readwrite', (store) => store.put({ deviceId, privateKey, publicKey, ...(senderPublicKey ? { senderPublicKey } : {}) }, KEY));
     },
     async clearDevice() {
       await run('readwrite', (store) => store.delete(KEY));

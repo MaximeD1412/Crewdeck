@@ -1,14 +1,17 @@
 import { PageIntrouvable, type AnyComposant } from '@crewdeck/sdk';
+import { fillPlaced, type PlacedNode } from './placed.js';
 import type { StoreState } from './store/store.js';
 
 /**
- * A page URL (French, ADR 0008), `:name` for a parameter, its page Composant
- * and the view giving its `data`, from the match and the store's state.
+ * A page URL (French, ADR 0008), `:name` for a parameter, its page Composant,
+ * the view giving its `data` and the one giving the Composants of its
+ * Emplacements, from the match and the store's state.
  */
 export interface Route {
   readonly path: string;
   readonly composant: AnyComposant;
   readonly data?: (match: RouteMatch, state: StoreState) => unknown;
+  readonly slots?: (match: RouteMatch, state: StoreState) => readonly PlacedNode[];
 }
 
 export interface RouteMatch {
@@ -63,6 +66,9 @@ export const matchRoute = (routes: readonly Route[], url: string | URL): RouteMa
   return { path, composant: PageIntrouvable, params: {}, query, panel };
 };
 
+const routeOf = (routes: readonly Route[], match: RouteMatch): Route | undefined =>
+  routes.find((route) => route.composant === match.composant && matchPath(route.path, match.path));
+
 /** The state of a router without a store: nothing received yet. */
 export const NO_STATE: StoreState = { seq: null, connection: 'connecting', lostAt: null, slices: {}, vaultState: 'locked' };
 
@@ -88,7 +94,7 @@ export const sameData = (a: unknown, b: unknown): boolean => {
 export const routeData =
   (routes: readonly Route[], state: () => StoreState = () => NO_STATE) =>
   (match: RouteMatch): unknown =>
-    routes.find((route) => route.composant === match.composant && matchPath(route.path, match.path))?.data?.(match, state()) ?? {};
+    routeOf(routes, match)?.data?.(match, state()) ?? {};
 
 export interface Router {
   readonly current: RouteMatch;
@@ -96,10 +102,11 @@ export interface Router {
   navigate(url: string, options?: { replace?: boolean }): void;
   /**
    * Renders the current page again for a new state (the store's, a page's
-   * own): the guard asked again, the page's `data` read again; `onRoute`
-   * only when the guard moved the page. Data with the same values as the
-   * last given is not given again, so a page that does not read what changed
-   * is left as is (what was typed, an open Dialog).
+   * own): the guard asked again, the page's `data` and Emplacements read
+   * again, the same elements kept; `onRoute` only when the guard moved the
+   * page. Data with the same values as the last given is not given again, so
+   * a page that does not read what changed is left as is (what was typed, an
+   * open Dialog).
    */
   refresh(): void;
   stop(): void;
@@ -140,7 +147,15 @@ const linkOf = (event: MouseEvent): URL | null => {
  * `outlet`, then follows `navigate()`, the same-origin links (shadow roots
  * included) and the browser's back and forward.
  */
-export const startRouter = ({ routes, outlet, state, data = routeData(routes, state), onRoute, redirects = REDIRECTS, guard }: RouterOptions): Router => {
+export const startRouter = ({
+  routes,
+  outlet,
+  state = () => NO_STATE,
+  data = routeData(routes, state),
+  onRoute,
+  redirects = REDIRECTS,
+  guard,
+}: RouterOptions): Router => {
   let current: RouteMatch;
   let given: unknown;
 
@@ -163,6 +178,8 @@ export const startRouter = ({ routes, outlet, state, data = routeData(routes, st
     const next = data(current);
     if (page !== existing || !sameData(given, next)) (page as Element & { data: unknown }).data = next;
     given = next;
+    const slots = routeOf(routes, current)?.slots;
+    if (slots) fillPlaced(page, slots(current, state()));
     if (page !== existing || outlet.childElementCount !== 1) outlet.replaceChildren(page);
     if (navigated || location.href !== before) onRoute?.(current);
   };

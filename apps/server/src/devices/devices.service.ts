@@ -2,6 +2,7 @@ import { type BrowserPairing, type ConfirmPairing, DEVICES_MAX, type Device, typ
 import { Injectable } from '@nestjs/common';
 import { AppError, notFound, unprocessable } from '../errors/app-error.js';
 import { MESSAGES } from '../errors/messages.js';
+import type { Prisma } from '../generated/prisma/client.js';
 import { newId } from '../ids.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { EventsWriter } from '../realtime/events.writer.js';
@@ -13,7 +14,7 @@ import { bytesOf, DEVICE_VIEW, toDevice, wrapColumns, wrapOf } from './device.vi
 /** `lastSeenAt` moves at most once in this time. */
 export const DEVICE_SEEN_EVERY_MS = 60 * 60 * 1000;
 
-const deviceUnknown = (): AppError => notFound('devices.not-found', MESSAGES['devices.not-found']);
+export const deviceUnknown = (): AppError => notFound('devices.not-found', MESSAGES['devices.not-found']);
 export const deviceNotTrusted = (): AppError => unprocessable('devices.not-trusted', MESSAGES['devices.not-trusted']);
 const deviceRevoked = (): AppError => unprocessable('devices.revoked', MESSAGES['devices.revoked']);
 const pairingInvalid = (): AppError => unprocessable('runner.link-pairing-invalid', MESSAGES['runner.link-pairing-invalid']);
@@ -97,14 +98,19 @@ export class Devices {
 
   /** The current Pilote's Appareils, newest first, `current` the one of `currentId`. */
   async list(currentId: string | undefined): Promise<Device[]> {
-    const rows = await this.prisma.scoped.device.findMany({ orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: DEVICES_MAX, select: DEVICE_VIEW });
+    const rows = await this.prisma.scoped.device.findMany({ where: this.listed(), orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: DEVICES_MAX, select: DEVICE_VIEW });
     return rows.map((row) => toDevice(row, currentId));
   }
 
   /** The `devices` slice, in the snapshot's transaction. */
   async snapshot(tx: Tx): Promise<Device[]> {
-    const rows = await tx.device.findMany({ orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: DEVICES_MAX, select: DEVICE_VIEW });
+    const rows = await tx.device.findMany({ where: this.listed(), orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: DEVICES_MAX, select: DEVICE_VIEW });
     return rows.map((row) => toDevice(row));
+  }
+
+  /** The listed Appareils: all but those whose code expired before any approval (E2E-3). */
+  private listed(): Prisma.DeviceWhereInput {
+    return { OR: [{ state: { not: 'pending' } }, { expiresAt: null }, { expiresAt: { gt: this.clock.now() } }] };
   }
 
   /** The current Pilote's Appareil `id`'s wrap of the current vault key: 404 when it is not theirs, 422 when it holds none. */

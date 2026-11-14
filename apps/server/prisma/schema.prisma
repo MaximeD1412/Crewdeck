@@ -52,6 +52,7 @@ model Pilot {
   aiAccounts         AiAccount[]
   devices            Device[]
   vaultKeyWraps      VaultKeyWrap[]
+  settings           AccountSettings?
   decisions          Decision[]
 
   @@map("pilots")
@@ -230,17 +231,27 @@ enum DeviceState {
 /// (`approvedAt`); `revoked` by the Pilote (E2E-4). `lastSeenAt` follows its
 /// `X-Crewdeck-Device` header, at most once an hour.
 model Device {
-  id         String      @id @db.Uuid
-  pilotId    String      @map("pilot_id") @db.Uuid
-  name       String
-  publicKey  Bytes       @map("public_key")
-  state      DeviceState @default(pending)
-  approvedAt DateTime?   @map("approved_at") @db.Timestamptz
-  revokedAt  DateTime?   @map("revoked_at") @db.Timestamptz
-  lastSeenAt DateTime?   @map("last_seen_at") @db.Timestamptz
-  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz
-  pilot      Pilot       @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  id                String              @id @db.Uuid
+  pilotId           String              @map("pilot_id") @db.Uuid
+  name              String
+  publicKey         Bytes               @map("public_key")
+  state             DeviceState         @default(pending)
+  approvedAt        DateTime?           @map("approved_at") @db.Timestamptz
+  revokedAt         DateTime?           @map("revoked_at") @db.Timestamptz
+  lastSeenAt        DateTime?           @map("last_seen_at") @db.Timestamptz
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  /// A new Appareil's code (E2E-3): its short id while it waits, the proof of its public key, its expiry.
+  shortId           String?             @map("short_id")
+  proof             Bytes?
+  expiresAt         DateTime?           @map("expires_at") @db.Timestamptz
+  /// Who approved it by its code, the public key that sealed its wrap, and their proof.
+  approverType      VaultKeyHolderType? @map("approver_type")
+  approverId        String?             @map("approver_id") @db.Uuid
+  approverPublicKey Bytes?              @map("approver_public_key")
+  approvalProof     Bytes?              @map("approval_proof")
+  pilot             Pilot               @relation(fields: [pilotId], references: [id], onDelete: Cascade)
 
+  @@unique([pilotId, shortId], map: "devices_pilot_id_short_id_pending_key", where: raw("state = 'pending' AND short_id IS NOT NULL"))
   @@index([pilotId, createdAt])
   @@map("devices")
 }
@@ -271,6 +282,21 @@ model VaultKeyWrap {
   @@unique([holderType, holderId, vaultKeyVersion])
   @@index([pilotId, holderId])
   @@map("vault_key_wraps")
+}
+
+/// The Paramètres of the Pilote's account (PARAM-1), the default of each of
+/// their Projets: no row until they change one, `SettingsService` then reads
+/// the defaults. `roles` and `optionalSteps` are JSON, parsed by the
+/// contract's schemas on every read. The time zone stays on `pilots`.
+model AccountSettings {
+  pilotId           String   @id @map("pilot_id") @db.Uuid
+  roles             Json
+  optionalSteps     Json     @map("optional_steps")
+  notificationsPush Boolean  @default(false) @map("notifications_push")
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  pilot             Pilot    @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@map("account_settings")
 }
 
 /// A webhook delivery GitHub sent (ADR 0002), by its `X-GitHub-Delivery`:

@@ -1,5 +1,5 @@
 import { createHmac, generateKeyPairSync, randomBytes } from 'node:crypto';
-import { type BrowserPairing, type ConfirmPairing, PAIRING_PROOF_LABELS, type RunnerPairing, type Wrap } from '@crewdeck/contracts';
+import { type BrowserPairing, type ConfirmPairing, DEVICE_PROOF_LABELS, type NewDeviceRequest, PAIRING_PROOF_LABELS, type RunnerPairing, type Wrap } from '@crewdeck/contracts';
 
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
@@ -75,3 +75,30 @@ export const pairingSides = () => {
 };
 
 export type PairingSides = ReturnType<typeof pairingSides>;
+
+const hmac = (secret: Uint8Array, ...parts: Buffer[]): string => b64(createHmac('sha256', secret).update(Buffer.concat(parts)).digest());
+
+/** `proof_N`: HMAC-SHA256(secret, "crewdeck/v1/device/new" ‖ publicKey). */
+export const newDeviceProof = (secret: Uint8Array, publicKey: string): string =>
+  hmac(secret, Buffer.from(DEVICE_PROOF_LABELS.new), Buffer.from(publicKey, 'base64url'));
+
+/** `proof_A`: HMAC-SHA256(secret, "crewdeck/v1/device/approve" ‖ newPublicKey ‖ approverPublicKey). */
+export const approvalProof = (secret: Uint8Array, newPublicKey: string, approverPublicKey: string): string =>
+  hmac(secret, Buffer.from(DEVICE_PROOF_LABELS.approve), Buffer.from(newPublicKey, 'base64url'), Buffer.from(approverPublicKey, 'base64url'));
+
+/**
+ * A new Appareil as its page computes it (E2E-3): its key pair, the secret of
+ * its code (never sent) and what it registers with `POST /api/devices`.
+ */
+export const newDeviceSide = (name = 'Safari sur iPhone') => {
+  const secret = new Uint8Array(randomBytes(16));
+  const publicKey = x25519PublicKey();
+  return {
+    secret,
+    publicKey,
+    request: (): NewDeviceRequest => ({ publicKey, name, proof: newDeviceProof(secret, publicKey) }),
+    /** The code the page shows: `<shortId>-<secret>`. */
+    code: (shortId: string): string => `${shortId}-${base32(secret)}`,
+    leaks: (): string[] => [base32(secret), b64(secret), Buffer.from(secret).toString('hex')],
+  };
+};

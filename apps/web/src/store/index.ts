@@ -16,6 +16,7 @@ store.registerSlice('decision', { shape: 'collection', snapshotKey: 'decisions' 
 store.registerSlice('runner-link', { shape: 'single' });
 store.registerSlice('ai-account', { shape: 'collection' });
 store.registerSlice('device', { shape: 'collection', snapshotKey: 'devices' });
+store.registerSlice('settings', { shape: 'single' });
 
 export const client = createClient({
   seq: () => store.getState().seq,

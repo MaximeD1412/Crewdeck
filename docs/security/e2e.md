@@ -220,6 +220,7 @@ another:
 | The Runner, linking | `"crewdeck/v1/link/runner" ‖ shortId ‖ runnerPublicKey ‖ devicePublicKey` | E2E-2 |
 | The first Appareil, linking | `"crewdeck/v1/link/device" ‖ shortId ‖ devicePublicKey ‖ runnerPublicKey` | E2E-2 |
 | A new Appareil | `"crewdeck/v1/device/new" ‖ publicKey` | E2E-3 |
+| Its approver | `"crewdeck/v1/device/approve" ‖ newPublicKey ‖ approverPublicKey` | E2E-3 |
 
 `shortId` enters as its 4 ASCII characters; the public keys as 32 raw bytes
 each. The secret is the 16 bytes the code's base32 decodes to.
@@ -454,11 +455,102 @@ version or with `deviceVaultWrap` (422 `runner.link-pairing-invalid`).
 
 ## New Appareil (E2E-3)
 
-To be written by E2E-3: the QR code `crewdeck:appareil:<shortId>-<secret>`,
-the proof, the approval by a trusted Appareil or by the Runner. The new
-Appareil authenticates the approver's public key through the approval proof,
-then opens the vault wrap as an [authenticated wrap](#authenticated-wraps)
-from that key.
+A browser signed in to the account but holding no vault key (`vaultState`
+`no-device`: a phone, another profile) draws its own key pair and a 128-bit
+secret, and shows them as a code. An Appareil already trusted, or the Runner
+from its machine, checks the code against what the server relays and wraps
+the vault key for the new public key. No short code is ever typed: a secret
+short enough to type could be ground offline by the server.
+
+### The code
+
+```
+code = <shortId> "-" <secret>            7K2Q-ABCDEFGHJKMNPQRSTVWXYZ0120
+QR   = "crewdeck:appareil:" <code>
+```
+
+`shortId` is 4 Crockford characters the server draws, unique among the
+Pilote's live codes, so the approver can ask for the pending Appareil; the
+secret is 16 random bytes in 26 Crockford characters (the last one carries 2
+zero padding bits), drawn by the new page and never sent. A code lives 10
+minutes (`DEVICE_CODE_TTL_SECONDS`); a Pilote has at most 3 live codes
+(`PENDING_DEVICES_MAX`, 422 `devices.too-many-pending`). Both readers
+(`parseDeviceCode`, `apps/web/src/keys/approval.ts` and
+`cmd/crewdeck-runner/devices.go`) take the QR's text or the code alone, in any
+case, with spaces, and refuse a secret whose padding bits are not zero.
+
+### The flow
+
+```
+new page                            server                       approver (a trusted page, or the Runner)
+ │ draws skN (kept while it has no id) and secret
+ │ POST /api/devices
+ │  { publicKey: pkN, name, proof_N } ──▶ a pending Appareil, its code live 10 min
+ │ ◀── { id, shortId, expiresAt }
+ │ shows the QR and the code ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─▶ scanned or pasted
+ │                                    ◀── GET /api/devices/pending/:shortId
+ │                                        (the Runner: GET /api/runner/devices/pending/:shortId)
+ │                                    ──▶ { id, shortId, name, publicKey: pkN, proof_N, expiresAt }
+ │                                         checks proof_N; on a mismatch, approves nothing
+ │                                         asks « Approuver « name » ? »
+ │                                    ◀── POST /api/devices/:id/approve
+ │                                        (the Runner: POST /api/runner/devices/:id/approve)
+ │                                         { approver: { type, id }, vaultKeyVersion, wrap, proof_A }
+ │                          in one transaction: the Appareil trusted, its wrap, the
+ │                          approver's public key and proof_A kept, device.upserted
+ │ ◀── device.upserted { state: trusted }
+ │ GET /api/devices/:id/approval ──▶ { approver: { type, id, publicKey: pkA }, proof_A }
+ │ checks proof_A over pkN ‖ pkA; then keeps its id and pkA
+ │ GET /api/devices/:id/vault-key-wrap ──▶ opens it from pkA: the vault unlocked
+```
+
+The server takes `pkA` from what it already holds, never from the body: the
+trusted Appareil that sends the request (its `X-Crewdeck-Device`, 422
+`devices.not-trusted` otherwise), or the Runner of the Bearer token (its key
+from its link). It refuses a code expired or already used (409
+`devices.not-pending`), and a version other than the Pilote's current one
+(422 `devices.approval-invalid`).
+
+### The exact bytes
+
+With `secret` the 16 bytes of the code, `pkN` the new Appareil's public key
+and `pkA` the approver's (the trusted Appareil's, or the Runner's), raw (32
+bytes each):
+
+```
+proof_N = HMAC-SHA256(secret, "crewdeck/v1/device/new" ‖ pkN)
+proof_A = HMAC-SHA256(secret, "crewdeck/v1/device/approve" ‖ pkN ‖ pkA)
+
+wrap    = sealWrap(skA, pkN, vaultKey,
+                   "crewdeck/v1/vault-wrap", "<newDeviceId>:<vaultKeyVersion>")
+```
+
+The approver compares `proof_N` in constant time before it asks the Pilote
+anything: a server that relays another public key cannot compute it without
+the secret, and nothing is wrapped. The new page compares `proof_A` in
+constant time and keeps nothing on a mismatch: a server that names another
+approver key cannot compute it either. The new page then opens its wrap from
+the `pkA` the proof authenticated (`openWrap(skN, pkA, …)`, the stored
+`senderPublicKey`), so a wrap the server sealed itself does not open.
+
+Vectors (in `approval.spec.ts` and `internal/keys/device_test.go`), with
+`secret = 00 01 … 0f`, `pkN = 11 × 32`, `pkA = 22 × 32`, in base64url:
+
+```
+proof_N = NULG3lc4ksC0AGvvSApBzn65aDVMCw9mpjhkRngplZE
+proof_A = txJX8MrtUMCD9-qgPpWAKf61I4PBvdBhEq27LOMt5mE
+```
+
+### What proves it
+
+| What | Test |
+|---|---|
+| Both proofs, byte for byte, on both sides | the vectors above, in `approval.spec.ts` and `TestNewDeviceProofsMatchTheirVectors` |
+| A trusted Appareil approves a new one: the new vault opens an item the trusted one sealed | `apps/web/src/keys/approval.spec.ts` |
+| A swapped `pkN` approves nothing; a swapped `pkA` or a wrong `proof_A` opens nothing | `approval.spec.ts`; `TestTheRunnerApprovesNothingWhenTheServerSwapsTheKey` |
+| The real `crewdeck-runner appareils approuver` approves a second browser, which opens what the first one sealed | `test/integration/devices-runner.spec.ts` |
+| The routes: their schemas, 401, another Pilote's Appareil, 409, 422 | `test/integration/devices-approval.spec.ts` |
+| The secret in no request | `approval.spec.ts`; `devices-runner.spec.ts` |
 
 ## Revocation (E2E-4)
 

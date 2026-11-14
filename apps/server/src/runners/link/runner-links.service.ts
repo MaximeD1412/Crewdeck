@@ -1,7 +1,4 @@
-import { randomInt } from 'node:crypto';
 import {
-  CROCKFORD_ALPHABET,
-  LINK_CODE_SHORT_ID_LENGTH,
   LINK_CODE_TTL_SECONDS,
   type BrowserPairing,
   type ConfirmPairing,
@@ -19,7 +16,7 @@ import { newRunnerToken, runnerTokenHash } from '../../auth/runner-tokens.js';
 import { AppError, conflict, notFound, unprocessable } from '../../errors/app-error.js';
 import { MESSAGES } from '../../errors/messages.js';
 import { Prisma } from '../../generated/prisma/client.js';
-import { newId } from '../../ids.js';
+import { drawShortId, newId } from '../../ids.js';
 import { EventsWriter } from '../../realtime/events.writer.js';
 import { assertFresh } from '../../realtime/freshness.js';
 import { Transactions, type Tx } from '../../realtime/transactions.js';
@@ -43,10 +40,6 @@ const codeUnknown = (): AppError => notFound('runner.link-code-unknown', MESSAGE
 const codeExpired = (): AppError => unprocessable('runner.link-code-expired', MESSAGES['runner.link-code-expired']);
 const codeUsed = (): AppError => unprocessable('runner.link-code-used', MESSAGES['runner.link-code-used']);
 const notPending = (): AppError => conflict('runner.link-not-pending', MESSAGES['runner.link-not-pending']);
-
-/** A short id: 4 Crockford characters from the system's random source. */
-export const drawShortId = (): string =>
-  Array.from({ length: LINK_CODE_SHORT_ID_LENGTH }, () => CROCKFORD_ALPHABET[randomInt(CROCKFORD_ALPHABET.length)]).join('');
 
 const isUniqueViolation = (error: unknown): boolean => error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 

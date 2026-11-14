@@ -4,7 +4,7 @@ import { RunnerClock } from '../clock.js';
 import { failureOf, reasonOf, toRunnerLink } from './link-code.view.js';
 import { RunnerLinkLimiter } from './link-limiter.js';
 import { RunnerLinkTokens } from './link-tokens.js';
-import { drawShortId } from './runner-links.service.js';
+import { drawShortId } from '../../ids.js';
 
 describe('drawShortId', () => {
   it('draws 4 characters of Crockford’s base32, spread over the alphabet', () => {

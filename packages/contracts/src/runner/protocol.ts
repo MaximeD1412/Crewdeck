@@ -5,7 +5,7 @@ import { runnerMessage } from './envelope.js';
 import { zHeartbeat, zHeartbeatAck } from './heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './hello.js';
 import { zStepVerdict } from './step.js';
-import { zUsage } from './usage.js';
+import { zUsage, zUsageAck } from './usage.js';
 
 export { runnerMessage, type RunnerEnvelope, zRunnerEnvelope } from './envelope.js';
 
@@ -39,7 +39,7 @@ export type RunnerToServer = z.infer<typeof zRunnerToServer>;
 export type RunnerToServerType = RunnerToServer['type'];
 
 /** Every message the server sends to the Runner. */
-export const zServerToRunner = z.discriminatedUnion('type', [zHelloAccepted, zHelloRejected, zHeartbeatAck, zProtocolError]);
+export const zServerToRunner = z.discriminatedUnion('type', [zHelloAccepted, zHelloRejected, zHeartbeatAck, zProtocolError, zUsageAck]);
 export type ServerToRunner = z.infer<typeof zServerToRunner>;
 export type ServerToRunnerType = ServerToRunner['type'];
 

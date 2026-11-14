@@ -17,15 +17,23 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
 )
 
+// sentUsage is a server that stores each usage and acks it.
 type sentUsage struct {
 	mu       sync.Mutex
 	messages []contracts.RunnerUsage
+	// ack is what the Runner does with a usage.ack; nil, none is sent (the
+	// server's transaction failed).
+	ack func(usageID string)
 }
 
 func (s *sentUsage) send(_ context.Context, m contracts.RunnerUsage) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.messages = append(s.messages, m)
+	ack := s.ack
+	s.mu.Unlock()
+	if ack != nil {
+		ack(m.Id)
+	}
 	return nil
 }
 
@@ -71,6 +79,7 @@ func usageReporter(t *testing.T, adapter engine.Engine, options ...func(*Reporte
 	for _, option := range options {
 		option(reporter)
 	}
+	out.ack = reporter.UsageAcked
 	reporter.Engines = reporter.Watch(&registry)
 	if _, err := reporter.Report(context.Background()); err != nil {
 		t.Fatal(err)
@@ -84,7 +93,7 @@ func TestTheWindowsASessionReportsAreSentAtOnceWithTheirInstant(t *testing.T) {
 
 	startAndDrain(t, reporter.Engines, contracts.EngineIdClaudeCode, "opus")
 	out.await(t, 1)
-	reporter.flushUsage(context.Background())
+	reporter.FlushUsage(context.Background())
 
 	got := out.all()
 	if len(got) != 1 {
@@ -276,8 +285,8 @@ func TestASpendTheServerCouldNotGetOutlivesTheRunner(t *testing.T) {
 	after, out := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
 	resumeAndDrain(t, after.Engines, recordedSession)
 	out.await(t, 1)
-	after.flushUsage(context.Background())
-	after.flushUsage(context.Background())
+	after.FlushUsage(context.Background())
+	after.FlushUsage(context.Background())
 
 	got := out.all()
 	if costs := spends(got); len(costs) != 3 || sum(costs) != 1784 || !slices.Contains(costs, 304) {
@@ -293,7 +302,7 @@ func TestASpendTheServerCouldNotGetOutlivesTheRunner(t *testing.T) {
 
 	// Sent: a third Runner has nothing left to send.
 	again, out := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
-	again.flushUsage(context.Background())
+	again.FlushUsage(context.Background())
 	if got := out.all(); len(got) != 0 {
 		t.Fatalf("sent again %+v", got)
 	}
@@ -349,6 +358,69 @@ func TestALineCutByACrashLosesNothingAfterIt(t *testing.T) {
 	if got := spends(out.await(t, 1)); len(got) != 1 || got[0] != 184 {
 		t.Fatalf("spends %v, want 184 (1 784 less the 1 600 read)", got)
 	}
+}
+
+// A spend written to the socket is forgotten only once the server acks it:
+// one its transaction failed to store is sent again, at the reconnection
+// or after a restart, with the same id.
+func TestASpendTheServerDidNotAckIsSentAgain(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "spent.json")
+	claude := claudeWithKey(t)
+	claude.Events = recordedResults(t, "04-interrupt")
+	before, written := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
+	written.ack = nil // the frames arrive, their transaction fails
+	startAndDrain(t, before.Engines, contracts.EngineIdClaudeCode, "opus")
+	first := written.await(t, 2)
+
+	// The reconnection: the server stores and acks now.
+	reconnected := &sentUsage{ack: before.UsageAcked}
+	before.SendUsage = reconnected.send
+	before.FlushUsage(context.Background())
+	if got := reconnected.all(); !sameIds(got, first) {
+		t.Fatalf("sent again %+v, want the 2 spends of %+v", got, first)
+	}
+	before.FlushUsage(context.Background())
+	if got := reconnected.all(); len(got) != 2 {
+		t.Fatalf("sent %d usages, want 2 (acked: nothing more)", len(got))
+	}
+
+	// A restart: nothing waits any more.
+	after, out := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
+	after.FlushUsage(context.Background())
+	if got := out.all(); len(got) != 0 {
+		t.Fatalf("sent after the restart %+v", got)
+	}
+}
+
+// One never acked before a restart is sent after it.
+func TestASpendNotAckedBeforeARestartIsSentAfterIt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "spent.json")
+	claude := claudeWithKey(t)
+	claude.Events = recordedResults(t, "04-interrupt")
+	before, written := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
+	written.ack = nil
+	startAndDrain(t, before.Engines, contracts.EngineIdClaudeCode, "opus")
+	first := written.await(t, 2)
+
+	after, out := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
+	after.FlushUsage(context.Background())
+	got := out.all()
+	if costs := spends(got); len(costs) != 2 || sum(costs) != 1480 || !sameIds(got, first) {
+		t.Fatalf("usages %+v, want 1 183 and 297 with their ids of before the restart", got)
+	}
+}
+
+// sameIds: the same usages, by their ids, whatever their order.
+func sameIds(a, b []contracts.RunnerUsage) bool {
+	ids := func(usages []contracts.RunnerUsage) []string {
+		var out []string
+		for _, u := range usages {
+			out = append(out, u.Id)
+		}
+		slices.Sort(out)
+		return out
+	}
+	return slices.Equal(ids(a), ids(b))
 }
 
 // resultOf is a result of the Session `engineSessionID` that cost `micros` so far.
@@ -471,7 +543,7 @@ func TestALimitReachedSendsTheUsageAtOnceItsWindowFull(t *testing.T) {
 	if !full {
 		t.Fatalf("usages %+v, want the five hours full", out.all())
 	}
-	reporter.flushUsage(context.Background())
+	reporter.FlushUsage(context.Background())
 	if len(out.all()) != 2 {
 		t.Fatal("the tick sent again what the limit sent")
 	}
@@ -504,7 +576,7 @@ func TestAMoteurWithoutACompteIASendsNoUsage(t *testing.T) {
 	reporter, out := usageReporter(t, codex)
 
 	startAndDrain(t, reporter.Engines, contracts.EngineIdCodex, "gpt-5.5")
-	reporter.flushUsage(context.Background())
+	reporter.FlushUsage(context.Background())
 
 	if got := out.all(); len(got) != 0 {
 		t.Fatalf("usages %+v", got)
@@ -543,7 +615,7 @@ func TestAUsageTheServerCouldNotGetIsSentAtTheNextTick(t *testing.T) {
 	startAndDrain(t, reporter.Engines, contracts.EngineIdClaudeCode, "opus")
 	failed.Wait()
 	reporter.SendUsage = out.send
-	reporter.flushUsage(context.Background())
+	reporter.FlushUsage(context.Background())
 
 	if got := out.all(); len(got) != 1 || got[0].Windows[0].UsedPercent != 100 || !got[0].MeasuredAt.Equal(usageAt) {
 		t.Fatalf("usages %+v", got)

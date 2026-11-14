@@ -19,6 +19,7 @@ const (
 	TypeStepVerdict   = "step.verdict"
 	TypeCapabilities  = "capabilities"
 	TypeUsage         = "usage"
+	TypeUsageAck      = "usage.ack"
 )
 
 // Machine is what the Runner says of itself in its hello.

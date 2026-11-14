@@ -143,9 +143,10 @@ func (r *Reporter) instant(at time.Time) time.Time {
 }
 
 // sendUsage sends `messages` in order, one sending at a time; one the
-// server could not get waits for the next tick, as do the ones after it: a
-// spend in the record of the spends (spent.go), until the server gets it,
-// and never sent again once it did.
+// server could not get waits for the next tick, as do the ones after it. A
+// spend waits in the record of the spends (spent.go) until the server acks
+// it (UsageAcked), sent again at each tick and each connection until then,
+// never once acked.
 func (r *Reporter) sendUsage(ctx context.Context, messages []contracts.RunnerUsage) {
 	if r.SendUsage == nil {
 		return
@@ -158,7 +159,7 @@ func (r *Reporter) sendUsage(ctx context.Context, messages []contracts.RunnerUsa
 			pending := r.isPending(m.Id)
 			r.mu.Unlock()
 			if !pending {
-				continue // sent already
+				continue // acked already
 			}
 		}
 		if err := r.SendUsage(ctx, m); err != nil {
@@ -175,18 +176,26 @@ func (r *Reporter) sendUsage(ctx context.Context, messages []contracts.RunnerUsa
 			r.mu.Unlock()
 			return
 		}
-		if m.Spend != nil {
-			r.mu.Lock()
-			r.spendSent(m.Id)
-			r.mu.Unlock()
-		}
 	}
 }
 
-// flushUsage sends what waits: the spends not sent yet, those of before a
-// restart included, the windows the server could not get, then the
-// windows measured since the last usage of each Moteur.
-func (r *Reporter) flushUsage(ctx context.Context) {
+// UsageAcked takes the server's `usage.ack` of the usage `usageID`: stored,
+// its transaction committed. A spend is forgotten then only: a frame
+// written to the socket may still fail to be stored, and is sent again.
+func (r *Reporter) UsageAcked(usageID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.loadSpent()
+	if r.isPending(usageID) {
+		r.spendAcked(usageID)
+	}
+}
+
+// FlushUsage sends what waits: the spends the server has not acked, those
+// of before a restart included, the windows it could not get, then the
+// windows measured since the last usage of each Moteur. At each tick and
+// each accepted connection.
+func (r *Reporter) FlushUsage(ctx context.Context) {
 	r.mu.Lock()
 	r.loadSpent()
 	messages := append(slices.Clone(r.pending), r.usageRetry...)
@@ -214,7 +223,7 @@ func (r *Reporter) UsageEvery(ctx context.Context, period time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			r.flushUsage(ctx)
+			r.FlushUsage(ctx)
 		}
 	}
 }

@@ -81,8 +81,9 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		Send:      func(ctx context.Context, m contracts.RunnerCapabilities) error { return send(ctx, m) },
 		SendUsage: func(ctx context.Context, m contracts.RunnerUsage) error { return send(ctx, m) },
 		Logger:    logger,
-		// The cost of each Session so far, beside runner.json: a Session
-		// resumed after a restart sends only what it adds.
+		// The cost of each Session so far and the spends not acked, beside
+		// runner.json: a Session resumed after a restart sends only what it
+		// adds, and no spend is lost.
 		SpentPath: filepath.Join(store.Dir, "spent.json"),
 	}
 	// The adapters, their Sessions watched: a limit or a sign-in they meet
@@ -115,8 +116,17 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			Token:   linked.Token,
 			Machine: described,
 			Logger:  logger,
-			// What each Moteur can run, on each accepted connection (US-38).
-			OnConnected: report,
+			// What each Moteur can run, on each accepted connection (US-38),
+			// and the usage that waits: a spend not acked is sent again.
+			OnConnected: func(ctx context.Context) {
+				report(ctx)
+				reporter.FlushUsage(ctx)
+			},
+		})
+		// A spend is forgotten once stored (usage.ack), not once written.
+		protocol.On(client, protocol.TypeUsageAck, func(_ context.Context, ack contracts.RunnerUsageAck) error {
+			reporter.UsageAcked(ack.UsageId)
+			return nil
 		})
 		current.Store(client)
 		err := client.Run(ctx)

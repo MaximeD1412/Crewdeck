@@ -37,7 +37,11 @@ export class UsageService implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.dispatcher.registerRunnerHandler('usage', (message, context) => this.record(context.pilotId, message));
+    // Acked once committed, never before: the Runner keeps a spend until then.
+    this.dispatcher.registerRunnerHandler('usage', async (message, context) => {
+      await this.record(context.pilotId, message);
+      context.reply({ type: 'usage.ack', usageId: message.id });
+    });
   }
 
   /**

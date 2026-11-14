@@ -8,7 +8,7 @@ import { zEngineEvent } from './runner/events.js';
 import { zHeartbeat, zHeartbeatAck } from './runner/heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './runner/hello.js';
 import { zStepVerdict } from './runner/step.js';
-import { USAGE_EVERY_SECONDS, zUsage } from './runner/usage.js';
+import { USAGE_EVERY_SECONDS, zUsage, zUsageAck } from './runner/usage.js';
 import { HEARTBEAT_SECONDS, OFFLINE_AFTER_SECONDS, PROTOCOL_VERSION, RUNNER_WS_CLOSE, zProtocolError, zRunnerEnvelope } from './runner/protocol.js';
 
 /**
@@ -35,6 +35,7 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-step-verdict', schema: zStepVerdict },
   { name: 'runner-capabilities', schema: zCapabilities },
   { name: 'runner-usage', schema: zUsage },
+  { name: 'runner-usage-ack', schema: zUsageAck },
 ];
 
 /**

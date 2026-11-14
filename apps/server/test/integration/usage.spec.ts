@@ -7,6 +7,7 @@ import { WebSessions } from '../../src/auth/web-sessions.js';
 import { appOrigin, parseEnv } from '../../src/config/env.js';
 import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
+import { Transactions } from '../../src/realtime/transactions.js';
 import { EventsBus } from '../../src/realtime/events.bus.js';
 import { RunnerClock } from '../../src/runners/clock.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
@@ -210,6 +211,47 @@ describe('the usage of the Comptes IA against PostgreSQL', () => {
 
       expect(await sql('SELECT cost_usd_micros FROM spends WHERE pilot_id = $1', [alice.id])).toEqual([{ cost_usd_micros: '1000' }]);
       expect(events).toEqual([]);
+    });
+
+    it('acks a usage once its transaction is committed, and a spend stored already too', async () => {
+      const alice = await pilot();
+      const socket = await online(alice);
+      const id = newId();
+      const message = JSON.stringify({ type: 'usage', id, at: '2026-11-11T14:09:01.000Z', ...codex('2026-11-11T14:09:00.000Z', 1_000) });
+
+      socket.send(message);
+      expect((await socket.expect('usage.ack')).usageId).toBe(id);
+      expect(await sql('SELECT cost_usd_micros FROM spends WHERE id = $1', [id])).toEqual([{ cost_usd_micros: '1000' }]);
+      socket.send(message);
+      expect((await socket.expect('usage.ack')).usageId).toBe(id);
+      expect(await sql('SELECT id FROM spends WHERE pilot_id = $1', [alice.id])).toHaveLength(1);
+    });
+
+    it('does not ack a usage its transaction failed to store: the Runner sends it again', async () => {
+      const alice = await pilot();
+      const { token } = await createLinkedRunner(prisma, alice.id);
+      const connect = async () => {
+        const socket = await connectRunner(url, token);
+        sockets.push(socket);
+        socket.hello();
+        await socket.expect('hello.accepted');
+        return socket;
+      };
+      const socket = await connect();
+      const id = newId();
+      const message = JSON.stringify({ type: 'usage', id, at: '2026-11-11T14:09:01.000Z', ...codex('2026-11-11T14:09:00.000Z', 1_000) });
+      const failure = vi.spyOn(app.get(Transactions), 'run').mockRejectedValueOnce(new Error('the database is down'));
+
+      socket.send(message);
+      await socket.closed();
+      failure.mockRestore();
+      expect(socket.received().filter((received) => received.type === 'usage.ack')).toEqual([]);
+      expect(await sql('SELECT id FROM spends WHERE pilot_id = $1', [alice.id])).toEqual([]);
+
+      const again = await connect();
+      again.send(message);
+      expect((await again.expect('usage.ack')).usageId).toBe(id);
+      expect(await sql('SELECT id FROM spends WHERE pilot_id = $1', [alice.id])).toEqual([{ id }]);
     });
 
     it('keeps no spend for a subscription: its cost is a share of its windows', async () => {

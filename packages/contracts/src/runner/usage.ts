@@ -22,7 +22,7 @@ export type UsageWindowMeasure = z.infer<typeof zUsageWindowMeasure>;
  * a spend is never dated by older windows. Sent at each `usage` and
  * `limit-reached`, at each `result` that adds a cost, and every
  * `USAGE_EVERY_SECONDS` for what could not be sent: a spend again, its `id`
- * the same, until the server got it, a restart of the Runner included; the
+ * the same, until its `usage.ack`, a restart of the Runner included; the
  * server stores a spend once by that `id`. The server ignores the spend of a
  * subscription: its cost is a share of its windows (PILOTAGE-3).
  */
@@ -35,6 +35,14 @@ export const zUsage = runnerMessage('usage', {
   measuredAt: zInstant,
 });
 export type Usage = z.infer<typeof zUsage>;
+
+/**
+ * Server → Runner: the `usage` of id `usageId` is stored, its transaction
+ * committed, or was already. Only then does the Runner forget a spend: a
+ * frame written to the socket may still fail to be stored.
+ */
+export const zUsageAck = runnerMessage('usage.ack', { usageId: zId });
+export type UsageAck = z.infer<typeof zUsageAck>;
 
 /** How often the Runner sends the windows its Sessions reported since its last usage. */
 export const USAGE_EVERY_SECONDS = 10 * 60;

@@ -32,13 +32,13 @@ type sessionCost struct {
 
 // spentLine is a line of SpentPath, appended as it happens: what a Session
 // reported of its cost so far and the spend it sends for it, written
-// together before the spend is sent; or the spend the server got.
+// together before the spend is sent; or the spend the server acked.
 type spentLine struct {
 	Session       string                 `json:"session,omitempty"`
 	CostUsdMicros int                    `json:"costUsdMicros,omitempty"`
 	At            time.Time              `json:"at,omitzero"`
 	Spend         *contracts.RunnerUsage `json:"spend,omitempty"`
-	Sent          string                 `json:"sent,omitempty"`
+	Acked         string                 `json:"acked,omitempty"`
 }
 
 func sessionKey(engineID contracts.EngineId, engineSessionID string) string {
@@ -79,10 +79,10 @@ func (r *Reporter) isPending(id string) bool {
 	return slices.ContainsFunc(r.pending, func(m contracts.RunnerUsage) bool { return m.Id == id })
 }
 
-// spendSent records that the server got the spend `id`. Under r.mu.
-func (r *Reporter) spendSent(id string) {
+// spendAcked records that the server acked the spend `id`. Under r.mu.
+func (r *Reporter) spendAcked(id string) {
 	r.pending = slices.DeleteFunc(r.pending, func(m contracts.RunnerUsage) bool { return m.Id == id })
-	r.appendSpent(spentLine{Sent: id})
+	r.appendSpent(spentLine{Acked: id})
 }
 
 // loadSpent reads SpentPath once, then rewrites it with what is still
@@ -118,8 +118,8 @@ func (r *Reporter) loadSpent() {
 		if line.Spend != nil {
 			r.pending = append(r.pending, *line.Spend)
 		}
-		if line.Sent != "" {
-			r.pending = slices.DeleteFunc(r.pending, func(m contracts.RunnerUsage) bool { return m.Id == line.Sent })
+		if line.Acked != "" {
+			r.pending = slices.DeleteFunc(r.pending, func(m contracts.RunnerUsage) bool { return m.Id == line.Acked })
 		}
 	}
 	forgotten := r.now().Add(-sessionsKeptFor)

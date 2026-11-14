@@ -1,5 +1,5 @@
 import type { Me } from '@crewdeck/contracts';
-import { Cadre, PageComposants, PageConnexion, PageDemarrage, PageParametres, PageRunner, type Skin } from '@crewdeck/sdk';
+import { Cadre, PageAToi, PageComposants, PageConnexion, PageDemarrage, PageParametres, PageRunner, type Skin } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
 import { me as readMe } from './api/auth.js';
@@ -12,13 +12,14 @@ import { createGettingStarted, gettingStartedGuard } from './getting-started.js'
 import { createPageKeys, type PageKeys } from './keys/index.js';
 import { bootSkin } from './registry.js';
 import { routeData, startRouter, type Route, type Router } from './router.js';
-import { composantsHref, ROUTES } from './routes.js';
+import { aToiHref, composantsHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
 import { signInGuard, signInHref } from './sign-in.js';
 import { client as pageClient, connection as pageConnection, store as pageStore } from './store/index.js';
 import type { Connection } from './store/connection.js';
 import { createLatencyMeter, type LatencyMeter } from './store/latency.js';
 import type { Store } from './store/store.js';
+import { decisionViews } from './views/decisions/registry.js';
 import { systemOfBrowser } from './views/demarrage.js';
 import { ADD_DEVICE_ID } from './views/devices.js';
 import { runnerView } from './views/runner.js';
@@ -120,7 +121,7 @@ export const boot = async ({
   });
   const signIn = signInGuard(pilot);
   const started = gettingStartedGuard(gettingStarted.pilot);
-  const pageData = routeData(routes);
+  const pageData = routeData(routes, () => store.getState());
   const router = startRouter({
     routes,
     outlet: shell.outlet,
@@ -160,6 +161,25 @@ export const boot = async ({
     },
   });
   dispatcher.registerAction(Cadre, 'openPilot', { run: () => router.navigate('/parametres') });
+  const openDecision = (id: string) => store.getState().slices.decision?.get(id);
+  dispatcher.registerAction(PageAToi, 'filter', { run: ({ projectId }) => router.navigate(aToiHref(projectId)) });
+  dispatcher.registerAction(PageAToi, 'open', {
+    run: ({ id }) => {
+      const decision = openDecision(id);
+      if (decision) router.navigate(decision.link);
+    },
+  });
+  // A Décision is answered by its module's command, never here (ATOI-1): the kind's view runs its button.
+  dispatcher.registerAction(PageAToi, 'act', {
+    run: ({ id, action }) => {
+      const decision = openDecision(id);
+      const button = decision && decisionViews.viewOf(decision.kind).actions.find((candidate) => candidate.id === action);
+      if (!decision || !button) return;
+      if (button.needsRunner && store.getState().slices.runner?.state !== 'online') return;
+      return button.run(decision, { navigate: (url) => router.navigate(url) });
+    },
+  });
+  dispatcher.registerAction(PageAToi, 'note-idea', { run: () => router.navigate('/idees') });
   dispatcher.registerAction(PageDemarrage, 'selectSystem', { run: ({ system }) => gettingStarted.selectSystem(system) });
   dispatcher.registerAction(PageDemarrage, 'retry', { run: () => gettingStarted.retry() });
   dispatcher.registerAction(PageDemarrage, 'continue', { run: () => gettingStarted.advance() });

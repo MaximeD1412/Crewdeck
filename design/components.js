@@ -84,6 +84,12 @@
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
     shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
     wifi: '<path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 19.5v.01"/>',
+    minus: '<path d="M5 12h14"/>',
+    plug: '<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v4"/>',
+    undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
+    fit: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>',
+    phase: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9h18"/>',
+    gate: '<path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/>',
   };
   const icon = (name, cls = "icon") => {
     const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -124,7 +130,8 @@
     resync: ["caution", "Resynchronisation…", "Actions sensibles indisponibles"],
   };
 
-  // <ui-app-shell screen="À toi" current="a-toi" decisions="6" runner="online|offline|resync" variant="bare">
+  // <ui-app-shell screen="À toi" current="a-toi" decisions="6" runner="online|offline|resync" variant="bare|compact">
+  // compact: at 1280 the sidebar keeps its icons only (Gestion du process); at 390 it is the default Cadre.
   //   page… <… slot="banner"> <… slot="panel"> <… slot="overlay">
   define("ui-app-shell", (el) => {
     const variant = a(el, "variant", "default");
@@ -150,7 +157,7 @@
     }
 
     const navLinks = (phone) => NAV.filter((n) => !phone || n[3]).map(([id, label, ic]) =>
-      h("a", { href: "#", class: "shell-link", "aria-current": id === current ? "page" : null },
+      h("a", { href: "#", class: "shell-link", "aria-current": id === current ? "page" : null, title: variant === "compact" && !phone ? label : null },
         icon(ic), h("span", { class: "shell-link-label" }, label),
         counts[id] && counts[id] !== "0" && (!phone || id === "a-toi") ? h("span", { class: phone ? "shell-tab-badge" : "shell-count" }, counts[id]) : null));
     const moreCurrent = !NAV.find((n) => n[0] === current && n[3]);
@@ -355,7 +362,7 @@
   define("ui-process-track", (el) => {
     el.append(h("ol", { class: `track${a(el, "direction") === "vertical" ? " track--vertical" : ""}`, name: "ProcessTrack/Default" }, ...el.childNodes));
   });
-  const STEP_ICON = { done: "check", current: null, halt: "x", off: "pause", todo: null, caution: "alert" };
+  const STEP_ICON = { done: "check", current: null, halt: "x", off: "pause", todo: null, caution: "alert", stopped: "stop" };
   define("ui-step", (el) => {
     const state = a(el, "state", "todo");
     const mark = h("span", { class: "track-mark" });
@@ -462,8 +469,8 @@
   });
 
   // 05 Session (US-9) -------------------------------------------------------------
-  const SESSION = { active: ["go", "active"], waiting: ["caution", "attend ta réponse"], stopped: ["neutral", "arrêtée"], interrupted: ["caution", "interrompue"] };
-  // <ui-session title="…" meta="…" state="active|waiting|stopped|interrupted" resume-disabled>messages… <ui-composer></ui-composer></ui-session>
+  const SESSION = { active: ["go", "active"], waiting: ["caution", "attend ta réponse"], stopped: ["neutral", "arrêtée"], interrupted: ["caution", "interrompue"], failed: ["halt", "échouée"] };
+  // <ui-session title="…" meta="…" state="active|waiting|stopped|interrupted" resume-disabled resume-label="Relancer" resume-icon="refresh">messages… <ui-composer></ui-composer></ui-session>
   define("ui-session", (el) => {
     const state = a(el, "state", "active");
     const [tone, label] = SESSION[state];
@@ -476,7 +483,7 @@
           h("div", { class: "session-title" }, h("span", { class: `dot dot--${tone}${state === "active" ? " dot--pulse" : ""}` }), h("b", { text: a(el, "title") })),
           h("div", { class: "session-meta" }, h("span", { text: label }), ` · ${a(el, "meta")}`)),
         h("div", { class: "session-head-actions" },
-          state === "stopped" || state === "interrupted" ? h("ui-button", { size: "sm", icon: "play", variant: "secondary", state: el.hasAttribute("resume-disabled") ? "disabled" : null }, "Reprendre") : h("ui-button", { size: "sm", icon: "stop", variant: "secondary" }, "Arrêter"),
+          state === "stopped" || state === "interrupted" || state === "failed" ? h("ui-button", { size: "sm", icon: a(el, "resume-icon", "play"), variant: "secondary", state: el.hasAttribute("resume-disabled") ? "disabled" : null }, a(el, "resume-label", "Reprendre")) : h("ui-button", { size: "sm", icon: "stop", variant: "secondary" }, "Arrêter"),
           h("ui-icon-button", { icon: "expand", label: "Agrandir", class: "only-wide" }),
           h("ui-icon-button", { icon: "x", label: "Fermer", class: "only-wide" }))),
       h("div", { class: "session-crypto" }, icon("lock", "icon icon--sm"), "Chiffrée de bout en bout entre ton Runner et ce navigateur"),
@@ -618,5 +625,289 @@
       h("div", { class: "dialog-actions" },
         h("ui-button", { variant: "ghost" }, "Annuler"),
         h("ui-button", { variant: a(el, "tone") === "danger" ? "danger" : "primary", icon: a(el, "icon", "check"), state: state === "disabled" ? "disabled" : null }, a(el, "action")))));
+  });
+
+  // 08 Process (Gestion du process, US-92 to US-98) ---------------------------------
+  const TOOL = { role: ["user", "Rôle"], skill: ["spark", "Skill"], mcp: ["layers", "Serveur MCP"], commande: ["terminal", "Commande"], connecteur: ["plug", "Connecteur"] };
+  // <ui-tool-chip kind="role|skill|mcp|commande|connecteur">Conception</ui-tool-chip>
+  define("ui-tool-chip", (el) => {
+    const kind = a(el, "kind", "role");
+    const [ic, label] = TOOL[kind];
+    el.append(h("span", { class: `tool-chip tool-chip--${kind}`, title: label, name: `ToolChip/${pascal(kind)}` },
+      icon(ic, "icon icon--sm"), h("span", { class: "tool-chip-name" }, ...el.childNodes)));
+  });
+
+  // The catalogue's Types d'artefact, each with its colour token (--type-<slug>).
+  const ARTIFACT_TYPE = { "Idée": "idee", "PRD": "prd", "Maquettes": "maquettes", "Conception technique": "conception", "Inventaire": "inventaire", "Ticket": "ticket", "Changement de code": "changement", "Verdict": "verdict", "Livraison": "livraison" };
+  // <ui-port dir="in|out" name="prd" type="prd" state="unfed|compatible|refused|active" note="notée par le Pilote">PRD</ui-port>
+  // type: the Type d'artefact's slug, read from the text when omitted.
+  // Its data-port, « <Étape ref>:<in|out>:<name> », is what ui-process-arrow names.
+  define("ui-port", (el) => {
+    const dir = a(el, "dir", "in");
+    const state = a(el, "state");
+    const ref = el.closest("ui-step-card")?.getAttribute("ref") || "";
+    const label = el.textContent.trim();
+    const name = a(el, "name", label.toLowerCase());
+    const type = a(el, "type", ARTIFACT_TYPE[label] || "");
+    const dot = h("i", { class: "port-dot", "aria-hidden": "true" });
+    const text = h("span", { class: "port-label" }, ...el.childNodes, a(el, "note") ? h("em", { text: ` ${a(el, "note")}` }) : null);
+    el.append(h("div", { class: `port port--${dir}${state ? ` port--${state}` : ""}${type ? ` t-${type}` : ""}`, "data-port": `${ref}:${dir}:${name}`, "data-type": type, name: `Port/${cap(dir)}` },
+      ...(dir === "in" ? [dot, text] : [text, dot])));
+  });
+
+  const STEP_KIND = { agent: "Agent", gate: "Pilote", command: "Commande", core: "Crewdeck" };
+  // <ui-step-card ref="prd" name="PRD" kind="Agent" variant="agent|gate|command|core" col="1" row="1" gaps="2" judges selected>
+  // core: the checks and the merge, which the product keeps before every change of code merges.
+  //   <ui-port>… <ui-tool-chip>…
+  // </ui-step-card>
+  define("ui-step-card", (el) => {
+    const variant = a(el, "variant", "agent");
+    const ports = [...el.children].filter((c) => c.tagName === "UI-PORT");
+    const tools = [...el.children].filter((c) => c.tagName === "UI-TOOL-CHIP");
+    const gaps = a(el, "gaps");
+    const state = el.hasAttribute("selected") ? " is-selected" : "";
+    if (a(el, "col")) el.style.gridColumn = a(el, "col");
+    if (a(el, "row")) el.style.gridRow = a(el, "row");
+    el.append(h("article", { class: `step-card step-card--${variant}${state}${gaps ? " has-gap" : ""}`, "aria-label": `Étape / ${a(el, "name")}`, "data-ref": a(el, "ref"), name: `StepCard/${cap(variant)}` },
+      h("header", { class: "step-card-head" },
+        h("b", { class: "step-card-name", text: a(el, "name") }),
+        h("span", { class: "step-card-kind" },
+          variant === "gate" ? icon("user", "icon icon--sm") : null,
+          a(el, "kind", STEP_KIND[variant]),
+          gaps ? h("span", { class: "step-card-gap" }, icon("alert", "icon icon--sm"), `${gaps} Manque${gaps === "1" ? "" : "s"}`) : null)),
+      h("div", { class: "step-card-ports" }, ...ports),
+      variant === "gate" && !el.hasAttribute("judges") ? null : h("footer", { class: "step-card-tools" },
+        ...(variant === "gate" ? [] : tools.length ? tools : [h("span", { class: "step-card-none", text: "aucun Outil" })]),
+        el.hasAttribute("judges") ? h("span", { class: "step-card-handle", title: "Tirer vers une Étape antérieure pour poser un Retour" }, icon("undo", "icon icon--sm")) : null)));
+  });
+
+  // <ui-phase name="Conception" for-each="chaque Idée retenue" col="1" row="2" gaps="1">ui-step-card…</ui-phase>
+  define("ui-phase", (el) => {
+    const each = a(el, "for-each");
+    const gaps = a(el, "gaps");
+    const acts = take(el, "actions");
+    if (a(el, "col")) el.style.gridColumn = a(el, "col");
+    if (a(el, "row")) el.style.gridRow = a(el, "row");
+    el.append(h("section", { class: `phase${each ? " phase--repeated" : ""}${el.hasAttribute("target") ? " phase--target" : ""}`, "aria-label": `Phase / ${a(el, "name")}`, name: `Phase/${each ? "Repeated" : "Default"}` },
+      h("header", { class: "phase-head" },
+        h("h3", { class: "section-label", text: a(el, "name") }),
+        each ? h("span", { class: "phase-repeat" }, icon("loop", "icon icon--sm"), `pour ${each}`) : null,
+        gaps ? h("span", { class: "badge badge--caution", text: `${gaps} Manque${gaps === "1" ? "" : "s"}` }) : null,
+        acts.length ? h("span", { class: "phase-actions" }, ...acts) : null),
+      h("div", { class: "phase-grid" }, ...rest(el))));
+  });
+
+  // <ui-process-canvas zoom="90" pan="0,760">
+  //   ui-phase…
+  //   <ui-process-arrow from="prd.prd" to="rc-prd.prd" state="active|refused|gap"></ui-process-arrow>
+  //   <ui-loop-back from="rc-prd" to="prd" max="3" state="active"></ui-loop-back>
+  //   <… slot="toast"> a message over the canvas; <… slot="menu"> a menu opened from the panel, on the canvas's right edge
+  // </ui-process-canvas>
+  // The arrows and Retours are drawn once the cards are laid out (one SVG layer): geometry, not logic.
+  define("ui-process-canvas", (el) => {
+    const zoom = Number(a(el, "zoom", "100")) / 100;
+    const arrows = [...el.children].filter((c) => c.tagName === "UI-PROCESS-ARROW").map((c) => (c.remove(), { from: c.getAttribute("from"), to: c.getAttribute("to"), state: c.getAttribute("state") }));
+    const loops = [...el.children].filter((c) => c.tagName === "UI-LOOP-BACK").map((c) => (c.remove(), { from: c.getAttribute("from"), to: c.getAttribute("to"), max: c.getAttribute("max") || "3", state: c.getAttribute("state") }));
+    const toast = take(el, "toast"), menu = take(el, "menu");
+    const NS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("class", "canvas-wires");
+    svg.setAttribute("aria-hidden", "true");
+    const content = h("div", { class: "canvas-content" }, svg, ...rest(el));
+    // pan="x,y": the view's offset, in the canvas's own units (where the Pilote scrolled to).
+    const [panX, panY] = a(el, "pan", "0,0").split(",").map(Number);
+    content.style.transform = `scale(${zoom}) translate(${-panX}px, ${-panY}px)`;
+    el.append(h("section", { class: "canvas", "aria-label": "Gestion du process / Canevas", name: "ProcessCanvas/Default" },
+      h("div", { class: "canvas-viewport" }, content),
+      h("div", { class: "canvas-zoom", role: "group", "aria-label": "Zoom" },
+        h("ui-icon-button", { icon: "minus", label: "Dézoomer" }),
+        h("span", { class: "canvas-zoom-value", text: `${Math.round(zoom * 100)} %` }),
+        h("ui-icon-button", { icon: "plus", label: "Zoomer" }),
+        h("ui-button", { size: "sm", variant: "ghost", icon: "fit" }, "Tout voir")),
+      toast.length ? h("div", { class: "canvas-toast" }, ...toast) : null,
+      menu.length ? h("div", { class: "canvas-menu" }, ...menu) : null));
+
+    // The router: each arrow leaves its Sortie to the right, runs in the gutters between the cards
+    // (orthogonal, rounded corners) and enters its Entrée from the left. It tries every one- and
+    // two-detour path through the gutters and keeps the shortest that crosses no card, no Phase's
+    // title and no Retour's badge; arrows from another Sortie take another lane.
+    const draw = () => {
+      if (!content.offsetWidth) return; // the canvas is not shown (the phone reads the list)
+      const base = content.getBoundingClientRect();
+      const box = (node, m = 0) => {
+        const r = node.getBoundingClientRect();
+        return { l: (r.left - base.left) / zoom - m, r: (r.right - base.left) / zoom + m, t: (r.top - base.top) / zoom - m, b: (r.bottom - base.top) / zoom + m };
+      };
+      const mid = (node) => { const b = box(node); return { x: (b.l + b.r) / 2, y: (b.t + b.b) / 2 }; };
+      svg.setAttribute("width", content.offsetWidth);
+      svg.setAttribute("height", content.offsetHeight);
+      const gWires = document.createElementNS(NS, "g"), gLoops = document.createElementNS(NS, "g");
+      svg.append(gWires, gLoops);
+      const path = (g, d, cls) => { const p = document.createElementNS(NS, "path"); p.setAttribute("d", d); p.setAttribute("class", cls); g.append(p); };
+      // A polyline with rounded corners (the radius shrinks in a narrow gutter).
+      const rounded = (pts, R) => {
+        const q = pts.filter((p, i) => i === 0 || Math.abs(p.x - pts[i - 1].x) + Math.abs(p.y - pts[i - 1].y) > 0.5);
+        let d = `M${q[0].x},${q[0].y}`;
+        for (let i = 1; i < q.length - 1; i++) {
+          const p0 = q[i - 1], p = q[i], p1 = q[i + 1];
+          const l0 = Math.hypot(p.x - p0.x, p.y - p0.y), l1 = Math.hypot(p1.x - p.x, p1.y - p.y);
+          const r = Math.min(R, i === 1 ? l0 : l0 / 2, i === q.length - 2 ? l1 : l1 / 2);
+          const a0 = { x: p.x - ((p.x - p0.x) / l0) * r, y: p.y - ((p.y - p0.y) / l0) * r };
+          const a1 = { x: p.x + ((p1.x - p.x) / l1) * r, y: p.y + ((p1.y - p.y) / l1) * r };
+          d += ` L${a0.x},${a0.y} Q${p.x},${p.y} ${a1.x},${a1.y}`;
+        }
+        const z = q[q.length - 1];
+        return `${d} L${z.x},${z.y}`;
+      };
+
+      const cards = [...content.querySelectorAll(".step-card")];
+      const obstacles = [...cards.map((c) => ({ node: c, ...box(c, 2) })), ...[...content.querySelectorAll(".phase-head")].map((c) => box(c, 2))];
+
+      // Retours first: their badges are obstacles for the arrows.
+      for (const lb of loops) {
+        const f = content.querySelector(`[data-ref="${lb.from}"]`), t = content.querySelector(`[data-ref="${lb.to}"]`);
+        if (!f || !t) { console.warn(`ui-loop-back : Étape introuvable ${lb.from} → ${lb.to}`); continue; }
+        const bf = box(f), bt = box(t);
+        const x1 = (bf.l + bf.r) / 2, x2 = (bt.l + bt.r) / 2;
+        // Below every card of the row it passes under.
+        const under = cards.map((c) => box(c)).filter((b) => b.r > Math.min(x1, x2) && b.l < Math.max(x1, x2) && b.t < Math.max(bf.b, bt.b) && b.b > Math.min(bf.t, bt.t) - 1);
+        const low = Math.max(bf.b, bt.b, ...under.map((b) => b.b)) + 28;
+        path(gLoops, rounded([{ x: x1, y: bf.b }, { x: x1, y: low }, { x: x2, y: low }, { x: x2, y: bt.b }], 14), `wire wire--loop${lb.state ? ` wire--loop-${lb.state}` : ""}`);
+        const badge = h("span", { class: `loop-badge${lb.state ? ` loop-badge--${lb.state}` : ""}`, name: "LoopBack/Default" }, icon("undo", "icon icon--sm"), `Retour · ${lb.max} fois au plus`);
+        badge.style.left = `${(x1 + x2) / 2}px`;
+        badge.style.top = `${low - 4}px`;
+        content.append(badge);
+        obstacles.push(box(badge, 3));
+      }
+
+      // The gutters: beside and between the cards, lanes a few units apart.
+      const vLanes = [0, -3, 3, -6, 6], hLanes = [0, -4, 4, -8, 8];
+      const xs = [...new Set(cards.flatMap((c) => { const b = box(c); return [b.r + 10, b.l - 10]; }).flatMap((x) => vLanes.map((o) => Math.round(x + o))))];
+      const ys = [...new Set(cards.flatMap((c) => { const b = box(c); return [b.b + 14, b.t - 14]; }).flatMap((y) => hLanes.map((o) => Math.round(y + o))))];
+      const hits = (s, skip) => obstacles.some((o) => !(o.node && skip.includes(o.node)) &&
+        Math.max(s.x1, s.x2) > o.l && Math.min(s.x1, s.x2) < o.r && Math.max(s.y1, s.y2) > o.t && Math.min(s.y1, s.y2) < o.b);
+      // A Phase's border is a lane no arrow runs along.
+      const routed = [...content.querySelectorAll(".phase")].flatMap((ph) => {
+        const b = box(ph);
+        return [[b.l, b.t, b.r, b.t], [b.l, b.b, b.r, b.b], [b.l, b.t, b.l, b.b], [b.r, b.t, b.r, b.b]].map(([x1, y1, x2, y2]) => ({ x1, y1, x2, y2, src: "phase" }));
+      }); // { x1, y1, x2, y2, src }
+      const cost = (pts, src) => {
+        let c = 0;
+        for (let i = 1; i < pts.length; i++) {
+          const s = { x1: pts[i - 1].x, y1: pts[i - 1].y, x2: pts[i].x, y2: pts[i].y };
+          c += Math.abs(s.x2 - s.x1) + Math.abs(s.y2 - s.y1);
+          const vertical = Math.abs(s.x1 - s.x2) < 0.5;
+          for (const o of routed) {
+            if (o.src === src) continue;
+            const border = o.src === "phase";
+            const ov = Math.abs(o.x1 - o.x2) < 0.5;
+            // Running along another Sortie's arrow (or a border): a lane is taken twice.
+            const along = (p, q, r, t) => Math.max(0, Math.min(Math.max(p, q), Math.max(r, t)) - Math.max(Math.min(p, q), Math.min(r, t)));
+            if (vertical && ov && Math.abs(o.x1 - s.x1) < 4) { const l = along(s.y1, s.y2, o.y1, o.y2); if (l > 0) c += 400 + 4 * l; }
+            else if (!vertical && !ov && Math.abs(o.y1 - s.y1) < 4) { const l = along(s.x1, s.x2, o.x1, o.x2); if (l > 0) c += 400 + 4 * l; }
+            else if (vertical !== ov) {
+              const [v, hz] = vertical ? [s, o] : [o, s];
+              if (v.x1 > Math.min(hz.x1, hz.x2) && v.x1 < Math.max(hz.x1, hz.x2) && hz.y1 > Math.min(v.y1, v.y2) && hz.y1 < Math.max(v.y1, v.y2)) c += border ? 0 : 6;
+            }
+          }
+        }
+        return c + 24 * (pts.length - 2);
+      };
+      // The first segment leaves card A, the last one enters card B: those two cards do not count there.
+      const free = (pts, A, B) => pts.every((p, i) => i === 0 || !hits({ x1: pts[i - 1].x, y1: pts[i - 1].y, x2: p.x, y2: p.y }, [i === 1 ? A : null, i === pts.length - 1 ? B : null]));
+      const route = (p1, p2, A, B, src) => {
+        const cands = [];
+        if (Math.abs(p1.y - p2.y) < 1 && p2.x > p1.x) cands.push([p1, p2]);
+        for (const x of xs) if (x > p1.x + 4 && x < p2.x - 4) cands.push([p1, { x, y: p1.y }, { x, y: p2.y }, p2]);
+        const near = (list, ok, key) => list.filter(ok).sort((u, v) => key(u) - key(v)).slice(0, 6);
+        const x1s = near(xs, (x) => x > p1.x + 4, (x) => x - p1.x), x2s = near(xs, (x) => x < p2.x - 4, (x) => p2.x - x);
+        for (const xa of x1s) for (const xb of x2s) for (const y of ys) cands.push([p1, { x: xa, y: p1.y }, { x: xa, y }, { x: xb, y }, { x: xb, y: p2.y }, p2]);
+        let best = null, bestCost = Infinity;
+        for (const pts of cands) {
+          if (!free(pts, A, B)) continue;
+          const c = cost(pts, src);
+          if (c < bestCost) { best = pts; bestCost = c; }
+        }
+        if (!best) { console.warn("ui-process-arrow : aucun chemin libre"); best = [p1, { x: (p1.x + p2.x) / 2, y: p1.y }, { x: (p1.x + p2.x) / 2, y: p2.y }, p2]; }
+        for (let i = 1; i < best.length; i++) routed.push({ x1: best[i - 1].x, y1: best[i - 1].y, x2: best[i].x, y2: best[i].y, src });
+        return best;
+      };
+
+      const order = { undefined: 0, null: 0, gap: 1, active: 2, refused: 3 };
+      const found = arrows.map((ar) => {
+        const [fs, fp] = ar.from.split("."), [ts, tp] = ar.to.split(".");
+        const o = content.querySelector(`[data-port="${fs}:out:${fp}"]`), i = content.querySelector(`[data-port="${ts}:in:${tp}"]`);
+        if (!o || !i) { console.warn(`ui-process-arrow : port introuvable ${ar.from} → ${ar.to}`); return null; }
+        return { ...ar, o, i, p1: mid(o.querySelector(".port-dot")), p2: mid(i.querySelector(".port-dot")), len: Math.abs(mid(i).x - mid(o).x) + Math.abs(mid(i).y - mid(o).y) };
+      }).filter(Boolean);
+      // Short arrows first: they take the lanes next to their cards, the long ones go around.
+      for (const ar of [...found].sort((x, y) => x.len - y.len)) ar.pts = route(ar.p1, ar.p2, ar.o.closest(".step-card"), ar.i.closest(".step-card"), ar.from);
+      for (const ar of [...found].sort((x, y) => order[x.state] - order[y.state])) {
+        const type = ar.o.dataset.type || ar.i.dataset.type;
+        path(gWires, rounded(ar.pts, 12), `wire${type ? ` t-${type}` : ""}${ar.state ? ` wire--${ar.state}` : ""}`);
+      }
+      if (found.some((ar) => ar.state === "active")) el.querySelector(".canvas").classList.add("has-active");
+    };
+    (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => requestAnimationFrame(draw));
+  });
+
+  // <ui-phase-group name="Conception" for-each="chaque Idée retenue" count="10 Étapes · 2 Retours" gaps="1" open>ui-step-row…</ui-phase-group>
+  // The phone's reading of a Phase (US-98): folded or open, never dropped.
+  define("ui-phase-group", (el) => {
+    const gaps = a(el, "gaps");
+    const meta = [a(el, "for-each") ? `pour ${a(el, "for-each")}` : null, a(el, "count")].filter(Boolean).join(" · ");
+    const d = h("details", { class: "phase-group", "aria-label": `Phase / ${a(el, "name")}`, name: "PhaseGroup/Default", open: el.hasAttribute("open") },
+      h("summary", { class: "phase-group-head" },
+        h("h2", { class: "section-label", text: a(el, "name") }),
+        gaps ? h("span", { class: "badge badge--caution", text: `${gaps} Manque${gaps === "1" ? "" : "s"}` }) : null,
+        icon("chevron-down", "icon icon--sm phase-group-chevron"),
+        h("span", { class: "phase-group-meta", text: meta })),
+      h("div", { class: "phase-group-body" }, ...el.childNodes));
+    el.append(d);
+  });
+
+  // <ui-step-row name="PRD" kind="Agent" icon="spark" tools="Conception · product-design" flow="Idée → PRD" loop-back="vers « PRD », 3 fois au plus" gap="…"></ui-step-row>
+  define("ui-step-row", (el) => {
+    const gap = a(el, "gap");
+    el.append(h("div", { class: `step-row${gap ? " step-row--gap" : ""}`, name: `StepRow/${gap ? "Gap" : "Default"}` },
+      h("span", { class: "row-icon" }, icon(gap ? "alert" : a(el, "icon", "spark"))),
+      h("div", { class: "row-main" },
+        h("div", { class: "row-title" }, a(el, "name"), a(el, "kind") && a(el, "kind") !== a(el, "name") ? h("span", { class: "row-kind", text: ` · ${a(el, "kind")}` }) : null),
+        a(el, "tools") ? h("div", { class: "row-meta", text: a(el, "tools") }) : null,
+        h("div", { class: "step-row-flow", text: a(el, "flow") }),
+        a(el, "loop-back") ? h("div", { class: "step-row-loop" }, icon("undo", "icon icon--sm"), `Retour ${a(el, "loop-back")}`) : null,
+        gap ? h("div", { class: "step-row-gap", text: gap }) : null)));
+  });
+
+  // <ui-stepper label="Au plus" value="3" unit="fois" min="1" max="10"></ui-stepper>
+  define("ui-stepper", (el) => {
+    const v = Number(a(el, "value", "3"));
+    el.append(h("div", { class: "stepper", role: "group", "aria-label": a(el, "label"), name: "Stepper/Default" },
+      a(el, "label") ? h("span", { class: "field-label", text: a(el, "label") }) : null,
+      h("div", { class: "stepper-control" },
+        h("button", { type: "button", class: "stepper-button", "aria-label": "Moins", disabled: v <= Number(a(el, "min", "1")) ? "" : null }, icon("minus", "icon icon--sm")),
+        h("output", { class: "stepper-value", text: `${v}${a(el, "unit") ? ` ${a(el, "unit")}` : ""}` }),
+        h("button", { type: "button", class: "stepper-button", "aria-label": "Plus", disabled: v >= Number(a(el, "max", "10")) ? "" : null }, icon("plus", "icon icon--sm")))));
+  });
+
+  // <ui-menu title="Catalogue"><ui-menu-group label="Agents"><ui-menu-item icon="spark" detail="…">PRD</ui-menu-item>…</ui-menu-group></ui-menu>
+  define("ui-menu", (el) => {
+    el.append(h("div", { class: "menu", role: "menu", "aria-label": a(el, "title"), name: "Menu/Default" },
+      a(el, "title") ? h("p", { class: "menu-title", text: a(el, "title") }) : null, ...el.childNodes));
+  });
+  define("ui-menu-group", (el) => {
+    el.append(h("div", { class: "menu-group", role: "group", "aria-label": a(el, "label") }, h("span", { class: "menu-group-label", text: a(el, "label") }), ...el.childNodes));
+  });
+  define("ui-menu-item", (el) => {
+    el.append(h("button", { type: "button", role: "menuitem", class: `menu-item${el.hasAttribute("selected") ? " menu-item--selected" : ""}`, disabled: a(el, "state") === "disabled" ? "" : null },
+      a(el, "icon") ? icon(a(el, "icon"), "icon icon--sm") : null,
+      h("span", { class: "menu-item-text" }, h("b", {}, ...el.childNodes), a(el, "detail") ? h("span", { text: a(el, "detail") }) : null),
+      el.hasAttribute("selected") ? icon("check", "icon icon--sm menu-item-check") : null));
+  });
+
+  // <ui-toast tone="halt|go|accent" icon="block">text</ui-toast>
+  define("ui-toast", (el) => {
+    const tone = a(el, "tone", "accent");
+    el.append(h("div", { class: `toast toast--${tone}`, role: "status", name: `Toast/${cap(tone)}` }, icon(a(el, "icon", "info"), "icon icon--sm"), h("span", {}, ...el.childNodes)));
   });
 })();

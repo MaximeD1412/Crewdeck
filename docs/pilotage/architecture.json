@@ -1504,7 +1504,7 @@
       "titre": "Runner",
       "description": "apps/runner, en Go, sur la machine du Pilote : il exécute, le serveur décide.",
       "largeur": 1240,
-      "hauteur": 532,
+      "hauteur": 648,
       "zones": [
         {
           "id": "r-lien",
@@ -1535,6 +1535,16 @@
           "couleur": "c4",
           "titre": "Moteurs",
           "sous": "derrière une même interface"
+        },
+        {
+          "id": "r-miroir",
+          "x": 20,
+          "y": 532,
+          "w": 1200,
+          "h": 116,
+          "couleur": "c2",
+          "titre": "Miroir",
+          "sous": "la copie de GitHub, le canal des agents"
         }
       ],
       "noeuds": [
@@ -1722,6 +1732,24 @@
           ],
           "adr": [
             "0004"
+          ]
+        },
+        {
+          "id": "r-miroir-db",
+          "zone": "r-miroir",
+          "x": 40,
+          "y": 572,
+          "w": 1160,
+          "h": 56,
+          "titre": "miroir.db",
+          "sous": "SQLite, schéma versionné, réconciliation",
+          "desc": "La copie des issues, PR, checks, labels, jalons et releases de chaque Projet, en droits 600 dans ~/.crewdeck ; ni titre ni corps dans les logs du Runner.",
+          "tickets": [
+            "MIROIR-3"
+          ],
+          "adr": [
+            "0010",
+            "0003"
           ]
         }
       ],

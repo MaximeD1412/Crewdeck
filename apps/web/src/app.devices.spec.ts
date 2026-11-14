@@ -50,7 +50,7 @@ const started = async (vault: VaultState) => {
       approval,
     },
   });
-  store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [TRUSTED], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
+  store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [TRUSTED], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, decisions: [] });
   await vi.waitFor(() => expect(store.getState().vaultState).toBe(vault));
   return { root, app, approval, store };
 };

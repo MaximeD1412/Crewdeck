@@ -47,7 +47,7 @@ The how-to is here; the why is in the ADRs.
   are generated ([0001](docs/adr/0001-shape-of-the-system.md)). After
   changing a schema of `packages/contracts`: `pnpm exec nx run
   contracts:generate`, and commit what it writes.
-- **GitHub** through the App only ([0002](docs/adr/0002-github-app.md)): the
+- **GitHub**, when a Projet uses it, through the App only ([0002](docs/adr/0002-github-app.md)): the
   server never reads a file nor a diff outside its allowlist; the page reads
   content from GitHub with the user token.
 - **Privacy** ([0003](docs/adr/0003-privacy-and-end-to-end-encryption.md)):
@@ -65,6 +65,28 @@ The how-to is here; the why is in the ADRs.
 - **API, errors, lists, dates, money, scope, front data, tests**:
   [0008](docs/adr/0008-conventions.md). Copy its « first files to imitate ».
 - **Infra and delivery**: [0009](docs/adr/0009-infra-and-delivery.md).
+- **Miroir**: the Runner's copy of every Source and of the documents, the
+  agents' one channel: they read with `crewdeck-runner miroir`, and write
+  with it too (`miroir issue|pr create|comment|review|close…`), never with
+  `gh` in an official Skill; the server forwards content-free
+  `github.changed` events ([0010](docs/adr/0010-the-runners-miroir.md),
+  [0012](docs/adr/0012-sources-local-and-github.md)).
+- **Process**: a Projet's Process is a versioned `ProcessDefinition`
+  interpreted by the server's engine; nothing in the code assumes the
+  default Phases. A rule of the canvas (an arrow, a Manque) is a pure
+  function of `packages/contracts/src/process/`, run by the page and the
+  server alike; a new Étape is a `kind` of the catalogue and its handler in
+  `apps/server/src/process/engine/kinds/`
+  ([0011](docs/adr/0011-the-process-as-data.md)).
+- **Sources**: every feature works on a Local Projet as on a GitHub one;
+  a Source-specific path goes behind `apps/runner/internal/source/<source>/`.
+  A Local Projet's texts reach the server sealed, its content only through
+  the relay ([0012](docs/adr/0012-sources-local-and-github.md)).
+- **Commandes and Serveurs MCP** run on the Runner; a Commande's text is
+  sealed and only the Runner opens it
+  ([0013](docs/adr/0013-commandes-and-serveurs-mcp.md)).
+- **Sign-in**: email link, Google or GitHub; GitHub is never assumed
+  linked ([0014](docs/adr/0014-sign-in-without-github.md)).
 
 ### Language
 
@@ -87,6 +109,14 @@ URLs are French (`/a-toi`, `/idees`), API paths English.
 | **Session** | `AgentSession` | `apps/server/src/sessions/` (state), `apps/runner/internal/session/` (content) |
 | **Décision** | `Decision` | `apps/server/src/decisions/`, `/a-toi` |
 | **Runner** / **Moteur** / **Compte IA** / **Rôle** | `Runner` / `Engine` / `AiAccount` / `AgentRole` | `apps/server/src/runners/`, `apps/runner/internal/engine/` |
+| **Miroir** | `Mirror` | `apps/runner/internal/mirror/`, `crewdeck-runner miroir` |
+| **Process** / **Phase** / **Modèle de process** | `Process` (`ProcessDefinition`, `ProcessVersion`, `ProcessDraft`) / `Phase` / `ProcessTemplate` | `packages/contracts/src/process/`, `apps/server/src/process/` |
+| **Gestion du process** | `ProcessEditor` | `/projets/:id/process` |
+| **Entrée** / **Sortie** / **Type d'artefact** / **Retour** / **Manque** | `StepInput` / `StepOutput` / `ArtifactType` / `LoopBack` / `ProcessGap` | `packages/contracts/src/process/` |
+| **Étape du produit** | `CoreStep` (`checks`, `merge`) | `apps/server/src/process/engine/kinds/` |
+| **Source** / **Local** / **Connecteur** | `Source` / `LocalSource` / `Connector` | `apps/server/src/process/sources/`, `apps/runner/internal/source/` |
+| **Commande** / **Serveur MCP** | `Command` / `McpServer` | `apps/runner/internal/command/`, `apps/runner/internal/mcp/`, `crewdeck-runner mcp` |
+| **Identité** | `PilotIdentity` | `apps/server/src/auth/` |
 | **Appareil** | `Device` | `apps/web/src/keys/`, `apps/server/src/devices/` |
 | **Inventaire** | `Inventory` | `apps/server/src/projects/inventory/` |
 | **Revue visuelle** / **Revue croisée** | `VisualReview` / `CrossReview` | `apps/server/src/reviews/` |

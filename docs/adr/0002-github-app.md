@@ -1,6 +1,11 @@
 # One GitHub App for sign-in, repositories, webhooks and merges
 
-> **Status:** accepted, 2026-11-10.
+> **Status:** accepted, 2026-11-10. Amended by [ADR 0010](0010-the-runners-miroir.md)
+> on the tokens the server mints (a read-only « Miroir » token beside the
+> Session's) and on the App's events (five more). Amended by [ADR 0011](0011-the-process-as-data.md)
+> (no more `.process.json`), [ADR 0012](0012-sources-local-and-github.md)
+> (GitHub is one Source among two) and [ADR 0014](0014-sign-in-without-github.md)
+> (sign-in).
 
 ## Context
 

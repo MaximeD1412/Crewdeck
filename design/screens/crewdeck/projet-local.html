@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recettes — Projet tout en Local</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+</head>
+<body>
+<!-- exemple : Projet « Recettes » sans Connecteur, dossier, Runner et dates fictifs -->
+<ui-app-shell screen="Recettes" current="projets" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Recettes" back="Projets" count="prêt">
+    <ui-button icon="layers">Gestion du process</ui-button>
+    <ui-button icon="settings">Paramètres du Projet</ui-button>
+  </ui-page-header>
+  <div class="layout">
+    <ui-card title="Ce dont le Process a besoin" label="Recettes / Préparation" flush>
+      <ui-list-row icon="check" tone="go" title="Runner relié" meta="en ligne · atelier-pc"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
+      <ui-list-row icon="check" tone="go" title="Dossier du Projet" meta="recettes, sur atelier-pc · lu par le Runner"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
+      <ui-list-row icon="check" tone="go" title="Un Moteur utilisable par Rôle" meta="Idée, Conception : Claude Code · Code : Codex · Review : Claude Code"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
+      <ui-list-row icon="check" tone="go" title="Process" meta="v1 active · aucun Manque · tout est Local" link><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
+    </ui-card>
+    <div class="layout-aside">
+      <ui-card title="Projet" label="Recettes / Projet">
+        <ui-key-value>
+          <ui-kv label="Dossier">recettes, sur atelier-pc</ui-kv>
+          <ui-kv label="Connecteurs">aucun : tout est Local</ui-kv>
+          <ui-kv label="Suivi depuis">10 nov.</ui-kv>
+        </ui-key-value>
+      </ui-card>
+      <ui-banner tone="neutral" icon="folder" title="Des fichiers que tu lis à la main">Les documents et les Tickets sont des fichiers Markdown du dossier ; une modification faite à la main s’affiche ici en moins de 2 s. Ce que le travail écrit (commentaires, remarques de review) reste sur ta machine.</ui-banner>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

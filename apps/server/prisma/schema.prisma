@@ -5,7 +5,8 @@ generator client {
   provider        = "prisma-client"
   output          = "../src/generated/prisma"
   moduleFormat    = "esm"
-  // A Pilote's current Runner, unique among the unrevoked ones (`runners`).
+  // A Pilote's current Runner, unique among the unrevoked ones (`runners`);
+  // a subject's open Décision (`decisions`).
   previewFeatures = ["partialIndexes"]
 }
 
@@ -52,6 +53,7 @@ model Pilot {
   devices            Device[]
   vaultKeyWraps      VaultKeyWrap[]
   settings           AccountSettings?
+  decisions          Decision[]
 
   @@map("pilots")
 }
@@ -330,6 +332,52 @@ model GitHubInstallation {
   @@index([pilotId])
   @@index([senderId])
   @@map("github_installations")
+}
+
+enum DecisionState {
+  open
+  resolved
+
+  @@map("decision_state")
+}
+
+enum DecisionTone {
+  accent
+  caution
+  halt
+
+  @@map("decision_tone")
+}
+
+/// A Décision (CONTEXT.md, ATOI-1): something that waits for the Pilote, raised
+/// and resolved by its module through `DecisionsService`. One open per
+/// `(kind, subjectId)`: raising it again updates it. Resolved, it stays for
+/// the history (US-78). `kind` is one of `DECISION_KINDS` (a text column, so a
+/// new kind needs no migration). Its values are readable by the server
+/// (ADR 0003): never free text of the Pilote or an agent. `projectId` is the
+/// Projet's id, with no foreign key until the Projets' table (PROJET-1).
+model Decision {
+  id          String        @id @db.Uuid
+  pilotId     String        @map("pilot_id") @db.Uuid
+  kind        String
+  projectId   String?       @map("project_id") @db.Uuid
+  projectName String?       @map("project_name")
+  subjectType String        @map("subject_type")
+  subjectId   String        @map("subject_id")
+  label       String
+  metaParts   String[]      @map("meta_parts")
+  tone        DecisionTone
+  link        String
+  params      Json
+  state       DecisionState @default(open)
+  outcome     String?
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  resolvedAt  DateTime?     @map("resolved_at") @db.Timestamptz
+  pilot       Pilot         @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@unique([pilotId, kind, subjectId], map: "decisions_pilot_id_kind_subject_id_open_key", where: raw("state = 'open'"))
+  @@index([pilotId, state, createdAt])
+  @@map("decisions")
 }
 
 /// A latency the page measured (CORE-8, US-20): an event of `source` applied

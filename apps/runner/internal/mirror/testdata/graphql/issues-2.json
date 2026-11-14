@@ -1,0 +1,28 @@
+{
+  "operation": "MirrorIssues",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "after": "c1"
+  },
+  "data": {
+    "repository": {
+      "issues": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "c2"
+        },
+        "nodes": [
+          {
+            "number": 40,
+            "updatedAt": "2026-11-04T12:00:00Z",
+            "state": "OPEN",
+            "blockedBy": {
+              "nodes": []
+            }
+          }
+        ]
+      }
+    }
+  }
+}

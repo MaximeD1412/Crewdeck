@@ -13,8 +13,8 @@ export interface PilotSlice {
 
 /**
  * What the Cadre reads of the store. Each slice is registered by its ticket:
- * `pilot` and the connection by CORE-6; the Runner (RUNNER-2),
- * the Décisions count (ATOI-1) and the metas of Projets and Runner
+ * `pilot` and the connection by CORE-6, the open Décisions by ATOI-1; the
+ * Runner (RUNNER-2) and the metas of Projets and Runner
  * (PROJET-2, RUNNER-7) add theirs here.
  */
 export interface CadreState {
@@ -26,6 +26,8 @@ export interface CadreState {
     readonly runner?: Pick<Runner, 'state' | 'lastSeenAt'> | null;
     /** The Comptes IA (RUNNER-7): the Moteurs connected are the status's detail. */
     readonly 'ai-account'?: { values(): Iterable<Pick<AiAccount, 'engine' | 'installed' | 'kind' | 'state'>> };
+    /** The open Décisions: « À toi » counts them. */
+    readonly decision?: ReadonlyMap<string, unknown>;
   };
 }
 
@@ -88,8 +90,9 @@ const runnerStatus = ({ runner, 'ai-account': accounts }: CadreState['slices']):
  * The Cadre's data and its menu's for the page at `route` (pure): the current
  * entry from the URL, the Pilote from the `pilot` slice, the status `resync`
  * while the connection is not `live` (ADR 0007), else the Runner's presence,
- * « En direct » while it is online. Until their slices exist, the status is
- * `offline` with no detail and no entry has a count.
+ * « En direct » while it is online; the count of « À toi » the open Décisions
+ * (none at 0). Until their slices exist, the status is `offline` with no
+ * detail and no entry has a count.
  */
 export const cadreView = (state: CadreState, route: { readonly path: string }): CadreView => {
   const bare = BARE_PATHS.has(route.path);
@@ -115,7 +118,7 @@ export const cadreView = (state: CadreState, route: { readonly path: string }): 
       icon: ICONS[id],
       href: `/${id}`,
       current: id === current,
-      count: null,
+      count: id === 'a-toi' && state.slices.decision?.size ? state.slices.decision.size : null,
       meta: STATIC_META[id]?.() ?? null,
       primary: PRIMARY.has(id),
     })),

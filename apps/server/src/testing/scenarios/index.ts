@@ -1,3 +1,4 @@
+import { aToi, aToiVide } from './a-toi.js';
 import { blank } from './blank.js';
 import {
   composants,
@@ -26,6 +27,8 @@ const SCENARIOS: readonly Scenario[] = [
   appareilAApprouverCode,
   appareils,
   appareilsAjouter,
+  aToi,
+  aToiVide,
   blank,
   composants,
   connexion,

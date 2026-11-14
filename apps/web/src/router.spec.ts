@@ -1,6 +1,8 @@
+import { DEFAULT_ACCOUNT_SETTINGS } from '@crewdeck/contracts';
 import { defineComposant, PageIntrouvable } from '@crewdeck/sdk';
 import { z } from 'zod';
-import { matchRoute, startRouter, type Route, type Router } from './router.js';
+import { matchRoute, NO_STATE, sameData, startRouter, type Route, type Router } from './router.js';
+import type { StoreState } from './store/store.js';
 
 const page = (name: string, tag: `cd-${string}`) =>
   defineComposant({
@@ -129,6 +131,7 @@ describe('startRouter', () => {
 
   it('fills the page’s Emplacements from its route and the state, the same elements kept on refresh()', () => {
     let zone = 'Europe/Paris';
+    const settingsState = (): StoreState => ({ ...NO_STATE, slices: { settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: zone } } });
     history.replaceState(null, '', '/parametres');
     outlet = document.createElement('main');
     document.body.append(outlet);
@@ -143,14 +146,14 @@ describe('startRouter', () => {
               tag: 'cd-card',
               slot: 'account',
               data: { title: 'Compte' },
-              children: [{ tag: 'cd-select', data: { value: (state as { zone: string }).zone } }],
+              children: [{ tag: 'cd-select', data: { value: state.slices.settings?.timeZone } }],
             },
             { tag: 'cd-list-row', slot: 'modders', text: 'Bibliothèque' },
           ],
         },
       ],
       outlet,
-      state: () => ({ zone }),
+      state: settingsState,
     });
     const pageElement = outlet.firstElementChild as HTMLElement;
     const card = pageElement.querySelector(':scope > cd-card[slot=account]') as HTMLElement & { data: unknown };
@@ -188,6 +191,34 @@ describe('startRouter', () => {
     router.refresh();
     expect([...pageElement.children].map((child) => child.localName)).toEqual(['cd-list-row']);
     expect(pageElement.firstElementChild).toBe(row);
+  });
+
+  it('gives a route’s data the store’s state, and refresh() gives the same page its data again', () => {
+    history.replaceState(null, '', '/a-toi');
+    outlet = document.createElement('main');
+    document.body.append(outlet);
+    let state: StoreState = { seq: 1n, connection: 'live', lostAt: null, slices: { pilot: null }, vaultState: 'locked' };
+    const withState: Route[] = [{ path: '/a-toi', composant: PageAToi, data: (_match, current) => ({ seq: current.seq }) }];
+    router = startRouter({ routes: withState, outlet, state: () => state });
+    const page = outlet.firstElementChild as HTMLElement & { data: unknown };
+    expect(page.data).toEqual({ seq: 1n });
+    state = { ...state, seq: 2n };
+    router.refresh();
+    expect(outlet.firstElementChild).toBe(page);
+    expect(page.data).toEqual({ seq: 2n });
+    const shown = page.data;
+    state = { ...state, connection: 'resync' };
+    router.refresh();
+    expect(page.data).toBe(shown);
+  });
+
+  it('sameData compares plain objects and arrays by their values, anything else by identity', () => {
+    expect(sameData({ a: [1, { b: 'x' }], c: null }, { a: [1, { b: 'x' }], c: null })).toBe(true);
+    expect(sameData({ a: [1] }, { a: [2] })).toBe(false);
+    expect(sameData({ a: 1 }, { a: 1, b: undefined })).toBe(false);
+    expect(sameData([1], { 0: 1 })).toBe(false);
+    expect(sameData(new Date(0), new Date(0))).toBe(false);
+    expect(sameData(Number.NaN, Number.NaN)).toBe(true);
   });
 
   it('sends / to « À toi »', () => {

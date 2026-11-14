@@ -17,7 +17,6 @@
   .settings-nav .n { font: var(--font-meta-weight) var(--font-meta-size)/var(--font-meta-line-height) var(--font-meta-family), monospace; color: var(--accent-text); }
   .settings-body { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
   .settings-body > ui-card:not(.is-current) { display: none; }
-  .always { display: flex; flex-wrap: wrap; gap: var(--space-2); }
   @media (min-width: 1280px) {
     .settings { display: grid; grid-template-columns: var(--capture-w) minmax(0, 1fr); gap: var(--space-8); align-items: start; }
     .settings-nav { flex-direction: column; margin: 0; padding: 0; position: sticky; top: var(--space-8); gap: var(--space-1); }
@@ -36,7 +35,7 @@
   <div class="settings">
     <nav class="settings-nav" aria-label="Paramètres du Projet / Sections" data-name="Paramètres du Projet / Sections">
       <a href="#roles" aria-current="true">Rôles et modèles <span class="n">2</span></a>
-      <a href="#etapes">Étapes optionnelles <span class="n">1</span></a>
+      <a href="#etapes">Étapes</a>
       <a href="#planifications">Planifications</a>
       <a href="#notifications">Notifications</a>
     </nav>
@@ -47,14 +46,8 @@
         <ui-setting-row label="Code" origin="projet"><ui-select value="Codex · GPT-5.5"></ui-select></ui-setting-row>
         <ui-setting-row label="Review" help="Sur un autre Moteur que le Code." origin="projet"><ui-select value="Claude Code · Opus 5.5"></ui-select></ui-setting-row>
       </ui-card>
-      <ui-card title="Étapes optionnelles" label="Paramètres du Projet / Étapes optionnelles" id="etapes">
-        <ui-setting-row label="Maquettes" origin="compte"><ui-toggle checked aria="Maquettes"></ui-toggle></ui-setting-row>
-        <ui-setting-row label="Revue visuelle" origin="compte"><ui-toggle checked aria="Revue visuelle"></ui-toggle></ui-setting-row>
-        <ui-setting-row label="Revue croisée d’une Conception" origin="projet"><ui-toggle aria="Revue croisée d’une Conception"></ui-toggle></ui-setting-row>
-        <div class="stack-sm">
-          <span class="field-label">Toujours actives</span>
-          <div class="always"><ui-status-badge>Analyse d’Idée</ui-status-badge><ui-status-badge>Tickets</ui-status-badge><ui-status-badge>Code</ui-status-badge><ui-status-badge>Review</ui-status-badge><ui-status-badge>Checks</ui-status-badge></div>
-        </div>
+      <ui-card title="Étapes" label="Paramètres du Projet / Étapes" id="etapes" flush>
+        <ui-list-row icon="layers" title="Gestion du process" meta="Les Étapes s’ajoutent et se retirent dans la Gestion du process du Projet ; la Review et les checks restent avant chaque merge." link></ui-list-row>
       </ui-card>
       <ui-card title="Planifications" count="1" label="Paramètres du Projet / Planifications" id="planifications" flush>
         <ui-button slot="actions" size="sm" variant="ghost" icon="plus">Ajouter</ui-button>

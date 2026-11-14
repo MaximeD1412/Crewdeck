@@ -14,6 +14,7 @@
 <!-- exemple : état de préparation fictif -->
 <ui-app-shell screen="Site mairie" current="projets" decisions="9" ideas="4" designs="2" loops="2">
   <ui-page-header title="Site mairie" back="Projets" count="1 point à régler">
+    <ui-button icon="layers">Gestion du process</ui-button>
     <ui-button icon="settings">Paramètres du Projet</ui-button>
   </ui-page-header>
   <ui-banner tone="caution" icon="alert" title="Le Process ne peut pas démarrer">Il manque la branche d’intégration develop. « Corriger » la crée sur GitHub en un clic ; les Tickets attendent qu’elle existe.</ui-banner>
@@ -23,6 +24,7 @@
       <ui-list-row icon="check" tone="go" title="Runner relié" meta="en ligne · atelier-pc"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
       <ui-list-row icon="check" tone="go" title="Un Moteur utilisable par Rôle" meta="Idée, Conception : Claude Code · Code : Codex · Review : Claude Code"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
       <ui-list-row icon="check" tone="go" title="Labels" meta="labels du Process présents sur GitHub"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
+      <ui-list-row icon="check" tone="go" title="Process" meta="v3 active · aucun Manque · parti du Modèle « Process Crewdeck »" link><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
       <ui-list-row icon="check" tone="go" title="Paramètres du Process sur GitHub" meta=".process.json présent"><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
       <ui-list-row icon="check" tone="go" title="Inventaire approuvé" meta="approuvé le 3 nov."><ui-status-badge tone="go">ok</ui-status-badge></ui-list-row>
     </ui-card>

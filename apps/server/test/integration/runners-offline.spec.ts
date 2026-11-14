@@ -8,6 +8,8 @@ import { parseEnv } from '../../src/config/env.js';
 import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { EventsBus } from '../../src/realtime/events.bus.js';
+import { EventsWriter } from '../../src/realtime/events.writer.js';
+import { Transactions } from '../../src/realtime/transactions.js';
 import { RunnerClock } from '../../src/runners/clock.js';
 import { RunnerOffline } from '../../src/runners/runner-offline.service.js';
 import { OFFLINE_AFTER_MS, RunnerPresence } from '../../src/runners/runner-presence.service.js';
@@ -212,6 +214,41 @@ describe('« Runner hors ligne » against PostgreSQL', () => {
     await vi.waitFor(async () => expect(await decisionsOf(alice.id)).toHaveLength(2));
     const open = (await decisionsOf(alice.id)).filter((decision) => decision.state === 'open');
     expect(open).toEqual([expect.objectContaining({ subject_id: next.id })]);
+  });
+
+  it('a refresh overlapping a link’s confirmation that replaces the Runner: both commit, no deadlock', async () => {
+    const alice = await pilot();
+    waiting.set(alice.id, [CREWDECK]);
+    const { runner, socket } = await online(alice.id);
+    await socket.close();
+    await vi.waitFor(async () => expect(await decisionsOf(alice.id)).toHaveLength(1));
+    waiting.set(alice.id, [CREWDECK, SITE_MAIRIE]);
+
+    // As RunnerLinks.confirm: an event first (the Pilote's row locked), then the replaced Runner's Décision resolved.
+    let release = (): void => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let locked = (): void => undefined;
+    const pilotLocked = new Promise<void>((resolve) => (locked = resolve));
+    const confirm = runInPilotScope(alice.id, () =>
+      app.get(Transactions).run(async (tx) => {
+        await app.get(EventsWriter).write(tx, alice.id, 'runner.upserted', runner);
+        locked();
+        await gate;
+        await app.get(RunnerOffline).resolveReplaced(tx, newId());
+      }),
+    );
+    await pilotLocked;
+    // The refresh updates the open Décision while the confirmation holds the Pilote's row: it waits on a lock.
+    const refresh = app.get(RunnerOffline).refresh(alice.id);
+    await vi.waitFor(async () =>
+      expect((await sql<{ n: number }>("SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND datname = current_database()"))[0]?.n).toBeGreaterThanOrEqual(1),
+    );
+    release();
+
+    await expect(Promise.all([confirm, refresh])).resolves.toBeDefined();
+    const rows = await decisionsOf(alice.id);
+    expect(rows[0]).toMatchObject({ state: 'resolved', outcome: 'runner-replaced' });
+    expect(rows.filter((decision) => decision.state === 'open')).toHaveLength(1);
   });
 
   it('a refresh while the Runner is online raises nothing', async () => {

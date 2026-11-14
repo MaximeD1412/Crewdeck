@@ -2,6 +2,7 @@ import type { WaitingProject } from '@crewdeck/contracts';
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { DecisionsService, type RaiseInput } from '../decisions/decisions.service.js';
+import { EventsWriter } from '../realtime/events.writer.js';
 import { Transactions, type Tx } from '../realtime/transactions.js';
 import { runInPilotScope } from '../scope/scope.context.js';
 import { RunnerPresence } from './runner-presence.service.js';
@@ -57,6 +58,7 @@ export class RunnerOffline implements OnModuleInit, OnModuleDestroy {
     private readonly transactions: Transactions,
     private readonly decisions: DecisionsService,
     private readonly work: RunnerWaitingWork,
+    private readonly events: EventsWriter,
     @InjectPinoLogger(RunnerOffline.name) private readonly logger: PinoLogger,
   ) {}
 
@@ -104,6 +106,8 @@ export class RunnerOffline implements OnModuleInit, OnModuleDestroy {
 
   private async sync(pilotId: string): Promise<void> {
     await this.transactions.run(async (tx) => {
+      // The Pilote's row first, as RunnerLinks.confirm (its event, then `resolveReplaced`): never a deadlock between them.
+      await this.events.lock(tx, pilotId);
       const runner = await tx.runner.findFirst({ where: { revokedAt: null }, select: { id: true, state: true, lastSeenAt: true } });
       await this.resolveReplaced(tx, runner?.id ?? null);
       if (!runner) return;

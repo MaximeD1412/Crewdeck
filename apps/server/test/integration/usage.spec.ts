@@ -177,12 +177,22 @@ describe('the usage of the Comptes IA against PostgreSQL', () => {
 
       const [event] = await send(alice, socket, codex('2026-11-11T14:09:00.000Z', 23_418_720));
 
-      expect(zUsageAccount.parse(event?.payload)).toMatchObject({ engine: 'codex', kind: 'api-key', windows: [], monthSpend: { costUsdMicros: 23_418_720, costEurCents: 2160 } });
+      expect(zUsageAccount.parse(event?.payload)).toMatchObject({ engine: 'codex', kind: 'api-key', windows: [], monthSpend: { costUsdMicros: 23_418_720, costEurCents: 2160, endsAt: '2026-11-30T23:00:00.000Z' } });
       const rows = await sql<{ day: string; cost_usd_micros: string; cost_eur_cents: string; project_id: null }>(
         `SELECT to_char(day, 'YYYY-MM-DD') AS day, cost_usd_micros, cost_eur_cents, project_id FROM spends WHERE pilot_id = $1`,
         [alice.id],
       );
       expect(rows).toEqual([{ day: '2026-11-11', cost_usd_micros: '23418720', cost_eur_cents: '2160', project_id: null }]);
+    });
+
+    it('keeps the Session a spend is of', async () => {
+      const alice = await pilot();
+      const socket = await online(alice);
+      const sessionId = newId();
+
+      await send(alice, socket, { ...codex('2026-11-11T14:09:00.000Z', 1_000), spend: { sessionId, costUsdMicros: 1_000 } });
+
+      expect(await sql('SELECT session_id FROM spends WHERE pilot_id = $1', [alice.id])).toEqual([{ session_id: sessionId }]);
     });
 
     it('keeps no spend for a subscription: its cost is a share of its windows', async () => {
@@ -241,7 +251,7 @@ describe('the usage of the Comptes IA against PostgreSQL', () => {
       expect(account?.windows.map((window) => window.id)).toEqual(['week']);
     });
 
-    it('sums the spends of the current month in the Pilote’s time zone', async () => {
+    it('sums the spends of the current month in the Pilote’s time zone, and says when it ends there', async () => {
       const alice = await pilot();
       const socket = await online(alice);
       await rate('2026-11-01', '1');
@@ -251,7 +261,7 @@ describe('the usage of the Comptes IA against PostgreSQL', () => {
 
       const [account] = await usage(alice);
 
-      expect(account?.monthSpend).toEqual({ costUsdMicros: 7_000_000, costEurCents: 700 });
+      expect(account?.monthSpend).toEqual({ costUsdMicros: 7_000_000, costEurCents: 700, endsAt: '2026-12-31T23:00:00.000Z' });
     });
 
     it('never returns another Pilote’s', async () => {
@@ -282,12 +292,12 @@ describe('the usage of the Comptes IA against PostgreSQL', () => {
       const alice = await pilot();
       const socket = await online(alice);
       await send(alice, socket, codex('2026-11-11T14:09:00.000Z', 23_418_720));
-      expect((await usage(alice))[0]?.monthSpend).toEqual({ costUsdMicros: 23_418_720, costEurCents: null });
+      expect((await usage(alice))[0]?.monthSpend).toEqual({ costUsdMicros: 23_418_720, costEurCents: null, endsAt: '2026-11-30T23:00:00.000Z' });
       fakes.fx.xml = ECB('2026-11-11', '1.0842');
 
       const [event] = await published(alice, 'usage.upserted', 1, () => app.get(FxRates).refresh());
 
-      expect(zUsageAccount.parse(event?.payload).monthSpend).toEqual({ costUsdMicros: 23_418_720, costEurCents: 2160 });
+      expect(zUsageAccount.parse(event?.payload).monthSpend).toEqual({ costUsdMicros: 23_418_720, costEurCents: 2160, endsAt: '2026-11-30T23:00:00.000Z' });
     });
 
     it('keeps what it had when the file cannot be read', async () => {

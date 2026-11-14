@@ -68,9 +68,11 @@ export class UsageService implements OnModuleInit {
             id: newId(),
             pilotId,
             engine,
-            // From the Session, once Sessions exist (RUNNER-9).
+            // The Session the Runner names; its Projet and its StepRun come
+            // from it once Sessions are stored (RUNNER-9, #47): until then a
+            // spend counts in the month only.
             projectId: null,
-            sessionId: null,
+            sessionId: spend.sessionId ?? null,
             stepRunId: null,
             day: dateOf(day),
             costUsdMicros: BigInt(spend.costUsdMicros),

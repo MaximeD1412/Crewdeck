@@ -3,6 +3,7 @@ import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod';
 import { AuthModule } from './auth/auth.module.js';
+import { MailModule } from './auth/mail/mail.module.js';
 import { type Env, usesFakes } from './config/env.js';
 import { EnvModule } from './config/env.module.js';
 import { DecisionsModule } from './decisions/decisions.module.js';
@@ -58,6 +59,7 @@ export class AppModule {
         HealthModule,
         PublicConfigModule,
         GitHubModule.forRoot(env),
+        MailModule.forRoot(env),
         WebhooksModule,
         ReconciliationModule,
         ...fakes(env),

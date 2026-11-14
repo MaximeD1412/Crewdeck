@@ -6,7 +6,6 @@ import { ENV } from '../config/env.module.js';
 import { AppError } from '../errors/app-error.js';
 import { GITHUB_CLIENT, type GitHubClient } from '../github/github.client.js';
 import { GitHubInstallations } from '../github/webhooks/installations.js';
-import { newId } from '../ids.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Public } from '../scope/public.decorator.js';
 import { runInPilotScope } from '../scope/scope.context.js';
@@ -14,6 +13,7 @@ import { SESSION_SECRET } from './auth.keys.js';
 import { type AuthRequest, type AuthResponse, headerOf } from './auth.request.js';
 import { clearCookie, OAUTH_COOKIE, OAUTH_COOKIE_PATH, readCookie, SESSION_COOKIE, serializeCookie } from './cookies.js';
 import { GithubTokens } from './github-tokens.js';
+import { PilotIdentities } from './identities.js';
 import { newState, OAUTH_TTL_SECONDS, openOauthState, safeNext, safeTimeZone, sameState, sealOauthState } from './oauth-state.js';
 import { SESSION_TTL_SECONDS, WebSessions } from './web-sessions.js';
 
@@ -30,7 +30,7 @@ const failed = (error: SignInError): Redirection => to(`/connexion?erreur=${erro
 
 /**
  * Sign-in with GitHub (US-1), which is also the sign-up: the first callback
- * of a GitHub user creates their Pilot. GitHub's user authorization (ADR
+ * of a GitHub user creates their Pilot and its `github` Identité (ADR 0014). GitHub's user authorization (ADR
  * 0002) gives the tokens the page reads GitHub with; the server keeps them
  * encrypted and opens a `WebSession` for the browser.
  */
@@ -49,6 +49,7 @@ export class AuthController {
     private readonly sessions: WebSessions,
     private readonly tokens: GithubTokens,
     private readonly installations: GitHubInstallations,
+    private readonly identities: PilotIdentities,
     private readonly logger: PinoLogger,
   ) {
     this.secure = isDeployed(env);
@@ -103,24 +104,36 @@ export class AuthController {
   }
 
   /**
-   * The GitHub user of `code` as a Pilot (created, or their login and avatar
-   * refreshed), the installations of the App they made before linked to them,
+   * The GitHub user of `code` as a Pilot (created with their `github`
+   * Identité, or their displayName, login and avatar refreshed), the installations of the App they made before linked to them,
    * their tokens stored, a session opened.
    */
   private async signIn(code: string, timeZone: string, userAgent: string | undefined): Promise<string> {
     const tokens = await this.github.exchangeCode(code, this.callbackUrl);
     const user = await this.github.getAuthenticatedUser(tokens.accessToken);
-    const pilot = await this.prisma.scoped.pilot.upsert({
-      where: { githubUserId: BigInt(user.id) },
-      create: { id: newId(), githubUserId: BigInt(user.id), login: user.login, avatarUrl: user.avatarUrl, timeZone },
-      update: { login: user.login, avatarUrl: user.avatarUrl },
-      select: { id: true },
+    const subject = String(user.id);
+    const pilotId = await this.prisma.unscoped.$transaction(async (tx) => {
+      const known = await this.identities.pilotOf('github', subject, tx);
+      if (!known) {
+        return this.identities.signUp(tx, {
+          provider: 'github',
+          subject,
+          email: null,
+          login: user.login,
+          displayName: user.login,
+          timeZone,
+          avatarUrl: user.avatarUrl,
+        });
+      }
+      await tx.pilot.update({ where: { id: known }, data: { displayName: user.login, avatarUrl: user.avatarUrl } });
+      await tx.pilotIdentity.updateMany({ where: { provider: 'github', subject }, data: { login: user.login } });
+      return known;
     });
-    await this.installations.linkPendingTo(pilot.id, user.id);
-    return runInPilotScope(pilot.id, () =>
+    await this.installations.linkPendingTo(pilotId, user.id);
+    return runInPilotScope(pilotId, () =>
       this.prisma.scoped.$transaction(async (tx) => {
-        await this.tokens.store(tx, pilot.id, tokens);
-        return this.sessions.open(tx, pilot.id, userAgent);
+        await this.tokens.store(tx, pilotId, tokens);
+        return this.sessions.open(tx, pilotId, userAgent);
       }),
     );
   }

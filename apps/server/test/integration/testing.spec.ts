@@ -3,7 +3,7 @@ import { LINK_ATTEMPTS_PER_MINUTE, zScenarioRun } from '@crewdeck/contracts';
 import pg from 'pg';
 import { inject } from 'vitest';
 import { createApp } from '../../src/app.js';
-import { type Env, parseEnv } from '../../src/config/env.js';
+import { appOrigin, type Env, parseEnv } from '../../src/config/env.js';
 import { RunnerPresence } from '../../src/runners/runner-presence.service.js';
 import { FAKES, type Fakes } from '../../src/testing/fakes.js';
 import { createLinkedRunner } from '../../src/testing/runners.js';
@@ -100,12 +100,13 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
       expect(run.sessionCookie).toMatch(/^crewdeck_session=[\w-]{43}$/);
       const me = await fetch(`${await app.getUrl()}/api/me`, { headers: { cookie: run.sessionCookie ?? '' } });
       expect(me.status).toBe(200);
-      expect(await me.json()).toMatchObject({ login: 'octocat', timeZone: 'Europe/Paris' });
+      expect(await me.json()).toMatchObject({ displayName: 'octocat', timeZone: 'Europe/Paris', identities: [{ provider: 'github', label: 'octocat' }] });
     });
 
     it.each([
       ['connexion', '/connexion'],
       ['connexion-erreur', '/connexion?erreur=state-mismatch'],
+      ['connexion-lien-envoye', '/connexion'],
     ])('opens %s signed out, with the fake GitHub user who signs in at once', async (name, path) => {
       const run = zScenarioRun.parse(await (await post(app, name)).json());
       expect(run).toEqual({ name, path, sessionCookie: null });
@@ -117,6 +118,21 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
       const cookie = start.headers.getSetCookie()[0]?.split(';')[0] ?? '';
       const signedIn = await fetch(`${base}${callback.pathname}${callback.search}`, { redirect: 'manual', headers: { cookie } });
       expect(signedIn.headers.get('location')).toBe('/a-toi');
+    });
+
+    it('opens connexion-lien on a link drawn for pilote@example.com, its token in the fragment: verified, it signs that address up', async () => {
+      const run = zScenarioRun.parse(await (await post(app, 'connexion-lien')).json());
+
+      expect(run).toEqual({ name: 'connexion-lien', path: expect.stringMatching(/^\/connexion\/lien#[\w-]{43}$/), sessionCookie: null });
+      expect(await sql('SELECT count(*)::int AS n FROM pilots')).toEqual([{ n: 0 }]);
+      const token = run.path.split('#')[1] ?? '';
+      const verified = await fetch(`${await app.getUrl()}/api/auth/email/verify`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: appOrigin(parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: databaseUrl })) },
+        body: JSON.stringify({ token, timeZone: 'Europe/Paris' }),
+      });
+      expect(verified.status).toBe(200);
+      expect(await sql('SELECT provider, subject FROM pilot_identities')).toEqual([{ provider: 'email', subject: 'pilote@example.com' }]);
     });
 
     it('connects the fake Runner of a scenario that links one, « en ligne » until the next scenario', async () => {

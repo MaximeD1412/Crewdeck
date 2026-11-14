@@ -60,9 +60,8 @@ describe('the Appareils against PostgreSQL', () => {
 
   const pilot = async (login = 'octocat'): Promise<Tab> => {
     const id = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, getting_started_step) VALUES ($1, $2, $3, 'Europe/Paris', 'runner')`, [
+    await sql(`INSERT INTO pilots (id, display_name, time_zone, getting_started_step) VALUES ($1, $2, 'Europe/Paris', 'runner')`, [
       id,
-      Math.floor(Math.random() * 1e9),
       login,
     ]);
     const token = await runInPilotScope(id, () => app.get(WebSessions).open(prisma.scoped, id, undefined));

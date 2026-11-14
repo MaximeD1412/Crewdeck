@@ -152,7 +152,8 @@ describe('GitHub webhooks against PostgreSQL', () => {
     probe.before = () => undefined;
     lines.length = 0;
     pilotId = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone) VALUES ($1, $2, $3, 'Europe/Paris')`, [pilotId, SENDER.id, SENDER.login]);
+    await sql(`INSERT INTO pilots (id, display_name, time_zone) VALUES ($1, $2, 'Europe/Paris')`, [pilotId, SENDER.login]);
+    await sql(`INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) VALUES ($1, $2, 'github', $3, $4)`, [newId(), pilotId, String(SENDER.id), SENDER.login]);
   });
 
   const deliver = async (event: string, payload: unknown, deliveryId?: string): Promise<Response> => {
@@ -170,7 +171,10 @@ describe('GitHub webhooks against PostgreSQL', () => {
     const oauth = start.headers.getSetCookie().find((line) => line.startsWith('crewdeck_oauth='))?.split(';')[0] ?? '';
     const callback = await fetch(`${url}/api/auth/github/callback?${new URLSearchParams({ code: 'fake-code', state })}`, { redirect: 'manual', headers: { cookie: oauth } });
     expect(callback.status).toBe(302);
-    const [pilot] = await sql<{ id: string }>('SELECT id FROM pilots WHERE github_user_id = $1', [SENDER.id]);
+    const [pilot] = await sql<{ id: string }>(
+      `SELECT pilot_id AS id FROM pilot_identities WHERE provider = 'github' AND subject = $1`,
+      [String(SENDER.id)],
+    );
     return pilot;
   };
 
@@ -387,7 +391,8 @@ describe('GitHub webhooks against PostgreSQL', () => {
 
   it('reconciles the linked, unsuspended installations only, each in its Pilote’s scope', async () => {
     const otherPilot = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone) VALUES ($1, 9100002, 'octo-other', 'UTC')`, [otherPilot]);
+    await sql(`INSERT INTO pilots (id, display_name, time_zone) VALUES ($1, 'octo-other', 'UTC')`, [otherPilot]);
+    await sql(`INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) VALUES ($1, $2, 'github', '9100002', 'octo-other')`, [newId(), otherPilot]);
     await deliver('installation', created);
     await deliver('installation', createdAs(51000002, { id: 9100002, login: 'octo-other' }));
     await deliver('installation', createdAs(51000003, { id: 9100777, login: 'someone-else' }));

@@ -71,7 +71,7 @@ describe('the Runner protocol against PostgreSQL', () => {
   /** A Pilote with a session: their id and the cookie of a tab. */
   const pilot = async (login = 'octocat'): Promise<{ id: string; cookie: string }> => {
     const id = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone) VALUES ($1, $2, $3, 'Europe/Paris')`, [id, Math.floor(Math.random() * 1e9), login]);
+    await sql(`INSERT INTO pilots (id, display_name, time_zone) VALUES ($1, $2, 'Europe/Paris')`, [id, login]);
     const token = await runInPilotScope(id, () => app.get(WebSessions).open(prisma.scoped, id, undefined));
     return { id, cookie: `${SESSION_COOKIE}=${token}` };
   };

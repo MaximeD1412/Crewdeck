@@ -15,6 +15,8 @@ export interface ScenarioSeed {
   readonly runnerToken?: string;
   /** That Runner's machine, which the fake Runner says in its `hello` (else its own, `atelier`). */
   readonly runnerMachine?: RunnerMachine;
+  /** The page to open, when the seed draws part of it (a sign-in link's token): else the scenario's `path`. */
+  readonly path?: string;
 }
 
 /**

@@ -27,6 +27,7 @@
     "@prisma/client": "catalog:",
     "nestjs-pino": "catalog:",
     "nestjs-zod": "catalog:",
+    "nodemailer": "catalog:",
     "pg": "catalog:",
     "pino": "catalog:",
     "pino-http": "catalog:",

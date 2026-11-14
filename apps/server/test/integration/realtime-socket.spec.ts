@@ -58,7 +58,7 @@ describe('/api/ws against PostgreSQL', () => {
   /** A Pilote with a session: their id and the cookie of a tab. */
   const pilot = async (login = 'octocat'): Promise<{ id: string; cookie: string }> => {
     const id = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone) VALUES ($1, $2, $3, 'Europe/Paris')`, [id, Math.floor(Math.random() * 1e9), login]);
+    await sql(`INSERT INTO pilots (id, display_name, time_zone) VALUES ($1, $2, 'Europe/Paris')`, [id, login]);
     const token = await runInPilotScope(id, () => app.get(WebSessions).open(prisma.scoped, id, undefined));
     return { id, cookie: `${SESSION_COOKIE}=${token}` };
   };
@@ -68,7 +68,7 @@ describe('/api/ws against PostgreSQL', () => {
     const seqs: number[] = [];
     for (let i = 0; i < count; i++) {
       const seq = await runInPilotScope(pilotId, () =>
-        app.get(Transactions).run((tx) => app.get(EventsWriter).write(tx, pilotId, 'pilot.upserted', { id: pilotId, login, avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' })),
+        app.get(Transactions).run((tx) => app.get(EventsWriter).write(tx, pilotId, 'pilot.upserted', { id: pilotId, displayName: login, avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] })),
       );
       seqs.push(Number(seq));
     }
@@ -158,7 +158,7 @@ describe('/api/ws against PostgreSQL', () => {
 
       expect(seqsOf(client)).toEqual([3, 4, 5, 'live']);
       const event = client.collect()[0] as { type: 'event'; event: Event };
-      expect(event.event).toMatchObject({ type: 'pilot.upserted', payload: { id, login: 'octocat' } });
+      expect(event.event).toMatchObject({ type: 'pilot.upserted', payload: { id, displayName: 'octocat' } });
     });
 
     it('replays nothing when the page is up to date, then streams what follows', async () => {
@@ -258,7 +258,7 @@ describe('/api/ws against PostgreSQL', () => {
       await client.next('event');
 
       expect(seqsOf(client)).toEqual(['live', 1]);
-      expect(client.collect()[1]).toMatchObject({ type: 'event', event: { payload: { id: alice.id, login: 'alice' } } });
+      expect(client.collect()[1]).toMatchObject({ type: 'event', event: { payload: { id: alice.id, displayName: 'alice' } } });
     });
   });
 

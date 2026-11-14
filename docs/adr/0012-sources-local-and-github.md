@@ -237,7 +237,10 @@ design settles the rest.
 ## Consequences
 
 - The Runner protocol gets `local.changed`, `artifact.read` and its
-  answer, `merge.local`, `migration.copy`; the server gets
+  answer, `merge.local`, `migration.copy`, `comment.write` and
+  `comment.written` (a text the Pilote writes on a Local Ticket or change,
+  such as the answer to « Ticket bloqué », sealed by the page for the Runner,
+  additional data `comment:<projectId>`, written to `local.db`); the server gets
   `artifact_sources`, `source_migrations`, `source` and sealed titles on
   `tickets` and `code_changes`; the Actions sensibles `source.migrate`; the
   Décisions `merge.local-blocked`, `ticket.local-unreadable`,

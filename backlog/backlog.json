@@ -4,13 +4,13 @@
   "language": "en",
   "milestones": {
     "M0 Skeleton and delivery": "Monorepo walking skeleton, worktrees, CI, captures, image, staging and pushed CD, VPS, backups, the human gestures (domain, GitHub Apps, secrets)",
-    "M1 Socle": "Conventions, Pilote scope, GitHub client, sign-in, real time and Resynchronisation, Actions sensibles, the Composants library and the Cadre, « À toi », Paramètres",
+    "M1 Socle": "Conventions, Pilote scope, GitHub client, sign-in by email link, Google or GitHub, real time and Resynchronisation, Actions sensibles, the Composants library and the Cadre, « À toi », Paramètres",
     "M2 Runner and Projets": "Engine spike, Runner protocol and link, end-to-end keys, Moteur adapters, Comptes IA, Rôles, webhooks, Projets",
-    "M3 Sessions and preparing Projets": "Sessions and their encrypted relay, Contrats and official Skills, readiness and Inventaire, Projet Paramètres, Étapes optionnelles, usage, push, Tickets mirrored",
-    "M4 Boucle": "Start and stop, Code and Review Étapes, merge bound to the SHA, blocked Tickets, visual review, limits, Planification, planning and ticket tree",
-    "M5 Idées": "Noting, analysis, triage, dictation, an Idée straight to a Ticket",
-    "M6 Conception": "Conceptions, their Étapes (PRD, mockups, technical design, cross review, Découpage), reviews and approvals",
-    "M7 Statistics and switchover": "Statistics, and the founder's four weeks on Crewdeck instead of the console"
+    "M3 Sessions and preparing Projets": "Sessions and their encrypted relay, Contrats and official Skills, the Process as data (definition, Manques, versions, engine), Sources Local and GitHub, a Projet from a folder, the Miroir for every Source, Commandes and Serveurs MCP on the Runner, readiness and Inventaire, Projet Paramètres, usage, push, Tickets mirrored",
+    "M4 Boucle": "The canvas of « Gestion du process » (edit, activate, phone, Modèles), the Boucle as the « pour chaque Ticket prêt » Phase, Code, Review, Checks and Merge Étapes bound to the SHA, the Commande Étape and the « Livraison », the Source winning, blocked Tickets, visual review, limits, Planification, planning and ticket tree",
+    "M5 Idées": "Noting, analysis on the « Idée » Phase, triage, dictation, an Idée straight to a Ticket at its Source",
+    "M6 Conception": "Conceptions as PhaseRuns of the Process, their Étapes (PRD, mockups, technical design, cross review, Découpage) on the code's Source, reviews and approvals",
+    "M7 Statistics and switchover": "Statistics, moving a Type d'artefact to another Source, and the founder's four weeks on Crewdeck instead of the console"
   },
   "obsoleteLabels": []
 }

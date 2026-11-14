@@ -10,6 +10,8 @@ type View = Pick<Data, 'zoom' | 'pan'>;
 type Step = Data['phases'][number]['steps'][number];
 type PortType = Step['ports'][number]['type'];
 
+/** The last column and row of a Phase's grid, as `moveStep`'s schema bounds them. */
+const MAX_CELL = ProcessCanvas.actions.moveStep.shape.col.maxValue ?? Infinity;
 const ZOOM_MIN = 25;
 const ZOOM_MAX = 200;
 const ZOOM_STEP = 10;
@@ -497,8 +499,9 @@ export class PasserelleProcessCanvas extends PasserelleElement<typeof ProcessCan
     const drag = this.drag;
     if (drag?.kind !== 'step' || !drag.moved) return nothing;
     const taken = new Set(phase.steps.map((s) => `${s.col},${s.row}`));
-    const cols = Math.max(0, ...phase.steps.map((s) => s.col)) + 1;
-    const rows = Math.max(0, ...phase.steps.map((s) => s.row)) + 1;
+    // One column and one row more than it holds, within the grid's bound (`zCell`).
+    const cols = Math.min(MAX_CELL, Math.max(0, ...phase.steps.map((s) => s.col)) + 1);
+    const rows = Math.min(MAX_CELL, Math.max(0, ...phase.steps.map((s) => s.row)) + 1);
     const cells = [];
     for (let row = 1; row <= rows; row++) {
       for (let col = 1; col <= cols; col++) {

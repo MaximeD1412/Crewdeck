@@ -123,6 +123,24 @@ describe('ProcessCanvas', () => {
       expect(root(el).querySelector('.cell, .ghost')).toBeNull();
     });
 
+    it('offers no cell beyond the 50th column or row', async () => {
+      const data = crewdeck?.data as { phases: { id: string; steps: { id: string; col: number; row: number }[] }[] };
+      const phases = data.phases.map((phase) =>
+        phase.id === 'ph-idee' ? { ...phase, steps: phase.steps.map((step) => (step.id === 'analyse' ? { ...step, col: 50, row: 50 } : step)) } : phase,
+      );
+      const el = await show(withData({ phases }));
+      const details = await actionsOf(() =>
+        drag(el, card(el, 'tri'), () => {
+          const cells = [...root(el).querySelectorAll<HTMLElement>('.cell[data-phase="ph-idee"]')];
+          expect(Math.max(...cells.map((c) => Number(c.dataset['col'])))).toBe(50);
+          expect(Math.max(...cells.map((c) => Number(c.dataset['row'])))).toBe(50);
+          return inside(el, '.cell[data-phase="ph-idee"][data-col="1"][data-row="2"]');
+        }),
+      );
+      expect(only(details)).toEqual([{ action: 'moveStep', payload: { stepId: 'tri', phaseId: 'ph-idee', col: 1, row: 2 } }]);
+      expect(() => ProcessCanvas.actions.moveStep.parse(details[0]?.payload)).not.toThrow();
+    });
+
     it('emits loopBack when the Retour’s handle is dropped on a card', async () => {
       const el = await show();
       const details = await actionsOf(() => drag(el, inside(card(el, 'ap-prd'), '.handle'), () => card(el, 'prd')));

@@ -4,16 +4,17 @@
  * of each arrow and each Retour. Pure geometry, in the canvas's own units;
  * whether an arrow is allowed is the core's.
  *
- * - Retours first, below the cards they pass under; their badge then is an
- *   obstacle.
+ * - Retours first, below the cards they pass under, each branch around the
+ *   cards below its own through a gutter; their badge then is an obstacle.
  * - Each arrow leaves its Sortie to the right and enters its Entrée from the
  *   left, orthogonal, through the gutters beside and between the cards, with
  *   one or two detours; never across a card, a Phase's head or a badge.
  * - The cheapest free path wins (its length, its bends, the lanes it shares),
  *   short arrows first: they take the lanes next to their cards; a Sortie's
  *   arrows together, at the rank of its shortest.
- * - Arrows from different Sorties take separate lanes; those of one Sortie
- *   share their trunk. A Phase's border is never a lane.
+ * - Arrows from different Sorties never share a lane (more lanes are tried
+ *   before giving in); those of one Sortie share their trunk. A Phase's
+ *   border is never a lane.
  */
 
 export interface Point {
@@ -72,15 +73,19 @@ const V_GUTTER = 10;
 const H_GUTTER = 14;
 const V_LANES = [0, -3, 3, -6, 6];
 const H_LANES = [0, -4, 4, -8, 8];
-/** How close two parallel segments run along one lane. */
-const SAME_LANE = 4;
+/** How close two parallel segments run along one lane, and along the lanes beside it (they cost, they are allowed). */
+const SAME_LANE = 2;
+const NEAR_LANE = 4;
 /** What a path costs beyond its length: a bend, a lane taken twice, a crossing. */
 const BEND_COST = 24;
 const ALONG_COST = 400;
 const ALONG_FACTOR = 4;
 const CROSS_COST = 6;
-/** How many lanes near each end a two-detour path tries. */
+/** How many lanes near each end a two-detour path tries, then how many when none of those is clear. */
 const NEAR_LANES = 6;
+const WIDER_LANES = 18;
+/** How many times a Retour's depth is reckoned again once its branches leave their column. */
+const LOOP_PASSES = 3;
 
 interface Segment {
   readonly x1: number;
@@ -115,31 +120,62 @@ export const route = (scene: Scene): Routes => {
     ...scene.heads.map((head) => grow(head, HEAD_MARGIN)),
   ];
 
+  const xs = unique(scene.cards.flatMap(({ box }) => [box.r + V_GUTTER, box.l - V_GUTTER]).flatMap((x) => V_LANES.map((o) => x + o)));
+  const ys = unique(scene.cards.flatMap(({ box }) => [box.b + H_GUTTER, box.t - H_GUTTER]).flatMap((y) => H_LANES.map((o) => y + o)));
+
+  // The first segment leaves card A, the last one enters card B: those two do not count there.
+  const free = (points: readonly Point[], a: string | null, b: string | null) =>
+    segments(points).every((s, i, all) => {
+      const skip = [i === 0 ? a : null, i === all.length - 1 ? b : null];
+      return obstacles.every((o) => (o.card !== undefined && skip.includes(o.card)) || !crosses(s, o));
+    });
+
+  /**
+   * A Retour's branch, from the bottom of its card down to its depth: straight when nothing is in its way,
+   * else into the gutter below its card, along it to the nearest free lane, then down.
+   */
+  const branch = (box: Box, id: string, low: number): Point[] => {
+    const start = { x: centreX(box), y: box.b };
+    const straight = [start, { x: start.x, y: low }];
+    if (free(straight, id, null)) return straight;
+    const below = scene.cards.filter((c) => c.id !== id && crosses({ x1: start.x, y1: box.b, x2: start.x, y2: low }, grow(c.box, CARD_MARGIN)));
+    const jog = (box.b + Math.min(...below.map((c) => c.box.t))) / 2;
+    const lanes = [...xs].sort((u, v) => Math.abs(u - start.x) - Math.abs(v - start.x));
+    for (const x of lanes) {
+      const points = [start, { x: start.x, y: jog }, { x, y: jog }, { x, y: low }];
+      if (free(points, id, null)) return points;
+    }
+    return straight;
+  };
+
   // Retours first: their badges are obstacles for the arrows.
   const loopBacks = scene.loopBacks.map((loop) => {
     const from = cards.get(loop.from)?.box;
     const to = cards.get(loop.to)?.box;
     if (!from || !to) return null;
-    const x1 = centreX(from);
-    const x2 = centreX(to);
-    const under = scene.cards
-      .map((card) => card.box)
-      .filter((b) => b.r > Math.min(x1, x2) && b.l < Math.max(x1, x2) && b.t < Math.max(from.b, to.b) && b.b > Math.min(from.t, to.t) - 1);
-    const low = Math.max(from.b, to.b, ...under.map((b) => b.b)) + LOOP_DROP;
+    // Below every card between its two ends, along the width its branches reach.
+    let span = [centreX(from), centreX(to)];
+    let low = 0;
+    let out: Point[] = [];
+    let back: Point[] = [];
+    for (let pass = 0; pass < LOOP_PASSES; pass++) {
+      const under = scene.cards
+        .map((card) => card.box)
+        .filter((b) => b.r > Math.min(...span) && b.l < Math.max(...span) && b.t < Math.max(from.b, to.b) && b.b > Math.min(from.t, to.t) - 1);
+      const deeper = Math.max(from.b, to.b, ...under.map((b) => b.b)) + LOOP_DROP;
+      if (deeper === low) break;
+      low = deeper;
+      out = branch(from, loop.from, low);
+      back = branch(to, loop.to, low);
+      span = [...span, out.at(-1)!.x, back.at(-1)!.x];
+    }
+    const x1 = out.at(-1)!.x;
+    const x2 = back.at(-1)!.x;
     const cx = (x1 + x2) / 2;
     const badge = { l: cx - loop.badge.width / 2, t: low - BADGE_LIFT, r: cx + loop.badge.width / 2, b: low - BADGE_LIFT + loop.badge.height };
     obstacles.push(grow(badge, BADGE_MARGIN));
-    const points = [
-      { x: x1, y: from.b },
-      { x: x1, y: low },
-      { x: x2, y: low },
-      { x: x2, y: to.b },
-    ];
-    return { points, badge };
+    return { points: [...out, ...back.reverse()], badge };
   });
-
-  const xs = unique(scene.cards.flatMap(({ box }) => [box.r + V_GUTTER, box.l - V_GUTTER]).flatMap((x) => V_LANES.map((o) => x + o)));
-  const ys = unique(scene.cards.flatMap(({ box }) => [box.b + H_GUTTER, box.t - H_GUTTER]).flatMap((y) => H_LANES.map((o) => y + o)));
 
   const routed: Routed[] = scene.phases.flatMap((b) =>
     [
@@ -150,27 +186,23 @@ export const route = (scene: Scene): Routes => {
     ].map((s) => ({ ...s, src: 'phase' })),
   );
 
-  // The first segment leaves card A, the last one enters card B: those two do not count there.
-  const free = (points: readonly Point[], a: string, b: string) =>
-    segments(points).every((s, i, all) => {
-      const skip = [i === 0 ? a : null, i === all.length - 1 ? b : null];
-      return obstacles.every((o) => (o.card !== undefined && skip.includes(o.card)) || !crosses(s, o));
-    });
-
+  /** A path's cost, and whether it runs along another Sortie's lane or a Phase's border. */
   const cost = (points: readonly Point[], src: string) => {
     let total = BEND_COST * (points.length - 2);
+    let shares = false;
     for (const s of segments(points)) {
       total += Math.abs(s.x2 - s.x1) + Math.abs(s.y2 - s.y1);
       const vertical = isVertical(s);
       for (const o of routed) {
         if (o.src === src) continue;
         const otherVertical = isVertical(o);
-        if (vertical && otherVertical && Math.abs(o.x1 - s.x1) < SAME_LANE) {
-          const along = overlap(s.y1, s.y2, o.y1, o.y2);
-          if (along > 0) total += ALONG_COST + ALONG_FACTOR * along;
-        } else if (!vertical && !otherVertical && Math.abs(o.y1 - s.y1) < SAME_LANE) {
-          const along = overlap(s.x1, s.x2, o.x1, o.x2);
-          if (along > 0) total += ALONG_COST + ALONG_FACTOR * along;
+        const apart = vertical && otherVertical ? Math.abs(o.x1 - s.x1) : !vertical && !otherVertical ? Math.abs(o.y1 - s.y1) : Infinity;
+        if (apart < NEAR_LANE) {
+          const along = vertical ? overlap(s.y1, s.y2, o.y1, o.y2) : overlap(s.x1, s.x2, o.x1, o.x2);
+          if (along > 0) {
+            total += ALONG_COST + ALONG_FACTOR * along;
+            if (apart < SAME_LANE) shares = true;
+          }
         } else if (vertical !== otherVertical) {
           const [v, h] = vertical ? [s, o] : [o, s];
           const crossing =
@@ -179,13 +211,13 @@ export const route = (scene: Scene): Routes => {
         }
       }
     }
-    return total;
+    return { total, shares };
   };
 
   /** The first bend of each Sortie's arrows, once one is routed: the others share it. */
   const trunks = new Map<string, number>();
 
-  const candidates = (p1: Point, p2: Point, trunk: number | undefined): Point[][] => {
+  const candidates = (p1: Point, p2: Point, trunk: number | undefined, nearLanes: number): Point[][] => {
     const found: Point[][] = [];
     if (Math.abs(p1.y - p2.y) < 1 && p2.x > p1.x) found.push([p1, p2]);
     for (const x of xs) if (x > p1.x + 4 && x < p2.x - 4) found.push([p1, { x, y: p1.y }, { x, y: p2.y }, p2]);
@@ -193,7 +225,7 @@ export const route = (scene: Scene): Routes => {
       xs
         .filter(ok)
         .sort((u, v) => distance(u) - distance(v))
-        .slice(0, NEAR_LANES);
+        .slice(0, nearLanes);
     const starts = near((x) => x > p1.x + 4, (x) => x - p1.x);
     if (trunk !== undefined && !starts.includes(trunk)) starts.push(trunk);
     const ends = near((x) => x < p2.x - 4, (x) => p2.x - x);
@@ -211,22 +243,32 @@ export const route = (scene: Scene): Routes => {
 
   const routeOne = (p1: Point, p2: Point, a: string, b: string, src: string): Point[] => {
     const trunk = trunks.get(src);
+    // The cheapest path on a lane of its own; failing one, the cheapest at all.
+    let clear: Point[] | null = null;
+    let clearCost = Infinity;
     let best: Point[] | null = null;
     let bestCost = Infinity;
-    const all = candidates(p1, p2, trunk);
-    // The trunk's paths come first: any of them free wins over the others.
-    const sharedCount = trunk === undefined ? 0 : all.findIndex((points) => points.length !== 2 && points[1]!.x !== trunk);
-    for (const [i, points] of all.entries()) {
-      if (best && trunk !== undefined && i === sharedCount && sharedCount > 0) break;
-      if (!free(points, a, b)) continue;
-      const c = cost(points, src);
-      if (c < bestCost) {
-        best = points;
-        bestCost = c;
+    for (const nearLanes of [NEAR_LANES, WIDER_LANES]) {
+      const all = candidates(p1, p2, trunk, nearLanes);
+      // The trunk's paths come first: any of them clear wins over the others.
+      const sharedCount = trunk === undefined ? 0 : all.findIndex((points) => points.length !== 2 && points[1]!.x !== trunk);
+      for (const [i, points] of all.entries()) {
+        if (clear && trunk !== undefined && i === sharedCount && sharedCount > 0) break;
+        if (!free(points, a, b)) continue;
+        const { total, shares } = cost(points, src);
+        if (!shares && total < clearCost) {
+          clear = points;
+          clearCost = total;
+        }
+        if (total < bestCost) {
+          best = points;
+          bestCost = total;
+        }
       }
+      if (clear) break;
     }
     const mid = (p1.x + p2.x) / 2;
-    const chosen = best ?? [p1, { x: mid, y: p1.y }, { x: mid, y: p2.y }, p2];
+    const chosen = clear ?? best ?? [p1, { x: mid, y: p1.y }, { x: mid, y: p2.y }, p2];
     if (chosen.length > 2 && !trunks.has(src)) trunks.set(src, chosen[1]!.x);
     for (const s of segments(chosen)) routed.push({ ...s, src });
     return chosen;

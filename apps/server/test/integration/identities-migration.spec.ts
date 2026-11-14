@@ -114,7 +114,23 @@ describe('the migration of the Identités, against PostgreSQL', () => {
 
     expect(hubot).not.toBe(oldPilot);
     expect(await sql('SELECT pilot_id FROM github_installations WHERE installation_id = 2')).toEqual([{ pilot_id: hubot }]);
-    expect(await sql('SELECT display_name, github_user_id FROM pilots WHERE id = $1', [hubot])).toEqual([{ display_name: 'hubot', github_user_id: null }]);
+    expect(await sql('SELECT display_name, github_user_id FROM pilots WHERE id = $1', [hubot])).toEqual([{ display_name: 'hubot', github_user_id: String(HUBOT.id) }]);
+  });
+
+  it('keeps a Pilote this version signs up through GitHub the same Pilote for the version before (a rollback)', async () => {
+    const user = { id: 9100004, login: 'signed-up', avatarUrl: 'https://avatars.example/u/9100004' };
+    const pilot = await signInWithGitHub(user);
+
+    expect(await sql('SELECT github_user_id, login FROM pilots WHERE id = $1', [pilot])).toEqual([{ github_user_id: String(user.id), login: 'signed-up' }]);
+    // The version before's sign-in: an upsert of the Pilote by github_user_id.
+    const upsert = `INSERT INTO pilots (id, github_user_id, login, avatar_url, time_zone) VALUES ($1, $2, $3, $4, 'UTC')
+      ON CONFLICT (github_user_id) DO UPDATE SET login = EXCLUDED.login, avatar_url = EXCLUDED.avatar_url RETURNING id`;
+    expect(await sql(upsert, [newId(), user.id, user.login, user.avatarUrl])).toEqual([{ id: pilot }]);
+    expect(await sql('SELECT count(*)::int AS n FROM pilots WHERE github_user_id = $1', [user.id])).toEqual([{ n: 1 }]);
+
+    // A login changed on GitHub follows into the column the version before reads.
+    await signInWithGitHub({ ...user, login: 'renamed' });
+    expect(await sql('SELECT display_name, login FROM pilots WHERE id = $1', [pilot])).toEqual([{ display_name: 'renamed', login: 'renamed' }]);
   });
 
   it('gives a Pilote the version before writes (a rollback) its display name and its github Identité, found by a later sign-in', async () => {

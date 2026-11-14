@@ -13,7 +13,7 @@ import { SESSION_SECRET } from './auth.keys.js';
 import { type AuthRequest, type AuthResponse, headerOf } from './auth.request.js';
 import { clearCookie, OAUTH_COOKIE, OAUTH_COOKIE_PATH, readCookie, SESSION_COOKIE, serializeCookie } from './cookies.js';
 import { GithubTokens } from './github-tokens.js';
-import { PilotIdentities } from './identities.js';
+import { isUniqueViolation, PilotIdentities } from './identities.js';
 import { newState, OAUTH_TTL_SECONDS, openOauthState, safeNext, safeTimeZone, sameState, sealOauthState } from './oauth-state.js';
 import { SESSION_TTL_SECONDS, WebSessions } from './web-sessions.js';
 
@@ -112,7 +112,7 @@ export class AuthController {
     const tokens = await this.github.exchangeCode(code, this.callbackUrl);
     const user = await this.github.getAuthenticatedUser(tokens.accessToken);
     const subject = String(user.id);
-    const pilotId = await this.prisma.unscoped.$transaction(async (tx) => {
+    const pilotOfUser = (): Promise<string> => this.prisma.unscoped.$transaction(async (tx) => {
       const known = await this.identities.pilotOf('github', subject, tx);
       if (!known) {
         return this.identities.signUp(tx, {
@@ -128,6 +128,12 @@ export class AuthController {
       await tx.pilot.update({ where: { id: known }, data: { displayName: user.login, avatarUrl: user.avatarUrl } });
       await tx.pilotIdentity.updateMany({ where: { provider: 'github', subject }, data: { login: user.login } });
       return known;
+    });
+    // Two first sign-ins of one GitHub user at once: the second sign-up lost the
+    // race on the Identité and rolled back; once more finds the Pilote.
+    const pilotId = await pilotOfUser().catch((error: unknown) => {
+      if (!isUniqueViolation(error)) throw error;
+      return pilotOfUser();
     });
     await this.installations.linkPendingTo(pilotId, user.id);
     return runInPilotScope(pilotId, () =>

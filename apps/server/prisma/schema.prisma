@@ -29,7 +29,8 @@ enum GettingStartedStep {
 /// number of its last event (CORE-5), `lastSeq` the one of the last event
 /// about the Pilote themselves (`pilot.upserted`). Ids are UUIDv7, generated
 /// in code (`src/ids.ts`). `githubUserId` and `login` are no longer read nor
-/// written (the `github` Identité holds them): CORE-11's migration drops them.
+/// written by the server (the `github` Identité holds them; a trigger copies
+/// them back for the version before): CORE-11's migration drops them.
 model Pilot {
   id                 String               @id @db.Uuid
   githubUserId       BigInt?              @unique @map("github_user_id")

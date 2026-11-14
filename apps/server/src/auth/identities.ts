@@ -24,6 +24,9 @@ export interface SignUp {
   readonly avatarUrl?: string | null;
 }
 
+/** Whether `error` is Prisma's unique violation (P2002): two first sign-ins of one Identité at once, the loser rolled back. */
+export const isUniqueViolation = (error: unknown): boolean => (error as { code?: unknown } | null)?.code === 'P2002';
+
 /** The `displayName` of a Pilote signed up by `email`: its local part, at most 39 characters. */
 export const displayNameOf = (email: string): string => email.slice(0, email.lastIndexOf('@')).slice(0, DISPLAY_NAME_MAX);
 

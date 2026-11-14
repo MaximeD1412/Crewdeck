@@ -83,7 +83,7 @@ describe('sign in with GitHub against PostgreSQL', () => {
     expect(session).toMatch(/Path=\//);
     expect(session).toMatch(/Max-Age=2592000/);
     const pilots = await sql<{ id: string; display_name: string; time_zone: string; avatar_url: string }>('SELECT * FROM pilots');
-    expect(pilots).toEqual([expect.objectContaining({ display_name: 'octocat', time_zone: 'Europe/Paris', avatar_url: OCTOCAT.avatarUrl, github_user_id: null })]);
+    expect(pilots).toEqual([expect.objectContaining({ display_name: 'octocat', time_zone: 'Europe/Paris', avatar_url: OCTOCAT.avatarUrl, github_user_id: String(OCTOCAT.id), login: 'octocat' })]);
     expect(await sql('SELECT pilot_id, provider, subject, email, login FROM pilot_identities')).toEqual([
       { pilot_id: pilots[0]?.id, provider: 'github', subject: String(OCTOCAT.id), email: null, login: 'octocat' },
     ]);
@@ -94,6 +94,28 @@ describe('sign in with GitHub against PostgreSQL', () => {
     expect(tokens?.access_token_enc.includes('ghu_fake')).toBe(false);
     expect(tokens?.refresh_token_enc.includes('ghr_fake')).toBe(false);
     expect(await sql('SELECT pilot_id FROM web_sessions')).toEqual([{ pilot_id: pilots[0]?.id }]);
+  });
+
+  it('signs a new GitHub user in as the Pilote another browser created in the meantime, with no second Pilote', async () => {
+    // The other browser's sign-up, not yet committed: this one finds no Identité, then its own waits on it.
+    const other = new pg.Client({ connectionString: databaseUrl });
+    await other.connect();
+    const pilot = newId();
+    try {
+      await other.query('BEGIN');
+      await other.query(`INSERT INTO pilots (id, display_name, time_zone) VALUES ($1, 'octocat', 'UTC')`, [pilot]);
+      await other.query(`INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) VALUES ($1, $2, 'github', $3, 'octocat')`, [newId(), pilot, String(OCTOCAT.id)]);
+      const response = signIn();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await other.query('COMMIT');
+
+      const res = await response;
+      expect([res.status, res.headers.get('location')]).toEqual([302, '/idees']);
+    } finally {
+      await other.end();
+    }
+    expect(await sql('SELECT id FROM pilots')).toEqual([{ id: pilot }]);
+    expect(await sql('SELECT pilot_id FROM web_sessions')).toEqual([{ pilot_id: pilot }]);
   });
 
   /** The `crewdeck_session=<token>` a signed-in browser sends. */
@@ -124,7 +146,7 @@ describe('sign in with GitHub against PostgreSQL', () => {
 
     await signIn({ timeZone: 'America/New_York' });
 
-    expect(await sql('SELECT display_name, time_zone FROM pilots')).toEqual([{ display_name: 'octocat-renamed', time_zone: 'Europe/Paris' }]);
+    expect(await sql('SELECT display_name, login, time_zone FROM pilots')).toEqual([{ display_name: 'octocat-renamed', login: 'octocat-renamed', time_zone: 'Europe/Paris' }]);
     expect(await sql('SELECT provider, login FROM pilot_identities')).toEqual([{ provider: 'github', login: 'octocat-renamed' }]);
     expect(await sql('SELECT count(*)::int AS n FROM web_sessions')).toEqual([{ n: 2 }]);
   });

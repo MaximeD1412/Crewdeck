@@ -1,7 +1,8 @@
 -- Identités (ADR 0014, CORE-9): a Pilote signs in by email, Google or
 -- GitHub. Expand only (ADR 0009): `github_user_id` and `login` stay, nullable
--- and no longer read nor written; CORE-11's migration drops them, and the
--- two triggers below with them.
+-- and no longer read nor written by the server, the database keeping them in
+-- step with the `github` Identité for the version before; CORE-11's migration
+-- drops them, and the three triggers below with them.
 
 -- CreateEnum
 CREATE TYPE "identity_provider" AS ENUM ('email', 'google', 'github');
@@ -91,3 +92,18 @@ $$;
 
 CREATE TRIGGER "pilots_legacy_github_identity" AFTER INSERT ON "pilots"
 FOR EACH ROW WHEN (NEW."github_user_id" IS NOT NULL) EXECUTE FUNCTION "pilots_legacy_github_identity"();
+
+-- The other way round: a `github` Identité this version writes (a sign-up, a
+-- login changed on GitHub) is copied to `github_user_id` and `login`, so that
+-- the version before, deployed again, finds the same Pilote by its GitHub user
+-- and does not create a second one.
+CREATE FUNCTION "pilots_legacy_github_columns"() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE "pilots" SET "github_user_id" = NEW."subject"::bigint, "login" = NEW."login"
+  WHERE "id" = NEW."pilot_id" AND ("github_user_id" IS DISTINCT FROM NEW."subject"::bigint OR "login" IS DISTINCT FROM NEW."login");
+  RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER "pilots_legacy_github_columns" AFTER INSERT OR UPDATE OF "subject", "login" ON "pilot_identities"
+FOR EACH ROW WHEN (NEW."provider" = 'github') EXECUTE FUNCTION "pilots_legacy_github_columns"();

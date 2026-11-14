@@ -8,7 +8,7 @@ import { AppError } from '../../errors/app-error.js';
 import { MESSAGES } from '../../errors/messages.js';
 import { newId } from '../../ids.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { displayNameOf, PilotIdentities } from '../identities.js';
+import { displayNameOf, isUniqueViolation, PilotIdentities } from '../identities.js';
 import { MAILER, type Mailer } from '../mail/mailer.js';
 import { signInLinkMail } from '../mail/sign-in-link.js';
 import { safeNext, safeTimeZone } from '../oauth-state.js';
@@ -21,8 +21,6 @@ export const LINK_PATH = '/connexion/lien';
 /** What `email_login_tokens` keeps of a link's token: its SHA-256, in hex. */
 export const hashOf = (token: string): string => createHash('sha256').update(token).digest('hex');
 
-/** A unique key PostgreSQL refused: two sign-ups of one new address at once. */
-const isUniqueViolation = (error: unknown): boolean => (error as { code?: unknown } | null)?.code === 'P2002';
 
 const linkInvalid = (): AppError => new AppError(422, 'auth.link-invalid', MESSAGES['auth.link-invalid']);
 

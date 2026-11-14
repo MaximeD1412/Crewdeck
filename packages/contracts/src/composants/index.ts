@@ -18,6 +18,7 @@ import { IconButton } from './icon-button.js';
 import { Icon } from './icon.js';
 import { KeyValue } from './key-value.js';
 import { ListRow } from './list-row.js';
+import { Menu } from './menu.js';
 import { Message } from './message.js';
 import { PageAToi } from './page-a-toi.js';
 import { PageComposants } from './page-composants.js';
@@ -27,6 +28,7 @@ import { PageHeader } from './page-header.js';
 import { PageIntrouvable } from './page-introuvable.js';
 import { PageRunner } from './page-runner.js';
 import { PermissionRequest } from './permission-request.js';
+import { PhaseGroup } from './phase-group.js';
 import { ProcessTrack } from './process-track.js';
 import { ProjectFilter } from './project-filter.js';
 import { Question } from './question.js';
@@ -35,6 +37,8 @@ import { Radio } from './radio.js';
 import { Select } from './select.js';
 import { SettingRow } from './setting-row.js';
 import { Stat } from './stat.js';
+import { StepRow } from './step-row.js';
+import { Stepper } from './stepper.js';
 import { StatusBadge } from './status-badge.js';
 import { StatusDot } from './status-dot.js';
 import { Tabs } from './tabs.js';
@@ -69,6 +73,7 @@ export * from './icon.js';
 export * from './icons.js';
 export * from './key-value.js';
 export * from './list-row.js';
+export * from './menu.js';
 export * from './message.js';
 export * from './page-a-toi.js';
 export * from './page-composants.js';
@@ -78,6 +83,7 @@ export * from './page-header.js';
 export * from './page-introuvable.js';
 export * from './page-runner.js';
 export * from './permission-request.js';
+export * from './phase-group.js';
 export * from './process-track.js';
 export * from './project-filter.js';
 export * from './question.js';
@@ -87,6 +93,8 @@ export * from './select.js';
 export * from './sensitive.js';
 export * from './setting-row.js';
 export * from './stat.js';
+export * from './step-row.js';
+export * from './stepper.js';
 export * from './status-badge.js';
 export * from './status-dot.js';
 export * from './tabs.js';
@@ -138,6 +146,9 @@ export const COMPOSANTS = {
   Capture,
   TicketTree,
   Timeline,
+  PhaseGroup,
+  StepRow,
+  Menu,
   Banner,
   Button,
   Checkbox,
@@ -149,6 +160,7 @@ export const COMPOSANTS = {
   Select,
   StatusBadge,
   StatusDot,
+  Stepper,
   Tabs,
   TextField,
   Toggle,

@@ -23,8 +23,10 @@ type Openable = HTMLElement & { data: Record<string, unknown> };
  * preview), its description, its data, actions and Emplacements. At 1280 px a
  * search over the names narrows the catalogue; on the phone a Select of every
  * Composant takes the catalogue's place. An example that is open (`open:
- * true`, a Dialog) is previewed closed, beside a button that opens it, and its
- * `close` closes it: a modal would otherwise cover the library.
+ * true`) of a Composant that closes itself (a `close` action, a Dialog) is
+ * previewed closed, beside a button that opens it, and its `close` closes it:
+ * a modal would otherwise cover the library. Another open one (a PhaseGroup)
+ * is shown as it is.
  */
 export class PasserellePageComposants extends PasserelleElement<typeof PageComposants> {
   static override properties = { query: { state: true } };
@@ -198,12 +200,13 @@ export class PasserellePageComposants extends PasserelleElement<typeof PageCompo
   protected override updated(changed: PropertyValues): void {
     super.updated(changed);
     if (!changed.has('data')) return;
-    const { tag, examples } = this.data.selected;
+    const { tag, examples, actions } = this.data.selected;
+    const closes = actions.some((action) => action.name === 'close');
     const stages = this.shadowRoot?.querySelectorAll<HTMLElement>('.stage') ?? [];
     examples.forEach((example, index) => {
       const element = document.createElement(tag) as Openable;
       element.append(...fillSlots(example.slots));
-      if (example.data['open'] !== true) {
+      if (example.data['open'] !== true || !closes) {
         element.data = example.data;
         stages[index]?.replaceChildren(element);
         return;

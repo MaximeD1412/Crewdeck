@@ -1,9 +1,13 @@
 import { z } from 'zod';
 import { zId } from '../values.js';
+import { CheckRow } from './check-row.js';
+import { CodeBlock } from './code-block.js';
+import { Banner } from './banner.js';
 import { Composer } from './composer.js';
 import { Button } from './button.js';
 import { defineComposant } from './define.js';
 import { Empty } from './empty.js';
+import { zIconName } from './icons.js';
 import { Message } from './message.js';
 import { PermissionRequest } from './permission-request.js';
 import { placed } from './placed.js';
@@ -27,6 +31,10 @@ const [permissionExample] = PermissionRequest.examples;
  * An agent's Session: its head (state, « Arrêter » or « Reprendre », « Fermer »),
  * its messages, tool calls, question and permission request in a log that
  * keeps to the bottom while the Pilote has not scrolled up, then its Composer.
+ * `stopped`, `interrupted` and `failed` show the resume button, labelled
+ * `resumeLabel` with `resumeIcon` (« Reprendre » and `play` without them):
+ * « Relancer » for a failed Commande, whose output reads as a Session (US-104),
+ * the core leaving its `composer` Emplacement empty.
  */
 export const Session = defineComposant({
   name: 'Session',
@@ -38,15 +46,17 @@ export const Session = defineComposant({
     id: zId,
     title: z.string(),
     meta: z.string(),
-    state: z.enum(['active', 'waiting', 'stopped', 'interrupted']),
+    state: z.enum(['active', 'waiting', 'stopped', 'interrupted', 'failed']),
     resumeDisabledReason: z.string().nullable(),
+    resumeLabel: z.string().nullable(),
+    resumeIcon: zIconName.nullable(),
   }),
   actions: { stop: z.object({}), resume: z.object({}), close: z.object({}), expand: z.object({}) },
   slots: ['default', 'composer'],
   examples: [
     {
       name: 'active',
-      data: { id: ID, title: TITLE, meta: META, state: 'active', resumeDisabledReason: null },
+      data: { id: ID, title: TITLE, meta: META, state: 'active', resumeDisabledReason: null, resumeLabel: null, resumeIcon: null },
       slots: {
         default: [
           tool('Read', 'docs/product/prd.md', '281 lignes'),
@@ -70,7 +80,7 @@ export const Session = defineComposant({
     },
     {
       name: 'en attente d’une réponse',
-      data: { id: ID, title: TITLE, meta: META, state: 'waiting', resumeDisabledReason: null },
+      data: { id: ID, title: TITLE, meta: META, state: 'waiting', resumeDisabledReason: null, resumeLabel: null, resumeIcon: null },
       slots: {
         default: [
           tool('Grep', 'agenda · apps/web/src', '14 fichiers'),
@@ -86,7 +96,7 @@ export const Session = defineComposant({
     },
     {
       name: 'en attente d’une permission',
-      data: { id: ID, title: TITLE, meta: META, state: 'waiting', resumeDisabledReason: null },
+      data: { id: ID, title: TITLE, meta: META, state: 'waiting', resumeDisabledReason: null, resumeLabel: null, resumeIcon: null },
       slots: {
         default: [
           tool('Write', 'docs/product/features/agenda-partage.md', '142 lignes'),
@@ -103,7 +113,7 @@ export const Session = defineComposant({
     },
     {
       name: 'arrêtée',
-      data: { id: ID, title: TITLE, meta: META, state: 'stopped', resumeDisabledReason: null },
+      data: { id: ID, title: TITLE, meta: META, state: 'stopped', resumeDisabledReason: null, resumeLabel: null, resumeIcon: null },
       slots: {
         default: [
           message(
@@ -124,6 +134,8 @@ export const Session = defineComposant({
         meta: `Runner hors ligne · ${META}`,
         state: 'interrupted',
         resumeDisabledReason: 'Runner hors ligne',
+        resumeLabel: null,
+        resumeIcon: null,
       },
       slots: {
         default: placed(
@@ -134,6 +146,26 @@ export const Session = defineComposant({
             placed(Button.tag, { label: 'Voir le Runner', variant: 'secondary', size: 'md', icon: 'server' }, 'actions'),
         ),
         composer: composer('Disponible quand ton Runner est en ligne', 'disabled'),
+      },
+    },
+    {
+      name: 'une Commande échouée',
+      data: {
+        id: '019a6f1e-8d4e-7f50-8b2c-3d4e5f6a7b8c',
+        title: 'Lancer · Recettes',
+        meta: 'Commande · 16:02',
+        state: 'failed',
+        resumeDisabledReason: null,
+        resumeLabel: 'Relancer',
+        resumeIcon: 'refresh',
+      },
+      slots: {
+        default: [
+          tool('Commande', 'docker compose up -d', 'dans le dossier du Projet'),
+          placed(CodeBlock.tag, { code: 'Error response from daemon: port 8080 is already allocated' }),
+          placed(CheckRow.tag, { name: 'Code de sortie', state: 'failed', detail: '1', href: null }),
+          placed(Banner.tag, { tone: 'halt', title: 'Lancement échoué', icon: 'block' }, undefined, 'Une Décision t’attend dans « À toi ».'),
+        ].join(''),
       },
     },
   ],

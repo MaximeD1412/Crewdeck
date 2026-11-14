@@ -24,6 +24,7 @@ import { PasserelleIconButton } from './icon-button.js';
 import { PasserelleIcon } from './icon.js';
 import { PasserelleKeyValue } from './key-value.js';
 import { PasserelleListRow } from './list-row.js';
+import { PasserelleMenu } from './menu.js';
 import { PasserelleMenuItem } from './menu-item.js';
 import { PasserelleMessage } from './message.js';
 import { PasserellePageAToi } from './page-a-toi.js';
@@ -34,6 +35,7 @@ import { PasserellePageHeader } from './page-header.js';
 import { PasserellePageIntrouvable } from './page-introuvable.js';
 import { PasserellePageRunner } from './page-runner.js';
 import { PasserellePermissionRequest } from './permission-request.js';
+import { PasserellePhaseGroup } from './phase-group.js';
 import { PasserelleProcessTrack } from './process-track.js';
 import { PasserelleProjectFilter } from './project-filter.js';
 import { PasserelleQuestion } from './question.js';
@@ -44,6 +46,8 @@ import { PasserelleSettingRow } from './setting-row.js';
 import { PasserelleStat } from './stat.js';
 import { PasserelleStatusBadge } from './status-badge.js';
 import { PasserelleStatusDot } from './status-dot.js';
+import { PasserelleStepRow } from './step-row.js';
+import { PasserelleStepper } from './stepper.js';
 import { PasserelleTabs } from './tabs.js';
 import { PasserelleTextField } from './text-field.js';
 import { PasserelleTicketRow } from './ticket-row.js';
@@ -91,6 +95,9 @@ export default defineSkin({
     Capture: PasserelleCapture,
     TicketTree: PasserelleTicketTree,
     Timeline: PasserelleTimeline,
+    PhaseGroup: PasserellePhaseGroup,
+    StepRow: PasserelleStepRow,
+    Menu: PasserelleMenu,
     Banner: PasserelleBanner,
     Button: PasserelleButton,
     Checkbox: PasserelleCheckbox,
@@ -102,6 +109,7 @@ export default defineSkin({
     Select: PasserelleSelect,
     StatusBadge: PasserelleStatusBadge,
     StatusDot: PasserelleStatusDot,
+    Stepper: PasserelleStepper,
     Tabs: PasserelleTabs,
     TextField: PasserelleTextField,
     Toggle: PasserelleToggle,

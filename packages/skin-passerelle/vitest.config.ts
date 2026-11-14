@@ -22,6 +22,9 @@ const BROWSER_SPECS = [
   'src/page-runner.spec.ts',
   'src/session.spec.ts',
   'src/composer.spec.ts',
+  'src/phase-group.spec.ts',
+  'src/stepper.spec.ts',
+  'src/menu.spec.ts',
 ];
 
 export default defineConfig({

@@ -27,6 +27,7 @@ describe('composantsView', () => {
       'Select',
       'StatusBadge',
       'StatusDot',
+      'Stepper',
       'Tabs',
       'TextField',
       'Toggle',

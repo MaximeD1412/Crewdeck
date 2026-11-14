@@ -15,6 +15,8 @@ const SESSION = {
   meta: 'Personal OS · Conception · Claude Code',
   state: 'active',
   resumeDisabledReason: null,
+  resumeLabel: null,
+  resumeIcon: null,
 } as const;
 
 const message = (text: string) =>
@@ -33,7 +35,7 @@ describe('Session', () => {
     expect(details).toEqual([{ composant: 'Session', action: 'stop', payload: {} }]);
   });
 
-  it.each(['stopped', 'interrupted'] as const)('shows « Reprendre » while %s, which emits resume', async (state) => {
+  it.each(['stopped', 'interrupted', 'failed'] as const)('shows « Reprendre » while %s, which emits resume', async (state) => {
     const el = await render(COMPOSANTS.Session, { ...SESSION, state });
     expect(el.shadowRoot?.querySelector('cd-button.stop')).toBeNull();
     const resume = inside<HTMLButtonElement>(el, 'cd-button.resume', 'button');
@@ -41,6 +43,28 @@ describe('Session', () => {
     expect(resume.disabled).toBe(false);
     const details = await actionsOf(() => resume.click());
     expect(details).toEqual([{ composant: 'Session', action: 'resume', payload: {} }]);
+  });
+
+  it('a failed Commande shows « Relancer » with the refresh icon, which emits resume', async () => {
+    const el = await render(COMPOSANTS.Session, { ...SESSION, state: 'failed', resumeLabel: 'Relancer', resumeIcon: 'refresh' });
+    const host = inside<HTMLElement & { data: unknown }>(el, 'cd-button.resume');
+    expect(host.data).toMatchObject({ label: 'Relancer', icon: 'refresh', variant: 'secondary' });
+    const resume = inside<HTMLButtonElement>(host, 'button');
+    expect(textOf(resume)).toBe('Relancer');
+    const details = await actionsOf(() => resume.click());
+    expect(details).toEqual([{ composant: 'Session', action: 'resume', payload: {} }]);
+  });
+
+  it('says « échouée » once failed, with a halt dot', async () => {
+    const el = await render(COMPOSANTS.Session, { ...SESSION, state: 'failed' });
+    expect(textOf(inside(el, '.meta'))).toBe(`${t('session.state.failed')} · ${SESSION.meta}`);
+    expect(t('session.state.failed')).toBe('échouée');
+    expect((inside(el, 'cd-status-dot') as HTMLElement & { data: unknown }).data).toMatchObject({ tone: 'halt', pulse: false });
+  });
+
+  it('takes « Reprendre » and play without a resume label nor icon', async () => {
+    const el = await render(COMPOSANTS.Session, { ...SESSION, state: 'stopped' });
+    expect((inside(el, 'cd-button.resume') as HTMLElement & { data: unknown }).data).toMatchObject({ label: t('session.resume'), icon: 'play' });
   });
 
   it('disables « Reprendre » with its reason beside it, and emits nothing', async () => {

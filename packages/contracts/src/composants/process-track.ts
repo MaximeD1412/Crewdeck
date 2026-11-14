@@ -1,8 +1,13 @@
 import { z } from 'zod';
 import { defineComposant } from './define.js';
 
-/** The state of an Étape on a track: `off` an Étape optionnelle turned off (US-10), `halt` stopped. */
-export const zStepState = z.enum(['done', 'current', 'todo', 'off', 'halt']).meta({ title: 'StepState' });
+/**
+ * The state of an Étape on a track: `off` an Étape absent from the Process
+ * version the item runs on (ADR 0011: work keeps its version), `halt` stopped
+ * by a failure or a pause, `stopped` an arrest decided elsewhere, at the
+ * Source (a Ticket closed on GitHub), neither a failure nor a pause.
+ */
+export const zStepState = z.enum(['done', 'current', 'todo', 'off', 'halt', 'stopped']).meta({ title: 'StepState' });
 export type StepState = z.infer<typeof zStepState>;
 
 const zStep = z.object({ label: z.string(), meta: z.string().nullable(), state: zStepState });
@@ -10,8 +15,9 @@ const zStep = z.object({ label: z.string(), meta: z.string().nullable(), state: 
 /**
  * The Étapes of a Conception, of a Ticket or of the getting started
  * (CONCEPTION-2, BOUCLE-5, RUNNER-3): an ordered list, the current one marked
- * as such. `compact` keeps them on one line at every width, without their
- * metas: the steps of « Premiers pas ».
+ * as such. An Étape the item's Process version does not have is `off`, one
+ * stopped at the Source `stopped`. `compact` keeps them on one line at every
+ * width, without their metas: the steps of « Premiers pas ».
  */
 export const ProcessTrack = defineComposant({
   name: 'ProcessTrack',
@@ -40,13 +46,13 @@ export const ProcessTrack = defineComposant({
       },
     },
     {
-      name: 'une Étape désactivée',
+      name: 'une Étape absente de sa version',
       data: {
         direction: 'horizontal',
         steps: [
           { label: 'Idée retenue', meta: '3 nov.', state: 'done' },
           { label: 'PRD', meta: 'approuvé le 5 nov.', state: 'done' },
-          { label: 'Maquettes', meta: null, state: 'off' },
+          { label: 'Maquettes', meta: 'pas dans la v2', state: 'off' },
           { label: 'Conception technique', meta: 'depuis 9:10', state: 'current' },
           { label: 'Découpage en Tickets', meta: null, state: 'todo' },
         ],
@@ -60,6 +66,18 @@ export const ProcessTrack = defineComposant({
           { label: 'Code', meta: 'Claude Code · 24 min', state: 'done' },
           { label: 'Checks', meta: '1 sur 4 échoué', state: 'halt' },
           { label: 'Review', meta: null, state: 'todo' },
+          { label: 'Merge', meta: null, state: 'todo' },
+        ],
+      },
+    },
+    {
+      name: 'arrêtée à la Source',
+      data: {
+        direction: 'horizontal',
+        steps: [
+          { label: 'Code', meta: 'Claude Code · 24 min', state: 'done' },
+          { label: 'Checks', meta: '4 sur 4 passés', state: 'done' },
+          { label: 'Review', meta: 'arrêtée à 15:20 : Ticket fermé sur GitHub', state: 'stopped' },
           { label: 'Merge', meta: null, state: 'todo' },
         ],
       },

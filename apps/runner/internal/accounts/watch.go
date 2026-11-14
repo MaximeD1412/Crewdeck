@@ -9,7 +9,8 @@ import (
 
 // Watch gives the adapters of `registry` with every Run they start watched
 // by the Reporter: a `limit-reached` or an `auth-required` of a Session
-// is recorded, and reaches the next capabilities. The Runner drives its
+// is recorded, and reaches the next capabilities; their usage reaches the
+// server (usage.go). The Runner drives its
 // Sessions through this registry (run.go), and the Reporter asks it too.
 func (r *Reporter) Watch(registry *engine.Registry) *engine.Registry {
 	var watched engine.Registry
@@ -53,6 +54,9 @@ func (w watchedEngine) watch(ctx context.Context, run engine.Run, model string) 
 		for event := range run.Events() {
 			if w.reporter.record(w.ID(), model, event) {
 				go w.reporter.report(context.WithoutCancel(ctx))
+			}
+			if usage := w.reporter.observeUsage(w.ID(), event); usage != nil {
+				go w.reporter.sendUsage(context.WithoutCancel(ctx), []contracts.RunnerUsage{*usage})
 			}
 			if !reading {
 				continue

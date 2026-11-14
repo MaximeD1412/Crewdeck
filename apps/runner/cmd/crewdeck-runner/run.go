@@ -69,18 +69,20 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	defer stop()
 	// The client of the current connection: a new one after each update attempt.
 	var current atomic.Pointer[protocol.Client]
+	send := func(ctx context.Context, m any) error {
+		client := current.Load()
+		if client == nil {
+			return protocol.ErrNotConnected
+		}
+		return client.Send(ctx, m)
+	}
 	reporter := &accounts.Reporter{
-		Send: func(ctx context.Context, m contracts.RunnerCapabilities) error {
-			client := current.Load()
-			if client == nil {
-				return protocol.ErrNotConnected
-			}
-			return client.Send(ctx, m)
-		},
-		Logger: logger,
+		Send:      func(ctx context.Context, m contracts.RunnerCapabilities) error { return send(ctx, m) },
+		SendUsage: func(ctx context.Context, m contracts.RunnerUsage) error { return send(ctx, m) },
+		Logger:    logger,
 	}
 	// The adapters, their Sessions watched: a limit or a sign-in they meet
-	// reaches the capabilities. The Sessions (RUNNER-9) start from this registry.
+	// reaches the capabilities, the usage they report reaches the server. The Sessions (RUNNER-9) start from this registry.
 	reporter.Engines = reporter.Watch(runnerEngines(keys))
 	report := func(ctx context.Context) {
 		if _, err := reporter.Report(ctx); err != nil && !errors.Is(err, protocol.ErrNotConnected) && ctx.Err() == nil {
@@ -94,6 +96,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		}
 	}()
 	go reporter.Every(ctx, contracts.CapabilitiesEverySeconds*time.Second)
+	go reporter.UsageEvery(ctx, contracts.UsageEverySeconds*time.Second)
 	updater := &update.Updater{
 		Server: linked.Server,
 		Binary: binary,

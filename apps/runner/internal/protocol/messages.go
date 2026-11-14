@@ -18,6 +18,7 @@ const (
 	TypeError         = "error"
 	TypeStepVerdict   = "step.verdict"
 	TypeCapabilities  = "capabilities"
+	TypeUsage         = "usage"
 )
 
 // Machine is what the Runner says of itself in its hello.
@@ -72,4 +73,24 @@ func NewCapabilities(engines []contracts.EngineCapabilities) contracts.RunnerCap
 		engines = []contracts.EngineCapabilities{}
 	}
 	return contracts.RunnerCapabilities{Type: TypeCapabilities, Id: newID(at), At: at, Engines: engines}
+}
+
+// NewUsage is the usage message of one Compte IA (US-55): the windows the
+// Moteur last reported, measured at `measuredAt`, and the cost of a Session's
+// result when `spend` is set. Figures only, never content.
+func NewUsage(engine contracts.RunnerUsageEngine, kind contracts.RunnerUsageAccountKind, windows []contracts.RunnerUsageWindowsElem, spend *contracts.RunnerUsageSpend, measuredAt time.Time) contracts.RunnerUsage {
+	at := now()
+	if windows == nil {
+		windows = []contracts.RunnerUsageWindowsElem{}
+	}
+	return contracts.RunnerUsage{
+		Type:        TypeUsage,
+		Id:          newID(at),
+		At:          at,
+		Engine:      engine,
+		AccountKind: kind,
+		Windows:     windows,
+		Spend:       spend,
+		MeasuredAt:  measuredAt.UTC().Truncate(time.Millisecond),
+	}
 }

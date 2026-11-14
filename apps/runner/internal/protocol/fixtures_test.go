@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 )
@@ -24,6 +25,7 @@ func TestEveryFixtureOfTheProtocolDecodesIntoItsGeneratedType(t *testing.T) {
 		TypeError:         decodeInto[contracts.RunnerError],
 		TypeStepVerdict:   decodeInto[contracts.RunnerStepVerdict],
 		TypeCapabilities:  decodeInto[contracts.RunnerCapabilities],
+		TypeUsage:         decodeInto[contracts.RunnerUsage],
 	}
 	entries, err := os.ReadDir(fixturesDir)
 	if err != nil {
@@ -82,5 +84,21 @@ func TestTheHelloAndTheHeartbeatMatchTheirSchema(t *testing.T) {
 	}
 	if err := decodeInto[contracts.RunnerHeartbeat](beat); err != nil {
 		t.Fatalf("decode the heartbeat: %v", err)
+	}
+}
+
+func TestTheUsageMatchesItsSchema(t *testing.T) {
+	measured := now().Add(-time.Minute)
+	usage := NewUsage(contracts.RunnerUsageEngineCodex, contracts.RunnerUsageAccountKindApiKey, nil, &contracts.RunnerUsageSpend{CostUsdMicros: 1_250_000}, measured)
+	data, err := json.Marshal(usage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back contracts.RunnerUsage
+	if err := json.Unmarshal(data, &back); err != nil {
+		t.Fatalf("decode the usage: %v", err)
+	}
+	if back.Type != TypeUsage || !uuidV7.MatchString(back.Id) || back.Windows == nil || back.Spend.CostUsdMicros != 1_250_000 || !back.MeasuredAt.Equal(measured) {
+		t.Fatalf("usage %+v", back)
 	}
 }

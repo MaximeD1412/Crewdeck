@@ -1,16 +1,22 @@
 import { nextGettingStartedStep, zGettingStartedAdvance, zGithubToken, zMe } from '../index.js';
 
 describe('zMe', () => {
-  const me = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: 'https://avatars.example/u/1', timeZone: 'Europe/Paris', gettingStartedStep: 'runner' };
+  const me = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: 'https://avatars.example/u/1', timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [{ provider: 'github', label: 'octocat' }] };
 
   it('accepts the Pilote, with or without an avatar', () => {
     expect(zMe.parse(me)).toEqual(me);
     expect(zMe.parse({ ...me, avatarUrl: null })).toMatchObject({ avatarUrl: null });
   });
 
-  it('rejects an id that is not a UUIDv7, an empty login', () => {
+  it('rejects an id that is not a UUIDv7, an empty displayName', () => {
     expect(zMe.safeParse({ ...me, id: 'p1' }).success).toBe(false);
-    expect(zMe.safeParse({ ...me, login: '' }).success).toBe(false);
+    expect(zMe.safeParse({ ...me, displayName: '' }).success).toBe(false);
+  });
+
+  it('lists the Identités by provider, each with its label: the address, or GitHub’s login', () => {
+    const identities = [{ provider: 'email', label: 'pilote@example.com' }, { provider: 'github', label: 'octocat' }];
+    expect(zMe.parse({ ...me, identities })).toMatchObject({ identities });
+    expect(zMe.safeParse({ ...me, identities: [{ provider: 'gitlab', label: 'x' }] }).success).toBe(false);
   });
 
   it('carries the step of « Premiers pas »: runner, ai-accounts, projects or done', () => {

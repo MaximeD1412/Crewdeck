@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { eventPayloadSchema, registerEventPayload, zEvent, zEventType } from '../index.js';
 
-const PILOT = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
+const PILOT = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
 const AT = '2026-11-11T08:00:00.000Z';
 
 describe('zEventType', () => {
@@ -19,7 +19,7 @@ describe('zEventType', () => {
 describe('the event payloads', () => {
   it('gives the pilot payload the shape of GET /api/me', () => {
     expect(eventPayloadSchema('pilot.upserted')?.parse(PILOT)).toEqual(PILOT);
-    expect(eventPayloadSchema('pilot.upserted')?.safeParse({ ...PILOT, login: '' }).success).toBe(false);
+    expect(eventPayloadSchema('pilot.upserted')?.safeParse({ ...PILOT, displayName: '' }).success).toBe(false);
   });
 
   it('gives every removed event the id of what was removed', () => {

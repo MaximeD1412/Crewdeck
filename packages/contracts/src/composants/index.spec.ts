@@ -14,7 +14,7 @@ describe('COMPOSANTS', () => {
 
   it.each([
     ['cadre', ['PageHeader', 'ProjectFilter']],
-    ['page', ['PageComposants', 'PageConnexion', 'PageDemarrage', 'PageIntrouvable', 'PageRunner']],
+    ['page', ['PageComposants', 'PageConnexion', 'PageConnexionLien', 'PageDemarrage', 'PageIntrouvable', 'PageRunner']],
     [
       'partie',
       [

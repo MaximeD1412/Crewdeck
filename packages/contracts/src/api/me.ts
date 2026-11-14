@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zId } from '../values.js';
+import { zIdentityProvider } from './auth.js';
 import { withSeq } from './commands.js';
 
 /**
@@ -15,18 +16,24 @@ export type GettingStartedStep = z.infer<typeof zGettingStartedStep>;
 export const nextGettingStartedStep = (step: GettingStartedStep): GettingStartedStep =>
   GETTING_STARTED_STEPS[Math.min(GETTING_STARTED_STEPS.indexOf(step) + 1, GETTING_STARTED_STEPS.length - 1)] as GettingStartedStep;
 
+/** An Identité of the Pilote, as the page shows it: its provider, and the address or GitHub's login. */
+export const zMeIdentity = z.object({ provider: zIdentityProvider, label: z.string() });
+export type MeIdentity = z.infer<typeof zMeIdentity>;
+
 /**
  * `GET /api/me`: the signed-in Pilote, 401 `auth.required` for nobody (the
  * page then goes to `/connexion`), with the step of « Premiers pas » they
- * are at.
+ * are at and their Identités (ADR 0014). `displayName` is their readable
+ * name: GitHub's login, or their address's local part.
  */
 export const zMe = z.object({
   id: zId,
-  login: z.string().min(1),
+  displayName: z.string().min(1),
   avatarUrl: z.url().nullable(),
   /** IANA, the browser's at the first sign-in. */
   timeZone: z.string().min(1),
   gettingStartedStep: zGettingStartedStep,
+  identities: z.array(zMeIdentity),
 });
 export type Me = z.infer<typeof zMe>;
 

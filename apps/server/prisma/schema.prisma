@@ -53,6 +53,8 @@ model Pilot {
   devices            Device[]
   vaultKeyWraps      VaultKeyWrap[]
   decisions          Decision[]
+  usageMeasures      UsageMeasure[]
+  spends             Spend[]
 
   @@map("pilots")
 }
@@ -417,4 +419,66 @@ model AiAccount {
 
   @@unique([pilotId, engine])
   @@map("ai_accounts")
+}
+
+/// A window of a subscription (`USAGE_WINDOWS`).
+enum UsageWindowId {
+  five_hour @map("five-hour")
+  week
+
+  @@map("usage_window_id")
+}
+
+/// A measure of a subscription's window (US-55, RUNNER-13), as a `usage`
+/// message of the Runner carried it: figures only. The projection reads the
+/// last 24 hours of a window (`src/usage/projection.ts`). Kept 30 days
+/// (`src/usage/usage.retention.ts`).
+model UsageMeasure {
+  id          String        @id @db.Uuid
+  pilotId     String        @map("pilot_id") @db.Uuid
+  engine      EngineId
+  window      UsageWindowId
+  usedPercent Float         @map("used_percent")
+  resetsAt    DateTime      @map("resets_at") @db.Timestamptz
+  measuredAt  DateTime      @map("measured_at") @db.Timestamptz
+  pilot       Pilot         @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@index([pilotId, engine, window, measuredAt])
+  @@index([measuredAt])
+  @@map("usage_measures")
+}
+
+/// What an API key cost (US-55, RUNNER-13): a Session's `result` as a `usage`
+/// message carried it, in micro-dollars as the provider bills it, and in euro
+/// cents converted once at the rate of `day`, the day in the Pilote's time
+/// zone it was measured (`null` while no rate was ever known; the rate job
+/// fills it in). `projectId`, `sessionId` and `stepRunId` come from the
+/// Session, once Sessions exist (RUNNER-9).
+model Spend {
+  id            String   @id @db.Uuid
+  pilotId       String   @map("pilot_id") @db.Uuid
+  engine        EngineId
+  projectId     String?  @map("project_id") @db.Uuid
+  sessionId     String?  @map("session_id") @db.Uuid
+  stepRunId     String?  @map("step_run_id") @db.Uuid
+  day           DateTime @db.Date
+  costUsdMicros BigInt   @map("cost_usd_micros")
+  costEurCents  BigInt?  @map("cost_eur_cents")
+  measuredAt    DateTime @map("measured_at") @db.Timestamptz
+  pilot         Pilot    @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@index([pilotId, engine, day])
+  @@map("spends")
+}
+
+/// The euro reference rate of the ECB for a day (RUNNER-13): 1 EUR =
+/// `usdPerEur` USD, as the ECB publishes it. Global, not a Pilote's: on the
+/// scope's allowlist (`src/scope/scope.models.ts`). Fetched daily
+/// (`src/usage/fx.job.ts`); a day without a rate uses the last known one.
+model FxRate {
+  day       DateTime @id @db.Date
+  usdPerEur Decimal  @map("usd_per_eur") @db.Decimal(12, 6)
+  fetchedAt DateTime @map("fetched_at") @db.Timestamptz
+
+  @@map("fx_rates")
 }

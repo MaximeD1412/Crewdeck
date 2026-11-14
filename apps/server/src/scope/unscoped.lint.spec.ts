@@ -53,7 +53,7 @@ describe('ESLint, on prisma.unscoped', () => {
     },
   );
 
-  it.each(['src/scope/x.ts', 'src/auth/sessions.service.ts', 'src/github/webhooks/deliveries.service.ts', 'src/testing/x.ts', 'src/prisma/x.ts', 'src/realtime/retention.job.ts', 'src/runners/runner-sweep.job.ts', 'src/runners/link/link-lookup.ts', 'src/metrics/latency.sql.ts', 'src/metrics/latency.retention.ts'])(
+  it.each(['src/scope/x.ts', 'src/auth/sessions.service.ts', 'src/github/webhooks/deliveries.service.ts', 'src/testing/x.ts', 'src/prisma/x.ts', 'src/realtime/retention.job.ts', 'src/runners/runner-sweep.job.ts', 'src/runners/link/link-lookup.ts', 'src/metrics/latency.sql.ts', 'src/metrics/latency.retention.ts', 'src/usage/usage.retention.ts', 'src/usage/fx.job.ts'])(
     'allows them in %s',
     async (path) => {
       expect(await scopeErrors(path, readsUnscoped)).toEqual([]);

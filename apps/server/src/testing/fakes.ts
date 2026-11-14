@@ -1,3 +1,4 @@
+import { FakeFx } from './fake-fx.js';
 import { FakeGitHub } from './fake-github.js';
 import { FakeRunner } from './fake-runner.js';
 
@@ -10,19 +11,21 @@ export interface Fake {
 /**
  * The fakes a scenario's `seed` gets as `ctx.fakes`, by name. The tickets that
  * build them add their entry here and in `createFakes`: the fake GitHub
- * (CORE-3), the fake Runner (RUNNER-2).
+ * (CORE-3), the fake Runner (RUNNER-2), the fake ECB (RUNNER-13).
  */
 export interface Fakes {
   /** Bound to `GITHUB_CLIENT` and served under `/fake-github`. */
   readonly github: FakeGitHub;
   /** Connected by `ScenariosService` when the scenario links a Runner (`ScenarioSeed.runnerToken`). */
   readonly runner: FakeRunner;
+  /** Bound to `FX_SOURCE`: the ECB's daily file. */
+  readonly fx: FakeFx;
 }
 
 /** The token of the `Fakes` the testing module shares with the fakes' modules. */
 export const FAKES = Symbol('FAKES');
 
-export const createFakes = (): Fakes => ({ github: new FakeGitHub(), runner: new FakeRunner() });
+export const createFakes = (): Fakes => ({ github: new FakeGitHub(), runner: new FakeRunner(), fx: new FakeFx() });
 
 export const resetFakes = async (fakes: Fakes): Promise<void> => {
   for (const fake of Object.values(fakes) as Fake[]) await fake.reset();

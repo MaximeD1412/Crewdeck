@@ -20,6 +20,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { RunnersModule } from './runners/runners.module.js';
 import { ScopeModule } from './scope/scope.module.js';
+import { UsageModule } from './usage/usage.module.js';
 import { SensitiveActionsModule } from './sensitive-actions/sensitive-actions.module.js';
 import { WebModule } from './web/web.module.js';
 
@@ -66,6 +67,7 @@ export class AppModule {
         DevicesModule,
         RunnersModule,
         DecisionsModule,
+        UsageModule.forRoot(env),
         MetricsModule,
         WebModule.forRoot(env),
         ...imports,

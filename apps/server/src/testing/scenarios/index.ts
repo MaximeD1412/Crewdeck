@@ -10,7 +10,7 @@ import {
   composantsTextField,
   confirmDialog,
 } from './composants.js';
-import { connexion, connexionErreur } from './connexion.js';
+import { connexion, connexionErreur, connexionLien, connexionLienEnvoye } from './connexion.js';
 import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
 import type { Scenario } from './define.js';
 import { menuPlus } from './menu-plus.js';
@@ -27,6 +27,8 @@ const SCENARIOS: readonly Scenario[] = [
   composants,
   connexion,
   connexionErreur,
+  connexionLien,
+  connexionLienEnvoye,
   demarrage,
   demarrageLiaisonEchouee,
   demarrageRunnerRelie,

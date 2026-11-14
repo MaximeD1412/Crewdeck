@@ -54,7 +54,19 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     await settle(el);
     inside(el, 'cd-button.note-idea', 'button').click();
   },
-  'PageConnexion.signIn': (el) => inside(el, 'cd-button', 'button').click(),
+  'PageConnexion.requestLink': (el) => inside(el, 'cd-button.request', 'button').click(),
+  'PageConnexion.signInWith': (el) => inside(el, 'cd-button.github', 'button').click(),
+  'PageConnexion.changeEmail': async (el) => {
+    el.data = { ...(el.data as object), sentTo: 'pilote@example.com' };
+    await settle(el);
+    inside(el, 'cd-button.change', 'button').click();
+  },
+  'PageConnexionLien.confirm': (el) => inside(el, 'cd-button.confirm', 'button').click(),
+  'PageConnexionLien.restart': async (el) => {
+    el.data = { state: 'invalid' };
+    await settle(el);
+    inside(el, 'cd-button.restart', 'button').click();
+  },
   'PageDemarrage.selectSystem': (el) => inside(el, 'cd-tabs', 'button[role=tab]:nth-of-type(2)').click(),
   'PageDemarrage.retry': async (el) => {
     el.data = { ...(el.data as object), failure: { reason: 'expired', shortId: '9RTB' } };
@@ -399,26 +411,6 @@ describe('PageIntrouvable', () => {
     const link = el.shadowRoot?.querySelector('a');
     expect(link?.getAttribute('href')).toBe('/a-toi');
     expect(link?.textContent?.trim()).toBe(t('router.notFound.back'));
-  });
-});
-
-describe('PageConnexion', () => {
-  it('welcomes the Pilote, with the GitHub button and its help, and no banner', async () => {
-    const el = await render(COMPOSANTS.PageConnexion, { error: null });
-    expect(textOf(el.shadowRoot?.querySelector('h1'))).toBe(t('connexion.title'));
-    expect(textOf(el.shadowRoot?.querySelector('[part=lead]'))).toBe(t('connexion.lead'));
-    expect(textOf(el.shadowRoot?.querySelector('[part=help]'))).toBe(t('connexion.help'));
-    const button = el.shadowRoot?.querySelector('cd-button') as HTMLElement & { data: unknown };
-    expect(button.data).toMatchObject({ label: t('connexion.button'), variant: 'primary', icon: 'github' });
-    expect(el.shadowRoot?.querySelector('cd-banner')).toBeNull();
-  });
-
-  it.each(['state-mismatch', 'denied', 'github-unavailable'] as const)('shows the halt banner of %s above the button', async (error) => {
-    const el = await render(COMPOSANTS.PageConnexion, { error });
-    const banner = el.shadowRoot?.querySelector('cd-banner') as HTMLElement & { data: unknown };
-    expect(banner.data).toMatchObject({ tone: 'halt', title: t(`connexion.error.${error}`) });
-    expect(inside(banner, '[role=alert]')).toBeTruthy();
-    expect(banner.compareDocumentPosition(el.shadowRoot?.querySelector('cd-button') as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

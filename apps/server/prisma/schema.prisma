@@ -25,14 +25,18 @@ enum GettingStartedStep {
 }
 
 /// A Pilote (CONTEXT.md): global, the scope's own key (ADR 0008), created by
-/// their first sign-in with GitHub (CORE-4). `seq` is the number of its last
-/// event (CORE-5), `lastSeq` the one of the last event about the Pilote
-/// themselves (`pilot.upserted`). Ids are UUIDv7, generated in code
-/// (`src/ids.ts`).
+/// their first sign-in with an Identité no Pilote has (ADR 0014). `seq` is the
+/// number of its last event (CORE-5), `lastSeq` the one of the last event
+/// about the Pilote themselves (`pilot.upserted`). Ids are UUIDv7, generated
+/// in code (`src/ids.ts`). `githubUserId` and `login` are no longer read nor
+/// written by the server (the `github` Identité holds them; a trigger copies
+/// them back for the version before): CORE-11's migration drops them.
 model Pilot {
   id                 String               @id @db.Uuid
-  githubUserId       BigInt               @unique @map("github_user_id")
-  login              String
+  githubUserId       BigInt?              @unique @map("github_user_id")
+  login              String?
+  /// The Pilote's readable name: GitHub's login, or their address's local part.
+  displayName        String               @map("display_name")
   avatarUrl          String?              @map("avatar_url")
   timeZone           String               @map("time_zone")
   gettingStartedStep GettingStartedStep   @default(runner) @map("getting_started_step")
@@ -42,6 +46,7 @@ model Pilot {
   /// first Appareil wrapped one, then 1; E2E-4 rotates it.
   vaultKeyVersion    Int                  @default(0) @map("vault_key_version")
   createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  identities         PilotIdentity[]
   githubToken        GithubUserToken?
   webSessions        WebSession[]
   events             Event[]
@@ -55,6 +60,55 @@ model Pilot {
   decisions          Decision[]
 
   @@map("pilots")
+}
+
+/// How a Pilote signs in (ADR 0014).
+enum IdentityProvider {
+  email
+  google
+  github
+
+  @@map("identity_provider")
+}
+
+/// An Identité of a Pilote (CONTEXT.md, ADR 0014): at most one per provider.
+/// `subject` is the lower-cased address, Google's `sub`, or GitHub's user id
+/// in decimal; `email` the verified address (`email`, `google`), `login`
+/// GitHub's login (`github`). The address is readable by the server, which
+/// mails it (ADR 0003), and never logged.
+model PilotIdentity {
+  id        String           @id @db.Uuid
+  pilotId   String           @map("pilot_id") @db.Uuid
+  provider  IdentityProvider
+  subject   String
+  email     String?
+  login     String?
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  pilot     Pilot            @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, subject])
+  @@unique([pilotId, provider])
+  @@index([pilotId])
+  @@map("pilot_identities")
+}
+
+/// A sign-in link sent by email (ADR 0014): global, it exists before its
+/// Pilote. Only the SHA-256 in hex of its token is kept; it lasts 15 minutes
+/// and is used once (`usedAt`). Rows older than 24 hours are deleted
+/// (`EmailLoginTokensSweep`); the last hour's count an address's links.
+model EmailLoginToken {
+  id        String    @id @db.Uuid
+  /// Lower-cased.
+  email     String
+  tokenHash String    @unique @map("token_hash")
+  /// The page to land on once signed in.
+  next      String
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz
+  usedAt    DateTime? @map("used_at") @db.Timestamptz
+
+  @@index([email, createdAt])
+  @@map("email_login_tokens")
 }
 
 /// The Pilote's GitHub user tokens (ADR 0002), one row each, encrypted with

@@ -6,7 +6,7 @@ import { routeSocket } from './socket.js';
 const banner = (page: Page) => page.locator('#app > cd-cadre > cd-banner[slot=banner]');
 const resyncStatus = (page: Page) => page.getByText('Resynchronisation…', { exact: true }).filter({ visible: true });
 /** The Cadre's Pilote, at the sidebar's foot: hidden at 390, where the sidebar is. */
-const pilot = (page: Page, login: string) => page.locator('#app > cd-cadre').getByRole('button', { name: login, includeHidden: true });
+const pilot = (page: Page, name: string) => page.locator('#app > cd-cadre').getByRole('button', { name, includeHidden: true });
 
 /**
  * US-21, ADR 0007: the socket cut, the page shows the Resynchronisation (its
@@ -47,7 +47,7 @@ test('cutting the socket shows the Resynchronisation; reconnecting replays the m
 
   // A change the page misses: the Pilote renamed while the socket is cut.
   const origin = new URL(page.url()).origin;
-  const renamed = await page.request.post('/api/testing/pilot', { data: { login: 'renamed' }, headers: { origin } });
+  const renamed = await page.request.post('/api/testing/pilot', { data: { displayName: 'renamed' }, headers: { origin } });
   expect(renamed.status(), await renamed.text()).toBe(200);
   await page.waitForTimeout(500);
   await expect(pilot(page, 'octocat')).toHaveCount(1);

@@ -1,4 +1,4 @@
-import { type GettingStartedStep, type Me, nextGettingStartedStep, zGettingStartedAdvance, zMe } from '@crewdeck/contracts';
+import { type GettingStartedStep, type Me, type MeIdentity, nextGettingStartedStep, zGettingStartedAdvance, zMe } from '@crewdeck/contracts';
 import { Body, Controller, Get, HttpCode, Inject, Injectable, Module, type OnModuleInit, Post } from '@nestjs/common';
 import { createZodDto, ZodResponse } from 'nestjs-zod';
 import { AppError, conflict, unprocessable } from '../errors/app-error.js';
@@ -16,16 +16,41 @@ export class MeDto extends createZodDto(zMe) {}
 export class GettingStartedAdvanceDto extends createZodDto(zGettingStartedAdvance) {}
 
 /** What of the Pilote's row the page sees: `GET /api/me`, the `pilot` slice of `GET /api/state`, the payload of `pilot.upserted`. */
-export const ME = { id: true, login: true, avatarUrl: true, timeZone: true, gettingStartedStep: true } as const;
+export const ME = { id: true, displayName: true, avatarUrl: true, timeZone: true, gettingStartedStep: true } as const;
 
-type MeRow = Omit<Me, 'gettingStartedStep'> & { gettingStartedStep: GettingStartedStepRow };
+type MeRow = Omit<Me, 'gettingStartedStep' | 'identities'> & { gettingStartedStep: GettingStartedStepRow };
+
+/** What of an Identité the page sees: its provider and what names it, the address or GitHub's login. */
+const IDENTITY = { provider: true, subject: true, email: true, login: true } as const;
+
+type IdentityRow = { provider: MeIdentity['provider']; subject: string; email: string | null; login: string | null };
+
+const labelOf = (identity: IdentityRow): string => identity.email ?? identity.login ?? identity.subject;
 
 /** The step as the contracts spell it (`ai-accounts`), Prisma's enum keeping `ai_accounts`. */
 const stepOf = (row: GettingStartedStepRow): GettingStartedStep => (row === 'ai_accounts' ? 'ai-accounts' : row);
 const rowOf = (step: GettingStartedStep): GettingStartedStepRow => (step === 'ai-accounts' ? 'ai_accounts' : step);
 
-/** The Pilote's row, as the page reads it. */
-export const toMe = (row: MeRow): Me => ({ ...row, gettingStartedStep: stepOf(row.gettingStartedStep) });
+/** The Pilote's row and Identités, as the page reads them. */
+export const toMe = (row: MeRow, identities: readonly IdentityRow[]): Me => ({
+  ...row,
+  gettingStartedStep: stepOf(row.gettingStartedStep),
+  identities: identities.map((identity) => ({ provider: identity.provider, label: labelOf(identity) })),
+});
+
+/**
+ * The Identités of the scope's Pilote, oldest first. Queried on their own:
+ * `Pilot` is global, and a global model never selects a scoped relation.
+ */
+export const identitiesOf = (db: Pick<Tx, 'pilotIdentity'>): Promise<IdentityRow[]> =>
+  db.pilotIdentity.findMany({ select: IDENTITY, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+
+/** The Pilote `pilotId`, the scope's, as the page reads them; 401 once their row is gone. */
+export const readMe = async (db: Pick<Tx, 'pilot' | 'pilotIdentity'>, pilotId: string): Promise<Me> => {
+  const pilot = await db.pilot.findUnique({ where: { id: pilotId }, select: ME });
+  if (!pilot) throw new AppError(401, 'auth.required', MESSAGES['auth.required']);
+  return toMe(pilot, await identitiesOf(db));
+};
 
 /**
  * `GET /api/me`: who is signed in, which the page asks first; and the
@@ -41,10 +66,8 @@ export class MeController {
 
   @Get()
   @ZodResponse({ status: 200, description: 'The signed-in Pilote.', type: MeDto })
-  async me(): Promise<Me> {
-    const pilot = await this.prisma.scoped.pilot.findUnique({ where: { id: currentPilotId() }, select: ME });
-    if (!pilot) throw new AppError(401, 'auth.required', MESSAGES['auth.required']);
-    return toMe(pilot);
+  me(): Promise<Me> {
+    return readMe(this.prisma.scoped, currentPilotId());
   }
 
   /**
@@ -69,7 +92,8 @@ export class MeController {
       if (from === 'ai-accounts' && (await usableModels(tx)).length === 0) {
         throw unprocessable('getting-started.no-usable-engine', MESSAGES['getting-started.no-usable-engine']);
       }
-      const pilot = toMe(await tx.pilot.update({ where: { id: pilotId }, data: { gettingStartedStep: rowOf(nextGettingStartedStep(from)) }, select: ME }));
+      const updated = await tx.pilot.update({ where: { id: pilotId }, data: { gettingStartedStep: rowOf(nextGettingStartedStep(from)) }, select: ME });
+      const pilot = toMe(updated, await identitiesOf(tx));
       const written = await this.events.write(tx, pilotId, 'pilot.upserted', pilot);
       await tx.pilot.update({ where: { id: pilotId }, data: { lastSeq: written } });
       return pilot;
@@ -88,10 +112,8 @@ export class PilotState implements StateContributor<'pilot'>, OnModuleInit {
     this.contributors.add(this);
   }
 
-  async snapshot(tx: Tx, pilotId: string): Promise<Me> {
-    const pilot = await tx.pilot.findUnique({ where: { id: pilotId }, select: ME });
-    if (!pilot) throw new AppError(401, 'auth.required', MESSAGES['auth.required']);
-    return toMe(pilot);
+  snapshot(tx: Tx, pilotId: string): Promise<Me> {
+    return readMe(tx, pilotId);
   }
 }
 

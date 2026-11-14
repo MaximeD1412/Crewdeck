@@ -42,9 +42,8 @@ describe('the snapshot and the retention against PostgreSQL', () => {
 
   const pilot = async (login: string, seq: number): Promise<{ id: string; cookie: string }> => {
     const id = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, avatar_url, time_zone, seq) VALUES ($1, $2, $3, NULL, 'Europe/Paris', $4)`, [
+    await sql(`INSERT INTO pilots (id, display_name, avatar_url, time_zone, seq) VALUES ($1, $2, NULL, 'Europe/Paris', $3)`, [
       id,
-      Math.floor(Math.random() * 1e9),
       login,
       seq,
     ]);
@@ -62,7 +61,7 @@ describe('the snapshot and the retention against PostgreSQL', () => {
 
       expect(res.status).toBe(200);
       const body = zState.parse(await res.json());
-      expect(body).toEqual({ seq: 12, pilot: { id: alice.id, login: 'alice', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner' }, runner: null, 'runner-link': null, 'ai-account': [], devices: [], decisions: [] });
+      expect(body).toEqual({ seq: 12, pilot: { id: alice.id, displayName: 'alice', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [] }, runner: null, 'runner-link': null, 'ai-account': [], devices: [], decisions: [] });
     });
 
     it('answers 401 without a session', async () => {

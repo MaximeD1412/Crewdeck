@@ -936,18 +936,18 @@
       "categorie": "sec",
       "gravite": "moyenne",
       "titre": "Un lien de connexion envoyé par e-mail est intercepté ou hameçonné",
-      "statut": "solution choisie",
+      "statut": "implémenté",
       "statutDepuis": "2026-11-14",
       "solutions": [
         {
           "texte": "Lien de 15 min, à usage unique, consommé par un POST et non à l'ouverture",
           "ref": "ADR 0014",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "5 liens par adresse et 20 par IP par heure",
           "ref": "ADR 0014",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

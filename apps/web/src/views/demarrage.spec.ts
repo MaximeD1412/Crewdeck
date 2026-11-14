@@ -15,7 +15,7 @@ const RUNNER: Runner = {
   linkedAt: '2026-11-11T14:11:00.000Z',
 };
 const STATE: DemarrageState = {
-  pilot: { login: 'octocat', gettingStartedStep: 'runner' },
+  pilot: { displayName: 'octocat', gettingStartedStep: 'runner' },
   runner: null,
   system: 'linux',
   code: CODE,
@@ -77,7 +77,7 @@ describe('demarrageView', () => {
   it('waits for the Runner with the command of the page’s code and its short id', () => {
     expect(valid(STATE)).toEqual({
       step: 'runner',
-      login: 'octocat',
+      displayName: 'octocat',
       system: 'linux',
       command: installCommand(STATE.origin, CODE, null),
       shortId: '7KQ4',
@@ -90,7 +90,7 @@ describe('demarrageView', () => {
   });
 
   it('gives both Moteurs, as their Runner reported them or not connected, and usable once a Rôle can run on one', () => {
-    const view = valid({ ...STATE, pilot: { login: 'octocat', gettingStartedStep: 'ai-accounts' }, runner: RUNNER, accounts: [CLAUDE] });
+    const view = valid({ ...STATE, pilot: { displayName: 'octocat', gettingStartedStep: 'ai-accounts' }, runner: RUNNER, accounts: [CLAUDE] });
     expect(view.engines).toEqual([
       {
         engine: 'claude-code',
@@ -127,7 +127,7 @@ describe('demarrageView', () => {
   });
 
   it('reads `done`, the instant before the router leaves, as the last step', () => {
-    expect(valid({ ...STATE, pilot: { login: 'octocat', gettingStartedStep: 'done' }, runner: RUNNER, busy: true })).toMatchObject({
+    expect(valid({ ...STATE, pilot: { displayName: 'octocat', gettingStartedStep: 'done' }, runner: RUNNER, busy: true })).toMatchObject({
       step: 'projects',
       busy: true,
     });

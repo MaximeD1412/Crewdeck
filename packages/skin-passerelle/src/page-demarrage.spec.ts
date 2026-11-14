@@ -12,7 +12,7 @@ type WithData = HTMLElement & { data: Record<string, unknown> };
 const COMMAND = 'curl -fsSL https://crewdeck.example/runner/install.sh | sh -s -- --link 7KQ4-M2PXA7QK9VZ3T8W4R6N1B5C0DE';
 const WAITING: Data = {
   step: 'runner',
-  login: 'octocat',
+  displayName: 'octocat',
   system: 'linux',
   command: COMMAND,
   shortId: '7KQ4',

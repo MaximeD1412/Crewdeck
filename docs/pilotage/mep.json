@@ -294,6 +294,33 @@
       ],
       "commande": "sudo grep -c '^GITHUB_WEBHOOK_SECRET=.\\+' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
       "ajouteLe": "2026-11-11"
+    },
+    {
+      "id": "env-smtp-mail-from",
+      "phase": "env",
+      "source": "#196",
+      "titre": "SMTP_URL et MAIL_FROM dans le .env de la prod et du staging",
+      "pourquoi": "La connexion par lien (CORE-9) envoie ses liens par ce relais SMTP ; le serveur refuse de démarrer sans SMTP_URL et MAIL_FROM en production et en staging. Tant qu'ils manquent, le déploiement de develop au staging qui suit le merge de CORE-9 ne démarre pas. Le compte, le domaine d'envoi authentifié (SPF, DKIM, DMARC) et une clé SMTP par environnement viennent d'INFRA-14 (#199).",
+      "etapes": [
+        "Dans /opt/crewdeck/prod/.env : SMTP_URL=smtps://<identifiant>:<clé SMTP de la prod>@<relais>:465 et MAIL_FROM=Crewdeck <connexion@<domaine>>.",
+        "Dans /opt/crewdeck/staging/.env : la même chose avec la clé SMTP du staging, l'expéditeur sur le domaine du staging ou le même.",
+        "Vérifier après le déploiement suivant : le serveur est healthy, et « Recevoir un lien » sur https://staging.<domaine>/connexion envoie un e-mail qui arrive (pas dans les indésirables) ; son lien connecte."
+      ],
+      "commande": "sudo grep -c '^\\(SMTP_URL\\|MAIL_FROM\\)=.\\+' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
+      "ajouteLe": "2026-11-14"
+    },
+    {
+      "id": "migration-identites",
+      "phase": "db",
+      "source": "#196",
+      "titre": "Migration 20261121000000_identities : les Identités et le nom affiché des Pilotes",
+      "pourquoi": "Elle crée pilot_identities et email_login_tokens, change chaque github_user_id en une Identité github et le login en display_name, et rend github_user_id et login facultatifs. Des déclencheurs gardent la version précédente compatible : un Pilote qu'elle crée (un retour en arrière) reçoit son nom affiché et son Identité github. Une sauvegarde d'avant la migration a les colonnes d'avant.",
+      "etapes": [
+        "Avant le merge develop → main : répéter la migration sur la dernière sauvegarde de la prod (ADR 0009) ; elle s'applique au démarrage du serveur.",
+        "Vérifier après le déploiement : chaque Pilote a une Identité github, et une connexion GitHub retrouve le même Pilote et ses installations."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -c \"SELECT count(*) FROM pilots p WHERE NOT EXISTS (SELECT 1 FROM pilot_identities i WHERE i.pilot_id = p.id)\"",
+      "ajouteLe": "2026-11-14"
     }
   ]
 }

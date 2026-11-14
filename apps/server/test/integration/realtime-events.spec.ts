@@ -33,7 +33,7 @@ describe('the events writer against PostgreSQL', () => {
   let pilotId: string;
   let unsubscribe: () => void;
 
-  const me = () => ({ id: pilotId, login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' as const });
+  const me = () => ({ id: pilotId, displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' as const, identities: [] });
 
   beforeAll(async () => {
     ({ app } = await startApp(parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: databaseUrl })));
@@ -51,7 +51,7 @@ describe('the events writer against PostgreSQL', () => {
     await sql('TRUNCATE pilots CASCADE');
     published = [];
     pilotId = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone) VALUES ($1, 583231, 'octocat', 'Europe/Paris')`, [pilotId]);
+    await sql(`INSERT INTO pilots (id, display_name, time_zone) VALUES ($1, 'octocat', 'Europe/Paris')`, [pilotId]);
     unsubscribe = app.get(EventsBus).subscribe(pilotId, (event) => published.push({ pilotId, event }));
   });
 
@@ -62,17 +62,17 @@ describe('the events writer against PostgreSQL', () => {
   it('writes the change and its event in one transaction, then publishes the event once', async () => {
     const seq = await inScope(() =>
       transactions.run(async (tx) => {
-        await tx.pilot.update({ where: { id: pilotId }, data: { login: 'hubot' } });
-        return writer.write(tx, pilotId, 'pilot.upserted', { ...me(), login: 'hubot' });
+        await tx.pilot.update({ where: { id: pilotId }, data: { displayName: 'hubot' } });
+        return writer.write(tx, pilotId, 'pilot.upserted', { ...me(), displayName: 'hubot' });
       }),
     );
 
     expect(seq).toBe(1n);
     const rows = await sql<{ seq: string; type: string; payload: unknown; at: Date }>('SELECT seq, type, payload, at FROM events WHERE pilot_id = $1', [pilotId]);
-    expect(rows).toEqual([{ seq: '1', type: 'pilot.upserted', payload: { ...me(), login: 'hubot' }, at: expect.any(Date) }]);
-    expect(await sql('SELECT login, seq FROM pilots WHERE id = $1', [pilotId])).toEqual([{ login: 'hubot', seq: '1' }]);
+    expect(rows).toEqual([{ seq: '1', type: 'pilot.upserted', payload: { ...me(), displayName: 'hubot' }, at: expect.any(Date) }]);
+    expect(await sql('SELECT display_name, seq FROM pilots WHERE id = $1', [pilotId])).toEqual([{ display_name: 'hubot', seq: '1' }]);
     expect(published).toEqual([
-      { pilotId, event: { seq: 1, type: 'pilot.upserted', payload: { ...me(), login: 'hubot' }, at: rows[0]?.at.toISOString() } },
+      { pilotId, event: { seq: 1, type: 'pilot.upserted', payload: { ...me(), displayName: 'hubot' }, at: rows[0]?.at.toISOString() } },
     ]);
   });
 
@@ -92,7 +92,7 @@ describe('the events writer against PostgreSQL', () => {
   it('leaves no row and publishes nothing when the transaction rolls back after write', async () => {
     const failing = inScope(() =>
       transactions.run(async (tx) => {
-        await tx.pilot.update({ where: { id: pilotId }, data: { login: 'hubot' } });
+        await tx.pilot.update({ where: { id: pilotId }, data: { displayName: 'hubot' } });
         await writer.write(tx, pilotId, 'pilot.upserted', me());
         throw new Error('the change fails after its event');
       }),
@@ -100,7 +100,7 @@ describe('the events writer against PostgreSQL', () => {
 
     await expect(failing).rejects.toThrow('the change fails after its event');
     expect(await sql('SELECT * FROM events')).toEqual([]);
-    expect(await sql('SELECT login, seq FROM pilots WHERE id = $1', [pilotId])).toEqual([{ login: 'octocat', seq: '0' }]);
+    expect(await sql('SELECT display_name, seq FROM pilots WHERE id = $1', [pilotId])).toEqual([{ display_name: 'octocat', seq: '0' }]);
     expect(published).toEqual([]);
   });
 
@@ -140,9 +140,9 @@ describe('the events writer against PostgreSQL', () => {
   });
 
   it('throws on a payload that does not match its registered schema, and writes nothing', async () => {
-    const wrong = inScope(() => transactions.run((tx) => writer.write(tx, pilotId, 'pilot.upserted', { ...me(), login: '' })));
+    const wrong = inScope(() => transactions.run((tx) => writer.write(tx, pilotId, 'pilot.upserted', { ...me(), displayName: '' })));
     await expect(wrong).rejects.toBeInstanceOf(EventPayloadError);
-    await expect(wrong).rejects.toThrow(/pilot\.upserted.*login/);
+    await expect(wrong).rejects.toThrow(/pilot\.upserted.*displayName/);
 
     const unregistered = inScope(() => transactions.run((tx) => writer.write(tx, pilotId, 'usage.upserted' as 'pilot.upserted', me())));
     await expect(unregistered).rejects.toThrow(/usage\.upserted/);

@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '../generated/prisma/client.js';
 import { newId } from '../ids.js';
 import { PrismaService, type ScopedPrisma } from '../prisma/prisma.service.js';
 import { WsRevocations } from '../realtime/ws-revocations.js';
@@ -11,6 +12,11 @@ export const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 const SLIDE_EVERY_MS = 60 * 60 * 1000;
 
 const hashOf = (token: string): string => createHash('sha256').update(token).digest('hex');
+
+/** What opens a session: a scoped client or transaction, or a raw one (the sign-in by email, before any scope). */
+export interface SessionWriter {
+  readonly webSession: { create(args: { data: Prisma.WebSessionUncheckedCreateInput }): PromiseLike<unknown> };
+}
 
 /** A signed-in browser, as the middleware found it. */
 export interface OpenSession {
@@ -36,8 +42,8 @@ export class WebSessions {
     private readonly revocations: WsRevocations,
   ) {}
 
-  /** A new session of `pilotId`, the scope's Pilote, written by `tx`; the token its cookie holds. */
-  async open(tx: Pick<ScopedPrisma, 'webSession'>, pilotId: string, userAgent: string | undefined, now = new Date()): Promise<string> {
+  /** A new session of `pilotId`, written by `tx` (the scope's, or a sign-in's raw transaction); the token its cookie holds. */
+  async open(tx: SessionWriter, pilotId: string, userAgent: string | undefined, now = new Date()): Promise<string> {
     const token = randomBytes(32).toString('base64url');
     await tx.webSession.create({
       data: {

@@ -2,7 +2,7 @@ import { type Event, type LatencyBatch, type Me, zLatencyBatch } from '@crewdeck
 import { createLatencyMeter, FLUSH_AFTER_MS, FLUSH_AT_SAMPLES, type LatencyMeter } from './latency.js';
 import { createStore, type Store } from './store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
 const NOW = Date.parse('2026-11-11T08:00:00.000Z');
 
 const ago = (ms: number): string => new Date(Date.now() - ms).toISOString();

@@ -179,9 +179,8 @@ describe('the first Appareil, the Go Runner against the server (E2E-2)', () => {
 
   const pilot = async (): Promise<{ id: string; cookie: string }> => {
     const id = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, getting_started_step) VALUES ($1, $2, 'octocat', 'Europe/Paris', 'runner')`, [
+    await sql(`INSERT INTO pilots (id, display_name, time_zone, getting_started_step) VALUES ($1, 'octocat', 'Europe/Paris', 'runner')`, [
       id,
-      Math.floor(Math.random() * 1e9),
     ]);
     const prisma = app.get(PrismaService);
     const token = await runInPilotScope(id, () => app.get(WebSessions).open(prisma.scoped, id, undefined));

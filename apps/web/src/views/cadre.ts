@@ -7,7 +7,7 @@ export type MenuItemData = ComposantData<typeof MenuItem>;
 
 /** The Pilote signed in, as the `pilot` slice holds it (`/api/me`, CORE-6). */
 export interface PilotSlice {
-  readonly login: string;
+  readonly displayName: string;
   readonly avatarUrl: string | null;
 }
 
@@ -61,7 +61,7 @@ const STATIC_META: Partial<Record<NavId, () => string>> = {
 };
 
 /** The pages without the menu: only the brand above them. */
-const BARE_PATHS: ReadonlySet<string> = new Set(['/connexion', '/demarrage']);
+const BARE_PATHS: ReadonlySet<string> = new Set(['/connexion', '/connexion/lien', '/demarrage']);
 
 const isNavId = (value: string | undefined): value is NavId => (NAV_IDS as readonly (string | undefined)[]).includes(value);
 
@@ -110,7 +110,7 @@ export const cadreView = (state: CadreState, route: { readonly path: string }): 
       status,
       statusDetail,
       live: status === 'online',
-      pilot: state.slices.pilot ? { login: state.slices.pilot.login, avatarUrl: state.slices.pilot.avatarUrl } : null,
+      pilot: state.slices.pilot ? { displayName: state.slices.pilot.displayName, avatarUrl: state.slices.pilot.avatarUrl } : null,
     },
     menu: NAV_IDS.map((id) => ({
       id,

@@ -19,7 +19,7 @@ export type ScenarioRun = z.infer<typeof zScenarioRun>;
  * signed in, with its `pilot.upserted` event, as a change of the Process
  * would. The end-to-end tests make the page miss an event with it.
  */
-export const zTestingPilotUpdate = z.object({ login: z.string().min(1).max(39) });
+export const zTestingPilotUpdate = z.object({ displayName: z.string().min(1).max(39) });
 export type TestingPilotUpdate = z.infer<typeof zTestingPilotUpdate>;
 
 /**
@@ -43,3 +43,20 @@ export type TestingDecisionResolve = z.infer<typeof zTestingDecisionResolve>;
  */
 export const zTestingRunnerCapabilities = z.object({ engines: zCapabilities.shape.engines });
 export type TestingRunnerCapabilities = z.infer<typeof zTestingRunnerCapabilities>;
+
+/**
+ * `GET /api/testing/mails?to=<address>`, outside production only: the mails
+ * the fake mailer kept for that address, newest first (the sign-in links of
+ * the end-to-end tests).
+ */
+export const zTestingMail = z.object({
+  to: z.string(),
+  subject: z.string(),
+  text: z.string(),
+  html: z.string(),
+  sentAt: z.iso.datetime(),
+});
+export type TestingMail = z.infer<typeof zTestingMail>;
+export const zTestingMails = z.object({ items: z.array(zTestingMail) });
+export type TestingMails = z.infer<typeof zTestingMails>;
+export const zTestingMailsQuery = z.object({ to: z.string().trim().toLowerCase() });

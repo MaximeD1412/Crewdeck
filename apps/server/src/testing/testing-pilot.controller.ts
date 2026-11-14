@@ -1,7 +1,7 @@
 import { type Me, zMe, zTestingPilotUpdate } from '@crewdeck/contracts';
 import { Body, Controller, HttpCode, Post } from '@nestjs/common';
 import { createZodDto, ZodResponse } from 'nestjs-zod';
-import { ME, toMe } from '../pilots/me.controller.js';
+import { identitiesOf, ME, toMe } from '../pilots/me.controller.js';
 import { EventsWriter } from '../realtime/events.writer.js';
 import { Transactions } from '../realtime/transactions.js';
 import { currentPilotId } from '../scope/scope.context.js';
@@ -10,7 +10,7 @@ export class TestingPilotUpdateDto extends createZodDto(zTestingPilotUpdate) {}
 export class TestingPilotDto extends createZodDto(zMe) {}
 
 /**
- * `POST /api/testing/pilot` (body `{ login }`): renames the Pilote signed in,
+ * `POST /api/testing/pilot` (body `{ displayName }`): renames the Pilote signed in,
  * with its `pilot.upserted` event in the same transaction, as a change of the
  * Process would (ADR 0007). No module writes an event yet: the end-to-end
  * tests make the page miss one with it. Mounted outside production only
@@ -26,10 +26,10 @@ export class TestingPilotController {
   @Post()
   @HttpCode(200)
   @ZodResponse({ status: 200, description: 'The Pilote renamed.', type: TestingPilotDto })
-  async rename(@Body() { login }: TestingPilotUpdateDto): Promise<Me> {
+  async rename(@Body() { displayName }: TestingPilotUpdateDto): Promise<Me> {
     const pilotId = currentPilotId();
     return this.transactions.run(async (tx) => {
-      const pilot = toMe(await tx.pilot.update({ where: { id: pilotId }, data: { login }, select: ME }));
+      const pilot = toMe(await tx.pilot.update({ where: { id: pilotId }, data: { displayName }, select: ME }), await identitiesOf(tx));
       await this.events.write(tx, pilotId, 'pilot.upserted', pilot);
       return pilot;
     });

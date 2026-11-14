@@ -5,8 +5,11 @@
  */
 export const MESSAGES = {
   'auth.github-expired': 'Ta connexion GitHub a expiré, reconnecte-toi.',
+  'auth.link-invalid': 'Ce lien de connexion n’est plus valable : demande-en un nouveau.',
+  'auth.mail-unavailable': 'L’e-mail n’a pas pu partir, réessaie dans un instant.',
   'auth.origin': 'Cette requête ne vient pas de la page de Crewdeck.',
   'auth.required': 'Connecte-toi pour continuer.',
+  'auth.too-many-requests': 'Trop de liens demandés : réessaie dans une heure.',
   'decision.already-answered': 'Cette Décision a déjà été prise.',
   'decision.cursor-invalid': 'Ce curseur ne vient pas de la liste des Décisions.',
   'decision.not-found': 'Cette Décision n’existe pas.',

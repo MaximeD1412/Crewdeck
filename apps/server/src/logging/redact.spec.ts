@@ -152,6 +152,8 @@ describe('the logs (SEC-7)', () => {
         '*.token',
         '*.accessToken',
         '*.refreshToken',
+        'email',
+        '*.email',
         'req.query.code',
         'req.query.state',
       ]),

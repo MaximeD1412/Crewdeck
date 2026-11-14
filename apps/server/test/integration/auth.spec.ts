@@ -82,8 +82,11 @@ describe('sign in with GitHub against PostgreSQL', () => {
     expect(session).toMatch(/SameSite=Lax/i);
     expect(session).toMatch(/Path=\//);
     expect(session).toMatch(/Max-Age=2592000/);
-    const pilots = await sql<{ id: string; login: string; time_zone: string; avatar_url: string }>('SELECT * FROM pilots');
-    expect(pilots).toEqual([expect.objectContaining({ login: 'octocat', time_zone: 'Europe/Paris', avatar_url: OCTOCAT.avatarUrl })]);
+    const pilots = await sql<{ id: string; display_name: string; time_zone: string; avatar_url: string }>('SELECT * FROM pilots');
+    expect(pilots).toEqual([expect.objectContaining({ display_name: 'octocat', time_zone: 'Europe/Paris', avatar_url: OCTOCAT.avatarUrl, github_user_id: String(OCTOCAT.id), login: 'octocat' })]);
+    expect(await sql('SELECT pilot_id, provider, subject, email, login FROM pilot_identities')).toEqual([
+      { pilot_id: pilots[0]?.id, provider: 'github', subject: String(OCTOCAT.id), email: null, login: 'octocat' },
+    ]);
     const [tokens] = await sql<{ pilot_id: string; access_token_enc: Buffer; refresh_token_enc: Buffer; key_version: number }>(
       'SELECT * FROM github_user_tokens',
     );
@@ -91,6 +94,28 @@ describe('sign in with GitHub against PostgreSQL', () => {
     expect(tokens?.access_token_enc.includes('ghu_fake')).toBe(false);
     expect(tokens?.refresh_token_enc.includes('ghr_fake')).toBe(false);
     expect(await sql('SELECT pilot_id FROM web_sessions')).toEqual([{ pilot_id: pilots[0]?.id }]);
+  });
+
+  it('signs a new GitHub user in as the Pilote another browser created in the meantime, with no second Pilote', async () => {
+    // The other browser's sign-up, not yet committed: this one finds no Identité, then its own waits on it.
+    const other = new pg.Client({ connectionString: databaseUrl });
+    await other.connect();
+    const pilot = newId();
+    try {
+      await other.query('BEGIN');
+      await other.query(`INSERT INTO pilots (id, display_name, time_zone) VALUES ($1, 'octocat', 'UTC')`, [pilot]);
+      await other.query(`INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) VALUES ($1, $2, 'github', $3, 'octocat')`, [newId(), pilot, String(OCTOCAT.id)]);
+      const response = signIn();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await other.query('COMMIT');
+
+      const res = await response;
+      expect([res.status, res.headers.get('location')]).toEqual([302, '/idees']);
+    } finally {
+      await other.end();
+    }
+    expect(await sql('SELECT id FROM pilots')).toEqual([{ id: pilot }]);
+    expect(await sql('SELECT pilot_id FROM web_sessions')).toEqual([{ pilot_id: pilot }]);
   });
 
   /** The `crewdeck_session=<token>` a signed-in browser sends. */
@@ -115,13 +140,14 @@ describe('sign in with GitHub against PostgreSQL', () => {
   const call = (path: string, cookie: string, init: RequestInit = {}): Promise<Response> =>
     fetch(`${url}${path}`, { ...init, headers: { origin: APP_URL, cookie, ...init.headers } });
 
-  it('updates the login of a second sign-in, and keeps the first time zone', async () => {
+  it('updates the display name and the login of a second sign-in, and keeps the first time zone', async () => {
     await signIn({ timeZone: 'Europe/Paris' });
     fakes.github.seedUser({ ...OCTOCAT, login: 'octocat-renamed' });
 
     await signIn({ timeZone: 'America/New_York' });
 
-    expect(await sql('SELECT login, time_zone FROM pilots')).toEqual([{ login: 'octocat-renamed', time_zone: 'Europe/Paris' }]);
+    expect(await sql('SELECT display_name, login, time_zone FROM pilots')).toEqual([{ display_name: 'octocat-renamed', login: 'octocat-renamed', time_zone: 'Europe/Paris' }]);
+    expect(await sql('SELECT provider, login FROM pilot_identities')).toEqual([{ provider: 'github', login: 'octocat-renamed' }]);
     expect(await sql('SELECT count(*)::int AS n FROM web_sessions')).toEqual([{ n: 2 }]);
   });
 
@@ -277,7 +303,14 @@ describe('sign in with GitHub against PostgreSQL', () => {
       const res = await call('/api/me', cookie);
 
       expect(res.status).toBe(200);
-      expect(zMe.parse(await res.json())).toEqual({ id: expect.any(String), login: 'octocat', avatarUrl: OCTOCAT.avatarUrl, timeZone: 'Europe/Paris', gettingStartedStep: 'runner' });
+      expect(zMe.parse(await res.json())).toEqual({
+        id: expect.any(String),
+        displayName: 'octocat',
+        avatarUrl: OCTOCAT.avatarUrl,
+        timeZone: 'Europe/Paris',
+        gettingStartedStep: 'runner',
+        identities: [{ provider: 'github', label: 'octocat' }],
+      });
     });
 
     it('answers 401 auth.required without a cookie, or with a session id forged', async () => {
@@ -349,7 +382,7 @@ describe('sign in with GitHub against PostgreSQL', () => {
     const prisma = new PrismaService(parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: databaseUrl }));
     try {
       const other = newId();
-      await prisma.scoped.pilot.create({ data: { id: other, githubUserId: 1n, login: 'other', timeZone: 'UTC' } });
+      await prisma.scoped.pilot.create({ data: { id: other, displayName: 'other', timeZone: 'UTC' } });
 
       const [session] = await sql<{ id: string }>('SELECT id FROM web_sessions');
 

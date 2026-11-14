@@ -21,7 +21,7 @@ export const seedGitHubUser = ({ fakes }: ScenarioContext): ScenarioSeed => {
 
 /**
  * The Pilote of a scenario, signed in as the callback would leave them (their
- * `WebSession`, without their GitHub tokens): the session cookie the browser
+ * `github` Identité and `WebSession`, without their GitHub tokens): the session cookie the browser
  * carries, and their id. The fake GitHub knows them too. Past the getting
  * started (« Premiers pas ») unless the scenario shows it.
  */
@@ -32,7 +32,10 @@ export const signInPilot = async (
   seedGitHubUser(ctx);
   const pilot = await ctx.prisma.unscoped.pilot.create({
     // No avatar: the Cadre of the captures shows the initials, not an image that never loads.
-    data: { id: newId(), githubUserId: BigInt(OCTOCAT.id), login: OCTOCAT.login, avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: gettingStartedStep === 'ai-accounts' ? 'ai_accounts' : gettingStartedStep },
+    data: { id: newId(), displayName: OCTOCAT.login, avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: gettingStartedStep === 'ai-accounts' ? 'ai_accounts' : gettingStartedStep },
+  });
+  await ctx.prisma.unscoped.pilotIdentity.create({
+    data: { id: newId(), pilotId: pilot.id, provider: 'github', subject: String(OCTOCAT.id), email: null, login: OCTOCAT.login },
   });
   const token = await runInPilotScope(pilot.id, () => new WebSessions(ctx.prisma, new WsRevocations()).open(ctx.prisma.scoped, pilot.id, undefined));
   return { sessionCookie: `${SESSION_COOKIE}=${token}`, pilotId: pilot.id };

@@ -1,10 +1,10 @@
 import type { Event, Me, State } from '@crewdeck/contracts';
 import { createStore } from './store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
 const AT = '2026-11-11T08:00:00.000Z';
 
-const pilotEvent = (seq: number, login: string): Event => ({ seq, type: 'pilot.upserted', payload: { ...PILOT, login }, at: AT });
+const pilotEvent = (seq: number, displayName: string): Event => ({ seq, type: 'pilot.upserted', payload: { ...PILOT, displayName }, at: AT });
 const snapshot = (seq: number, pilot: Me = PILOT): State => ({ seq, pilot, runner: null, 'runner-link': null, 'ai-account': [], devices: [], decisions: [] });
 
 const pilotStore = () => {
@@ -26,7 +26,7 @@ describe('applyEvent', () => {
 
     expect(store.applyEvent(pilotEvent(5, 'renamed'))).toBe('applied');
     expect(store.getState().seq).toBe(5n);
-    expect(store.getState().slices.pilot).toEqual({ ...PILOT, login: 'renamed' });
+    expect(store.getState().slices.pilot).toEqual({ ...PILOT, displayName: 'renamed' });
   });
 });
 
@@ -84,7 +84,7 @@ describe('the slices', () => {
     const store = pilotStore();
     store.applySnapshot(snapshot(1));
     store.applyEvent(pilotEvent(2, 'renamed'));
-    expect(store.getState().slices.pilot).toEqual({ ...PILOT, login: 'renamed' });
+    expect(store.getState().slices.pilot).toEqual({ ...PILOT, displayName: 'renamed' });
 
     store.applyEvent({ seq: 3, type: 'pilot.removed', payload: { id: PILOT.id }, at: AT });
     expect(store.getState().slices.pilot).toBeNull();
@@ -120,7 +120,7 @@ describe('the slices', () => {
 describe('applySnapshot', () => {
   it('replaces the seq and every slice, even with an older seq, and keeps the connection', () => {
     const store = pilotStore();
-    store.applySnapshot(snapshot(9, { ...PILOT, login: 'before' }));
+    store.applySnapshot(snapshot(9, { ...PILOT, displayName: 'before' }));
     store.applySnapshot(snapshot(3));
     expect(store.getState()).toEqual({ seq: 3n, connection: 'connecting', lostAt: null, slices: { pilot: PILOT }, vaultState: 'locked' });
   });

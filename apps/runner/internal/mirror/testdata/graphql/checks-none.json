@@ -1,0 +1,15 @@
+{
+  "operation": "MirrorChecks",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "oid": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  "data": {
+    "repository": {
+      "object": {
+        "statusCheckRollup": null
+      }
+    }
+  }
+}

@@ -64,7 +64,7 @@ describe('createProjects', () => {
 
   it('reads the repositories from the store', () => {
     const { store, projects } = setup(async () => ({ items: [] }));
-    store.applySnapshot({ seq: 1, pilot: null, runner: null, 'runner-link': null, 'ai-account': [], devices: [], projects: [], repositories: [REPOSITORY] } as never);
+    store.applySnapshot({ seq: 1, pilot: null, runner: null, 'runner-link': null, 'ai-account': [], devices: [], projects: [], repositories: [REPOSITORY], decisions: [] } as never);
 
     expect(projects.picker('projets').repositories).toEqual([{ id: REPOSITORY.id, fullName: 'octocat/site-mairie', hasCode: false }]);
   });

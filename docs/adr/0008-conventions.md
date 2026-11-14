@@ -1,6 +1,7 @@
 # Conventions: contracts, errors, lists, dates, money, scope, front data, tests, language
 
-> **Status:** accepted, 2026-11-10.
+> **Status:** accepted, 2026-11-10. Amended by [ADR 0014](0014-sign-in-without-github.md)
+> (429 for a rate limit).
 
 ## Context
 

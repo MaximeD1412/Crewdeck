@@ -1,6 +1,7 @@
 # Three apps in one monorepo; the server runs the Process, the Runner runs the agents
 
-> **Status:** accepted, 2026-11-10.
+> **Status:** accepted, 2026-11-10. Amended by [ADR 0011](0011-the-process-as-data.md)
+> on the orchestration: the server interprets each Projet's versioned Process.
 
 ## Context
 

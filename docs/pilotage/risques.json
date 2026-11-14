@@ -180,16 +180,23 @@
       "gravite": "moyenne",
       "titre": "Jeton GitHub du Runner volé sur la machine du Pilote",
       "statut": "solution choisie",
-      "statutDepuis": "2026-11-10",
+      "statutDepuis": "2026-11-12",
       "solutions": [
         {
           "texte": "Jeton d'installation limité à un dépôt et à quatre permissions, valable 1 h",
           "ref": "ADR 0002",
           "fait": false
+        },
+        {
+          "texte": "Jeton « Miroir » en lecture seule, limité aux dépôts des Projets, valable 1 h",
+          "ref": "ADR 0010",
+          "fait": false
         }
       ],
       "tickets": [
-        "RUNNER-10"
+        "RUNNER-10",
+        "MIROIR-2",
+        "MIROIR-4"
       ]
     },
     {
@@ -815,6 +822,11 @@
           "texte": "Squelette de bout en bout d'abord, puis jalons par parcours (plan-backlog)",
           "ref": "ADR 0001",
           "fait": false
+        },
+        {
+          "texte": "Le moteur du Process remplace le Process figé avant que celui-ci soit construit : un seul moteur",
+          "ref": "ADR 0011",
+          "fait": false
         }
       ],
       "tickets": [
@@ -837,6 +849,294 @@
       ],
       "tickets": [
         "BIZ-4"
+      ]
+    },
+    {
+      "id": "SEC-10",
+      "categorie": "sec",
+      "gravite": "moyenne",
+      "titre": "Le contenu des Projets (Tickets, commentaires, documents) est copié sur le disque du Pilote par le Miroir",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-12",
+      "solutions": [
+        {
+          "texte": "miroir.db en droits 600 dans ~/.crewdeck (700), jamais dans les logs du Runner",
+          "ref": "ADR 0010",
+          "fait": true
+        },
+        {
+          "texte": "Le serveur ne transmet que des enveloppes sans contenu",
+          "ref": "ADR 0010",
+          "fait": false
+        }
+      ],
+      "tickets": [
+        "MIROIR-1",
+        "MIROIR-3",
+        "MIROIR-5"
+      ]
+    },
+    {
+      "id": "AGT-7",
+      "categorie": "agt",
+      "gravite": "elevee",
+      "titre": "Un agent agit sur un état périmé lu dans le Miroir",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-12",
+      "solutions": [
+        {
+          "texte": "Lecture d'abord sur GitHub quand le Miroir est en retard",
+          "ref": "ADR 0010",
+          "fait": false
+        },
+        {
+          "texte": "Le serveur merge avec le SHA jugé, les gestes vérifient GitHub",
+          "ref": "ADR 0002",
+          "fait": false
+        },
+        {
+          "texte": "Chaque réponse du Miroir porte son état de fraîcheur",
+          "ref": "ADR 0010",
+          "fait": false
+        }
+      ],
+      "tickets": [
+        "MIROIR-4",
+        "MIROIR-6",
+        "RUNNER-10",
+        "RUNNER-12"
+      ]
+    },
+    {
+      "id": "SEC-11",
+      "categorie": "sec",
+      "gravite": "critique",
+      "titre": "Notre serveur, compromis, fait exécuter une commande sur la machine du Pilote",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-14",
+      "solutions": [
+        {
+          "texte": "Le texte d'une Commande est scellé sous la clé du coffre, que le serveur n'a pas",
+          "ref": "ADR 0011",
+          "fait": false
+        },
+        {
+          "texte": "Le Runner n'exécute que ce qu'il a ouvert, pour ce Projet et cette Commande",
+          "ref": "ADR 0013",
+          "fait": false
+        }
+      ],
+      "tickets": [
+        "PROCESS-12",
+        "RUNNER-18"
+      ]
+    },
+    {
+      "id": "SEC-12",
+      "categorie": "sec",
+      "gravite": "moyenne",
+      "titre": "Un lien de connexion envoyé par e-mail est intercepté ou hameçonné",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-14",
+      "solutions": [
+        {
+          "texte": "Lien de 15 min, à usage unique, consommé par un POST et non à l'ouverture",
+          "ref": "ADR 0014",
+          "fait": false
+        },
+        {
+          "texte": "5 liens par adresse et 20 par IP par heure",
+          "ref": "ADR 0014",
+          "fait": false
+        }
+      ],
+      "tickets": [
+        "CORE-9"
+      ]
+    },
+    {
+      "id": "SEC-13",
+      "categorie": "sec",
+      "gravite": "moyenne",
+      "titre": "Un Serveur MCP du Pilote donne aux agents plus que leur Étape n'en demande",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-14",
+      "solutions": [
+        {
+          "texte": "Monté seulement dans les Sessions des Étapes où il est attaché, fichiers de secrets supprimés à la fin",
+          "ref": "ADR 0013",
+          "fait": false
+        },
+        {
+          "texte": "Ses appels passent par le mode de permission de la Session",
+          "ref": "ADR 0004",
+          "fait": false
+        }
+      ],
+      "tickets": [
+        "RUNNER-16",
+        "RUNNER-17"
+      ]
+    },
+    {
+      "id": "AGT-8",
+      "categorie": "agt",
+      "gravite": "elevee",
+      "titre": "Un merge sur un Projet Local écrase le travail non commité du Pilote dans son dossier",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-14",
+      "solutions": [
+        {
+          "texte": "Le Runner travaille dans son clone, jamais dans le dossier",
+          "ref": "ADR 0012",
+          "fait": false
+        },
+        {
+          "texte": "Fast-forward seulement, refusé si les modifications du Pilote touchent les mêmes fichiers, avec une Décision",
+          "ref": "ADR 0012",
+          "fait": false
+        },
+        {
+          "texte": "Le Runner n'écrit que les Tickets dans le dossier et ne commite jamais",
+          "ref": "ADR 0012",
+          "fait": false
+        }
+      ],
+      "tickets": [
+        "SOURCE-5"
+      ]
+    },
+    {
+      "id": "AGT-9",
+      "categorie": "agt",
+      "gravite": "elevee",
+      "titre": "Un Process mal composé tourne sans fin ou merge sans garde-fou",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-14",
+      "solutions": [
+        {
+          "texte": "Un Process avec un Manque ne s'active pas, vérifié par la même fonction dans la page et le serveur",
+          "ref": "ADR 0011",
+          "fait": false
+        },
+        {
+          "texte": "Les flèches ne forment jamais de cycle : une boucle n'existe que comme Retour",
+          "ref": "ADR 0011",
+          "fait": false
+        },
+        {
+          "texte": "Chaque Retour a son maximum ; la Review, les Checks et le Merge ne se retirent pas",
+          "ref": "ADR 0011",
+          "fait": false
+        },
+        {
+          "texte": "Un test par Manque et par refus du canevas",
+          "ref": "ADR 0011",
+          "fait": false
+        }
+      ],
+      "tickets": [
+        "PROCESS-2",
+        "PROCESS-6",
+        "PROCESS-10"
+      ]
+    },
+    {
+      "id": "OPS-8",
+      "categorie": "ops",
+      "gravite": "elevee",
+      "titre": "Une migration de Source à moitié faite laisse deux Sources ou perd des Tickets",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-14",
+      "solutions": [
+        {
+          "texte": "Vidange : aucun nouveau travail du type pendant la migration",
+          "ref": "ADR 0012",
+          "fait": false
+        },
+        {
+          "texte": "Copie idempotente, chaque copie marquée de son origine",
+          "ref": "ADR 0012",
+          "fait": false
+        },
+        {
+          "texte": "Vérification jusqu'à une passe sans changement, puis rattrapage des modifications tardives après le gel",
+          "ref": "ADR 0012",
+          "fait": false
+        },
+        {
+          "texte": "Bascule en une transaction, point de non-retour : avant, l'ancienne Source le reste ; après, la nouvelle",
+          "ref": "ADR 0012",
+          "fait": false
+        }
+      ],
+      "tickets": [
+        "SOURCE-7",
+        "SOURCE-8"
+      ]
+    },
+    {
+      "id": "OPS-9",
+      "categorie": "ops",
+      "gravite": "moyenne",
+      "titre": "Une modification faite à la main dans un dossier Local met plus de 2 s à s'afficher",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-14",
+      "solutions": [
+        {
+          "texte": "Surveillance du dossier, plus un parcours complet toutes les 60 s",
+          "ref": "ADR 0012",
+          "fait": false
+        },
+        {
+          "texte": "Parcours toutes les 2 s pour un dossier sur un disque Windows sous WSL (pas d'inotify)",
+          "ref": "ADR 0012",
+          "fait": false
+        }
+      ],
+      "tickets": [
+        "SOURCE-3"
+      ]
+    },
+    {
+      "id": "OPS-10",
+      "categorie": "ops",
+      "gravite": "moyenne",
+      "titre": "Ce que le travail écrit sur un Projet Local (commentaires, remarques) disparaît avec le Runner",
+      "statut": "accepté",
+      "statutDepuis": "2026-11-14",
+      "solutions": [
+        {
+          "texte": "Données originales dans local.db, jamais touchées par la reconstruction du Miroir",
+          "ref": "ADR 0012",
+          "fait": false
+        },
+        {
+          "texte": "crewdeck-runner uninstall prévient avant de supprimer local.db",
+          "ref": "ADR 0012",
+          "fait": false
+        }
+      ],
+      "tickets": [
+        "SOURCE-2"
+      ]
+    },
+    {
+      "id": "OPS-11",
+      "categorie": "ops",
+      "gravite": "faible",
+      "titre": "Un service lancé par une Commande reste actif et occupe la machine",
+      "statut": "solution choisie",
+      "statutDepuis": "2026-11-14",
+      "solutions": [
+        {
+          "texte": "Services suivis par le Runner, arrêtés avant la relance de leur Commande et à la désinstallation",
+          "ref": "ADR 0013",
+          "fait": false
+        }
+      ],
+      "tickets": [
+        "RUNNER-19"
       ]
     }
   ]

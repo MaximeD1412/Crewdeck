@@ -57,6 +57,14 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     await settle(el);
     inside(el, 'cd-button.later', 'button').click();
   },
+  'PageAToi.filter': (el) => inside(el, 'cd-project-filter', 'cd-chip:nth-of-type(2)', 'button').click(),
+  'PageAToi.open': (el) => inside(el, 'cd-decision-row', '.open').click(),
+  'PageAToi.act': (el) => inside(el, 'cd-decision-row cd-button', 'button').click(),
+  'PageAToi.note-idea': async (el) => {
+    el.data = { ...(el.data as object), canNoteIdea: true };
+    await settle(el);
+    inside(el, 'cd-button.note-idea', 'button').click();
+  },
   'PageConnexion.signIn': (el) => inside(el, 'cd-button', 'button').click(),
   'PageDemarrage.selectSystem': (el) => inside(el, 'cd-tabs', 'button[role=tab]:nth-of-type(2)').click(),
   'PageDemarrage.retry': async (el) => {

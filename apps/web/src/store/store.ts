@@ -1,4 +1,4 @@
-import type { AiAccount, Device, Event, Me, Project, Repository, Resource, Runner, RunnerLink, State } from '@crewdeck/contracts';
+import type { AiAccount, Decision, Device, Event, Me, Project, Repository, Resource, Runner, RunnerLink, State } from '@crewdeck/contracts';
 import type { VaultState } from '../keys/vault.js';
 
 /**
@@ -30,6 +30,8 @@ export interface Slices {
    * those not followed; one followed since stays, `followed: true`.
    */
   readonly repository: ReadonlyMap<string, Repository>;
+  /** The open Décisions (ATOI-1), by id, from the snapshot's `decisions`. */
+  readonly decision: ReadonlyMap<string, Decision>;
 }
 
 export interface StoreState {

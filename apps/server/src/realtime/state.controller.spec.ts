@@ -10,7 +10,8 @@ const aiAccountSlice: StateContributor = { ...pilotSlice, key: 'ai-account' };
 const devicesSlice: StateContributor = { ...pilotSlice, key: 'devices' };
 const projectsSlice: StateContributor = { ...pilotSlice, key: 'projects' };
 const repositoriesSlice: StateContributor = { ...pilotSlice, key: 'repositories' };
-const all = [pilotSlice, runnerSlice, linkSlice, aiAccountSlice, devicesSlice, projectsSlice, repositoriesSlice];
+const decisionsSlice: StateContributor = { ...pilotSlice, key: 'decisions' };
+const all = [pilotSlice, runnerSlice, linkSlice, aiAccountSlice, devicesSlice, projectsSlice, repositoriesSlice, decisionsSlice];
 
 const boot = (contributors: StateContributor[]): void => {
   const registry = new Registry<StateContributor>();
@@ -24,8 +25,8 @@ describe('StateController at boot', () => {
   });
 
   it('refuses to start with a slice missing, repeated or not in STATE_SLICES', () => {
-    expect(() => boot([])).toThrow(/missing \[pilot, runner, runner-link, ai-account, devices, projects, repositories\]/);
-    expect(() => boot([pilotSlice])).toThrow(/missing \[runner, runner-link, ai-account, devices, projects, repositories\]/);
+    expect(() => boot([])).toThrow(/missing \[pilot, runner, runner-link, ai-account, devices, projects, repositories, decisions\]/);
+    expect(() => boot([pilotSlice])).toThrow(/missing \[runner, runner-link, ai-account, devices, projects, repositories, decisions\]/);
     expect(() => boot([...all, pilotSlice])).toThrow(/repeated \[pilot\]/);
     expect(() => boot([pilotSlice, runnerSlice, { ...pilotSlice, key: 'ideas' as never }])).toThrow(/repeated \[ideas\]/);
   });

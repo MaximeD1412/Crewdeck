@@ -1,3 +1,4 @@
+import { aToi, aToiVide } from './a-toi.js';
 import { blank } from './blank.js';
 import {
   composants,
@@ -21,6 +22,8 @@ export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed 
 
 /** Every scenario, by name: a screen ticket adds its own here. */
 const SCENARIOS: readonly Scenario[] = [
+  aToi,
+  aToiVide,
   blank,
   composants,
   connexion,

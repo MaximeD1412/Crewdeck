@@ -28,6 +28,15 @@
   --del: #3a1b1b;
   --scrim: #05080acc;
   --shadow: #00000080;
+  --type-idee: #e2d36a;
+  --type-prd: #74a6f4;
+  --type-maquettes: #e48ee6;
+  --type-conception: #a596f7;
+  --type-inventaire: #79d6b9;
+  --type-ticket: #63cf8c;
+  --type-changement: #f08fb2;
+  --type-verdict: #ccd6dc;
+  --type-livraison: #b2d46a;
   --radius-sm: 0.125rem;
   --radius: 0.1875rem;
   --radius-lg: 0.25rem;
@@ -53,6 +62,11 @@
   --header-height: 3.5rem;
   --tab-bar: 4rem;
   --sidebar-width: 15rem;
+  --sidebar-compact: 4rem;
+  --step-card: 11rem;
+  --gate-card: 8rem;
+  --port-row: 1.25rem;
+  --menu-width: 18rem;
   --aside-width: 20rem;
   --panel-width: 36rem;
   --dialog-width: 30rem;

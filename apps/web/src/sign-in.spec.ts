@@ -2,7 +2,7 @@ import type { Me } from '@crewdeck/contracts';
 import { CD_ACTION, PageConnexion, PageIntrouvable, t } from '@crewdeck/sdk';
 import { createDispatcher } from './actions/dispatcher.js';
 import { boot } from './app.js';
-import { matchRoute } from './router.js';
+import { matchRoute, NO_STATE } from './router.js';
 import { ROUTES } from './routes.js';
 import { signInGuard, signInHref } from './sign-in.js';
 
@@ -57,12 +57,12 @@ describe('the /connexion route', () => {
   ])('gives PageConnexion the error of ?erreur=%s', (erreur, error) => {
     const match = matchRoute(ROUTES, `/connexion?erreur=${erreur}`);
     expect(match.composant).toBe(PageConnexion);
-    expect(ROUTES.find((route) => route.composant === PageConnexion)?.data?.(match)).toEqual({ error });
+    expect(ROUTES.find((route) => route.composant === PageConnexion)?.data?.(match, NO_STATE)).toEqual({ error });
   });
 
   it('gives no error without ?erreur', () => {
     const match = matchRoute(ROUTES, '/connexion');
-    expect(ROUTES.find((route) => route.composant === PageConnexion)?.data?.(match)).toEqual({ error: null });
+    expect(ROUTES.find((route) => route.composant === PageConnexion)?.data?.(match, NO_STATE)).toEqual({ error: null });
     expect(matchRoute(ROUTES, '/connexion/x').composant).toBe(PageIntrouvable);
   });
 });

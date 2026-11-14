@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zAiAccount } from './ai-accounts.js';
+import { zDecision } from './decisions.js';
 import { zDevice } from './devices.js';
 import { zMe } from './me.js';
 import { REPOSITORIES_MAX, zProject, zRepository } from './projects.js';
@@ -26,6 +27,8 @@ export const STATE_SLICES = {
   projects: z.array(zProject),
   /** The Dépôts GitHub their installations reach and they do not follow yet (PROJET-2), by name, at most `REPOSITORIES_MAX`. */
   repositories: z.array(zRepository).max(REPOSITORIES_MAX),
+  /** The open Décisions, every one (« À toi »). */
+  decisions: z.array(zDecision),
 } as const;
 export type StateKey = keyof typeof STATE_SLICES;
 

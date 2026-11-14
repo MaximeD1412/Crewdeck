@@ -38,7 +38,7 @@ afterAll(() => app.stop());
 describe('the page’s Cadre follows its store', () => {
   it('shows the Pilote of /api/me until the snapshot, then the pilot slice’s', () => {
     expect(cadre.data).toMatchObject({ status: 'resync', pilot: { login: 'octocat' } });
-    store.applySnapshot({ seq: 3, pilot: { ...PILOT, login: 'from-snapshot' }, runner: null, 'runner-link': null, 'ai-account': [], devices: [], projects: [], repositories: [] });
+    store.applySnapshot({ seq: 3, pilot: { ...PILOT, login: 'from-snapshot' }, runner: null, 'runner-link': null, 'ai-account': [], devices: [], projects: [], repositories: [], decisions: [] });
     store.markLive();
     expect(cadre.data).toMatchObject({ status: 'offline', statusDetail: null, pilot: { login: 'from-snapshot' } });
     expect(banners()).toEqual([]);
@@ -64,5 +64,24 @@ describe('the page’s Cadre follows its store', () => {
 
     app.router.navigate('/idees');
     expect(banners()).toEqual([]);
+  });
+
+  it('a change of the store a page does not read leaves it as is: a preview keeps what was typed in it', async () => {
+    type Lit = HTMLElement & { updateComplete: Promise<unknown> };
+    app.router.navigate('/parametres/composants?c=TextField');
+    const page = cadre.querySelector<Lit>('cd-page-composants');
+    await page?.updateComplete;
+    const preview = page?.shadowRoot?.querySelector<Lit>('.stage cd-text-field');
+    await preview?.updateComplete;
+    const input = preview?.shadowRoot?.querySelector('input');
+    if (!preview || !input) throw new Error('no preview of TextField');
+    input.value = 'tapé';
+    input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+
+    store.applyEvent({ seq: 5, type: 'pilot.upserted', payload: { ...PILOT, login: 'renamed' }, at: AT });
+    await page?.updateComplete;
+    expect(cadre.data).toMatchObject({ pilot: { login: 'renamed' } });
+    expect(page?.shadowRoot?.querySelector('.stage cd-text-field')).toBe(preview);
+    expect(preview.shadowRoot?.querySelector('input')?.value).toBe('tapé');
   });
 });

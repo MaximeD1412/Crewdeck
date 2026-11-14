@@ -1,0 +1,30 @@
+{
+  "operation": "MirrorLabels",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "after": null
+  },
+  "data": {
+    "repository": {
+      "labels": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        },
+        "nodes": [
+          {
+            "name": "ready-for-agent",
+            "color": "0e8a16",
+            "description": "Prêt pour un agent"
+          },
+          {
+            "name": "priority:P1",
+            "color": "d93f0b",
+            "description": null
+          }
+        ]
+      }
+    }
+  }
+}

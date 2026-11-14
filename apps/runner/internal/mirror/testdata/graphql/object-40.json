@@ -1,0 +1,69 @@
+{
+  "operation": "MirrorObject",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "number": 40
+  },
+  "data": {
+    "repository": {
+      "issueOrPullRequest": {
+        "__typename": "Issue",
+        "number": 40,
+        "title": "Le parent lointain",
+        "body": "Corps du quarante",
+        "issueState": "OPEN",
+        "stateReason": null,
+        "url": "https://github.com/acme/atelier/issues/40",
+        "createdAt": "2026-11-01T08:00:00Z",
+        "updatedAt": "2026-11-04T12:00:00Z",
+        "closedAt": null,
+        "author": {
+          "login": "pilote"
+        },
+        "milestone": null,
+        "labels": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "assignees": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "comments": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "parent": {
+          "number": 30,
+          "repository": {
+            "nameWithOwner": "acme/atelier"
+          }
+        },
+        "subIssues": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "blockedBy": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        }
+      }
+    }
+  }
+}

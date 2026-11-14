@@ -1,6 +1,9 @@
 # Nothing the Pilote writes freely is readable by Crewdeck
 
-> **Status:** accepted, 2026-11-10.
+> **Status:** accepted, 2026-11-10. Amended by [ADR 0011](0011-the-process-as-data.md)
+> (the Process's structure and names readable, Commandes sealed) and
+> [ADR 0012](0012-sources-local-and-github.md) (a Local Projet's texts
+> sealed by the Runner, its content read through the relay).
 
 ## Context
 

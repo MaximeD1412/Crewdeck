@@ -81,7 +81,7 @@ describe('« Premiers pas » in the page', () => {
   });
 
   it('draws its code once the snapshot is there and shows its command', async () => {
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], projects: [], repositories: [] });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], projects: [], repositories: [], decisions: [] });
     await vi.waitFor(() => expect(page()?.data).toMatchObject({ shortId: '7KQ4' }));
     expect(page()?.data['command']).toMatch(/--link 7KQ4-[0-9A-HJKMNP-TV-Z]{26}$/);
     expect(paths).toEqual(['/api/runner/link-codes']);

@@ -69,7 +69,7 @@ describe('« Projets » in the page', () => {
   });
 
   it('follows the store: a Projet followed appears in real time', () => {
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], projects: [], repositories: [REPOSITORY] });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], projects: [], repositories: [REPOSITORY], decisions: [] });
     store.applyEvent({ seq: 2, type: 'project.upserted', payload: PROJECT, at: AT });
 
     expect(page('cd-page-projets')?.data).toEqual({ projects: [{ id: PROJECT.id, displayName: 'Site de la mairie', fullName: 'octocat/site-mairie' }] });

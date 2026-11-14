@@ -1,0 +1,362 @@
+# The part of GitHub's GraphQL schema the Runner's queries select, for the fake
+# to validate them (githubtest.Server.Schema). Taken from GitHub's public
+# schema (https://docs.github.com/public/fpt/schema.docs.graphql, as of
+# 2026-11-12): the types, fields, arguments and enum values as GitHub declares
+# them, without their descriptions and directives, the interfaces reduced to
+# their `id`. A new query adds what it selects, from the same source.
+
+interface Actor {
+  login: String!
+}
+enum CheckConclusionState {
+  ACTION_REQUIRED
+  CANCELLED
+  FAILURE
+  NEUTRAL
+  SKIPPED
+  STALE
+  STARTUP_FAILURE
+  SUCCESS
+  TIMED_OUT
+}
+type CheckRun implements Node {
+  completedAt: DateTime
+  conclusion: CheckConclusionState
+  detailsUrl: URI
+  id: ID!
+  name: String!
+  startedAt: DateTime
+  status: CheckStatusState!
+}
+enum CheckStatusState {
+  COMPLETED
+  IN_PROGRESS
+  PENDING
+  QUEUED
+  REQUESTED
+  WAITING
+}
+type Commit implements GitObject & Node {
+  id: ID!
+  message: String!
+  oid: GitObjectID!
+  statusCheckRollup: StatusCheckRollup
+}
+scalar DateTime
+interface GitObject {
+  id: ID!
+}
+scalar GitObjectID
+type Issue implements Node {
+  assignees(after: String, before: String, first: Int, last: Int): UserConnection!
+  author: Actor
+  blockedBy(after: String, before: String, first: Int, last: Int, orderBy: IssueDependencyOrder = {field:DEPENDENCY_ADDED_AT,direction:DESC}): IssueConnection!
+  body: String!
+  closedAt: DateTime
+  comments(after: String, before: String, first: Int, last: Int, orderBy: IssueCommentOrder): IssueCommentConnection!
+  createdAt: DateTime!
+  id: ID!
+  labels(after: String, before: String, first: Int, last: Int, orderBy: LabelOrder = {field:CREATED_AT,direction:ASC}): LabelConnection
+  milestone: Milestone
+  number: Int!
+  parent: Issue
+  repository: Repository!
+  state: IssueState!
+  stateReason(enableDuplicate: Boolean = false): IssueStateReason
+  subIssues(after: String, before: String, first: Int, last: Int): IssueConnection!
+  title: String!
+  updatedAt: DateTime!
+  url: URI!
+}
+type IssueComment implements Node {
+  author: Actor
+  body: String!
+  createdAt: DateTime!
+  id: ID!
+  updatedAt: DateTime!
+  url: URI!
+}
+type IssueCommentConnection {
+  nodes: [IssueComment]
+  pageInfo: PageInfo!
+}
+input IssueCommentOrder {
+  direction: OrderDirection!
+  field: IssueCommentOrderField!
+}
+enum IssueCommentOrderField {
+  UPDATED_AT
+}
+type IssueConnection {
+  nodes: [Issue]
+  pageInfo: PageInfo!
+}
+input IssueDependencyOrder {
+  direction: OrderDirection!
+  field: IssueDependencyOrderField!
+}
+enum IssueDependencyOrderField {
+  CREATED_AT
+  DEPENDENCY_ADDED_AT
+}
+input IssueFieldValueFilter {
+  dateValue: String
+  fieldId: ID
+  fieldName: String
+  multiSelectOptionIds: [ID!]
+  multiSelectOptionValues: [String!]
+  numberValue: Float
+  singleSelectOptionId: ID
+  singleSelectOptionValue: String
+  textValue: String
+}
+input IssueFilters {
+  assignee: String
+  createdBy: String
+  issueFieldValues: [IssueFieldValueFilter!]
+  labels: [String!]
+  mentioned: String
+  milestone: String
+  milestoneNumber: String
+  since: DateTime
+  states: [IssueState!]
+  type: String
+  viewerSubscribed: Boolean = false
+}
+union IssueOrPullRequest = Issue | PullRequest
+input IssueOrder {
+  direction: OrderDirection!
+  field: IssueOrderField!
+}
+enum IssueOrderField {
+  COMMENTS
+  CREATED_AT
+  UPDATED_AT
+}
+enum IssueState {
+  CLOSED
+  OPEN
+}
+enum IssueStateReason {
+  COMPLETED
+  DUPLICATE
+  NOT_PLANNED
+  REOPENED
+}
+type Label implements Node {
+  color: String!
+  description: String
+  id: ID!
+  name: String!
+}
+type LabelConnection {
+  nodes: [Label]
+  pageInfo: PageInfo!
+}
+input LabelOrder {
+  direction: OrderDirection!
+  field: LabelOrderField!
+}
+enum LabelOrderField {
+  CREATED_AT
+  ISSUE_COUNT
+  NAME
+}
+enum MergeableState {
+  CONFLICTING
+  MERGEABLE
+  UNKNOWN
+}
+type Milestone implements Node {
+  description: String
+  dueOn: DateTime
+  id: ID!
+  number: Int!
+  state: MilestoneState!
+  title: String!
+}
+type MilestoneConnection {
+  nodes: [Milestone]
+  pageInfo: PageInfo!
+}
+input MilestoneOrder {
+  direction: OrderDirection!
+  field: MilestoneOrderField!
+}
+enum MilestoneOrderField {
+  CREATED_AT
+  DUE_DATE
+  NUMBER
+  UPDATED_AT
+}
+enum MilestoneState {
+  CLOSED
+  OPEN
+}
+interface Node {
+  id: ID!
+}
+enum OrderDirection {
+  ASC
+  DESC
+}
+type PageInfo {
+  endCursor: String
+  hasNextPage: Boolean!
+}
+type PullRequest implements Node {
+  assignees(after: String, before: String, first: Int, last: Int): UserConnection!
+  author: Actor
+  baseRefName: String!
+  body: String!
+  closedAt: DateTime
+  closingIssuesReferences(after: String, before: String, excludeUserLinked: Boolean = false, first: Int, last: Int, orderBy: IssueOrder, userLinkedOnly: Boolean = false): IssueConnection
+  comments(after: String, before: String, first: Int, last: Int, orderBy: IssueCommentOrder): IssueCommentConnection!
+  commits(after: String, before: String, first: Int, last: Int): PullRequestCommitConnection!
+  createdAt: DateTime!
+  headRefName: String!
+  headRefOid: GitObjectID!
+  id: ID!
+  isDraft: Boolean!
+  labels(after: String, before: String, first: Int, last: Int, orderBy: LabelOrder = {field:CREATED_AT,direction:ASC}): LabelConnection
+  mergeCommit: Commit
+  mergeable: MergeableState!
+  mergedAt: DateTime
+  milestone: Milestone
+  number: Int!
+  reviewThreads(after: String, before: String, first: Int, last: Int): PullRequestReviewThreadConnection!
+  reviews(after: String, author: String, before: String, first: Int, last: Int, states: [PullRequestReviewState!]): PullRequestReviewConnection
+  state: PullRequestState!
+  statusCheckRollup: StatusCheckRollup
+  title: String!
+  updatedAt: DateTime!
+  url: URI!
+}
+type PullRequestCommit implements Node {
+  commit: Commit!
+  id: ID!
+}
+type PullRequestCommitConnection {
+  nodes: [PullRequestCommit]
+  pageInfo: PageInfo!
+}
+type PullRequestConnection {
+  nodes: [PullRequest]
+  pageInfo: PageInfo!
+}
+type PullRequestReview implements Node {
+  author: Actor
+  body: String!
+  commit: Commit
+  id: ID!
+  state: PullRequestReviewState!
+  submittedAt: DateTime
+}
+type PullRequestReviewComment implements Node {
+  author: Actor
+  body: String!
+  createdAt: DateTime!
+  id: ID!
+  line: Int
+  path: String!
+  pullRequestReview: PullRequestReview
+}
+type PullRequestReviewCommentConnection {
+  nodes: [PullRequestReviewComment]
+  pageInfo: PageInfo!
+}
+type PullRequestReviewConnection {
+  nodes: [PullRequestReview]
+  pageInfo: PageInfo!
+}
+enum PullRequestReviewState {
+  APPROVED
+  CHANGES_REQUESTED
+  COMMENTED
+  DISMISSED
+  PENDING
+}
+type PullRequestReviewThread implements Node {
+  comments(after: String, before: String, first: Int, last: Int, skip: Int): PullRequestReviewCommentConnection!
+  id: ID!
+}
+type PullRequestReviewThreadConnection {
+  nodes: [PullRequestReviewThread]
+  pageInfo: PageInfo!
+}
+enum PullRequestState {
+  CLOSED
+  MERGED
+  OPEN
+}
+type Query implements Node {
+  id: ID!
+  node(id: ID!): Node
+  repository(followRenames: Boolean = true, name: String!, owner: String!): Repository
+}
+type Release implements Node {
+  createdAt: DateTime!
+  description: String
+  id: ID!
+  isDraft: Boolean!
+  isPrerelease: Boolean!
+  name: String
+  publishedAt: DateTime
+  tagName: String!
+}
+type ReleaseConnection {
+  nodes: [Release]
+  pageInfo: PageInfo!
+}
+input ReleaseOrder {
+  direction: OrderDirection!
+  field: ReleaseOrderField!
+}
+enum ReleaseOrderField {
+  CREATED_AT
+  NAME
+}
+type Repository implements Node {
+  id: ID!
+  issueOrPullRequest(number: Int!): IssueOrPullRequest
+  issues(after: String, before: String, filterBy: IssueFilters, first: Int, labels: [String!], last: Int, orderBy: IssueOrder, states: [IssueState!]): IssueConnection!
+  labels(after: String, before: String, first: Int, last: Int, orderBy: LabelOrder = {field:CREATED_AT,direction:ASC}, query: String): LabelConnection
+  milestones(after: String, before: String, first: Int, last: Int, orderBy: MilestoneOrder, query: String, states: [MilestoneState!]): MilestoneConnection
+  nameWithOwner: String!
+  object(expression: String, oid: GitObjectID): GitObject
+  pullRequests(after: String, baseRefName: String, before: String, first: Int, headRefName: String, labels: [String!], last: Int, orderBy: IssueOrder, states: [PullRequestState!]): PullRequestConnection!
+  releases(after: String, before: String, first: Int, last: Int, orderBy: ReleaseOrder): ReleaseConnection!
+}
+type StatusCheckRollup implements Node {
+  contexts(after: String, before: String, first: Int, last: Int): StatusCheckRollupContextConnection!
+  id: ID!
+  state: StatusState!
+}
+union StatusCheckRollupContext = CheckRun | StatusContext
+type StatusCheckRollupContextConnection {
+  nodes: [StatusCheckRollupContext]
+  pageInfo: PageInfo!
+}
+type StatusContext implements Node {
+  context: String!
+  createdAt: DateTime!
+  id: ID!
+  state: StatusState!
+  targetUrl: URI
+}
+enum StatusState {
+  ERROR
+  EXPECTED
+  FAILURE
+  PENDING
+  SUCCESS
+}
+scalar URI
+type User implements Actor & Node {
+  id: ID!
+  login: String!
+}
+type UserConnection {
+  nodes: [User]
+  pageInfo: PageInfo!
+}

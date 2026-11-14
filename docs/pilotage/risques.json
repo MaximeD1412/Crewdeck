@@ -1022,7 +1022,7 @@
         {
           "texte": "Les flèches ne forment jamais de cycle : une boucle n'existe que comme Retour",
           "ref": "ADR 0011",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Chaque Retour a son maximum ; la Review, les Checks et le Merge ne se retirent pas",
@@ -1032,7 +1032,7 @@
         {
           "texte": "Un test par Manque et par refus du canevas",
           "ref": "ADR 0011",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

@@ -2,13 +2,16 @@ import type { WaitingProject } from '@crewdeck/contracts';
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { DecisionsService, type RaiseInput } from '../decisions/decisions.service.js';
-import { Transactions } from '../realtime/transactions.js';
+import { Transactions, type Tx } from '../realtime/transactions.js';
 import { runInPilotScope } from '../scope/scope.context.js';
 import { RunnerPresence } from './runner-presence.service.js';
 import { RunnerWaitingWork } from './waiting-work.js';
 
 /** The outcome of the Décision once the Runner is back online. */
 export const RUNNER_BACK = 'runner-back';
+
+/** The outcome of the Décision of a Runner revoked by the link of another. */
+export const RUNNER_REPLACED = 'runner-replaced';
 
 const projectsCount = (count: number): string => (count === 1 ? '1 Projet' : `${count} Projets`);
 
@@ -37,7 +40,8 @@ export const runnerOfflineDecision = (runner: { id: string; lastSeenAt: Date }, 
  * whose work waits; `refresh` updates it (never a second one) when new work
  * starts waiting while the Runner is still offline; the Runner back online
  * resolves it. Nothing waiting, no Décision: the Cadre still says « hors
- * ligne ».
+ * ligne ». A Runner replaced by a new link takes its Décision with it
+ * (`resolveReplaced`): the new one raises its own.
  *
  * Each sync reads the Runner's row as committed and brings the Décision to
  * it, one sync after the other per Pilote: the presence's hooks fire after
@@ -84,9 +88,24 @@ export class RunnerOffline implements OnModuleInit, OnModuleDestroy {
     return run;
   }
 
+  /**
+   * Resolves, in `tx` and the Pilote's scope, the open « Runner hors ligne »
+   * of every Runner but `currentRunnerId` (`runner-replaced`): those of the
+   * Runners a new link revoked. `RunnerLinks.confirm` calls it in its
+   * transaction; each sync too.
+   */
+  async resolveReplaced(tx: Tx, currentRunnerId: string | null): Promise<void> {
+    const replaced = await tx.decision.findMany({
+      where: { kind: 'runner-offline', state: 'open', ...(currentRunnerId === null ? {} : { subjectId: { not: currentRunnerId } }) },
+      select: { subjectId: true },
+    });
+    for (const { subjectId } of replaced) await this.decisions.resolve(tx, 'runner-offline', subjectId, RUNNER_REPLACED);
+  }
+
   private async sync(pilotId: string): Promise<void> {
     await this.transactions.run(async (tx) => {
       const runner = await tx.runner.findFirst({ where: { revokedAt: null }, select: { id: true, state: true, lastSeenAt: true } });
+      await this.resolveReplaced(tx, runner?.id ?? null);
       if (!runner) return;
       if (runner.state === 'online') {
         await this.decisions.resolve(tx, 'runner-offline', runner.id, RUNNER_BACK);

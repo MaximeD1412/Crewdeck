@@ -196,6 +196,24 @@ describe('« Runner hors ligne » against PostgreSQL', () => {
     expect(decisionEvents()).toEqual(['decision.upserted', 'decision.removed']);
   });
 
+  it('a new Runner replacing the offline one: the old Décision resolved once it connects, never two open', async () => {
+    const alice = await pilot();
+    waiting.set(alice.id, [CREWDECK]);
+    const { runner: old, socket } = await online(alice.id);
+    await socket.close();
+    await vi.waitFor(async () => expect(await decisionsOf(alice.id)).toHaveLength(1));
+
+    // Revoked by a link that did not go through RunnerLinks (its own transaction resolves it too).
+    await sql('UPDATE runners SET revoked_at = now() WHERE id = $1', [old.id]);
+    const { runner: next, socket: nextSocket } = await online(alice.id);
+    await vi.waitFor(async () => expect((await decisionsOf(alice.id))[0]).toMatchObject({ subject_id: old.id, state: 'resolved', outcome: 'runner-replaced' }));
+
+    await nextSocket.close();
+    await vi.waitFor(async () => expect(await decisionsOf(alice.id)).toHaveLength(2));
+    const open = (await decisionsOf(alice.id)).filter((decision) => decision.state === 'open');
+    expect(open).toEqual([expect.objectContaining({ subject_id: next.id })]);
+  });
+
   it('a refresh while the Runner is online raises nothing', async () => {
     const alice = await pilot();
     waiting.set(alice.id, [CREWDECK]);

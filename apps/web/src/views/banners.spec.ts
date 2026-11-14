@@ -74,7 +74,7 @@ describe('bannersView', () => {
         key: 'runner-offline',
         data: { tone: 'halt', title: 'Runner hors ligne', icon: 'server' },
         text: 'Rien ne tourne : le travail attend dans Crewdeck, Personal OS et Site mairie. Relance le Runner sur ta machine.',
-        action: { kind: 'code', data: { code: 'crewdeck-runner start' } },
+        action: { kind: 'code', data: { code: 'crewdeck-runner restart' } },
       });
       expect(banner?.action?.kind === 'code' && CodeBlock.data.safeParse(banner.action.data).success).toBe(true);
     });

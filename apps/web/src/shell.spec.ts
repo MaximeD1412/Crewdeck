@@ -154,7 +154,7 @@ describe('mountShell', () => {
         { data: { tone: 'halt', title: 'Runner hors ligne', icon: 'server' }, text: 'Rien ne tourne : le travail attend dans Idées. Relance le Runner sur ta machine.' },
       ]);
       const actions = actionsOf(root);
-      expect(actions.map((action) => [action.localName, action.data])).toEqual([[CodeBlock.tag, { code: 'crewdeck-runner start' }]]);
+      expect(actions.map((action) => [action.localName, action.data])).toEqual([[CodeBlock.tag, { code: 'crewdeck-runner restart' }]]);
     });
   });
 });

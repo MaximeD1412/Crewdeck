@@ -5,8 +5,11 @@ import { registerDecisionView, type DecisionView } from './registry.js';
 /** The page that says what to do: relaunch the Runner. */
 export const RUNNER_PAGE = '/runner';
 
-/** The command the Pilote runs on their machine to start the Runner's service again (ADR 0004, `runner-hors-ligne`). */
-export const START_COMMAND = 'crewdeck-runner start';
+/**
+ * The command the Pilote runs on their machine (ADR 0004): `restart`, as the
+ * ticket says, not the mockup's `start`, which leaves a hung service as is.
+ */
+export const RESTART_COMMAND = 'crewdeck-runner restart';
 
 type Plural = 'one' | 'other';
 

@@ -1,7 +1,7 @@
 import type { Decision, Runner } from '@crewdeck/contracts';
 import { formatHour, t, type Banner, type Button, type CodeBlock, type ComposantData } from '@crewdeck/sdk';
 import type { StoreState } from '../store/store.js';
-import { offlineSince, projectsCount, START_COMMAND, RUNNER_PAGE, waitingItemsText, waitingProjectsOf } from './decisions/runner-offline.js';
+import { offlineSince, projectsCount, RESTART_COMMAND, RUNNER_PAGE, waitingItemsText, waitingProjectsOf } from './decisions/runner-offline.js';
 
 export type BannerData = ComposantData<typeof Banner>;
 
@@ -70,7 +70,7 @@ const runnerOfflineBanner = ({ path, runner, decisions = [] }: BannersState): Ba
         projects.length > 0
           ? t('runnerOffline.runner.body', { projects: names.format(projects.map((project) => project.name)) })
           : t('runnerOffline.runner.empty'),
-      action: { kind: 'code', data: { code: START_COMMAND } },
+      action: { kind: 'code', data: { code: RESTART_COMMAND } },
     };
   }
   return null;

@@ -45,7 +45,7 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   },
   'runner-hors-ligne': async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('hors ligne');
-    await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner] cd-code-block')).toContainText('crewdeck-runner start');
+    await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner] cd-code-block')).toContainText('crewdeck-runner restart');
   },
   // « Runner hors ligne » (ATOI-3): its row among the Décisions, and its banner.
   'a-toi-runner-hors-ligne': async (page) => {

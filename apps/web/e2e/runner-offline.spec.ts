@@ -52,7 +52,7 @@ test.describe('« Runner hors ligne » (US-19)', () => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('hors ligne depuis 14:02');
     await expect(banner(page)).toContainText('Runner hors ligne');
     await expect(banner(page)).toContainText('Rien ne tourne : le travail attend dans Crewdeck, Personal OS et Site mairie. Relance le Runner sur ta machine.');
-    await expect(banner(page).locator('cd-code-block')).toContainText('crewdeck-runner start');
+    await expect(banner(page).locator('cd-code-block')).toContainText('crewdeck-runner restart');
     await expectAccessible(page);
     await capture(page, 'runner-hors-ligne');
   });

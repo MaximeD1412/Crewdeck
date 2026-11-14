@@ -89,7 +89,14 @@ func ListTools(ctx context.Context, server Server) ([]Tool, error) {
 	)
 	switch server.Transport {
 	case TransportStdio:
-		t, err = startStdio(server)
+		var s *stdioTransport
+		if s, err = startStdio(server); err == nil {
+			t = s
+			// A write the server no longer reads blocks whatever ctx says:
+			// at the deadline its group is killed and its pipes closed, which ends it.
+			stop := context.AfterFunc(ctx, s.kill)
+			defer stop()
+		}
 	case TransportHTTP:
 		t = &httpTransport{url: server.URL, headers: server.Headers, client: &http.Client{}}
 	default:
@@ -189,6 +196,7 @@ type stdioTransport struct {
 	lines  chan []byte
 	read   chan struct{} // closed once stdout ends
 	stderr *tail
+	killed sync.Once
 }
 
 func startStdio(server Server) (*stdioTransport, error) {
@@ -275,13 +283,21 @@ func (t *stdioTransport) withStderr(err error) error {
 	return err
 }
 
+// kill kills the server's process group and closes its pipes: a write or a
+// read on them, blocked, returns. It may run beside a request.
+func (t *stdioTransport) kill() {
+	t.killed.Do(func() {
+		_ = t.stdin.Close()
+		if t.cmd.Process != nil {
+			_ = syscall.Kill(-t.cmd.Process.Pid, syscall.SIGKILL)
+		}
+		_ = t.stdout.Close()
+	})
+}
+
 // close kills the server's process group, then waits for it.
 func (t *stdioTransport) close() {
-	_ = t.stdin.Close()
-	if t.cmd.Process != nil {
-		_ = syscall.Kill(-t.cmd.Process.Pid, syscall.SIGKILL)
-	}
-	_ = t.stdout.Close()
+	t.kill()
 	go func() {
 		for range t.lines {
 		}

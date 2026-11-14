@@ -16,7 +16,9 @@ import (
 )
 
 // Env holds, in a test process, the fake's behaviour: `tools=<a,b,c>` lists
-// them, `fail=<reason>` writes the reason to stderr and exits 3. A test's
+// them, `fail=<reason>` writes the reason to stderr and exits 3, `stall=<n>`
+// answers tools/list with a cursor of n bytes, then reads nothing more and
+// never ends (a server whose stdin fills up). A test's
 // TestMain calls ServeIfAsked so that its binary, started with it, serves.
 const Env = "CREWDECK_FAKE_MCP"
 
@@ -33,6 +35,10 @@ func ServeIfAsked() {
 	if reason, ok := strings.CutPrefix(spec, "fail="); ok {
 		fmt.Fprintln(os.Stderr, reason)
 		os.Exit(3)
+	}
+	if size, ok := strings.CutPrefix(spec, "stall="); ok {
+		n, _ := strconv.Atoi(size)
+		serveStall(os.Stdin, os.Stdout, n)
 	}
 	if want := os.Getenv(RequireEnv); want != "" {
 		name, value, _ := strings.Cut(want, "=")
@@ -83,6 +89,24 @@ func answer(r request, tools []string) map[string]any {
 		reply["error"] = map[string]any{"code": -32601, "message": "unknown method " + r.Method}
 	}
 	return reply
+}
+
+func serveStall(in io.Reader, out io.Writer, cursor int) {
+	lines := bufio.NewScanner(in)
+	encoder := json.NewEncoder(out)
+	for lines.Scan() {
+		var r request
+		if err := json.Unmarshal(lines.Bytes(), &r); err != nil {
+			continue
+		}
+		if r.Method == "tools/list" {
+			_ = encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": r.ID, "result": map[string]any{"tools": []any{}, "nextCursor": strings.Repeat("c", cursor)}})
+			select {}
+		}
+		if reply := answer(r, nil); reply != nil {
+			_ = encoder.Encode(reply)
+		}
+	}
 }
 
 // ServeStdio answers the requests of in on out, one JSON line each, until in ends.

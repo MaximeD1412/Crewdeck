@@ -231,6 +231,8 @@ func (c *mcpCLI) check(ctx context.Context, server mcp.Server) ([]mcp.Tool, erro
 func (c *mcpCLI) add(ctx context.Context, server mcp.Server) error {
 	if err := c.store.Add(server); errors.Is(err, mcp.ErrExists) {
 		return fmt.Errorf("%s est déjà déclaré : crewdeck-runner mcp remove %s d’abord.", server.Name, server.Name)
+	} else if errors.Is(err, mcp.ErrTooMany) {
+		return fmt.Errorf("Ce Runner a déjà %d Serveurs MCP, le plus qu’il puisse déclarer : retires-en un (crewdeck-runner mcp remove <nom>) d’abord.", mcp.MaxServers)
 	} else if err != nil {
 		return err
 	}

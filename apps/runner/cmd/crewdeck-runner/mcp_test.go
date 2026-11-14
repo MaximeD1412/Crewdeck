@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -125,8 +126,11 @@ func TestMCPAddWithAKeychainThatFailsKeepsTheValueInTheFileOnly(t *testing.T) {
 		t.Fatalf("mcp.json %s", data)
 	}
 	entries, _ := os.ReadDir(h.store.Dir)
-	if len(entries) != 1 {
-		t.Fatalf("the Runner's folder holds %v, want mcp.json only", entries)
+	for _, entry := range entries {
+		// mcp.json, and its lock, which holds nothing.
+		if info, err := entry.Info(); entry.Name() != mcp.FileName && (err != nil || entry.Name() != mcp.FileName+".lock" || info.Size() != 0) {
+			t.Fatalf("the Runner's folder holds %v, want mcp.json and its empty lock only", entries)
+		}
 	}
 }
 
@@ -273,6 +277,22 @@ func TestMCPAddRefusesBadNamesADuplicateAndBadFlags(t *testing.T) {
 	}
 	if out, _, code := h.run(t, append([]string{"add", strings.Repeat("a", 40)}, self()...)...); code != 0 {
 		t.Fatalf("a name of 40 characters: %d %q", code, out)
+	}
+}
+
+func TestMCPAddRefusesTheServerAfterTheHundredth(t *testing.T) {
+	h := newMCPHarness(t, memoryKeyring{})
+	for i := range mcp.MaxServers {
+		if err := h.store.Add(mcp.Server{Name: fmt.Sprintf("server-%03d", i), Transport: mcp.TransportStdio, Command: "x"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, msg, code := h.run(t, append([]string{"add", "stitch", "--env", "API_KEY=s3cr3t"}, self()...)...)
+	if want := "Ce Runner a déjà 100 Serveurs MCP, le plus qu’il puisse déclarer : retires-en un (crewdeck-runner mcp remove <nom>) d’abord."; code != 1 || msg != want {
+		t.Fatalf("%d %q, want 1 %q", code, msg, want)
+	}
+	if len(h.keychain) != 0 || h.refreshes != 0 {
+		t.Fatalf("keychain %v, %d refreshes, want none", h.keychain, h.refreshes)
 	}
 }
 

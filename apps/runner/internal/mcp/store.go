@@ -8,6 +8,7 @@
 package mcp
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/accounts"
@@ -26,6 +29,10 @@ import (
 const FileName = "mcp.json"
 
 const fileVersion = 1
+
+// MaxServers is how many Serveurs MCP one Runner may declare: as many as
+// `mcp.servers` carries (MCP_SERVERS_MAX of packages/contracts/src/runner/mcp.ts).
+const MaxServers = 100
 
 // Name is the rule of a Serveur MCP's name, as packages/contracts/src/runner/mcp.ts writes it.
 var Name = regexp.MustCompile(`^[a-z0-9-]{1,40}$`)
@@ -51,6 +58,8 @@ var (
 	ErrExists = errors.New("mcp: already declared")
 	// ErrUnknown: no server of this name is declared.
 	ErrUnknown = errors.New("mcp: not declared")
+	// ErrTooMany: MaxServers are already declared.
+	ErrTooMany = errors.New("mcp: too many servers")
 )
 
 // Server is a declaration with its secrets' values: what `add` takes and
@@ -67,7 +76,11 @@ type Server struct {
 	Headers map[string]string
 }
 
-// Secrets are the values of the server's env and headers.
+// Secrets are the values of the server's env and headers, and what each one
+// carries that an answer may echo on its own: the credentials of an
+// `Authorization: <scheme> <credentials>` without its scheme, those of Basic
+// decoded and their password. The longest first, so that redact hides a value
+// whole before its parts.
 func (s Server) Secrets() []string {
 	var values []string
 	for _, v := range s.Env {
@@ -75,8 +88,29 @@ func (s Server) Secrets() []string {
 	}
 	for _, v := range s.Headers {
 		values = append(values, v)
+		values = append(values, credentials(v)...)
 	}
+	sort.Slice(values, func(i, j int) bool { return len(values[i]) > len(values[j]) })
 	return values
+}
+
+// credentials are the parts of a header's value `<scheme> <credentials>`
+// (RFC 9110): the credentials, and when they are base64 (Basic) what they
+// decode to and the password after its `user:`.
+func credentials(value string) []string {
+	scheme, creds, ok := strings.Cut(strings.TrimSpace(value), " ")
+	creds = strings.TrimSpace(creds)
+	if !ok || scheme == "" || creds == "" {
+		return nil
+	}
+	parts := []string{creds}
+	if decoded, err := base64.StdEncoding.DecodeString(creds); err == nil && len(decoded) > 0 {
+		parts = append(parts, string(decoded))
+		if _, password, ok := strings.Cut(string(decoded), ":"); ok && password != "" {
+			parts = append(parts, password)
+		}
+	}
+	return parts
 }
 
 // Declared is what may be shown of a declaration: no command, URL nor value.
@@ -141,6 +175,30 @@ func (s Store) keyring() accounts.Keyring {
 func (s Store) path() string { return filepath.Join(s.Dir, FileName) }
 
 func keychainUser(name, kind, key string) string { return "mcp:" + name + ":" + kind + ":" + key }
+
+// lock holds mcp.json for one command at a time, until unlock: each
+// read-modify-write of two commands run together keeps the other's change.
+func (s Store) lock() (unlock func(), err error) {
+	if err := os.MkdirAll(s.Dir, 0o700); err != nil {
+		return nil, fmt.Errorf("mcp: create %s: %w", s.Dir, err)
+	}
+	lock, err := os.OpenFile(s.path()+".lock", os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("mcp: lock %s: %w", FileName, err)
+	}
+	for {
+		err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX)
+		if !errors.Is(err, syscall.EINTR) {
+			break
+		}
+	}
+	if err != nil {
+		lock.Close()
+		return nil, fmt.Errorf("mcp: lock %s: %w", FileName, err)
+	}
+	// Closing the file releases the lock.
+	return func() { lock.Close() }, nil
+}
 
 func (s Store) read() (file, error) {
 	f := file{Version: fileVersion, Servers: map[string]declaration{}}
@@ -228,9 +286,17 @@ func (s Store) Names() ([]string, error) {
 }
 
 // Add declares a server, `failed` until a test records it; ErrExists when its
-// name is taken. Each value goes to the keychain, or to the file when the
-// keychain does not answer.
+// name is taken, ErrTooMany when MaxServers are declared. Each value goes to
+// the keychain, or to the file when the keychain does not answer; its
+// reference is in the file before the keychain holds it, as accounts.Store
+// marks a key before it sets it, so that Remove and `uninstall` reach every
+// entry whatever stops the command.
 func (s Store) Add(server Server) error {
+	unlock, err := s.lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	f, err := s.read()
 	if err != nil {
 		return err
@@ -238,33 +304,49 @@ func (s Store) Add(server Server) error {
 	if _, ok := f.Servers[server.Name]; ok {
 		return ErrExists
 	}
-	d := declaration{Transport: server.Transport, Command: server.Command, Args: server.Args, URL: server.URL, State: StateFailed}
-	var stored []string
-	keep := func(kind string, values map[string]string) map[string]secretRef {
+	if len(f.Servers) >= MaxServers {
+		return ErrTooMany
+	}
+	pending := func(values map[string]string) map[string]secretRef {
 		if len(values) == 0 {
 			return nil
 		}
 		refs := make(map[string]secretRef, len(values))
+		for k := range values {
+			refs[k] = secretRef{Keychain: true}
+		}
+		return refs
+	}
+	d := declaration{Transport: server.Transport, Command: server.Command, Args: server.Args, URL: server.URL, State: StateFailed,
+		Env: pending(server.Env), Headers: pending(server.Headers)}
+	f.Servers[server.Name] = d
+	if err := s.write(f); err != nil {
+		return err
+	}
+	var stored []string
+	keep := func(kind string, values map[string]string, refs map[string]secretRef) {
 		for k, v := range values {
 			user := keychainUser(server.Name, kind, k)
 			if err := s.keyring().Set(accounts.Service, user, v); err == nil {
-				refs[k] = secretRef{Keychain: true}
 				stored = append(stored, user)
 				continue
 			}
 			value := v
 			refs[k] = secretRef{Value: &value}
 		}
-		return refs
 	}
-	d.Env = keep("env", server.Env)
-	d.Headers = keep("header", server.Headers)
-	f.Servers[server.Name] = d
+	keep("env", server.Env, d.Env)
+	keep("header", server.Headers, d.Headers)
 	if err := s.write(f); err != nil {
-		// The keychain keeps nothing of a declaration that was not saved.
+		// The declaration goes only once the keychain holds nothing of it;
+		// else it stays, `failed`, and Remove reaches its entries.
 		for _, user := range stored {
-			_ = s.keyring().Delete(accounts.Service, user)
+			if derr := s.keyring().Delete(accounts.Service, user); derr != nil && !errors.Is(derr, accounts.ErrKeyringNotFound) {
+				return err
+			}
 		}
+		delete(f.Servers, server.Name)
+		_ = s.write(f)
 		return err
 	}
 	return nil
@@ -272,6 +354,11 @@ func (s Store) Add(server Server) error {
 
 // Record keeps a test's outcome: its tool count, nil when it failed.
 func (s Store) Record(name string, toolCount *int, at time.Time) error {
+	unlock, err := s.lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	f, err := s.read()
 	if err != nil {
 		return err
@@ -348,6 +435,11 @@ func (s Store) deleteSecrets(name string, d declaration) error {
 // Remove deletes a declaration, its keychain entries first: a keychain that
 // refuses leaves it declared. ErrUnknown when no server has this name.
 func (s Store) Remove(name string) error {
+	unlock, err := s.lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	f, err := s.read()
 	if err != nil {
 		return err
@@ -366,6 +458,11 @@ func (s Store) Remove(name string) error {
 // DeleteSecrets removes every declaration's keychain entries, leaving the
 // file (`uninstall`, which removes the folder next).
 func (s Store) DeleteSecrets() error {
+	unlock, err := s.lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	f, err := s.read()
 	if err != nil {
 		return err

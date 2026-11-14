@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"context"
+	"encoding/base64"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"reflect"
@@ -99,5 +101,49 @@ func TestAnHTTPServerThatRefusesGivesItsStatusWithoutTheHeader(t *testing.T) {
 	_, err := ListTools(context.Background(), Server{Name: "figma", Transport: TransportHTTP, URL: srv.URL, Headers: map[string]string{"Authorization": "Bearer x"}})
 	if err == nil || !strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "Bearer x") {
 		t.Fatalf("err %v", err)
+	}
+}
+
+func TestAnErrorThatEchoesTheTokenOfAnAuthHeaderWithoutItsSchemeHidesIt(t *testing.T) {
+	cases := []struct{ header, echoed string }{
+		{"Bearer s3cr3t-token", "s3cr3t-token"},
+		// Basic carries user:password in base64: neither the encoding nor what it encodes shows.
+		{"Basic " + base64.StdEncoding.EncodeToString([]byte("pilote:p4ssw0rd")), "p4ssw0rd"},
+		{"Basic " + base64.StdEncoding.EncodeToString([]byte("pilote:p4ssw0rd")), base64.StdEncoding.EncodeToString([]byte("pilote:p4ssw0rd"))},
+	}
+	for _, c := range cases {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"error":{"code":-32001,"message":"invalid token ` + c.echoed + `"}}`))
+		}))
+		_, err := ListTools(context.Background(), Server{Name: "figma", Transport: TransportHTTP, URL: srv.URL, Headers: map[string]string{"Authorization": c.header}})
+		srv.Close()
+		if err == nil || !strings.Contains(err.Error(), "invalid token") {
+			t.Fatalf("%s: err %v, want the server's message", c.header, err)
+		}
+		if strings.Contains(err.Error(), c.echoed) {
+			t.Fatalf("%s: err %v holds the token", c.header, err)
+		}
+	}
+}
+
+func TestAStdioServerThatStopsReadingEndsAtTheDeadlineEvenInTheMiddleOfAWrite(t *testing.T) {
+	// The next request carries the cursor back: 1 MiB, far more than a pipe holds.
+	t.Setenv(mcptest.Env, "stall=1048576")
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	done := make(chan error, 1)
+	started := time.Now()
+	go func() {
+		_, err := ListTools(ctx, self(nil))
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "pas de réponse") || time.Since(started) > 5*time.Second {
+			t.Fatalf("err %v after %s, want no answer at the deadline", err, time.Since(started))
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("ListTools still writing 10 s after its deadline")
 	}
 }

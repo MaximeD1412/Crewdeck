@@ -3,10 +3,12 @@ package mcp
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -114,8 +116,14 @@ func TestWithoutAKeychainTheValueIsInTheFileAndNowhereElse(t *testing.T) {
 		t.Fatalf("mcp.json %s", data)
 	}
 	entries, _ := os.ReadDir(store.Dir)
-	if len(entries) != 1 {
-		t.Fatalf("the Runner's folder holds %v, want mcp.json only", entries)
+	for _, entry := range entries {
+		if entry.Name() == FileName {
+			continue
+		}
+		// Only mcp.json's lock, which holds nothing.
+		if info, err := entry.Info(); err != nil || entry.Name() != FileName+".lock" || info.Size() != 0 {
+			t.Fatalf("the Runner's folder holds %v, want mcp.json and its empty lock only", entries)
+		}
 	}
 	resolved, err := store.Resolve("figma")
 	if err != nil || !reflect.DeepEqual(resolved, figma) {
@@ -239,5 +247,143 @@ func TestTheReportHoldsNamesTransportsStatesAndCountsOnly(t *testing.T) {
 	want := `[{"name":"figma","state":"ready","toolCount":4,"transport":"http"},{"name":"stitch","state":"failed","toolCount":null,"transport":"stdio"}]`
 	if string(data) != want {
 		t.Fatalf("report %s, want %s", data, want)
+	}
+}
+
+// syncKeyring is a keychain that answers, safe for concurrent use.
+type syncKeyring struct {
+	mu sync.Mutex
+	memoryKeyring
+}
+
+func (k *syncKeyring) Get(service, user string) (string, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.memoryKeyring.Get(service, user)
+}
+
+func (k *syncKeyring) Set(service, user, secret string) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.memoryKeyring.Set(service, user, secret)
+}
+
+func (k *syncKeyring) Delete(service, user string) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.memoryKeyring.Delete(service, user)
+}
+
+func TestConcurrentCommandsLoseNoDeclaration(t *testing.T) {
+	dir := t.TempDir()
+	keychain := &syncKeyring{memoryKeyring: memoryKeyring{}}
+	if err := (Store{Keyring: keychain, Dir: dir}).Add(stitch()); err != nil {
+		t.Fatal(err)
+	}
+	const adds = 24
+	var wg sync.WaitGroup
+	errs := make(chan error, 2*adds)
+	for i := range adds {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			// Each command is its own process: its own Store, the same folder.
+			server := stitch()
+			server.Name = fmt.Sprintf("server-%02d", i)
+			errs <- (Store{Keyring: keychain, Dir: dir}).Add(server)
+		}()
+		go func() {
+			defer wg.Done()
+			count := i
+			errs <- (Store{Keyring: keychain, Dir: dir}).Record("stitch", &count, time.Now())
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	names, err := (Store{Keyring: keychain, Dir: dir}).Names()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(names) != adds+1 {
+		t.Fatalf("%d declarations kept, want %d: %v", len(names), adds+1, names)
+	}
+	declared, _ := (Store{Keyring: keychain, Dir: dir}).Load()
+	if declared[len(declared)-1].Name != "stitch" || declared[len(declared)-1].State != StateReady {
+		t.Fatalf("stitch lost its test: %+v", declared[len(declared)-1])
+	}
+}
+
+// lockingKeyring stores its entries, then makes the Runner's folder read-only
+// (a full disk, a crash before the file is written), and refuses to delete.
+type lockingKeyring struct {
+	memoryKeyring
+	dir string
+}
+
+func (k lockingKeyring) Set(service, user, secret string) error {
+	k.memoryKeyring[service+"/"+user] = secret
+	return os.Chmod(k.dir, 0o500)
+}
+
+func (lockingKeyring) Delete(string, string) error { return errors.New("the keychain is locked") }
+
+func TestAKeychainEntryIsNeverWithoutADeclarationThatReachesIt(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "crewdeck")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	keychain := memoryKeyring{}
+	if err := (Store{Keyring: lockingKeyring{keychain, dir}, Dir: dir}).Add(stitch()); err == nil {
+		t.Fatal("Add succeeded with a folder that refuses its file")
+	}
+	if len(keychain) == 0 {
+		t.Fatal("the keychain was not written: the test proves nothing")
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	store := Store{Keyring: keychain, Dir: dir}
+	if names, _ := store.Names(); !reflect.DeepEqual(names, []string{"stitch"}) {
+		t.Fatalf("Names = %v, want stitch, whose keychain entry Remove must reach", names)
+	}
+	if err := store.Remove("stitch"); err != nil {
+		t.Fatal(err)
+	}
+	if len(keychain) != 0 {
+		t.Fatalf("keychain %v, want nothing left", keychain)
+	}
+}
+
+func TestTheServerAfterTheLastOneTheProtocolCarriesIsRefusedBeforeItsSecrets(t *testing.T) {
+	keychain := memoryKeyring{}
+	store := Store{Keyring: absentKeyring{}, Dir: t.TempDir()}
+	for i := range MaxServers {
+		server := stitch()
+		server.Name = fmt.Sprintf("server-%03d", i)
+		if err := store.Add(server); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store.Keyring = keychain
+	if err := store.Add(stitch()); !errors.Is(err, ErrTooMany) {
+		t.Fatalf("Add of server %d = %v, want ErrTooMany", MaxServers+1, err)
+	}
+	if len(keychain) != 0 {
+		t.Fatalf("keychain %v, want nothing written", keychain)
+	}
+	if names, _ := store.Names(); len(names) != MaxServers {
+		t.Fatalf("%d declarations, want %d", len(names), MaxServers)
+	}
+	if err := store.Remove("server-000"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Add(stitch()); err != nil {
+		t.Fatalf("Add once back under the limit = %v", err)
 	}
 }

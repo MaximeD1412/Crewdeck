@@ -51,6 +51,7 @@ import { PasserelleTicketTree } from './ticket-tree.js';
 import { PasserelleTimeline } from './timeline.js';
 import { PasserelleToolCall } from './tool-call.js';
 import { PasserelleToggle } from './toggle.js';
+import { PasserelleUsageCard } from './usage-card.js';
 import { PasserelleUsageMeter } from './usage-meter.js';
 
 export default defineSkin({
@@ -86,6 +87,7 @@ export default defineSkin({
     AgentRow: PasserelleAgentRow,
     ProcessTrack: PasserelleProcessTrack,
     UsageMeter: PasserelleUsageMeter,
+    UsageCard: PasserelleUsageCard,
     Stat: PasserelleStat,
     CheckRow: PasserelleCheckRow,
     Capture: PasserelleCapture,

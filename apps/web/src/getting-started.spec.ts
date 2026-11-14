@@ -97,7 +97,7 @@ describe('createGettingStarted', () => {
   };
 
   const snapshot = (overrides: Partial<State> = {}) =>
-    store.applySnapshot({ seq: seq++, pilot: ME, runner: null, 'runner-link': null, 'ai-account': [], devices: [], decisions: [], ...overrides });
+    store.applySnapshot({ seq: seq++, pilot: ME, runner: null, 'runner-link': null, 'ai-account': [], devices: [], decisions: [], usage: [], ...overrides });
   const event = (type: 'runner-link.upserted' | 'runner.upserted' | 'pilot.upserted' | 'ai-account.upserted', payload: unknown) =>
     store.applyEvent({ seq: seq++, type, payload, at: AT } as Parameters<Store['applyEvent']>[0]);
   const flush = () => new Promise((resolve) => setTimeout(resolve, 0));

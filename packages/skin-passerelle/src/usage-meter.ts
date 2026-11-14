@@ -11,8 +11,8 @@ const toneOf = ({ tone, value }: Data): NonNullable<Data['tone']> =>
 
 /**
  * `cd-usage-meter`: a limit of a Compte IA, its label and its value with when
- * it resets, then the bar (`role="meter"`, `--cd-bar` high), then where the
- * current pace leads.
+ * it resets, then the bar (`role="meter"`, `--cd-bar` high) with a tick at its
+ * `mark`, then where the current pace leads.
  */
 export class PasserelleUsageMeter extends PasserelleElement<typeof UsageMeter> {
   static override styles = [
@@ -39,10 +39,10 @@ export class PasserelleUsageMeter extends PasserelleElement<typeof UsageMeter> {
         white-space: nowrap;
       }
       .track {
+        position: relative;
         height: var(--cd-bar);
         border-radius: var(--cd-radius-full);
         background: var(--cd-sunk);
-        overflow: hidden;
       }
       .fill {
         display: block;
@@ -56,6 +56,13 @@ export class PasserelleUsageMeter extends PasserelleElement<typeof UsageMeter> {
       .fill.halt {
         background: var(--cd-halt);
       }
+      .mark {
+        position: absolute;
+        top: calc(var(--cd-space-1) * -1);
+        bottom: calc(var(--cd-space-1) * -1);
+        width: var(--cd-stroke);
+        background: var(--cd-ink-2);
+      }
       .projection {
         font: var(--cd-font-caption-weight) var(--cd-font-caption-size) / var(--cd-font-caption-line-height)
           var(--cd-font-caption-family), sans-serif;
@@ -67,7 +74,7 @@ export class PasserelleUsageMeter extends PasserelleElement<typeof UsageMeter> {
   protected readonly composant = UsageMeter;
 
   protected override render() {
-    const { label, value, detail, projection } = this.data;
+    const { label, value, detail, projection, mark } = this.data;
     const shown = detail === null ? formatPercent(value / 100) : `${formatPercent(value / 100)} · ${detail}`;
     return html`<div class="meter" part="meter">
       <div class="head"><span>${label}</span><span class="value">${shown}</span></div>
@@ -81,6 +88,9 @@ export class PasserelleUsageMeter extends PasserelleElement<typeof UsageMeter> {
         aria-valuetext=${shown}
       >
         <i class="fill ${toneOf(this.data)}" style=${styleMap({ width: `${value}%` })}></i>
+        ${mark === undefined
+          ? nothing
+          : html`<i class="mark" aria-hidden="true" style=${styleMap({ left: `min(${mark}%, 100% - var(--cd-stroke))` })}></i>`}
       </div>
       ${projection === null ? nothing : html`<p class="projection">${projection}</p>`}
     </div>`;

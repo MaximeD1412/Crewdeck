@@ -18,18 +18,39 @@ const QuotaFallback = time.Duration(contracts.CapabilitiesEverySeconds) * time.S
 // Reporter tells the server what each Moteur can run (US-38): it asks every
 // adapter its capabilities, marks `quota-reached` the models a
 // `limit-reached` stopped until their reset, and sends the `capabilities`
-// message. Its zero value is not usable: Engines and Send are required.
+// message. It also sends the usage of each Compte IA its Sessions report
+// (US-55, usage.go). Its zero value is not usable: Engines and Send are
+// required.
 type Reporter struct {
 	Engines *engine.Registry
 	// Send sends the message to the server.
 	Send func(context.Context, contracts.RunnerCapabilities) error
+	// SendUsage sends a usage message to the server; nil, none is sent.
+	SendUsage func(context.Context, contracts.RunnerUsage) error
 	// Now gives the instant; nil, time.Now.
 	Now func() time.Time
 	// Logger logs an adapter that failed to answer; nil, slog's default.
 	Logger *slog.Logger
+	// SpentPath is the file of the cost each Session reported so far and of
+	// the spends not sent yet (spent.go), so that a Session resumed after a
+	// restart sends only what it adds and no spend is lost; empty, kept in
+	// memory only.
+	SpentPath string
 
 	mu    sync.Mutex
 	quota map[contracts.EngineId]map[string]time.Time // the model ("" for every one) to the end of its limit
+	// The Compte IA of each Moteur, as its last capabilities said.
+	kinds map[contracts.EngineId]contracts.EngineCapabilitiesAccountKind
+	usage map[contracts.EngineId]*usageOf
+	// The windows the server could not get, for the next tick.
+	usageRetry []contracts.RunnerUsage
+	// The cost each Session reported so far, the spends not sent yet, and
+	// the lines of SpentPath (spent.go).
+	spent      map[string]sessionCost
+	pending    []contracts.RunnerUsage
+	spentLines int
+	// sendMu: one sending of usages at a time, so a spend is sent once.
+	sendMu sync.Mutex
 }
 
 func (r *Reporter) now() time.Time {
@@ -62,6 +83,12 @@ func (r *Reporter) Capabilities(ctx context.Context) []contracts.EngineCapabilit
 		}
 		caps = append(caps, r.overlay(c))
 	}
+	r.mu.Lock()
+	r.kinds = map[contracts.EngineId]contracts.EngineCapabilitiesAccountKind{}
+	for _, c := range caps {
+		r.kinds[c.Engine] = c.Account.Kind
+	}
+	r.mu.Unlock()
 	return caps
 }
 

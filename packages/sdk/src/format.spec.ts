@@ -1,4 +1,4 @@
-import { formatDay, formatEuros, formatHour, formatNumber, formatPercent, formatRelative } from './format.js';
+import { formatDay, formatEuros, formatHour, formatNumber, formatPercent, formatRelative, formatWeekday, sameDay } from './format.js';
 
 const NNBSP = ' ';
 const NBSP = ' ';
@@ -34,6 +34,20 @@ describe('formatHour', () => {
   it('gives hours and minutes in 24 h', () => {
     expect(formatHour(local(12, 16, 40))).toBe('16:40');
     expect(formatHour(local(12, 9, 5).toISOString())).toBe('09:05');
+  });
+});
+
+describe('formatWeekday', () => {
+  it('gives the day of the week, lower case', () => {
+    expect(formatWeekday(local(12, 16, 40))).toBe('jeudi');
+    expect(formatWeekday(local(16, 8).toISOString())).toBe('lundi');
+  });
+});
+
+describe('sameDay', () => {
+  it('compares the local days of two instants', () => {
+    expect(sameDay(local(12, 0, 5), local(12, 23, 55).toISOString())).toBe(true);
+    expect(sameDay(local(12, 23, 55), local(13, 0, 5))).toBe(false);
   });
 });
 

@@ -14,4 +14,5 @@ const (
 	LinkPollSeconds          = 2
 	OfflineAfterSeconds      = 45
 	ProtocolVersion          = 1
+	UsageEverySeconds        = 600
 )

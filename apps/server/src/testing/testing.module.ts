@@ -1,6 +1,7 @@
 import { type DynamicModule, Global, Module } from '@nestjs/common';
 import { DecisionsModule } from '../decisions/decisions.module.js';
 import { GITHUB_CLIENT } from '../github/github.client.js';
+import { FX_SOURCE } from '../usage/fx-source.js';
 import { FakeGitHubController } from './fake-github.controller.js';
 import { createFakes, FAKES, type Fakes } from './fakes.js';
 import { ScenariosService } from './scenarios.service.js';
@@ -19,7 +20,8 @@ import { TestingRunnerController } from './testing-runner.controller.js';
  * a dynamic `import()` (`AppModule`): without it, nothing of `src/testing/` is
  * loaded, and `/api/testing/*` and `/fake-github/*` give 404.
  *
- * Global: `GITHUB_CLIENT` is the fake GitHub wherever a module injects it.
+ * Global: `GITHUB_CLIENT` is the fake GitHub wherever a module injects it,
+ * `FX_SOURCE` the fake ECB.
  */
 @Global()
 @Module({})
@@ -33,8 +35,9 @@ export class TestingModule {
         ScenariosService,
         { provide: FAKES, useFactory: createFakes },
         { provide: GITHUB_CLIENT, inject: [FAKES], useFactory: (fakes: Fakes) => fakes.github },
+        { provide: FX_SOURCE, inject: [FAKES], useFactory: (fakes: Fakes) => fakes.fx },
       ],
-      exports: [FAKES, GITHUB_CLIENT],
+      exports: [FAKES, GITHUB_CLIENT, FX_SOURCE],
     };
   }
 }

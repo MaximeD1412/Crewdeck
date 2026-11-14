@@ -25,11 +25,13 @@ type usageOf struct {
 
 // observeUsage takes an event a run of `engineID` emitted (Watch) and gives
 // the usage to send at once, nil when none: a `usage` with windows updates
-// them; a `limit-reached` fills its window; a `result` with a cost sends what
-// it adds to `spent`, the run's cost so far (a Moteur reports the cost of its
-// process up to that turn: Claude's `total_cost_usd`), on its own and at its
-// result's instant. Nothing for a Moteur without a Compte IA or before the
-// first capabilities told which: its windows wait for the next tick.
+// them; a `limit-reached` fills its window; a `result` with a cost sends, on
+// its own and at its result's instant, what it adds to the cost counted so
+// far. A Moteur reports the cost of its Session up to that turn, its runs
+// before a `--resume` included (Claude's `total_cost_usd`): what is counted
+// is the Session's (spent.go), else `spent`, the run's. Nothing for a Moteur
+// without a Compte IA or before the first capabilities told which: its
+// windows wait for the next tick.
 func (r *Reporter) observeUsage(engineID contracts.EngineId, event contracts.EngineEvent, spent *int) *contracts.RunnerUsage {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -63,8 +65,15 @@ func (r *Reporter) observeUsage(engineID contracts.EngineId, event contracts.Eng
 		return r.usageMessage(engineID, u, nil)
 	case event.Result != nil && event.Result.CostUsdMicros != nil:
 		cost := *event.Result.CostUsdMicros
-		added := cost - *spent
-		if added < 0 { // the process started over: all of it is new
+		counted := *spent
+		if id := event.Result.EngineSessionId; id != nil && *id != "" {
+			if known, ok := r.sessionSpent(engineID, *id); ok {
+				counted = known
+			}
+			r.keepSessionSpent(engineID, *id, cost)
+		}
+		added := cost - counted
+		if added < 0 { // the Moteur started its count over: all of it is new
 			added = cost
 		}
 		*spent = cost

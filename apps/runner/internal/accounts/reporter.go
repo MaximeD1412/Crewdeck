@@ -31,6 +31,10 @@ type Reporter struct {
 	Now func() time.Time
 	// Logger logs an adapter that failed to answer; nil, slog's default.
 	Logger *slog.Logger
+	// SpentPath is the file of the cost each Session reported so far, so
+	// that a Session resumed after a restart sends only what it adds;
+	// empty, kept in memory only.
+	SpentPath string
 
 	mu    sync.Mutex
 	quota map[contracts.EngineId]map[string]time.Time // the model ("" for every one) to the end of its limit
@@ -38,6 +42,8 @@ type Reporter struct {
 	kinds      map[contracts.EngineId]contracts.EngineCapabilitiesAccountKind
 	usage      map[contracts.EngineId]*usageOf
 	usageRetry []contracts.RunnerUsage
+	// The cost each Session reported so far (spent.go), read from SpentPath.
+	spent map[string]sessionCost
 }
 
 func (r *Reporter) now() time.Time {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"sync/atomic"
 	"syscall"
@@ -80,6 +81,9 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		Send:      func(ctx context.Context, m contracts.RunnerCapabilities) error { return send(ctx, m) },
 		SendUsage: func(ctx context.Context, m contracts.RunnerUsage) error { return send(ctx, m) },
 		Logger:    logger,
+		// The cost of each Session so far, beside runner.json: a Session
+		// resumed after a restart sends only what it adds.
+		SpentPath: filepath.Join(store.Dir, "spent.json"),
 	}
 	// The adapters, their Sessions watched: a limit or a sign-in they meet
 	// reaches the capabilities, the usage they report reaches the server. The Sessions (RUNNER-9) start from this registry.

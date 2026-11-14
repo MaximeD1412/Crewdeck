@@ -2,6 +2,10 @@ package accounts
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -57,12 +61,15 @@ func claudeUsage(fiveHour, week float64) contracts.EngineEvent {
 }
 
 // usageReporter watches `adapter`, its Compte IA known from a first report.
-func usageReporter(t *testing.T, adapter engine.Engine) (*Reporter, *sentUsage) {
+func usageReporter(t *testing.T, adapter engine.Engine, options ...func(*Reporter)) (*Reporter, *sentUsage) {
 	t.Helper()
 	var registry engine.Registry
 	registry.Register(adapter)
 	out := &sentUsage{}
 	reporter := &Reporter{Send: (&sent{}).send, SendUsage: out.send}
+	for _, option := range options {
+		option(reporter)
+	}
 	reporter.Engines = reporter.Watch(&registry)
 	if _, err := reporter.Report(context.Background()); err != nil {
 		t.Fatal(err)
@@ -129,7 +136,7 @@ func TestEachResultSendsWhatItAddsToTheCostOfItsRunSoFar(t *testing.T) {
 		t.Fatal(err)
 	}
 	codex := codexWithKey(store)
-	// As Claude reports it: the cost of the process so far, at each turn (06-a-usage-subscription).
+	// As Claude reports it: the cost of the Session so far, at each turn (06-a-usage-subscription).
 	codex.Events = []contracts.EngineEvent{costOf(27_307), costOf(45_438), costOf(45_438)}
 	reporter, out := usageReporter(t, codex)
 
@@ -138,10 +145,110 @@ func TestEachResultSendsWhatItAddsToTheCostOfItsRunSoFar(t *testing.T) {
 		t.Fatalf("spends %v, want 27307 and 18131", got)
 	}
 
-	// A resumed Session is a new process: its cost starts over.
+	// A new Session (no Session id in common): its cost starts from nothing.
 	startAndDrain(t, reporter.Engines, contracts.EngineIdCodex, "gpt-5.5")
 	if got := spends(out.await(t, 4)); len(got) != 4 || got[2]+got[3] != 45_438 {
 		t.Fatalf("spends %v", got)
+	}
+}
+
+// recordedResults are the results of a recorded stream of Claude (its
+// golden events): what it reports of its cost, turn after turn.
+func recordedResults(t *testing.T, name string) []contracts.EngineEvent {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "engine", "claude", "testdata", name+".golden.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Golden events are written without their instant: read only what a result says of its cost.
+	var events []struct {
+		Kind            string  `json:"kind"`
+		CostUsdMicros   *int    `json:"costUsdMicros"`
+		EngineSessionId *string `json:"engineSessionId"`
+	}
+	if err := json.Unmarshal(data, &events); err != nil {
+		t.Fatal(err)
+	}
+	var results []contracts.EngineEvent
+	for _, e := range events {
+		if e.Kind == "result" {
+			results = append(results, contracts.EngineEvent{Result: &contracts.EngineEventResult{Status: contracts.EngineEventResultStatusOk, CostUsdMicros: e.CostUsdMicros, EngineSessionId: e.EngineSessionId}})
+		}
+	}
+	if len(results) == 0 {
+		t.Fatalf("no result in %s", name)
+	}
+	return results
+}
+
+// claudeWithKey is Claude with an API key: its spends are kept.
+func claudeWithKey(t *testing.T) *fake.Engine {
+	t.Helper()
+	store := Store{Keyring: memoryKeyring{}, Dir: t.TempDir()}
+	if err := store.Set(contracts.EngineIdClaudeCode, "sk-ant-test"); err != nil {
+		t.Fatal(err)
+	}
+	return &fake.Engine{APIKey: store.Provider(contracts.EngineIdClaudeCode)}
+}
+
+const recordedSession = "4a000000-0000-4000-8000-000000000014"
+
+func resumeAndDrain(t *testing.T, registry *engine.Registry, engineSessionID string) {
+	t.Helper()
+	adapter, _ := registry.Get(contracts.EngineIdClaudeCode)
+	run, err := adapter.Resume(context.Background(), engine.ResumeOptions{StartOptions: engine.StartOptions{Model: "opus", InitialPrompt: "go on"}, EngineSessionID: engineSessionID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range run.Events() {
+	}
+	if err := run.Wait(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func sum(costs []int) int {
+	total := 0
+	for _, c := range costs {
+		total += c
+	}
+	return total
+}
+
+// Claude keeps the cost of its Session across `--resume` (04-interrupt ends
+// at 1 480, 04-resume reports 1 784 for the same Session): the resumed run
+// sends only the 304 it adds.
+func TestAResumedSessionSendsOnlyWhatItAddsToItsCostSoFar(t *testing.T) {
+	claude := claudeWithKey(t)
+	claude.Events = recordedResults(t, "04-interrupt")
+	reporter, out := usageReporter(t, claude)
+	startAndDrain(t, reporter.Engines, contracts.EngineIdClaudeCode, "opus")
+	out.await(t, 2)
+
+	claude.Events = recordedResults(t, "04-resume")
+	resumeAndDrain(t, reporter.Engines, recordedSession)
+
+	if got := spends(out.await(t, 3)); sum(got) != 1784 || !slices.Contains(got, 304) {
+		t.Fatalf("spends %v, want 1 784 in all, 304 for the resumed run", got)
+	}
+}
+
+// What a Session cost so far outlives the Runner: a resume after a restart
+// sends only what it adds.
+func TestTheCostOfASessionSoFarOutlivesTheRunner(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "spent.json")
+	claude := claudeWithKey(t)
+	claude.Events = recordedResults(t, "04-interrupt")
+	before, out := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
+	startAndDrain(t, before.Engines, contracts.EngineIdClaudeCode, "opus")
+	out.await(t, 2)
+
+	claude.Events = recordedResults(t, "04-resume")
+	after, out := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
+	resumeAndDrain(t, after.Engines, recordedSession)
+
+	if got := spends(out.await(t, 1)); len(got) != 1 || got[0] != 304 {
+		t.Fatalf("spends %v, want 304", got)
 	}
 }
 

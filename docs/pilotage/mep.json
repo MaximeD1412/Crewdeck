@@ -313,11 +313,11 @@
       "id": "migration-projects",
       "phase": "db",
       "source": "#46",
-      "titre": "Migration 20261119000000_projects : les tables repositories et projects",
+      "titre": "Migration 20261120000000_projects : les tables repositories et projects",
       "pourquoi": "Les Dépôts GitHub et les Projets (US-3) vivent dans deux nouvelles tables et un type inventory_state. La migration ne fait qu'ajouter : la version précédente tourne dessus sans les lire. Le déploiement la répète sur la dernière sauvegarde puis l'applique (ADR 0009) ; une installation de l'App faite avant le déploiement remplit repositories à la réconciliation suivante (15 min au plus).",
       "etapes": [
         "Rien à lancer à la main : le déploiement du staging, puis celui de la prod, appliquent la migration.",
-        "Vérifier après chaque déploiement que son journal montre la migration appliquée (20261119000000_projects), puis que /projets/ajouter liste les dépôts de l'installation."
+        "Vérifier après chaque déploiement que son journal montre la migration appliquée (20261120000000_projects), puis que /projets/ajouter liste les dépôts de l'installation."
       ],
       "commande": "docker compose -p crewdeck-staging --env-file /opt/crewdeck/staging/.env -f docker-compose.yml -f docker-compose.staging.yml run --rm server migrate",
       "ajouteLe": "2026-11-12"

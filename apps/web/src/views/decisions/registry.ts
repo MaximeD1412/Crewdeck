@@ -21,6 +21,8 @@ export interface DecisionAction {
 export interface DecisionView {
   /** The row's title; the Décision's label by default. */
   readonly title?: (decision: Decision) => string;
+  /** The row's meta; the Projet, the Décision's `metaParts` and its relative time by default. */
+  readonly meta?: (decision: Decision, now: Date) => string;
   /** The line under the meta; none by default. */
   readonly context?: (decision: Decision) => string | null;
   readonly actions: readonly DecisionAction[];

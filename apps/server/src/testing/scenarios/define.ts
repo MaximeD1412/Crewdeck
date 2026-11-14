@@ -6,6 +6,8 @@ import type { Fakes } from '../fakes.js';
 export interface ScenarioContext {
   readonly prisma: PrismaService;
   readonly fakes: Fakes;
+  /** « Runner hors ligne » brought to the seeded state (`RunnerOffline.refresh`): its Décision raised from the fake waiting work. */
+  readonly refreshRunnerOffline: (pilotId: string) => Promise<void>;
 }
 
 export interface ScenarioSeed {

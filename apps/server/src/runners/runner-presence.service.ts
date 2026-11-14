@@ -10,6 +10,9 @@ import { RUNNER_VIEW, toRunner } from './runner.view.js';
 /** Called with the Runner's id once its change is committed. */
 export type PresenceHandler = (runnerId: string) => void;
 
+/** The same for the Runner of any Pilote, with its Pilote's id. */
+export type AnyPresenceHandler = (pilotId: string, runnerId: string) => void;
+
 /** How long a Runner stays « en ligne » after its last heartbeat. */
 export const OFFLINE_AFTER_MS = OFFLINE_AFTER_SECONDS * 1000;
 
@@ -32,6 +35,8 @@ export class RunnerPresence {
   private readonly online = new Map<string, string>();
   private readonly onlineHooks = new Map<string, Set<PresenceHandler>>();
   private readonly offlineHooks = new Map<string, Set<PresenceHandler>>();
+  private readonly anyOnlineHooks = new Set<AnyPresenceHandler>();
+  private readonly anyOfflineHooks = new Set<AnyPresenceHandler>();
   private readonly queues = new Map<string, Promise<unknown>>();
 
   constructor(
@@ -54,6 +59,18 @@ export class RunnerPresence {
   /** Calls `handler` each time `pilotId`'s Runner goes offline; returns its removal. */
   onOffline(pilotId: string, handler: PresenceHandler): () => void {
     return this.hook(this.offlineHooks, pilotId, handler);
+  }
+
+  /** Calls `handler` each time the Runner of any Pilote comes online, in that Pilote's scope (ATOI-3); returns its removal. */
+  onAnyOnline(handler: AnyPresenceHandler): () => void {
+    this.anyOnlineHooks.add(handler);
+    return () => this.anyOnlineHooks.delete(handler);
+  }
+
+  /** Calls `handler` each time the Runner of any Pilote goes offline, in that Pilote's scope (ATOI-3); returns its removal. */
+  onAnyOffline(handler: AnyPresenceHandler): () => void {
+    this.anyOfflineHooks.add(handler);
+    return () => this.anyOfflineHooks.delete(handler);
   }
 
   /**
@@ -140,7 +157,7 @@ export class RunnerPresence {
   private markOnline(pilotId: string, runnerId: string): void {
     const was = this.online.get(pilotId);
     this.online.set(pilotId, runnerId);
-    if (was !== runnerId) this.call(this.onlineHooks, pilotId, runnerId);
+    if (was !== runnerId) this.call(this.onlineHooks, this.anyOnlineHooks, pilotId, runnerId);
   }
 
   /**
@@ -153,7 +170,7 @@ export class RunnerPresence {
     const current = this.online.get(pilotId);
     if (current === runnerId) this.online.delete(pilotId);
     else if (current !== undefined || !committed) return;
-    this.call(this.offlineHooks, pilotId, runnerId);
+    this.call(this.offlineHooks, this.anyOfflineHooks, pilotId, runnerId);
   }
 
   /** Runs `fn` in `pilotId`'s scope, after the changes of their Runner already queued. */
@@ -184,8 +201,9 @@ export class RunnerPresence {
     };
   }
 
-  private call(hooks: Map<string, Set<PresenceHandler>>, pilotId: string, runnerId: string): void {
-    for (const handler of [...(hooks.get(pilotId) ?? [])]) {
+  private call(hooks: Map<string, Set<PresenceHandler>>, anyHooks: Set<AnyPresenceHandler>, pilotId: string, runnerId: string): void {
+    const handlers = [...(hooks.get(pilotId) ?? []), ...[...anyHooks].map((handler) => (id: string) => handler(pilotId, id))];
+    for (const handler of handlers) {
       try {
         handler(runnerId);
       } catch (error) {

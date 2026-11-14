@@ -105,7 +105,8 @@ describe('aToiView', () => {
       ['retry', true, null],
     ]);
     const [offline] = view({}, [BLOCKED], { views, runnerOnline: false }).decisions;
-    expect(offline?.actions[1]?.disabledReason).toBe(t('aToi.runnerOffline'));
+    expect(offline?.actions[1]?.disabledReason).toBe('Noter une Idée attend que le Runner soit de nouveau en ligne.');
+    expect(offline?.actions[0]?.disabledReason).toBeNull();
   });
 
   it('has nothing to list when no Décision waits, and no « Noter une Idée » yet', () => {

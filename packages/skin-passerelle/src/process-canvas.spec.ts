@@ -284,4 +284,17 @@ describe('ProcessCanvas', () => {
     const slot = inside<HTMLSlotElement>(el, '.toast slot');
     expect(slot.assignedElements().map((node) => node.localName)).toEqual(['cd-toast']);
   });
+
+  it('keeps a long toast inside a narrow canvas', async () => {
+    const text = 'Flèche refusée : cette Entrée attend des Maquettes, pas un Changement de code.';
+    const el = (await render(ProcessCanvas, crewdeck?.data, {
+      toast: `<cd-toast data='{"tone":"halt","icon":"block","text":"${text}"}'></cd-toast>`,
+    })) as Canvas;
+    el.style.width = '320px';
+    await settle(el);
+    const canvas = el.getBoundingClientRect();
+    const toast = inside(el, '.toast').getBoundingClientRect();
+    expect(toast.left).toBeGreaterThanOrEqual(canvas.left);
+    expect(toast.right).toBeLessThanOrEqual(canvas.right);
+  });
 });

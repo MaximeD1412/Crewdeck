@@ -181,7 +181,7 @@ export class PasserelleProcessCanvas extends PasserelleElement<typeof ProcessCan
         top: var(--cd-space-4);
         transform: translateX(-50%);
         width: max-content;
-        max-width: var(--cd-dialog-width);
+        max-width: min(var(--cd-dialog-width), calc(100% - var(--cd-space-4) * 2));
         cursor: auto;
       }
       .menu {

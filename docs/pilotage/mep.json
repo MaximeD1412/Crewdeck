@@ -294,6 +294,19 @@
       ],
       "commande": "sudo grep -c '^GITHUB_WEBHOOK_SECRET=.\\+' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
       "ajouteLe": "2026-11-11"
+    },
+    {
+      "id": "sortie-https-bce",
+      "phase": "vps",
+      "source": "#67",
+      "titre": "Laisser le serveur de la prod et du staging joindre www.ecb.europa.eu en HTTPS",
+      "pourquoi": "La dépense du mois en euros (US-55) convertit les dollars facturés au cours de référence de la BCE du jour de la dépense (risque BIZ-4) : le serveur lit chaque jour à 16:30, heure de Francfort, et à son démarrage tant qu'aucun cours n'est connu, le fichier quotidien https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml. Sans sortie vers ce domaine, la dépense d'une clé API reste « en attente du cours du jour », puis convertie au dernier cours connu ; le reste fonctionne.",
+      "etapes": [
+        "Si un pare-feu filtre la sortie du VPS ou du réseau Docker, autoriser le HTTPS (443) vers www.ecb.europa.eu pour les conteneurs server de crewdeck-prod et crewdeck-staging.",
+        "Vérifier après le déploiement suivant : le journal du serveur contient « fx rate » avec le jour et le cours, et aucun « fx rates failed »."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec server node -e \"fetch('https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml').then((r) => console.log(r.status))\"",
+      "ajouteLe": "2026-11-14"
     }
   ]
 }

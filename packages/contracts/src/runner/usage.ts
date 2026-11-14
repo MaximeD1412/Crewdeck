@@ -16,12 +16,13 @@ export type UsageWindowMeasure = z.infer<typeof zUsageWindowMeasure>;
 /**
  * Runner → server (US-55, RUNNER-13): the usage of one Compte IA, figures
  * only, never content (ADR 0004). `windows` as the adapter last reported
- * them (a `usage` or a `limit-reached`), `spend` the cost a Session's
- * `result` gave, in micro-dollars as the provider bills it. Sent at a
- * `limit-reached`, at each Session's `result` that has a cost, and every
- * `USAGE_EVERY_SECONDS` when the windows changed since the last. The server
- * ignores the spend of a subscription: its cost is a share of its windows
- * (PILOTAGE-3).
+ * them (a `usage` or a `limit-reached`), at `measuredAt`; or `spend`, what a
+ * Session's `result` adds to its cost so far, in micro-dollars as the
+ * provider bills it, alone (`windows` empty) at the result's instant, so that
+ * a spend is never dated by older windows. Sent at each `usage` and
+ * `limit-reached`, at each `result` that adds a cost, and every
+ * `USAGE_EVERY_SECONDS` for what could not be sent. The server ignores the
+ * spend of a subscription: its cost is a share of its windows (PILOTAGE-3).
  */
 export const zUsage = runnerMessage('usage', {
   // The enum without its id: `contracts.EngineId` is written once, with the capabilities.

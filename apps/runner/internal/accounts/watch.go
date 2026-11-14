@@ -51,11 +51,12 @@ func (w watchedEngine) watch(ctx context.Context, run engine.Run, model string) 
 	go func() {
 		defer close(events)
 		reading := true
+		spent := 0 // the run's cost so far, as its Moteur reports it
 		for event := range run.Events() {
 			if w.reporter.record(w.ID(), model, event) {
 				go w.reporter.report(context.WithoutCancel(ctx))
 			}
-			if usage := w.reporter.observeUsage(w.ID(), event); usage != nil {
+			if usage := w.reporter.observeUsage(w.ID(), event, &spent); usage != nil {
 				go w.reporter.sendUsage(context.WithoutCancel(ctx), []contracts.RunnerUsage{*usage})
 			}
 			if !reading {

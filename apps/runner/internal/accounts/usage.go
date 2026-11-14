@@ -23,13 +23,14 @@ type usageOf struct {
 	changed bool
 }
 
-// observeUsage takes an event a Session of `engineID` emitted (Watch) and
-// gives the usage to send at once, nil when none: a `usage` updates the
-// windows, sent at the next tick (UsageEvery); a `limit-reached` fills its
-// window, sent at once; a `result` with a cost sends that spend, with the
-// windows. Nothing for a Moteur without a Compte IA or before the first
-// capabilities told which.
-func (r *Reporter) observeUsage(engineID contracts.EngineId, event contracts.EngineEvent) *contracts.RunnerUsage {
+// observeUsage takes an event a run of `engineID` emitted (Watch) and gives
+// the usage to send at once, nil when none: a `usage` with windows updates
+// them; a `limit-reached` fills its window; a `result` with a cost sends what
+// it adds to `spent`, the run's cost so far (a Moteur reports the cost of its
+// process up to that turn: Claude's `total_cost_usd`), on its own and at its
+// result's instant. Nothing for a Moteur without a Compte IA or before the
+// first capabilities told which: its windows wait for the next tick.
+func (r *Reporter) observeUsage(engineID contracts.EngineId, event contracts.EngineEvent, spent *int) *contracts.RunnerUsage {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.usage == nil {
@@ -47,7 +48,7 @@ func (r *Reporter) observeUsage(engineID contracts.EngineId, event contracts.Eng
 			u.windows[id] = contracts.RunnerUsageWindowsElem{Id: id, UsedPercent: w.UsedPercent, ResetsAt: w.ResetsAt}
 		}
 		u.measuredAt, u.changed = r.instant(event.Usage.At), true
-		return nil
+		return r.usageMessage(engineID, u, nil)
 	case event.LimitReached != nil:
 		id := contracts.RunnerUsageWindowsElemId(event.LimitReached.Window)
 		known, ok := u.windows[id]
@@ -60,11 +61,17 @@ func (r *Reporter) observeUsage(engineID contracts.EngineId, event contracts.Eng
 		u.windows[id] = contracts.RunnerUsageWindowsElem{Id: id, UsedPercent: 100, ResetsAt: known.ResetsAt}
 		u.measuredAt = r.instant(event.LimitReached.At)
 		return r.usageMessage(engineID, u, nil)
-	case event.Result != nil && event.Result.CostUsdMicros != nil && *event.Result.CostUsdMicros > 0:
-		if len(u.windows) == 0 {
-			u.measuredAt = r.instant(event.Result.At)
+	case event.Result != nil && event.Result.CostUsdMicros != nil:
+		cost := *event.Result.CostUsdMicros
+		added := cost - *spent
+		if added < 0 { // the process started over: all of it is new
+			added = cost
 		}
-		return r.usageMessage(engineID, u, &contracts.RunnerUsageSpend{CostUsdMicros: *event.Result.CostUsdMicros})
+		*spent = cost
+		if added == 0 {
+			return nil
+		}
+		return r.spendMessage(engineID, added, r.instant(event.Result.At))
 	default:
 		return nil
 	}
@@ -73,13 +80,8 @@ func (r *Reporter) observeUsage(engineID contracts.EngineId, event contracts.Eng
 // usageMessage is the usage of `u`, nil when the Compte IA has none; it is
 // then sent, `changed` cleared. Under r.mu.
 func (r *Reporter) usageMessage(engineID contracts.EngineId, u *usageOf, spend *contracts.RunnerUsageSpend) *contracts.RunnerUsage {
-	var kind contracts.RunnerUsageAccountKind
-	switch r.kinds[engineID] {
-	case contracts.EngineCapabilitiesAccountKindSubscription:
-		kind = contracts.RunnerUsageAccountKindSubscription
-	case contracts.EngineCapabilitiesAccountKindApiKey:
-		kind = contracts.RunnerUsageAccountKindApiKey
-	default:
+	kind, ok := usageKind(r.kinds[engineID])
+	if !ok {
 		return nil
 	}
 	windows := []contracts.RunnerUsageWindowsElem{}
@@ -95,6 +97,29 @@ func (r *Reporter) usageMessage(engineID contracts.EngineId, u *usageOf, spend *
 	u.changed = false
 	message := protocol.NewUsage(contracts.RunnerUsageEngine(engineID), kind, windows, spend, measuredAt)
 	return &message
+}
+
+// spendMessage is the spend of `engineID`, without its windows: they keep
+// the instant they were measured at. Nil when its Compte IA has no usage.
+// Under r.mu.
+func (r *Reporter) spendMessage(engineID contracts.EngineId, costUsdMicros int, at time.Time) *contracts.RunnerUsage {
+	kind, ok := usageKind(r.kinds[engineID])
+	if !ok {
+		return nil
+	}
+	message := protocol.NewUsage(contracts.RunnerUsageEngine(engineID), kind, nil, &contracts.RunnerUsageSpend{CostUsdMicros: costUsdMicros}, at)
+	return &message
+}
+
+// usageKind is the kind of a Compte IA in a usage, false for none.
+func usageKind(kind contracts.EngineCapabilitiesAccountKind) (contracts.RunnerUsageAccountKind, bool) {
+	switch kind {
+	case contracts.EngineCapabilitiesAccountKindSubscription:
+		return contracts.RunnerUsageAccountKindSubscription, true
+	case contracts.EngineCapabilitiesAccountKindApiKey:
+		return contracts.RunnerUsageAccountKindApiKey, true
+	}
+	return "", false
 }
 
 func (r *Reporter) instant(at time.Time) time.Time {

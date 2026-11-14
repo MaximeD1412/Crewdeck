@@ -70,20 +70,17 @@ func usageReporter(t *testing.T, adapter engine.Engine) (*Reporter, *sentUsage) 
 	return reporter, out
 }
 
-func TestTheWindowsASessionReportsAreSentAtTheNextTickOnceWithTheirInstant(t *testing.T) {
+func TestTheWindowsASessionReportsAreSentAtOnceWithTheirInstant(t *testing.T) {
 	claude := &fake.Engine{Now: func() time.Time { return usageAt }, Events: []contracts.EngineEvent{{Message: &contracts.EngineEventMessage{}}, claudeUsage(40, 58)}}
 	reporter, out := usageReporter(t, claude)
 
 	startAndDrain(t, reporter.Engines, contracts.EngineIdClaudeCode, "opus")
-	if got := out.all(); len(got) != 0 {
-		t.Fatalf("sent before the tick: %+v", got)
-	}
-	reporter.flushUsage(context.Background())
+	out.await(t, 1)
 	reporter.flushUsage(context.Background())
 
 	got := out.all()
 	if len(got) != 1 {
-		t.Fatalf("sent %d usages, want 1 (nothing new at the second tick)", len(got))
+		t.Fatalf("sent %d usages, want 1 (nothing new at the tick)", len(got))
 	}
 	usage := got[0]
 	if usage.Type != "usage" || usage.Engine != contracts.RunnerUsageEngineClaudeCode || usage.AccountKind != contracts.RunnerUsageAccountKindSubscription || usage.Spend != nil || !usage.MeasuredAt.Equal(usageAt) {
@@ -98,6 +95,105 @@ func TestTheWindowsASessionReportsAreSentAtTheNextTickOnceWithTheirInstant(t *te
 	}
 }
 
+// at gives the instants in turn, the last one again beyond.
+func at(instants ...time.Time) func() time.Time {
+	var mu sync.Mutex
+	return func() time.Time {
+		mu.Lock()
+		defer mu.Unlock()
+		next := instants[0]
+		if len(instants) > 1 {
+			instants = instants[1:]
+		}
+		return next
+	}
+}
+
+func costOf(micros int) contracts.EngineEvent {
+	return contracts.EngineEvent{Result: &contracts.EngineEventResult{Status: contracts.EngineEventResultStatusOk, CostUsdMicros: &micros}}
+}
+
+func spends(usages []contracts.RunnerUsage) []int {
+	var costs []int
+	for _, u := range usages {
+		if u.Spend != nil {
+			costs = append(costs, u.Spend.CostUsdMicros)
+		}
+	}
+	return costs
+}
+
+func TestEachResultSendsWhatItAddsToTheCostOfItsRunSoFar(t *testing.T) {
+	store := Store{Keyring: memoryKeyring{}, Dir: t.TempDir()}
+	if err := store.Set(contracts.EngineIdCodex, "sk-test"); err != nil {
+		t.Fatal(err)
+	}
+	codex := codexWithKey(store)
+	// As Claude reports it: the cost of the process so far, at each turn (06-a-usage-subscription).
+	codex.Events = []contracts.EngineEvent{costOf(27_307), costOf(45_438), costOf(45_438)}
+	reporter, out := usageReporter(t, codex)
+
+	startAndDrain(t, reporter.Engines, contracts.EngineIdCodex, "gpt-5.5")
+	if got := spends(out.await(t, 2)); len(got) != 2 || got[0]+got[1] != 45_438 || (got[0] != 27_307 && got[1] != 27_307) {
+		t.Fatalf("spends %v, want 27307 and 18131", got)
+	}
+
+	// A resumed Session is a new process: its cost starts over.
+	startAndDrain(t, reporter.Engines, contracts.EngineIdCodex, "gpt-5.5")
+	if got := spends(out.await(t, 4)); len(got) != 4 || got[2]+got[3] != 45_438 {
+		t.Fatalf("spends %v", got)
+	}
+}
+
+func TestTheCostsOfConcurrentRunsAreNotMixed(t *testing.T) {
+	store := Store{Keyring: memoryKeyring{}, Dir: t.TempDir()}
+	if err := store.Set(contracts.EngineIdCodex, "sk-test"); err != nil {
+		t.Fatal(err)
+	}
+	codex := codexWithKey(store)
+	codex.Events = []contracts.EngineEvent{costOf(10_000), costOf(30_000)}
+	reporter, out := usageReporter(t, codex)
+
+	var both sync.WaitGroup
+	for range 2 {
+		both.Add(1)
+		go func() { defer both.Done(); startAndDrain(t, reporter.Engines, contracts.EngineIdCodex, "gpt-5.5") }()
+	}
+	both.Wait()
+
+	total := 0
+	for _, cost := range spends(out.await(t, 4)) {
+		total += cost
+	}
+	if total != 60_000 {
+		t.Fatalf("spent %d, want 60000 (30000 a run)", total)
+	}
+}
+
+func TestASpendIsDatedAtItsResultApartFromOlderWindows(t *testing.T) {
+	store := Store{Keyring: memoryKeyring{}, Dir: t.TempDir()}
+	if err := store.Set(contracts.EngineIdCodex, "sk-test"); err != nil {
+		t.Fatal(err)
+	}
+	measured := time.Date(2026, 11, 30, 22, 50, 0, 0, time.UTC) // 23:50 in Paris, 30 November
+	result := time.Date(2026, 11, 30, 23, 30, 0, 0, time.UTC)   // 00:30 in Paris, 1 December
+	codex := codexWithKey(store)
+	codex.Now = at(measured, result)
+	codex.Events = []contracts.EngineEvent{claudeUsage(10, 10), costOf(5_000)}
+	reporter, out := usageReporter(t, codex)
+
+	startAndDrain(t, reporter.Engines, contracts.EngineIdCodex, "gpt-5.5")
+
+	for _, u := range out.await(t, 2) {
+		switch {
+		case u.Spend != nil && (len(u.Windows) != 0 || !u.MeasuredAt.Equal(result)):
+			t.Fatalf("spend %+v, want alone at %s", u, result)
+		case u.Spend == nil && !u.MeasuredAt.Equal(measured):
+			t.Fatalf("windows %+v, want at %s", u, measured)
+		}
+	}
+}
+
 func TestALimitReachedSendsTheUsageAtOnceItsWindowFull(t *testing.T) {
 	resets := usageAt.Add(30 * time.Minute)
 	claude := &fake.Engine{Now: func() time.Time { return usageAt }, Events: []contracts.EngineEvent{
@@ -108,12 +204,16 @@ func TestALimitReachedSendsTheUsageAtOnceItsWindowFull(t *testing.T) {
 
 	startAndDrain(t, reporter.Engines, contracts.EngineIdClaudeCode, "opus")
 
-	got := out.await(t, 1)
-	if w := got[0].Windows; len(w) != 2 || w[0].UsedPercent != 100 || !w[0].ResetsAt.Equal(resets) || w[1].UsedPercent != 60 {
-		t.Fatalf("windows %+v", w)
+	full := false // the usage, then the limit, each sent at once
+	for _, u := range out.await(t, 2) {
+		w := u.Windows
+		full = full || len(w) == 2 && w[0].UsedPercent == 100 && w[0].ResetsAt.Equal(resets) && w[1].UsedPercent == 60
+	}
+	if !full {
+		t.Fatalf("usages %+v, want the five hours full", out.all())
 	}
 	reporter.flushUsage(context.Background())
-	if len(out.all()) != 1 {
+	if len(out.all()) != 2 {
 		t.Fatal("the tick sent again what the limit sent")
 	}
 }

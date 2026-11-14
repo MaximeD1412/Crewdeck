@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "commands": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "healthUrl": {
+            "format": "uri",
+            "type": "string"
+          },
+          "run": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "where": {
+            "enum": [
+              "project",
+              "worktree"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "run",
+          "where"
+        ],
+        "type": "object"
+      },
+      "propertyNames": {
+        "maxLength": 40,
+        "minLength": 1,
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+        "type": "string"
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "commands"
+  ],
+  "title": "ProcessSealed",
+  "type": "object"
+}

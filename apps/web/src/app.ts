@@ -6,6 +6,7 @@ import { me as readMe } from './api/auth.js';
 import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
+import { createDeadline } from './deadline.js';
 import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
 import { createPageKeys, type PageKeys } from './keys/index.js';
 import { bootSkin } from './registry.js';
@@ -20,6 +21,7 @@ import type { Store } from './store/store.js';
 import { decisionViews } from './views/decisions/registry.js';
 import { systemOfBrowser } from './views/demarrage.js';
 import { runnerView } from './views/runner.js';
+import { usageChangesAt } from './views/usage.js';
 
 /** The Skins the page knows, by id: at the MVP, the default one. */
 const SKINS: Readonly<Record<string, Skin>> = { passerelle };
@@ -120,11 +122,18 @@ export const boot = async ({
       return runnerView({ runner: slices.runner ?? null, accounts: slices['ai-account']?.values() ?? [] });
     },
   });
+  // The usage of the Comptes IA changes at a window's reset and a month's end, a new measure or not.
+  const usageChanges = createDeadline(
+    (now) => usageChangesAt(store.getState().slices.usage?.values() ?? [], now),
+    () => router.refresh(),
+  );
+  usageChanges.schedule();
   const unsubscribe = [
     store.subscribe(() => {
       gettingStarted.sync();
       router.refresh();
       shell.refresh();
+      usageChanges.schedule();
     }),
     gettingStarted.subscribe(() => router.refresh()),
   ];
@@ -164,6 +173,7 @@ export const boot = async ({
   dispatcher.registerAction(PageDemarrage, 'continue', { run: () => gettingStarted.advance() });
   const stop = () => {
     router.stop();
+    usageChanges.stop();
     connection.stop();
     latency.stop();
     for (const stopListening of unsubscribe) stopListening();

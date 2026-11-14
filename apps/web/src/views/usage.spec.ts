@@ -1,6 +1,6 @@
 import type { Runner, UsageAccount } from '@crewdeck/contracts';
 import { COMPOSANTS } from '@crewdeck/sdk';
-import { usageCard, usageCardCompact } from './usage.js';
+import { usageCard, usageCardCompact, usageChangesAt } from './usage.js';
 
 /** Local instants, so that the cases hold in any time zone: Wednesday 11 November 2026, 15:12. */
 const local = (day: number, hour: number, minute = 0) => new Date(2026, 10, day, hour, minute).toISOString();
@@ -32,7 +32,7 @@ const CODEX: UsageAccount = {
   engine: 'codex',
   kind: 'api-key',
   windows: [],
-  monthSpend: { costUsdMicros: 23_418_720, costEurCents: 2160 },
+  monthSpend: { costUsdMicros: 23_418_720, costEurCents: 2160, endsAt: local(30, 23, 59) },
   measuredAt: local(11, 13, 30),
 };
 
@@ -96,12 +96,36 @@ describe('usageCard', () => {
   });
 
   it('says a month spend not converted yet as such', () => {
-    const pending = { ...CODEX, monthSpend: { costUsdMicros: 1_000_000, costEurCents: null } };
+    const pending = { ...CODEX, monthSpend: { costUsdMicros: 1_000_000, costEurCents: null, endsAt: local(30, 23, 59) } };
     expect(full({ usage: [pending], runner: online, now: NOW })?.accounts[0]?.monthSpend).toBe('en attente du cours du jour');
   });
 
   it('is nothing without any usage', () => {
     expect(usageCard({ usage: [], runner: online, now: NOW })).toBeNull();
+  });
+
+  it('drops a window once it has reset, and a Compte IA left with nothing to say', () => {
+    const later = new Date(local(11, 16, 40));
+    expect(full({ usage: [MOCKUP], runner: online, now: later })?.accounts[0]?.meters.map((meter) => meter.label)).toEqual(['Semaine']);
+    expect(full({ usage: [claude([{ id: 'five-hour', resetsAt: local(11, 16, 40) }]), CODEX], runner: online, now: later })?.accounts.map((a) => a.title)).toEqual([
+      'Codex · clé API',
+    ]);
+    expect(usageCard({ usage: [claude([{ id: 'five-hour', resetsAt: local(11, 16, 40) }])], runner: online, now: later })).toBeNull();
+  });
+
+  it('says nothing spent yet once the month of the spend has ended', () => {
+    const spend = { ...CODEX, monthSpend: { costUsdMicros: 1_000_000, costEurCents: null, endsAt: local(30, 23, 59) } };
+    expect(full({ usage: [spend], runner: online, now: new Date(local(30, 23, 59)) })?.accounts[0]?.monthSpend).toBe('0,00\u00a0€');
+  });
+});
+
+describe('usageChangesAt', () => {
+  it('is the next reset of a window or end of a month, nothing without one to come', () => {
+    expect(usageChangesAt([MOCKUP, CODEX], NOW)?.toISOString()).toBe(local(11, 16, 40));
+    expect(usageChangesAt([MOCKUP, CODEX], new Date(local(11, 16, 40)))?.toISOString()).toBe(local(16, 8));
+    expect(usageChangesAt([CODEX], NOW)?.toISOString()).toBe(local(30, 23, 59));
+    expect(usageChangesAt([MOCKUP, CODEX], new Date(local(30, 23, 59)))).toBeNull();
+    expect(usageChangesAt([], NOW)).toBeNull();
   });
 });
 
@@ -131,5 +155,10 @@ describe('usageCardCompact', () => {
 
   it('is nothing without a window', () => {
     expect(usageCardCompact({ usage: [CODEX], runner: online, now: NOW })).toBeNull();
+  });
+
+  it('drops a window once it has reset, nothing once all have', () => {
+    expect(compact({ usage: [MOCKUP], runner: online, now: new Date(local(11, 16, 40)) })?.accounts[0]?.meters.map((meter) => meter.label)).toEqual(['Claude · semaine']);
+    expect(usageCardCompact({ usage: [MOCKUP], runner: online, now: new Date(local(16, 8)) })).toBeNull();
   });
 });

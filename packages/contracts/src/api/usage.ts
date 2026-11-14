@@ -28,9 +28,10 @@ export type UsageWindow = z.infer<typeof zUsageWindow>;
  * API key: in micro-dollars as the provider bills it, and in euro cents
  * converted at each spend's day rate (always « estimée »). `costEurCents` is
  * `null` while a spend of the month has no rate yet (before the first ECB
- * rate is known).
+ * rate is known). `endsAt`, the instant the month ends in the Pilote's time
+ * zone: past it, the page says the new month's spend, nothing until the next.
  */
-export const zUsageMonthSpend = z.object({ costUsdMicros: zUsdMicros, costEurCents: zEurCents.nullable() });
+export const zUsageMonthSpend = z.object({ costUsdMicros: zUsdMicros, costEurCents: zEurCents.nullable(), endsAt: zInstant });
 export type UsageMonthSpend = z.infer<typeof zUsageMonthSpend>;
 
 /**

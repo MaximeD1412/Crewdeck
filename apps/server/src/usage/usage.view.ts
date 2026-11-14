@@ -1,7 +1,7 @@
 import { type UsageAccount, type UsageWindow, USAGE_WINDOWS } from '@crewdeck/contracts';
 import type { AiAccountKind, EngineId, UsageWindowId } from '../generated/prisma/client.js';
 import type { Tx } from '../realtime/transactions.js';
-import { dayIn, monthOf } from './calendar.js';
+import { dayIn, monthOf, startOfDayIn } from './calendar.js';
 import { PACE_OVER_MS, project } from './projection.js';
 
 /** The models the usage reads, scoped to the Pilote. */
@@ -44,7 +44,7 @@ const windowOf = async (tx: UsageTx, engine: EngineId, id: UsageWindow['id'], no
   };
 };
 
-/** The spends of the calendar month of `now` in `timeZone`: their sum, the euros `null` while one is not converted. */
+/** The spends of the calendar month of `now` in `timeZone`: their sum, the euros `null` while one is not converted, and when the month ends. */
 const monthSpendOf = async (tx: UsageTx, engine: EngineId, now: Date, timeZone: string): Promise<UsageAccount['monthSpend']> => {
   const { from, to } = monthOf(dayIn(now, timeZone));
   const where = { engine, day: { gte: dateOf(from), lt: dateOf(to) } };
@@ -55,6 +55,7 @@ const monthSpendOf = async (tx: UsageTx, engine: EngineId, now: Date, timeZone: 
   return {
     costUsdMicros: Number(sum._sum.costUsdMicros ?? 0n),
     costEurCents: unconverted > 0 ? null : Number(sum._sum.costEurCents ?? 0n),
+    endsAt: startOfDayIn(to, timeZone).toISOString(),
   };
 };
 

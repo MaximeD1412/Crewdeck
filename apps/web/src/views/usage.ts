@@ -51,18 +51,42 @@ const detail = (window: UsageWindow, now: Date): string => shortWhen(window.rese
 const latest = (accounts: readonly UsageAccount[]): string =>
   accounts.map((account) => account.measuredAt).reduce((a, b) => (a > b ? a : b));
 
-const monthSpend = ({ monthSpend: spend }: UsageAccount): string | null =>
-  spend === undefined ? null : spend.costEurCents === null ? t('usage.monthSpendPending') : formatEuros(spend.costEurCents);
+/** An API key's month spend; past the month's end, the new month's, nothing until the next spend. */
+const monthSpend = ({ monthSpend: spend }: UsageAccount, now: Date): string | null => {
+  if (spend === undefined) return null;
+  if (new Date(spend.endsAt) <= now) return formatEuros(0);
+  return spend.costEurCents === null ? t('usage.monthSpendPending') : formatEuros(spend.costEurCents);
+};
+
+/** `account` without its windows that have reset by `now`: their measure is the old window's. */
+const current = (account: UsageAccount, now: Date): UsageAccount => ({
+  ...account,
+  windows: account.windows.filter((window) => new Date(window.resetsAt) > now),
+});
+
+/**
+ * When the usage changes with time alone (pure): the next reset of a window
+ * or end of a month spend's month after `now`, `null` without one. The page
+ * renders the cards again then, a new measure or not.
+ */
+export const usageChangesAt = (usage: Iterable<UsageAccount>, now: Date): Date | null => {
+  const instants = [...usage]
+    .flatMap((account) => [...account.windows.map((window) => window.resetsAt), ...(account.monthSpend ? [account.monthSpend.endsAt] : [])])
+    .map((instant) => new Date(instant))
+    .filter((instant) => instant > now);
+  return instants.length === 0 ? null : new Date(Math.min(...instants.map((instant) => instant.getTime())));
+};
 
 /**
  * `/runner`'s « Usage des Comptes IA » (pure, US-55): each Compte IA that
  * has a usage, titled by its Moteur and its kind, a meter per window with
  * when it resets and where the pace leads (its sentence, and its tick on
  * the bar), an API key's month spend. With the Runner offline, the measures
- * are the last it sent: their time said, no pace. Nothing without any usage.
+ * are the last it sent: their time said, no pace. A window that has reset
+ * is left out, and a Compte IA left with nothing; nothing without any usage.
  */
 export const usageCard = ({ usage, runner, now = new Date() }: UsageState): UsageCardData | null => {
-  const accounts = [...usage];
+  const accounts = [...usage].map((account) => current(account, now)).filter((account) => account.windows.length > 0 || account.monthSpend);
   if (accounts.length === 0) return null;
   const live = runner?.state === 'online';
   return {
@@ -79,7 +103,7 @@ export const usageCard = ({ usage, runner, now = new Date() }: UsageState): Usag
           tone: null,
         }),
       ),
-      monthSpend: monthSpend(account),
+      monthSpend: monthSpend(account, now),
       note: !live && account.windows.length > 0 ? t('usage.lastMeasure', { time: formatHour(account.measuredAt) }) : null,
     })),
   };
@@ -89,10 +113,10 @@ export const usageCard = ({ usage, runner, now = new Date() }: UsageState): Usag
  * « À toi »'s « Comptes IA » (pure): every window of every Compte IA in one
  * list, named after its Moteur (« Claude · 5 h »), the reset of a limit
  * reached, the pace's sentence; offline, when the Runner last measured.
- * Nothing without a window.
+ * Nothing without a window that has not reset.
  */
 export const usageCardCompact = ({ usage, runner, now = new Date() }: UsageState): UsageCardData | null => {
-  const accounts = [...usage].filter((account) => account.windows.length > 0);
+  const accounts = [...usage].map((account) => current(account, now)).filter((account) => account.windows.length > 0);
   if (accounts.length === 0) return null;
   const live = runner?.state === 'online';
   return {

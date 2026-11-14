@@ -1,4 +1,4 @@
-import type { AiAccount, Me, Runner } from '@crewdeck/contracts';
+import type { AiAccount, McpServer, Me, Runner } from '@crewdeck/contracts';
 import { createDispatcher } from './actions/dispatcher.js';
 import { boot, type App } from './app.js';
 import { createStore } from './store/store.js';
@@ -28,6 +28,15 @@ const CLAUDE: AiAccount = {
   reportedAt: AT,
 };
 
+const STITCH: McpServer = {
+  id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a73',
+  name: 'stitch',
+  transport: 'stdio',
+  state: 'ready',
+  toolCount: 12,
+  reportedAt: AT,
+};
+
 type WithData = HTMLElement & { data: Record<string, unknown> };
 
 describe('« Runner et Comptes IA » in the page', () => {
@@ -36,6 +45,7 @@ describe('« Runner et Comptes IA » in the page', () => {
   const store = createStore();
   for (const slice of ['pilot', 'runner', 'runner-link'] as const) store.registerSlice(slice, { shape: 'single' });
   store.registerSlice('ai-account', { shape: 'collection' });
+  store.registerSlice('mcp-server', { shape: 'collection' });
   const page = () => root.querySelector<WithData>('cd-page-runner');
 
   beforeAll(async () => {
@@ -58,7 +68,7 @@ describe('« Runner et Comptes IA » in the page', () => {
   });
 
   it('follows the store: the Runner and the Comptes IA it reports, in real time', () => {
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: RUNNER, 'runner-link': null, 'ai-account': [], devices: [], decisions: [] });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: RUNNER, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], decisions: [] });
     expect(page()?.data).toMatchObject({ runner: { machine: 'atelier-pc', state: 'online' } });
 
     store.applyEvent({ seq: 2, type: 'ai-account.upserted', payload: CLAUDE, at: AT });
@@ -67,12 +77,22 @@ describe('« Runner et Comptes IA » in the page', () => {
     expect((page()?.data['engines'] as { models: unknown[] }[])[0]?.models).toEqual(CLAUDE.models);
   });
 
+  it('follows the Serveurs MCP the Runner reports, a removed one gone, in real time', () => {
+    expect(page()?.data['mcpServers']).toEqual([]);
+
+    store.applyEvent({ seq: 3, type: 'mcp-server.upserted', payload: STITCH, at: AT });
+    expect(page()?.data['mcpServers']).toEqual([{ name: 'stitch', transport: 'stdio', state: 'ready', toolCount: 12 }]);
+
+    store.applyEvent({ seq: 4, type: 'mcp-server.removed', payload: { id: STITCH.id }, at: AT });
+    expect(page()?.data['mcpServers']).toEqual([]);
+  });
+
   it('gives the Cadre the Runner’s presence and the Moteurs connected, once live', () => {
     const cadre = () => root.querySelector<WithData>('cd-cadre')?.data;
     store.markLive();
     expect(cadre()).toMatchObject({ status: 'online', statusDetail: 'Claude Code', live: true });
 
-    store.applyEvent({ seq: 3, type: 'runner.upserted', payload: { ...RUNNER, state: 'offline' }, at: AT });
+    store.applyEvent({ seq: 5, type: 'runner.upserted', payload: { ...RUNNER, state: 'offline' }, at: AT });
 
     expect(cadre()).toMatchObject({ status: 'offline', live: false });
   });

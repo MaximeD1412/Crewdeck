@@ -15,7 +15,7 @@ import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaiso
 import type { Scenario } from './define.js';
 import { menuPlus } from './menu-plus.js';
 import { resynchronisation } from './resynchronisation.js';
-import { runner, runnerHorsLigne } from './runner.js';
+import { runner, runnerHorsLigne, runnerServeursMcp } from './runner.js';
 
 export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed } from './define.js';
 
@@ -36,6 +36,7 @@ const SCENARIOS: readonly Scenario[] = [
   resynchronisation,
   runner,
   runnerHorsLigne,
+  runnerServeursMcp,
   ...composantsRows,
   composantsTextField,
   composantsSettingRow,

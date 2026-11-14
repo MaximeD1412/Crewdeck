@@ -50,6 +50,7 @@ model Pilot {
   runnerLinkCodes    RunnerLinkCode[]
   latencySamples     LatencySample[]
   aiAccounts         AiAccount[]
+  mcpServers         McpServer[]
   devices            Device[]
   vaultKeyWraps      VaultKeyWrap[]
   decisions          Decision[]
@@ -417,4 +418,39 @@ model AiAccount {
 
   @@unique([pilotId, engine])
   @@map("ai_accounts")
+}
+
+/// How a Serveur MCP is reached (`MCP_TRANSPORTS`).
+enum McpTransport {
+  stdio
+  http
+
+  @@map("mcp_transport")
+}
+
+/// The outcome of a Serveur MCP's last test on the Runner (`MCP_SERVER_STATES`).
+enum McpServerState {
+  ready
+  failed
+
+  @@map("mcp_server_state")
+}
+
+/// A Serveur MCP declared on the Pilote's Runner (US-73, RUNNER-16, ADR 0013),
+/// from its last `mcp.servers` message, one row per name: each message
+/// replaces the Pilote's set. Its name, transport, state and tool count only:
+/// no column for its command, address or secrets, which stay on the Runner
+/// (risk SEC-13). `toolCount` is null when its last test failed.
+model McpServer {
+  id         String         @id @db.Uuid
+  pilotId    String         @map("pilot_id") @db.Uuid
+  name       String
+  transport  McpTransport
+  state      McpServerState
+  toolCount  Int?           @map("tool_count")
+  reportedAt DateTime       @map("reported_at") @db.Timestamptz
+  pilot      Pilot          @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@unique([pilotId, name])
+  @@map("mcp_servers")
 }

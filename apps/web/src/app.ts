@@ -116,7 +116,11 @@ export const boot = async ({
       if (match.composant === PageDemarrage) return gettingStarted.view();
       if (match.composant !== PageRunner) return pageData(match);
       const { slices } = store.getState();
-      return runnerView({ runner: slices.runner ?? null, accounts: slices['ai-account']?.values() ?? [] });
+      return runnerView({
+        runner: slices.runner ?? null,
+        accounts: slices['ai-account']?.values() ?? [],
+        mcpServers: slices['mcp-server']?.values() ?? [],
+      });
     },
   });
   const unsubscribe = [

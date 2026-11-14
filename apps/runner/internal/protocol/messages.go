@@ -18,6 +18,7 @@ const (
 	TypeError         = "error"
 	TypeStepVerdict   = "step.verdict"
 	TypeCapabilities  = "capabilities"
+	TypeMcpServers    = "mcp.servers"
 )
 
 // Machine is what the Runner says of itself in its hello.
@@ -72,4 +73,13 @@ func NewCapabilities(engines []contracts.EngineCapabilities) contracts.RunnerCap
 		engines = []contracts.EngineCapabilities{}
 	}
 	return contracts.RunnerCapabilities{Type: TypeCapabilities, Id: newID(at), At: at, Engines: engines}
+}
+
+// NewMcpServers is the `mcp.servers` of the Serveurs MCP declared on the Runner: their names, transports, states and tool counts only.
+func NewMcpServers(servers []contracts.RunnerMcpServersServersElem) contracts.RunnerMcpServers {
+	at := now()
+	if servers == nil {
+		servers = []contracts.RunnerMcpServersServersElem{}
+	}
+	return contracts.RunnerMcpServers{Type: TypeMcpServers, Id: newID(at), At: at, Servers: servers}
 }

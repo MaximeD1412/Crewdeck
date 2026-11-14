@@ -294,6 +294,19 @@
       ],
       "commande": "sudo grep -c '^GITHUB_WEBHOOK_SECRET=.\\+' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
       "ajouteLe": "2026-11-11"
+    },
+    {
+      "id": "migration-mcp-servers",
+      "phase": "db",
+      "source": "#182",
+      "titre": "Appliquer la migration 20261120000000_mcp_servers en staging puis en production",
+      "pourquoi": "La table mcp_servers (et ses deux enums) garde les Serveurs MCP que chaque Runner déclare : leur nom, leur transport, leur état et leur nombre d'outils, jamais un secret. Sans elle, le message mcp.servers d'un Runner échoue et la page « Runner et Comptes IA » ne liste aucun Serveur MCP. La migration ne fait qu'ajouter : la version précédente du serveur tourne sur la base migrée.",
+      "etapes": [
+        "Rien à lancer à la main : deploy.sh répète la migration sur la dernière sauvegarde (rehearse.sh), puis l'applique au déploiement du staging, puis à celui de la production.",
+        "Vérifier sur chaque base (crewdeck-prod, puis crewdeck-staging) que la commande imprime une date : la migration est appliquée."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261120000000_mcp_servers'\"",
+      "ajouteLe": "2026-11-14"
     }
   ]
 }

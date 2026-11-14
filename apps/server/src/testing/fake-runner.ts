@@ -1,4 +1,4 @@
-import { type EngineCapabilities, HEARTBEAT_SECONDS, PROTOCOL_VERSION, type Runner, type RunnerToServer, zServerToRunner } from '@crewdeck/contracts';
+import { type EngineCapabilities, HEARTBEAT_SECONDS, type McpServers, PROTOCOL_VERSION, type Runner, type RunnerToServer, zServerToRunner } from '@crewdeck/contracts';
 import WebSocket from 'ws';
 import { newId } from '../ids.js';
 import type { Fake } from './fakes.js';
@@ -18,7 +18,8 @@ type WithoutEnvelope<T> = T extends unknown ? Omit<T, 'id' | 'at'> : never;
  * run (`CREWDECK_FAKES=1`): it connects to this server's own `/api/ws` with
  * the scenario's token (`ScenarioSeed.runnerToken`), says `hello`, then
  * heartbeats every `HEARTBEAT_SECONDS`, so that the page sees it « en
- * ligne »; `report` sends its Moteurs' `capabilities` (RUNNER-7). Later
+ * ligne »; `report` sends its Moteurs' `capabilities` (RUNNER-7),
+ * `reportMcpServers` its Serveurs MCP (RUNNER-16). Later
  * tickets add its other behaviours (Sessions).
  */
 export class FakeRunner implements Fake {
@@ -67,6 +68,13 @@ export class FakeRunner implements Fake {
   report(engines: readonly EngineCapabilities[]): boolean {
     if (!this.socket || !this.connected) return false;
     this.send(this.socket, { type: 'capabilities', engines: [...engines] });
+    return true;
+  }
+
+  /** Sends `servers` in a `mcp.servers` message; `false` while not connected. */
+  reportMcpServers(servers: McpServers['servers']): boolean {
+    if (!this.socket || !this.connected) return false;
+    this.send(this.socket, { type: 'mcp.servers', servers: [...servers] });
     return true;
   }
 

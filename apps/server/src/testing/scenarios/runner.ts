@@ -1,4 +1,4 @@
-import { createAiAccounts, createLinkedRunner } from '../runners.js';
+import { createAiAccounts, createLinkedRunner, createMcpServers } from '../runners.js';
 import { defineScenario, type ScenarioContext } from './define.js';
 import { CLAUDE_SUBSCRIPTION, CODEX_API_KEY } from './engines.js';
 import { signInPilot } from './sign-in.js';
@@ -37,5 +37,23 @@ export const runnerHorsLigne = defineScenario({
   seed: async (ctx) => {
     const { token: _token, ...seed } = await withAccounts(ctx, LAST_SEEN_AT);
     return seed;
+  },
+});
+
+/**
+ * « Runner et Comptes IA » with two Serveurs MCP declared on the Runner
+ * (`design/screens.json`: `runner-serveurs-mcp`): the `runner` scenario, plus
+ * `stitch` (stdio, 12 outils) and `figma` (HTTP, 4 outils), both tested.
+ */
+export const runnerServeursMcp = defineScenario({
+  name: 'runner-serveurs-mcp',
+  path: '/runner',
+  seed: async (ctx) => {
+    const { token, ...seed } = await withAccounts(ctx);
+    await createMcpServers(ctx.prisma, seed.pilotId, [
+      { name: 'stitch', transport: 'stdio', state: 'ready', toolCount: 12 },
+      { name: 'figma', transport: 'http', state: 'ready', toolCount: 4 },
+    ]);
+    return { ...seed, runnerToken: token, runnerMachine: RUNNER_MACHINE };
   },
 });

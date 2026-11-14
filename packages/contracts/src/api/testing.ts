@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zCapabilities } from '../runner/capabilities.js';
+import { zMcpServers } from '../runner/mcp.js';
 import { zDecision, zDecisionKind } from './decisions.js';
 
 /**
@@ -43,3 +44,13 @@ export type TestingDecisionResolve = z.infer<typeof zTestingDecisionResolve>;
  */
 export const zTestingRunnerCapabilities = z.object({ engines: zCapabilities.shape.engines });
 export type TestingRunnerCapabilities = z.infer<typeof zTestingRunnerCapabilities>;
+
+/**
+ * `POST /api/testing/runner/mcp-servers`, outside production only: the fake
+ * Runner of the scenario sends these servers in a `mcp.servers` message, as
+ * a Runner on which `crewdeck-runner mcp add` or `remove` just ran. The
+ * end-to-end tests of « Runner et Comptes IA » see a server arrive and leave
+ * with it.
+ */
+export const zTestingRunnerMcpServers = z.object({ servers: zMcpServers.shape.servers });
+export type TestingRunnerMcpServers = z.infer<typeof zTestingRunnerMcpServers>;

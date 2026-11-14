@@ -7,6 +7,7 @@ import {
   RUNNER_WS_CLOSE,
   zHello,
   zHelloRejected,
+  zMcpServers,
   zRunnerToServer,
   zServerToRunner,
 } from '../index.js';
@@ -72,5 +73,23 @@ describe('the Runner protocol', () => {
     delete withoutStepRun.stepRunId;
     expect(zRunnerToServer.safeParse(withoutStepRun).success).toBe(false);
     expect(zRunnerToServer.safeParse({ ...message, verdict: { ...message.verdict, status: 'failed' } }).success).toBe(false);
+  });
+
+  it('refuses an mcp.servers with a name outside the regex, an unknown transport, or more than 100 servers', () => {
+    const message = fixture('mcp.servers') as { servers: Record<string, unknown>[] };
+    const [server] = message.servers;
+    for (const name of ['Stitch', 'a'.repeat(41), '', 'my server']) {
+      expect(zMcpServers.safeParse({ ...message, servers: [{ ...server, name }] }).success).toBe(false);
+    }
+    expect(zMcpServers.parse({ ...message, servers: [{ ...server, name: 'a'.repeat(40) }] }).servers).toHaveLength(1);
+    expect(zMcpServers.safeParse({ ...message, servers: [{ ...server, transport: 'sse' }] }).success).toBe(false);
+    expect(zMcpServers.safeParse({ ...message, servers: [{ ...server, toolCount: -1 }] }).success).toBe(false);
+    expect(zMcpServers.safeParse({ ...message, servers: Array.from({ length: 101 }, (_, i) => ({ ...server, name: `s${i}` })) }).success).toBe(false);
+  });
+
+  it('carries no command, URL, header nor env value of a Serveur MCP', () => {
+    const message = fixture('mcp.servers') as { servers: Record<string, unknown>[] };
+    const parsed = zMcpServers.parse({ ...message, servers: [{ ...message.servers[0], command: 'npx', env: { API_KEY: 's3cr3t' }, url: 'https://x' }] });
+    expect(Object.keys(parsed.servers[0]).sort()).toEqual(['name', 'state', 'toolCount', 'transport']);
   });
 });

@@ -24,6 +24,7 @@ func TestEveryFixtureOfTheProtocolDecodesIntoItsGeneratedType(t *testing.T) {
 		TypeError:         decodeInto[contracts.RunnerError],
 		TypeStepVerdict:   decodeInto[contracts.RunnerStepVerdict],
 		TypeCapabilities:  decodeInto[contracts.RunnerCapabilities],
+		TypeMcpServers:    decodeInto[contracts.RunnerMcpServers],
 	}
 	entries, err := os.ReadDir(fixturesDir)
 	if err != nil {

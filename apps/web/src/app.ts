@@ -18,6 +18,7 @@ import type { Connection } from './store/connection.js';
 import { createLatencyMeter, type LatencyMeter } from './store/latency.js';
 import type { Store } from './store/store.js';
 import { decisionViews } from './views/decisions/registry.js';
+import './views/decisions/runner-offline.js';
 import { systemOfBrowser } from './views/demarrage.js';
 import { runnerView } from './views/runner.js';
 
@@ -84,6 +85,8 @@ export const boot = async ({
   // The Pilote of `/api/me` until the snapshot gives the store's.
   const shell = mountShell({
     root,
+    // The router is started below, before any Banner can be clicked.
+    navigate: (url) => router.navigate(url),
     state: () => {
       const state = store.getState();
       return { ...state, slices: { ...state.slices, pilot: state.slices.pilot !== undefined ? state.slices.pilot : pilot } };

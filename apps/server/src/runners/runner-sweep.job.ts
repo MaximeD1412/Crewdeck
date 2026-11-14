@@ -5,11 +5,16 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { RunnerClock } from './clock.js';
 import { OFFLINE_AFTER_MS, RunnerPresence } from './runner-presence.service.js';
 
-/** How often the Runners without a recent heartbeat are looked for. */
-export const SWEEP_EVERY_MS = 5_000;
+/**
+ * How often the Runners without a recent heartbeat are looked for: each
+ * second, so that « Runner hors ligne » shows within 2 s of the 45 s
+ * (ATOI-3). One indexed query (`state`, `lastSeenAt`) that finds none
+ * most of the time.
+ */
+export const SWEEP_EVERY_MS = 1_000;
 
 /**
- * Every 5 s, the Runners « en ligne » whose last heartbeat is older than
+ * Every second, the Runners « en ligne » whose last heartbeat is older than
  * `OFFLINE_AFTER_SECONDS` go offline, each in its Pilote's scope
  * (`RunnerPresence.expire`). The rows say it, not the sockets: a Runner left
  * online by a server that stopped goes offline too. Of every Pilote at once,

@@ -6,7 +6,7 @@ import { signInPilot } from './sign-in.js';
 const MINUTE = 60_000;
 
 /** The Projets of the mockup: their table is PROJET-2's, a Décision only names one. */
-const PROJECTS = {
+export const PROJECTS = {
   crewdeck: { projectId: '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a01', projectName: 'Crewdeck' },
   personalOs: { projectId: '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a02', projectName: 'Personal OS' },
   siteMairie: { projectId: '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a03', projectName: 'Site mairie' },
@@ -40,7 +40,7 @@ const MOCKUP: readonly Seeded[] = [
 ];
 
 /** The Pilote signed in, and the mockup's Décisions open for them, as their modules would have raised them. */
-const seedDecisions = async (ctx: ScenarioContext) => {
+export const seedDecisions = async (ctx: ScenarioContext) => {
   const seed = await signInPilot(ctx);
   const now = Date.now();
   await ctx.prisma.unscoped.decision.createMany({

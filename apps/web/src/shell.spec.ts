@@ -1,4 +1,5 @@
-import { Banner, Cadre, MenuItem } from '@crewdeck/sdk';
+import type { Decision } from '@crewdeck/contracts';
+import { Banner, Button, Cadre, CodeBlock, MenuItem } from '@crewdeck/sdk';
 import type { ShellState } from './shell.js';
 import { matchRoute } from './router.js';
 import { ROUTES } from './routes.js';
@@ -109,5 +110,51 @@ describe('mountShell', () => {
 
     shell.update(at('/idees'));
     expect(banners(root)).toEqual([]);
+  });
+
+  describe('« Runner hors ligne »', () => {
+    const OFFLINE = {
+      id: '0193a4f2-7c1e-7a10-8b2c-000000000001',
+      kind: 'runner-offline',
+      params: { since: '2026-11-11T13:02:00.000Z', projects: JSON.stringify([{ projectId: null, name: 'Idées', items: [{ kind: 'ideas-waiting', count: 2 }] }]) },
+      createdAt: '2026-11-11T13:02:00.000Z',
+    } as unknown as Decision;
+    const actionsOf = (root: HTMLElement) => [...root.querySelectorAll<WithData>(`${Banner.tag} > [slot=actions]`)];
+
+    it('on /a-toi while its Décision is open: its text and « Voir le Runner », whose click moves to /runner; gone once resolved', () => {
+      const root = document.createElement('div');
+      const navigate = vi.fn();
+      let decisions = new Map([[OFFLINE.id, OFFLINE]]);
+      const shell = mountShell({ root, navigate, state: () => ({ connection: 'live', lostAt: null, slices: { runner: { state: 'offline', lastSeenAt: '2026-11-11T13:02:00.000Z' }, decision: decisions } }) });
+      shell.update(at('/a-toi'));
+
+      expect(banners(root)).toEqual([
+        { data: { tone: 'halt', title: 'Runner hors ligne', icon: 'server' }, text: expect.stringContaining('Le travail attend dans 1 Projet : Idées (2 Idées en attente).') },
+      ]);
+      const [button] = actionsOf(root);
+      expect(button?.localName).toBe(Button.tag);
+      expect(button?.data).toMatchObject({ label: 'Voir le Runner' });
+      shell.refresh();
+      expect(actionsOf(root)).toEqual([button]);
+      button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(navigate).toHaveBeenCalledWith('/runner');
+
+      decisions = new Map();
+      shell.refresh();
+      expect(banners(root)).toEqual([]);
+    });
+
+    it('on /runner while offline: the restart command in its actions Emplacement, in place of the button', () => {
+      const root = document.createElement('div');
+      const shell = mountShell({ root, state: () => ({ connection: 'live', lostAt: null, slices: { runner: { state: 'offline', lastSeenAt: '2026-11-11T13:02:00.000Z' }, decision: new Map([[OFFLINE.id, OFFLINE]]) } }) });
+      shell.update(at('/a-toi'));
+      shell.update(at('/runner'));
+
+      expect(banners(root)).toEqual([
+        { data: { tone: 'halt', title: 'Runner hors ligne', icon: 'server' }, text: 'Rien ne tourne : le travail attend dans Idées. Relance le Runner sur ta machine.' },
+      ]);
+      const actions = actionsOf(root);
+      expect(actions.map((action) => [action.localName, action.data])).toEqual([[CodeBlock.tag, { code: 'crewdeck-runner start' }]]);
+    });
   });
 });

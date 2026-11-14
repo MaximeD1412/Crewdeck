@@ -71,16 +71,21 @@ export const aToiView = (
         id: decision.id,
         kind: kindLabel(decision.kind),
         title: view.title?.(decision) ?? decision.label,
-        meta: [decision.projectName, ...decision.metaParts, formatRelative(decision.createdAt, now)].filter(Boolean).join(' · '),
+        meta:
+          view.meta?.(decision, now) ??
+          [decision.projectName, ...decision.metaParts, formatRelative(decision.createdAt, now)].filter(Boolean).join(' · '),
         context: view.context?.(decision) ?? null,
         tone: decision.tone,
         icon: ICONS[decision.kind],
-        actions: view.actions.map((action) => ({
-          id: action.id,
-          label: t(action.label),
-          primary: action.primary ?? false,
-          disabledReason: action.needsRunner && !runnerOnline ? t('aToi.runnerOffline') : null,
-        })),
+        actions: view.actions.map((action) => {
+          const label = t(action.label);
+          return {
+            id: action.id,
+            label,
+            primary: action.primary ?? false,
+            disabledReason: action.needsRunner && !runnerOnline ? t('runnerOffline.actionWaits', { action: label }) : null,
+          };
+        }),
       };
     }),
     canNoteIdea: false,

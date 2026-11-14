@@ -17,7 +17,7 @@ beforeAll(() => {
 afterEach(() => document.body.replaceChildren());
 
 type Data = (typeof COMPOSANTS.Cadre.examples)[number]['data'];
-const [withCounts, offline, resync, bare] = COMPOSANTS.Cadre.examples;
+const [withCounts, offline, resync, bare, compact] = COMPOSANTS.Cadre.examples;
 
 /** Waits for `root` and every Composant inside it, light and shadow. */
 const settle = async (root: Element): Promise<void> => {
@@ -194,6 +194,33 @@ describe('the Cadre at 1280 px', () => {
     expect(textOf(shadow(el, 'header'))).toBe('Crewdeck');
     expect(textOf(shadow<HTMLSlotElement>(el, 'main slot').assignedElements()[0])).toBe('Le contenu de la page.');
   });
+
+  it('compact: the sidebar --cd-sidebar-compact wide, its entries icons only, still named and titled', async () => {
+    const el = await cadre(compact);
+    const side = shadow(el, '.side').getBoundingClientRect();
+    expect(side.width).toBeCloseTo(parseFloat(getComputedStyle(el).getPropertyValue('--cd-sidebar-compact')) * 16, 0);
+    const links = shownEntries(el);
+    expect(links.map(labelOf)).toEqual(ALL);
+    for (const link of links) {
+      expect(isShown(link.querySelector('cd-icon') as Element)).toBe(true);
+      expect(link.querySelector('.label')?.getBoundingClientRect().width).toBeLessThan(4);
+      expect(link.getAttribute('title')).toBe(labelOf(link));
+      expect(link.getBoundingClientRect().width).toBeCloseTo(link.getBoundingClientRect().height, 0);
+    }
+    expect(links.find((link) => link.getAttribute('aria-current') === 'page')?.getAttribute('title')).toBe('Projets');
+  });
+
+  it('compact: the brand its mark, the status its dot, the page the rest of the width', async () => {
+    const el = await cadre(compact);
+    expect(textOf(shadow(el, '.side .brand'))).toBe('Crewdeck');
+    expect(shadow(el, '.side .brand .name').getBoundingClientRect().width).toBeLessThan(4);
+    expect(shadow(el, '.foot .status .label').getBoundingClientRect().width).toBeLessThan(4);
+    expect(isShown(shadow(el, '.foot .status .dot'))).toBe(true);
+    const page = shadow(el, 'main').getBoundingClientRect();
+    expect(page.left).toBeCloseTo(shadow(el, '.side').getBoundingClientRect().right, 0);
+    expect(page.right).toBeCloseTo(1280, 0);
+    expect(page.height).toBeCloseTo(800, 0);
+  });
 });
 
 describe('the Cadre at 390 px', () => {
@@ -231,6 +258,15 @@ describe('the Cadre at 390 px', () => {
     for (const bottom of bottoms) expect(bottom).toBeCloseTo(844, 0);
     expect(links.map((link) => [...link.querySelectorAll('.count')].filter(isShown).map(textOf).join(''))).toEqual(['9', '', '', '']);
     for (const target of [...links, more]) expect(target.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+  });
+
+  it('compact: the same tab bar as the default variant', async () => {
+    const el = await cadre(compact);
+    const links = shownEntries(el);
+    expect(links.map(labelOf)).toEqual(['À toi', 'Idées', 'Conceptions', 'Boucle']);
+    expect(textOf(shadow(el, 'button.more'))).toBe('Plus');
+    for (const link of links) expect(link.querySelector('.label')?.getBoundingClientRect().width).toBeGreaterThan(4);
+    expect(isShown(shadow(el, '.side'))).toBe(false);
   });
 
   it('« Plus » opens the modal sheet with the five other entries and their metas', async () => {

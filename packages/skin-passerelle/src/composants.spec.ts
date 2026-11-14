@@ -6,7 +6,7 @@ import { COMPOSANTS, t, zCdActionDetail } from '@crewdeck/sdk';
 import type { LitElement } from 'lit';
 import { COPIED_MS } from './code-block.js';
 import passerelle from './index.js';
-import { actionsOf, defineSkin, inside, render, settle, textOf } from './testing/dom.js';
+import { actionsOf, centreOf, defineSkin, drag, inside, pointer, render, settle, textOf } from './testing/dom.js';
 
 beforeAll(defineSkin);
 
@@ -61,6 +61,24 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     await settle(el);
     inside(el, 'cd-button.retry', 'button').click();
   },
+  'StepCard.select': (el) => inside(el, 'article').click(),
+  'StepCard.startLoopBack': async (el) => {
+    el.data = { ...(el.data as object), judges: true };
+    await settle(el);
+    const handle = inside(el, '.handle');
+    pointer('pointerdown', handle, centreOf(handle));
+  },
+  'Phase.select': (el) => inside(el, 'header').click(),
+  'ProcessCanvas.select': (el) => inside(el, 'cd-step-card[data-step=analyse]', 'article').click(),
+  'ProcessCanvas.view': (el) => inside(el, 'cd-icon-button.zoom-in', 'button').click(),
+  'ProcessCanvas.moveStep': (el) =>
+    drag(el, inside(el, 'cd-step-card[data-step=analyse]'), () => inside(el, '.cell[data-phase=ph-idee][data-col="1"][data-row="2"]')),
+  'ProcessCanvas.connect': (el) =>
+    drag(el, inside(el, 'cd-step-card[data-step=analyse] > cd-port[data-dir=out]'), () =>
+      inside(el, 'cd-step-card[data-step=tri] > cd-port[data-dir=in]'),
+    ),
+  'ProcessCanvas.loopBack': (el) =>
+    drag(el, inside(el, 'cd-step-card[data-step=tri]', '.handle'), () => inside(el, 'cd-step-card[data-step=analyse]')),
   'PageDemarrage.continue': async (el) => {
     el.data = COMPOSANTS.PageDemarrage.examples[2]?.data;
     await settle(el);

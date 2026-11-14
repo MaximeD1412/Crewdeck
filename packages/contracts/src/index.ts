@@ -30,3 +30,6 @@ export * from './github/index.js';
 export * from './composants/index.js';
 export * from './contrats/index.js';
 export * from './process/index.js';
+// The Process's types and the canvas's Composants share three names: here the
+// types win; the Composants are `COMPOSANTS.Phase`, or `@crewdeck/contracts/composants`'s.
+export type { LoopBack, Phase, Port } from './process/index.js';

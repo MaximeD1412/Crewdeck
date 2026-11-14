@@ -43,6 +43,9 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   runner: async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('en ligne');
   },
+  'runner-serveurs-mcp': async (page) => {
+    await expect(page.locator('cd-page-runner cd-card.mcp cd-list-row')).toHaveCount(2);
+  },
   'runner-hors-ligne': async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('hors ligne');
   },

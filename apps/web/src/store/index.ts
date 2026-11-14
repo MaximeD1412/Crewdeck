@@ -15,6 +15,7 @@ store.registerSlice('runner', { shape: 'single' });
 store.registerSlice('decision', { shape: 'collection', snapshotKey: 'decisions' });
 store.registerSlice('runner-link', { shape: 'single' });
 store.registerSlice('ai-account', { shape: 'collection' });
+store.registerSlice('mcp-server', { shape: 'collection' });
 store.registerSlice('device', { shape: 'collection', snapshotKey: 'devices' });
 
 export const client = createClient({

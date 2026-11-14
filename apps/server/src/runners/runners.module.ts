@@ -10,6 +10,7 @@ import { RunnerLinkTokens } from './link/link-tokens.js';
 import { RunnerLinkCodesController, RunnerLinkController, RunnerLinkState } from './link/runner-link.controller.js';
 import { RunnerLinkSweep } from './link/runner-link-sweep.job.js';
 import { RunnerLinks } from './link/runner-links.service.js';
+import { McpServers, McpServersController, McpServerState } from './mcp-servers/mcp-servers.js';
 import { RunnerCommands } from './runner-commands.service.js';
 import { RunnerConnections } from './runner-connections.js';
 import { RunnerDispatcher } from './runner-dispatcher.js';
@@ -23,11 +24,12 @@ import { RunnerProtocol } from './protocol-version.js';
  * The Pilote's Runner (ADR 0004): its socket (`RunnersGateway`, a client of
  * `/api/ws`), its presence, the commands sent to it, `GET /api/runner`,
  * its link (`link/`, RUNNER-3), and what each Moteur can run on it
- * (`ai-accounts/`, RUNNER-7).
+ * (`ai-accounts/`, RUNNER-7), and the Serveurs MCP declared on it
+ * (`mcp-servers/`, RUNNER-16).
  */
 @Module({
   imports: [DevicesModule],
-  controllers: [RunnersController, AiAccountsController, RunnerLinkCodesController, RunnerLinkController, RunnerDistController],
+  controllers: [RunnersController, AiAccountsController, McpServersController, RunnerLinkCodesController, RunnerLinkController, RunnerDistController],
   providers: [
     RunnerTokens,
     RunnerClock,
@@ -47,6 +49,8 @@ import { RunnerProtocol } from './protocol-version.js';
     RunnerLinkState,
     AiAccounts,
     AiAccountState,
+    McpServers,
+    McpServerState,
   ],
   exports: [RunnerPresence, RunnerCommands, RunnerDispatcher, RunnerClock],
 })

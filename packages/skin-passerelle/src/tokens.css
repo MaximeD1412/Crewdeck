@@ -28,6 +28,15 @@
   --cd-del: #3a1b1b;
   --cd-scrim: #05080acc;
   --cd-shadow: #00000080;
+  --cd-type-idee: #e2d36a;
+  --cd-type-prd: #74a6f4;
+  --cd-type-maquettes: #e48ee6;
+  --cd-type-conception: #a596f7;
+  --cd-type-inventaire: #79d6b9;
+  --cd-type-ticket: #63cf8c;
+  --cd-type-changement: #f08fb2;
+  --cd-type-verdict: #ccd6dc;
+  --cd-type-livraison: #b2d46a;
   --cd-radius-sm: 0.125rem;
   --cd-radius: 0.1875rem;
   --cd-radius-lg: 0.25rem;
@@ -53,6 +62,11 @@
   --cd-header-height: 3.5rem;
   --cd-tab-bar: 4rem;
   --cd-sidebar-width: 15rem;
+  --cd-sidebar-compact: 4rem;
+  --cd-step-card: 11rem;
+  --cd-gate-card: 8rem;
+  --cd-port-row: 1.25rem;
+  --cd-menu-width: 18rem;
   --cd-aside-width: 20rem;
   --cd-panel-width: 36rem;
   --cd-dialog-width: 30rem;

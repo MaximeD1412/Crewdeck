@@ -3,6 +3,7 @@ package accounts
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -249,6 +250,157 @@ func TestTheCostOfASessionSoFarOutlivesTheRunner(t *testing.T) {
 
 	if got := spends(out.await(t, 1)); len(got) != 1 || got[0] != 304 {
 		t.Fatalf("spends %v, want 304", got)
+	}
+}
+
+// A spend the server could not get outlives the Runner: written with the
+// Session's cost before it is sent, it is sent once at the first tick after
+// a restart (04-interrupt's 1 183 and 297), beside the resume's 304.
+func TestASpendTheServerCouldNotGetOutlivesTheRunner(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "spent.json")
+	claude := claudeWithKey(t)
+	claude.Events = recordedResults(t, "04-interrupt")
+	var failed sync.WaitGroup
+	failed.Add(2)
+	before, _ := usageReporter(t, claude, func(r *Reporter) {
+		r.SpentPath = path
+		r.SendUsage = func(context.Context, contracts.RunnerUsage) error {
+			defer failed.Done()
+			return protocol.ErrNotConnected
+		}
+	})
+	startAndDrain(t, before.Engines, contracts.EngineIdClaudeCode, "opus")
+	failed.Wait()
+
+	claude.Events = recordedResults(t, "04-resume")
+	after, out := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
+	resumeAndDrain(t, after.Engines, recordedSession)
+	out.await(t, 1)
+	after.flushUsage(context.Background())
+	after.flushUsage(context.Background())
+
+	got := out.all()
+	if costs := spends(got); len(costs) != 3 || sum(costs) != 1784 || !slices.Contains(costs, 304) {
+		t.Fatalf("spends %v, want 1 183, 297 and 304", costs)
+	}
+	ids := map[string]bool{}
+	for _, u := range got {
+		if ids[u.Id] {
+			t.Fatalf("usage %s sent twice", u.Id)
+		}
+		ids[u.Id] = true
+	}
+
+	// Sent: a third Runner has nothing left to send.
+	again, out := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
+	again.flushUsage(context.Background())
+	if got := out.all(); len(got) != 0 {
+		t.Fatalf("sent again %+v", got)
+	}
+}
+
+// settled waits until the server got every spend of `r`, and r wrote so.
+func settled(t *testing.T, r *Reporter) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		r.sendMu.Lock()
+		r.mu.Lock()
+		left := len(r.pending)
+		r.mu.Unlock()
+		r.sendMu.Unlock()
+		if left == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%d spends not sent", left)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+// A line the Runner was writing when it stopped is skipped, and what
+// follows is still read after the next restart.
+func TestALineCutByACrashLosesNothingAfterIt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "spent.json")
+	claude := claudeWithKey(t)
+	claude.Events = recordedResults(t, "04-interrupt")
+	before, out := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
+	startAndDrain(t, before.Engines, contracts.EngineIdClaudeCode, "opus")
+	out.await(t, 2)
+	settled(t, before) // the Runner stops: it writes nothing more
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(`{"session":"claude-code/4a0`); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	claude.Events = []contracts.EngineEvent{resultOf(recordedSession, 1600)}
+	after, out := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
+	resumeAndDrain(t, after.Engines, recordedSession)
+	out.await(t, 1)
+
+	claude.Events = recordedResults(t, "04-resume")
+	again, out := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
+	resumeAndDrain(t, again.Engines, recordedSession)
+	if got := spends(out.await(t, 1)); len(got) != 1 || got[0] != 184 {
+		t.Fatalf("spends %v, want 184 (1 784 less the 1 600 read)", got)
+	}
+}
+
+// resultOf is a result of the Session `engineSessionID` that cost `micros` so far.
+func resultOf(engineSessionID string, micros int) contracts.EngineEvent {
+	event := costOf(micros)
+	event.Result.EngineSessionId = &engineSessionID
+	return event
+}
+
+// However many Sessions ran since, a Session resumed sends only what it adds.
+func TestTheCostOfASessionIsKeptHoweverManySessionsRanSince(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "spent.json")
+	claude := claudeWithKey(t)
+	claude.Events = recordedResults(t, "04-interrupt")
+	before, out := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
+	startAndDrain(t, before.Engines, contracts.EngineIdClaudeCode, "opus")
+	out.await(t, 2)
+	for i := range 600 {
+		claude.Events = []contracts.EngineEvent{resultOf(fmt.Sprintf("4a000000-0000-4000-8000-%012d", 1000+i), 100)}
+		startAndDrain(t, before.Engines, contracts.EngineIdClaudeCode, "opus")
+	}
+	out.await(t, 602)
+
+	claude.Events = recordedResults(t, "04-resume")
+	after, out := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
+	resumeAndDrain(t, after.Engines, recordedSession)
+
+	if got := spends(out.await(t, 1)); len(got) != 1 || got[0] != 304 {
+		t.Fatalf("spends %v, want 304", got)
+	}
+}
+
+// A Session not heard from for over a year is forgotten: Claude Code
+// deletes its transcript long before (cleanupPeriodDays, 30 days by
+// default), it cannot be resumed.
+func TestTheCostOfASessionSilentForOverAYearIsForgotten(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "spent.json")
+	claude := claudeWithKey(t)
+	claude.Events = recordedResults(t, "04-interrupt")
+	before, out := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path; r.Now = func() time.Time { return usageAt } })
+	startAndDrain(t, before.Engines, contracts.EngineIdClaudeCode, "opus")
+	out.await(t, 2)
+
+	claude.Events = []contracts.EngineEvent{resultOf(recordedSession, 1784)}
+	after, out := usageReporter(t, claude, func(r *Reporter) {
+		r.SpentPath = path
+		r.Now = func() time.Time { return usageAt.Add(366 * 24 * time.Hour) }
+	})
+	resumeAndDrain(t, after.Engines, recordedSession)
+
+	if got := spends(out.await(t, 1)); len(got) != 1 || got[0] != 1784 {
+		t.Fatalf("spends %v, want 1 784", got)
 	}
 }
 

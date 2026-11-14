@@ -14,6 +14,7 @@ import { FAKES, type Fakes } from '../../src/testing/fakes.js';
 import { createLinkedRunner } from '../../src/testing/runners.js';
 import { FxRates } from '../../src/usage/fx.job.js';
 import { UsageRetention } from '../../src/usage/usage.retention.js';
+import { UsageService } from '../../src/usage/usage.service.js';
 import { connectRunner, type FakeRunnerClient } from '../fakes/runner.js';
 import { expectEnvelope, startApp } from '../route-baseline.js';
 
@@ -193,6 +194,22 @@ describe('the usage of the Comptes IA against PostgreSQL', () => {
       await send(alice, socket, { ...codex('2026-11-11T14:09:00.000Z', 1_000), spend: { sessionId, costUsdMicros: 1_000 } });
 
       expect(await sql('SELECT session_id FROM spends WHERE pilot_id = $1', [alice.id])).toEqual([{ session_id: sessionId }]);
+    });
+
+    it('stores once a spend the Runner sends again, without usage.upserted the second time', async () => {
+      const alice = await pilot();
+      await online(alice);
+      const message: Usage = { type: 'usage', id: newId(), at: '2026-11-11T14:09:01.000Z', ...codex('2026-11-11T14:09:00.000Z', 1_000) };
+      const record = () => runInPilotScope(alice.id, () => app.get(UsageService).record(alice.id, message));
+
+      await published(alice, 'usage.upserted', 1, record);
+      const events: Event[] = [];
+      const unsubscribe = app.get(EventsBus).subscribe(alice.id, (event) => events.push(event));
+      await record();
+      unsubscribe();
+
+      expect(await sql('SELECT cost_usd_micros FROM spends WHERE pilot_id = $1', [alice.id])).toEqual([{ cost_usd_micros: '1000' }]);
+      expect(events).toEqual([]);
     });
 
     it('keeps no spend for a subscription: its cost is a share of its windows', async () => {

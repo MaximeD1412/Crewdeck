@@ -2,14 +2,16 @@ package accounts
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
 )
 
-// usageRetries is how many usages that could not be sent wait for the next
-// tick, the oldest dropped beyond.
+// usageRetries is how many windows that could not be sent wait for the
+// next tick, the oldest dropped beyond. A spend waits until it is sent,
+// a restart included (spent.go).
 const usageRetries = 100
 
 // usageWindowOrder is the order of the windows in a usage message.
@@ -65,22 +67,24 @@ func (r *Reporter) observeUsage(engineID contracts.EngineId, event contracts.Eng
 		return r.usageMessage(engineID, u, nil)
 	case event.Result != nil && event.Result.CostUsdMicros != nil:
 		cost := *event.Result.CostUsdMicros
-		counted := *spent
+		counted, key := *spent, ""
 		if id := event.Result.EngineSessionId; id != nil && *id != "" {
-			if known, ok := r.sessionSpent(engineID, *id); ok {
+			key = sessionKey(engineID, *id)
+			if known, ok := r.sessionSpent(key); ok {
 				counted = known
 			}
-			r.keepSessionSpent(engineID, *id, cost)
 		}
 		added := cost - counted
 		if added < 0 { // the Moteur started its count over: all of it is new
 			added = cost
 		}
 		*spent = cost
-		if added == 0 {
-			return nil
+		var message *contracts.RunnerUsage
+		if added != 0 {
+			message = r.spendMessage(engineID, added, r.instant(event.Result.At))
 		}
-		return r.spendMessage(engineID, added, r.instant(event.Result.At))
+		r.keepSpent(key, cost, message)
+		return message
 	default:
 		return nil
 	}
@@ -138,31 +142,54 @@ func (r *Reporter) instant(at time.Time) time.Time {
 	return at
 }
 
-// sendUsage sends `messages` in order; one the server could not get waits
-// for the next tick, as do the ones after it.
+// sendUsage sends `messages` in order, one sending at a time; one the
+// server could not get waits for the next tick, as do the ones after it: a
+// spend in the record of the spends (spent.go), until the server gets it,
+// and never sent again once it did.
 func (r *Reporter) sendUsage(ctx context.Context, messages []contracts.RunnerUsage) {
 	if r.SendUsage == nil {
 		return
 	}
+	r.sendMu.Lock()
+	defer r.sendMu.Unlock()
 	for i, m := range messages {
+		if m.Spend != nil {
+			r.mu.Lock()
+			pending := r.isPending(m.Id)
+			r.mu.Unlock()
+			if !pending {
+				continue // sent already
+			}
+		}
 		if err := r.SendUsage(ctx, m); err != nil {
 			r.logger().Debug("usage", "engine", m.Engine, "error", err)
 			r.mu.Lock()
-			r.usageRetry = append(r.usageRetry, messages[i:]...)
+			for _, rest := range messages[i:] {
+				if rest.Spend == nil {
+					r.usageRetry = append(r.usageRetry, rest)
+				}
+			}
 			if extra := len(r.usageRetry) - usageRetries; extra > 0 {
 				r.usageRetry = r.usageRetry[extra:]
 			}
 			r.mu.Unlock()
 			return
 		}
+		if m.Spend != nil {
+			r.mu.Lock()
+			r.spendSent(m.Id)
+			r.mu.Unlock()
+		}
 	}
 }
 
-// flushUsage sends what waits: the usages not sent yet, then the windows
-// measured since the last usage of each Moteur.
+// flushUsage sends what waits: the spends not sent yet, those of before a
+// restart included, the windows the server could not get, then the
+// windows measured since the last usage of each Moteur.
 func (r *Reporter) flushUsage(ctx context.Context) {
 	r.mu.Lock()
-	messages := r.usageRetry
+	r.loadSpent()
+	messages := append(slices.Clone(r.pending), r.usageRetry...)
 	r.usageRetry = nil
 	for _, e := range r.Engines.All() {
 		if u := r.usage[e.ID()]; u != nil && u.changed {

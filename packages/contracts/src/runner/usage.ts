@@ -21,8 +21,10 @@ export type UsageWindowMeasure = z.infer<typeof zUsageWindowMeasure>;
  * provider bills it, alone (`windows` empty) at the result's instant, so that
  * a spend is never dated by older windows. Sent at each `usage` and
  * `limit-reached`, at each `result` that adds a cost, and every
- * `USAGE_EVERY_SECONDS` for what could not be sent. The server ignores the
- * spend of a subscription: its cost is a share of its windows (PILOTAGE-3).
+ * `USAGE_EVERY_SECONDS` for what could not be sent: a spend again, its `id`
+ * the same, until the server got it, a restart of the Runner included; the
+ * server stores a spend once by that `id`. The server ignores the spend of a
+ * subscription: its cost is a share of its windows (PILOTAGE-3).
  */
 export const zUsage = runnerMessage('usage', {
   // The enum without its id: `contracts.EngineId` is written once, with the capabilities.

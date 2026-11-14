@@ -40,8 +40,12 @@ export class UsageService implements OnModuleInit {
     this.dispatcher.registerRunnerHandler('usage', (message, context) => this.record(context.pilotId, message));
   }
 
-  /** Stores what the Runner measured of one Compte IA. */
-  record(pilotId: string, usage: Omit<Usage, 'type' | 'id' | 'at'>): Promise<void> {
+  /**
+   * Stores what the Runner measured of one Compte IA. A spend is stored
+   * under its message's id: the Runner sends a spend again until it knows the
+   * server got it, a restart included, and the second one changes nothing.
+   */
+  record(pilotId: string, usage: Omit<Usage, 'type' | 'at'>): Promise<void> {
     const engine = stored<EngineId>(usage.engine);
     const measuredAt = new Date(usage.measuredAt);
     return this.transactions.run(async (tx) => {
@@ -58,14 +62,15 @@ export class UsageService implements OnModuleInit {
           })),
         });
       }
-      const spend = usage.accountKind === 'api-key' ? usage.spend : undefined;
+      let spend = usage.accountKind === 'api-key' ? usage.spend : undefined;
       if (spend) {
         const { timeZone } = await tx.pilot.findUniqueOrThrow({ where: { id: pilotId }, select: { timeZone: true } });
         const day = dayIn(measuredAt, timeZone);
         const costEurCents = toEurCents(spend.costUsdMicros, day, await ratesUpTo(tx, day));
-        await tx.spend.create({
+        const { count } = await tx.spend.createMany({
+          skipDuplicates: true,
           data: {
-            id: newId(),
+            id: usage.id,
             pilotId,
             engine,
             // The Session the Runner names; its Projet and its StepRun come
@@ -80,6 +85,7 @@ export class UsageService implements OnModuleInit {
             measuredAt,
           },
         });
+        if (count === 0) spend = undefined; // stored already
       }
       if (usage.windows.length === 0 && !spend) return;
       await this.publish(tx, pilotId, engine);

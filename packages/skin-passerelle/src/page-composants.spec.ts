@@ -138,6 +138,7 @@ describe('the preview of an open Dialog', () => {
       ...library.selected,
       name: 'Dialog',
       tag: 'cd-dialog',
+      actions: [{ name: 'close', sensitive: false, description: 'Se ferme.' }],
       examples: COMPOSANTS.Dialog.examples.map((dialog) => ({ ...dialog })),
     },
   };
@@ -158,6 +159,25 @@ describe('the preview of an open Dialog', () => {
     expect(details).toEqual([]);
     expect(inside<HTMLDialogElement>(preview, 'dialog').open).toBe(false);
     expect(deepActiveElement()).toBe(opener);
+  });
+});
+
+describe('the preview of an open Composant that does not close itself', () => {
+  it('shows a PhaseGroup open as its example says, without a button to open it', async () => {
+    const el = await render(COMPOSANTS.PageComposants, {
+      ...library,
+      selected: {
+        ...library.selected,
+        name: 'PhaseGroup',
+        tag: 'cd-phase-group',
+        actions: [],
+        examples: COMPOSANTS.PhaseGroup.examples.map((group) => ({ ...group })),
+      },
+    });
+    await settle(el);
+    const groups = [...(el.shadowRoot?.querySelectorAll('.stage cd-phase-group') ?? [])];
+    expect(groups.map((group) => inside<HTMLDetailsElement>(group, 'details').open)).toEqual([true, false]);
+    expect(el.shadowRoot?.querySelector('.stage cd-button')).toBeNull();
   });
 });
 

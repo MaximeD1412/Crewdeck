@@ -13,7 +13,7 @@ const example = (page: Page, name: string) =>
   preview(page).locator('figure').filter({ has: page.locator('figcaption', { hasText: new RegExp(`^${name}$`) }) });
 
 const SESSION_COMPOSANTS = [
-  { name: 'Session', scenario: 'composants-session', tag: 'cd-session', examples: 5 },
+  { name: 'Session', scenario: 'composants-session', tag: 'cd-session', examples: 6 },
   { name: 'Message', scenario: 'composants-message', tag: 'cd-message', examples: 2 },
   { name: 'ToolCall', scenario: 'composants-tool-call', tag: 'cd-tool-call', examples: 2 },
   { name: 'Question', scenario: 'composants-question', tag: 'cd-question', examples: 2 },

@@ -6,7 +6,7 @@ import { expect, test } from './fixtures.js';
  * Composant of tracks and figures (UI-6) is drawn, not only defined.
  */
 const SHOWS: Record<string, { tag: string; examples: number; shows: (page: Page) => Locator }> = {
-  ProcessTrack: { tag: 'cd-process-track', examples: 5, shows: (page) => page.locator('cd-process-track').getByRole('listitem').filter({ hasText: 'désactivée' }) },
+  ProcessTrack: { tag: 'cd-process-track', examples: 6, shows: (page) => page.locator('cd-process-track').getByRole('listitem').filter({ hasText: 'arrêtée à la Source' }) },
   UsageMeter: { tag: 'cd-usage-meter', examples: 3, shows: (page) => page.getByRole('meter', { name: 'Fenêtre de 5 h' }) },
   Stat: { tag: 'cd-stat', examples: 2, shows: (page) => page.locator('cd-stat').filter({ hasText: 'Délai Idée → merge' }) },
   CheckRow: { tag: 'cd-check-row', examples: 3, shows: (page) => page.locator('cd-check-row').filter({ hasText: 'échoué' }) },

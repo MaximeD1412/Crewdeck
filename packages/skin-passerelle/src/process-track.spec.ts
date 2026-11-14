@@ -11,7 +11,7 @@ afterAll(() => page.viewport(414, 896));
 const steps = [
   { label: 'Idée retenue', meta: '3 nov.', state: 'done' },
   { label: 'PRD', meta: 'approuvé le 5 nov.', state: 'done' },
-  { label: 'Maquettes', meta: null, state: 'off' },
+  { label: 'Maquettes', meta: 'pas dans la v2', state: 'off' },
   { label: 'Conception technique', meta: 'depuis 9:10', state: 'current' },
   { label: 'Découpage en Tickets', meta: null, state: 'todo' },
 ] as const;
@@ -23,7 +23,7 @@ describe('ProcessTrack', () => {
     const el = await render(COMPOSANTS.ProcessTrack, { direction: 'vertical', steps });
     expect(items(el).map((li) => textOf(li.querySelector('b')))).toEqual(steps.map((step) => step.label));
     expect(textOf(items(el)[0]?.querySelector('.meta'))).toBe('3 nov.');
-    expect(items(el)[2]?.querySelector('.meta')).toBeNull();
+    expect(items(el)[4]?.querySelector('.meta')).toBeNull();
   });
 
   it('marks the current step, and it alone, aria-current="step"', async () => {
@@ -31,10 +31,10 @@ describe('ProcessTrack', () => {
     expect(items(el).map((li) => li.getAttribute('aria-current'))).toEqual([null, null, null, 'step', null]);
   });
 
-  it('shows « désactivée » on a step turned off', async () => {
+  it('shows « hors de sa version » on a step its Process version does not have', async () => {
     const el = await render(COMPOSANTS.ProcessTrack, { direction: 'vertical', steps });
     const off = inside(el, 'ol > li:nth-child(3) .state');
-    expect(textOf(off)).toBe('désactivée');
+    expect(textOf(off)).toBe('hors de sa version');
     expect(off.classList).not.toContain('visually-hidden');
     expect(off.getBoundingClientRect().width).toBeGreaterThan(0);
   });
@@ -42,11 +42,29 @@ describe('ProcessTrack', () => {
   it('says the state of every other step to screen readers', async () => {
     const el = await render(COMPOSANTS.ProcessTrack, {
       direction: 'vertical',
-      steps: [...steps, { label: 'Merge', meta: null, state: 'halt' }],
+      steps: [...steps, { label: 'Merge', meta: null, state: 'halt' }, { label: 'Review', meta: null, state: 'stopped' }],
     });
     const states = items(el).map((li) => li.querySelector('.state'));
-    expect(states.map(textOf)).toEqual(['faite', 'faite', 'désactivée', 'en cours', 'à venir', 'arrêtée']);
-    expect(states.filter((state) => state?.classList.contains('visually-hidden'))).toHaveLength(5);
+    expect(states.map(textOf)).toEqual(['faite', 'faite', 'hors de sa version', 'en cours', 'à venir', 'arrêtée', 'arrêtée à la Source']);
+    expect(states.filter((state) => state?.classList.contains('visually-hidden'))).toHaveLength(6);
+  });
+
+  it('marks a step stopped at the Source with the stop icon, neutral, not as a halt', async () => {
+    const el = await render(COMPOSANTS.ProcessTrack, {
+      direction: 'vertical',
+      steps: [
+        { label: 'Checks', meta: '1 sur 4 échoué', state: 'halt' },
+        { label: 'Review', meta: 'arrêtée à 15:20 : Ticket fermé sur GitHub', state: 'stopped' },
+      ],
+    });
+    const [halt, stopped] = items(el);
+    const iconOf = (li: Element | undefined) => (li?.querySelector('.mark cd-icon') as (Element & { data: { name: string } }) | null)?.data.name;
+    expect(iconOf(stopped)).toBe('stop');
+    expect(iconOf(halt)).toBe('x');
+    const mark = (li: Element | undefined) => getComputedStyle(li?.querySelector('.mark') as Element);
+    expect(mark(stopped).borderTopColor).not.toBe(mark(halt).borderTopColor);
+    expect(mark(stopped).color).not.toBe(mark(halt).color);
+    expect(textOf(stopped?.querySelector('.state'))).toBe('arrêtée à la Source');
   });
 
   describe.each([

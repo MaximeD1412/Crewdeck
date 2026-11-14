@@ -161,7 +161,7 @@ export const Session = defineComposant({
       },
       slots: {
         default: [
-          tool('Commande', 'docker compose up -d', 'dans le dossier du Projet'),
+          tool('Commande', 'docker compose up -d', '16:02'),
           placed(CodeBlock.tag, { code: 'Error response from daemon: port 8080 is already allocated' }),
           placed(CheckRow.tag, { name: 'Code de sortie', state: 'failed', detail: '1', href: null }),
           placed(Banner.tag, { tone: 'halt', title: 'Lancement échoué', icon: 'block' }, undefined, 'Une Décision t’attend dans « À toi ».'),

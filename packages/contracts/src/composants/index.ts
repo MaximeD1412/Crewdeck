@@ -44,6 +44,7 @@ import { TicketTree } from './ticket-tree.js';
 import { Timeline } from './timeline.js';
 import { ToolCall } from './tool-call.js';
 import { Toggle } from './toggle.js';
+import { UsageCard } from './usage-card.js';
 import { UsageMeter } from './usage-meter.js';
 
 export * from './action.js';
@@ -97,6 +98,7 @@ export * from './timeline.js';
 export * from './toggle.js';
 export * from './tone.js';
 export * from './tool-call.js';
+export * from './usage-card.js';
 export * from './usage-meter.js';
 
 /**
@@ -133,6 +135,7 @@ export const COMPOSANTS = {
   AgentRow,
   ProcessTrack,
   UsageMeter,
+  UsageCard,
   Stat,
   CheckRow,
   Capture,

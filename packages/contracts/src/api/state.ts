@@ -5,6 +5,7 @@ import { zDevice } from './devices.js';
 import { zMe } from './me.js';
 import { zRunner } from './runner.js';
 import { zRunnerLink } from './runner-link.js';
+import { zUsageAccount } from './usage.js';
 import { zSeq } from '../values.js';
 
 /**
@@ -24,6 +25,8 @@ export const STATE_SLICES = {
   devices: z.array(zDevice),
   /** The open Décisions, every one (« À toi »). */
   decisions: z.array(zDecision),
+  /** The usage of the Pilote's Comptes IA that have one (RUNNER-13). */
+  usage: z.array(zUsageAccount),
 } as const;
 export type StateKey = keyof typeof STATE_SLICES;
 

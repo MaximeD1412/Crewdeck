@@ -8,6 +8,7 @@ import { zEngineEvent } from './runner/events.js';
 import { zHeartbeat, zHeartbeatAck } from './runner/heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './runner/hello.js';
 import { zStepVerdict } from './runner/step.js';
+import { USAGE_EVERY_SECONDS, zUsage } from './runner/usage.js';
 import { HEARTBEAT_SECONDS, OFFLINE_AFTER_SECONDS, PROTOCOL_VERSION, RUNNER_WS_CLOSE, zProtocolError, zRunnerEnvelope } from './runner/protocol.js';
 
 /**
@@ -33,6 +34,7 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-error', schema: zProtocolError },
   { name: 'runner-step-verdict', schema: zStepVerdict },
   { name: 'runner-capabilities', schema: zCapabilities },
+  { name: 'runner-usage', schema: zUsage },
 ];
 
 /**
@@ -82,4 +84,5 @@ export const goConstants: Readonly<Record<string, number>> = {
   LinkPollSeconds: LINK_POLL_SECONDS,
   LinkAttemptsPerMinute: LINK_ATTEMPTS_PER_MINUTE,
   CapabilitiesEverySeconds: CAPABILITIES_EVERY_SECONDS,
+  UsageEverySeconds: USAGE_EVERY_SECONDS,
 };

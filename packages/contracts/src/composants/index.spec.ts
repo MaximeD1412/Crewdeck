@@ -40,6 +40,7 @@ describe('COMPOSANTS', () => {
         'TicketTree',
         'Timeline',
         'ToolCall',
+        'UsageCard',
         'UsageMeter',
       ],
     ],

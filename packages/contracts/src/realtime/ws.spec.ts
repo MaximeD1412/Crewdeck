@@ -46,8 +46,8 @@ describe('withSeq', () => {
 
 describe('zState', () => {
   it('is the seq it reflects and one slice per registered key', () => {
-    expect(Object.keys(STATE_SLICES)).toEqual(['pilot', 'runner', 'runner-link', 'ai-account', 'devices', 'decisions']);
-    const state = { seq: 3, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], decisions: [] };
+    expect(Object.keys(STATE_SLICES)).toEqual(['pilot', 'runner', 'runner-link', 'ai-account', 'devices', 'decisions', 'usage']);
+    const state = { seq: 3, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], decisions: [], usage: [] };
     expect(zState.parse(state)).toEqual(state);
     expect(zState.safeParse({ seq: 3, pilot: PILOT }).success).toBe(false);
     expect(zState.safeParse({ seq: 3, runner: null }).success).toBe(false);

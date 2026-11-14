@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zCapabilities } from '../runner/capabilities.js';
+import { zUsage } from '../runner/usage.js';
 import { zDecision, zDecisionKind } from './decisions.js';
 
 /**
@@ -43,3 +44,12 @@ export type TestingDecisionResolve = z.infer<typeof zTestingDecisionResolve>;
  */
 export const zTestingRunnerCapabilities = z.object({ engines: zCapabilities.shape.engines });
 export type TestingRunnerCapabilities = z.infer<typeof zTestingRunnerCapabilities>;
+
+/**
+ * `POST /api/testing/runner/usage`, outside production only: the fake
+ * Runner of the scenario sends this `usage` message (RUNNER-13), as a Runner
+ * whose Moteur just reported its windows or a Session's cost. The end-to-end
+ * tests see the usage card change without a reload.
+ */
+export const zTestingRunnerUsage = zUsage.omit({ type: true, id: true, at: true });
+export type TestingRunnerUsage = z.infer<typeof zTestingRunnerUsage>;

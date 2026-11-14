@@ -28,7 +28,7 @@ describe('the event payloads', () => {
   });
 
   it('has no payload for a resource whose module has not registered one', () => {
-    expect(eventPayloadSchema('usage.upserted')).toBeUndefined();
+    expect(eventPayloadSchema('design.upserted')).toBeUndefined();
   });
 
   it('refuses a second schema for the same resource', () => {

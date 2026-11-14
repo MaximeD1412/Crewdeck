@@ -13,11 +13,12 @@ stories: [US-20, US-60]
 screens: []
 revue_visuelle: false
 video: false
+reprend: 161
 ---
 
 ## Context
 
-ADR 0010, « How it follows GitHub »: the Runner's **Miroir** learns every change from the server, which already receives every webhook of a followed repository (PROJET-1). The server keeps an envelope of each one, without content (identifiers, states and dates only, which ADR 0003's table lets it read), numbered per **Pilote** by a counter of its own, kept 7 days, and replays them to the Runner after its `hello`, then sends each new one live. The tabs' `events` (ADR 0007) do not change. The Runner also learns from the server which repositories are the Pilote's **Projets** (`mirror.projects`, decided here: the ADR needs the Runner to know them and names no message). MIROIR-2 adds the token, MIROIR-4 the Runner's side.
+ADR 0010, « How it follows GitHub »: the Runner's **Miroir** learns every change from the server, which already receives every webhook of a followed repository (PROJET-1). The server keeps an envelope of each one, without content (identifiers, states and dates only, which ADR 0003's table lets it read), numbered per **Pilote** by a counter of its own, kept 7 days, and replays them to the Runner after its `hello`, then sends each new one live. The tabs' `events` (ADR 0007) do not change. The Runner also learns from the server which repositories are the Pilote's **Projets** (`mirror.projects`, decided here: the ADR needs the Runner to know them and names no message). MIROIR-2 adds the token, MIROIR-4 the Runner's side. The refonte (PRD #169, ADRs 0011–0014) leaves this ticket unchanged but for one boundary: the envelopes are GitHub's alone (ADR 0012 keeps GitHub's webhooks as its way of following a repository), so only a Projet with a GitHub repository gets them; a Local Projet (PROJET-6) enters the Runner's copy through its own Source (SOURCE-2, MIROIR-6), and its folder is followed on the machine (SOURCE-3).
 
 ## Current state of the code
 
@@ -26,8 +27,8 @@ ADR 0010, « How it follows GitHub »: the Runner's **Miroir** learns every chan
 - `apps/server/src/realtime/events.writer.ts`: the tabs' events, `pilots.seq` incremented in the change's transaction (the pattern to copy for a counter); `retention.job.ts`: `EventsRetention`, the one job allowed `prisma.unscoped` (`src/scope/unscoped.lint.spec.ts`).
 - `apps/server/src/runners/`: `RunnersGateway` (`hello`, then `RunnerPresence.connected(…, accept)` sends `hello.accepted` before the `onOnline` hooks), `RunnerConnections.of(pilotId)` (the accepted link, `send`), `RunnerCommands.send`, `RunnerDispatcher.registerRunnerHandler`, `apps/server/src/testing/fake-runner.ts`.
 - `packages/contracts/src/runner/`: `protocol.ts` (`PROTOCOL_VERSION = 1`, the unions `zRunnerToServer`, `zServerToRunner`), `hello.ts`, `envelope.ts` (`runnerMessage`); fixtures `packages/contracts/fixtures/runner/<type>.json`; `zSeq` in `values.ts`.
-- Created by PROJET-2 (PR #157): `Project` (`apps/server/src/projects/`, `projects` table) with `githubRepoId`, `owner`, `name`, `fullName`, `displayName`, `integrationBranch`, `accessLost`, and `Repository` with `installationId`.
-- No `github_changes`, no `mirror` message.
+- Created by PROJET-2 (PR #157, open): `Project` (`apps/server/src/projects/`, `projects` table) with `githubRepoId`, `owner`, `name`, `fullName`, `displayName`, `integrationBranch`, `accessLost`, and `Repository` with `installationId`.
+- No `github_changes`, no `mirror` message (checked on origin/develop e8a0ea3). The Runner's store that consumes them exists: `apps/runner/internal/mirror/` (MIROIR-3, merged: `schema.sql` `projects` keyed by `<owner>/<name>` with `github_repo_id`, `installation_id`, `integration_branch`).
 
 ## To do
 
@@ -57,6 +58,7 @@ ADR 0010, « How it follows GitHub »: the Runner's **Miroir** learns every chan
 - The counter is `pilots.github_change_seq`, not the tabs' `seq`: the two streams never share a number (ADR 0010, Revue croisée R1).
 - `sub_issues` names the parent and `issue_dependencies` the blocked issue: the Runner stores each relation with the side whose fetch rewrites it (MIROIR-3).
 - A `check_run` of several PRs names none: the Runner refreshes the checks of every PR whose head or merge commit is that `sha`.
+- `mirror.projects` lists the Pilote's Projets that have a GitHub repository (`Project.repositoryId` set, not `accessLost`) and only those: once PROJET-6 makes the repository optional, a Local Projet is absent from this ticket's list; MIROIR-6 widens the message for it. A Projet whose `ticket` and `code` groups both left GitHub (SOURCE-8) is no longer followed, by that ticket.
 - `PROTOCOL_VERSION` stays 1: the new fields are optional and no Runner is released yet.
 - Replay pages of 500 envelopes, live sends never queued for an offline Runner (it replays at its next `hello`).
 
@@ -86,6 +88,7 @@ A migration (`github_changes`, `pilots.github_change_seq`), applied by the deplo
 
 - The « Miroir » token: MIROIR-2. The Runner's side of these messages: MIROIR-4.
 - The Tickets' own copy on the server (titles, states, blocked-by): BOUCLE-1.
+- A Local Projet in `mirror.projects`: MIROIR-6. Following a Local folder and `local.changed`: SOURCE-3.
 
 ## Dependencies
 

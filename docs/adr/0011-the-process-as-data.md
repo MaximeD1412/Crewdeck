@@ -167,6 +167,11 @@ refusal, on the same fixtures in the page and the server.
   Idée: its analysis proposes the target Projet. Once the Projet is set
   (by the Pilote, or by the Projet being created for it), the Idée's next
   Phases follow that Projet's Process; a retained Idée waits for it.
+- **The Inventaire** of an existing code base (US-68) runs before the
+  Projet's Process, on the release's « Préparation » definition
+  (`templates/preparation.ts`: one Phase holding the `inventory` Étape,
+  its approval being the Inventaire's review), pinned to the release like an Idée without a Projet; the
+  Projet's work starts once it is approved.
 - **Admission** of the items of a `forEach` Phase: `idea.noted` at once;
   `idea.retained` on « Démarrer la Conception » (US-8); `ticket.ready` by the
   Boucle (`AgentLoop`, started, stopped, planned as US-13 and US-62 say), one
@@ -190,13 +195,17 @@ refusal, on the same fixtures in the page and the server.
   changes: its « Demander des changements » is hidden, and a Review's
   « changements » stops the item on the same Décision without « Encore un
   passage ».
+- **A merge that conflicts** is no Retour: the engine reruns the Étape
+  that produced the Changement de code (`rerunFrom`, the Code in
+  « fix-conflict » mode) and the Étapes after it, not counted against any
+  maximum; the third conflict of a PhaseRun fails it (`step-failed`).
 
 ### What the server reads of a Process
 
 The structure, the catalogue ids, the names of Phases, Étapes, Rôles,
 Serveurs MCP and Modèles are configuration the server reads (ADR 0003's
 table gets a row). A Commande's text and its health address are not: the
-version's `sealed` part (`{ wrappedKey, ciphertext }`, one item key wrapped
+version's `sealed` part (the vault's sealed item `{ key, ciphertext }`, `zSealedItem`: one item key wrapped
 by the vault key, AES-256-GCM, additional data `process:<projectId>` or
 `template:<templateId>`) holds `{ commands: { [id]: { run, where:
 'project' | 'worktree', healthUrl? } } }`. The browser seals it; the Runner

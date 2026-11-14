@@ -285,3 +285,51 @@ PRD: `docs/product/features/gestion-du-process.md` (PR #169), mockups PR #170
   state machine through « a human edits meanwhile » and « it fails after
   the point of no return », and each store through « what does a rebuild
   drop ». Every remark here was one of these three.
+
+## Découpage of « Gestion du process » (2026-11-14)
+
+Worktree `docs/backlog-gestion-du-process`. 39 new tickets (epics PROCESS
+and SOURCE added), 36 open tickets rewritten in place (`reprend`), PARAM-4
+(#76) closed as replaced by PROCESS-8 (US-83 removed). Milestone titles
+kept; M1, M3 to M7 descriptions updated.
+
+### Decisions (validated with the table)
+
+- A Local Projet's folder is a path typed in a TextField, checked live by
+  the Runner through the relay (PROJET-6).
+- Every change of Source goes through the migration (SOURCE-7), even for a
+  group that holds nothing, which then finishes at once.
+
+### Design gaps fixed while writing
+
+- An active version never has a Manque, but « Process Crewdeck » copied on
+  a Local Projet has one (« Checks » without a Commande): such a copy is the
+  Projet's draft, with no active version until the Pilote activates it
+  (PROCESS-3, PROJET-6, PROJET-3).
+- The approval gates had no Retour in the mockup's « Process Crewdeck »,
+  which hid « Demander des changements » against US-11: each gets one to
+  the Étape that wrote its document (PROCESS-1).
+- A merge conflict had no path (the Merge cannot have a Retour): the engine
+  reruns the Code in « fix-conflict » mode, outside any maximum
+  (ADR 0011, PROCESS-4, BOUCLE-4).
+- The Inventaire had no place in a Process: it runs on the release's
+  « Préparation » definition (ADR 0011, PROJET-4).
+- A Pilote's text on a Local Ticket (an answer, a remark) had no channel:
+  `comment.write` (ADR 0012, BOUCLE-5).
+- One sealed-item shape everywhere, the vault's `{ key, ciphertext }`
+  (`zSealedItem`, ADR 0011 aligned); the Runner's GitHub clones under
+  `repos/github/` beside `repos/local/` (ADR 0004 aligned, and its worktree
+  Commandes).
+- The mockups that contradict ADR 0012 (a Source menu per type, the Idée on
+  GitHub, « Checks » and « Merge » in the catalogue, `.process.json` copy
+  in `demarrage-projets`, `projets-vide`, `projet`) are not followed; the
+  tickets say so.
+
+### Observations
+
+- Splitting the writing among eight agents by area produced overlaps that
+  only showed when their reports came back (two comment protocols, three
+  names for the sealed item, a blocker missing on each side of a seam).
+  **To generalise**: before handing out the writing, list in the brief who
+  owns each table, protocol message and shared type, with its exact name
+  and shape; most of the reconciliation here was that list, written late.

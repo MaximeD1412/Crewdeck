@@ -2,7 +2,11 @@
 
 > **Status:** accepted, 2026-11-10. Amended by [ADR 0010](0010-the-runners-miroir.md)
 > on the Runner's state (`miroir.db`), protocol (the Miroir's replay) and
-> commands (`crewdeck-runner miroir`).
+> commands (`crewdeck-runner miroir`). Amended by [ADR 0011](0011-the-process-as-data.md)
+> (no more `.process.json`: the worktree's Commandes are Paramètres),
+> [ADR 0012](0012-sources-local-and-github.md) (the Local folder as the
+> clone's `origin`) and [ADR 0013](0013-commandes-and-serveurs-mcp.md)
+> (Commandes, Serveurs MCP).
 
 ## Context
 
@@ -91,11 +95,13 @@ provider's raw event kept beside them.
 
 ### Where agents work
 
-- The Runner's own clones (`~/.crewdeck/repos/<owner>/<repo>`), one
+- The Runner's own clones (`~/.crewdeck/repos/github/<owner>/<repo>`, and
+  `repos/local/<projectId>` for a Local Projet, [ADR 0012](0012-sources-local-and-github.md)), one
   worktree per Session (`~/.crewdeck/worktrees/<projet>/<branch>`); never
   the Pilote's checkout.
-- The Projet's `.process.json` `agentLoop.setupCmd` and `dropCmd` prepare
-  and clean a worktree, as `agent-loop` does.
+- The Projet's Commandes « Préparer le worktree » and « Nettoyer le
+  worktree » (its Paramètres, sealed, [ADR 0013](0013-commandes-and-serveurs-mcp.md))
+  prepare and clean a worktree, as `agent-loop`'s `setupCmd` and `dropCmd` do.
 - **Permissions**: the Rôles Code and Review run without prompts inside
   their worktree (`--permission-mode bypassPermissions`, Codex's full-auto
   equivalent), as `agent-loop` does today; the Sessions the Pilote drives run

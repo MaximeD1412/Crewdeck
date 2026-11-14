@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zAiAccount } from './ai-accounts.js';
+import { zDecision } from './decisions.js';
 import { zDevice } from './devices.js';
 import { zMe } from './me.js';
 import { zRunner } from './runner.js';
@@ -22,6 +23,8 @@ export const STATE_SLICES = {
   'ai-account': z.array(zAiAccount),
   /** The Pilote's Appareils (E2E-2), newest first; `current` is `false`, each page sets its own. */
   devices: z.array(zDevice),
+  /** The open Décisions, every one (« À toi »). */
+  decisions: z.array(zDecision),
   /** The Paramètres of the account. */
   settings: zAccountSettings,
 } as const;

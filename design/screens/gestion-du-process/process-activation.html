@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gestion du process — Activer la v4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+</head>
+<body>
+<!-- exemple : changements, Tickets et Conception fictifs -->
+<ui-app-shell variant="compact" screen="Gestion du process" current="projets" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Gestion du process" back="Site mairie" count="brouillon · 3 changements">
+    <span slot="sub" class="only-phone">Lecture seule sur le téléphone : la modification se fait sur PC.</span>
+    <span class="editor-actions">
+      <ui-button size="sm" variant="ghost" icon="copy">Enregistrer comme Modèle de process</ui-button>
+      <ui-button size="sm" icon="plus">Phase</ui-button>
+      <ui-button size="sm" icon="plus">Étape</ui-button>
+      <ui-button size="sm" variant="primary" icon="check">Activer la v4</ui-button>
+    </span>
+  </ui-page-header>
+  <div class="editor">
+    <ui-process-canvas zoom="90">
+      <ui-phase name="Idée" col="1" row="1">
+        <ui-step-card ref="analyse" name="Analyse de l’Idée" variant="agent" col="1" row="1">
+          <ui-port dir="in" name="idee" note="notée par toi">Idée</ui-port>
+          <ui-port dir="out" name="idee">Idée</ui-port>
+          <ui-tool-chip kind="role">Idée</ui-tool-chip>
+          <ui-tool-chip kind="skill">analyse-idee</ui-tool-chip>
+        </ui-step-card>
+        <ui-step-card ref="tri" name="Tri de l’Idée" variant="gate" col="2" row="1" judges>
+          <ui-port dir="in" name="idee">Idée</ui-port>
+          <ui-port dir="out" name="idee" note="retenue">Idée</ui-port>
+        </ui-step-card>
+      </ui-phase>
+      <ui-phase name="Conception" col="1" row="2">
+        <ui-step-card ref="prd" name="PRD" variant="agent" col="1" row="1">
+          <ui-port dir="in" name="idee">Idée</ui-port>
+          <ui-port dir="out" name="prd">PRD</ui-port>
+          <ui-tool-chip kind="role">Conception</ui-tool-chip>
+          <ui-tool-chip kind="skill">product-design</ui-tool-chip>
+        </ui-step-card>
+        <ui-step-card ref="rc-prd" name="Revue croisée du PRD" variant="agent" col="2" row="1" kind="Revue croisée" judges>
+          <ui-port dir="in" name="prd">PRD</ui-port>
+          <ui-port dir="out" name="verdict">Verdict</ui-port>
+          <ui-tool-chip kind="role">Review</ui-tool-chip>
+          <ui-tool-chip kind="skill">cross-review</ui-tool-chip>
+        </ui-step-card>
+        <ui-step-card ref="ap-prd" name="Approbation du PRD" variant="gate" col="3" row="1" judges>
+          <ui-port dir="in" name="prd">PRD</ui-port>
+          <ui-port dir="in" name="verdict">Verdict</ui-port>
+          <ui-port dir="out" name="prd">PRD</ui-port>
+        </ui-step-card>
+        <ui-step-card ref="maq" name="Maquettes" variant="agent" col="4" row="1">
+          <ui-port dir="in" name="prd">PRD</ui-port>
+          <ui-port dir="out" name="maquettes">Maquettes</ui-port>
+          <ui-tool-chip kind="role">Conception</ui-tool-chip>
+          <ui-tool-chip kind="skill">visual-design</ui-tool-chip>
+        </ui-step-card>
+        <ui-step-card ref="ap-maq" name="Revue des maquettes" variant="gate" col="5" row="1" judges>
+          <ui-port dir="in" name="maquettes">Maquettes</ui-port>
+          <ui-port dir="out" name="maquettes">Maquettes</ui-port>
+        </ui-step-card>
+        <ui-step-card ref="ct" name="Conception technique" variant="agent" col="1" row="2">
+          <ui-port dir="in" name="prd">PRD</ui-port>
+          <ui-port dir="in" name="maquettes">Maquettes</ui-port>
+          <ui-port dir="out" name="conception">Conception technique</ui-port>
+          <ui-tool-chip kind="role">Conception</ui-tool-chip>
+          <ui-tool-chip kind="skill">technical-design</ui-tool-chip>
+        </ui-step-card>
+        <ui-step-card ref="rc-ct" name="Revue croisée de la conception" variant="agent" col="2" row="2" kind="Revue croisée" judges>
+          <ui-port dir="in" name="conception">Conception technique</ui-port>
+          <ui-port dir="out" name="verdict">Verdict</ui-port>
+          <ui-tool-chip kind="role">Review</ui-tool-chip>
+          <ui-tool-chip kind="skill">cross-review</ui-tool-chip>
+        </ui-step-card>
+        <ui-step-card ref="ap-ct" name="Approbation de la conception" variant="gate" col="3" row="2" judges>
+          <ui-port dir="in" name="conception">Conception technique</ui-port>
+          <ui-port dir="in" name="verdict">Verdict</ui-port>
+          <ui-port dir="out" name="conception">Conception technique</ui-port>
+        </ui-step-card>
+        <ui-step-card ref="tickets" name="Découpage en Tickets" variant="agent" col="4" row="2">
+          <ui-port dir="in" name="prd">PRD</ui-port>
+          <ui-port dir="in" name="maquettes">Maquettes</ui-port>
+          <ui-port dir="in" name="conception">Conception technique</ui-port>
+          <ui-port dir="out" name="ticket">Ticket</ui-port>
+          <ui-tool-chip kind="role">Conception</ui-tool-chip>
+          <ui-tool-chip kind="skill">plan-backlog</ui-tool-chip>
+        </ui-step-card>
+        <ui-step-card ref="ap-tickets" name="Validation des Tickets" variant="gate" col="5" row="2" judges>
+          <ui-port dir="in" name="ticket">Ticket</ui-port>
+          <ui-port dir="out" name="ticket" note="prêt">Ticket</ui-port>
+        </ui-step-card>
+      </ui-phase>
+      <ui-phase name="Développement" col="1" row="3" for-each="chaque Ticket prêt">
+        <ui-step-card ref="code" name="Code" variant="agent" col="1" row="1">
+          <ui-port dir="in" name="ticket">Ticket</ui-port>
+          <ui-port dir="out" name="changement">Changement de code</ui-port>
+          <ui-tool-chip kind="role">Code</ui-tool-chip>
+          <ui-tool-chip kind="skill">red-green</ui-tool-chip>
+        </ui-step-card>
+        <ui-step-card ref="checks" name="Checks" variant="core" col="2" row="1" kind="CI du dépôt">
+          <ui-port dir="in" name="changement">Changement de code</ui-port>
+          <ui-port dir="out" name="verdict">Verdict</ui-port>
+          <ui-tool-chip kind="connecteur">GitHub</ui-tool-chip>
+        </ui-step-card>
+        <ui-step-card ref="review" name="Review" variant="agent" col="3" row="1" judges>
+          <ui-port dir="in" name="changement">Changement de code</ui-port>
+          <ui-port dir="in" name="verdict" note="des checks">Verdict</ui-port>
+          <ui-port dir="out" name="verdict">Verdict</ui-port>
+          <ui-tool-chip kind="role">Review</ui-tool-chip>
+          <ui-tool-chip kind="skill">review</ui-tool-chip>
+        </ui-step-card>
+        <ui-step-card ref="rv" name="Revue visuelle" variant="gate" col="3" row="2" judges>
+          <ui-port dir="in" name="changement">Changement de code</ui-port>
+          <ui-port dir="in" name="maquettes">Maquettes</ui-port>
+          <ui-port dir="out" name="verdict">Verdict</ui-port>
+        </ui-step-card>
+        <ui-step-card ref="fusion" name="Merge" variant="core" col="4" row="1" kind="par la Boucle">
+          <ui-port dir="in" name="changement">Changement de code</ui-port>
+          <ui-port dir="in" name="v-review" note="de la Review">Verdict</ui-port>
+          <ui-port dir="in" name="v-rv" note="de la Revue visuelle">Verdict</ui-port>
+          <ui-port dir="out" name="changement" note="mergé">Changement de code</ui-port>
+          <ui-tool-chip kind="connecteur">GitHub</ui-tool-chip>
+        </ui-step-card>
+      </ui-phase>
+      <ui-process-arrow from="analyse.idee" to="tri.idee"></ui-process-arrow>
+      <ui-process-arrow from="tri.idee" to="prd.idee"></ui-process-arrow>
+      <ui-process-arrow from="prd.prd" to="rc-prd.prd"></ui-process-arrow>
+      <ui-process-arrow from="prd.prd" to="ap-prd.prd"></ui-process-arrow>
+      <ui-process-arrow from="rc-prd.verdict" to="ap-prd.verdict"></ui-process-arrow>
+      <ui-process-arrow from="ap-prd.prd" to="maq.prd"></ui-process-arrow>
+      <ui-process-arrow from="maq.maquettes" to="ap-maq.maquettes"></ui-process-arrow>
+      <ui-process-arrow from="ap-prd.prd" to="ct.prd"></ui-process-arrow>
+      <ui-process-arrow from="ap-maq.maquettes" to="ct.maquettes"></ui-process-arrow>
+      <ui-process-arrow from="ct.conception" to="rc-ct.conception"></ui-process-arrow>
+      <ui-process-arrow from="ct.conception" to="ap-ct.conception"></ui-process-arrow>
+      <ui-process-arrow from="rc-ct.verdict" to="ap-ct.verdict"></ui-process-arrow>
+      <ui-process-arrow from="ap-prd.prd" to="tickets.prd"></ui-process-arrow>
+      <ui-process-arrow from="ap-maq.maquettes" to="tickets.maquettes"></ui-process-arrow>
+      <ui-process-arrow from="ap-ct.conception" to="tickets.conception"></ui-process-arrow>
+      <ui-process-arrow from="tickets.ticket" to="ap-tickets.ticket"></ui-process-arrow>
+      <ui-process-arrow from="ap-tickets.ticket" to="code.ticket"></ui-process-arrow>
+      <ui-process-arrow from="code.changement" to="checks.changement"></ui-process-arrow>
+      <ui-process-arrow from="code.changement" to="review.changement"></ui-process-arrow>
+      <ui-process-arrow from="checks.verdict" to="review.verdict"></ui-process-arrow>
+      <ui-process-arrow from="code.changement" to="rv.changement"></ui-process-arrow>
+      <ui-process-arrow from="ap-maq.maquettes" to="rv.maquettes"></ui-process-arrow>
+      <ui-process-arrow from="code.changement" to="fusion.changement"></ui-process-arrow>
+      <ui-process-arrow from="review.verdict" to="fusion.v-review"></ui-process-arrow>
+      <ui-process-arrow from="rv.verdict" to="fusion.v-rv"></ui-process-arrow>
+      <ui-loop-back from="rc-prd" to="prd" max="3"></ui-loop-back>
+      <ui-loop-back from="rc-ct" to="ct" max="3"></ui-loop-back>
+      <ui-loop-back from="review" to="code" max="3"></ui-loop-back>
+      <ui-loop-back from="rv" to="code" max="3"></ui-loop-back>
+    </ui-process-canvas>
+    <aside class="editor-panel" aria-label="Gestion du process / Panneau" data-name="Gestion du process / Panneau">
+      <ui-tabs><ui-tab selected count="0">Manques</ui-tab><ui-tab>Étape</ui-tab><ui-tab>Sources</ui-tab></ui-tabs>
+      <div class="editor-panel-body">
+        <ui-empty icon="check" title="Aucun Manque">Chaque Entrée est alimentée, chaque Type d’artefact a sa Source, et le Merge a ses checks et sa Review avant lui : le Process est activable.</ui-empty>
+      </div>
+      <footer class="editor-panel-foot" aria-label="Gestion du process / Versions" data-name="Gestion du process / Versions">
+        <p class="text-sm">3 changements depuis la v3.</p>
+        <p class="mono muted">v3 active depuis le 4 nov. · 2 Tickets en cours finissent sur la v2.</p>
+      </footer>
+    </aside>
+  </div>
+  <div class="process-list" aria-label="Gestion du process / Liste" data-name="Gestion du process / Liste">
+    <ui-phase-group name="Idée" count="2 Étapes">
+      <ui-step-row name="Analyse de l’Idée" kind="Agent" icon="spark" flow="Idée (notée par toi) → Idée" tools="Rôle Idée · analyse-idee"></ui-step-row>
+      <ui-step-row name="Tri de l’Idée" kind="Pilote" icon="user" flow="Idée → Idée (retenue)"></ui-step-row>
+    </ui-phase-group>
+    <ui-phase-group name="Conception" count="10 Étapes · 2 Retours">
+      <ui-step-row name="PRD" kind="Agent" icon="spark" flow="Idée → PRD" tools="Rôle Conception · product-design"></ui-step-row>
+      <ui-step-row name="Revue croisée du PRD" kind="Revue croisée" icon="spark" flow="PRD → Verdict" tools="Rôle Review · cross-review" loop-back="vers « PRD », 3 fois au plus"></ui-step-row>
+      <ui-step-row name="Approbation du PRD" kind="Pilote" icon="user" flow="PRD, Verdict → PRD"></ui-step-row>
+      <ui-step-row name="Maquettes" kind="Agent" icon="spark" flow="PRD → Maquettes" tools="Rôle Conception · visual-design"></ui-step-row>
+      <ui-step-row name="Revue des maquettes" kind="Pilote" icon="user" flow="Maquettes → Maquettes"></ui-step-row>
+      <ui-step-row name="Conception technique" kind="Agent" icon="spark" flow="PRD, Maquettes → Conception technique" tools="Rôle Conception · technical-design"></ui-step-row>
+      <ui-step-row name="Revue croisée de la conception" kind="Revue croisée" icon="spark" flow="Conception technique → Verdict" tools="Rôle Review · cross-review" loop-back="vers « Conception technique », 3 fois au plus"></ui-step-row>
+      <ui-step-row name="Approbation de la conception" kind="Pilote" icon="user" flow="Conception technique, Verdict → Conception technique"></ui-step-row>
+      <ui-step-row name="Découpage en Tickets" kind="Agent" icon="spark" flow="PRD, Maquettes, Conception technique → Ticket" tools="Rôle Conception · plan-backlog"></ui-step-row>
+      <ui-step-row name="Validation des Tickets" kind="Pilote" icon="user" flow="Ticket → Ticket (prêt)"></ui-step-row>
+    </ui-phase-group>
+    <ui-phase-group name="Développement" count="5 Étapes · 2 Retours" for-each="chaque Ticket prêt">
+      <ui-step-row name="Code" kind="Agent" icon="spark" flow="Ticket → Changement de code" tools="Rôle Code · red-green"></ui-step-row>
+      <ui-step-row name="Checks" kind="CI du dépôt" icon="check" flow="Changement de code → Verdict" tools="GitHub"></ui-step-row>
+      <ui-step-row name="Review" kind="Agent" icon="spark" flow="Changement de code, Verdict (des checks) → Verdict" tools="Rôle Review · review" loop-back="vers « Code », 3 fois au plus"></ui-step-row>
+      <ui-step-row name="Revue visuelle" kind="Pilote" icon="user" flow="Changement de code, Maquettes → Verdict" loop-back="vers « Code », 3 fois au plus"></ui-step-row>
+      <ui-step-row name="Merge" kind="par la Boucle" icon="merge" flow="Changement de code, Verdict (de la Review), Verdict (de la Revue visuelle) → Changement de code (mergé)" tools="GitHub"></ui-step-row>
+    </ui-phase-group>
+    <ui-card title="Sources" count="7" label="Gestion du process / Sources" flush>
+      <ui-list-row title="Idée"><ui-status-badge>GitHub</ui-status-badge></ui-list-row>
+      <ui-list-row title="PRD"><ui-status-badge>GitHub</ui-status-badge></ui-list-row>
+      <ui-list-row title="Maquettes"><ui-status-badge>GitHub</ui-status-badge></ui-list-row>
+      <ui-list-row title="Conception technique"><ui-status-badge>GitHub</ui-status-badge></ui-list-row>
+      <ui-list-row title="Ticket"><ui-status-badge>Local</ui-status-badge></ui-list-row>
+      <ui-list-row title="Changement de code"><ui-status-badge>GitHub</ui-status-badge></ui-list-row>
+      <ui-list-row title="Verdict"><ui-status-badge>GitHub</ui-status-badge></ui-list-row>
+    </ui-card>
+  </div>
+  <ui-confirm-dialog slot="overlay" title="Activer la v4 du Process de Site mairie ?" action="Activer la v4" icon="check">
+    <p><b>3 changements depuis la v3 :</b></p>
+    <ul>
+      <li>Serveur MCP « Stitch » attaché à « Maquettes » ;</li>
+      <li>Serveur MCP « Figma » attaché à « Maquettes » ;</li>
+      <li>Retour de « Review » vers « Code » : 5 fois au plus, au lieu de 3.</li>
+    </ul>
+    <p>Le travail qui démarre ensuite suit la v4. Ce qui est en cours finit sur la version où il a démarré : les Tickets #53 et #57 sur la v3, la Conception « Actualités » sur la v2.</p>
+  </ui-confirm-dialog>
+</ui-app-shell>
+</body>
+</html>

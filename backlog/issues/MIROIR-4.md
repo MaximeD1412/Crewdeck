@@ -13,26 +13,29 @@ stories: [US-20]
 screens: []
 revue_visuelle: false
 video: false
+reprend: 164
 ---
 
 ## Context
 
-ADR 0010, « How it follows GitHub » and « Freshness »: the running Runner keeps its **Miroir** live from the server's envelopes (MIROIR-1): it sends its cursor in its `hello`, applies each `github.changed` by fetching the object it names (MIROIR-3), moves its cursor in the same transaction, holds a **Projet**'s later envelopes behind a failed fetch with a backoff, reconciles at start, after a `mirror.resync` and every 15 min, and renews its « Miroir » token (MIROIR-2). Each Projet's copy is « en remplissage », « live » or « en retard »; MIROIR-6 reads that state to decide whether a read goes to GitHub first (risk AGT-7).
+ADR 0010, « How it follows GitHub » and « Freshness »: the running Runner keeps its **Miroir** live from the server's envelopes (MIROIR-1): it sends its cursor in its `hello`, applies each `github.changed` by fetching the object it names (MIROIR-3), moves its cursor in the same transaction, holds a **Projet**'s later envelopes behind a failed fetch with a backoff, reconciles at start, after a `mirror.resync` and every 15 min, and renews its « Miroir » token (MIROIR-2). Each Projet's copy is « en remplissage », « live » or « en retard »; MIROIR-6 reads that state to decide whether a read goes to GitHub first (risk AGT-7). The refonte (PRD #169, ADRs 0011–0014) leaves this ticket unchanged: what it follows is GitHub's, and a Local Projet enters the copy from its folder (SOURCE-2, MIROIR-6). ADR 0012 puts each Source behind one interface in `apps/runner/internal/source/`; that interface comes with SOURCE-2, which lands after this ticket (it waits for RUNNER-9 and PROJET-6), so the follower stays in `internal/mirror/` beside MIROIR-3's fetches, the GitHub side of the copy, with no dependency on `internal/source/`.
 
 ## Current state of the code
 
-- `apps/runner/internal/protocol/client.go`: `Client` (`Config` with `Machine`, `OnAccepted`, `OnConnected`), `Handle(type, handler)`, `Send`; `NewHello(machine)` builds the `hello` of each connection; `messages.go`, `backoff.go`.
-- `apps/runner/cmd/crewdeck-runner/run.go`: `machine.run` opens the state and the vault, builds the client, registers the handlers, runs it until a signal.
-- `apps/runner/internal/contracts/`: the Go types generated from `packages/contracts` (`runner-hello.go`…).
-- Created by MIROIR-1: `hello.mirrorAfter`, `github.changed { change }`, `mirror.resync`, `mirror.live { seq }`, `mirror.projects`; by MIROIR-2: `mirror.token`, `mirror.token.issued`, `mirror.token.failed`; by MIROIR-3: `internal/mirror/` (`Store`, `FetchObject`, `FetchChecks`, `FetchCollections`, `Reconcile`, `LimitedError`, `ErrRefused`, `ErrUnavailable`, `ErrGone`, the `meta.mirror_after` cursor), `internal/github/githubtest/`.
+- `apps/runner/internal/protocol/client.go`: `Client` (`Config` with `Machine`, `OnAccepted func(contracts.RunnerHelloAccepted)`, `OnConnected func(context.Context)`), `Handle(type, handler)`, `On[T]`, `Send`, `Run`; `messages.go`: `NewHello(machine)` builds the `hello` of each connection; `backoff.go`.
+- `apps/runner/cmd/crewdeck-runner/run.go`: `machine.run` opens the state and the vault, builds the client, registers the handlers, runs it until a signal. Nothing opens the Miroir yet.
+- `apps/runner/internal/contracts/`: the Go types generated from `packages/contracts` (`runner-hello.go`…); no mirror message.
+- `apps/runner/internal/mirror/` (MIROIR-3, merged, not wired): `store.go` (`Open`, `OpenReadOnly`, `DefaultPath`, `SchemaVersion = 1`, `Rebuild`, `Update(fn)`, `PutProjects`, `Projects`, `MarkFilled`, `MarkSynced`, `SetMeta(tx, key, value)`, `MetaMirrorAfter = "mirror_after"`; no reader of the cursor), `fetch.go` (`Client{ BaseURL, HTTP, Tokens func(repository) github.TokenSource, Logger, Now }`, `FetchObject`, `FetchChecks`, `FetchCollections`, `ErrRefused`, `ErrUnavailable`, `ErrGone`, `*LimitedError{ RetryAt }`), `object.go` (`PutObject`, `DeleteObject`, `PutChecks`, `PutCollections`), `reconcile.go` (`Mirror{ Store, GitHub, Logger, Now }`, `Refresh(ctx, repository, number)`, `Reconcile(ctx, repository)`, `ErrNotAProject`), `schema.sql`.
+- `apps/runner/internal/github/pulls.go`: `TokenSource` (`Token(ctx)`); `internal/github/githubtest/`: the fake GitHub (GraphQL by operation, scripted errors, recorded calls).
+- Created by MIROIR-1: `hello.mirrorAfter`, `github.changed { change }`, `mirror.resync`, `mirror.live { seq }`, `mirror.projects`; by MIROIR-2: `mirror.token`, `mirror.token.issued`, `mirror.token.failed`.
 
 ## To do
 
 - `apps/runner/internal/mirror/follower.go`, `Follower` (started by `run.go` with the Store and the protocol client):
-  - `hello`: `NewHello` takes the cursor (`Store.Cursor()`, null when none): the `hello` of each connection carries `mirrorAfter`.
+  - `hello`: `NewHello` takes the cursor (`Store.Cursor()`, added in `store.go`: `meta.mirror_after` as an int64, null when none): the `hello` of each connection carries `mirrorAfter`.
   - `mirror.projects` → `Store.PutProjects`, then `mirror.token`; a new Projet starts unfilled and gets its reconciliation.
   - Tokens: `mirror.token` after each accepted `hello` and each `mirror.projects`; `mirror.token.issued` keeps the tokens in memory only (per repository, by installation); renewal 10 min before the earliest `expiresAt` while connected; `mirror.token.failed`, or no answer within 30 s, retried with the backoff below. A `TokenSource` per repository for MIROIR-3's fetches.
-  - `github.changed`: queued per Projet, in `seq` order; applying one: `issue`, `pull` → `FetchObject` (and `FetchChecks` of its head for a `pull`), `check` → `FetchChecks(sha)` then the checks of every PR of the copy whose head or merge commit is `sha`, `push` → nothing here (MIROIR-5 reindexes on its integration branch), `label`, `milestone`, `release` → `FetchCollections`; then, in one transaction, the rows and `meta.mirror_after = seq`. The cursor never passes an envelope not applied: with several Projets, it is the lowest `seq` not yet applied minus one, the later applied `seq`s being recorded in `meta` until it catches up (so a restart replays only what is missing; reapplying an envelope is harmless).
+  - `github.changed`: queued per Projet, in `seq` order; applying one: `issue`, `pull` → `FetchObject` (and `FetchChecks` of its head for a `pull`; `Mirror.Refresh` writes in its own transaction, so split it into its fetch and a `put` taking the `tx`, reused by both), `check` → `FetchChecks(sha)` then the checks of every PR of the copy whose head or merge commit is `sha`, `push` → nothing here (MIROIR-5 reindexes on its integration branch), `label`, `milestone`, `release` → `FetchCollections`; then, in one transaction, the rows and `meta.mirror_after = seq`. The cursor never passes an envelope not applied: with several Projets, it is the lowest `seq` not yet applied minus one, the later applied `seq`s being recorded in `meta` until it catches up (so a restart replays only what is missing; reapplying an envelope is harmless).
   - A failed fetch (`LimitedError`: wait until `RetryAt`; `ErrUnavailable`, `ErrRefused`: backoff 1 s doubling to 5 min) holds that Projet's later envelopes; the other Projets go on. `ErrGone` deletes the object and counts as applied.
   - `mirror.resync`: the reconciliation of every Projet; the `mirror.live { seq }` that follows sets the cursor to `seq` once those reconciliations finished (the live envelopes received meanwhile wait in their queues and are applied after).
   - Reconciliation of every Projet when the Runner starts (once the token arrived), after a `mirror.resync`, and every 15 min (`ReconcileEvery`), one Projet at a time; `MarkSynced` at its end.
@@ -45,6 +48,7 @@ ADR 0010, « How it follows GitHub » and « Freshness »: the running Runner ke
 - A Projet's envelopes are applied one after the other, in `seq` order; two Projets in parallel (at most 4 fetches at once for the Runner).
 - The backoff and its bounds are the ADR's (1 s doubling to 5 min); a rate limit waits for GitHub's own `RetryAt` instead.
 - The tokens live in memory: a restarted Runner asks for new ones.
+- The follower stays in `internal/mirror/` (`follower.go`, `freshness.go`): no `internal/source/` package before SOURCE-2; MIROIR-6 is where the copy starts reading a Local Source.
 - The follower is the Miroir's only writer; the commands of MIROIR-6 ask it through the Runner's socket for anything that writes.
 
 ## Acceptance criteria
@@ -70,6 +74,7 @@ Nothing.
 ## Out of scope
 
 - The documentation index and the `push` to the integration branch: MIROIR-5. The commands and `crewdeck-runner status`: MIROIR-6.
+- A Local Projet in the copy and its freshness: MIROIR-6; following its folder: SOURCE-3.
 
 ## Dependencies
 

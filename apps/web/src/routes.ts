@@ -1,12 +1,15 @@
-import { COMPOSANTS, PageComposants, PageConnexion, PageDemarrage, PageParametres, PageRunner } from '@crewdeck/sdk';
+import { COMPOSANTS, PageAToi, PageComposants, PageConnexion, PageDemarrage, PageParametres, PageRunner } from '@crewdeck/sdk';
 import type { Route } from './router.js';
-import type { StoreState } from './store/store.js';
+import { aToiView } from './views/a-toi.js';
 import { composantsView } from './views/composants.js';
 import { connexionView } from './views/connexion.js';
 import { parametresView, timeZones } from './views/parametres.js';
 
 /** The library of Composants' URL for one of them. */
 export const composantsHref = (name: string): string => `/parametres/composants?c=${encodeURIComponent(name)}`;
+
+/** « À toi », every Projet's Décisions, or one Projet's (`?projet=`). */
+export const aToiHref = (projectId: string | null): string => (projectId ? `/a-toi?projet=${encodeURIComponent(projectId)}` : '/a-toi');
 
 /**
  * The page URLs of ADR 0008 and their page Composant, filled by the page
@@ -19,13 +22,19 @@ export const composantsHref = (name: string): string => `/parametres/composants?
  * (`views/runner.ts`). The first route that matches wins.
  */
 export const ROUTES: readonly Route[] = [
+  {
+    path: '/a-toi',
+    composant: PageAToi,
+    data: (match, state) =>
+      aToiView(state.slices.decision?.values() ?? [], match.query, { runnerOnline: state.slices.runner?.state === 'online' }),
+  },
   { path: '/connexion', composant: PageConnexion, data: (match) => connexionView(match.query) },
   { path: '/demarrage', composant: PageDemarrage },
   { path: '/runner', composant: PageRunner },
   {
     path: '/parametres',
     composant: PageParametres,
-    slots: (_match, state) => parametresView((state as StoreState | undefined)?.slices.settings, timeZones()),
+    slots: (_match, state) => parametresView(state.slices.settings, timeZones()),
   },
   {
     path: '/parametres/composants',

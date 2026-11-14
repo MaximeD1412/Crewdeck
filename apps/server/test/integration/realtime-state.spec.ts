@@ -69,6 +69,7 @@ describe('the snapshot and the retention against PostgreSQL', () => {
         'runner-link': null,
         'ai-account': [],
         devices: [],
+        decisions: [],
         settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' },
       });
     });

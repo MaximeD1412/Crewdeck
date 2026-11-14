@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ticket #53 — Fermé à sa Source</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .ticket-track { order: -1; }
+  @media (min-width: 1280px) { .ticket-track { order: 0; } }
+</style>
+</head>
+<body>
+<!-- exemple : Ticket, branche, checks, durées et review fictifs -->
+<ui-app-shell screen="Ticket" current="boucle" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="#53 Export du planning" count="Personal OS · arrêté" back="Boucle" screen="Ticket">
+    <ui-button variant="secondary" icon="terminal">Ouvrir la session</ui-button>
+  </ui-page-header>
+  <ui-banner tone="neutral" icon="stop" title="Fermé à sa Source">Le Ticket a été fermé sur GitHub : son travail s’est arrêté. La branche feat/53-export-du-planning est gardée ; s’il est rouvert, il repart d’elle.</ui-banner>
+  <div class="layout">
+    <div class="layout-main">
+      <ui-card title="Avancement" label="Ticket / Avancement" class="ticket-track">
+        <ui-process-track>
+          <ui-step state="done" label="Code" meta="Claude Code · 24 min"></ui-step>
+          <ui-step state="done" label="Checks" meta="4 sur 4 passés"></ui-step>
+          <ui-step state="stopped" label="Review" meta="arrêtée à 15:20 : Ticket fermé sur GitHub"></ui-step>
+          <ui-step state="todo" label="Merge" meta="tant que le Ticket reste fermé"></ui-step>
+        </ui-process-track>
+      </ui-card>
+      <ui-card title="Historique" label="Ticket / Historique">
+        <ui-key-value>
+          <ui-kv label="15:20">Arrêté : fermé sur GitHub, sa Source. La branche est gardée.</ui-kv>
+          <ui-kv label="14:49">Review : second passage lancé</ui-kv>
+          <ui-kv label="14:26">Checks : 4 sur 4 passés</ui-kv>
+          <ui-kv label="14:02">Pris par la Boucle</ui-kv>
+        </ui-key-value>
+      </ui-card>
+      <ui-card title="Checks" count="4" label="Ticket / Checks">
+        <ui-check-row name="Tests" state="passed" detail="186 tests · 1 min 52 s"></ui-check-row>
+        <ui-check-row name="Lint" state="passed" detail="18 s"></ui-check-row>
+        <ui-check-row name="Types" state="passed" detail="41 s"></ui-check-row>
+        <ui-check-row name="Build" state="passed" detail="1 min 05 s"></ui-check-row>
+      </ui-card>
+    </div>
+    <div class="layout-aside">
+      <ui-card title="Pull request" label="Ticket / Pull request">
+        <ui-key-value>
+          <ui-kv label="PR"><span class="mono">#212</span></ui-kv>
+          <ui-kv label="Branche"><span class="mono">feat/53-export-du-planning</span></ui-kv>
+          <ui-kv label="Fichiers">7 modifiés · <span class="mono">+214 −38</span></ui-kv>
+          <ui-kv label="Vers"><span class="mono">develop</span></ui-kv>
+        </ui-key-value>
+        <div class="cluster"><ui-button variant="ghost" size="sm" icon="external">Voir sur GitHub</ui-button></div>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

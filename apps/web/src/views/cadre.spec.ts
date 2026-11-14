@@ -119,6 +119,14 @@ describe('cadreView', () => {
     expect(cadreView(state, at('/a-toi')).cadre.pilot).toEqual({ login: 'maximed1412', avatarUrl: 'https://avatars.example/u/1' });
   });
 
+  it('counts the open Décisions on « À toi », no count when none waits', () => {
+    const open = (n: number): CadreState => ({ slices: { decision: new Map(Array.from({ length: n }, (_, i) => [String(i), {}])) } });
+    const countOf = (state: CadreState) => cadreView(state, at('/idees')).menu.find((item) => item.id === 'a-toi')?.count;
+    expect(countOf(open(9))).toBe(9);
+    expect(countOf(open(0))).toBeNull();
+    expect(cadreView(open(9), at('/a-toi')).menu.filter((item) => item.count !== null).map((item) => item.id)).toEqual(['a-toi']);
+  });
+
   it.each(['/connexion', '/demarrage'])('is bare on %s', (path) => {
     expect(cadreView(empty, at(path)).cadre).toMatchObject({ variant: 'bare', current: null });
   });

@@ -21,7 +21,7 @@ describe('the latency meter', () => {
     vi.useFakeTimers({ now: NOW });
     store = createStore();
     store.registerSlice('pilot', { shape: 'single' });
-    store.applySnapshot({ seq: 0, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
+    store.applySnapshot({ seq: 0, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], decisions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
     sent = [];
     beacons = [];
     visibility = 'visible';

@@ -13,6 +13,7 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/accounts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/logging"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/mcp"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/service"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
@@ -61,6 +62,10 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	if err != nil {
 		return err
 	}
+	servers, err := mcp.Default()
+	if err != nil {
+		return err
+	}
 	socket, err := accounts.DefaultSocket()
 	if err != nil {
 		return err
@@ -82,14 +87,34 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	// The adapters, their Sessions watched: a limit or a sign-in they meet
 	// reaches the capabilities. The Sessions (RUNNER-9) start from this registry.
 	reporter.Engines = reporter.Watch(runnerEngines(keys))
+	// The Serveurs MCP declared here, as their last `add` or `test` left
+	// them: the Runner starts none of them to report them (US-73).
+	reportMCP := func(ctx context.Context) {
+		err := protocol.ErrNotConnected
+		declared, loadErr := servers.Load()
+		if client := current.Load(); loadErr != nil {
+			err = loadErr
+		} else if client != nil {
+			err = client.Send(ctx, protocol.NewMcpServers(mcp.Report(declared)))
+		}
+		if err != nil && !errors.Is(err, protocol.ErrNotConnected) && ctx.Err() == nil {
+			logger.Warn("mcp.servers", "error", err)
+		}
+	}
 	report := func(ctx context.Context) {
 		if _, err := reporter.Report(ctx); err != nil && !errors.Is(err, protocol.ErrNotConnected) && ctx.Err() == nil {
 			logger.Warn("capabilities", "error", err)
 		}
+		reportMCP(ctx)
 	}
-	// `login` and `logout` ask for them again through the socket.
+	// `login`, `logout` and `mcp add|remove|test` ask for them again through the socket.
+	refresh := func(ctx context.Context) ([]contracts.EngineCapabilities, error) {
+		caps, err := reporter.Report(ctx)
+		reportMCP(ctx)
+		return caps, err
+	}
 	go func() {
-		if err := accounts.Serve(ctx, socket, reporter.Report); err != nil {
+		if err := accounts.Serve(ctx, socket, refresh); err != nil {
 			logger.Warn("accounts socket", "error", err)
 		}
 	}()
@@ -108,7 +133,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			Token:   linked.Token,
 			Machine: described,
 			Logger:  logger,
-			// What each Moteur can run, on each accepted connection (US-38).
+			// What each Moteur can run (US-38) and the Serveurs MCP (US-73), on each accepted connection.
 			OnConnected: report,
 		})
 		current.Store(client)

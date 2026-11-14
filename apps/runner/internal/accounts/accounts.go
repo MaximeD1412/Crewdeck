@@ -42,12 +42,12 @@ type Keyring interface {
 	Delete(service, user string) error
 }
 
-// osKeyring is the machine's keychain.
-type osKeyring struct{}
+// OSKeyring is the machine's keychain.
+type OSKeyring struct{}
 
-func (osKeyring) Get(service, user string) (string, error) { return keyring.Get(service, user) }
-func (osKeyring) Set(service, user, secret string) error   { return keyring.Set(service, user, secret) }
-func (osKeyring) Delete(service, user string) error        { return keyring.Delete(service, user) }
+func (OSKeyring) Get(service, user string) (string, error) { return keyring.Get(service, user) }
+func (OSKeyring) Set(service, user, secret string) error   { return keyring.Set(service, user, secret) }
+func (OSKeyring) Delete(service, user string) error        { return keyring.Delete(service, user) }
 
 // Store keeps the keys; Dir is the Runner's folder (~/.crewdeck).
 type Store struct {
@@ -68,7 +68,7 @@ func Default() (Store, error) {
 
 func (s Store) keyring() Keyring {
 	if s.Keyring == nil {
-		return osKeyring{}
+		return OSKeyring{}
 	}
 	return s.Keyring
 }

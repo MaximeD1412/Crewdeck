@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/accounts"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/mcp"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/service"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/update"
@@ -98,7 +99,7 @@ func newUninstallCommand(m *machine) *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:   "uninstall",
-		Short: "Remove the Runner, its clones, ~/.crewdeck and the API keys it keeps",
+		Short: "Remove the Runner, its clones, ~/.crewdeck and the API keys and MCP secrets it keeps",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()
@@ -127,8 +128,9 @@ func accepted(in io.Reader) bool {
 }
 
 // uninstall checks everything it is about to remove before removing
-// anything; then the keys come first, as a keychain that refuses leaves the
-// Runner whole, to uninstall again once it is unlocked.
+// anything; then the secrets of the Serveurs MCP and the keys come first, as
+// a keychain that refuses leaves the Runner whole, to uninstall again once it
+// is unlocked.
 func (m *machine) uninstall(ctx context.Context, out io.Writer) error {
 	cfg, err := m.service()
 	if err != nil {
@@ -144,6 +146,9 @@ func (m *machine) uninstall(ctx context.Context, out io.Writer) error {
 	binary, err := m.executable()
 	if err != nil {
 		return err
+	}
+	if err := (mcp.Store{Dir: store.Dir}).DeleteSecrets(); err != nil {
+		return fmt.Errorf("Les secrets des Serveurs MCP n’ont pas pu être retirés du trousseau (%v) : le Runner n’est pas désinstallé. Déverrouille le trousseau, puis relance « crewdeck-runner uninstall ».", err)
 	}
 	keys := accounts.Store{Dir: store.Dir}
 	for _, id := range accounts.Engines {

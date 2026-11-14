@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "at": {
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+      "type": "string"
+    },
+    "id": {
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+      "type": "string"
+    },
+    "servers": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "pattern": "^[a-z0-9-]{1,40}$",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ready",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "toolCount": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transport": {
+            "enum": [
+              "stdio",
+              "http"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "state",
+          "toolCount",
+          "transport"
+        ],
+        "type": "object"
+      },
+      "maxItems": 100,
+      "type": "array"
+    },
+    "type": {
+      "const": "mcp.servers",
+      "type": "string"
+    }
+  },
+  "required": [
+    "at",
+    "id",
+    "servers",
+    "type"
+  ],
+  "title": "RunnerMcpServers",
+  "type": "object"
+}

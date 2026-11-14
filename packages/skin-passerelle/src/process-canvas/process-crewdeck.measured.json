@@ -1,0 +1,330 @@
+{
+ "cards": [
+  {
+   "id": "analyse",
+   "box": {
+    "l": 41,
+    "t": 87,
+    "r": 217,
+    "b": 243
+   },
+   "inputs": {
+    "idee": 155
+   },
+   "outputs": {
+    "idee": 175
+   }
+  },
+  {
+   "id": "tri",
+   "box": {
+    "l": 237,
+    "t": 87,
+    "r": 365,
+    "b": 227
+   },
+   "inputs": {
+    "idee": 155
+   },
+   "outputs": {
+    "idee": 175
+   }
+  },
+  {
+   "id": "prd",
+   "box": {
+    "l": 41,
+    "t": 379,
+    "r": 217,
+    "b": 535
+   },
+   "inputs": {
+    "idee": 447
+   },
+   "outputs": {
+    "prd": 467
+   }
+  },
+  {
+   "id": "rc-prd",
+   "box": {
+    "l": 237,
+    "t": 379,
+    "r": 413,
+    "b": 547
+   },
+   "inputs": {
+    "prd": 447
+   },
+   "outputs": {
+    "verdict": 467
+   }
+  },
+  {
+   "id": "ap-prd",
+   "box": {
+    "l": 433,
+    "t": 379,
+    "r": 561,
+    "b": 559
+   },
+   "inputs": {
+    "prd": 467,
+    "verdict": 487
+   },
+   "outputs": {
+    "prd": 507
+   }
+  },
+  {
+   "id": "maq",
+   "box": {
+    "l": 629,
+    "t": 379,
+    "r": 805,
+    "b": 535
+   },
+   "inputs": {
+    "prd": 447
+   },
+   "outputs": {
+    "maquettes": 467
+   }
+  },
+  {
+   "id": "ap-maq",
+   "box": {
+    "l": 825,
+    "t": 379,
+    "r": 953,
+    "b": 539
+   },
+   "inputs": {
+    "maquettes": 467
+   },
+   "outputs": {
+    "maquettes": 487
+   }
+  },
+  {
+   "id": "ct",
+   "box": {
+    "l": 41,
+    "t": 599,
+    "r": 217,
+    "b": 775
+   },
+   "inputs": {
+    "prd": 667,
+    "maquettes": 687
+   },
+   "outputs": {
+    "conception": 707
+   }
+  },
+  {
+   "id": "rc-ct",
+   "box": {
+    "l": 237,
+    "t": 599,
+    "r": 413,
+    "b": 787
+   },
+   "inputs": {
+    "conception": 687
+   },
+   "outputs": {
+    "verdict": 707
+   }
+  },
+  {
+   "id": "ap-ct",
+   "box": {
+    "l": 433,
+    "t": 599,
+    "r": 561,
+    "b": 811
+   },
+   "inputs": {
+    "conception": 695,
+    "verdict": 723
+   },
+   "outputs": {
+    "conception": 751
+   }
+  },
+  {
+   "id": "tickets",
+   "box": {
+    "l": 629,
+    "t": 599,
+    "r": 805,
+    "b": 795
+   },
+   "inputs": {
+    "prd": 667,
+    "maquettes": 687,
+    "conception": 707
+   },
+   "outputs": {
+    "ticket": 727
+   }
+  },
+  {
+   "id": "ap-tickets",
+   "box": {
+    "l": 825,
+    "t": 599,
+    "r": 953,
+    "b": 759
+   },
+   "inputs": {
+    "ticket": 687
+   },
+   "outputs": {
+    "ticket": 707
+   }
+  },
+  {
+   "id": "code",
+   "box": {
+    "l": 41,
+    "t": 950,
+    "r": 217,
+    "b": 1106
+   },
+   "inputs": {
+    "ticket": 1018
+   },
+   "outputs": {
+    "changement": 1038
+   }
+  },
+  {
+   "id": "checks",
+   "box": {
+    "l": 237,
+    "t": 950,
+    "r": 413,
+    "b": 1086
+   },
+   "inputs": {
+    "changement": 1018
+   },
+   "outputs": {
+    "verdict": 1038
+   }
+  },
+  {
+   "id": "review",
+   "box": {
+    "l": 433,
+    "t": 950,
+    "r": 609,
+    "b": 1138
+   },
+   "inputs": {
+    "changement": 1018,
+    "verdict": 1038
+   },
+   "outputs": {
+    "verdict": 1058
+   }
+  },
+  {
+   "id": "rv",
+   "box": {
+    "l": 433,
+    "t": 1178,
+    "r": 561,
+    "b": 1354
+   },
+   "inputs": {
+    "changement": 1254,
+    "maquettes": 1282
+   },
+   "outputs": {
+    "verdict": 1302
+   }
+  },
+  {
+   "id": "fusion",
+   "box": {
+    "l": 629,
+    "t": 950,
+    "r": 805,
+    "b": 1126
+   },
+   "inputs": {
+    "changement": 1018,
+    "v-review": 1038,
+    "v-rv": 1058
+   },
+   "outputs": {
+    "changement": 1078
+   }
+  }
+ ],
+ "phases": [
+  {
+   "l": 24,
+   "t": 24,
+   "r": 430,
+   "b": 284
+  },
+  {
+   "l": 24,
+   "t": 316,
+   "r": 1018,
+   "b": 852
+  },
+  {
+   "l": 24,
+   "t": 884,
+   "r": 822,
+   "b": 1395
+  }
+ ],
+ "heads": [
+  {
+   "l": 41,
+   "t": 24,
+   "r": 413,
+   "b": 71
+  },
+  {
+   "l": 41,
+   "t": 316,
+   "r": 1001,
+   "b": 363
+  },
+  {
+   "l": 41,
+   "t": 884,
+   "r": 805,
+   "b": 934
+  }
+ ],
+ "badges": [
+  {
+   "width": 159,
+   "height": 18
+  },
+  {
+   "width": 159,
+   "height": 18
+  },
+  {
+   "width": 159,
+   "height": 18
+  },
+  {
+   "width": 159,
+   "height": 18
+  }
+ ],
+ "size": {
+  "width": 1042,
+  "height": 1419
+ }
+}

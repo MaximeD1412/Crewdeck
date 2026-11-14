@@ -24,6 +24,7 @@ import { PasserelleIconButton } from './icon-button.js';
 import { PasserelleIcon } from './icon.js';
 import { PasserelleKeyValue } from './key-value.js';
 import { PasserelleListRow } from './list-row.js';
+import { PasserelleLoopBack } from './loop-back.js';
 import { PasserelleMenuItem } from './menu-item.js';
 import { PasserelleMessage } from './message.js';
 import { PasserellePageAToi } from './page-a-toi.js';
@@ -34,6 +35,9 @@ import { PasserellePageHeader } from './page-header.js';
 import { PasserellePageIntrouvable } from './page-introuvable.js';
 import { PasserellePageRunner } from './page-runner.js';
 import { PasserellePermissionRequest } from './permission-request.js';
+import { PasserellePhase } from './phase.js';
+import { PasserellePort } from './port.js';
+import { PasserelleProcessCanvas } from './process-canvas.js';
 import { PasserelleProcessTrack } from './process-track.js';
 import { PasserelleProjectFilter } from './project-filter.js';
 import { PasserelleQuestion } from './question.js';
@@ -44,13 +48,16 @@ import { PasserelleSettingRow } from './setting-row.js';
 import { PasserelleStat } from './stat.js';
 import { PasserelleStatusBadge } from './status-badge.js';
 import { PasserelleStatusDot } from './status-dot.js';
+import { PasserelleStepCard } from './step-card.js';
 import { PasserelleTabs } from './tabs.js';
 import { PasserelleTextField } from './text-field.js';
 import { PasserelleTicketRow } from './ticket-row.js';
 import { PasserelleTicketTree } from './ticket-tree.js';
 import { PasserelleTimeline } from './timeline.js';
+import { PasserelleToast } from './toast.js';
 import { PasserelleToolCall } from './tool-call.js';
 import { PasserelleToggle } from './toggle.js';
+import { PasserelleToolChip } from './tool-chip.js';
 import { PasserelleUsageMeter } from './usage-meter.js';
 
 export default defineSkin({
@@ -85,6 +92,12 @@ export default defineSkin({
     TicketRow: PasserelleTicketRow,
     AgentRow: PasserelleAgentRow,
     ProcessTrack: PasserelleProcessTrack,
+    ProcessCanvas: PasserelleProcessCanvas,
+    Phase: PasserellePhase,
+    StepCard: PasserelleStepCard,
+    Port: PasserellePort,
+    ToolChip: PasserelleToolChip,
+    LoopBack: PasserelleLoopBack,
     UsageMeter: PasserelleUsageMeter,
     Stat: PasserelleStat,
     CheckRow: PasserelleCheckRow,
@@ -104,6 +117,7 @@ export default defineSkin({
     StatusDot: PasserelleStatusDot,
     Tabs: PasserelleTabs,
     TextField: PasserelleTextField,
+    Toast: PasserelleToast,
     Toggle: PasserelleToggle,
   },
 });

@@ -85,7 +85,7 @@ test.describe('the Cadre at 1280 px', () => {
     await page.goto('/parametres/composants?c=Cadre');
 
     const preview = page.locator('cd-card').filter({ has: page.getByRole('heading', { level: 2, name: /^Aperçu/ }) });
-    await expect(preview.locator('cd-cadre')).toHaveCount(4);
+    await expect(preview.locator('cd-cadre')).toHaveCount(5);
     await expect(preview.getByRole('button', { name: 'maximed1412' }).first()).toBeVisible();
     await expect(preview.getByText('Resynchronisation…').filter({ visible: true })).toBeVisible();
     await expect(preview.getByText('Actions sensibles indisponibles').filter({ visible: true })).toBeVisible();

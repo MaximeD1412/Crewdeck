@@ -76,3 +76,39 @@ export const actionsOf = async (act: () => unknown): Promise<CdActionDetail[]> =
 
 /** A node's text, its white space collapsed. */
 export const textOf = (el: Node | null | undefined) => el?.textContent?.replace(/\s+/g, ' ').trim();
+
+export interface Point {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** An element's centre, in the viewport. */
+export const centreOf = (el: Element): Point => {
+  const rect = el.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+};
+
+/** A pointer event of the primary button at `at`, dispatched on `target`. */
+export const pointer = (type: string, target: EventTarget, at: Point): void => {
+  target.dispatchEvent(
+    new PointerEvent(type, { bubbles: true, composed: true, cancelable: true, clientX: at.x, clientY: at.y, button: 0, pointerId: 1, isPrimary: true }),
+  );
+};
+
+/**
+ * A drag inside `host`: pressed on `from`, moved a little (what the drag shows
+ * then renders), then moved to and released over `to`, given once that has
+ * rendered: an element (its centre) or a point.
+ */
+export const drag = async (host: Element, from: Element, to: () => Element | Point): Promise<void> => {
+  const start = centreOf(from);
+  pointer('pointerdown', from, start);
+  pointer('pointermove', from, { x: start.x + 10, y: start.y + 10 });
+  await settle(host);
+  const target = to();
+  const end = target instanceof Element ? centreOf(target) : target;
+  pointer('pointermove', from, end);
+  await settle(host);
+  pointer('pointerup', target instanceof Element ? target : from, end);
+  await settle(host);
+};

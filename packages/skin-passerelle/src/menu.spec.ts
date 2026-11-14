@@ -132,6 +132,16 @@ describe('Menu', () => {
     expect(await actionsOf(() => press('Escape'))).toEqual([{ composant: 'Menu', action: 'close', payload: {} }]);
   });
 
+  it('takes the focus itself when every item is disabled, so Escape still closes it', async () => {
+    const disabled = { title: null, groups: [{ label: 'Serveur MCP', items: [item('mcp-stitch', 'Stitch', { disabled: true })] }] };
+    const el = await render(COMPOSANTS.Menu, disabled);
+    expect(deepActiveElement()).toBe(inside(el, '[role=menu]'));
+    expect(items(el).map((node) => node.tabIndex)).toEqual([-1]);
+    expect(await actionsOf(() => press('Escape'))).toEqual([{ composant: 'Menu', action: 'close', payload: {} }]);
+    expect(await actionsOf(() => press('ArrowDown'))).toEqual([]);
+    expect(deepActiveElement()).toBe(inside(el, '[role=menu]'));
+  });
+
   it('emits close on a pointer down outside it, and not inside', async () => {
     const el = await render(COMPOSANTS.Menu, MENU);
     const outside = document.createElement('button');

@@ -15,7 +15,8 @@ const MOVES: Readonly<Record<string, (index: number, count: number) => number>> 
  * named by its label, a `menuitem` per item: its icon, its label in bold over
  * its detail, a check when selected (« choisi » for a screen reader). A
  * disabled item is `aria-disabled` and chooses nothing. The focus goes to the
- * first enabled item when it opens; the arrows, Home and End move it over the
+ * first enabled item when it opens (to the menu itself when every item is
+ * disabled, so that Escape still closes it); the arrows, Home and End move it over the
  * enabled ones, wrapping; only the focused item is in the tab order. Enter,
  * Space or a click emit `choose`; Escape or a pointer down outside it emit
  * `close`: the core removes it.
@@ -60,6 +61,11 @@ export class PasserelleMenu extends PasserelleElement<typeof Menu> {
         font: var(--cd-font-caption-weight) var(--cd-font-caption-size) / var(--cd-font-caption-line-height)
           var(--cd-font-caption-family), sans-serif;
         color: var(--cd-muted);
+      }
+      [role='menu']:focus-visible {
+        outline: var(--cd-stroke) solid var(--cd-accent);
+        outline-offset: calc(var(--cd-stroke) * -1);
+        border-radius: var(--cd-radius);
       }
       [role='menuitem'] {
         width: 100%;
@@ -156,8 +162,10 @@ export class PasserelleMenu extends PasserelleElement<typeof Menu> {
 
   protected override firstUpdated(changed: PropertyValues): void {
     super.firstUpdated(changed);
+    // With every item disabled, the menu itself takes the focus: Escape still reaches it.
     const first = this.current();
-    if (first !== null) this.item(first)?.focus({ preventScroll: true });
+    const target = first === null ? this.shadowRoot?.querySelector<HTMLElement>('[role=menu]') : this.item(first);
+    target?.focus({ preventScroll: true });
   }
 
   private choose(id: string) {
@@ -202,6 +210,7 @@ export class PasserelleMenu extends PasserelleElement<typeof Menu> {
       <div
         class="items"
         role="menu"
+        tabindex="-1"
         aria-labelledby=${title === null ? nothing : 'title'}
         @keydown=${(event: KeyboardEvent) => this.onKeydown(event)}
         @keyup=${(event: KeyboardEvent) => event.key === ' ' && event.preventDefault()}

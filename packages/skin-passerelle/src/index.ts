@@ -32,6 +32,7 @@ import { PasserellePageConnexion } from './page-connexion.js';
 import { PasserellePageDemarrage } from './page-demarrage.js';
 import { PasserellePageHeader } from './page-header.js';
 import { PasserellePageIntrouvable } from './page-introuvable.js';
+import { PasserellePageProjets } from './page-projets.js';
 import { PasserellePageRunner } from './page-runner.js';
 import { PasserellePermissionRequest } from './permission-request.js';
 import { PasserelleProcessTrack } from './process-track.js';
@@ -39,6 +40,7 @@ import { PasserelleProjectFilter } from './project-filter.js';
 import { PasserelleQuestion } from './question.js';
 import { PasserelleSession } from './session.js';
 import { PasserelleRadio } from './radio.js';
+import { PasserelleRepositoryPicker } from './repository-picker.js';
 import { PasserelleSelect } from './select.js';
 import { PasserelleSettingRow } from './setting-row.js';
 import { PasserelleStat } from './stat.js';
@@ -67,7 +69,9 @@ export default defineSkin({
     PageConnexion: PasserellePageConnexion,
     PageDemarrage: PasserellePageDemarrage,
     PageIntrouvable: PasserellePageIntrouvable,
+    PageProjets: PasserellePageProjets,
     PageRunner: PasserellePageRunner,
+    RepositoryPicker: PasserelleRepositoryPicker,
     Card: PasserelleCard,
     CodeBlock: PasserelleCodeBlock,
     Dialog: PasserelleDialog,

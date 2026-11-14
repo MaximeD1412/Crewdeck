@@ -38,8 +38,8 @@ const track = ({ step, failure, runner }: Data): { label: string; meta: null; st
  * machine » and « Continuer » (`continue`). The Comptes IA: a flush Card per
  * Moteur, its Compte IA's badges, its models as ListRows with their badge,
  * and the command that connects it while it is not; without a usable Moteur,
- * the caution Banner above them and « Continuer » disabled. The Projets: an
- * Empty and « Continuer ».
+ * the caution Banner above them and « Continuer » disabled. The Projets: the
+ * RepositoryPicker of `picker`, whose « Plus tard » is the page's `continue`.
  */
 export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarrage> {
   static override styles = [
@@ -241,13 +241,19 @@ export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarr
       </section>`;
   }
 
-  /** The Projets, until their ticket: an Empty and « Continuer ». */
+  /** The picker's `later` becomes the page's `continue`; its `follow` goes on up to the page's dispatcher. */
+  private onPicker(event: Event) {
+    const detail = (event as CustomEvent<CdActionDetail>).detail;
+    if (detail.composant !== 'RepositoryPicker' || detail.action !== 'later') return;
+    event.stopPropagation();
+    if (!this.data.busy) this.emit('continue', {});
+  }
+
+  /** The Projets: the RepositoryPicker of `picker`, under the step's title and its explanation. */
   private projectsStep(): TemplateResult {
+    const { picker, busy } = this.data;
     return html`${this.head(t('demarrage.projects.title'), t('demarrage.projects.lead'))}
-      <section aria-label=${t('demarrage.step.projects')}>
-        <cd-empty .data=${{ icon: 'folder', title: t('demarrage.projects.empty.title') }}>${t('demarrage.projects.empty.text')}</cd-empty>
-        ${this.button('continue', t('demarrage.continue'), undefined, () => this.emit('continue', {}))}
-      </section>`;
+      <cd-repository-picker .data=${{ ...picker, busy: picker.busy || busy }} @cd-action=${this.onPicker}></cd-repository-picker>`;
   }
 
   protected override render() {

@@ -46,6 +46,17 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     await settle(el);
     inside(el, 'button.mic').click();
   },
+  'PageProjets.add': (el) => inside(el, 'cd-button.add', 'button').click(),
+  'RepositoryPicker.follow': async (el) => {
+    inside(el, 'cd-checkbox', 'input').click();
+    await settle(el);
+    inside(el, 'cd-button.follow', 'button').click();
+  },
+  'RepositoryPicker.later': async (el) => {
+    el.data = { ...(el.data as object), context: 'demarrage' };
+    await settle(el);
+    inside(el, 'cd-button.later', 'button').click();
+  },
   'PageAToi.filter': (el) => inside(el, 'cd-project-filter', 'cd-chip:nth-of-type(2)', 'button').click(),
   'PageAToi.open': (el) => inside(el, 'cd-decision-row', '.open').click(),
   'PageAToi.act': (el) => inside(el, 'cd-decision-row cd-button', 'button').click(),

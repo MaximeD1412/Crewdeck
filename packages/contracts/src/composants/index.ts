@@ -25,6 +25,7 @@ import { PageConnexion } from './page-connexion.js';
 import { PageDemarrage } from './page-demarrage.js';
 import { PageHeader } from './page-header.js';
 import { PageIntrouvable } from './page-introuvable.js';
+import { PageProjets } from './page-projets.js';
 import { PageRunner } from './page-runner.js';
 import { PermissionRequest } from './permission-request.js';
 import { ProcessTrack } from './process-track.js';
@@ -32,6 +33,7 @@ import { ProjectFilter } from './project-filter.js';
 import { Question } from './question.js';
 import { Session } from './session.js';
 import { Radio } from './radio.js';
+import { RepositoryPicker } from './repository-picker.js';
 import { Select } from './select.js';
 import { SettingRow } from './setting-row.js';
 import { Stat } from './stat.js';
@@ -76,6 +78,7 @@ export * from './page-connexion.js';
 export * from './page-demarrage.js';
 export * from './page-header.js';
 export * from './page-introuvable.js';
+export * from './page-projets.js';
 export * from './page-runner.js';
 export * from './permission-request.js';
 export * from './process-track.js';
@@ -83,6 +86,7 @@ export * from './project-filter.js';
 export * from './question.js';
 export * from './session.js';
 export * from './radio.js';
+export * from './repository-picker.js';
 export * from './select.js';
 export * from './sensitive.js';
 export * from './setting-row.js';
@@ -114,12 +118,14 @@ export const COMPOSANTS = {
   PageConnexion,
   PageDemarrage,
   PageIntrouvable,
+  PageProjets,
   PageRunner,
   Card,
   CodeBlock,
   Dialog,
   KeyValue,
   ListRow,
+  RepositoryPicker,
   Session,
   Message,
   ToolCall,

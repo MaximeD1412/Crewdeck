@@ -58,7 +58,7 @@ describe('« Runner et Comptes IA » in the page', () => {
   });
 
   it('follows the store: the Runner and the Comptes IA it reports, in real time', () => {
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: RUNNER, 'runner-link': null, 'ai-account': [], devices: [], decisions: [] });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: RUNNER, 'runner-link': null, 'ai-account': [], devices: [], projects: [], repositories: [], decisions: [] });
     expect(page()?.data).toMatchObject({ runner: { machine: 'atelier-pc', state: 'online' } });
 
     store.applyEvent({ seq: 2, type: 'ai-account.upserted', payload: CLAUDE, at: AT });

@@ -211,6 +211,35 @@ describe('route', () => {
     expect(cards.filter(({ box }) => enters({ a: { x: badge.l, y: badge.t }, b: { x: badge.r, y: badge.b } }, box))).toEqual([]);
   });
 
+  it('takes a Retour around another Retour’s badge as around a card', () => {
+    const box = (l: number, t: number) => ({ l, t, r: l + 176, b: t + 150 });
+    const cards = [
+      { id: 'A', box: box(20, 60), inputs: { a: 110 }, outputs: { a: 160 } },
+      { id: 'C', box: box(412, 60), inputs: { a: 110 }, outputs: { a: 160 } },
+      { id: 'E', box: box(804, 60), inputs: { a: 110 }, outputs: { a: 160 } },
+      { id: 'D', box: box(412, 440), inputs: { a: 490 }, outputs: { a: 540 } },
+    ];
+    const badge = { width: 159, height: 18 };
+    const { loopBacks } = route({
+      cards,
+      phases: [],
+      heads: [],
+      arrows: [arrow('A', 'E'), arrow('C', 'D')],
+      loopBacks: [
+        { from: 'E', to: 'A', badge },
+        { from: 'D', to: 'C', badge },
+      ],
+    });
+    const [first, second] = loopBacks as { points: Point[]; badge: Box }[];
+    expect(second!.points[0]).toEqual({ x: 500, y: 590 });
+    expect(second!.points.at(-1)).toEqual({ x: 500, y: 210 });
+    for (const { points } of [first!, second!]) {
+      expect(cardsCrossed(points, cards)).toEqual([]);
+      for (const s of segmentsOf(points)) expect(s.a.x === s.b.x || s.a.y === s.b.y).toBe(true);
+    }
+    expect(segmentsOf(second!.points).filter((s) => enters(s, first!.badge))).toEqual([]);
+  });
+
   it('routes nothing for a port that is not on the canvas', () => {
     const { arrows, loopBacks } = route({
       cards: [card('x', 0, 0)],

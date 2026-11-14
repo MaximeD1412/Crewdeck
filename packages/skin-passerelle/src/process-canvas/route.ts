@@ -132,20 +132,28 @@ export const route = (scene: Scene): Routes => {
 
   /**
    * A Retour's branch, from the bottom of its card down to its depth: straight when nothing is in its way,
-   * else into the gutter below its card, along it to the nearest free lane, then down.
+   * else into the gap below its card, before the first card or badge it meets, along it to the nearest free
+   * lane, then down. When no such path is free, the one that crosses the least.
    */
   const branch = (box: Box, id: string, low: number): Point[] => {
     const start = { x: centreX(box), y: box.b };
     const straight = [start, { x: start.x, y: low }];
     if (free(straight, id, null)) return straight;
-    const below = scene.cards.filter((c) => c.id !== id && crosses({ x1: start.x, y1: box.b, x2: start.x, y2: low }, grow(c.box, CARD_MARGIN)));
-    const jog = (box.b + Math.min(...below.map((c) => c.box.t))) / 2;
+    const down = { x1: start.x, y1: box.b, x2: start.x, y2: low };
+    const top = Math.min(...obstacles.filter((o) => o.card !== id && crosses(down, o)).map((o) => o.t));
+    const floor = box.b + CARD_MARGIN;
+    const jogs = unique([(floor + top) / 2, ...ys.filter((y) => y > floor && y < top)]).sort((u, v) => u - v);
     const lanes = [...xs].sort((u, v) => Math.abs(u - start.x) - Math.abs(v - start.x));
-    for (const x of lanes) {
-      const points = [start, { x: start.x, y: jog }, { x, y: jog }, { x, y: low }];
-      if (free(points, id, null)) return points;
-    }
-    return straight;
+    const paths = jogs.flatMap((y) => lanes.map((x) => [start, { x: start.x, y }, { x, y }, { x, y: low }]));
+    const clear = paths.find((points) => free(points, id, null));
+    if (clear) return clear;
+    // A card crossed weighs more than a badge.
+    const hits = (points: readonly Point[]) =>
+      segments(points).reduce(
+        (sum, s, i) => sum + obstacles.filter((o) => !(i === 0 && o.card === id) && crosses(s, o)).reduce((n, o) => n + (o.card ? 10 : 1), 0),
+        0,
+      );
+    return [straight, ...paths].reduce((best, points) => (hits(points) < hits(best) ? points : best));
   };
 
   // Retours first: their badges are obstacles for the arrows.

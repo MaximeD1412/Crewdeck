@@ -1,4 +1,4 @@
-import { zState } from '@crewdeck/contracts';
+import { DEFAULT_ACCOUNT_SETTINGS, zState } from '@crewdeck/contracts';
 import type { INestApplication } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import pg from 'pg';
@@ -62,7 +62,16 @@ describe('the snapshot and the retention against PostgreSQL', () => {
 
       expect(res.status).toBe(200);
       const body = zState.parse(await res.json());
-      expect(body).toEqual({ seq: 12, pilot: { id: alice.id, login: 'alice', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner' }, runner: null, 'runner-link': null, 'ai-account': [], devices: [], decisions: [] });
+      expect(body).toEqual({
+        seq: 12,
+        pilot: { id: alice.id, login: 'alice', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner' },
+        runner: null,
+        'runner-link': null,
+        'ai-account': [],
+        devices: [],
+        decisions: [],
+        settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' },
+      });
     });
 
     it('answers 401 without a session', async () => {

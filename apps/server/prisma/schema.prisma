@@ -53,6 +53,7 @@ model Pilot {
   devices            Device[]
   vaultKeyWraps      VaultKeyWrap[]
   decisions          Decision[]
+  settings           AccountSettings?
 
   @@map("pilots")
 }
@@ -271,6 +272,21 @@ model VaultKeyWrap {
   @@unique([holderType, holderId, vaultKeyVersion])
   @@index([pilotId, holderId])
   @@map("vault_key_wraps")
+}
+
+/// The Paramètres of the Pilote's account (PARAM-1), the default of each of
+/// their Projets: no row until they change one, `SettingsService` then reads
+/// the defaults. `roles` and `optionalSteps` are JSON, parsed by the
+/// contract's schemas on every read. The time zone stays on `pilots`.
+model AccountSettings {
+  pilotId           String   @id @map("pilot_id") @db.Uuid
+  roles             Json
+  optionalSteps     Json     @map("optional_steps")
+  notificationsPush Boolean  @default(false) @map("notifications_push")
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  pilot             Pilot    @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@map("account_settings")
 }
 
 /// A webhook delivery GitHub sent (ADR 0002), by its `X-GitHub-Delivery`:

@@ -1,4 +1,4 @@
-import type { Me, Runner } from '@crewdeck/contracts';
+import { DEFAULT_ACCOUNT_SETTINGS, type Me, type Runner } from '@crewdeck/contracts';
 import { emitAction, PageDemarrage } from '@crewdeck/sdk';
 import type { z } from 'zod';
 import { createDispatcher } from './actions/dispatcher.js';
@@ -81,7 +81,7 @@ describe('« Premiers pas » in the page', () => {
   });
 
   it('draws its code once the snapshot is there and shows its command', async () => {
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], decisions: [] });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], decisions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
     await vi.waitFor(() => expect(page()?.data).toMatchObject({ shortId: '7KQ4' }));
     expect(page()?.data['command']).toMatch(/--link 7KQ4-[0-9A-HJKMNP-TV-Z]{26}$/);
     expect(paths).toEqual(['/api/runner/link-codes']);

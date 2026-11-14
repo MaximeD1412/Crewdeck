@@ -1,3 +1,4 @@
+import { DEFAULT_ACCOUNT_SETTINGS } from '@crewdeck/contracts';
 import type { Me } from '@crewdeck/contracts';
 import { Banner, t } from '@crewdeck/sdk';
 import { createDispatcher } from './actions/dispatcher.js';
@@ -38,7 +39,7 @@ afterAll(() => app.stop());
 describe('the page’s Cadre follows its store', () => {
   it('shows the Pilote of /api/me until the snapshot, then the pilot slice’s', () => {
     expect(cadre.data).toMatchObject({ status: 'resync', pilot: { login: 'octocat' } });
-    store.applySnapshot({ seq: 3, pilot: { ...PILOT, login: 'from-snapshot' }, runner: null, 'runner-link': null, 'ai-account': [], devices: [], decisions: [] });
+    store.applySnapshot({ seq: 3, pilot: { ...PILOT, login: 'from-snapshot' }, runner: null, 'runner-link': null, 'ai-account': [], devices: [], decisions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
     store.markLive();
     expect(cadre.data).toMatchObject({ status: 'offline', statusDetail: null, pilot: { login: 'from-snapshot' } });
     expect(banners()).toEqual([]);

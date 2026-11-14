@@ -10,14 +10,18 @@ import { MESSAGES, type MessageCode } from './messages.js';
 const envelope = (status: number, code: MessageCode, fields?: Record<string, string>): ErrorEnvelope =>
   fields ? { status, code, message: MESSAGES[code], fields } : { status, code, message: MESSAGES[code] };
 
-/** Each issue's dotted path (`items.1.id`, `''` for the root) to its message; the first issue of a path wins. */
+/**
+ * Each issue's dotted path (`items.1.id`, `''` for the root) to its message;
+ * the first issue of a path wins. An unknown key of a strict object is named
+ * by its own path, not by its object's.
+ */
 const issueFields = (error: unknown): Record<string, string> => {
   // A Map, not an object: a path named `constructor` or `toString` is not already there.
   const fields = new Map<string, string>();
   if (!(error instanceof ZodError)) return {};
   for (const issue of error.issues) {
-    const path = issue.path.map(String).join('.');
-    if (!fields.has(path)) fields.set(path, issue.message);
+    const paths = issue.code === 'unrecognized_keys' ? issue.keys.map((key) => [...issue.path, key]) : [issue.path];
+    for (const path of paths.map((parts) => parts.map(String).join('.'))) if (!fields.has(path)) fields.set(path, issue.message);
   }
   return Object.fromEntries(fields);
 };

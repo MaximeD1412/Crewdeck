@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { withSeq, zClientMessage, zServerMessage, zState, STATE_SLICES } from '../index.js';
+import { DEFAULT_ACCOUNT_SETTINGS, withSeq, zClientMessage, zServerMessage, zState, STATE_SLICES } from '../index.js';
 
 const PILOT = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
 
@@ -46,8 +46,9 @@ describe('withSeq', () => {
 
 describe('zState', () => {
   it('is the seq it reflects and one slice per registered key', () => {
-    expect(Object.keys(STATE_SLICES)).toEqual(['pilot', 'runner', 'runner-link', 'ai-account', 'devices', 'decisions']);
-    const state = { seq: 3, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], decisions: [] };
+    const settings = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' };
+    expect(Object.keys(STATE_SLICES)).toEqual(['pilot', 'runner', 'runner-link', 'ai-account', 'devices', 'decisions', 'settings']);
+    const state = { seq: 3, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], decisions: [], settings };
     expect(zState.parse(state)).toEqual(state);
     expect(zState.safeParse({ seq: 3, pilot: PILOT }).success).toBe(false);
     expect(zState.safeParse({ seq: 3, runner: null }).success).toBe(false);

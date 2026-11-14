@@ -14,6 +14,7 @@ import { connexion, connexionErreur } from './connexion.js';
 import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
 import type { Scenario } from './define.js';
 import { menuPlus } from './menu-plus.js';
+import { parametres } from './parametres.js';
 import { resynchronisation } from './resynchronisation.js';
 import { runner, runnerHorsLigne } from './runner.js';
 
@@ -33,6 +34,7 @@ const SCENARIOS: readonly Scenario[] = [
   demarrageComptesIa,
   demarrageComptesIaAucun,
   menuPlus,
+  parametres,
   resynchronisation,
   runner,
   runnerHorsLigne,

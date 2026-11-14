@@ -1,10 +1,11 @@
 import type { Me } from '@crewdeck/contracts';
-import { Cadre, PageAToi, PageComposants, PageConnexion, PageDemarrage, PageRunner, type Skin } from '@crewdeck/sdk';
+import { Cadre, PageAToi, PageComposants, PageConnexion, PageDemarrage, PageParametres, PageRunner, type Skin } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
 import { me as readMe } from './api/auth.js';
 import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
+import { updateSettings } from './api/settings.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
 import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
 import { createPageKeys, type PageKeys } from './keys/index.js';
@@ -42,6 +43,7 @@ export interface BootOptions {
   /** The page's store and its socket (`store/index.ts`) by default. */
   readonly store?: Store;
   readonly connection?: Pick<Connection, 'start' | 'stop'>;
+  /** The page's queries and commands (`store/index.ts`) by default. */
   readonly client?: Pick<Client, 'command' | 'query'>;
   /** The latency the page measures on its store's live events (CORE-8): started with the socket. */
   readonly latency?: LatencyMeter;
@@ -111,6 +113,7 @@ export const boot = async ({
     routes,
     outlet: shell.outlet,
     onRoute: shell.update,
+    state: store.getState,
     guard: (match) => started(match) ?? signIn(match),
     data: (match) => {
       if (match.composant === PageDemarrage) return gettingStarted.view();
@@ -119,6 +122,7 @@ export const boot = async ({
       return runnerView({ runner: slices.runner ?? null, accounts: slices['ai-account']?.values() ?? [] });
     },
   });
+  // The Cadre and the page follow the store: a change made elsewhere shows without a reload.
   const unsubscribe = [
     store.subscribe(() => {
       gettingStarted.sync();
@@ -138,6 +142,11 @@ export const boot = async ({
     run: () => leave(signInHref(router.current.query['next'], Intl.DateTimeFormat().resolvedOptions().timeZone)),
   });
   dispatcher.registerAction(PageComposants, 'select', { run: ({ name }) => router.navigate(composantsHref(name)) });
+  dispatcher.registerAction(PageParametres, 'change', {
+    run: async ({ name, value }) => {
+      if (name === 'timeZone' && typeof value === 'string') await updateSettings(client, { timeZone: value });
+    },
+  });
   dispatcher.registerAction(Cadre, 'openPilot', { run: () => router.navigate('/parametres') });
   const openDecision = (id: string) => store.getState().slices.decision?.get(id);
   dispatcher.registerAction(PageAToi, 'filter', { run: ({ projectId }) => router.navigate(aToiHref(projectId)) });

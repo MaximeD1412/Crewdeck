@@ -275,7 +275,45 @@ test.describe('« Premiers pas », the Comptes IA (US-38)', () => {
 
     await next.click();
     await expect(demarrage.getByRole('heading', { level: 1, name: 'Choisis tes Projets' })).toBeVisible();
-    await demarrage.getByRole('button', { name: 'Continuer' }).click();
+    // No repository yet: the App to install, or « Plus tard ».
+    await expect(demarrage.getByRole('link', { name: 'Installer Crewdeck sur GitHub' })).toHaveAttribute('href', /installations\/new\?state=demarrage$/);
+    await demarrage.getByRole('button', { name: 'Plus tard' }).click();
     await expect(page).toHaveURL('/a-toi');
+  });
+});
+
+const repository = (page: Page, name: string) => page.locator('cd-page-demarrage').getByRole('checkbox', { name: new RegExp(`^octocat/${name}\\b`) });
+
+test.describe('« Premiers pas », the Projets (US-3)', () => {
+  test('the installation’s repositories, with or without code; « Suivre 2 Projets » ends the getting started on « À toi »', async ({ page, scenario, expectAccessible }) => {
+    await scenario('demarrage-projets');
+
+    const demarrage = page.locator('cd-page-demarrage');
+    await expect(demarrage.getByRole('heading', { level: 1, name: 'Choisis tes Projets' })).toBeVisible();
+    await expect(demarrage.getByRole('checkbox')).toHaveCount(4);
+    await expect(repository(page, 'personal-os')).toHaveAccessibleName(/déjà du code · un inventaire sera proposé/);
+    await expect(repository(page, 'sandbox-vue3')).toHaveAccessibleName(/vide/);
+    await expect(demarrage.getByRole('button', { name: 'Suivre des Projets' })).toBeDisabled();
+
+    await repository(page, 'personal-os').check();
+    await repository(page, 'site-mairie').check();
+    await expectAccessible(page);
+    await demarrage.getByRole('button', { name: 'Suivre 2 Projets' }).click();
+
+    await expect(page).toHaveURL('/a-toi');
+    const projects = ((await (await page.request.get('/api/projects')).json()) as { items: { fullName: string; inventoryState: string }[] }).items;
+    expect(projects.map(({ fullName, inventoryState }) => ({ fullName, inventoryState })).sort((a, b) => a.fullName.localeCompare(b.fullName))).toEqual([
+      { fullName: 'octocat/personal-os', inventoryState: 'pending' },
+      { fullName: 'octocat/site-mairie', inventoryState: 'pending' },
+    ]);
+  });
+
+  test('« Plus tard » ends the getting started without a Projet', async ({ page, scenario }) => {
+    await scenario('demarrage-projets');
+
+    await page.locator('cd-page-demarrage').getByRole('button', { name: 'Plus tard' }).click();
+
+    await expect(page).toHaveURL('/a-toi');
+    expect(((await (await page.request.get('/api/projects')).json()) as { items: unknown[] }).items).toEqual([]);
   });
 });

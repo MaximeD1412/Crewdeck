@@ -64,3 +64,13 @@ export const composantsFigures = ['ProcessTrack', 'UsageMeter', 'Stat', 'CheckRo
       seed: signInPilot,
     }),
 );
+
+/** The library opened on each Composant of the Process canvas and on the Cadre (UI-8), `composants-<name in lower case>`, the Pilote signed in. */
+export const composantsProcess = ['ProcessCanvas', 'Phase', 'StepCard', 'Port', 'ToolChip', 'LoopBack', 'Toast', 'Cadre'].map(
+  (name) =>
+    defineScenario({
+      name: `composants-${name.toLowerCase()}`,
+      path: `/parametres/composants?c=${name}`,
+      seed: signInPilot,
+    }),
+);

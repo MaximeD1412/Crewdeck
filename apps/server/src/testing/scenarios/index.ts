@@ -4,6 +4,7 @@ import {
   composants,
   composantsDialog,
   composantsFigures,
+  composantsProcess,
   composantsRows,
   composantsSession,
   composantsSettingRow,
@@ -17,7 +18,8 @@ import { menuPlus } from './menu-plus.js';
 import { demarrageProjets, projets, projetsVide } from './projets.js';
 import { parametres } from './parametres.js';
 import { resynchronisation } from './resynchronisation.js';
-import { runner, runnerHorsLigne } from './runner.js';
+import { runner } from './runner.js';
+import { aToiRunnerHorsLigne, runnerHorsLigne } from './runner-offline.js';
 
 export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed } from './define.js';
 
@@ -25,6 +27,7 @@ export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed 
 const SCENARIOS: readonly Scenario[] = [
   aToi,
   aToiVide,
+  aToiRunnerHorsLigne,
   blank,
   composants,
   connexion,
@@ -49,6 +52,7 @@ const SCENARIOS: readonly Scenario[] = [
   confirmDialog,
   ...composantsFigures,
   ...composantsSession,
+  ...composantsProcess,
 ];
 
 const byName = new Map(SCENARIOS.map((scenario) => [scenario.name, scenario]));

@@ -1,4 +1,4 @@
-import type { AccountSettings, AiAccount, Decision, Device, Event, Me, Project, Repository, Resource, Runner, RunnerLink, State } from '@crewdeck/contracts';
+import type { AccountSettings, AiAccount, CodeChange, Decision, Device, Event, Me, Milestone, Project, Repository, Resource, Runner, RunnerLink, State, Ticket } from '@crewdeck/contracts';
 import type { VaultState } from '../keys/vault.js';
 
 /**
@@ -32,6 +32,12 @@ export interface Slices {
   readonly repository: ReadonlyMap<string, Repository>;
   /** The open Décisions (ATOI-1), by id, from the snapshot's `decisions`. */
   readonly decision: ReadonlyMap<string, Decision>;
+  /** The Tickets of every Projet (BOUCLE-1), by id, from the snapshot's `tickets`: the open ones and those closed in the last 30 days. */
+  readonly ticket: ReadonlyMap<string, Ticket>;
+  /** Their milestones, by id, from the snapshot's `milestones`. */
+  readonly milestone: ReadonlyMap<string, Milestone>;
+  /** Their changes of code, by id, from the snapshot's `codeChanges`. */
+  readonly 'code-change': ReadonlyMap<string, CodeChange>;
   readonly settings: AccountSettings | null;
 }
 

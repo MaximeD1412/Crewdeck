@@ -1,9 +1,11 @@
 import type { ScenarioRun } from '@crewdeck/contracts';
 import type { AddressInfo } from 'node:net';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { HttpAdapterHost, ModuleRef } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RunnerLinkLimiter } from '../runners/link/link-limiter.js';
+import { RunnerOffline } from '../runners/runner-offline.service.js';
+import { RunnerWaitingWork } from '../runners/waiting-work.js';
 import { FAKES, type Fakes, resetFakes } from './fakes.js';
 import type { Scenario } from './scenarios/index.js';
 
@@ -20,7 +22,9 @@ const isDeadlock = (error: unknown): boolean =>
   (error as { meta?: { driverAdapterError?: { cause?: { originalCode?: string } } } }).meta?.driverAdapterError?.cause?.originalCode === '40P01';
 
 @Injectable()
-export class ScenariosService {
+export class ScenariosService implements OnModuleInit, OnModuleDestroy {
+  private unregister: (() => void) | undefined;
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(FAKES) private readonly fakes: Fakes,
@@ -28,12 +32,22 @@ export class ScenariosService {
     private readonly moduleRef: ModuleRef,
   ) {}
 
+  /** The fake waiting work is what « Runner hors ligne » collects (ATOI-3). */
+  onModuleInit(): void {
+    this.unregister = this.moduleRef.get(RunnerWaitingWork, { strict: false }).register(this.fakes.waitingWork);
+  }
+
+  onModuleDestroy(): void {
+    this.unregister?.();
+  }
+
   /** Empties the data tables, resets the fakes and the link attempts' count, then seeds the scenario, its Runner connected when it links one. */
   async run(scenario: Scenario): Promise<ScenarioRun> {
     await resetFakes(this.fakes);
     this.moduleRef.get(RunnerLinkLimiter, { strict: false }).reset();
     await this.emptyDatabase();
-    const seeded = await scenario.seed({ prisma: this.prisma, fakes: this.fakes });
+    const runnerOffline = this.moduleRef.get(RunnerOffline, { strict: false });
+    const seeded = await scenario.seed({ prisma: this.prisma, fakes: this.fakes, refreshRunnerOffline: (pilotId) => runnerOffline.refresh(pilotId) });
     if (seeded.runnerToken) await this.fakes.runner.connect(this.ownUrl(), seeded.runnerToken, seeded.runnerMachine);
     return { name: scenario.name, path: scenario.path, sessionCookie: seeded.sessionCookie ?? null };
   }

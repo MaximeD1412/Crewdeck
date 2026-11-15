@@ -31,7 +31,7 @@ describe('the page’s Paramètres', () => {
     expect(slotsOf()).toEqual(['modders']);
 
     const settings = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' };
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], projects: [], repositories: [], decisions: [], settings });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], devices: [], projects: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], settings });
     expect(slotsOf()).toEqual(['account', 'modders']);
     const select = page.querySelector('cd-select') as HTMLElement & { data: { value: string } };
     expect(select.data.value).toBe('Europe/Paris');

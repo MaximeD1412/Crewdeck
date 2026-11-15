@@ -5,6 +5,7 @@ import type {
   CombinedStatus,
   CommitRef,
   GitHubUser,
+  InstallationRepository,
   InstallationToken,
   InstallationTokenOptions,
   Issue,
@@ -28,7 +29,7 @@ import type { PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
 import type { Env } from '../config/env.js';
 import { AppError } from '../errors/app-error.js';
-import { branchProtected, githubUnavailable, headMoved, processJsonInvalid, userTokenRefused } from './github.errors.js';
+import { branchProtected, githubUnavailable, headMoved, installationGone, processJsonInvalid, userTokenRefused } from './github.errors.js';
 import type { GitHubClient } from './github.client.js';
 import { GitHubReadForbiddenError, installReadGuard } from './read-guard.js';
 
@@ -74,7 +75,7 @@ const zRawPullRequest = z.object({
   labels: z.array(zRawLabelName),
   updated_at: z.string(),
 });
-const zRawRepository = z.object({ id: z.int(), name: z.string(), owner: z.object({ login: z.string() }) });
+const zRawRepository = z.object({ id: z.int(), name: z.string(), owner: z.object({ login: z.string() }), private: z.boolean() });
 const zRawContent = z.object({ sha: z.string().optional(), content: z.string().optional(), encoding: z.string().optional() });
 const zRawTokens = z.object({
   access_token: z.string(),
@@ -140,6 +141,12 @@ const INSTALLATION_TOKEN_ROUTE = /\/app\/installations\/\d+\/access_tokens$/;
 /** A failure that says the installation is gone: its token refused (401), or no token for it (404). Nothing was done. */
 const isStaleInstallation = (error: unknown): boolean =>
   isFailure(error) && (error.status === 401 || (error.status === 404 && INSTALLATION_TOKEN_ROUTE.test(error.request?.url ?? '')));
+
+/** GitHub's 404 to an installation's token: it has no such installation (uninstalled). */
+const isInstallationNotFound = (error: unknown): boolean => isFailure(error) && error.status === 404 && INSTALLATION_TOKEN_ROUTE.test(error.request?.url ?? '');
+
+/** GitHub's answer to the commits of a repository without any: a 409. */
+const isEmptyRepository = (error: unknown): boolean => isFailure(error) && error.status === 409;
 
 /** A resource GitHub does not have: never the 404 of an installation's token, which says the installation is gone. */
 const isNotFound = (error: unknown): boolean =>
@@ -208,12 +215,31 @@ export class OctokitGitHubClient implements GitHubClient {
     });
   }
 
-  listInstallationRepositories(installationId: number): Promise<RepoRef[]> {
-    return this.call(async () => {
+  /**
+   * A token of its cache refused (401: revoked, the App uninstalled) is
+   * dropped and a new one asked, once; GitHub's 404 to that new token is
+   * `github.installation-gone`.
+   */
+  listInstallationRepositories(installationId: number): Promise<InstallationRepository[]> {
+    const list = async (): Promise<InstallationRepository[]> => {
       const raws = await this.all(this.request(this.forInstallation(installationId)), 'GET /installation/repositories', {}, (data) =>
         z.object({ repositories: z.array(zRawRepository) }).parse(data).repositories,
       );
-      return raws.map((raw) => ({ owner: raw.owner.login, name: raw.name, id: raw.id }));
+      return raws.map((raw) => ({ owner: raw.owner.login, name: raw.name, id: raw.id, private: raw.private }));
+    };
+    return this.call(async () => {
+      try {
+        try {
+          return await list();
+        } catch (error) {
+          if (!(isFailure(error) && error.status === 401)) throw error;
+          this.installations.delete(installationId);
+          return await list();
+        }
+      } catch (error) {
+        if (isInstallationNotFound(error)) throw installationGone();
+        throw error;
+      }
     });
   }
 
@@ -242,6 +268,19 @@ export class OctokitGitHubClient implements GitHubClient {
     return this.onRepo(repo, async (request) => {
       const { data } = await request('GET /repos/{owner}/{repo}', this.params(repo));
       return z.object({ default_branch: z.string() }).parse(data).default_branch;
+    });
+  }
+
+  countCommits(repo: RepoRef, branch: string, max: number): Promise<number> {
+    return this.onRepo(repo, async (request) => {
+      try {
+        // Only the length is kept: a commit's message and author are never read.
+        const { data } = await request('GET /repos/{owner}/{repo}/commits', { ...this.params(repo), sha: branch, per_page: max });
+        return Math.min(z.array(z.unknown()).parse(data).length, max);
+      } catch (error) {
+        if (isEmptyRepository(error)) return 0;
+        throw error;
+      }
     });
   }
 

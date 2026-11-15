@@ -160,7 +160,7 @@ describe('FakeGitHub', () => {
   });
 
   describe('metadata', () => {
-    it('lists issues by state and update, without their body, with their sub-issues and dependencies', async () => {
+    it('lists issues by state and update, without their body, with their parent, sub-issues and dependencies', async () => {
       const { github, repo } = setup();
       github.seedIssue(repo, { number: 1, title: 'Epic', body: 'secret', updatedAt: '2026-11-01T00:00:00Z', subIssues: [2] });
       github.seedIssue(repo, { number: 2, title: 'Ticket', labels: ['ready-for-agent'], milestone: { number: 1, title: 'M1' }, updatedAt: '2026-11-05T00:00:00Z' });
@@ -178,6 +178,7 @@ describe('FakeGitHub', () => {
             stateReason: null,
             labels: ['ready-for-agent'],
             milestone: { number: 1, title: 'M1' },
+            parent: { owner: repo.owner, name: repo.name, number: 1 },
             createdAt: '2026-11-01T09:00:00.000Z',
             closedAt: null,
             updatedAt: '2026-11-05T00:00:00Z',
@@ -189,6 +190,7 @@ describe('FakeGitHub', () => {
             stateReason: null,
             labels: [],
             milestone: null,
+            parent: null,
             createdAt: '2026-11-01T09:00:00.000Z',
             closedAt: null,
             updatedAt: '2026-11-01T00:00:00Z',

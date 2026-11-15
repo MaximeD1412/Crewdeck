@@ -87,7 +87,15 @@ export type IssueMilestone = z.infer<typeof zIssueMilestone>;
 export const zIssueStateReason = z.enum(['completed', 'not_planned', 'duplicate', 'reopened']);
 export type IssueStateReason = z.infer<typeof zIssueStateReason>;
 
-/** An issue's metadata: never its body. */
+/** The parent of a sub-issue, maybe in another repository. */
+export const zIssueParent = z.object({
+  owner: z.string().min(1),
+  name: z.string().min(1),
+  number: z.int().positive(),
+});
+export type IssueParent = z.infer<typeof zIssueParent>;
+
+/** An issue's metadata: never its body. `parent` null when it is no sub-issue. */
 export const zIssue = z.object({
   number: z.int().positive(),
   title: z.string(),
@@ -95,6 +103,7 @@ export const zIssue = z.object({
   stateReason: zIssueStateReason.nullable(),
   labels: z.array(z.string()),
   milestone: zIssueMilestone.nullable(),
+  parent: zIssueParent.nullable(),
   createdAt: zInstant,
   closedAt: zInstant.nullable(),
   updatedAt: zInstant,

@@ -487,6 +487,19 @@ describe('the Tickets and changes of code against PostgreSQL', () => {
       expect(await sql('SELECT id FROM tickets UNION ALL SELECT id FROM code_changes')).toEqual([]);
       expect(await eventsOf()).toHaveLength(before);
     });
+
+    it('takes a comment of a PR on the group of the code and one of an issue on that of the Tickets', async () => {
+      const comments: TicketCommentEvent[] = [];
+      app.get(TicketActivity).onComment((event) => void comments.push(event));
+      const seeded = await issue('opened', { number: 42, title: 'Connexion GitHub' });
+      vi.spyOn(app.get(ProjectSources), 'isGithub').mockImplementation(async (_id, group) => group === 'code');
+      const comment = (id: number) => ({ id, body: MARKER, user: { login: 'octo-fixture' }, created_at: '2026-11-15T10:00:00Z' });
+
+      await deliver('issue_comment', envelope('created', { issue: issuePayload(seeded), comment: comment(801) }));
+      await deliver('issue_comment', envelope('created', { issue: { ...issuePayload({ ...seeded, number: 57 }), pull_request: { url: `${REPO_URL}/pulls/57` } }, comment: comment(802) }));
+
+      expect(comments).toEqual([expect.objectContaining({ issueNumber: 57, commentId: 802, isPullRequest: true })]);
+    });
   });
 
   describe('the bodies', () => {
@@ -546,6 +559,35 @@ describe('the Tickets and changes of code against PostgreSQL', () => {
       expect(await ticket(12)).toMatchObject({ state: 'closed' });
       expect(await ticket(42)).toMatchObject({ ready: true });
       expect(await change(pr.number)).toMatchObject({ state: 'merged', mergedBy: 'pilot', mergeSha: merged.mergeSha });
+    });
+
+    it('brings the checks of a PR merged while no webhook came to the state of its head', async () => {
+      await fakes.github.pushCommit(APP_REPO, 'feat/42-connexion-github', { 'src/login.ts': 'login' });
+      const pr = await fakes.github.createPullRequest(APP_REPO, { head: 'feat/42-connexion-github', base: 'main', title: 'Connexion GitHub', draft: false });
+      fakes.github.setCheckRuns(APP_REPO, pr.headSha, [{ id: 1, name: 'ci', status: 'in_progress', conclusion: null }]);
+      await app.get(Reconciliation).run();
+      expect(await change(pr.number)).toMatchObject({ state: 'open', checks: 'pending' });
+
+      // The checks passed, then the PR merged, their webhooks lost.
+      fakes.github.setCheckRuns(APP_REPO, pr.headSha, [{ id: 1, name: 'ci', status: 'completed', conclusion: 'success' }]);
+      fakes.github.mergeByHand(APP_REPO, pr.number, 'octo-fixture');
+      await app.get(Reconciliation).run();
+
+      expect(await change(pr.number)).toMatchObject({ state: 'merged', checks: 'passed', checksSha: pr.headSha });
+    });
+
+    it('brings a parent set before the Projet was followed, then its removal while no webhook came', async () => {
+      fakes.github.seedIssue(APP_REPO, { number: 42, title: 'Connexion GitHub' });
+      fakes.github.seedIssue(APP_REPO, { number: 7, title: 'Authentification', subIssues: [42] });
+      await app.get(Reconciliation).run();
+      expect(await ticket(42)).toMatchObject({ parentNumber: 7 });
+
+      const later = new Date(Date.now() + 1000).toISOString();
+      fakes.github.seedIssue(APP_REPO, { number: 7, title: 'Authentification', subIssues: [], updatedAt: later });
+      fakes.github.seedIssue(APP_REPO, { number: 42, title: 'Connexion GitHub', updatedAt: later });
+      await app.get(Reconciliation).run();
+
+      expect(await ticket(42)).toMatchObject({ parentNumber: null });
     });
 
     it('writes nothing when it finds the Tickets as they are', async () => {

@@ -14,6 +14,10 @@ import { type CheckInput, TicketsWriter } from './tickets.writer.js';
 
 const LIVE: readonly CodeChangeState[] = ['open', 'draft'];
 
+/** The parent of an issue as a number of the Projet: none without one, or in another repository. */
+const parentNumberIn = (project: WebhookProject, issue: Issue): number | null =>
+  issue.parent && `${issue.parent.owner}/${issue.parent.name}`.toLowerCase() === project.fullName.toLowerCase() ? issue.parent.number : null;
+
 /** Every page of a GitHub list. */
 const allPages = async <T>(page: (cursor: string | undefined) => Promise<{ items: T[]; nextCursor: string | null }>): Promise<T[]> => {
   const items: T[] = [];
@@ -30,9 +34,9 @@ const allPages = async <T>(page: (cursor: string | undefined) => Promise<{ items
  * The reconciliation of the Tickets (risk OPS-4): what a lost webhook left
  * behind, repaired from GitHub. For each Projet of the installation, by
  * group on GitHub: the open issues and those updated since the last run (all
- * of them the first time), each open one's native blocked-by, the
+ * of them the first time) with their parent, each open one's native blocked-by, the
  * milestones; the open PRs, those stored open that GitHub no longer lists
- * (merged or closed meanwhile), and the checks of each open one's head. Read
+ * (merged or closed meanwhile), and the checks of each one's head. Read
  * first, then written in one transaction per Projet, behind the webhooks of
  * the same Pilote.
  *
@@ -97,7 +101,12 @@ export class TicketsReconcile implements OnModuleInit {
         const kept = new Set(tickets.milestones.map((milestone) => milestone.number));
         const stored = await tx.milestone.findMany({ where: { projectId: project.id, source: 'github' }, select: { number: true } });
         for (const { number } of stored.filter((row) => !kept.has(row.number))) await this.writer.removeMilestone(tx, project.id, number);
-        await this.writer.upsertTickets(tx, project.id, 'github', tickets.issues.map((issue) => ticketOfIssue(issue, tickets.blockedBy.has(issue.number) ? { blockedBy: tickets.blockedBy.get(issue.number) } : {})));
+        await this.writer.upsertTickets(
+          tx,
+          project.id,
+          'github',
+          tickets.issues.map((issue) => ticketOfIssue(issue, { parentNumber: parentNumberIn(project, issue), ...(tickets.blockedBy.has(issue.number) ? { blockedBy: tickets.blockedBy.get(issue.number) } : {}) })),
+        );
       }
       if (code) {
         await this.writer.upsertCodeChanges(tx, project.id, 'github', code.pullRequests.map((pr) => codeChangeOfPullRequest(pr, this.botLogin)));
@@ -128,8 +137,10 @@ export class TicketsReconcile implements OnModuleInit {
       const pr = await this.github.getPullRequest(project.repo, number);
       if (pr) ended.push(pr);
     }
+    // An ended one's too: its checks may have finished with it, their webhooks lost, and no later run reads it again.
+    const pullRequests = [...open, ...ended];
     const checks = new Map<string, CheckInput[]>();
-    for (const pr of open) checks.set(pr.headSha, await this.webhooks.checksAt(project, pr.headSha));
-    return { pullRequests: [...open, ...ended], checks };
+    for (const pr of pullRequests) if (!checks.has(pr.headSha)) checks.set(pr.headSha, await this.webhooks.checksAt(project, pr.headSha));
+    return { pullRequests, checks };
   }
 }

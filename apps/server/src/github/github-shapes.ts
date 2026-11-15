@@ -1,4 +1,4 @@
-import type { GitHubMilestone, Issue, PullRequest } from '@crewdeck/contracts';
+import type { GitHubMilestone, Issue, IssueParent, PullRequest } from '@crewdeck/contracts';
 import { z } from 'zod';
 
 /**
@@ -64,6 +64,12 @@ export const toMilestone = (raw: z.infer<typeof zRawMilestone>): GitHubMilestone
   closedAt: raw.closed_at,
 });
 
+/** The parent of `parent_issue_url`: GitHub gives it on a sub-issue only, so none without it. */
+const parentOfUrl = (url: string | null | undefined): IssueParent | null => {
+  const of = url ? repoOfUrl(url) : null;
+  return of?.number ? { owner: of.owner, name: of.name, number: of.number } : null;
+};
+
 export const toIssue = (raw: RawIssue): Issue => ({
   number: raw.number,
   title: raw.title,
@@ -71,6 +77,7 @@ export const toIssue = (raw: RawIssue): Issue => ({
   stateReason: raw.state_reason,
   labels: raw.labels,
   milestone: raw.milestone && { number: raw.milestone.number, title: raw.milestone.title },
+  parent: parentOfUrl(raw.parent_issue_url),
   createdAt: raw.created_at,
   closedAt: raw.closed_at,
   updatedAt: raw.updated_at,

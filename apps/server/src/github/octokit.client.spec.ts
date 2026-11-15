@@ -398,13 +398,13 @@ describe('OctokitGitHubClient', () => {
   });
 
   describe('metadata', () => {
-    it('maps issues without their body, leaves the PRs out, and gives the next page', async () => {
+    it('maps issues without their body, with their parent, leaves the PRs out, and gives the next page', async () => {
       let query: URLSearchParams | undefined;
       server.use(
         ...installation(),
         http.get(`${API}/repos/o/r/issues`, ({ request }) => {
           query = new URL(request.url).searchParams;
-          return HttpResponse.json([issuePayload(5), issuePayload(6, { pull_request: { url: 'x' } })], {
+          return HttpResponse.json([issuePayload(5, { parent_issue_url: `${API}/repos/o/r/issues/2` }), issuePayload(6, { pull_request: { url: 'x' } }), issuePayload(7)], {
             headers: { link: `<${API}/repositories/7/issues?state=all&page=3>; rel="next", <${API}/repositories/7/issues?page=9>; rel="last"` },
           });
         }),
@@ -421,10 +421,12 @@ describe('OctokitGitHubClient', () => {
             stateReason: null,
             labels: ['type: chore'],
             milestone: { number: 1, title: 'M1 Socle' },
+            parent: { owner: 'o', name: 'r', number: 2 },
             createdAt: '2026-11-09T12:00:00Z',
             closedAt: null,
             updatedAt: '2026-11-10T12:00:00Z',
           },
+          expect.objectContaining({ number: 7, parent: null }),
         ],
         nextCursor: '3',
       });

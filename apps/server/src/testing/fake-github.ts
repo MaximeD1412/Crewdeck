@@ -15,6 +15,7 @@ import type {
   IssueQuery,
   IssueRef,
   IssueMilestone,
+  IssueParent,
   IssueState,
   IssueStateReason,
   Label,
@@ -45,7 +46,8 @@ export interface FakeCall {
   readonly args: readonly unknown[];
 }
 
-interface FakeIssue extends Issue {
+/** An issue of the fake; its `parent` is the issue whose `subIssues` hold it, read when listed. */
+interface FakeIssue extends Omit<Issue, 'parent'> {
   body: string;
   subIssues: number[];
   blockedBy: IssueRef[];
@@ -220,7 +222,7 @@ export class FakeGitHub implements GitHubClient, Fake {
       blockedBy: [...(seed.blockedBy ?? [])],
     };
     fake.issues.set(number, issue);
-    return toIssue(issue);
+    return toIssue(fake, issue);
   }
 
   /** A milestone, or its new state when `number` exists. */
@@ -417,7 +419,7 @@ export class FakeGitHub implements GitHubClient, Fake {
         .filter((issue) => since === undefined || Date.parse(issue.updatedAt) >= since)
         .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || b.number - a.number);
       const page = Number(query.cursor ?? '1');
-      const items = issues.slice((page - 1) * 100, page * 100).map(toIssue);
+      const items = issues.slice((page - 1) * 100, page * 100).map((issue) => toIssue(this.repo(repo), issue));
       return { items, nextCursor: issues.length > page * 100 ? String(page + 1) : null };
     });
   }
@@ -464,7 +466,7 @@ export class FakeGitHub implements GitHubClient, Fake {
       const fake = this.repo(repo);
       return this.issue(fake, number).subIssues.flatMap((sub) => {
         const issue = fake.issues.get(sub);
-        return issue === undefined ? [] : [toIssue(issue)];
+        return issue === undefined ? [] : [toIssue(fake, issue)];
       });
     });
   }
@@ -768,17 +770,24 @@ const sameContent = (a: FileContent | undefined, b: FileContent | undefined): bo
 /** The login of the App's merges. */
 const APP_LOGIN = 'crewdeck[bot]';
 
-const toIssue = (issue: FakeIssue): Issue => ({
+/** An issue as GitHub lists it: its parent, the issue of its repository whose sub-issues hold it. */
+const toIssue = (fake: FakeRepo, issue: FakeIssue): Issue => ({
   number: issue.number,
   title: issue.title,
   state: issue.state,
   stateReason: issue.stateReason,
   labels: [...issue.labels],
   milestone: issue.milestone && { ...issue.milestone },
+  parent: parentIn(fake, issue.number),
   createdAt: issue.createdAt,
   closedAt: issue.closedAt,
   updatedAt: issue.updatedAt,
 });
+
+const parentIn = (fake: FakeRepo, number: number): IssueParent | null => {
+  const parent = [...fake.issues.values()].find((candidate) => candidate.subIssues.includes(number));
+  return parent ? { owner: fake.ref.owner, name: fake.ref.name, number: parent.number } : null;
+};
 
 const toPullRequest = (pr: FakePullRequest): PullRequest => ({
   number: pr.number,

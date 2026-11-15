@@ -21,7 +21,7 @@ describe('the GitHub types the server maps', () => {
   });
 
   it('keeps an issue to its metadata', () => {
-    expect(keysOf(zIssue).sort()).toEqual(['closedAt', 'createdAt', 'labels', 'milestone', 'number', 'state', 'stateReason', 'title', 'updatedAt']);
+    expect(keysOf(zIssue).sort()).toEqual(['closedAt', 'createdAt', 'labels', 'milestone', 'number', 'parent', 'state', 'stateReason', 'title', 'updatedAt']);
   });
 
   it('keeps a PR to its metadata', () => {
@@ -55,6 +55,7 @@ describe('the GitHub types the server maps', () => {
       stateReason: null,
       labels: [],
       milestone: null,
+      parent: null,
       createdAt: '2026-11-10T11:00:00Z',
       closedAt: null,
       updatedAt: '2026-11-10T12:00:00Z',

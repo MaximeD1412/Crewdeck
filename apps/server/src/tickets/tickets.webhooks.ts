@@ -59,6 +59,12 @@ const zReviewPayload = z.object({
   review: z.object({ state: z.string(), user: z.object({ login: z.string() }).nullable(), commit_id: z.string().nullable().optional() }),
 });
 
+/** Whether an `issue_comment` is on a PR (its `issue` has a `pull_request`). */
+const isPullRequestComment = (payload: WebhookPayload): boolean => {
+  const parsed = zCommentPayload.safeParse(payload);
+  return parsed.success && parsed.data.issue.pull_request !== undefined;
+};
+
 /** The PR actions after which its head may have moved: its checks are read again. */
 const HEAD_MOVES = new Set(['opened', 'synchronize', 'reopened']);
 const ISSUE_GONE = new Set(['deleted', 'transferred']);
@@ -97,7 +103,8 @@ export class TicketsWebhooks implements OnModuleInit {
     this.on('sub_issues', 'ticket', (delivery) => this.subIssue(delivery));
     this.on('issue_dependencies', 'ticket', (delivery) => this.dependencies(delivery));
     this.on('milestone', 'ticket', (delivery) => this.milestone(delivery));
-    this.on('issue_comment', 'ticket', (delivery) => this.comment(delivery));
+    // A PR's comment is of its change of code; an issue's, of its Ticket.
+    this.on('issue_comment', (payload) => (isPullRequestComment(payload) ? 'code' : 'ticket'), (delivery) => this.comment(delivery));
     this.on('pull_request', 'code', (delivery) => this.pullRequest(delivery));
     this.on('pull_request_review', 'code', (delivery) => this.review(delivery));
     this.on('check_run', 'code', (delivery) => this.checkRun(delivery));
@@ -105,10 +112,11 @@ export class TicketsWebhooks implements OnModuleInit {
     this.on('check_suite', 'code', (delivery) => this.checkSuite(delivery));
   }
 
-  private on(event: string, group: SourceGroup, handle: (delivery: Delivery) => Promise<void>): void {
+  /** `group` the group whose Source must be GitHub for the event to be handled: fixed, or from its payload. */
+  private on(event: string, group: SourceGroup | ((payload: WebhookPayload) => SourceGroup), handle: (delivery: Delivery) => Promise<void>): void {
     this.githubEvents.on(event, async ({ pilotId, action, payload, sourceAt }: GitHubEvent) => {
       const project = await this.projectOf(payload);
-      if (!project || !(await this.sources.isGithub(project.id, group))) return;
+      if (!project || !(await this.sources.isGithub(project.id, typeof group === 'function' ? group(payload) : group))) return;
       await this.queue.run(pilotId, () => handle({ action, payload, project, origin: { source: 'github', sourceAt } }));
     });
   }

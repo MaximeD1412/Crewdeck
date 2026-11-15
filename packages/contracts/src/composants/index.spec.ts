@@ -31,9 +31,11 @@ describe('COMPOSANTS', () => {
         'KeyValue',
         'ListRow',
         'LoopBack',
+        'Menu',
         'Message',
         'PermissionRequest',
         'Phase',
+        'PhaseGroup',
         'Port',
         'ProcessCanvas',
         'ProcessTrack',
@@ -43,6 +45,7 @@ describe('COMPOSANTS', () => {
         'SettingRow',
         'Stat',
         'StepCard',
+        'StepRow',
         'TicketRow',
         'TicketTree',
         'Timeline',
@@ -53,7 +56,7 @@ describe('COMPOSANTS', () => {
     ],
     [
       'signal',
-      ['Banner', 'Button', 'Checkbox', 'Chip', 'Empty', 'Icon', 'IconButton', 'Radio', 'Select', 'StatusBadge', 'StatusDot', 'Tabs', 'TextField', 'Toast', 'Toggle'],
+      ['Banner', 'Button', 'Checkbox', 'Chip', 'Empty', 'Icon', 'IconButton', 'Radio', 'Select', 'StatusBadge', 'StatusDot', 'Stepper', 'Tabs', 'TextField', 'Toast', 'Toggle'],
     ],
   ])('puts the base Composants of %s in their category', (category, names) => {
     for (const name of names) expect(COMPOSANTS[name as keyof typeof COMPOSANTS].category, name).toBe(category);

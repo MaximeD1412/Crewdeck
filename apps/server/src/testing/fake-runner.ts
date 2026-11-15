@@ -24,6 +24,8 @@ type WithoutEnvelope<T> = T extends unknown ? Omit<T, 'id' | 'at'> : never;
 export class FakeRunner implements Fake {
   private socket: WebSocket | undefined;
   private heartbeats: NodeJS.Timeout | undefined;
+  /** Its last `connect`, which `reconnect` repeats. */
+  private last: { readonly baseUrl: string; readonly token: string; readonly machine: RunnerMachine } | undefined;
 
   /** Whether its `hello` was accepted and its socket is still open. */
   get connected(): boolean {
@@ -33,6 +35,7 @@ export class FakeRunner implements Fake {
   /** Connects to the server at `baseUrl` with `token`, saying `machine`; resolves once its `hello` is accepted. */
   async connect(baseUrl: string, token: string, machine: RunnerMachine = OWN_MACHINE): Promise<void> {
     this.disconnect();
+    this.last = { baseUrl, token, machine };
     const url = new URL('/api/ws?client=runner', baseUrl);
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
     const socket = new WebSocket(url, { headers: { authorization: `Bearer ${token}` } });
@@ -70,6 +73,14 @@ export class FakeRunner implements Fake {
     return true;
   }
 
+  /** Connects again as its last `connect`, the Runner relaunched; `false` when it never connected since its reset. */
+  async reconnect(): Promise<boolean> {
+    if (!this.last) return false;
+    await this.connect(this.last.baseUrl, this.last.token, this.last.machine);
+    return true;
+  }
+
+  /** Closes its socket, as a Runner that stops: the server sees it offline. */
   disconnect(): void {
     clearInterval(this.heartbeats);
     this.heartbeats = undefined;
@@ -79,6 +90,7 @@ export class FakeRunner implements Fake {
 
   reset(): void {
     this.disconnect();
+    this.last = undefined;
   }
 
   private send(socket: WebSocket, message: WithoutEnvelope<RunnerToServer>): void {

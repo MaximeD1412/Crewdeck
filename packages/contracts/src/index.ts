@@ -13,6 +13,7 @@ export * from './api/projects.js';
 export * from './api/roles.js';
 export * from './api/runner.js';
 export * from './api/runner-link.js';
+export * from './api/runner-offline.js';
 export * from './api/sensitive-actions.js';
 export * from './api/state.js';
 export * from './api/testing.js';

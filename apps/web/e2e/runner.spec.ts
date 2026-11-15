@@ -39,7 +39,8 @@ test.describe('« Runner et Comptes IA » (US-38)', () => {
     await scenario('runner-hors-ligne');
 
     await expect(runnerCard(page)).toContainText('hors ligne depuis 14:02');
-    await expect(visible(page, 'Runner hors ligne')).toHaveCount(1);
+    // The Cadre's status, and the banner's title (ATOI-3).
+    await expect(visible(page, 'Runner hors ligne')).toHaveCount(2);
     await expect(visible(page, 'En direct')).toHaveCount(0);
     if (desktop(viewport)) await expect(visible(page, 'depuis 14:02')).toHaveCount(1);
     await expect(rows(page)).toHaveCount(5);

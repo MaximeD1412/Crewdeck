@@ -169,8 +169,14 @@ describe('the error envelope', () => {
     expect(await res.json()).toEqual({ status: 400, code: 'http.bad-request', message: 'La requête n’est pas valide.' });
   });
 
-  it('renders a body too large with its status, as http.bad-request', async () => {
-    const res = await post('/api/probe/validate', JSON.stringify({ name: 'x'.repeat(200_000), items: [] }));
+  it('reads a body past Nest’s 100 kB, under JSON_BODY_LIMIT: a Process’s draft at its bounds', async () => {
+    const res = await post('/api/probe/validate', JSON.stringify({ name: 'x'.repeat(400_000), items: [] }));
+
+    expect(res.status).toBe(201);
+  });
+
+  it('renders a body past JSON_BODY_LIMIT (512 kB) with its status, as http.bad-request', async () => {
+    const res = await post('/api/probe/validate', JSON.stringify({ name: 'x'.repeat(600_000), items: [] }));
 
     await expectEnvelope(res, 413, 'http.bad-request');
   });

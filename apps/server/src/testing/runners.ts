@@ -1,4 +1,4 @@
-import type { EngineCapabilities, Runner } from '@crewdeck/contracts';
+import type { EngineCapabilities, McpServers, Runner } from '@crewdeck/contracts';
 import { newRunnerToken, runnerTokenHash } from '../auth/runner-tokens.js';
 import { newId } from '../ids.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
@@ -52,4 +52,20 @@ export const createAiAccounts = async (
   reportedAt = new Date(),
 ): Promise<void> => {
   await prisma.unscoped.aiAccount.createMany({ data: engines.map((engine) => ({ id: newId(), pilotId, ...rowOf(engine, reportedAt) })) });
+};
+
+/**
+ * The Serveurs MCP of `pilotId` as their Runner's last `mcp.servers` left
+ * them (reported at `reportedAt`). For the scenarios: unscoped, as a seed,
+ * without events.
+ */
+export const createMcpServers = async (
+  prisma: PrismaService,
+  pilotId: string,
+  servers: McpServers['servers'],
+  reportedAt = new Date(),
+): Promise<void> => {
+  await prisma.unscoped.mcpServer.createMany({
+    data: servers.map(({ name, transport, state, toolCount }) => ({ id: newId(), pilotId, name, transport, state, toolCount, reportedAt })),
+  });
 };

@@ -1,0 +1,54 @@
+{
+  "id": 6805126730,
+  "sha": "6dcb09b5b57875f334f61aebed695e2e4193db5e",
+  "name": "octo-fixture/fixture-app",
+  "context": "ci/legacy",
+  "description": "<description>",
+  "state": "success",
+  "target_url": "https://ci.example/builds/1",
+  "commit": {
+    "sha": "6dcb09b5b57875f334f61aebed695e2e4193db5e",
+    "commit": {
+      "message": "<message>",
+      "author": {
+        "name": "<name>",
+        "email": "<email>",
+        "date": "2026-11-11T09:00:00Z"
+      }
+    }
+  },
+  "branches": [
+    {
+      "name": "feat/42-connexion",
+      "commit": {
+        "sha": "6dcb09b5b57875f334f61aebed695e2e4193db5e"
+      }
+    }
+  ],
+  "created_at": "2026-11-11T09:00:00Z",
+  "updated_at": "2026-11-11T09:00:00Z",
+  "repository": {
+    "id": 71000001,
+    "node_id": "R_fixture",
+    "name": "fixture-app",
+    "full_name": "octo-fixture/fixture-app",
+    "private": true,
+    "owner": {
+      "login": "octo-fixture",
+      "id": 9100001,
+      "type": "User"
+    },
+    "default_branch": "main",
+    "html_url": "https://github.com/octo-fixture/fixture-app",
+    "description": "<description>"
+  },
+  "installation": {
+    "id": 51000001,
+    "node_id": "MDIzOkludGVncmF0aW9uSW5zdGFsbGF0aW9uNTEwMDAwMDE="
+  },
+  "sender": {
+    "login": "octo-fixture",
+    "id": 9100001,
+    "type": "User"
+  }
+}

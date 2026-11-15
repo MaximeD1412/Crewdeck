@@ -23,6 +23,18 @@
       "minLength": 1,
       "type": "string"
     },
+    "mirrorAfter": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "os": {
       "enum": [
         "linux",

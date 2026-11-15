@@ -4,6 +4,8 @@ import { zCapabilities } from './capabilities.js';
 import { runnerMessage } from './envelope.js';
 import { zHeartbeat, zHeartbeatAck } from './heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './hello.js';
+import { zMcpServers } from './mcp.js';
+import { zGitHubChanged, zMirrorLive, zMirrorProjects, zMirrorResync } from './mirror.js';
 import { zStepVerdict } from './step.js';
 import { zUsage, zUsageAck } from './usage.js';
 
@@ -34,12 +36,22 @@ export const zProtocolError = runnerMessage('error', { code: zErrorCode });
 export type ProtocolError = z.infer<typeof zProtocolError>;
 
 /** Every message the Runner sends. */
-export const zRunnerToServer = z.discriminatedUnion('type', [zHello, zHeartbeat, zCapabilities, zStepVerdict, zUsage]);
+export const zRunnerToServer = z.discriminatedUnion('type', [zHello, zHeartbeat, zCapabilities, zMcpServers, zStepVerdict, zUsage]);
 export type RunnerToServer = z.infer<typeof zRunnerToServer>;
 export type RunnerToServerType = RunnerToServer['type'];
 
 /** Every message the server sends to the Runner. */
-export const zServerToRunner = z.discriminatedUnion('type', [zHelloAccepted, zHelloRejected, zHeartbeatAck, zProtocolError, zUsageAck]);
+export const zServerToRunner = z.discriminatedUnion('type', [
+  zHelloAccepted,
+  zHelloRejected,
+  zHeartbeatAck,
+  zProtocolError,
+  zGitHubChanged,
+  zMirrorResync,
+  zMirrorLive,
+  zMirrorProjects,
+  zUsageAck,
+]);
 export type ServerToRunner = z.infer<typeof zServerToRunner>;
 export type ServerToRunnerType = ServerToRunner['type'];
 

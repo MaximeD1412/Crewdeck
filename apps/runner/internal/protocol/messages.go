@@ -18,8 +18,14 @@ const (
 	TypeError         = "error"
 	TypeStepVerdict   = "step.verdict"
 	TypeCapabilities  = "capabilities"
+	TypeMcpServers    = "mcp.servers"
 	TypeUsage         = "usage"
 	TypeUsageAck      = "usage.ack"
+	// The Miroir's (ADR 0010): the server sends them, the Runner applies them (MIROIR-4).
+	TypeGitHubChanged  = "github.changed"
+	TypeMirrorResync   = "mirror.resync"
+	TypeMirrorLive     = "mirror.live"
+	TypeMirrorProjects = "mirror.projects"
 )
 
 // Machine is what the Runner says of itself in its hello.
@@ -74,6 +80,15 @@ func NewCapabilities(engines []contracts.EngineCapabilities) contracts.RunnerCap
 		engines = []contracts.EngineCapabilities{}
 	}
 	return contracts.RunnerCapabilities{Type: TypeCapabilities, Id: newID(at), At: at, Engines: engines}
+}
+
+// NewMcpServers is the `mcp.servers` of the Serveurs MCP declared on the Runner: their names, transports, states and tool counts only.
+func NewMcpServers(servers []contracts.RunnerMcpServersServersElem) contracts.RunnerMcpServers {
+	at := now()
+	if servers == nil {
+		servers = []contracts.RunnerMcpServersServersElem{}
+	}
+	return contracts.RunnerMcpServers{Type: TypeMcpServers, Id: newID(at), At: at, Servers: servers}
 }
 
 // NewUsage is the usage message of one Compte IA (US-55): the windows the

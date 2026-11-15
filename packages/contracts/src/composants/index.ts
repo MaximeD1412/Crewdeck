@@ -19,6 +19,7 @@ import { IdeaRow } from './idea-row.js';
 import { KeyValue } from './key-value.js';
 import { ListRow } from './list-row.js';
 import { LoopBack } from './loop-back.js';
+import { Menu } from './menu.js';
 import { Message } from './message.js';
 import { PageAToi } from './page-a-toi.js';
 import { PageComposants } from './page-composants.js';
@@ -32,6 +33,7 @@ import { PermissionRequest } from './permission-request.js';
 import { Phase } from './phase.js';
 import { Port } from './port.js';
 import { ProcessCanvas } from './process-canvas.js';
+import { PhaseGroup } from './phase-group.js';
 import { ProcessTrack } from './process-track.js';
 import { ProjectFilter } from './project-filter.js';
 import { Question } from './question.js';
@@ -41,6 +43,8 @@ import { Select } from './select.js';
 import { Session } from './session.js';
 import { SettingRow } from './setting-row.js';
 import { Stat } from './stat.js';
+import { StepRow } from './step-row.js';
+import { Stepper } from './stepper.js';
 import { StatusBadge } from './status-badge.js';
 import { StatusDot } from './status-dot.js';
 import { StepCard } from './step-card.js';
@@ -80,6 +84,7 @@ export * from './idea-row.js';
 export * from './key-value.js';
 export * from './list-row.js';
 export * from './loop-back.js';
+export * from './menu.js';
 export * from './message.js';
 export * from './page-a-toi.js';
 export * from './page-composants.js';
@@ -93,6 +98,7 @@ export * from './permission-request.js';
 export * from './phase.js';
 export * from './port.js';
 export * from './process-canvas.js';
+export * from './phase-group.js';
 export * from './process-track.js';
 export * from './project-filter.js';
 export * from './question.js';
@@ -103,6 +109,8 @@ export * from './sensitive.js';
 export * from './session.js';
 export * from './setting-row.js';
 export * from './stat.js';
+export * from './step-row.js';
+export * from './stepper.js';
 export * from './status-badge.js';
 export * from './status-dot.js';
 export * from './step-card.js';
@@ -167,6 +175,9 @@ export const COMPOSANTS = {
   Capture,
   TicketTree,
   Timeline,
+  PhaseGroup,
+  StepRow,
+  Menu,
   Banner,
   Button,
   Checkbox,
@@ -178,6 +189,7 @@ export const COMPOSANTS = {
   Select,
   StatusBadge,
   StatusDot,
+  Stepper,
   Tabs,
   TextField,
   Toast,

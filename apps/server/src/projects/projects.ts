@@ -8,12 +8,14 @@ import { GITHUB_CLIENT, type GitHubClient } from '../github/github.client.js';
 import { REPOSITORY_VIEW } from '../github/repositories/repositories.js';
 import { newId } from '../ids.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { GITHUB_SOURCES, ProcessService } from '../process/process.service.js';
 import { EventsWriter } from '../realtime/events.writer.js';
 import { assertFresh } from '../realtime/freshness.js';
 import { STATE_CONTRIBUTORS, type StateContributor, type StateContributors } from '../realtime/state-contributors.js';
 import { Transactions, type Tx } from '../realtime/transactions.js';
 import { currentPilotId } from '../scope/scope.context.js';
 import { projectNamesOf } from './process-json.js';
+import { ProjectChanges } from './project-changes.js';
 import { inventoryStateRow, PROJECT_VIEW, toProject } from './project.view.js';
 
 export class FollowProjectsDto extends createZodDto(zFollowProjects) {}
@@ -33,8 +35,9 @@ const isUniqueViolation = (error: unknown): boolean => error instanceof Prisma.P
 /**
  * The Projets (US-3, PROJET-2): following a Dépôt GitHub makes it a Projet,
  * named and branched after its `.process.json` when it has one. One
- * transaction writes every Projet of the command, each with its
- * `project.upserted` and its repository's `repository.upserted` (followed).
+ * transaction writes every Projet of the command, each with its Process
+ * (version 1 of « Process Crewdeck », PROCESS-3) and its `process.upserted`,
+ * its `project.upserted` and its repository's `repository.upserted` (followed).
  */
 @Injectable()
 export class Projects {
@@ -43,6 +46,8 @@ export class Projects {
     private readonly prisma: PrismaService,
     private readonly transactions: Transactions,
     private readonly events: EventsWriter,
+    private readonly process: ProcessService,
+    private readonly changes: ProjectChanges,
   ) {}
 
   /**
@@ -65,7 +70,9 @@ export class Projects {
       names.set(repository.id, projectNamesOf(await this.processJson(ref, repository.defaultBranch), repository));
     }
     try {
-      return await this.write(pilotId, ids, names, BigInt(seq));
+      const projects = await this.write(pilotId, ids, names, BigInt(seq));
+      this.changes.changed(pilotId);
+      return projects;
     } catch (error) {
       if (isUniqueViolation(error)) throw alreadyFollowed();
       throw error;
@@ -101,6 +108,7 @@ export class Projects {
         const project = toProject(row);
         const projectSeq = await this.events.write(tx, pilotId, 'project.upserted', project);
         await tx.project.update({ where: { id: projectId }, data: { lastSeq: projectSeq } });
+        await this.process.createInitialVersion(tx, projectId, { template: 'process-crewdeck' }, GITHUB_SOURCES);
         const view = { id, owner: repository.owner, name: repository.name, fullName: repository.fullName, private: repository.private, defaultBranch: repository.defaultBranch, hasCode: repository.hasCode };
         const repositorySeq = await this.events.write(tx, pilotId, 'repository.upserted', { ...view, followed: true });
         await tx.repository.update({ where: { id }, data: { lastSeq: repositorySeq } });

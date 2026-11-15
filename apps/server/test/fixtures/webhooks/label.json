@@ -1,0 +1,34 @@
+{
+  "action": "created",
+  "label": {
+    "id": 208045947,
+    "name": "<label>",
+    "color": "ededed",
+    "default": false,
+    "description": "<description>"
+  },
+  "repository": {
+    "id": 71000001,
+    "node_id": "R_fixture",
+    "name": "fixture-app",
+    "full_name": "octo-fixture/fixture-app",
+    "private": true,
+    "owner": {
+      "login": "octo-fixture",
+      "id": 9100001,
+      "type": "User"
+    },
+    "default_branch": "main",
+    "html_url": "https://github.com/octo-fixture/fixture-app",
+    "description": "<description>"
+  },
+  "installation": {
+    "id": 51000001,
+    "node_id": "MDIzOkludGVncmF0aW9uSW5zdGFsbGF0aW9uNTEwMDAwMDE="
+  },
+  "sender": {
+    "login": "octo-fixture",
+    "id": 9100001,
+    "type": "User"
+  }
+}

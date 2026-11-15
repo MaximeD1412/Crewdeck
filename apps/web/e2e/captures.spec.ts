@@ -54,6 +54,9 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('en ligne');
     await expect(page.locator('cd-page-runner > cd-usage-card')).toContainText('au rythme actuel');
   },
+  'runner-serveurs-mcp': async (page) => {
+    await expect(page.locator('cd-page-runner cd-card.mcp cd-list-row')).toHaveCount(2);
+  },
   'runner-hors-ligne': async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('hors ligne');
     await expect(page.locator('cd-page-runner > cd-usage-card')).toContainText('Dernière mesure');

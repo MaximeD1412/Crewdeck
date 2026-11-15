@@ -1,6 +1,7 @@
 import { type DynamicModule, Global, Module } from '@nestjs/common';
 import { DecisionsModule } from '../decisions/decisions.module.js';
 import { MAILER } from '../auth/mail/mailer.js';
+import { RunnersModule } from '../runners/runners.module.js';
 import { GITHUB_CLIENT } from '../github/github.client.js';
 import { FakeGitHubController } from './fake-github.controller.js';
 import { createFakes, FAKES, type Fakes } from './fakes.js';
@@ -10,12 +11,14 @@ import { TestingDecisionsController } from './testing-decisions.controller.js';
 import { TestingMailsController } from './testing-mails.controller.js';
 import { TestingPilotController } from './testing-pilot.controller.js';
 import { TestingRunnerController } from './testing-runner.controller.js';
+import { TestingWaitingWorkController } from './testing-waiting-work.controller.js';
 
 /**
  * The fakes in place of GitHub and the Runner, and the scenarios of the
  * end-to-end tests and of the captures (`/api/testing/*`, and the change of
  * the Pilote that makes the page miss an event, the Décisions raised and
- * resolved as their modules would), what the page
+ * resolved as their modules would, the Runner stopped and relaunched and the
+ * work that waits for it), what the page
  * reads from the fake GitHub (`/fake-github/*`). Imported only with
  * `CREWDECK_FAKES=1`, which the boot refuses in production, and only through
  * a dynamic `import()` (`AppModule`): without it, nothing of `src/testing/` is
@@ -29,8 +32,8 @@ export class TestingModule {
   static forRoot(): DynamicModule {
     return {
       module: TestingModule,
-      imports: [DecisionsModule],
-      controllers: [TestingController, TestingPilotController, TestingDecisionsController, TestingRunnerController, TestingMailsController, FakeGitHubController],
+      imports: [DecisionsModule, RunnersModule],
+      controllers: [TestingController, TestingPilotController, TestingDecisionsController, TestingRunnerController, TestingWaitingWorkController, TestingMailsController, FakeGitHubController],
       providers: [
         ScenariosService,
         { provide: FAKES, useFactory: createFakes },

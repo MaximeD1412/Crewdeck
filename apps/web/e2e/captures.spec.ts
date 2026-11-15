@@ -63,8 +63,17 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   runner: async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('en ligne');
   },
+  'runner-serveurs-mcp': async (page) => {
+    await expect(page.locator('cd-page-runner cd-card.mcp cd-list-row')).toHaveCount(2);
+  },
   'runner-hors-ligne': async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('hors ligne');
+    await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner] cd-code-block')).toContainText('crewdeck-runner restart');
+  },
+  // « Runner hors ligne » (ATOI-3): its row among the Décisions, and its banner.
+  'a-toi-runner-hors-ligne': async (page) => {
+    await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('Ton Runner ne répond plus');
+    await expect(page.locator('cd-page-a-toi cd-decision-row')).toHaveCount(10);
   },
 };
 

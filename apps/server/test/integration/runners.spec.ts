@@ -1,5 +1,6 @@
 import { type Event, PROTOCOL_VERSION, RUNNER_WS_CLOSE, zRunner, zState } from '@crewdeck/contracts';
 import type { INestApplication } from '@nestjs/common';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import { getLoggerToken, type PinoLogger } from 'nestjs-pino';
 import pg from 'pg';
 import { inject } from 'vitest';
@@ -52,6 +53,8 @@ describe('the Runner protocol against PostgreSQL', () => {
     ({ app, url } = await startApp(env));
     prisma = app.get(PrismaService);
     clock = app.get(RunnerClock);
+    // The tests sweep by hand: the interval's own sweeps would race them.
+    app.get(SchedulerRegistry).deleteInterval('runner-sweep');
   });
 
   afterAll(async () => {

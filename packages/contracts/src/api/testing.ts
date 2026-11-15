@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { zCapabilities } from '../runner/capabilities.js';
+import { zMcpServers } from '../runner/mcp.js';
 import { zDecision, zDecisionKind } from './decisions.js';
+import { zWaitingProject } from './runner-offline.js';
 
 /**
  * `POST /api/testing/scenarios/:name`, outside production only: the scenario
@@ -60,3 +62,22 @@ export type TestingMail = z.infer<typeof zTestingMail>;
 export const zTestingMails = z.object({ items: z.array(zTestingMail) });
 export type TestingMails = z.infer<typeof zTestingMails>;
 export const zTestingMailsQuery = z.object({ to: z.string().trim().toLowerCase() });
+
+/**
+ * `POST /api/testing/runner/mcp-servers`, outside production only: the fake
+ * Runner of the scenario sends these servers in a `mcp.servers` message, as
+ * a Runner on which `crewdeck-runner mcp add` or `remove` just ran. The
+ * end-to-end tests of « Runner et Comptes IA » see a server arrive and leave
+ * with it.
+ */
+export const zTestingRunnerMcpServers = z.object({ servers: zMcpServers.shape.servers });
+export type TestingRunnerMcpServers = z.infer<typeof zTestingRunnerMcpServers>;
+
+/**
+ * `POST /api/testing/runner/waiting-work`, outside production only: the test
+ * provider of `RunnerWaitingWork` declares these Projets for the Pilote signed
+ * in, then « Runner hors ligne » is refreshed, as a module whose work starts
+ * waiting would.
+ */
+export const zTestingWaitingWork = z.object({ projects: z.array(zWaitingProject) });
+export type TestingWaitingWork = z.infer<typeof zTestingWaitingWork>;

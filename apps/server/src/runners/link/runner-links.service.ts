@@ -29,6 +29,7 @@ import { RunnerClock } from '../clock.js';
 import { RunnerConnections } from '../runner-connections.js';
 import { RunnerProtocol } from '../protocol-version.js';
 import { RUNNER_VIEW, toRunner } from '../runner.view.js';
+import { RunnerOffline } from '../runner-offline.service.js';
 import { failureOf, LINK_VIEW, reasonOf, toRunnerLink } from './link-code.view.js';
 import { RunnerLinkLookup } from './link-lookup.js';
 import { RunnerLinkTokens } from './link-tokens.js';
@@ -73,6 +74,7 @@ export class RunnerLinks {
     private readonly connections: RunnerConnections,
     private readonly protocol: RunnerProtocol,
     private readonly devices: Devices,
+    private readonly offline: RunnerOffline,
   ) {}
 
   /**
@@ -179,7 +181,8 @@ export class RunnerLinks {
   /**
    * The page confirms the current Pilote's `pending` code, once it read the
    * Runner's pairing: the Runner is created with a new token (its hash kept),
-   * the previous one revoked and its socket closed with 4401, the code
+   * the previous one revoked and its socket closed with 4401, its « Runner
+   * hors ligne » resolved (`runner-replaced`, ATOI-3), the code
    * `linked`, its wrap of the vault key stored (`Devices.confirm`). The
    * binary reads the token, the device's proof and its wrap with `status`.
    * An Appareil that does not hold the vault key fails the code
@@ -227,6 +230,7 @@ export class RunnerLinks {
       await tx.runnerLinkCode.update({ where: { id }, data: { state: 'linked', confirmPairing: linkedPairing } });
       const linked = toRunner(created);
       await this.events.write(tx, pilotId, 'runner.upserted', linked);
+      await this.offline.resolveReplaced(tx, linked.id);
       await this.writeEvent(tx, pilotId, id);
       return { runner: linked, revoked: new Set(previous.map((runner) => runner.id)), linkedPairing };
     });

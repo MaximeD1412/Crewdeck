@@ -22,6 +22,9 @@ type RunnerHello struct {
 	// Machine corresponds to the JSON schema field "machine".
 	Machine string `json:"machine"`
 
+	// MirrorAfter corresponds to the JSON schema field "mirrorAfter".
+	MirrorAfter interface{} `json:"mirrorAfter,omitempty,omitzero"`
+
 	// Os corresponds to the JSON schema field "os".
 	Os RunnerHelloOs `json:"os"`
 
@@ -67,6 +70,8 @@ func (j *RunnerHelloArch) UnmarshalJSON(value []byte) error {
 	*j = RunnerHelloArch(v)
 	return nil
 }
+
+type RunnerHelloMirrorAfter_0 *int
 
 type RunnerHelloOs string
 

@@ -21,6 +21,7 @@ import type { Store } from './store/store.js';
 import { createConnexion } from './views/connexion.js';
 import { createConnexionLien, takeLinkToken } from './views/connexion-lien.js';
 import { decisionViews } from './views/decisions/registry.js';
+import './views/decisions/runner-offline.js';
 import { systemOfBrowser } from './views/demarrage.js';
 import { projetsView } from './views/projets.js';
 import { runnerView } from './views/runner.js';
@@ -96,6 +97,8 @@ export const boot = async ({
   // The Pilote of `/api/me` until the snapshot gives the store's.
   const shell = mountShell({
     root,
+    // The router is started below, before any Banner can be clicked.
+    navigate: (url) => router.navigate(url),
     state: () => {
       const state = store.getState();
       return { ...state, slices: { ...state.slices, pilot: state.slices.pilot !== undefined ? state.slices.pilot : pilot } };
@@ -141,7 +144,11 @@ export const boot = async ({
       const { slices } = store.getState();
       if (match.composant === PageProjets) return projetsView(slices.project?.values() ?? []);
       if (match.composant !== PageRunner) return pageData(match);
-      return runnerView({ runner: slices.runner ?? null, accounts: slices['ai-account']?.values() ?? [] });
+      return runnerView({
+        runner: slices.runner ?? null,
+        accounts: slices['ai-account']?.values() ?? [],
+        mcpServers: slices['mcp-server']?.values() ?? [],
+      });
     },
   });
   const unsubscribe = [

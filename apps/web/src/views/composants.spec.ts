@@ -27,6 +27,7 @@ describe('composantsView', () => {
       'Select',
       'StatusBadge',
       'StatusDot',
+      'Stepper',
       'Tabs',
       'TextField',
       'Toast',
@@ -54,6 +55,14 @@ describe('composantsView', () => {
       { name: 'default', description: t('composants.Banner.slots.default') },
       { name: 'actions', description: t('composants.Banner.slots.actions') },
     ]);
+  });
+
+  it('shows PageRunner at version 2, its Serveurs MCP among its fields and « aucun Serveur MCP » among its examples', () => {
+    const { groups, selected } = composantsView(COMPOSANTS, 'PageRunner');
+    expect(groups.flatMap((group) => group.composants).find((entry) => entry.name === 'PageRunner')).toEqual({ name: 'PageRunner', version: 2 });
+    expect(selected.version).toBe(2);
+    expect(selected.fields.find((field) => field.name === 'mcpServers')).toMatchObject({ description: t('composants.PageRunner.data.mcpServers') });
+    expect(selected.examples.map((example) => example.name)).toEqual(['en ligne', 'hors ligne', 'aucun Serveur MCP']);
   });
 
   it('gives the actions with their description, sensitive when declared with sensitive()', () => {

@@ -15,9 +15,13 @@ store.registerSlice('runner', { shape: 'single' });
 store.registerSlice('decision', { shape: 'collection', snapshotKey: 'decisions' });
 store.registerSlice('runner-link', { shape: 'single' });
 store.registerSlice('ai-account', { shape: 'collection' });
+store.registerSlice('mcp-server', { shape: 'collection' });
 store.registerSlice('device', { shape: 'collection', snapshotKey: 'devices' });
 store.registerSlice('project', { shape: 'collection', snapshotKey: 'projects' });
 store.registerSlice('repository', { shape: 'collection', snapshotKey: 'repositories' });
+store.registerSlice('ticket', { shape: 'collection', snapshotKey: 'tickets' });
+store.registerSlice('milestone', { shape: 'collection', snapshotKey: 'milestones' });
+store.registerSlice('code-change', { shape: 'collection', snapshotKey: 'codeChanges' });
 
 export const client = createClient({
   seq: () => store.getState().seq,

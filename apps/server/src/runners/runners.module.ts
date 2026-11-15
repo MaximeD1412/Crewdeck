@@ -55,6 +55,6 @@ import { RunnerWaitingWork } from './waiting-work.js';
     AiAccounts,
     AiAccountState,
   ],
-  exports: [RunnerPresence, RunnerCommands, RunnerDispatcher, RunnerClock, RunnerWaitingWork, RunnerOffline],
+  exports: [RunnerPresence, RunnerCommands, RunnerDispatcher, RunnerClock, RunnerWaitingWork, RunnerOffline, RunnerConnections],
 })
 export class RunnersModule {}

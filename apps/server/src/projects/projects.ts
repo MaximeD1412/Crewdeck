@@ -14,6 +14,7 @@ import { STATE_CONTRIBUTORS, type StateContributor, type StateContributors } fro
 import { Transactions, type Tx } from '../realtime/transactions.js';
 import { currentPilotId } from '../scope/scope.context.js';
 import { projectNamesOf } from './process-json.js';
+import { ProjectChanges } from './project-changes.js';
 import { inventoryStateRow, PROJECT_VIEW, toProject } from './project.view.js';
 
 export class FollowProjectsDto extends createZodDto(zFollowProjects) {}
@@ -43,6 +44,7 @@ export class Projects {
     private readonly prisma: PrismaService,
     private readonly transactions: Transactions,
     private readonly events: EventsWriter,
+    private readonly changes: ProjectChanges,
   ) {}
 
   /**
@@ -65,7 +67,9 @@ export class Projects {
       names.set(repository.id, projectNamesOf(await this.processJson(ref, repository.defaultBranch), repository));
     }
     try {
-      return await this.write(pilotId, ids, names, BigInt(seq));
+      const projects = await this.write(pilotId, ids, names, BigInt(seq));
+      this.changes.changed(pilotId);
+      return projects;
     } catch (error) {
       if (isUniqueViolation(error)) throw alreadyFollowed();
       throw error;

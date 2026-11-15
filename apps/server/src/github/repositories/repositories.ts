@@ -2,6 +2,7 @@ import { type InstallationRepository, REPOSITORIES_MAX, type Repository } from '
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import { AppError } from '../../errors/app-error.js';
 import { newId } from '../../ids.js';
+import { ProjectChanges } from '../../projects/project-changes.js';
 import { PROJECT_VIEW, toProject } from '../../projects/project.view.js';
 import { EventsWriter, type WriteOptions } from '../../realtime/events.writer.js';
 import { STATE_CONTRIBUTORS, type StateContributor, type StateContributors } from '../../realtime/state-contributors.js';
@@ -80,7 +81,9 @@ const githubIdsAt = (payload: WebhookPayload, key: string): number[] => {
  *
  * A Pilote's changes run one after the other, GitHub's reads included: a
  * removal never lands between a sync's read and its write, to be undone by
- * what the sync read before it.
+ * what the sync read before it. A change that reaches a Projet (its
+ * repository renamed, lost or back) is told to `ProjectChanges` once
+ * committed: the Runner's Miroir gets its Projets again.
  */
 @Injectable()
 export class Repositories implements OnModuleInit {
@@ -91,6 +94,7 @@ export class Repositories implements OnModuleInit {
     private readonly transactions: Transactions,
     private readonly events: EventsWriter,
     private readonly installations: GitHubInstallations,
+    private readonly projectChanges: ProjectChanges,
   ) {}
 
   /** The last change queued per Pilote. */
@@ -146,33 +150,38 @@ export class Repositories implements OnModuleInit {
       const hasCode = (await this.github.countCommits(repo, defaultBranch, HAS_CODE_COMMITS)) >= HAS_CODE_COMMITS;
       facts.push({ repo, defaultBranch, hasCode });
     }
-    await this.transactions.run(async (tx) => {
-      for (const fact of facts) await this.upsert(tx, pilotId, installationId, fact, options);
-      if (!options.prune) return;
+    const touched = await this.transactions.run(async (tx) => {
+      let projects = false;
+      for (const fact of facts) projects = (await this.upsert(tx, pilotId, installationId, fact, options)) || projects;
+      if (!options.prune) return projects;
       const gone = await tx.repository.findMany({
         where: { installationId: BigInt(installationId), githubId: { notIn: listed.map((repo) => BigInt(repo.id)) } },
         select: { id: true },
       });
-      await this.removeRows(tx, pilotId, gone, options);
+      return (await this.removeRows(tx, pilotId, gone, options)) || projects;
     });
+    if (touched) this.projectChanges.changed(pilotId);
   }
 
   private async removeNow(pilotId: string, githubIds: readonly number[], origin: Origin): Promise<void> {
     if (githubIds.length === 0) return;
-    await this.transactions.run(async (tx) => {
+    const touched = await this.transactions.run(async (tx) => {
       const rows = await tx.repository.findMany({ where: { githubId: { in: githubIds.map(BigInt) } }, select: { id: true } });
-      await this.removeRows(tx, pilotId, rows, origin);
+      return this.removeRows(tx, pilotId, rows, origin);
     });
+    if (touched) this.projectChanges.changed(pilotId);
   }
 
   private async removeInstallationNow(pilotId: string, installationId: number, origin: Origin): Promise<void> {
-    await this.transactions.run(async (tx) => {
+    const touched = await this.transactions.run(async (tx) => {
       const rows = await tx.repository.findMany({ where: { installationId: BigInt(installationId) }, select: { id: true } });
-      await this.removeRows(tx, pilotId, rows, origin);
+      return this.removeRows(tx, pilotId, rows, origin);
     });
+    if (touched) this.projectChanges.changed(pilotId);
   }
 
-  private async upsert(tx: Tx, pilotId: string, installationId: number, { repo, defaultBranch, hasCode }: RepositoryFacts, origin: Origin): Promise<void> {
+  /** Writes the repository when it changed; whether it is a Projet's. */
+  private async upsert(tx: Tx, pilotId: string, installationId: number, { repo, defaultBranch, hasCode }: RepositoryFacts, origin: Origin): Promise<boolean> {
     const data = {
       installationId: BigInt(installationId),
       owner: repo.owner,
@@ -184,7 +193,7 @@ export class Repositories implements OnModuleInit {
     };
     const githubId = BigInt(repo.id);
     const row = await tx.repository.findUnique({ where: { pilotId_githubId: { pilotId, githubId } }, select: { ...REPOSITORY_VIEW, installationId: true } });
-    if (row && Object.entries(data).every(([key, value]) => row[key as keyof typeof row] === value)) return;
+    if (row && Object.entries(data).every(([key, value]) => row[key as keyof typeof row] === value)) return false;
     // A repository back in an installation takes its Projet's `repositoryId` again.
     const project = row
       ? await tx.project.findUnique({ where: { repositoryId: row.id }, select: { ...PROJECT_VIEW } })
@@ -199,9 +208,12 @@ export class Repositories implements OnModuleInit {
       const projectSeq = await this.events.write(tx, pilotId, 'project.upserted', toProject(back), this.writeOptions(origin));
       await tx.project.update({ where: { id: project.id }, data: { lastSeq: projectSeq } });
     }
+    return project !== null;
   }
 
-  private async removeRows(tx: Tx, pilotId: string, rows: readonly { id: string }[], origin: Origin): Promise<void> {
+  /** Deletes the rows; whether a Projet lost its access. */
+  private async removeRows(tx: Tx, pilotId: string, rows: readonly { id: string }[], origin: Origin): Promise<boolean> {
+    let lostOne = false;
     for (const { id } of rows) {
       await tx.repository.delete({ where: { id } });
       await this.events.write(tx, pilotId, 'repository.removed', { id }, this.writeOptions(origin));
@@ -210,7 +222,9 @@ export class Repositories implements OnModuleInit {
       const lost = await tx.project.update({ where: { id: project.id }, data: { accessLost: true }, select: PROJECT_VIEW });
       const seq = await this.events.write(tx, pilotId, 'project.upserted', toProject(lost), this.writeOptions(origin));
       await tx.project.update({ where: { id: project.id }, data: { lastSeq: seq } });
+      lostOne = true;
     }
+    return lostOne;
   }
 
   /** Runs `fn` in `pilotId`'s scope, after the Pilote's changes already queued, whether they failed or not. */

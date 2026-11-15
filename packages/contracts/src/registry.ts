@@ -7,6 +7,7 @@ import { CAPABILITIES_EVERY_SECONDS, zCapabilities } from './runner/capabilities
 import { zEngineEvent } from './runner/events.js';
 import { zHeartbeat, zHeartbeatAck } from './runner/heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './runner/hello.js';
+import { zMcpServers } from './runner/mcp.js';
 import { zGitHubChanged, zMirrorLive, zMirrorProjects, zMirrorResync } from './runner/mirror.js';
 import { zStepVerdict } from './runner/step.js';
 import { zProcessSealedPayload } from './process/definition.js';
@@ -35,6 +36,7 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-error', schema: zProtocolError },
   { name: 'runner-step-verdict', schema: zStepVerdict },
   { name: 'runner-capabilities', schema: zCapabilities },
+  { name: 'runner-mcp-servers', schema: zMcpServers },
   { name: 'runner-github-changed', schema: zGitHubChanged },
   { name: 'runner-mirror-resync', schema: zMirrorResync },
   { name: 'runner-mirror-live', schema: zMirrorLive },

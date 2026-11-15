@@ -21,6 +21,10 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
   'AgentRow.open': (el) => inside(el, 'button').click(),
   'Capture.open': (el) => inside(el, 'button').click(),
   'PageComposants.select': (el) => inside(el, 'nav cd-list-row:not(:has(cd-status-badge))', 'a').click(),
+  'Stepper.change': (el) => inside(el, 'button.increase').click(),
+  'Menu.choose': (el) => inside(el, '[role=menuitem]').click(),
+  'Menu.close': (el) =>
+    inside(el, '[role=menuitem]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true })),
   'Session.stop': (el) => inside(el, 'cd-button.stop', 'button').click(),
   'Session.resume': async (el) => {
     el.data = { ...(el.data as object), state: 'stopped' };

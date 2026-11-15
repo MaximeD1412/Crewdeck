@@ -80,6 +80,7 @@ const SNAPSHOT: State = {
   runner: null,
   'runner-link': null,
   'ai-account': [],
+  'mcp-server': [],
   devices: [],
   projects: [],
   processes: [PROCESS],

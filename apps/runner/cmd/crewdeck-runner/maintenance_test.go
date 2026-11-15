@@ -15,6 +15,7 @@ import (
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/accounts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/mcp"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/service"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
 	"github.com/zalando/go-keyring"
@@ -142,8 +143,8 @@ func TestLogsAreTheLogFileUnderLaunchd(t *testing.T) {
 	}
 }
 
-// uninstallable is a linked machine with its service, a clone, and a key
-// of each Moteur in the (fake) keychain.
+// uninstallable is a linked machine with its service, a clone, a key of
+// each Moteur and the secrets of a Serveur MCP in the (fake) keychain.
 func uninstallable(t *testing.T) (*machineFixture, *tools) {
 	t.Helper()
 	keyring.MockInit()
@@ -163,8 +164,15 @@ func uninstallable(t *testing.T) (*machineFixture, *tools) {
 			t.Fatal(err)
 		}
 	}
+	stitch := mcp.Server{Name: "stitch", Transport: mcp.TransportStdio, Command: "stitch-mcp", Env: map[string]string{"API_KEY": "s3cr3t"}}
+	if err := (mcp.Store{Dir: f.state}).Add(stitch); err != nil {
+		t.Fatal(err)
+	}
 	return f, tl
 }
+
+// mcpSecret is the stitch server's API_KEY as the keychain holds it.
+const mcpSecret = "mcp:stitch:env:API_KEY"
 
 func TestUninstallAsksFirstAndKeepsEverythingWithoutAYes(t *testing.T) {
 	f, tl := uninstallable(t)
@@ -183,6 +191,9 @@ func TestUninstallAsksFirstAndKeepsEverythingWithoutAYes(t *testing.T) {
 	}
 	if _, err := (accounts.Store{Dir: f.state}).Get(contracts.EngineIdClaudeCode); err != nil {
 		t.Fatalf("key: %v, want it kept", err)
+	}
+	if secret, err := keyring.Get(accounts.Service, mcpSecret); err != nil || secret != "s3cr3t" {
+		t.Fatalf("secret of the Serveur MCP stitch: %q, %v, want it kept", secret, err)
 	}
 	if calls := tl.calls(t); calls != nil {
 		t.Fatalf("calls %q, want none", calls)
@@ -213,6 +224,9 @@ func TestUninstallRemovesTheServiceTheFolderTheKeysAndTheBinary(t *testing.T) {
 			if _, err := keyring.Get(accounts.Service, string(id)); !errors.Is(err, keyring.ErrNotFound) {
 				t.Fatalf("key of %s: %v, want it deleted", id, err)
 			}
+		}
+		if _, err := keyring.Get(accounts.Service, mcpSecret); !errors.Is(err, keyring.ErrNotFound) {
+			t.Fatalf("secret of the Serveur MCP stitch: %v, want it deleted", err)
 		}
 	}
 }
@@ -255,7 +269,7 @@ func TestUninstallStopsWhenTheKeychainRefusesAKey(t *testing.T) {
 	keyring.MockInitWithError(errors.New("the keychain is locked"))
 
 	out, err := f.execute(t, "", "uninstall", "--yes")
-	if err == nil || !strings.Contains(err.Error(), "n’a pas pu être retirée du trousseau") || !strings.Contains(err.Error(), "relance « crewdeck-runner uninstall »") {
+	if err == nil || !strings.Contains(err.Error(), "Les secrets des Serveurs MCP n’ont pas pu être retirés du trousseau") || !strings.Contains(err.Error(), "relance « crewdeck-runner uninstall »") {
 		t.Fatalf("uninstall = %v, want the keychain's refusal", err)
 	}
 	if strings.Contains(out, "Runner supprimé") {

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { zAiAccount } from './ai-accounts.js';
 import { zDecision } from './decisions.js';
 import { zDevice } from './devices.js';
+import { zMcpServer } from './mcp-servers.js';
 import { zMe } from './me.js';
 import { zProjectProcess } from './process.js';
 import { REPOSITORIES_MAX, zProject, zRepository } from './projects.js';
@@ -23,6 +24,8 @@ export const STATE_SLICES = {
   'runner-link': zRunnerLink.nullable(),
   /** The Pilote's Comptes IA, one per Moteur their Runner reported (RUNNER-7). */
   'ai-account': z.array(zAiAccount),
+  /** The Serveurs MCP the Pilote's Runner last reported, by name (RUNNER-16). */
+  'mcp-server': z.array(zMcpServer),
   /** The Pilote's Appareils (E2E-2), newest first; `current` is `false`, each page sets its own. */
   devices: z.array(zDevice),
   /** The Pilote's Projets (PROJET-2), by name. */

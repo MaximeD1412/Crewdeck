@@ -74,3 +74,12 @@ export const composantsProcess = ['ProcessCanvas', 'Phase', 'StepCard', 'Port', 
       seed: signInPilot,
     }),
 );
+
+/** The library opened on each Composant of a Process's list and its editing (UI-9), `composants-<name in lower case>`, the Pilote signed in. */
+export const composantsProcessList = ['PhaseGroup', 'StepRow', 'Stepper', 'Menu'].map((name) =>
+  defineScenario({
+    name: `composants-${name.toLowerCase()}`,
+    path: `/parametres/composants?c=${name}`,
+    seed: signInPilot,
+  }),
+);

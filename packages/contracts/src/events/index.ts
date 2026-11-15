@@ -16,6 +16,7 @@ export const RESOURCES = [
   'ai-account',
   'device',
   'project',
+  'process',
   'repository',
   'ticket',
   'milestone',

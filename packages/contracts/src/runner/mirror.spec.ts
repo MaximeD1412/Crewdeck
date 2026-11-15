@@ -15,7 +15,7 @@ describe('the Miroir’s messages', () => {
   it('carries an envelope of identifiers, states and dates only: any other key is refused', () => {
     expect(Object.keys(zGitHubChange.parse(change())).sort()).toEqual(['action', 'at', 'kind', 'number', 'projectId', 'ref', 'repository', 'seq', 'sha'].sort());
     expect(zGitHubChange.safeParse({ ...change(), title: 'Connexion GitHub' }).success).toBe(false);
-    expect(zGitHubChanged.safeParse({ ...fixture('github.changed'), change: { ...change(), body: 'texte' } }).success).toBe(false);
+    expect(zGitHubChanged.safeParse({ ...fixture<Record<string, unknown>>('github.changed'), change: { ...change(), body: 'texte' } }).success).toBe(false);
   });
 
   it('gives null, never absent, to what a webhook does not say', () => {

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { RunnerTokens } from '../auth/runner-tokens.js';
+import { DecisionsModule } from '../decisions/decisions.module.js';
 import { DevicesModule } from '../devices/devices.module.js';
 import { AiAccounts, AiAccountsController, AiAccountState } from './ai-accounts/ai-accounts.js';
 import { RunnerClock } from './clock.js';
@@ -14,21 +15,25 @@ import { McpServers, McpServersController, McpServerState } from './mcp-servers/
 import { RunnerCommands } from './runner-commands.service.js';
 import { RunnerConnections } from './runner-connections.js';
 import { RunnerDispatcher } from './runner-dispatcher.js';
+import { RunnerOffline } from './runner-offline.service.js';
 import { RunnerPresence } from './runner-presence.service.js';
 import { RunnerSweep } from './runner-sweep.job.js';
 import { RunnerState, RunnersController } from './runners.controller.js';
 import { RunnersGateway } from './runners.gateway.js';
 import { RunnerProtocol } from './protocol-version.js';
+import { RunnerWaitingWork } from './waiting-work.js';
 
 /**
  * The Pilote's Runner (ADR 0004): its socket (`RunnersGateway`, a client of
  * `/api/ws`), its presence, the commands sent to it, `GET /api/runner`,
- * its link (`link/`, RUNNER-3), and what each Moteur can run on it
- * (`ai-accounts/`, RUNNER-7), and the Serveurs MCP declared on it
- * (`mcp-servers/`, RUNNER-16).
+ * its link (`link/`, RUNNER-3), what each Moteur can run on it
+ * (`ai-accounts/`, RUNNER-7), the Serveurs MCP declared on it
+ * (`mcp-servers/`, RUNNER-16), and « Runner hors ligne » (ATOI-3): the
+ * registry of the work that waits for it (`RunnerWaitingWork`), which the
+ * modules with work for the Runner fill, and its Décision (`RunnerOffline`).
  */
 @Module({
-  imports: [DevicesModule],
+  imports: [DevicesModule, DecisionsModule],
   controllers: [RunnersController, AiAccountsController, McpServersController, RunnerLinkCodesController, RunnerLinkController, RunnerDistController],
   providers: [
     RunnerTokens,
@@ -38,6 +43,8 @@ import { RunnerProtocol } from './protocol-version.js';
     RunnerDispatcher,
     RunnerPresence,
     RunnerSweep,
+    RunnerWaitingWork,
+    RunnerOffline,
     RunnerCommands,
     RunnersGateway,
     RunnerState,
@@ -52,6 +59,6 @@ import { RunnerProtocol } from './protocol-version.js';
     McpServers,
     McpServerState,
   ],
-  exports: [RunnerPresence, RunnerCommands, RunnerDispatcher, RunnerClock],
+  exports: [RunnerPresence, RunnerCommands, RunnerDispatcher, RunnerClock, RunnerWaitingWork, RunnerOffline, RunnerConnections],
 })
 export class RunnersModule {}

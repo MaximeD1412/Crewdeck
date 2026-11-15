@@ -61,4 +61,14 @@ export class EventsWriter {
     place.events.push(toEvent(row));
     return seq;
   }
+
+  /**
+   * Takes now the lock of the Pilote's row that `write` takes, until the
+   * commit: for a writer that locks another row before writing its event,
+   * so that every transaction locks the Pilote first and two of them never
+   * wait for each other (« Runner hors ligne », ATOI-3).
+   */
+  async lock(tx: Tx, pilotId: string): Promise<void> {
+    await tx.pilot.update({ where: { id: pilotId }, data: { seq: { increment: 0 } }, select: { id: true } });
+  }
 }

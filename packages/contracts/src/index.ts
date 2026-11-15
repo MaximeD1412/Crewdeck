@@ -14,9 +14,11 @@ export * from './api/projects.js';
 export * from './api/roles.js';
 export * from './api/runner.js';
 export * from './api/runner-link.js';
+export * from './api/runner-offline.js';
 export * from './api/sensitive-actions.js';
 export * from './api/state.js';
 export * from './api/testing.js';
+export * from './api/tickets.js';
 export * from './events/index.js';
 export * from './events/ai-account.js';
 export * from './events/decision.js';
@@ -27,6 +29,7 @@ export * from './events/project.js';
 export * from './events/repository.js';
 export * from './events/runner.js';
 export * from './events/runner-link.js';
+export * from './events/tickets.js';
 export * from './keys/pairing.js';
 export * from './keys/sealed.js';
 export * from './realtime/ws.js';
@@ -35,3 +38,6 @@ export * from './github/index.js';
 export * from './composants/index.js';
 export * from './contrats/index.js';
 export * from './process/index.js';
+// The Process's types and the canvas's Composants share three names: here the
+// types win; the Composants are `COMPOSANTS.Phase`, or `@crewdeck/contracts/composants`'s.
+export type { LoopBack, Phase, Port } from './process/index.js';

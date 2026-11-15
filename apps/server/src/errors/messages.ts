@@ -43,6 +43,8 @@ export const MESSAGES = {
   'server.internal': 'Une erreur inattendue est survenue.',
   'testing.no-runner': 'Aucun Runner de test connecté : lance d’abord un scénario qui en relie un.',
   'testing.unknown-scenario': 'Scénario de test inconnu.',
+  'ticket.cursor-invalid': 'Ce curseur ne vient pas de la liste des Tickets.',
+  'ticket.not-found': 'Ce Ticket n’existe pas.',
   'validation.invalid': 'Certaines valeurs ne sont pas valides.',
 } as const satisfies Record<string, string>;
 

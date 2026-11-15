@@ -19,6 +19,8 @@ export const RESOURCES = [
   'project',
   'repository',
   'ticket',
+  'milestone',
+  'code-change',
   'agent-loop',
   'schedule',
   'agent-session',

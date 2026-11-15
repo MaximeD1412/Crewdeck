@@ -16,7 +16,11 @@ const noRunner = () => conflict('testing.no-runner', 'Aucun Runner de test conne
  * connected; the server stores them as it would a real Runner's (204);
  * `POST /api/testing/runner/mcp-servers` (body `{ servers }`) the same for its
  * Serveurs MCP, as after `crewdeck-runner mcp add` or `remove`. 409
- * `testing.no-runner` while no scenario's Runner is connected. Mounted
+ * `testing.no-runner` while no scenario's Runner is connected.
+ * `POST /api/testing/runner/disconnect` stops it, as a Runner whose machine
+ * went to sleep (204); `/reconnect` connects it again, as the Pilote who
+ * relaunches it (204; 409 `testing.no-runner` when no scenario connected
+ * one). Mounted
  * outside production only (`TestingModule`); public, as the scenarios: the
  * fake Runner is the server's own.
  */
@@ -35,5 +39,17 @@ export class TestingRunnerController {
   @HttpCode(204)
   reportMcpServers(@Body() { servers }: TestingRunnerMcpServersDto): void {
     if (!this.fakes.runner.reportMcpServers(servers)) throw noRunner();
+  }
+
+  @Post('disconnect')
+  @HttpCode(204)
+  disconnect(): void {
+    this.fakes.runner.disconnect();
+  }
+
+  @Post('reconnect')
+  @HttpCode(204)
+  async reconnect(): Promise<void> {
+    if (!(await this.fakes.runner.reconnect())) throw noRunner();
   }
 }

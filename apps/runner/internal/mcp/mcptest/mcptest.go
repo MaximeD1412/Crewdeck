@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Env holds, in a test process, the fake's behaviour: `tools=<a,b,c>` lists
@@ -33,6 +34,10 @@ func ServeIfAsked() {
 		return
 	}
 	if reason, ok := strings.CutPrefix(spec, "fail="); ok {
+		// Its stdout ends before its stderr is written: the reason must
+		// still reach the error.
+		os.Stdout.Close()
+		time.Sleep(200 * time.Millisecond)
 		fmt.Fprintln(os.Stderr, reason)
 		os.Exit(3)
 	}

@@ -11,6 +11,7 @@ import { PublicConfigModule } from './config/public-config.controller.js';
 import { ErrorFilter } from './errors/error.filter.js';
 import { GitHubModule } from './github/github.module.js';
 import { ReconciliationModule } from './github/reconciliation/reconciliation.module.js';
+import { GitHubChangesModule } from './github/changes/changes.module.js';
 import { RepositoriesModule } from './github/repositories/repositories.module.js';
 import { WebhooksModule } from './github/webhooks/webhooks.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -22,6 +23,7 @@ import { RealtimeModule } from './realtime/realtime.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { RunnersModule } from './runners/runners.module.js';
 import { ScopeModule } from './scope/scope.module.js';
+import { TicketsModule } from './tickets/tickets.module.js';
 import { SensitiveActionsModule } from './sensitive-actions/sensitive-actions.module.js';
 import { WebModule } from './web/web.module.js';
 
@@ -68,7 +70,9 @@ export class AppModule {
         DevicesModule,
         RunnersModule,
         RepositoriesModule,
+        GitHubChangesModule,
         ProjectsModule,
+        TicketsModule,
         DecisionsModule,
         MetricsModule,
         WebModule.forRoot(env),

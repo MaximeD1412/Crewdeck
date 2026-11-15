@@ -24,6 +24,10 @@ const Timeout = 30 * time.Second
 // protocolVersion is the MCP revision the client asks for.
 const protocolVersion = "2025-06-18"
 
+// stderrGrace is how long a server that stopped answering has to end, its
+// stderr then whole, before it is killed.
+const stderrGrace = 2 * time.Second
+
 // stderrTail is how much of a stdio server's stderr an error keeps.
 const stderrTail = 4 << 10
 
@@ -112,6 +116,13 @@ func ListTools(ctx context.Context, server Server) ([]Tool, error) {
 			err = fmt.Errorf("pas de réponse en %s", Timeout)
 		}
 		if s, ok := t.(*stdioTransport); ok {
+			// Its stderr is whole only once it has ended: a server that
+			// stops writes its reason there, perhaps after its stdout ends.
+			grace := stderrGrace
+			if deadline, ok := ctx.Deadline(); ctx.Err() != nil || (ok && time.Until(deadline) < grace) {
+				grace = max(time.Until(deadline), 0)
+			}
+			s.end(grace)
 			err = s.withStderr(err)
 		}
 		return nil, redact(err, server)
@@ -197,6 +208,7 @@ type stdioTransport struct {
 	read   chan struct{} // closed once stdout ends
 	stderr *tail
 	killed sync.Once
+	ended  sync.Once
 }
 
 func startStdio(server Server) (*stdioTransport, error) {
@@ -206,6 +218,8 @@ func startStdio(server Server) (*stdioTransport, error) {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	// A child that escaped the group and keeps stderr open does not hold Wait.
+	cmd.WaitDelay = time.Second
 	t := &stdioTransport{cmd: cmd, lines: make(chan []byte, 16), read: make(chan struct{}), stderr: &tail{}}
 	cmd.Stderr = t.stderr
 	var err error
@@ -295,17 +309,35 @@ func (t *stdioTransport) kill() {
 	})
 }
 
-// close kills the server's process group, then waits for it.
-func (t *stdioTransport) close() {
-	t.kill()
-	go func() {
-		for range t.lines {
+// end lets the server stop by itself, its stdin closed, in grace at most,
+// then kills its process group; it waits for it, its stderr whole after.
+func (t *stdioTransport) end(grace time.Duration) {
+	t.ended.Do(func() {
+		_ = t.stdin.Close()
+		go func() {
+			for range t.lines {
+			}
+		}()
+		waited := make(chan struct{})
+		go func() {
+			<-t.read
+			_ = t.cmd.Wait()
+			close(waited)
+		}()
+		if grace > 0 {
+			select {
+			case <-waited:
+			case <-time.After(grace):
+			}
 		}
-	}()
-	<-t.read
-	close(t.lines)
-	_ = t.cmd.Wait()
+		t.kill()
+		<-waited
+		close(t.lines)
+	})
 }
+
+// close kills the server's process group, then waits for it.
+func (t *stdioTransport) close() { t.end(0) }
 
 type httpTransport struct {
 	url     string

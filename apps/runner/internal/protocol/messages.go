@@ -19,6 +19,11 @@ const (
 	TypeStepVerdict   = "step.verdict"
 	TypeCapabilities  = "capabilities"
 	TypeMcpServers    = "mcp.servers"
+	// The Miroir's (ADR 0010): the server sends them, the Runner applies them (MIROIR-4).
+	TypeGitHubChanged  = "github.changed"
+	TypeMirrorResync   = "mirror.resync"
+	TypeMirrorLive     = "mirror.live"
+	TypeMirrorProjects = "mirror.projects"
 )
 
 // Machine is what the Runner says of itself in its hello.

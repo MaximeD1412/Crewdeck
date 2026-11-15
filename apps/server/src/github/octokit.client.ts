@@ -4,6 +4,7 @@ import type {
   CheckRun,
   CombinedStatus,
   CommitRef,
+  GitHubMilestone,
   GitHubUser,
   InstallationRepository,
   InstallationToken,
@@ -17,6 +18,8 @@ import type {
   MergeOptions,
   NewPullRequest,
   PullRequest,
+  PullRequestPage,
+  PullRequestQuery,
   RepoRef,
   UserTokens,
 } from '@crewdeck/contracts';
@@ -31,6 +34,7 @@ import type { Env } from '../config/env.js';
 import { AppError } from '../errors/app-error.js';
 import { branchProtected, githubUnavailable, headMoved, installationGone, processJsonInvalid, userTokenRefused } from './github.errors.js';
 import type { GitHubClient } from './github.client.js';
+import { repoOfUrl, toIssue, toMilestone, toPullRequest, zRawIssue, zRawMilestone, zRawPullRequest } from './github-shapes.js';
 import { GitHubReadForbiddenError, installReadGuard } from './read-guard.js';
 
 type Logger = Pick<PinoLogger, 'error' | 'warn'>;
@@ -50,31 +54,8 @@ const DO_NOT_RETRY = [400, 401, 403, 404, 405, 409, 410, 422, 451];
 
 const ClientOctokit = Octokit.plugin(retry, throttling);
 
-/** GitHub's own shapes, reduced to the metadata the contracts keep: unknown keys (a body) are dropped. */
-const zRawLabelName = z.union([z.string(), z.object({ name: z.string() })]).transform((label) => (typeof label === 'string' ? label : label.name));
+/** GitHub's own shapes of what only the REST API sends (the shared ones are in `github-shapes.ts`). */
 const zRawLabel = z.object({ name: z.string(), color: z.string(), description: z.string().nullable().default(null) });
-const zRawIssue = z.object({
-  number: z.int(),
-  title: z.string(),
-  state: z.enum(['open', 'closed']),
-  labels: z.array(zRawLabelName),
-  milestone: z.object({ number: z.int(), title: z.string() }).nullable().default(null),
-  updated_at: z.string(),
-  pull_request: z.unknown().optional(),
-  repository_url: z.string().optional(),
-});
-const zRawPullRequest = z.object({
-  number: z.int(),
-  title: z.string(),
-  state: z.enum(['open', 'closed']),
-  draft: z.boolean().default(false),
-  merged: z.boolean().default(false),
-  merged_at: z.string().nullable().optional(),
-  head: z.object({ ref: z.string(), sha: z.string() }),
-  base: z.object({ ref: z.string() }),
-  labels: z.array(zRawLabelName),
-  updated_at: z.string(),
-});
 const zRawRepository = z.object({ id: z.int(), name: z.string(), owner: z.object({ login: z.string() }), private: z.boolean() });
 const zRawContent = z.object({ sha: z.string().optional(), content: z.string().optional(), encoding: z.string().optional() });
 const zRawTokens = z.object({
@@ -82,28 +63,6 @@ const zRawTokens = z.object({
   expires_in: z.number(),
   refresh_token: z.string(),
   refresh_token_expires_in: z.number(),
-});
-
-const toIssue = (raw: z.infer<typeof zRawIssue>): Issue => ({
-  number: raw.number,
-  title: raw.title,
-  state: raw.state,
-  labels: raw.labels,
-  milestone: raw.milestone && { number: raw.milestone.number, title: raw.milestone.title },
-  updatedAt: raw.updated_at,
-});
-
-const toPullRequest = (raw: z.infer<typeof zRawPullRequest>): PullRequest => ({
-  number: raw.number,
-  title: raw.title,
-  state: raw.state,
-  draft: raw.draft,
-  merged: raw.merged || Boolean(raw.merged_at),
-  headRef: raw.head.ref,
-  headSha: raw.head.sha,
-  baseRef: raw.base.ref,
-  labels: raw.labels,
-  updatedAt: raw.updated_at,
 });
 
 const toLabel = (raw: z.infer<typeof zRawLabel>): Label => ({ name: raw.name, color: raw.color, description: raw.description });
@@ -300,6 +259,32 @@ export class OctokitGitHubClient implements GitHubClient {
     });
   }
 
+  listMilestones(repo: RepoRef): Promise<GitHubMilestone[]> {
+    return this.onRepo(repo, async (request) =>
+      (
+        await this.all(request, 'GET /repos/{owner}/{repo}/milestones', { ...this.params(repo), state: 'all', sort: 'due_on', direction: 'asc' }, (data) =>
+          z.array(zRawMilestone).parse(data),
+        )
+      )
+        .map(toMilestone)
+        .sort((a, b) => a.number - b.number),
+    );
+  }
+
+  listPullRequests(repo: RepoRef, query: PullRequestQuery): Promise<PullRequestPage> {
+    return this.onRepo(repo, async (request) => {
+      const response = await request('GET /repos/{owner}/{repo}/pulls', {
+        ...this.params(repo),
+        state: query.state,
+        sort: 'created',
+        direction: 'desc',
+        per_page: 100,
+        page: Number(query.cursor ?? '1'),
+      });
+      return { items: z.array(zRawPullRequest).parse(response.data).map(toPullRequest), nextCursor: nextPage(response.headers) };
+    });
+  }
+
   getPullRequest(repo: RepoRef, number: number): Promise<PullRequest | null> {
     return this.onRepo(repo, async (request) => {
       try {
@@ -348,8 +333,8 @@ export class OctokitGitHubClient implements GitHubClient {
         (data) => z.array(zRawIssue).parse(data),
       );
       return raws.map((raw) => {
-        const [owner, name] = new URL(raw.repository_url ?? `https://x/repos/${repo.owner}/${repo.name}`).pathname.split('/').slice(-2);
-        return { owner: owner ?? repo.owner, name: name ?? repo.name, number: raw.number, state: raw.state };
+        const of = raw.repository_url === undefined ? null : repoOfUrl(raw.repository_url);
+        return { owner: of?.owner ?? repo.owner, name: of?.name ?? repo.name, number: raw.number, state: raw.state };
       });
     });
   }

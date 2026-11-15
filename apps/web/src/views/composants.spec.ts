@@ -29,6 +29,7 @@ describe('composantsView', () => {
       'StatusDot',
       'Tabs',
       'TextField',
+      'Toast',
       'Toggle',
     ]);
   });

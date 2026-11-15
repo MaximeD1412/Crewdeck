@@ -1,5 +1,5 @@
 import type { Me } from '@crewdeck/contracts';
-import { Cadre, PageAToi, PageComposants, PageConnexion, PageDemarrage, PageRunner, type Skin } from '@crewdeck/sdk';
+import { Cadre, PageAToi, PageComposants, PageConnexion, PageDemarrage, PageProjets, PageRunner, RepositoryPicker, type Skin } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
 import { me as readMe } from './api/auth.js';
@@ -9,6 +9,7 @@ import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
 import { createDeadline } from './deadline.js';
 import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
 import { createPageKeys, type PageKeys } from './keys/index.js';
+import { createProjects } from './projects.js';
 import { bootSkin } from './registry.js';
 import { routeData, startRouter, type Route, type Router } from './router.js';
 import { aToiHref, composantsHref, ROUTES } from './routes.js';
@@ -19,7 +20,9 @@ import type { Connection } from './store/connection.js';
 import { createLatencyMeter, type LatencyMeter } from './store/latency.js';
 import type { Store } from './store/store.js';
 import { decisionViews } from './views/decisions/registry.js';
+import './views/decisions/runner-offline.js';
 import { systemOfBrowser } from './views/demarrage.js';
+import { projetsView } from './views/projets.js';
 import { runnerView } from './views/runner.js';
 import { usageChangesAt } from './views/usage.js';
 
@@ -86,6 +89,8 @@ export const boot = async ({
   // The Pilote of `/api/me` until the snapshot gives the store's.
   const shell = mountShell({
     root,
+    // The router is started below, before any Banner can be clicked.
+    navigate: (url) => router.navigate(url),
     state: () => {
       const state = store.getState();
       return { ...state, slices: { ...state.slices, pilot: state.slices.pilot !== undefined ? state.slices.pilot : pilot } };
@@ -106,6 +111,7 @@ export const boot = async ({
     keys: keys.linkKeys,
     unlockVault: () => keys.unlockVault(),
   });
+  const projects = createProjects({ store, client });
   const signIn = signInGuard(pilot);
   const started = gettingStartedGuard(gettingStarted.pilot);
   const pageData = routeData(routes, () => store.getState());
@@ -116,9 +122,11 @@ export const boot = async ({
     onRoute: shell.update,
     guard: (match) => started(match) ?? signIn(match),
     data: (match) => {
-      if (match.composant === PageDemarrage) return gettingStarted.view();
-      if (match.composant !== PageRunner) return pageData(match);
+      if (match.composant === PageDemarrage) return { ...gettingStarted.view(), picker: projects.picker('demarrage') };
+      if (match.composant === RepositoryPicker) return projects.picker('projets');
       const { slices } = store.getState();
+      if (match.composant === PageProjets) return projetsView(slices.project?.values() ?? []);
+      if (match.composant !== PageRunner) return pageData(match);
       return runnerView({ runner: slices.runner ?? null, accounts: slices['ai-account']?.values() ?? [] });
     },
   });
@@ -136,6 +144,7 @@ export const boot = async ({
       usageChanges.schedule();
     }),
     gettingStarted.subscribe(() => router.refresh()),
+    projects.subscribe(() => router.refresh()),
   ];
   if (pilot) {
     // The Appareil named before the snapshot, which says which one is `current`.
@@ -171,6 +180,15 @@ export const boot = async ({
   dispatcher.registerAction(PageDemarrage, 'selectSystem', { run: ({ system }) => gettingStarted.selectSystem(system) });
   dispatcher.registerAction(PageDemarrage, 'retry', { run: () => gettingStarted.retry() });
   dispatcher.registerAction(PageDemarrage, 'continue', { run: () => gettingStarted.advance() });
+  dispatcher.registerAction(PageProjets, 'add', { run: () => router.navigate('/projets/ajouter') });
+  // In « Premiers pas » the Projets followed end it; on `/projets/ajouter` the list shows them.
+  dispatcher.registerAction(RepositoryPicker, 'follow', {
+    run: async ({ repositoryIds }) => {
+      await projects.follow(repositoryIds);
+      if (router.current.composant === PageDemarrage) await gettingStarted.advance();
+      else router.navigate('/projets');
+    },
+  });
   const stop = () => {
     router.stop();
     usageChanges.stop();

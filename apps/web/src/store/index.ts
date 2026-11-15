@@ -16,6 +16,11 @@ store.registerSlice('decision', { shape: 'collection', snapshotKey: 'decisions' 
 store.registerSlice('runner-link', { shape: 'single' });
 store.registerSlice('ai-account', { shape: 'collection' });
 store.registerSlice('device', { shape: 'collection', snapshotKey: 'devices' });
+store.registerSlice('project', { shape: 'collection', snapshotKey: 'projects' });
+store.registerSlice('repository', { shape: 'collection', snapshotKey: 'repositories' });
+store.registerSlice('ticket', { shape: 'collection', snapshotKey: 'tickets' });
+store.registerSlice('milestone', { shape: 'collection', snapshotKey: 'milestones' });
+store.registerSlice('code-change', { shape: 'collection', snapshotKey: 'codeChanges' });
 store.registerSlice('usage', { shape: 'collection' });
 
 export const client = createClient({

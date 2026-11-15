@@ -1,4 +1,4 @@
-import { COMPOSANTS, PageAToi, PageComposants, PageConnexion, PageDemarrage, PageRunner, UsageCard } from '@crewdeck/sdk';
+import { COMPOSANTS, PageAToi, PageComposants, PageConnexion, PageDemarrage, PageProjets, PageRunner, RepositoryPicker, UsageCard } from '@crewdeck/sdk';
 import type { Route, SlotContent } from './router.js';
 import type { StoreState } from './store/store.js';
 import { aToiView } from './views/a-toi.js';
@@ -23,9 +23,11 @@ const usageSlot = (data: UsageCardData | null): SlotContent | null => (data ? { 
  * open signed out; `/demarrage` → `PageDemarrage`, whose data `app.ts` gives
  * from « Premiers pas »' state (`getting-started.ts`); `/runner` →
  * `PageRunner`, whose data `app.ts` gives from the store
- * (`views/runner.ts`). The usage of the Comptes IA fills `/runner`'s
- * Emplacement `usage` and « À toi »'s `ai-accounts` (`views/usage.ts`). The
- * first route that matches wins.
+ * (`views/runner.ts`); `/projets` → `PageProjets` and `/projets/ajouter` →
+ * `RepositoryPicker`, whose data `app.ts` gives from the store
+ * (`views/projets.ts`, `projects.ts`). The usage of the Comptes IA fills
+ * `/runner`'s Emplacement `usage` and « À toi »'s `ai-accounts`
+ * (`views/usage.ts`). The first route that matches wins.
  */
 export const ROUTES: readonly Route[] = [
   {
@@ -38,6 +40,8 @@ export const ROUTES: readonly Route[] = [
   { path: '/connexion', composant: PageConnexion, data: (match) => connexionView(match.query) },
   { path: '/demarrage', composant: PageDemarrage },
   { path: '/runner', composant: PageRunner, slots: (_match, state) => ({ usage: usageSlot(usageCard(usageOf(state))) }) },
+  { path: '/projets', composant: PageProjets },
+  { path: '/projets/ajouter', composant: RepositoryPicker },
   {
     path: '/parametres/composants',
     composant: PageComposants,

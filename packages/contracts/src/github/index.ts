@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { zCursorPage, zInstant } from '../values.js';
+import { zCursorPage, zDay, zInstant } from '../values.js';
 
 /**
  * What the server's GitHub client returns (ADR 0002): metadata only. No type
@@ -18,6 +18,10 @@ export const zRepoRef = z.object({
   id: z.int().positive(),
 });
 export type RepoRef = z.infer<typeof zRepoRef>;
+
+/** A repository an installation of the App can reach, and whether it is private. */
+export const zInstallationRepository = zRepoRef.extend({ private: z.boolean() });
+export type InstallationRepository = z.infer<typeof zInstallationRepository>;
 
 /** A user access token of the App's user authorization (8 h) and its refresh token (6 months). */
 export const zUserTokens = z.object({
@@ -72,22 +76,51 @@ export type Branch = z.infer<typeof zBranch>;
 export const zIssueState = z.enum(['open', 'closed']);
 export type IssueState = z.infer<typeof zIssueState>;
 
-export const zMilestone = z.object({
+/** The milestone an issue carries: its number and title. */
+export const zIssueMilestone = z.object({
   number: z.int().positive(),
   title: z.string(),
 });
-export type Milestone = z.infer<typeof zMilestone>;
+export type IssueMilestone = z.infer<typeof zIssueMilestone>;
 
-/** An issue's metadata: never its body. */
+/** Why an issue is closed, or was reopened, in GitHub's spelling. */
+export const zIssueStateReason = z.enum(['completed', 'not_planned', 'duplicate', 'reopened']);
+export type IssueStateReason = z.infer<typeof zIssueStateReason>;
+
+/** The parent of a sub-issue, maybe in another repository. */
+export const zIssueParent = z.object({
+  owner: z.string().min(1),
+  name: z.string().min(1),
+  number: z.int().positive(),
+});
+export type IssueParent = z.infer<typeof zIssueParent>;
+
+/** An issue's metadata: never its body. `parent` null when it is no sub-issue. */
 export const zIssue = z.object({
   number: z.int().positive(),
   title: z.string(),
   state: zIssueState,
+  stateReason: zIssueStateReason.nullable(),
   labels: z.array(z.string()),
-  milestone: zMilestone.nullable(),
+  milestone: zIssueMilestone.nullable(),
+  parent: zIssueParent.nullable(),
+  createdAt: zInstant,
+  closedAt: zInstant.nullable(),
   updatedAt: zInstant,
 });
 export type Issue = z.infer<typeof zIssue>;
+
+/** A milestone of a repository: its state, its due day and how many issues it has open and closed; never its description. */
+export const zGitHubMilestone = z.object({
+  number: z.int().positive(),
+  title: z.string(),
+  state: zIssueState,
+  dueOn: zDay.nullable(),
+  openIssues: z.int().nonnegative(),
+  closedIssues: z.int().nonnegative(),
+  closedAt: zInstant.nullable(),
+});
+export type GitHubMilestone = z.infer<typeof zGitHubMilestone>;
 
 /** The query of `listIssues`: a state, issues updated since an instant, the cursor of the next page. */
 export const zIssueQuery = z.object({
@@ -109,7 +142,7 @@ export const zIssueRef = z.object({
 });
 export type IssueRef = z.infer<typeof zIssueRef>;
 
-/** A PR's metadata: never its body nor its diff. */
+/** A PR's metadata: never its body nor its diff. `mergedBy` is the login that merged it, known from a single PR or a webhook only. */
 export const zPullRequest = z.object({
   number: z.int().positive(),
   title: z.string(),
@@ -120,9 +153,23 @@ export const zPullRequest = z.object({
   headSha: zSha,
   baseRef: z.string().min(1),
   labels: z.array(z.string()),
+  createdAt: zInstant,
+  mergedAt: zInstant.nullable(),
+  mergeSha: zSha.nullable(),
+  mergedBy: z.string().min(1).nullable(),
   updatedAt: zInstant,
 });
 export type PullRequest = z.infer<typeof zPullRequest>;
+
+/** The query of `listPullRequests`: a state and the cursor of the next page. */
+export const zPullRequestQuery = z.object({
+  state: z.enum(['open', 'closed', 'all']),
+  cursor: z.string().min(1).optional(),
+});
+export type PullRequestQuery = z.infer<typeof zPullRequestQuery>;
+
+export const zPullRequestPage = zCursorPage(zPullRequest);
+export type PullRequestPage = z.infer<typeof zPullRequestPage>;
 
 export const zNewPullRequest = z.object({
   head: z.string().min(1),

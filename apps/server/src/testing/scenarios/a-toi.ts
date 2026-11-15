@@ -1,12 +1,12 @@
 import type { DecisionKind, DecisionTone } from '@crewdeck/contracts';
 import { newId } from '../../ids.js';
 import { defineScenario, type ScenarioContext } from './define.js';
-import { LAST_SEEN_AT, withAccounts } from './runner.js';
+import { RUNNER_MACHINE, withAccounts } from './runner.js';
 
 const MINUTE = 60_000;
 
 /** The Projets of the mockup: their table is PROJET-2's, a Décision only names one. */
-const PROJECTS = {
+export const PROJECTS = {
   crewdeck: { projectId: '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a01', projectName: 'Crewdeck' },
   personalOs: { projectId: '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a02', projectName: 'Personal OS' },
   siteMairie: { projectId: '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a03', projectName: 'Site mairie' },
@@ -44,7 +44,7 @@ const MOCKUP: readonly Seeded[] = [
  * card « Comptes IA »), and the mockup's Décisions open for them, as their
  * modules would have raised them.
  */
-const seedDecisions = async (ctx: ScenarioContext, lastSeenAt?: Date) => {
+export const seedDecisions = async (ctx: ScenarioContext, lastSeenAt?: Date) => {
   const { token, ...seed } = await withAccounts(ctx, lastSeenAt);
   const now = Date.now();
   await ctx.prisma.unscoped.decision.createMany({
@@ -64,7 +64,7 @@ const seedDecisions = async (ctx: ScenarioContext, lastSeenAt?: Date) => {
 /** Online: the fake Runner connects with the scenario's token. */
 const online = async (ctx: ScenarioContext, decisions: boolean) => {
   const { token, ...seed } = decisions ? await seedDecisions(ctx) : await withAccounts(ctx);
-  return { ...seed, runnerToken: token };
+  return { ...seed, runnerToken: token, runnerMachine: RUNNER_MACHINE };
 };
 
 /** « À toi » (`design/screens.json`: `a-toi`): nine open Décisions of four Projets. */
@@ -72,17 +72,3 @@ export const aToi = defineScenario({ name: 'a-toi', path: '/a-toi', seed: (ctx) 
 
 /** « À toi » with nothing waiting (`a-toi`, state `vide`): « Rien ne t’attend ». */
 export const aToiVide = defineScenario({ name: 'a-toi-vide', path: '/a-toi', seed: (ctx) => online(ctx, false) });
-
-/**
- * « À toi » with the Runner offline since 14:02 (`a-toi`, state
- * `runner-hors-ligne`): the Comptes IA as last measured. The banner and the
- * Décision « Runner hors ligne » are another ticket's.
- */
-export const aToiRunnerHorsLigne = defineScenario({
-  name: 'a-toi-runner-hors-ligne',
-  path: '/a-toi',
-  seed: async (ctx) => {
-    const { token: _token, runnerMachine: _machine, ...seed } = await seedDecisions(ctx, LAST_SEEN_AT);
-    return seed;
-  },
-});

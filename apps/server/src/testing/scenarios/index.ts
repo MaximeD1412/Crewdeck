@@ -1,9 +1,10 @@
-import { aToi, aToiRunnerHorsLigne, aToiVide } from './a-toi.js';
+import { aToi, aToiVide } from './a-toi.js';
 import { blank } from './blank.js';
 import {
   composants,
   composantsDialog,
   composantsFigures,
+  composantsProcess,
   composantsRows,
   composantsSession,
   composantsSettingRow,
@@ -14,8 +15,10 @@ import { connexion, connexionErreur } from './connexion.js';
 import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
 import type { Scenario } from './define.js';
 import { menuPlus } from './menu-plus.js';
+import { demarrageProjets, projets, projetsVide } from './projets.js';
 import { resynchronisation } from './resynchronisation.js';
-import { runner, runnerHorsLigne } from './runner.js';
+import { runner } from './runner.js';
+import { aToiRunnerHorsLigne, runnerHorsLigne } from './runner-offline.js';
 
 export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed } from './define.js';
 
@@ -33,7 +36,10 @@ const SCENARIOS: readonly Scenario[] = [
   demarrageRunnerRelie,
   demarrageComptesIa,
   demarrageComptesIaAucun,
+  demarrageProjets,
   menuPlus,
+  projets,
+  projetsVide,
   resynchronisation,
   runner,
   runnerHorsLigne,
@@ -44,6 +50,7 @@ const SCENARIOS: readonly Scenario[] = [
   confirmDialog,
   ...composantsFigures,
   ...composantsSession,
+  ...composantsProcess,
 ];
 
 const byName = new Map(SCENARIOS.map((scenario) => [scenario.name, scenario]));

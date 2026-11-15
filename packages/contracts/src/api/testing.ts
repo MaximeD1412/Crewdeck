@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { zCapabilities } from '../runner/capabilities.js';
 import { zUsage } from '../runner/usage.js';
 import { zDecision, zDecisionKind } from './decisions.js';
+import { zWaitingProject } from './runner-offline.js';
 
 /**
  * `POST /api/testing/scenarios/:name`, outside production only: the scenario
@@ -44,6 +45,15 @@ export type TestingDecisionResolve = z.infer<typeof zTestingDecisionResolve>;
  */
 export const zTestingRunnerCapabilities = z.object({ engines: zCapabilities.shape.engines });
 export type TestingRunnerCapabilities = z.infer<typeof zTestingRunnerCapabilities>;
+
+/**
+ * `POST /api/testing/runner/waiting-work`, outside production only: the test
+ * provider of `RunnerWaitingWork` declares these Projets for the Pilote signed
+ * in, then « Runner hors ligne » is refreshed, as a module whose work starts
+ * waiting would.
+ */
+export const zTestingWaitingWork = z.object({ projects: z.array(zWaitingProject) });
+export type TestingWaitingWork = z.infer<typeof zTestingWaitingWork>;
 
 /**
  * `POST /api/testing/runner/usage`, outside production only: the fake

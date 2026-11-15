@@ -49,7 +49,13 @@ const NOT_CONNECTED = (engine: 'claude-code' | 'codex', command: string) => ({
   command,
 });
 
-const valid = (state: DemarrageState) => COMPOSANTS.PageDemarrage.data.parse(demarrageView(state));
+/** The view with the picker `projects.ts` adds, valid for the Composant. */
+const PICKER = { context: 'demarrage', repositories: [], installUrl: null, busy: false } as const;
+const valid = (state: DemarrageState) => {
+  const view = demarrageView(state);
+  COMPOSANTS.PageDemarrage.data.parse({ ...view, picker: PICKER });
+  return view;
+};
 
 describe('installCommand', () => {
   it('names the full code, and the server only off production', () => {

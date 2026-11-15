@@ -52,3 +52,8 @@ export const zCursorQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 export type CursorQuery = z.infer<typeof zCursorQuery>;
+
+/** A Rôle: the part of the Process an agent plays. */
+export const AGENT_ROLES = ['idea', 'design', 'code', 'review'] as const;
+export const zAgentRole = z.enum(AGENT_ROLES);
+export type AgentRole = z.infer<typeof zAgentRole>;

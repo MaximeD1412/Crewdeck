@@ -8,7 +8,16 @@
   "agentLoop": {
     "conventionsFile": "AGENTS.md",
     "setupCmd": "scripts/worktree.sh setup",
-    "dropCmd": "scripts/worktree.sh drop"
+    "dropCmd": "scripts/worktree.sh drop",
+    "visualPaths": [
+      "packages/skin-*/src/**",
+      "packages/sdk/src/i18n/**",
+      "apps/web/src/**",
+      "apps/web/index.html",
+      "apps/web/public/**",
+      "design/**",
+      "**/*.css"
+    ]
   },
   "pilotage": {
     "dataDir": "docs/pilotage",

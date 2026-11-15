@@ -5,6 +5,7 @@ import {
   composantsDialog,
   composantsFigures,
   composantsProcess,
+  composantsProcessList,
   composantsRows,
   composantsSession,
   composantsSettingRow,
@@ -51,6 +52,7 @@ const SCENARIOS: readonly Scenario[] = [
   ...composantsFigures,
   ...composantsSession,
   ...composantsProcess,
+  ...composantsProcessList,
 ];
 
 const byName = new Map(SCENARIOS.map((scenario) => [scenario.name, scenario]));

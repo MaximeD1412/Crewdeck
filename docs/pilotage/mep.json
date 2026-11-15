@@ -294,6 +294,60 @@
       ],
       "commande": "sudo grep -c '^GITHUB_WEBHOOK_SECRET=.\\+' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
       "ajouteLe": "2026-11-11"
+    },
+    {
+      "id": "setup-url-github-apps",
+      "phase": "acc",
+      "source": "#46",
+      "titre": "Poser la Setup URL des deux GitHub Apps sur /api/github/setup, « Redirect on update » coché",
+      "pourquoi": "« Installer Crewdeck sur GitHub » et « Choisir d’autres dépôts sur GitHub » envoient le Pilote sur la page d’installation de l'App ; GitHub ne le renvoie dans Crewdeck (« Premiers pas » ou /projets/ajouter, selon le state) que par la Setup URL de l'App. Sans elle, il reste sur GitHub après avoir choisi ses dépôts. Sans « Redirect on update », un Pilote qui ajoute un dépôt à une installation existante n'est pas renvoyé non plus. Les Apps sont créées par INFRA-11.",
+      "etapes": [
+        "github.com > Settings > Developer settings > GitHub Apps > « Crewdeck » > General > Post installation : Setup URL https://<domaine>/api/github/setup, cocher « Redirect on update ».",
+        "Même chose pour « Crewdeck staging » avec https://staging.<domaine>/api/github/setup.",
+        "Vérifier : sur le staging, /projets/ajouter > « Choisir d’autres dépôts sur GitHub », cocher un dépôt, « Save » : GitHub revient sur /projets/ajouter et le dépôt y est en moins de 2 s."
+      ],
+      "commande": "curl -sI 'https://staging.<domaine>/api/github/setup?state=projets' | grep -i '^location'",
+      "ajouteLe": "2026-11-12"
+    },
+    {
+      "id": "migration-projects",
+      "phase": "db",
+      "source": "#46",
+      "titre": "Migration 20261120000000_projects : les tables repositories et projects",
+      "pourquoi": "Les Dépôts GitHub et les Projets (US-3) vivent dans deux nouvelles tables et un type inventory_state. La migration ne fait qu'ajouter : la version précédente tourne dessus sans les lire. Le déploiement la répète sur la dernière sauvegarde puis l'applique (ADR 0009) ; une installation de l'App faite avant le déploiement remplit repositories à la réconciliation suivante (15 min au plus).",
+      "etapes": [
+        "Rien à lancer à la main : le déploiement du staging, puis celui de la prod, appliquent la migration.",
+        "Vérifier après chaque déploiement que son journal montre la migration appliquée (20261120000000_projects), puis que /projets/ajouter liste les dépôts de l'installation."
+      ],
+      "commande": "docker compose -p crewdeck-staging --env-file /opt/crewdeck/staging/.env -f docker-compose.yml -f docker-compose.staging.yml run --rm server migrate",
+      "ajouteLe": "2026-11-12"
+    },
+    {
+      "id": "evenements-github-apps-tickets",
+      "phase": "acc",
+      "source": "#58",
+      "titre": "Abonner les deux GitHub Apps aux événements des issues, des PR et des checks",
+      "pourquoi": "Les Tickets, les milestones et les PR d'un Projet (BOUCLE-1) ne bougent à l'écran que par les webhooks de ces événements (ADR 0002) : GitHub n'envoie à l'App que ceux auxquels elle est abonnée. Sans eux, un Ticket fermé ou une PR mergée n'apparaît qu'à la réconciliation, toutes les 15 min, et un « blocked by » ajouté n'est vu qu'à elle. Les Apps sont créées par INFRA-11 avec les permissions de l'ADR 0002 (issues, pull requests, checks, commit statuses).",
+      "etapes": [
+        "github.com > Settings > Developer settings > GitHub Apps > « Crewdeck » > Permissions & events > Subscribe to events : cocher Issues, Issue comment, Sub issues, Issue dependencies, Milestone, Pull request, Pull request review, Check suite, Check run, Status ; « Save changes ».",
+        "Même chose pour « Crewdeck staging ».",
+        "Une case grisée veut dire que la permission qui la donne manque : l'ajouter comme l'ADR 0002 la liste, puis accepter la nouvelle permission sur chaque installation (Settings > Applications > Configure).",
+        "Vérifier : fermer puis rouvrir une issue d'un Projet suivi ; Advanced > Recent Deliveries montre l'événement issues en 202, et l'issue change d'état dans Crewdeck en quelques secondes."
+      ],
+      "ajouteLe": "2026-11-15"
+    },
+    {
+      "id": "migration-tickets",
+      "phase": "db",
+      "source": "#58",
+      "titre": "Migration 20261121000000_tickets : les tables tickets, milestones, code_changes et code_change_checks",
+      "pourquoi": "Les Tickets, les milestones et les changements de code de chaque Projet (BOUCLE-1, US-15, US-16) vivent dans quatre nouvelles tables et leurs types. La migration ne fait qu'ajouter : la version précédente tourne dessus sans les lire. Le déploiement la répète sur la dernière sauvegarde puis l'applique (ADR 0009) ; la première réconciliation après le déploiement (10 s après le démarrage) remplit les tables depuis GitHub pour les Projets déjà suivis.",
+      "etapes": [
+        "Rien à lancer à la main : le déploiement du staging, puis celui de la prod, appliquent la migration.",
+        "Vérifier après chaque déploiement que son journal montre la migration appliquée (20261121000000_tickets), puis, une minute après, que GET /api/state contient les Tickets ouverts d'un Projet suivi."
+      ],
+      "commande": "docker compose -p crewdeck-staging --env-file /opt/crewdeck/staging/.env -f docker-compose.yml -f docker-compose.staging.yml run --rm server migrate",
+      "ajouteLe": "2026-11-15"
     }
   ]
 }

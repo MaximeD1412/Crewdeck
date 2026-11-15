@@ -19,9 +19,15 @@ const BROWSER_SPECS = [
   'src/page-composants.spec.ts',
   'src/page-a-toi.spec.ts',
   'src/page-demarrage.spec.ts',
+  'src/page-projets.spec.ts',
+  'src/repository-picker.spec.ts',
   'src/page-runner.spec.ts',
   'src/session.spec.ts',
   'src/composer.spec.ts',
+  'src/process-canvas.spec.ts',
+  'src/step-card.spec.ts',
+  'src/port.spec.ts',
+  'src/toast.spec.ts',
 ];
 
 export default defineConfig({

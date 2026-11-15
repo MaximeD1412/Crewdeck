@@ -8,6 +8,7 @@ import { zEngineEvent } from './runner/events.js';
 import { zHeartbeat, zHeartbeatAck } from './runner/heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './runner/hello.js';
 import { zStepVerdict } from './runner/step.js';
+import { zProcessSealedPayload } from './process/definition.js';
 import { HEARTBEAT_SECONDS, OFFLINE_AFTER_SECONDS, PROTOCOL_VERSION, RUNNER_WS_CLOSE, zProtocolError, zRunnerEnvelope } from './runner/protocol.js';
 
 /**
@@ -33,6 +34,8 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-error', schema: zProtocolError },
   { name: 'runner-step-verdict', schema: zStepVerdict },
   { name: 'runner-capabilities', schema: zCapabilities },
+  // The plaintext of a Process version's sealed part, once the Runner opened it (RUNNER-18).
+  { name: 'process-sealed', schema: zProcessSealedPayload },
 ];
 
 /**

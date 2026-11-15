@@ -178,6 +178,15 @@ describe('Checkbox', () => {
       ['change', true, 'on'],
     ]);
   });
+
+  it('shows its meta under its label, part of the label', async () => {
+    const el = await render(COMPOSANTS.Checkbox, { name: 'sandbox', label: 'MaximeD1412/sandbox-vue3', meta: 'vide', checked: false });
+    const box = inside<HTMLInputElement>(el, 'input[type=checkbox]');
+    expect(textOf(box.labels?.[0])).toBe('MaximeD1412/sandbox-vue3vide');
+    expect(textOf(inside(el, 'small[part=meta]'))).toBe('vide');
+    const bare = await render(COMPOSANTS.Checkbox, { name: 'personal-os', label: 'Personal OS', checked: false });
+    expect(bare.shadowRoot?.querySelector('small')).toBeNull();
+  });
 });
 
 describe('Radio', () => {

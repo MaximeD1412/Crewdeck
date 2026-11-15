@@ -30,7 +30,9 @@ const itemData = (item: Element): { id?: string; primary?: boolean } | undefined
  * to the tab bar (the `primary` entries) and to the rows of the « Plus »
  * sheet (the others), one slot per row so that the hairlines are drawn here.
  * The sheet is a modal `<dialog>`: Escape and « Fermer » close it, and the
- * focus goes back to « Plus ».
+ * focus goes back to « Plus ». `compact` changes only the 1280 px layout:
+ * the sidebar's icons (its entries set `compact`), the brand's mark, the
+ * Runner's dot, and the page the rest of the width and the whole height.
  */
 export class PasserelleCadre extends PasserelleElement<typeof Cadre> {
   static override shadowRootOptions: ShadowRootInit = { ...LitElement.shadowRootOptions, slotAssignment: 'manual' };
@@ -421,6 +423,64 @@ export class PasserelleCadre extends PasserelleElement<typeof Cadre> {
         .bare main {
           padding-top: var(--cd-space-10);
         }
+
+        /* Compact: the sidebar's icons only, the page all the rest, the whole height */
+        .shell.compact {
+          grid-template-columns: var(--cd-sidebar-compact) minmax(0, 1fr);
+        }
+        .shell.compact.with-panel {
+          grid-template-columns: var(--cd-sidebar-compact) minmax(0, 1fr) var(--cd-panel-width);
+        }
+        .compact .side {
+          align-items: center;
+          gap: var(--cd-space-5);
+          padding: var(--cd-space-5) var(--cd-space-2);
+        }
+        .compact .side .brand {
+          width: var(--cd-icon-box);
+          overflow: hidden;
+          padding: 0;
+        }
+        .compact .side .brand .name,
+        .compact .foot .status .label,
+        .compact .foot .status .detail,
+        .compact .live,
+        .compact .pilot .login {
+          position: absolute;
+          width: var(--cd-stroke);
+          height: var(--cd-stroke);
+          overflow: hidden;
+          clip-path: inset(50%);
+          white-space: nowrap;
+        }
+        .compact nav.list {
+          align-items: center;
+        }
+        .compact .foot {
+          align-items: center;
+        }
+        .compact .foot .status {
+          display: flex;
+          justify-content: center;
+          padding: var(--cd-space-2);
+          border: 0;
+          background: none;
+        }
+        .compact .pilot {
+          padding: 0;
+        }
+        .compact .banners {
+          max-width: none;
+          padding: var(--cd-space-5) var(--cd-space-6) 0;
+        }
+        .compact main {
+          flex: none;
+          max-width: none;
+          height: 100vh;
+          gap: var(--cd-space-4);
+          padding: var(--cd-space-5) var(--cd-space-6) 0;
+          overflow: hidden;
+        }
       }
     `,
   ];
@@ -491,6 +551,7 @@ export class PasserelleCadre extends PasserelleElement<typeof Cadre> {
     this.slotAt('page')?.assign(...page);
     for (const name of ['banner', 'panel', 'overlay']) this.slotAt(name)?.assign(...this.named(name));
     if (this.data.variant === 'bare') return;
+    for (const item of this.layout.menu) item.toggleAttribute('compact', this.data.variant === 'compact');
     if (this.wide.matches) {
       this.slotAt('side-primary')?.assign(...this.primary);
       this.slotAt('side-others')?.assign(...this.others);
@@ -515,7 +576,9 @@ export class PasserelleCadre extends PasserelleElement<typeof Cadre> {
   };
 
   private brand() {
-    return html`<div class="brand"><span class="mark"><cd-icon .data=${{ name: 'mark', size: 'sm' }}></cd-icon></span>${t('cadre.brand')}</div>`;
+    return html`<div class="brand">
+      <span class="mark"><cd-icon .data=${{ name: 'mark', size: 'sm' }}></cd-icon></span><span class="name">${t('cadre.brand')}</span>
+    </div>`;
   }
 
   protected override render() {
@@ -535,7 +598,7 @@ export class PasserelleCadre extends PasserelleElement<typeof Cadre> {
     const isLive = live && status === 'online';
     const others = this.others;
     const moreCurrent = others.some((item) => itemData(item)?.id === current);
-    return html`<div class="shell ${panel ? 'with-panel' : ''}">
+    return html`<div class="shell ${panel ? 'with-panel' : ''} ${variant === 'compact' ? 'compact' : ''}">
       <div class="side">
         ${this.brand()}
         <nav class="list" aria-label=${t('cadre.nav')}>

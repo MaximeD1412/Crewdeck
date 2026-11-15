@@ -277,8 +277,11 @@ describe('GitHub webhooks against PostgreSQL', () => {
 
   describe('an event of a linked installation', () => {
     beforeEach(async () => {
+      // Known to the fake GitHub, which then lists its repositories (none) for the Dépôts GitHub (PROJET-2).
+      fakes.github.seedInstallation(INSTALLATION_ID);
       await deliver('installation', created);
       probe.seen.length = 0;
+      lines.length = 0;
     });
 
     it('is dispatched to each handler of its event, in the scope of the installation’s Pilote, with its reception time', async () => {

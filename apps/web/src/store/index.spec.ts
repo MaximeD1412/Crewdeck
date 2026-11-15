@@ -1,4 +1,4 @@
-import type { CodeChange, Me, Milestone, State, Ticket } from '@crewdeck/contracts';
+import { type CodeChange, type Me, type Milestone, PROCESS_CREWDECK, PROCESS_CREWDECK_NAME, type ProjectProcess, type State, type Ticket } from '@crewdeck/contracts';
 import { store } from './index.js';
 
 const PROJECT = '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a80';
@@ -68,6 +68,12 @@ const CHANGE: CodeChange = {
   updatedAt: AT,
 };
 
+const PROCESS: ProjectProcess = {
+  id: PROJECT,
+  active: { number: 1, definition: PROCESS_CREWDECK, sealed: null, activatedAt: AT, activatedBy: 'creation', templateName: PROCESS_CREWDECK_NAME },
+  draft: null,
+};
+
 const SNAPSHOT: State = {
   seq: 1,
   pilot: PILOT,
@@ -77,6 +83,7 @@ const SNAPSHOT: State = {
   'mcp-server': [],
   devices: [],
   projects: [],
+  processes: [PROCESS],
   repositories: [],
   decisions: [],
   tickets: [TICKET],
@@ -96,5 +103,16 @@ describe('the page’s store', () => {
 
     expect(store.getState().slices['code-change']?.get(CHANGE.id)).toMatchObject({ checks: 'passed' });
     expect(store.getState().slices.ticket?.size).toBe(0);
+  });
+
+  it('holds each Projet’s Process by the Projet’s id, from the snapshot, replaced whole by process.upserted', () => {
+    store.applySnapshot(SNAPSHOT);
+    expect(store.getState().slices.process?.get(PROJECT)).toEqual(PROCESS);
+
+    const saved: ProjectProcess = { ...PROCESS, draft: { definition: PROCESS_CREWDECK, sealed: null, revision: 1, baseVersion: 1, updatedAt: AT } };
+    expect(store.applyEvent({ seq: 2, type: 'process.upserted', payload: saved, at: AT })).toBe('applied');
+
+    expect(store.getState().slices.process?.size).toBe(1);
+    expect(store.getState().slices.process?.get(PROJECT)).toEqual(saved);
   });
 });

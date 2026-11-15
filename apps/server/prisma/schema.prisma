@@ -526,9 +526,11 @@ model Project {
   tickets           Ticket[]
   milestones        Milestone[]
   codeChanges       CodeChange[]
+  processVersions   ProcessVersion[]
+  processDraft      ProcessDraft?
 
   @@unique([pilotId, githubRepoId])
-  /// The key the Projet's Tickets, milestones and changes of code point at, with their Pilote.
+  /// The key the Projet's Tickets, milestones, changes of code and Process point at, with their Pilote.
   @@unique([pilotId, id])
   @@map("projects")
 }
@@ -775,4 +777,54 @@ model CodeChangeCheck {
   @@unique([codeChangeId, sha, name])
   @@index([pilotId, codeChangeId, sha])
   @@map("code_change_checks")
+}
+
+/// Who activated a version of a Process: the Projet's creation (its Modèle copied), or the Pilote (PROCESS-10).
+enum ProcessActivation {
+  creation
+  pilot
+
+  @@map("process_activation")
+}
+
+/// A version of a Projet's Process (ADR 0011): one immutable document, numbered
+/// from 1 per Projet, its Commandes' text in `sealed` (a `SealedItem`, stored
+/// as received). A trigger of the migration refuses any `UPDATE`; the active
+/// version is the highest number.
+model ProcessVersion {
+  id           String            @id @db.Uuid
+  pilotId      String            @map("pilot_id") @db.Uuid
+  projectId    String            @map("project_id") @db.Uuid
+  number       Int
+  /// A `ProcessDefinition`: configuration the server reads.
+  definition   Json
+  sealed       Json?
+  activatedAt  DateTime          @map("activated_at") @db.Timestamptz
+  activatedBy  ProcessActivation @map("activated_by")
+  /// The Modèle it was copied from, `null` once the Pilote drew it.
+  templateName String?           @map("template_name")
+  project      Project           @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+
+  @@unique([projectId, number])
+  @@index([pilotId, projectId])
+  @@map("process_versions")
+}
+
+/// The Brouillon of a Projet's Process, one at most, saved whole on every
+/// change of the canvas: `revision` counts its saves, `baseVersion` is the
+/// version it was drawn from (`0` while the Projet has none).
+model ProcessDraft {
+  id          String   @id @db.Uuid
+  pilotId     String   @map("pilot_id") @db.Uuid
+  projectId   String   @unique @map("project_id") @db.Uuid
+  definition  Json
+  sealed      Json?
+  revision    Int
+  baseVersion Int      @map("base_version")
+  updatedAt   DateTime @map("updated_at") @db.Timestamptz
+  project     Project  @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+
+  /// The one-to-one key of its Projet, with their Pilote.
+  @@unique([pilotId, projectId])
+  @@map("process_drafts")
 }

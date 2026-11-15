@@ -1,4 +1,4 @@
-import { zIssue, zPullRequest } from '@crewdeck/contracts';
+import { zGitHubMilestone, zIssue, zPullRequest } from '@crewdeck/contracts';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { githubAppEnv } from '../../test/github-app.js';
@@ -35,6 +35,9 @@ const issuePayload = (number: number, extra: Record<string, unknown> = {}) => ({
   body: 'the body, never mapped',
   labels: [{ name: 'type: chore', color: 'ededed' }],
   milestone: { number: 1, title: 'M1 Socle', description: 'not mapped' },
+  state_reason: null,
+  created_at: '2026-11-09T12:00:00Z',
+  closed_at: null,
   updated_at: '2026-11-10T12:00:00Z',
   ...extra,
 });
@@ -49,6 +52,10 @@ const prPayload = {
   head: { ref: 'feat/27-x', sha: SHA },
   base: { ref: 'develop', sha: OTHER_SHA },
   labels: [{ name: 'revue-visuelle' }],
+  merged_at: null,
+  merge_commit_sha: OTHER_SHA,
+  merged_by: null,
+  created_at: '2026-11-09T12:00:00Z',
   updated_at: '2026-11-10T12:00:00Z',
 };
 
@@ -391,13 +398,13 @@ describe('OctokitGitHubClient', () => {
   });
 
   describe('metadata', () => {
-    it('maps issues without their body, leaves the PRs out, and gives the next page', async () => {
+    it('maps issues without their body, with their parent, leaves the PRs out, and gives the next page', async () => {
       let query: URLSearchParams | undefined;
       server.use(
         ...installation(),
         http.get(`${API}/repos/o/r/issues`, ({ request }) => {
           query = new URL(request.url).searchParams;
-          return HttpResponse.json([issuePayload(5), issuePayload(6, { pull_request: { url: 'x' } })], {
+          return HttpResponse.json([issuePayload(5, { parent_issue_url: `${API}/repos/o/r/issues/2` }), issuePayload(6, { pull_request: { url: 'x' } }), issuePayload(7)], {
             headers: { link: `<${API}/repositories/7/issues?state=all&page=3>; rel="next", <${API}/repositories/7/issues?page=9>; rel="last"` },
           });
         }),
@@ -406,7 +413,21 @@ describe('OctokitGitHubClient', () => {
       const page = await new OctokitGitHubClient(env, logger()).listIssues(repo, { state: 'all', since: '2026-11-01T00:00:00Z', cursor: '2' });
 
       expect(page).toEqual({
-        items: [{ number: 5, title: 'Ticket 5', state: 'open', labels: ['type: chore'], milestone: { number: 1, title: 'M1 Socle' }, updatedAt: '2026-11-10T12:00:00Z' }],
+        items: [
+          {
+            number: 5,
+            title: 'Ticket 5',
+            state: 'open',
+            stateReason: null,
+            labels: ['type: chore'],
+            milestone: { number: 1, title: 'M1 Socle' },
+            parent: { owner: 'o', name: 'r', number: 2 },
+            createdAt: '2026-11-09T12:00:00Z',
+            closedAt: null,
+            updatedAt: '2026-11-10T12:00:00Z',
+          },
+          expect.objectContaining({ number: 7, parent: null }),
+        ],
         nextCursor: '3',
       });
       expect(Object.keys(page.items[0] ?? {}).sort()).toEqual(Object.keys(zIssue.shape).sort());
@@ -428,9 +449,74 @@ describe('OctokitGitHubClient', () => {
         headSha: SHA,
         baseRef: 'develop',
         labels: ['revue-visuelle'],
+        createdAt: '2026-11-09T12:00:00Z',
+        mergedAt: null,
+        mergeSha: null,
+        mergedBy: null,
         updatedAt: '2026-11-10T12:00:00Z',
       });
       expect(Object.keys(pr ?? {}).sort()).toEqual(Object.keys(zPullRequest.shape).sort());
+    });
+
+    it('keeps the merge commit and who merged once a PR is merged', async () => {
+      const merged = { ...prPayload, state: 'closed', merged: true, merged_at: '2026-11-11T12:00:00Z', merged_by: { login: 'crewdeck[bot]', id: 1 } };
+      server.use(...installation(), http.get(`${API}/repos/o/r/pulls/3`, () => HttpResponse.json(merged)));
+
+      expect(await new OctokitGitHubClient(env, logger()).getPullRequest(repo, 3)).toMatchObject({
+        state: 'closed',
+        merged: true,
+        mergedAt: '2026-11-11T12:00:00Z',
+        mergeSha: OTHER_SHA,
+        mergedBy: 'crewdeck[bot]',
+      });
+    });
+
+    it('lists the PRs newest first, a page at a time, without their body', async () => {
+      let query: URLSearchParams | undefined;
+      server.use(
+        ...installation(),
+        http.get(`${API}/repos/o/r/pulls`, ({ request }) => {
+          query = new URL(request.url).searchParams;
+          return HttpResponse.json([prPayload], { headers: { link: `<${API}/repositories/7/pulls?page=2>; rel="next"` } });
+        }),
+      );
+
+      const page = await new OctokitGitHubClient(env, logger()).listPullRequests(repo, { state: 'open' });
+
+      expect(page).toEqual({ items: [expect.objectContaining({ number: 3, headRef: 'feat/27-x' })], nextCursor: '2' });
+      expect(JSON.stringify(page)).not.toContain('never mapped');
+      expect(Object.fromEntries(query ?? [])).toMatchObject({ state: 'open', sort: 'created', direction: 'desc', per_page: '100', page: '1' });
+    });
+
+    it('lists every milestone, open and closed, by number, its due day and counts but never its description', async () => {
+      let query: URLSearchParams | undefined;
+      const milestone = (number: number, extra: Record<string, unknown> = {}) => ({
+        number,
+        title: `M${number}`,
+        description: 'the description, never mapped',
+        state: 'open',
+        due_on: '2026-12-01T08:00:00Z',
+        open_issues: 3,
+        closed_issues: 1,
+        closed_at: null,
+        ...extra,
+      });
+      server.use(
+        ...installation(),
+        http.get(`${API}/repos/o/r/milestones`, ({ request }) => {
+          query = new URL(request.url).searchParams;
+          return HttpResponse.json([milestone(4, { state: 'closed', due_on: null, closed_at: '2026-11-01T00:00:00Z' }), milestone(2)]);
+        }),
+      );
+
+      const milestones = await new OctokitGitHubClient(env, logger()).listMilestones(repo);
+
+      expect(milestones).toEqual([
+        { number: 2, title: 'M2', state: 'open', dueOn: '2026-12-01', openIssues: 3, closedIssues: 1, closedAt: null },
+        { number: 4, title: 'M4', state: 'closed', dueOn: null, openIssues: 3, closedIssues: 1, closedAt: '2026-11-01T00:00:00Z' },
+      ]);
+      expect(Object.keys(milestones[0] ?? {}).sort()).toEqual(Object.keys(zGitHubMilestone.shape).sort());
+      expect(query?.get('state')).toBe('all');
     });
 
     it('maps sub-issues and blocked-by dependencies without their body', async () => {

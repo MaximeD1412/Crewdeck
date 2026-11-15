@@ -5,6 +5,7 @@ import type {
   CheckRun,
   CombinedStatus,
   CommitRef,
+  GitHubMilestone,
   GitHubUser,
   InstallationRepository,
   InstallationToken,
@@ -18,6 +19,8 @@ import type {
   MergeOptions,
   NewPullRequest,
   PullRequest,
+  PullRequestPage,
+  PullRequestQuery,
   RepoRef,
   UserTokens,
 } from '@crewdeck/contracts';
@@ -59,6 +62,10 @@ export interface GitHubClient {
   countCommits(repo: RepoRef, branch: string, max: number): Promise<number>;
   /** A page of issues (PRs left out), most recently updated first. */
   listIssues(repo: RepoRef, query: IssueQuery): Promise<IssuePage>;
+  /** Every milestone, open and closed, by number: never its description. */
+  listMilestones(repo: RepoRef): Promise<GitHubMilestone[]>;
+  /** A page of PRs, newest first; GitHub's list does not say who merged one (`mergedBy` null): `getPullRequest` does. */
+  listPullRequests(repo: RepoRef, query: PullRequestQuery): Promise<PullRequestPage>;
   getPullRequest(repo: RepoRef, number: number): Promise<PullRequest | null>;
   listCheckRuns(repo: RepoRef, sha: string): Promise<CheckRun[]>;
   getCombinedStatus(repo: RepoRef, sha: string): Promise<CombinedStatus>;

@@ -18,7 +18,8 @@ import type { Scenario } from './define.js';
 import { menuPlus } from './menu-plus.js';
 import { demarrageProjets, projets, projetsVide } from './projets.js';
 import { resynchronisation } from './resynchronisation.js';
-import { runner, runnerHorsLigne } from './runner.js';
+import { runner } from './runner.js';
+import { aToiRunnerHorsLigne, runnerHorsLigne } from './runner-offline.js';
 
 export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed } from './define.js';
 
@@ -26,6 +27,7 @@ export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed 
 const SCENARIOS: readonly Scenario[] = [
   aToi,
   aToiVide,
+  aToiRunnerHorsLigne,
   blank,
   composants,
   connexion,

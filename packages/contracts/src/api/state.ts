@@ -6,6 +6,7 @@ import { zMe } from './me.js';
 import { REPOSITORIES_MAX, zProject, zRepository } from './projects.js';
 import { zRunner } from './runner.js';
 import { zRunnerLink } from './runner-link.js';
+import { zCodeChange, zMilestone, zTicket } from './tickets.js';
 import { zSeq } from '../values.js';
 
 /**
@@ -29,6 +30,12 @@ export const STATE_SLICES = {
   repositories: z.array(zRepository).max(REPOSITORIES_MAX),
   /** The open Décisions, every one (« À toi »). */
   decisions: z.array(zDecision),
+  /** Every open Ticket of every Projet, and those closed in the last 30 days (BOUCLE-1). */
+  tickets: z.array(zTicket),
+  /** The open milestones, and those closed in the last 30 days. */
+  milestones: z.array(zMilestone),
+  /** The open and draft changes of code, and those merged or closed in the last 30 days. */
+  codeChanges: z.array(zCodeChange),
 } as const;
 export type StateKey = keyof typeof STATE_SLICES;
 

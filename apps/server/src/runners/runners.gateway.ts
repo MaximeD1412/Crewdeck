@@ -177,6 +177,7 @@ class RunnerSocket implements RunnerLink {
       this.reply({ type: 'hello.accepted', runnerId: this.runnerId, protocolVersion, ...(vaultKeyWrap ? { vaultKeyWrap } : {}) });
       return true;
     });
+    if (this.isAccepted && !this.closed) this.connections.accepted(this, hello);
   }
 
   private async dispatch(message: Exclude<RunnerToServer, Hello>): Promise<void> {

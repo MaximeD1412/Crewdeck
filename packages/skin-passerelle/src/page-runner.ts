@@ -7,11 +7,14 @@ import { systemOf } from './runner-machine.js';
 type Data = ComposantData<typeof PageRunner>;
 type Runner = NonNullable<Data['runner']>;
 type Engine = Data['engines'][number];
+type McpServer = Data['mcpServers'][number];
 
 /**
- * `cd-page-runner` (`design/screens/crewdeck/runner.html`): the page's title,
- * then two columns from 1280 px, the aside first on a phone. The main one: the
- * Emplacement `usage`, « Moteurs et modèles » (a ListRow per model, its
+ * `cd-page-runner` (`design/screens/crewdeck/runner-serveurs-mcp.html`): the
+ * page's title, then two columns from 1280 px, the aside first on a phone. The
+ * main one: « Serveurs MCP » (a ListRow per server, its transport and its tool
+ * count, « déclaré » or « en échec »), « Déclarer un Serveur MCP » with its
+ * command, the Emplacement `usage`, « Moteurs et modèles » (a ListRow per model, its
  * Moteur and its Compte IA or why it is not usable; one row for a Moteur
  * without models; a row « version non vérifiée » above the models of a Moteur
  * whose version the adapter does not know), « Connecter un Compte IA » with its command. The aside:
@@ -104,6 +107,31 @@ export class PasserellePageRunner extends PasserelleElement<typeof PageRunner> {
     ];
   }
 
+  private mcpRow(server: McpServer): TemplateResult {
+    const transport = t(`runner.mcp.transport.${server.transport}`);
+    const count = server.toolCount;
+    const meta =
+      count === null ? transport : t('runner.mcp.meta', { transport, tools: t(count <= 1 ? 'runner.mcp.tools.one' : 'runner.mcp.tools.other', { count }) });
+    const badge = server.state === 'ready' ? { tone: 'go', label: t('runner.mcp.state.ready') } : { tone: 'halt', label: t('runner.mcp.state.failed') };
+    return html`<cd-list-row .data=${{ title: server.name, meta, icon: 'layers' }}
+      ><cd-status-badge slot="trailing" .data=${badge}></cd-status-badge
+    ></cd-list-row>`;
+  }
+
+  private mcpCards(servers: Data['mcpServers']): TemplateResult {
+    const title = t('runner.mcp.title');
+    const declareTitle = t('runner.mcp.declare.title');
+    return html`<cd-card class="mcp" .data=${{ title, count: servers.length, label: title, ...(servers.length > 0 ? { flush: true } : {}) }}>
+        ${servers.length > 0 ? servers.map((server) => this.mcpRow(server)) : html`<p>${t('runner.mcp.empty')}</p>`}
+      </cd-card>
+      <cd-card class="mcp-declare" .data=${{ title: declareTitle, label: declareTitle }}>
+        <div class="connect-body">
+          <p>${t('runner.mcp.declare.help')}</p>
+          <cd-code-block .data=${{ code: t('runner.mcp.declare.command') }}></cd-code-block>
+        </div>
+      </cd-card>`;
+  }
+
   private runnerCard(runner: Runner): TemplateResult {
     const online = runner.state === 'online';
     const title = t('runner.machine.title');
@@ -126,12 +154,13 @@ export class PasserellePageRunner extends PasserelleElement<typeof PageRunner> {
   }
 
   protected override render() {
-    const { engines, command, runner } = this.data;
+    const { engines, command, runner, mcpServers } = this.data;
     const enginesTitle = t('runner.engines.title');
     const connectTitle = t('runner.connect.title');
     return html`<cd-page-header .data=${{ title: t('runner.title') }}></cd-page-header>
       <div class="layout">
         <div class="main">
+          ${this.mcpCards(mcpServers)}
           <slot name="usage"></slot>
           <cd-card class="engines" .data=${{ title: enginesTitle, label: enginesTitle, flush: true }}>
             ${engines.flatMap((engine) => this.engineRows(engine))}

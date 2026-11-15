@@ -14,6 +14,7 @@ export const RESOURCES = [
   'runner',
   'runner-link',
   'ai-account',
+  'mcp-server',
   'device',
   'project',
   'repository',

@@ -6,3 +6,4 @@ export * from './mirror.js';
 export * from './capabilities.js';
 export * from './events.js';
 export * from './engines.js';
+export * from './mcp.js';

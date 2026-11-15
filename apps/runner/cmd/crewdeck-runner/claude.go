@@ -7,7 +7,6 @@ import (
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/engine/claude/control"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/engine/claude/hook"
-	"github.com/maximed1412/crewdeck/apps/runner/internal/engine/claude/permission"
 	"github.com/spf13/cobra"
 )
 
@@ -43,29 +42,6 @@ func (f *sessionFlags) ask() (func(context.Context, control.Request) (control.Re
 	return func(ctx context.Context, r control.Request) (control.Reply, error) {
 		return control.Ask(ctx, socket, r)
 	}, nil
-}
-
-// newMCPCommand is `crewdeck-runner mcp permission`, hidden: the MCP server
-// of `--permission-prompt-tool`, which Claude Code starts for a Session.
-func newMCPCommand() *cobra.Command {
-	command := &cobra.Command{Use: "mcp", Short: "MCP servers Claude Code runs for a Session", Hidden: true, Args: cobra.NoArgs}
-	var flags sessionFlags
-	serve := &cobra.Command{
-		Use:   "permission",
-		Short: "Serve the permission tool on stdio, its requests sent to the Session's adapter",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			ask, err := flags.ask()
-			if err != nil {
-				return err
-			}
-			server := &permission.Server{Ask: ask, Version: version}
-			return server.Serve(cmd.Context(), cmd.InOrStdin(), cmd.OutOrStdout())
-		},
-	}
-	flags.add(serve)
-	command.AddCommand(serve)
-	return command
 }
 
 // newHookCommand is `crewdeck-runner hook pre-tool-use`, hidden: Claude

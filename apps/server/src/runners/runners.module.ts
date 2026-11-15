@@ -11,6 +11,7 @@ import { RunnerLinkTokens } from './link/link-tokens.js';
 import { RunnerLinkCodesController, RunnerLinkController, RunnerLinkState } from './link/runner-link.controller.js';
 import { RunnerLinkSweep } from './link/runner-link-sweep.job.js';
 import { RunnerLinks } from './link/runner-links.service.js';
+import { McpServers, McpServersController, McpServerState } from './mcp-servers/mcp-servers.js';
 import { RunnerCommands } from './runner-commands.service.js';
 import { RunnerConnections } from './runner-connections.js';
 import { RunnerDispatcher } from './runner-dispatcher.js';
@@ -26,13 +27,14 @@ import { RunnerWaitingWork } from './waiting-work.js';
  * The Pilote's Runner (ADR 0004): its socket (`RunnersGateway`, a client of
  * `/api/ws`), its presence, the commands sent to it, `GET /api/runner`,
  * its link (`link/`, RUNNER-3), what each Moteur can run on it
- * (`ai-accounts/`, RUNNER-7), and « Runner hors ligne » (ATOI-3): the
+ * (`ai-accounts/`, RUNNER-7), the Serveurs MCP declared on it
+ * (`mcp-servers/`, RUNNER-16), and « Runner hors ligne » (ATOI-3): the
  * registry of the work that waits for it (`RunnerWaitingWork`), which the
  * modules with work for the Runner fill, and its Décision (`RunnerOffline`).
  */
 @Module({
   imports: [DevicesModule, DecisionsModule],
-  controllers: [RunnersController, AiAccountsController, RunnerLinkCodesController, RunnerLinkController, RunnerDistController],
+  controllers: [RunnersController, AiAccountsController, McpServersController, RunnerLinkCodesController, RunnerLinkController, RunnerDistController],
   providers: [
     RunnerTokens,
     RunnerClock,
@@ -54,6 +56,8 @@ import { RunnerWaitingWork } from './waiting-work.js';
     RunnerLinkState,
     AiAccounts,
     AiAccountState,
+    McpServers,
+    McpServerState,
   ],
   exports: [RunnerPresence, RunnerCommands, RunnerDispatcher, RunnerClock, RunnerWaitingWork, RunnerOffline, RunnerConnections],
 })

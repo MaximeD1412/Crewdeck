@@ -348,6 +348,33 @@
       ],
       "commande": "docker compose -p crewdeck-staging --env-file /opt/crewdeck/staging/.env -f docker-compose.yml -f docker-compose.staging.yml run --rm server migrate",
       "ajouteLe": "2026-11-15"
+    },
+    {
+      "id": "evenements-github-apps-miroir",
+      "phase": "acc",
+      "source": "#161",
+      "titre": "Abonner les deux GitHub Apps aux événements que le Miroir suit en plus : Push, Pull request review comment, Release, Label",
+      "pourquoi": "Le Miroir du Runner (ADR 0010) ne relit un objet de GitHub qu'à l'enveloppe de son webhook : sans ces événements, un commentaire de revue, une release, un label renommé ou un push sur la branche d'intégration n'arrivent au Runner qu'à sa prochaine resynchronisation. Issue dependencies et Milestone sont déjà cochés par l'élément evenements-github-apps-tickets. Les Apps sont créées par INFRA-11.",
+      "etapes": [
+        "github.com > Settings > Developer settings > GitHub Apps > « Crewdeck » > Permissions & events > Subscribe to events : cocher Push, Pull request review comment, Release, Label (et vérifier que Issue dependencies et Milestone le sont) ; « Save changes ».",
+        "Même chose pour « Crewdeck staging ».",
+        "Une case grisée veut dire que la permission qui la donne manque (contents pour Push et Release, issues pour Label, pull requests pour les commentaires de revue) : l'ajouter comme l'ADR 0002 la liste, puis l'accepter sur chaque installation.",
+        "Vérifier : créer puis supprimer un label sur un Projet suivi ; Advanced > Recent Deliveries montre l'événement label en 202, et la table github_changes du staging a une ligne de kind label."
+      ],
+      "ajouteLe": "2026-11-15"
+    },
+    {
+      "id": "migration-github-changes",
+      "phase": "db",
+      "source": "#161",
+      "titre": "Migration 20261122000000_github_changes : la table github_changes et pilots.github_change_seq",
+      "pourquoi": "Les enveloppes des changements de GitHub pour le Miroir du Runner (ADR 0010) vivent dans une nouvelle table, numérotées par un compteur par Pilote (colonne ajoutée à pilots, 0 par défaut). La migration ne fait qu'ajouter : la version précédente tourne dessus sans les lire. Le déploiement la répète sur la dernière sauvegarde puis l'applique (ADR 0009) ; la table ne se remplit qu'aux webhooks suivants, et la rétention en efface chaque jour à 04:15 UTC ce qui a plus de 7 jours.",
+      "etapes": [
+        "Rien à lancer à la main : le déploiement du staging, puis celui de la prod, appliquent la migration.",
+        "Vérifier après chaque déploiement que son journal montre la migration appliquée (20261122000000_github_changes), puis, après une action sur une issue d'un Projet suivi, qu'une ligne est apparue dans github_changes."
+      ],
+      "commande": "docker compose -p crewdeck-staging --env-file /opt/crewdeck/staging/.env -f docker-compose.yml -f docker-compose.staging.yml run --rm server migrate",
+      "ajouteLe": "2026-11-15"
     }
   ]
 }

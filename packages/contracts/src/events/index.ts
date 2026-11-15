@@ -17,6 +17,7 @@ export const RESOURCES = [
   'mcp-server',
   'device',
   'project',
+  'process',
   'repository',
   'ticket',
   'milestone',

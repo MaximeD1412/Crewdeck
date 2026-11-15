@@ -1,4 +1,4 @@
-import type { AiAccount, CodeChange, Decision, Device, Event, McpServer, Me, Milestone, Project, Repository, Resource, Runner, RunnerLink, State, Ticket } from '@crewdeck/contracts';
+import type { AiAccount, CodeChange, Decision, Device, Event, McpServer, Me, Milestone, Project, ProjectProcess, Repository, Resource, Runner, RunnerLink, State, Ticket } from '@crewdeck/contracts';
 import type { VaultState } from '../keys/vault.js';
 
 /**
@@ -27,6 +27,8 @@ export interface Slices {
   readonly device: ReadonlyMap<string, Device>;
   /** The Pilote's Projets, by id (PROJET-2), from the snapshot's `projects`. */
   readonly project: ReadonlyMap<string, Project>;
+  /** The Process of each Projet (PROCESS-3), by the Projet's id, from the snapshot's `processes`: its active version and its draft. */
+  readonly process: ReadonlyMap<string, ProjectProcess>;
   /**
    * Their Dépôts GitHub, by id (PROJET-2), from the snapshot's `repositories`:
    * those not followed; one followed since stays, `followed: true`.

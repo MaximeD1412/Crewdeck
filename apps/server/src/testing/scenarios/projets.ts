@@ -1,3 +1,5 @@
+import { PROCESS_CREWDECK, PROCESS_CREWDECK_NAME } from '@crewdeck/contracts';
+import { Prisma } from '../../generated/prisma/client.js';
 import { newId } from '../../ids.js';
 import type { ScenarioContext } from './define.js';
 import { defineScenario } from './define.js';
@@ -35,9 +37,10 @@ export const seedRepositories = async (ctx: ScenarioContext, pilotId: string, re
       data: { id, pilotId, installationId: BigInt(SCENARIO_INSTALLATION_ID), githubId: BigInt(githubId), owner, name, fullName, private: true, defaultBranch: 'main', hasCode },
     });
     if (project === undefined) continue;
+    const projectId = newId();
     await ctx.prisma.unscoped.project.create({
       data: {
-        id: newId(),
+        id: projectId,
         pilotId,
         repositoryId: id,
         githubRepoId: BigInt(githubId),
@@ -49,6 +52,20 @@ export const seedRepositories = async (ctx: ScenarioContext, pilotId: string, re
         integrationBranch: 'develop',
         hasCode,
         inventoryState: hasCode ? 'pending' : 'not_needed',
+      },
+    });
+    // Its version 1, « Process Crewdeck », as following it writes.
+    await ctx.prisma.unscoped.processVersion.create({
+      data: {
+        id: newId(),
+        pilotId,
+        projectId,
+        number: 1,
+        definition: PROCESS_CREWDECK as unknown as Prisma.InputJsonValue,
+        sealed: Prisma.DbNull,
+        activatedAt: new Date(),
+        activatedBy: 'creation',
+        templateName: PROCESS_CREWDECK_NAME,
       },
     });
   }

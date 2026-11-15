@@ -313,7 +313,7 @@
       "id": "migration-identites",
       "phase": "db",
       "source": "#196",
-      "titre": "Migration 20261124000000_identities : les Identités et le nom affiché des Pilotes",
+      "titre": "Migration 20261125000000_identities : les Identités et le nom affiché des Pilotes",
       "pourquoi": "Elle crée pilot_identities et email_login_tokens, change chaque github_user_id en une Identité github et le login en display_name, et rend github_user_id et login facultatifs. Des déclencheurs gardent la version précédente compatible : un Pilote qu'elle crée (un retour en arrière) reçoit son nom affiché et son Identité github, et l'Identité github que cette version écrit est recopiée dans github_user_id et login, où la version précédente la retrouve. Une sauvegarde d'avant la migration a les colonnes d'avant.",
       "etapes": [
         "Avant le merge develop → main : répéter la migration sur la dernière sauvegarde de la prod (ADR 0009) ; elle s'applique au démarrage du serveur.",

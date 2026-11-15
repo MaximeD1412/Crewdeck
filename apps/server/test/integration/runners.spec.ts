@@ -308,6 +308,31 @@ describe('the Runner protocol against PostgreSQL', () => {
       expect(app.get(RunnerPresence).isOnline(alice.id)).toBe(false);
     });
 
+    it('locks the Pilote before the Runner when its socket closes: a writer holding the Pilote, then wanting the Runner, waits instead of a deadlock', async () => {
+      const alice = await pilot();
+      const { runner, token } = await createLinkedRunner(prisma, alice.id);
+      const socket = await online(token);
+      // As `TRUNCATE pilots CASCADE` or any writer of an event: the Pilote's row first, then the Runner's.
+      const holder = new pg.Client({ connectionString: databaseUrl });
+      await holder.connect();
+      try {
+        await holder.query('BEGIN');
+        await holder.query('SELECT 1 FROM pilots WHERE id = $1 FOR UPDATE', [alice.id]);
+
+        await socket.close();
+        // Long enough for the server's transaction to reach its first lock.
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await holder.query("SET LOCAL lock_timeout = '2s'");
+        await holder.query('SELECT 1 FROM runners WHERE id = $1 FOR UPDATE', [runner.id]);
+        await holder.query('COMMIT');
+      } finally {
+        await holder.end();
+      }
+
+      await vi.waitFor(async () => expect((await rowOf(runner.id)).state).toBe('offline'));
+      expect((await eventsOf(alice.id)).map((event) => event.payload.state)).toEqual(['online', 'offline']);
+    });
+
     it('sweeps a Runner left online with no socket (a server restarted)', async () => {
       const alice = await pilot();
       const { runner } = await createLinkedRunner(prisma, alice.id);

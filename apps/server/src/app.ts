@@ -17,6 +17,9 @@ z.config(z.locales.fr());
 
 export type AppOptions = AppModuleOptions;
 
+/** The largest JSON body a route reads: a Process's definition at its bounds and its sealed part. */
+export const JSON_BODY_LIMIT = '512kb';
+
 /** OpenAPI, generated from the DTOs' schemas: `/api/docs` and `/api/docs.json`, never in production. */
 const serveDocs = (app: INestApplication): void => {
   const config = new DocumentBuilder().setTitle('Crewdeck').setDescription('The API of Crewdeck (ADR 0008).').build();
@@ -32,13 +35,15 @@ const serveDocs = (app: INestApplication): void => {
  * adapter, Nest would look for socket.io). The webhooks' body is read raw,
  * before the JSON parser Nest mounts at `init`: their signature is of its
  * bytes. The latency's `text/plain` body (`sendBeacon`) is read as JSON
- * before it too.
+ * before it too. The JSON parser is ours, at `JSON_BODY_LIMIT`.
  */
 export const mountApi = (app: INestApplication): void => {
   // Behind the edge (ADR 0009): `request.ip` is the client's, from `X-Forwarded-For`, for the link's attempts by IP.
   (app as NestExpressApplication).set('trust proxy', 'loopback, uniquelocal');
   app.use(WEBHOOKS_PATH, readRawBody);
   app.use(LATENCY_PATH, readBeaconBody);
+  // In place of Nest's (100 kB): a Process's draft at its bounds with its sealed part (PROCESS-3).
+  (app as NestExpressApplication).useBodyParser('json', { limit: JSON_BODY_LIMIT });
   app.use(toRunnerDist);
   app.setGlobalPrefix('api', { exclude: ['fake-github/{*path}', `${RUNNER_DIST_ROUTE}/{*path}`] });
   app.useWebSocketAdapter(new WsAdapter(app));

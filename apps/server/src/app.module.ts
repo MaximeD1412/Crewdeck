@@ -22,6 +22,7 @@ import { RealtimeModule } from './realtime/realtime.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { RunnersModule } from './runners/runners.module.js';
 import { ScopeModule } from './scope/scope.module.js';
+import { TicketsModule } from './tickets/tickets.module.js';
 import { SensitiveActionsModule } from './sensitive-actions/sensitive-actions.module.js';
 import { WebModule } from './web/web.module.js';
 
@@ -69,6 +70,7 @@ export class AppModule {
         RunnersModule,
         RepositoriesModule,
         ProjectsModule,
+        TicketsModule,
         DecisionsModule,
         MetricsModule,
         WebModule.forRoot(env),

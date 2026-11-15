@@ -30,6 +30,7 @@ describe('composantsView', () => {
       'Stepper',
       'Tabs',
       'TextField',
+      'Toast',
       'Toggle',
     ]);
   });

@@ -2,7 +2,8 @@ import type { AiAccount, LinkFailureReason, Me, Runner } from '@crewdeck/contrac
 import type { ComposantData, DemarrageSystem, PageDemarrage } from '@crewdeck/sdk';
 import { anyUsable, engineAccounts } from './ai-accounts.js';
 
-export type DemarrageView = ComposantData<typeof PageDemarrage>;
+/** « Premiers pas »' own data; the RepositoryPicker's (`picker`) comes from `projects.ts`. */
+export type DemarrageView = Omit<ComposantData<typeof PageDemarrage>, 'picker'>;
 
 /** The code the page drew: its short id the server knows, its secret that never left the page. */
 export interface DrawnCode {

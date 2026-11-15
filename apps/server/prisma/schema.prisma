@@ -52,6 +52,8 @@ model Pilot {
   aiAccounts         AiAccount[]
   devices            Device[]
   vaultKeyWraps      VaultKeyWrap[]
+  repositories       Repository[]
+  projects           Project[]
   decisions          Decision[]
 
   @@map("pilots")
@@ -417,4 +419,67 @@ model AiAccount {
 
   @@unique([pilotId, engine])
   @@map("ai_accounts")
+}
+
+/// A Dépôt GitHub (PROJET-2): a repository one of the Pilote's installations
+/// of the App reaches, kept in step by the webhooks and the reconciliation.
+/// Metadata only (ADR 0002): no file, no commit, no description.
+model Repository {
+  id             String   @id @db.Uuid
+  pilotId        String   @map("pilot_id") @db.Uuid
+  installationId BigInt   @map("installation_id")
+  /// GitHub's id, which survives a rename.
+  githubId       BigInt   @map("github_id")
+  owner          String
+  name           String
+  fullName       String   @map("full_name")
+  private        Boolean
+  defaultBranch  String   @map("default_branch")
+  /// At least 2 commits on the default branch: an initial commit alone is a new repository.
+  hasCode        Boolean  @map("has_code")
+  /// The `seq` of its last event (ADR 0007): following it is refused when older.
+  lastSeq        BigInt   @default(0) @map("last_seq")
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  pilot          Pilot    @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@unique([pilotId, githubId])
+  @@index([pilotId, name])
+  @@map("repositories")
+}
+
+enum InventoryState {
+  not_needed     @map("not-needed")
+  pending
+  drafting
+  to_approve     @map("to-approve")
+  awaiting_merge @map("awaiting-merge")
+  approved
+
+  @@map("inventory_state")
+}
+
+/// A Projet (PROJET-2): a Dépôt GitHub the Pilote follows. It outlives its
+/// repository's row: a repository the installation no longer reaches is
+/// deleted, its Projet marked `accessLost`, and `repositoryId` is given back
+/// to the repository when it comes back.
+model Project {
+  id                String         @id @db.Uuid
+  pilotId           String         @map("pilot_id") @db.Uuid
+  repositoryId      String         @unique @map("repository_id") @db.Uuid
+  githubRepoId      BigInt         @map("github_repo_id")
+  owner             String
+  name              String
+  fullName          String         @map("full_name")
+  displayName       String         @map("display_name")
+  releaseBranch     String         @map("release_branch")
+  integrationBranch String         @map("integration_branch")
+  hasCode           Boolean        @map("has_code")
+  inventoryState    InventoryState @map("inventory_state")
+  accessLost        Boolean        @default(false) @map("access_lost")
+  lastSeq           BigInt         @default(0) @map("last_seq")
+  followedAt        DateTime       @default(now()) @map("followed_at") @db.Timestamptz
+  pilot             Pilot          @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@unique([pilotId, githubRepoId])
+  @@map("projects")
 }

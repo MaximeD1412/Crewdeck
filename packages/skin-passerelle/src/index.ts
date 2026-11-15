@@ -24,6 +24,7 @@ import { PasserelleIconButton } from './icon-button.js';
 import { PasserelleIcon } from './icon.js';
 import { PasserelleKeyValue } from './key-value.js';
 import { PasserelleListRow } from './list-row.js';
+import { PasserelleLoopBack } from './loop-back.js';
 import { PasserelleMenu } from './menu.js';
 import { PasserelleMenuItem } from './menu-item.js';
 import { PasserelleMessage } from './message.js';
@@ -33,19 +34,25 @@ import { PasserellePageConnexion } from './page-connexion.js';
 import { PasserellePageDemarrage } from './page-demarrage.js';
 import { PasserellePageHeader } from './page-header.js';
 import { PasserellePageIntrouvable } from './page-introuvable.js';
+import { PasserellePageProjets } from './page-projets.js';
 import { PasserellePageRunner } from './page-runner.js';
 import { PasserellePermissionRequest } from './permission-request.js';
+import { PasserellePhase } from './phase.js';
+import { PasserellePort } from './port.js';
+import { PasserelleProcessCanvas } from './process-canvas.js';
 import { PasserellePhaseGroup } from './phase-group.js';
 import { PasserelleProcessTrack } from './process-track.js';
 import { PasserelleProjectFilter } from './project-filter.js';
 import { PasserelleQuestion } from './question.js';
 import { PasserelleSession } from './session.js';
 import { PasserelleRadio } from './radio.js';
+import { PasserelleRepositoryPicker } from './repository-picker.js';
 import { PasserelleSelect } from './select.js';
 import { PasserelleSettingRow } from './setting-row.js';
 import { PasserelleStat } from './stat.js';
 import { PasserelleStatusBadge } from './status-badge.js';
 import { PasserelleStatusDot } from './status-dot.js';
+import { PasserelleStepCard } from './step-card.js';
 import { PasserelleStepRow } from './step-row.js';
 import { PasserelleStepper } from './stepper.js';
 import { PasserelleTabs } from './tabs.js';
@@ -53,8 +60,10 @@ import { PasserelleTextField } from './text-field.js';
 import { PasserelleTicketRow } from './ticket-row.js';
 import { PasserelleTicketTree } from './ticket-tree.js';
 import { PasserelleTimeline } from './timeline.js';
+import { PasserelleToast } from './toast.js';
 import { PasserelleToolCall } from './tool-call.js';
 import { PasserelleToggle } from './toggle.js';
+import { PasserelleToolChip } from './tool-chip.js';
 import { PasserelleUsageMeter } from './usage-meter.js';
 
 export default defineSkin({
@@ -71,7 +80,9 @@ export default defineSkin({
     PageConnexion: PasserellePageConnexion,
     PageDemarrage: PasserellePageDemarrage,
     PageIntrouvable: PasserellePageIntrouvable,
+    PageProjets: PasserellePageProjets,
     PageRunner: PasserellePageRunner,
+    RepositoryPicker: PasserelleRepositoryPicker,
     Card: PasserelleCard,
     CodeBlock: PasserelleCodeBlock,
     Dialog: PasserelleDialog,
@@ -89,6 +100,12 @@ export default defineSkin({
     TicketRow: PasserelleTicketRow,
     AgentRow: PasserelleAgentRow,
     ProcessTrack: PasserelleProcessTrack,
+    ProcessCanvas: PasserelleProcessCanvas,
+    Phase: PasserellePhase,
+    StepCard: PasserelleStepCard,
+    Port: PasserellePort,
+    ToolChip: PasserelleToolChip,
+    LoopBack: PasserelleLoopBack,
     UsageMeter: PasserelleUsageMeter,
     Stat: PasserelleStat,
     CheckRow: PasserelleCheckRow,
@@ -112,6 +129,7 @@ export default defineSkin({
     Stepper: PasserelleStepper,
     Tabs: PasserelleTabs,
     TextField: PasserelleTextField,
+    Toast: PasserelleToast,
     Toggle: PasserelleToggle,
   },
 });

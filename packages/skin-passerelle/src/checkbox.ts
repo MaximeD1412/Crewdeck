@@ -1,11 +1,11 @@
 import { Checkbox } from '@crewdeck/sdk';
-import { css, html, type PropertyValues } from 'lit';
+import { css, html, nothing, type PropertyValues } from 'lit';
 import { live } from 'lit/directives/live.js';
 import { sharedStyles } from './base.js';
 import { choiceStyles } from './choice.js';
 import { PasserelleFormElement } from './form.js';
 
-/** `cd-checkbox`: a native checkbox inside its label; checked, it submits `on` under `name`. */
+/** `cd-checkbox`: a native checkbox inside its label, its `meta` under the label; checked, it submits `on` under `name`. */
 export class PasserelleCheckbox extends PasserelleFormElement<typeof Checkbox> {
   static override styles = [
     sharedStyles,
@@ -14,6 +14,16 @@ export class PasserelleCheckbox extends PasserelleFormElement<typeof Checkbox> {
       input {
         border-radius: var(--cd-radius-sm);
         color: var(--cd-accent-ink);
+      }
+      .text {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      small {
+        color: var(--cd-muted);
+        font: var(--cd-font-meta-weight) var(--cd-font-meta-size) / var(--cd-font-meta-line-height)
+          var(--cd-font-meta-family), monospace;
       }
       input:checked {
         background: var(--cd-accent);
@@ -59,7 +69,9 @@ export class PasserelleCheckbox extends PasserelleFormElement<typeof Checkbox> {
   protected override render() {
     return html`<label part="choice">
       <input part="control" type="checkbox" .checked=${live(this.current)} @input=${this.onInput} @change=${this.forwardChange} />
-      <span part="label">${this.data.label}</span>
+      <span class="text"
+        ><span part="label">${this.data.label}</span>${this.data.meta === undefined ? nothing : html`<small part="meta">${this.data.meta}</small>`}</span
+      >
     </label>`;
   }
 }

@@ -76,7 +76,7 @@ describe('OctokitGitHubClient', () => {
     });
 
     it('lists the repositories of an installation, every page', async () => {
-      const page = (ids: number[]) => ids.map((id) => ({ id, name: `r${id}`, owner: { login: 'o' } }));
+      const page = (ids: number[]) => ids.map((id) => ({ id, name: `r${id}`, owner: { login: 'o' }, private: id !== 2 }));
       server.use(
         ...installation(),
         http.get(`${API}/installation/repositories`, ({ request }) => {
@@ -91,11 +91,63 @@ describe('OctokitGitHubClient', () => {
       const repos = await new OctokitGitHubClient(env, logger()).listInstallationRepositories(42);
 
       expect(repos).toEqual([
-        { owner: 'o', name: 'r1', id: 1 },
-        { owner: 'o', name: 'r2', id: 2 },
-        { owner: 'o', name: 'r3', id: 3 },
+        { owner: 'o', name: 'r1', id: 1, private: true },
+        { owner: 'o', name: 'r2', id: 2, private: false },
+        { owner: 'o', name: 'r3', id: 3, private: true },
       ]);
     });
+
+    it('says github.installation-gone when GitHub has no installation to give a token for, github.unavailable for another failure', async () => {
+      server.use(http.post(`${API}/app/installations/42/access_tokens`, () => HttpResponse.json({ message: 'Not Found' }, { status: 404 })));
+      await expect(new OctokitGitHubClient(env, logger()).listInstallationRepositories(42)).rejects.toMatchObject({ status: 404, code: 'github.installation-gone' });
+
+      server.use(http.post(`${API}/app/installations/42/access_tokens`, () => HttpResponse.json({ message: 'Bad credentials' }, { status: 401 })));
+      await expect(new OctokitGitHubClient(env, logger()).listInstallationRepositories(42)).rejects.toMatchObject({ code: 'github.unavailable' });
+    });
+
+    it('asks a new token when the one in its cache is refused: github.installation-gone once GitHub has no installation any more', async () => {
+      const state = { installed: true, tokens: 0 };
+      server.use(
+        http.post(`${API}/app/installations/42/access_tokens`, () => {
+          state.tokens += 1;
+          return state.installed
+            ? HttpResponse.json({ token: `ghs_${state.tokens}`, expires_at: new Date(Date.now() + 3_600_000).toISOString(), permissions: {}, repository_selection: 'all' }, { status: 201 })
+            : HttpResponse.json({ message: 'Not Found' }, { status: 404 });
+        }),
+        http.get(`${API}/installation/repositories`, () =>
+          state.installed ? HttpResponse.json({ total_count: 1, repositories: [{ id: 1, name: 'r1', owner: { login: 'o' }, private: true }] }) : HttpResponse.json({ message: 'Bad credentials' }, { status: 401 }),
+        ),
+      );
+      const client = new OctokitGitHubClient(env, logger());
+      await client.listInstallationRepositories(42);
+
+      // Uninstalled, its webhook lost: the token in the cache is revoked.
+      state.installed = false;
+
+      await expect(client.listInstallationRepositories(42)).rejects.toMatchObject({ status: 404, code: 'github.installation-gone' });
+      expect(state.tokens).toBe(2);
+    }, 15_000);
+
+    it('asks a new token when the one in its cache is refused, and lists with it', async () => {
+      const state = { revoked: '', tokens: 0 };
+      server.use(
+        http.post(`${API}/app/installations/42/access_tokens`, () => {
+          state.tokens += 1;
+          return HttpResponse.json({ token: `ghs_${state.tokens}`, expires_at: new Date(Date.now() + 3_600_000).toISOString(), permissions: {}, repository_selection: 'all' }, { status: 201 });
+        }),
+        http.get(`${API}/installation/repositories`, ({ request }) =>
+          request.headers.get('authorization') === `token ${state.revoked}`
+            ? HttpResponse.json({ message: 'Bad credentials' }, { status: 401 })
+            : HttpResponse.json({ total_count: 1, repositories: [{ id: 1, name: 'r1', owner: { login: 'o' }, private: true }] }),
+        ),
+      );
+      const client = new OctokitGitHubClient(env, logger());
+      await client.listInstallationRepositories(42);
+      state.revoked = 'ghs_1';
+
+      await expect(client.listInstallationRepositories(42)).resolves.toEqual([{ owner: 'o', name: 'r1', id: 1, private: true }]);
+      expect(state.tokens).toBe(2);
+    }, 15_000);
   });
 
   describe('labels', () => {
@@ -393,6 +445,26 @@ describe('OctokitGitHubClient', () => {
 
       expect(await client.listSubIssues(repo, 3)).toEqual([expect.not.objectContaining({ body: expect.anything() })]);
       expect(await client.listIssueDependencies(repo, 3)).toEqual([{ owner: 'other', name: 'lib', number: 9, state: 'closed' }]);
+    });
+
+    it('counts the commits of a branch, up to a maximum', async () => {
+      let query: URLSearchParams | undefined;
+      server.use(
+        ...installation(),
+        http.get(`${API}/repos/o/r/commits`, ({ request }) => {
+          query = new URL(request.url).searchParams;
+          return HttpResponse.json([{ sha: SHA }, { sha: SHA }]);
+        }),
+      );
+
+      expect(await new OctokitGitHubClient(env, logger()).countCommits(repo, 'main', 2)).toBe(2);
+      expect(Object.fromEntries(query ?? [])).toMatchObject({ sha: 'main', per_page: '2' });
+    });
+
+    it('counts no commit in an empty repository', async () => {
+      server.use(...installation(), http.get(`${API}/repos/o/r/commits`, () => HttpResponse.json({ message: 'Git Repository is empty.' }, { status: 409 })));
+
+      expect(await new OctokitGitHubClient(env, logger()).countCommits(repo, 'main', 2)).toBe(0);
     });
 
     it('gives null for a branch that does not exist', async () => {

@@ -6,13 +6,15 @@
  * sorted keys, stable file order, stale generated files removed. The output
  * is committed; CI fails when running it leaves a diff. It also writes every
  * Contrat (ADR 0005) to `apps/runner/internal/contrat/contrats/<id>.v<version>.json`,
- * which the Runner embeds, and the example Contrat beside its fixtures.
+ * which the Runner embeds, and the example Contrat beside its fixtures,
+ * and each case of the canvas's rules to `fixtures/process/<case>.json`.
  */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { z } from 'zod';
 import { exampleContrat } from '../fixtures/contrats/example.js';
+import { type ProcessCase, PROCESS_CASES } from '../fixtures/process/cases.js';
 import { type Contrat, CONTRATS } from './contrats/index.js';
 import { generatedEntries, goConstants, type GoUnion, goUnions } from './registry.js';
 
@@ -27,6 +29,7 @@ const runnerRoot = resolve(packageRoot, '../../apps/runner');
 const goDir = join(runnerRoot, 'internal', 'contracts');
 const runnerContratsDir = join(runnerRoot, 'internal', 'contrat', 'contrats');
 const exampleContratFile = join(packageRoot, 'fixtures', 'contrats', 'example.json');
+const processCasesDir = join(packageRoot, 'fixtures', 'process');
 
 /**
  * The Contrats the Runner embeds: the current version of each Étape's, and the
@@ -39,6 +42,12 @@ export const contratFileName = (contrat: Contrat): string => `${contrat.id}.v${c
 
 /** A Contrat as the Runner reads it: the declaration, in its own order (the rules' order is the check's). */
 export const renderContrat = (contrat: Contrat): string => `${JSON.stringify(contrat, null, 2)}\n`;
+
+export const processCaseFileName = (processCase: ProcessCase): string => `${processCase.name}.json`;
+
+/** A case of the canvas's rules as the page's and the server's tests read it. */
+export const renderProcessCase = ({ change, definition, sources, refusals, gaps }: ProcessCase): string =>
+  `${JSON.stringify({ change, definition, sources, refusals, gaps }, null, 2)}\n`;
 
 export interface RegistryEntry {
   name: string;
@@ -208,6 +217,9 @@ const generate = (): void => {
   for (const contrat of embeddedContrats) writeFileSync(join(runnerContratsDir, contratFileName(contrat)), renderContrat(contrat));
   removeStale(runnerContratsDir, new Set(embeddedContrats.map(contratFileName)), (file) => file.endsWith('.json'));
   writeFileSync(exampleContratFile, renderContrat(exampleContrat));
+
+  for (const processCase of PROCESS_CASES) writeFileSync(join(processCasesDir, processCaseFileName(processCase)), renderProcessCase(processCase));
+  removeStale(processCasesDir, new Set(PROCESS_CASES.map(processCaseFileName)), (file) => file.endsWith('.json'));
 };
 
 if (import.meta.main) generate();

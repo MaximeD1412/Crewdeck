@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import './tokens.css';
-import { COMPOSANTS, EXAMPLE_ENGINES, EXAMPLE_ENGINES_NONE, t, type ComposantData, type EngineAccount, type PageDemarrage } from '@crewdeck/sdk';
-import { actionsOf, defineSkin, inside, render, textOf } from './testing/dom.js';
+import { COMPOSANTS, EXAMPLE_ENGINES, EXAMPLE_ENGINES_NONE, EXAMPLE_REPOSITORIES, t, type ComposantData, type EngineAccount, type PageDemarrage } from '@crewdeck/sdk';
+import { actionsOf, defineSkin, inside, render, settle, textOf } from './testing/dom.js';
 
 beforeAll(defineSkin);
 afterEach(() => document.body.replaceChildren());
@@ -21,6 +21,7 @@ const WAITING: Data = {
   busy: false,
   engines: [],
   usable: false,
+  picker: { context: 'demarrage', repositories: [], installUrl: null, busy: false },
 };
 const RUNNER = {
   machine: 'atelier-pc',
@@ -150,14 +151,34 @@ describe('PageDemarrage', () => {
     expect(await actionsOf(() => child(el, 'cd-button.continue').click())).toEqual([]);
   });
 
-  it('the projects step shows an Empty and « Continuer » until its ticket', async () => {
-    const el = await page({ ...WAITING, step: 'projects', runner: RUNNER });
+  it('the projects step shows the RepositoryPicker of « picker » under its title and explanation; its follow goes up', async () => {
+    const picker: Data['picker'] = {
+      context: 'demarrage',
+      repositories: [...EXAMPLE_REPOSITORIES],
+      installUrl: 'https://github.com/apps/crewdeck/installations/new?state=demarrage',
+      busy: false,
+    };
+    const el = await page({ ...WAITING, step: 'projects', runner: RUNNER, picker });
     expect(steps(el)).toEqual(['Runner:done', 'Comptes IA:done', 'Projets:current']);
     expect(child(el, 'cd-page-header').data).toEqual({ title: 'Choisis tes Projets' });
-    expect(child(el, 'cd-empty').data['title']).toBe('Cette étape arrive bientôt');
+    expect(textOf(inside(el, 'p[part=lead]'))).toBe(t('demarrage.projects.lead'));
+    expect(child(el, 'cd-repository-picker').data).toEqual(picker);
     expect(el.shadowRoot?.querySelector('cd-tabs')).toBeNull();
-    const details = await actionsOf(() => inside(el, 'cd-button.continue', 'button').click());
-    expect(details).toEqual([{ composant: 'PageDemarrage', action: 'continue', payload: {} }]);
+    inside<HTMLInputElement>(el, 'cd-repository-picker', `cd-checkbox[data-repository="${EXAMPLE_REPOSITORIES[0].id}"]`, 'input').click();
+    await settle(el);
+    expect(await actionsOf(() => inside(el, 'cd-repository-picker', 'cd-button.follow', 'button').click())).toEqual([
+      { composant: 'RepositoryPicker', action: 'follow', payload: { repositoryIds: [EXAMPLE_REPOSITORIES[0].id] } },
+    ]);
+  });
+
+  it('the projects step: « Plus tard » is the page’s continue; busy, the picker waits', async () => {
+    const el = await page({ ...WAITING, step: 'projects', runner: RUNNER });
+    expect(await actionsOf(() => inside(el, 'cd-repository-picker', 'cd-button.later', 'button').click())).toEqual([
+      { composant: 'PageDemarrage', action: 'continue', payload: {} },
+    ]);
+    const busy = await page({ ...WAITING, step: 'projects', runner: RUNNER, busy: true });
+    expect(child(busy, 'cd-repository-picker').data['busy']).toBe(true);
+    expect(await actionsOf(() => inside(busy, 'cd-repository-picker', 'cd-button.later').click())).toEqual([]);
   });
 });
 

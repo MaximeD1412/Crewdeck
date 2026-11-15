@@ -1,14 +1,25 @@
 import { MenuItem } from '@crewdeck/sdk';
-import { css, html, nothing } from 'lit';
+import { css, html, nothing, type PropertyDeclarations } from 'lit';
 import { PasserelleElement, sharedStyles } from './base.js';
 
 /**
  * `cd-menu-item`: a link the router follows. At 390 a tab of the tab bar when
  * `primary` (the Décisions' count as a badge on À toi only), a row with its
  * `meta` in the « Plus » sheet otherwise; at 1280 a link of the sidebar, its
- * count on the right.
+ * count on the right; in the compact Cadre (`compact`, set by it) its icon
+ * only, its label kept as its name and its title, its count a badge on it.
  */
 export class PasserelleMenuItem extends PasserelleElement<typeof MenuItem> {
+  static override properties: PropertyDeclarations = { ...PasserelleElement.properties, compact: { type: Boolean, reflect: true } };
+
+  /** Set by the Cadre in its `compact` variant: at 1280 px, the icon only. */
+  declare compact: boolean;
+
+  constructor() {
+    super();
+    this.compact = false;
+  }
+
   static override styles = [
     sharedStyles,
     css`
@@ -176,6 +187,33 @@ export class PasserelleMenuItem extends PasserelleElement<typeof MenuItem> {
         a[aria-current] .count.side {
           color: var(--cd-accent-text);
         }
+
+        /* The compact Cadre: the icon only, the count a badge on it */
+        :host([compact]) a {
+          justify-content: center;
+          width: var(--cd-touch);
+          height: var(--cd-touch);
+          padding: 0;
+        }
+        :host([compact]) .label {
+          position: absolute;
+          width: var(--cd-stroke);
+          height: var(--cd-stroke);
+          overflow: hidden;
+          clip-path: inset(50%);
+          white-space: nowrap;
+        }
+        :host([compact]) a .count.side {
+          position: absolute;
+          top: 0;
+          right: 0;
+          margin: 0;
+          padding: 0 var(--cd-space-1);
+          border-radius: var(--cd-radius-full);
+          background: var(--cd-sunk);
+          font-size: var(--cd-font-caption-size);
+          line-height: var(--cd-font-caption-line-height);
+        }
       }
     `,
   ];
@@ -185,7 +223,12 @@ export class PasserelleMenuItem extends PasserelleElement<typeof MenuItem> {
   protected override render() {
     const { id, label, icon, href, current, count, meta, primary } = this.data;
     const glyph = html`<cd-icon .data=${{ name: icon, size: 'md' }}></cd-icon>`;
-    return html`<a part="link" class=${primary ? 'tab' : 'row'} href=${href} aria-current=${current ? 'page' : nothing}
+    return html`<a
+      part="link"
+      class=${primary ? 'tab' : 'row'}
+      href=${href}
+      title=${this.compact ? label : nothing}
+      aria-current=${current ? 'page' : nothing}
       >${primary ? glyph : html`<span class="box">${glyph}</span>`}<span class="text"
         ><span class="label">${label}</span>${meta && !primary ? html`<span class="meta">${meta}</span>` : nothing}</span
       >${count === null ? nothing : html`<span class="count side">${count}</span>`}${count !== null && primary && id === 'a-toi'

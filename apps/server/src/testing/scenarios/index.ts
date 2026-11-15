@@ -4,6 +4,7 @@ import {
   composants,
   composantsDialog,
   composantsFigures,
+  composantsProcess,
   composantsRows,
   composantsSession,
   composantsSettingRow,
@@ -14,6 +15,7 @@ import { connexion, connexionErreur, connexionLien, connexionLienEnvoye } from '
 import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
 import type { Scenario } from './define.js';
 import { menuPlus } from './menu-plus.js';
+import { demarrageProjets, projets, projetsVide } from './projets.js';
 import { resynchronisation } from './resynchronisation.js';
 import { runner, runnerHorsLigne } from './runner.js';
 
@@ -34,7 +36,10 @@ const SCENARIOS: readonly Scenario[] = [
   demarrageRunnerRelie,
   demarrageComptesIa,
   demarrageComptesIaAucun,
+  demarrageProjets,
   menuPlus,
+  projets,
+  projetsVide,
   resynchronisation,
   runner,
   runnerHorsLigne,
@@ -45,6 +50,7 @@ const SCENARIOS: readonly Scenario[] = [
   confirmDialog,
   ...composantsFigures,
   ...composantsSession,
+  ...composantsProcess,
 ];
 
 const byName = new Map(SCENARIOS.map((scenario) => [scenario.name, scenario]));

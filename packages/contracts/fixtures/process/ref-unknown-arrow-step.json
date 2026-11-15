@@ -1,0 +1,834 @@
+{
+  "change": "add an arrow st-code.changement → st-deploy.changement, an Étape that does not exist",
+  "definition": {
+    "schemaVersion": 1,
+    "phases": [
+      {
+        "id": "ph-idee",
+        "name": "Idée",
+        "col": 1,
+        "row": 1,
+        "forEach": "idea.noted"
+      },
+      {
+        "id": "ph-conception",
+        "name": "Conception",
+        "col": 1,
+        "row": 2,
+        "forEach": "idea.retained"
+      },
+      {
+        "id": "ph-dev",
+        "name": "Développement",
+        "col": 1,
+        "row": 3,
+        "forEach": "ticket.ready"
+      }
+    ],
+    "steps": [
+      {
+        "id": "st-analyse",
+        "phaseId": "ph-idee",
+        "kind": "idea-analysis",
+        "name": "Analyse de l’Idée",
+        "col": 1,
+        "row": 1,
+        "inputs": [
+          {
+            "id": "idee",
+            "type": "idea",
+            "note": "notée par toi"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "idee",
+            "type": "idea"
+          }
+        ],
+        "tools": [
+          {
+            "kind": "role",
+            "roleId": "idea"
+          },
+          {
+            "kind": "skill",
+            "skillId": "idea-analysis"
+          }
+        ]
+      },
+      {
+        "id": "st-tri",
+        "phaseId": "ph-idee",
+        "kind": "idea-triage",
+        "name": "Tri de l’Idée",
+        "col": 2,
+        "row": 1,
+        "inputs": [
+          {
+            "id": "idee",
+            "type": "idea"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "idee",
+            "type": "idea",
+            "note": "retenue"
+          }
+        ],
+        "tools": []
+      },
+      {
+        "id": "st-prd",
+        "phaseId": "ph-conception",
+        "kind": "prd",
+        "name": "PRD",
+        "col": 1,
+        "row": 1,
+        "inputs": [
+          {
+            "id": "idee",
+            "type": "idea"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "prd",
+            "type": "prd"
+          }
+        ],
+        "tools": [
+          {
+            "kind": "role",
+            "roleId": "design"
+          },
+          {
+            "kind": "skill",
+            "skillId": "product-design"
+          }
+        ]
+      },
+      {
+        "id": "st-rc-prd",
+        "phaseId": "ph-conception",
+        "kind": "cross-review",
+        "name": "Revue croisée du PRD",
+        "col": 2,
+        "row": 1,
+        "inputs": [
+          {
+            "id": "document",
+            "type": "prd"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "verdict",
+            "type": "verdict"
+          }
+        ],
+        "tools": [
+          {
+            "kind": "role",
+            "roleId": "review"
+          },
+          {
+            "kind": "skill",
+            "skillId": "cross-review"
+          }
+        ]
+      },
+      {
+        "id": "st-ap-prd",
+        "phaseId": "ph-conception",
+        "kind": "approval",
+        "name": "Approbation du PRD",
+        "col": 3,
+        "row": 1,
+        "inputs": [
+          {
+            "id": "document",
+            "type": "prd"
+          },
+          {
+            "id": "verdict",
+            "type": "verdict"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "document",
+            "type": "prd"
+          }
+        ],
+        "tools": []
+      },
+      {
+        "id": "st-maquettes",
+        "phaseId": "ph-conception",
+        "kind": "mockups",
+        "name": "Maquettes",
+        "col": 4,
+        "row": 1,
+        "inputs": [
+          {
+            "id": "prd",
+            "type": "prd"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "maquettes",
+            "type": "mockups"
+          }
+        ],
+        "tools": [
+          {
+            "kind": "role",
+            "roleId": "design"
+          },
+          {
+            "kind": "skill",
+            "skillId": "visual-design"
+          }
+        ]
+      },
+      {
+        "id": "st-ap-maquettes",
+        "phaseId": "ph-conception",
+        "kind": "approval",
+        "name": "Revue des maquettes",
+        "col": 5,
+        "row": 1,
+        "inputs": [
+          {
+            "id": "document",
+            "type": "mockups"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "document",
+            "type": "mockups"
+          }
+        ],
+        "tools": []
+      },
+      {
+        "id": "st-ct",
+        "phaseId": "ph-conception",
+        "kind": "technical-design",
+        "name": "Conception technique",
+        "col": 1,
+        "row": 2,
+        "inputs": [
+          {
+            "id": "prd",
+            "type": "prd"
+          },
+          {
+            "id": "maquettes",
+            "type": "mockups"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "conception",
+            "type": "technical-design"
+          }
+        ],
+        "tools": [
+          {
+            "kind": "role",
+            "roleId": "design"
+          },
+          {
+            "kind": "skill",
+            "skillId": "technical-design"
+          }
+        ]
+      },
+      {
+        "id": "st-rc-ct",
+        "phaseId": "ph-conception",
+        "kind": "cross-review",
+        "name": "Revue croisée de la conception",
+        "col": 2,
+        "row": 2,
+        "inputs": [
+          {
+            "id": "document",
+            "type": "technical-design"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "verdict",
+            "type": "verdict"
+          }
+        ],
+        "tools": [
+          {
+            "kind": "role",
+            "roleId": "review"
+          },
+          {
+            "kind": "skill",
+            "skillId": "cross-review"
+          }
+        ]
+      },
+      {
+        "id": "st-ap-ct",
+        "phaseId": "ph-conception",
+        "kind": "approval",
+        "name": "Approbation de la conception",
+        "col": 3,
+        "row": 2,
+        "inputs": [
+          {
+            "id": "document",
+            "type": "technical-design"
+          },
+          {
+            "id": "verdict",
+            "type": "verdict"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "document",
+            "type": "technical-design"
+          }
+        ],
+        "tools": []
+      },
+      {
+        "id": "st-decoupage",
+        "phaseId": "ph-conception",
+        "kind": "split",
+        "name": "Découpage en Tickets",
+        "col": 4,
+        "row": 2,
+        "inputs": [
+          {
+            "id": "prd",
+            "type": "prd"
+          },
+          {
+            "id": "maquettes",
+            "type": "mockups"
+          },
+          {
+            "id": "conception",
+            "type": "technical-design"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "ticket",
+            "type": "ticket"
+          }
+        ],
+        "tools": [
+          {
+            "kind": "role",
+            "roleId": "design"
+          },
+          {
+            "kind": "skill",
+            "skillId": "plan-backlog"
+          }
+        ]
+      },
+      {
+        "id": "st-ap-tickets",
+        "phaseId": "ph-conception",
+        "kind": "approval",
+        "name": "Validation des Tickets",
+        "col": 5,
+        "row": 2,
+        "inputs": [
+          {
+            "id": "document",
+            "type": "ticket"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "document",
+            "type": "ticket",
+            "note": "prêt"
+          }
+        ],
+        "tools": []
+      },
+      {
+        "id": "st-code",
+        "phaseId": "ph-dev",
+        "kind": "code",
+        "name": "Code",
+        "col": 1,
+        "row": 1,
+        "inputs": [
+          {
+            "id": "ticket",
+            "type": "ticket"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "changement",
+            "type": "code-change"
+          }
+        ],
+        "tools": [
+          {
+            "kind": "role",
+            "roleId": "code"
+          },
+          {
+            "kind": "skill",
+            "skillId": "code"
+          }
+        ]
+      },
+      {
+        "id": "st-checks",
+        "phaseId": "ph-dev",
+        "kind": "checks",
+        "name": "Checks",
+        "col": 2,
+        "row": 1,
+        "inputs": [
+          {
+            "id": "changement",
+            "type": "code-change"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "verdict",
+            "type": "verdict"
+          }
+        ],
+        "tools": [
+          {
+            "kind": "connector",
+            "connector": "github"
+          }
+        ]
+      },
+      {
+        "id": "st-review",
+        "phaseId": "ph-dev",
+        "kind": "review",
+        "name": "Review",
+        "col": 3,
+        "row": 1,
+        "inputs": [
+          {
+            "id": "changement",
+            "type": "code-change"
+          },
+          {
+            "id": "verdict",
+            "type": "verdict",
+            "note": "des checks"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "verdict",
+            "type": "verdict"
+          }
+        ],
+        "tools": [
+          {
+            "kind": "role",
+            "roleId": "review"
+          },
+          {
+            "kind": "skill",
+            "skillId": "review"
+          }
+        ]
+      },
+      {
+        "id": "st-rv",
+        "phaseId": "ph-dev",
+        "kind": "visual-review",
+        "name": "Revue visuelle",
+        "col": 3,
+        "row": 2,
+        "inputs": [
+          {
+            "id": "changement",
+            "type": "code-change"
+          },
+          {
+            "id": "maquettes",
+            "type": "mockups"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "verdict",
+            "type": "verdict"
+          }
+        ],
+        "tools": []
+      },
+      {
+        "id": "st-merge",
+        "phaseId": "ph-dev",
+        "kind": "merge",
+        "name": "Merge",
+        "col": 4,
+        "row": 1,
+        "inputs": [
+          {
+            "id": "changement",
+            "type": "code-change"
+          },
+          {
+            "id": "v-review",
+            "type": "verdict",
+            "note": "de la Review"
+          },
+          {
+            "id": "v-rv",
+            "type": "verdict",
+            "note": "de la Revue visuelle"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "changement",
+            "type": "code-change",
+            "note": "mergé"
+          }
+        ],
+        "tools": []
+      }
+    ],
+    "arrows": [
+      {
+        "from": {
+          "stepId": "st-analyse",
+          "portId": "idee"
+        },
+        "to": {
+          "stepId": "st-tri",
+          "portId": "idee"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-tri",
+          "portId": "idee"
+        },
+        "to": {
+          "stepId": "st-prd",
+          "portId": "idee"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-prd",
+          "portId": "prd"
+        },
+        "to": {
+          "stepId": "st-rc-prd",
+          "portId": "document"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-prd",
+          "portId": "prd"
+        },
+        "to": {
+          "stepId": "st-ap-prd",
+          "portId": "document"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-rc-prd",
+          "portId": "verdict"
+        },
+        "to": {
+          "stepId": "st-ap-prd",
+          "portId": "verdict"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-ap-prd",
+          "portId": "document"
+        },
+        "to": {
+          "stepId": "st-maquettes",
+          "portId": "prd"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-maquettes",
+          "portId": "maquettes"
+        },
+        "to": {
+          "stepId": "st-ap-maquettes",
+          "portId": "document"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-ap-prd",
+          "portId": "document"
+        },
+        "to": {
+          "stepId": "st-ct",
+          "portId": "prd"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-ap-maquettes",
+          "portId": "document"
+        },
+        "to": {
+          "stepId": "st-ct",
+          "portId": "maquettes"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-ct",
+          "portId": "conception"
+        },
+        "to": {
+          "stepId": "st-rc-ct",
+          "portId": "document"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-ct",
+          "portId": "conception"
+        },
+        "to": {
+          "stepId": "st-ap-ct",
+          "portId": "document"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-rc-ct",
+          "portId": "verdict"
+        },
+        "to": {
+          "stepId": "st-ap-ct",
+          "portId": "verdict"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-ap-prd",
+          "portId": "document"
+        },
+        "to": {
+          "stepId": "st-decoupage",
+          "portId": "prd"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-ap-maquettes",
+          "portId": "document"
+        },
+        "to": {
+          "stepId": "st-decoupage",
+          "portId": "maquettes"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-ap-ct",
+          "portId": "document"
+        },
+        "to": {
+          "stepId": "st-decoupage",
+          "portId": "conception"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-decoupage",
+          "portId": "ticket"
+        },
+        "to": {
+          "stepId": "st-ap-tickets",
+          "portId": "document"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-ap-tickets",
+          "portId": "document"
+        },
+        "to": {
+          "stepId": "st-code",
+          "portId": "ticket"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-code",
+          "portId": "changement"
+        },
+        "to": {
+          "stepId": "st-checks",
+          "portId": "changement"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-code",
+          "portId": "changement"
+        },
+        "to": {
+          "stepId": "st-review",
+          "portId": "changement"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-checks",
+          "portId": "verdict"
+        },
+        "to": {
+          "stepId": "st-review",
+          "portId": "verdict"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-code",
+          "portId": "changement"
+        },
+        "to": {
+          "stepId": "st-rv",
+          "portId": "changement"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-ap-maquettes",
+          "portId": "document"
+        },
+        "to": {
+          "stepId": "st-rv",
+          "portId": "maquettes"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-code",
+          "portId": "changement"
+        },
+        "to": {
+          "stepId": "st-merge",
+          "portId": "changement"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-review",
+          "portId": "verdict"
+        },
+        "to": {
+          "stepId": "st-merge",
+          "portId": "v-review"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-rv",
+          "portId": "verdict"
+        },
+        "to": {
+          "stepId": "st-merge",
+          "portId": "v-rv"
+        }
+      },
+      {
+        "from": {
+          "stepId": "st-code",
+          "portId": "changement"
+        },
+        "to": {
+          "stepId": "st-deploy",
+          "portId": "changement"
+        }
+      }
+    ],
+    "loopBacks": [
+      {
+        "from": "st-rc-prd",
+        "to": "st-prd",
+        "max": 3
+      },
+      {
+        "from": "st-rc-ct",
+        "to": "st-ct",
+        "max": 3
+      },
+      {
+        "from": "st-review",
+        "to": "st-code",
+        "max": 3
+      },
+      {
+        "from": "st-rv",
+        "to": "st-code",
+        "max": 3
+      },
+      {
+        "from": "st-ap-prd",
+        "to": "st-prd",
+        "max": 3
+      },
+      {
+        "from": "st-ap-maquettes",
+        "to": "st-maquettes",
+        "max": 3
+      },
+      {
+        "from": "st-ap-ct",
+        "to": "st-ct",
+        "max": 3
+      },
+      {
+        "from": "st-ap-tickets",
+        "to": "st-decoupage",
+        "max": 3
+      }
+    ],
+    "commands": []
+  },
+  "sources": {
+    "ticket": "github",
+    "code": "github"
+  },
+  "refusals": [
+    {
+      "kind": "ref.unknown",
+      "target": "arrows.25",
+      "label": "Cette flèche va vers une Étape qui n’existe pas : « st-deploy »"
+    }
+  ],
+  "gaps": null
+}

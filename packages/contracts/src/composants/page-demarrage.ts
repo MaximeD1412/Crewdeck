@@ -49,7 +49,7 @@ const NO_PICKER: z.input<typeof RepositoryPicker.data> = { context: 'demarrage',
  */
 export const PageDemarrage = defineComposant({
   name: 'PageDemarrage',
-  version: 3,
+  version: 4,
   tag: 'cd-page-demarrage',
   category: 'page',
   description: 'Les Premiers pas : le Runner, les Comptes IA, les Projets.',

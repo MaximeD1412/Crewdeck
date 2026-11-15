@@ -97,7 +97,7 @@ describe('sign in with GitHub against PostgreSQL', () => {
   });
 
   it('signs a new GitHub user in as the Pilote another browser created in the meantime, with no second Pilote', async () => {
-    // The other browser's sign-up, not yet committed: this one finds no Identité, then its own waits on it.
+    // The other browser's sign-up, not yet committed: this one finds no Identité, then its insert waits on it.
     const other = new pg.Client({ connectionString: databaseUrl });
     await other.connect();
     const pilot = newId();
@@ -106,7 +106,9 @@ describe('sign in with GitHub against PostgreSQL', () => {
       await other.query(`INSERT INTO pilots (id, display_name, time_zone) VALUES ($1, 'octocat', 'UTC')`, [pilot]);
       await other.query(`INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) VALUES ($1, $2, 'github', $3, 'octocat')`, [newId(), pilot, String(OCTOCAT.id)]);
       const response = signIn();
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Committed only once the server's insert waits on this transaction: its lookup has found nothing.
+      const [{ pid }] = (await other.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows as [{ pid: number }];
+      await expect.poll(async () => (await sql('SELECT pid FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))', [pid])).length, { timeout: 10_000, interval: 20 }).toBe(1);
       await other.query('COMMIT');
 
       const res = await response;

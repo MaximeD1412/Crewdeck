@@ -17,7 +17,7 @@ describe('FakeGitHub', () => {
 
       const merge = await github.mergePullRequest(repo, pr.number, { sha: head, method: 'squash' });
 
-      expect(await github.getPullRequest(repo, pr.number)).toMatchObject({ state: 'closed', merged: true });
+      expect(await github.getPullRequest(repo, pr.number)).toMatchObject({ state: 'closed', merged: true, mergedBy: 'crewdeck[bot]', mergeSha: merge.sha });
       expect((await github.getBranch(repo, 'main'))?.sha).toBe(merge.sha);
       expect(github.fileAt(repo.owner, repo.name, merge.sha, 'src/a.ts')).toBe('a');
     });
@@ -160,7 +160,7 @@ describe('FakeGitHub', () => {
   });
 
   describe('metadata', () => {
-    it('lists issues by state and update, without their body, with their sub-issues and dependencies', async () => {
+    it('lists issues by state and update, without their body, with their parent, sub-issues and dependencies', async () => {
       const { github, repo } = setup();
       github.seedIssue(repo, { number: 1, title: 'Epic', body: 'secret', updatedAt: '2026-11-01T00:00:00Z', subIssues: [2] });
       github.seedIssue(repo, { number: 2, title: 'Ticket', labels: ['ready-for-agent'], milestone: { number: 1, title: 'M1' }, updatedAt: '2026-11-05T00:00:00Z' });
@@ -171,14 +171,65 @@ describe('FakeGitHub', () => {
 
       expect(open).toEqual({
         items: [
-          { number: 2, title: 'Ticket', state: 'open', labels: ['ready-for-agent'], milestone: { number: 1, title: 'M1' }, updatedAt: '2026-11-05T00:00:00Z' },
-          { number: 1, title: 'Epic', state: 'open', labels: [], milestone: null, updatedAt: '2026-11-01T00:00:00Z' },
+          {
+            number: 2,
+            title: 'Ticket',
+            state: 'open',
+            stateReason: null,
+            labels: ['ready-for-agent'],
+            milestone: { number: 1, title: 'M1' },
+            parent: { owner: repo.owner, name: repo.name, number: 1 },
+            createdAt: '2026-11-01T09:00:00.000Z',
+            closedAt: null,
+            updatedAt: '2026-11-05T00:00:00Z',
+          },
+          {
+            number: 1,
+            title: 'Epic',
+            state: 'open',
+            stateReason: null,
+            labels: [],
+            milestone: null,
+            parent: null,
+            createdAt: '2026-11-01T09:00:00.000Z',
+            closedAt: null,
+            updatedAt: '2026-11-01T00:00:00Z',
+          },
         ],
         nextCursor: null,
       });
       expect(since.items.map((issue) => issue.number)).toEqual([3, 2]);
+      expect(since.items[0]).toMatchObject({ state: 'closed', stateReason: 'completed', closedAt: '2026-11-06T00:00:00Z' });
       expect((await github.listSubIssues(repo, 1)).map((issue) => issue.number)).toEqual([2]);
       expect(await github.listIssueDependencies(repo, 3)).toEqual([{ owner: 'o', name: 'lib', number: 9, state: 'open' }]);
+    });
+
+    it('lists the milestones by number, without their description', async () => {
+      const { github, repo } = setup();
+      github.seedMilestone(repo, { number: 2, title: 'M2', dueOn: '2026-12-01', openIssues: 3, closedIssues: 1, description: 'secret' });
+      github.seedMilestone(repo, { number: 1, title: 'M1', state: 'closed', closedAt: '2026-11-02T00:00:00Z' });
+
+      expect(await github.listMilestones(repo)).toEqual([
+        { number: 1, title: 'M1', state: 'closed', dueOn: null, openIssues: 0, closedIssues: 0, closedAt: '2026-11-02T00:00:00Z' },
+        { number: 2, title: 'M2', state: 'open', dueOn: '2026-12-01', openIssues: 3, closedIssues: 1, closedAt: null },
+      ]);
+    });
+
+    it('lists the PRs by state, newest first, without who merged them; a single PR says who did', async () => {
+      const { github, repo } = setup();
+      await github.pushCommit(repo, 'feat/1-a', { 'a.ts': 'a' });
+      await github.pushCommit(repo, 'feat/2-b', { 'b.ts': 'b' });
+      const first = await github.createPullRequest(repo, { head: 'feat/1-a', base: 'main', title: 'A', draft: false });
+      const second = await github.createPullRequest(repo, { head: 'feat/2-b', base: 'main', title: 'B', draft: true });
+      github.mergeByHand(repo, first.number, 'octo-pilot');
+
+      expect((await github.listPullRequests(repo, { state: 'open' })).items.map((pr) => pr.number)).toEqual([second.number]);
+      const all = await github.listPullRequests(repo, { state: 'all' });
+      expect(all.items.map((pr) => [pr.number, pr.merged, pr.mergedBy])).toEqual([
+        [second.number, false, null],
+        [first.number, true, null],
+      ]);
+      expect(await github.getPullRequest(repo, first.number)).toMatchObject({ merged: true, mergedBy: 'octo-pilot', mergeSha: expect.stringMatching(/^[0-9a-f]{40}$/) });
     });
 
     it('labels an issue, and removes a label it does not have in silence', async () => {

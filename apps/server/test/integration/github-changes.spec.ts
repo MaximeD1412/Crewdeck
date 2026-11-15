@@ -280,6 +280,27 @@ describe('the envelopes of GitHub’s changes for the Runner’s Miroir, against
       expect(await mirrorLines(await runner(9), 3)).toEqual(['projects', 'resync', 'live 3']);
     });
 
+    it('a change missing between two kept ones gets mirror.resync, not a replay with a hole', async () => {
+      for (const event of ['issues', 'push', 'label']) await deliver(event);
+      await sql('DELETE FROM github_changes WHERE pilot_id = $1 AND seq = 2', [pilotId]);
+
+      expect(await mirrorLines(await runner(0), 3)).toEqual(['projects', 'resync', 'live 3']);
+      expect(await mirrorLines(await runner(2), 3)).toEqual(['projects', 'change 3', 'live 3']);
+    });
+
+    it('a change missing behind a live one gets mirror.resync then mirror.live at its seq, never a hole', async () => {
+      const socket = await runner(0);
+      await mirrorLines(socket, 2);
+      // 1 purged before its relay came: 3 arrives with only 2 kept behind it.
+      await sql(`INSERT INTO github_changes (pilot_id, seq, project_id, repository, kind, number, at) VALUES ($1, 2, $2, $3, 'issue', 42, now()), ($1, 3, $2, $3, 'issue', 43, now())`, [pilotId, projectId, FULL_NAME]);
+      await sql('UPDATE pilots SET github_change_seq = 3 WHERE id = $1', [pilotId]);
+      relay.publish(pilotId, { seq: 3, projectId, repository: FULL_NAME, kind: 'issue', number: 43, sha: null, ref: null, action: null, at: new Date().toISOString() });
+
+      expect(await mirrorLines(socket, 4)).toEqual(['projects', 'live 0', 'resync', 'live 3']);
+      await deliver('push');
+      expect(await mirrorLines(socket, 5)).toEqual(['projects', 'live 0', 'resync', 'live 3', 'change 4']);
+    });
+
     it('a Runner up to date gets mirror.live alone after its Projets', async () => {
       await deliver('issues');
       expect(await mirrorLines(await runner(1), 2)).toEqual(['projects', 'live 1']);
@@ -332,6 +353,26 @@ describe('the envelopes of GitHub’s changes for the Runner’s Miroir, against
       expect(await mirrorLines(socket, 4)).toEqual(['projects', 'live 0', 'projects', 'projects']);
       const lost = mirrorOf(socket)[3];
       expect(lost?.type === 'mirror.projects' && lost.projects).toEqual([]);
+    });
+  });
+
+  describe('a repository renamed on GitHub', () => {
+    it('renames its Projet: mirror.projects and the next envelopes say the new name', async () => {
+      const socket = await runner(0);
+      await mirrorLines(socket, 2);
+      fakes.github.reset();
+      fakes.github.seedRepo({ ...APP_REPO, name: 'renamed-app', installationId: INSTALLATION_ID, files: { 'README.md': '# App' } });
+      fakes.github.seedRepo({ ...OTHER_REPO, installationId: INSTALLATION_ID, files: { 'README.md': '# Other' } });
+      await deliver('installation', webhookFixture('installation.created'));
+
+      expect(await mirrorLines(socket, 3)).toEqual(['projects', 'live 0', 'projects']);
+      const renamed = mirrorOf(socket)[2];
+      expect(renamed?.type === 'mirror.projects' && renamed.projects.map((project: MirrorProject) => project.repository)).toEqual([`${APP_REPO.owner}/renamed-app`]);
+      await deliver('issues');
+      expect((await rows()).map((row) => row.repository)).toEqual([`${APP_REPO.owner}/renamed-app`]);
+      expect(await mirrorLines(socket, 4)).toEqual(['projects', 'live 0', 'projects', 'change 1']);
+      const [project] = (await state()).projects;
+      expect(project).toMatchObject({ id: projectId, name: 'renamed-app', fullName: `${APP_REPO.owner}/renamed-app` });
     });
   });
 

@@ -203,7 +203,8 @@ export class Repositories implements OnModuleInit {
       : await tx.repository.create({ data: { id: project?.repositoryId ?? newId(), pilotId, githubId, ...data }, select: REPOSITORY_VIEW });
     const seq = await this.events.write(tx, pilotId, 'repository.upserted', toRepository(saved, project !== null), this.writeOptions(origin));
     await tx.repository.update({ where: { id: saved.id }, data: { lastSeq: seq } });
-    if (project?.accessLost) {
+    // Back in an installation, or renamed on GitHub: the Projet takes the repository's name.
+    if (project && (project.accessLost || project.fullName !== data.fullName)) {
       const back = await tx.project.update({ where: { id: project.id }, data: { accessLost: false, owner: data.owner, name: data.name, fullName: data.fullName }, select: PROJECT_VIEW });
       const projectSeq = await this.events.write(tx, pilotId, 'project.upserted', toProject(back), this.writeOptions(origin));
       await tx.project.update({ where: { id: project.id }, data: { lastSeq: projectSeq } });

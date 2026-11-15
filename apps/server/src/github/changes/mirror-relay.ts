@@ -26,11 +26,12 @@ const RELAY_FAILED = 1011;
  * Projets to mirror), then the changes after `mirrorAfter`, or
  * `mirror.resync` when they are no longer all kept (or the Runner has none,
  * `null`, or says a seq the server never gave), then `mirror.live` with the
- * last seq sent. After it, each change committed is sent once, in the order
- * of its seq: one that arrives ahead of an older one sends the older first,
- * read from `github_changes`. A `hello` without `mirrorAfter` (a Runner
- * without a Miroir) gets none of this. The Projets that change are sent
- * again.
+ * last seq. After it, each change committed is sent once, in the order of
+ * its seq: one that arrives ahead of an older one sends the older first,
+ * read from `github_changes`. A change missing on the way (purged while its
+ * neighbours are kept) is `mirror.resync` then `mirror.live`, never a
+ * hole. A `hello` without `mirrorAfter` (a Runner without a Miroir) gets
+ * none of this. The Projets that change are sent again.
  *
  * A stream's work runs one task after the other; a task that fails closes
  * the socket with 1011, and the Runner's next `hello` replays.
@@ -100,45 +101,57 @@ export class MirrorRelay implements OnModuleInit {
 
   private async replay(pilotId: string, stream: Stream, after: number | null): Promise<void> {
     await this.sendProjects(stream);
-    const { counter, oldest } = await this.prisma.scoped.$transaction(async (tx) => {
-      const pilot = await tx.pilot.findUniqueOrThrow({ where: { id: pilotId }, select: { githubChangeSeq: true } });
-      const first = await tx.gitHubChange.findFirst({ orderBy: { seq: 'asc' }, select: { seq: true } });
-      return { counter: Number(pilot.githubChangeSeq), oldest: first ? Number(first.seq) : null };
-    });
-    const kept = after !== null && after <= counter && (oldest === null ? after === counter : oldest <= after + 1);
-    if (kept) {
-      stream.lastSent = after;
-      await this.sendAfter(stream, Number.POSITIVE_INFINITY);
-    } else {
-      this.send(stream, { type: 'mirror.resync' });
-    }
-    stream.lastSent = Math.max(stream.lastSent, counter);
-    this.send(stream, { type: 'mirror.live', seq: stream.lastSent });
+    const { counter, whole } = await this.prisma.scoped.$transaction(
+      async (tx) => {
+        const pilot = await tx.pilot.findUniqueOrThrow({ where: { id: pilotId }, select: { githubChangeSeq: true } });
+        const last = Number(pilot.githubChangeSeq);
+        if (after === null || after > last) return { counter: last, whole: false };
+        const kept = await tx.gitHubChange.count({ where: { seq: { gt: BigInt(after), lte: BigInt(last) } } });
+        return { counter: last, whole: kept === last - after };
+      },
+      { isolationLevel: 'RepeatableRead' },
+    );
+    stream.lastSent = after ?? 0;
+    // A change missing (purged, its neighbours kept) is a resync, before the replay or during it.
+    if (!whole || !(await this.sendThrough(stream, counter))) this.send(stream, { type: 'mirror.resync' });
+    stream.lastSent = counter;
+    this.send(stream, { type: 'mirror.live', seq: counter });
   }
 
   private async deliver(stream: Stream, change: GitHubChange): Promise<void> {
     if (change.seq <= stream.lastSent) return;
-    if (change.seq > stream.lastSent + 1) await this.sendAfter(stream, change.seq - 1);
-    if (change.seq <= stream.lastSent) return;
+    if (change.seq > stream.lastSent + 1 && !(await this.sendThrough(stream, change.seq - 1))) {
+      // An older change no longer kept: the Runner resyncs, then follows from this one.
+      this.send(stream, { type: 'mirror.resync' });
+      stream.lastSent = change.seq;
+      this.send(stream, { type: 'mirror.live', seq: change.seq });
+      return;
+    }
     this.send(stream, { type: 'github.changed', change });
     stream.lastSent = change.seq;
   }
 
-  /** Sends the kept changes after `stream.lastSent`, up to `until`, a page at a time. */
-  private async sendAfter(stream: Stream, until: number): Promise<void> {
-    for (;;) {
+  /**
+   * Sends the kept changes after `stream.lastSent` through `until`, a page at
+   * a time; false as soon as one is missing (`stream.lastSent` is then the
+   * last one sent).
+   */
+  private async sendThrough(stream: Stream, until: number): Promise<boolean> {
+    while (stream.lastSent < until) {
       const rows = await this.prisma.scoped.gitHubChange.findMany({
-        where: { seq: { gt: BigInt(stream.lastSent), ...(Number.isFinite(until) ? { lte: BigInt(until) } : {}) } },
+        where: { seq: { gt: BigInt(stream.lastSent), lte: BigInt(until) } },
         orderBy: { seq: 'asc' },
         take: MIRROR_PAGE,
         select: CHANGE_VIEW,
       });
+      if (rows.length === 0) return false;
       for (const row of rows) {
+        if (Number(row.seq) !== stream.lastSent + 1) return false;
         this.send(stream, { type: 'github.changed', change: toChange(row) });
         stream.lastSent = Number(row.seq);
       }
-      if (rows.length < MIRROR_PAGE) return;
     }
+    return true;
   }
 
   private async sendProjects(stream: Stream): Promise<void> {

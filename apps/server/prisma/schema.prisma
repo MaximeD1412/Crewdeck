@@ -38,6 +38,9 @@ model Pilot {
   gettingStartedStep GettingStartedStep   @default(runner) @map("getting_started_step")
   seq                BigInt               @default(0)
   lastSeq            BigInt               @default(0) @map("last_seq")
+  /// The last `github_changes.seq` of the Pilote (ADR 0010): the Miroir's
+  /// own counter, never shared with the tabs' `seq`.
+  githubChangeSeq    BigInt               @default(0) @map("github_change_seq")
   /// The version of the Pilote's vault key (ADR 0003, E2E-2): 0 before the
   /// first Appareil wrapped one, then 1; E2E-4 rotates it.
   vaultKeyVersion    Int                  @default(0) @map("vault_key_version")
@@ -59,6 +62,7 @@ model Pilot {
   milestones         Milestone[]
   codeChanges        CodeChange[]
   codeChangeChecks   CodeChangeCheck[]
+  githubChanges      GitHubChange[]
 
   @@map("pilots")
 }
@@ -493,6 +497,44 @@ model Project {
   /// The key the Projet's Tickets, milestones, changes of code and Process point at, with their Pilote.
   @@unique([pilotId, id])
   @@map("projects")
+}
+
+/// What a change of GitHub names (`zGitHubChangeKind`).
+enum GitHubChangeKind {
+  issue
+  pull
+  push
+  check
+  release
+  label
+  milestone
+
+  @@map("github_change_kind")
+}
+
+/// The envelope of each webhook of a Projet's repository, for the Runner's
+/// Miroir (ADR 0010): identifiers, states and dates only, never a title, a
+/// body, a label's name nor a branch other than `ref` (ADR 0003). `seq` comes
+/// from `pilots.github_change_seq`. Kept 7 days (`GitHubChangesRetention`);
+/// `projectId` has no foreign key: a removed Projet's envelopes age out.
+model GitHubChange {
+  pilotId    String           @map("pilot_id") @db.Uuid
+  seq        BigInt
+  projectId  String           @map("project_id") @db.Uuid
+  /// `<owner>/<name>`.
+  repository String
+  kind       GitHubChangeKind
+  number     Int?
+  sha        String?
+  ref        String?
+  action     String?
+  /// When the server received the webhook.
+  at         DateTime         @db.Timestamptz
+  pilot      Pilot            @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@id([pilotId, seq])
+  @@index([at])
+  @@map("github_changes")
 }
 
 /// Where a row of `tickets`, `milestones` or `code_changes` comes from (ADR

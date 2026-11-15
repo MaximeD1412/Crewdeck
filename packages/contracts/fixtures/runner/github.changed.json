@@ -1,0 +1,16 @@
+{
+  "type": "github.changed",
+  "id": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a20",
+  "at": "2026-11-11T08:00:01.000Z",
+  "change": {
+    "seq": 4,
+    "projectId": "019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a01",
+    "repository": "octo-fixture/fixture-app",
+    "kind": "pull",
+    "number": 42,
+    "sha": "6dcb09b5b57875f334f61aebed695e2e4193db5e",
+    "ref": null,
+    "action": "synchronize",
+    "at": "2026-11-11T08:00:00.800Z"
+  }
+}

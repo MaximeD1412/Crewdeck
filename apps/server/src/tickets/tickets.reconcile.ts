@@ -9,10 +9,13 @@ import { ProjectSources } from '../projects/project-sources.js';
 import { Transactions } from '../realtime/transactions.js';
 import { botLoginOf, codeChangeOfPullRequest, milestoneOfGitHub, ticketOfIssue } from './github-rows.js';
 import { TicketsQueue } from './tickets.queue.js';
+import { RECENTLY_CLOSED_DAYS } from './tickets.state.js';
 import { type WebhookProject, TicketsWebhooks } from './tickets.webhooks.js';
 import { type CheckInput, TicketsWriter } from './tickets.writer.js';
 
 const LIVE: readonly CodeChangeState[] = ['open', 'draft'];
+const ENDED: readonly CodeChangeState[] = ['merged', 'closed'];
+const recentSince = (): Date => new Date(Date.now() - RECENTLY_CLOSED_DAYS * 24 * 60 * 60_000);
 
 /** The parent of an issue as a number of the Projet: none without one, or in another repository. */
 const parentNumberIn = (project: WebhookProject, issue: Issue): number | null =>
@@ -36,7 +39,8 @@ const allPages = async <T>(page: (cursor: string | undefined) => Promise<{ items
  * group on GitHub: the open issues and those updated since the last run (all
  * of them the first time) with their parent, each open one's native blocked-by, the
  * milestones; the open PRs, those stored open that GitHub no longer lists
- * (merged or closed meanwhile), and the checks of each one's head. Read
+ * (merged or closed meanwhile), and the checks of each one's head and of
+ * the recent ended ones whose checks were left pending. Read
  * first, then written in one transaction per Projet, behind the webhooks of
  * the same Pilote.
  *
@@ -137,10 +141,16 @@ export class TicketsReconcile implements OnModuleInit {
       const pr = await this.github.getPullRequest(project.repo, number);
       if (pr) ended.push(pr);
     }
-    // An ended one's too: its checks may have finished with it, their webhooks lost, and no later run reads it again.
+    // An ended one's too: its checks may have finished with it, their webhooks lost; and those stored ended with checks still
+    // pending (the merge's webhook came, not the end of the checks), until they end or leave the window of the recent ones.
     const pullRequests = [...open, ...ended];
+    const pending = await this.prisma.scoped.codeChange.findMany({
+      where: { projectId: project.id, source: 'github', state: { in: [...ENDED] }, checks: 'pending', headSha: { not: null }, updatedAt: { gte: recentSince() } },
+      select: { headSha: true },
+    });
+    const heads = [...pullRequests.map((pr) => pr.headSha), ...pending.flatMap((row) => (row.headSha === null ? [] : [row.headSha]))];
     const checks = new Map<string, CheckInput[]>();
-    for (const pr of pullRequests) if (!checks.has(pr.headSha)) checks.set(pr.headSha, await this.webhooks.checksAt(project, pr.headSha));
+    for (const sha of new Set(heads)) checks.set(sha, await this.webhooks.checksAt(project, sha));
     return { pullRequests, checks };
   }
 }

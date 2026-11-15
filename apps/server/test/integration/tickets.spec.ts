@@ -576,6 +576,20 @@ describe('the Tickets and changes of code against PostgreSQL', () => {
       expect(await change(pr.number)).toMatchObject({ state: 'merged', checks: 'passed', checksSha: pr.headSha });
     });
 
+    it('brings the checks of a PR whose merge came but not the end of its checks to the state of its head', async () => {
+      const pr = await openPullRequest('feat/42-connexion-github');
+      await checkRun(pr.headSha, 'ci', 'in_progress');
+      // The checks passed, their webhook lost; the merge's came.
+      fakes.github.setCheckRuns(APP_REPO, pr.headSha, [{ id: 1, name: 'ci', status: 'completed', conclusion: 'success' }]);
+      const merged = fakes.github.mergeByHand(APP_REPO, pr.number, 'octo-fixture');
+      await deliver('pull_request', envelope('closed', { number: pr.number, pull_request: prPayload(merged) }));
+      expect(await change(pr.number)).toMatchObject({ state: 'merged', checks: 'pending' });
+
+      await app.get(Reconciliation).run();
+
+      expect(await change(pr.number)).toMatchObject({ state: 'merged', checks: 'passed', checksSha: pr.headSha });
+    });
+
     it('brings a parent set before the Projet was followed, then its removal while no webhook came', async () => {
       fakes.github.seedIssue(APP_REPO, { number: 42, title: 'Connexion GitHub' });
       fakes.github.seedIssue(APP_REPO, { number: 7, title: 'Authentification', subIssues: [42] });

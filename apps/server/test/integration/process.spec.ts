@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   PROCESS_CREWDECK,
@@ -21,6 +21,7 @@ import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { ProcessBackfill } from '../../src/process/process-backfill.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
+import { roleUsage } from '../../src/settings/role-usage.js';
 import { FAKES, type Fakes } from '../../src/testing/fakes.js';
 import { deliverWebhook, TEST_WEBHOOK_SECRET, webhookFixture } from '../fakes/github.js';
 import { authKeysEnv } from '../github-app.js';
@@ -59,6 +60,12 @@ interface Fixture {
   readonly refusals: readonly { kind: string; target: string; label: string }[];
 }
 const fixture = (name: string): Fixture => JSON.parse(readFileSync(join(FIXTURES, `${name}.json`), 'utf8')) as Fixture;
+/** Every fixture `validateDefinition` refuses: one per refusal kind, and their combination. */
+const REFUSED = readdirSync(FIXTURES)
+  .filter((file) => file.endsWith('.json'))
+  .map((file) => file.slice(0, -'.json'.length))
+  .filter((name) => fixture(name).refusals.length > 0)
+  .sort();
 
 const bytes = (length: number, fill: number): string => Buffer.alloc(length, fill).toString('base64url');
 const SEALED = { key: bytes(60, 3), ciphertext: bytes(48, 9) };
@@ -246,14 +253,18 @@ describe('the Process of a Projet against PostgreSQL', () => {
       expect(await sql('SELECT revision FROM process_drafts')).toEqual([{ revision: 1 }]);
     });
 
-    it.each(['arrow-cycle', 'core-missing-checks', 'id-duplicate-step', 'refusals-combined'])('answers 422 process.invalid for %s, fields naming its targets', async (name) => {
+    it.each(REFUSED)('answers 422 process.invalid for %s, fields naming each target with its label, and saves nothing', async (name) => {
       const { definition, refusals } = fixture(name);
+      const before = (await eventsOf(alice)).length;
 
-      const envelope = await expectEnvelope(await save(alice, { definition }), 422, 'process.invalid');
+      const envelope = await expectEnvelope(await save(alice, { definition, sealed: definition.commands.length > 0 ? SEALED : null }), 422, 'process.invalid');
 
       expect(envelope.message).toBe('Ce Process ne peut pas être dessiné ainsi.');
-      expect(Object.keys(envelope.fields ?? {}).sort()).toEqual([...new Set(refusals.map((refusal) => refusal.target))].sort());
+      const expected: Record<string, string> = {};
+      for (const refusal of refusals) expected[refusal.target] ??= refusal.label;
+      expect(envelope.fields).toEqual(expected);
       expect(await sql('SELECT id FROM process_drafts')).toEqual([]);
+      expect(await eventsOf(alice)).toHaveLength(before);
     });
 
     it('saves a draft with only Manques: they forbid the activation, not the save', async () => {
@@ -286,6 +297,43 @@ describe('the Process of a Projet against PostgreSQL', () => {
       await expectEnvelope(await save(bob, {}), 404, 'project.not-found');
       expect(await sql('SELECT id FROM process_drafts')).toEqual([]);
       expect((await eventsOf(bob)).map((event) => event.type)).toEqual([]);
+    });
+  });
+
+  describe('the usage of a Rôle', () => {
+    /** « Process Crewdeck » with the Rôle of « Code » replaced by `roleId`. */
+    const codedBy = (roleId: string): ProcessDefinition => {
+      const definition = structuredClone(PROCESS_CREWDECK);
+      for (const step of definition.steps.filter((candidate) => candidate.id === 'st-code')) {
+        step.tools = step.tools.map((tool) => (tool.kind === 'role' ? { kind: 'role', roleId } : tool));
+      }
+      return definition;
+    };
+
+    const usage = (tab: Tab, roleId: string): Promise<number> => runInPilotScope(tab.id, () => prisma.scoped.$transaction((tx) => roleUsage(tx, tab.id, roleId)));
+
+    it('counts the Étapes naming a Rôle in each Projet’s active version and its draft, not in older versions nor another Pilote’s', async () => {
+      const bob = await pilot(9100002, 'bob');
+      expect(await usage(alice, 'code')).toBe(1);
+      expect(await usage(alice, 'review')).toBe(3);
+
+      // Version 2 gives « Code » to another Rôle: version 1, no longer active, counts no more.
+      await sql(
+        `INSERT INTO process_versions (id, pilot_id, project_id, number, definition, activated_at, activated_by) VALUES ($1, $2, $3, 2, $4, now(), 'pilot')`,
+        [newId(), alice.id, projectId, JSON.stringify(codedBy('r-a1b2c3d4'))],
+      );
+      expect(await usage(alice, 'code')).toBe(0);
+      expect(await usage(alice, 'r-a1b2c3d4')).toBe(1);
+
+      // The draft, drawn from version 2, gives it back to « code »: counted beside the version.
+      await saved(await save(alice, { definition: PROCESS_CREWDECK, baseVersion: 2 }));
+      expect(await usage(alice, 'code')).toBe(1);
+      expect(await usage(alice, 'r-a1b2c3d4')).toBe(1);
+      expect(await usage(alice, 'review')).toBe(6);
+      expect(await usage(alice, 'tester')).toBe(0);
+
+      expect(await usage(bob, 'code')).toBe(0);
+      expect(await usage(bob, 'review')).toBe(0);
     });
   });
 });

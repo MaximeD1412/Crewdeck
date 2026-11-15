@@ -29,6 +29,9 @@ const BROWSER_SPECS = [
   'src/step-card.spec.ts',
   'src/port.spec.ts',
   'src/toast.spec.ts',
+  'src/phase-group.spec.ts',
+  'src/stepper.spec.ts',
+  'src/menu.spec.ts',
 ];
 
 export default defineConfig({

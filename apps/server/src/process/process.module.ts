@@ -1,0 +1,19 @@
+import { Module } from '@nestjs/common';
+import { ProcessBackfill } from './process-backfill.js';
+import { ProcessController } from './process.controller.js';
+import { ProcessRoleUsage } from './process-role-usage.js';
+import { ProcessService } from './process.service.js';
+import { ProcessState } from './process.state.js';
+
+/**
+ * A Projet's Process (PROCESS-3, ADR 0011): its versions and its draft, the
+ * routes, the `processes` slice, the Étapes naming a Rôle, and the Projets
+ * followed before it given their version 1 at start. `ProjectsModule`
+ * imports it: following a Projet writes its first version.
+ */
+@Module({
+  controllers: [ProcessController],
+  providers: [ProcessService, ProcessState, ProcessRoleUsage, ProcessBackfill],
+  exports: [ProcessService],
+})
+export class ProcessModule {}

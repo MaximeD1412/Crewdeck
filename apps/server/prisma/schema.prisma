@@ -38,6 +38,9 @@ model Pilot {
   gettingStartedStep GettingStartedStep   @default(runner) @map("getting_started_step")
   seq                BigInt               @default(0)
   lastSeq            BigInt               @default(0) @map("last_seq")
+  /// The last `github_changes.seq` of the Pilote (ADR 0010): the Miroir's
+  /// own counter, never shared with the tabs' `seq`.
+  githubChangeSeq    BigInt               @default(0) @map("github_change_seq")
   /// The version of the Pilote's vault key (ADR 0003, E2E-2): 0 before the
   /// first Appareil wrapped one, then 1; E2E-4 rotates it.
   vaultKeyVersion    Int                  @default(0) @map("vault_key_version")
@@ -50,6 +53,7 @@ model Pilot {
   runnerLinkCodes    RunnerLinkCode[]
   latencySamples     LatencySample[]
   aiAccounts         AiAccount[]
+  mcpServers         McpServer[]
   devices            Device[]
   vaultKeyWraps      VaultKeyWrap[]
   repositories       Repository[]
@@ -59,6 +63,7 @@ model Pilot {
   milestones         Milestone[]
   codeChanges        CodeChange[]
   codeChangeChecks   CodeChangeCheck[]
+  githubChanges      GitHubChange[]
   settings           AccountSettings?
 
   @@map("pilots")
@@ -441,6 +446,41 @@ model AiAccount {
   @@map("ai_accounts")
 }
 
+/// How a Serveur MCP is reached (`MCP_TRANSPORTS`).
+enum McpTransport {
+  stdio
+  http
+
+  @@map("mcp_transport")
+}
+
+/// The outcome of a Serveur MCP's last test on the Runner (`MCP_SERVER_STATES`).
+enum McpServerState {
+  ready
+  failed
+
+  @@map("mcp_server_state")
+}
+
+/// A Serveur MCP declared on the Pilote's Runner (US-73, RUNNER-16, ADR 0013),
+/// from its last `mcp.servers` message, one row per name: each message
+/// replaces the Pilote's set. Its name, transport, state and tool count only:
+/// no column for its command, address or secrets, which stay on the Runner
+/// (risk SEC-13). `toolCount` is null when its last test failed.
+model McpServer {
+  id         String         @id @db.Uuid
+  pilotId    String         @map("pilot_id") @db.Uuid
+  name       String
+  transport  McpTransport
+  state      McpServerState
+  toolCount  Int?           @map("tool_count")
+  reportedAt DateTime       @map("reported_at") @db.Timestamptz
+  pilot      Pilot          @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@unique([pilotId, name])
+  @@map("mcp_servers")
+}
+
 /// A Dépôt GitHub (PROJET-2): a repository one of the Pilote's installations
 /// of the App reaches, kept in step by the webhooks and the reconciliation.
 /// Metadata only (ADR 0002): no file, no commit, no description.
@@ -502,11 +542,51 @@ model Project {
   tickets           Ticket[]
   milestones        Milestone[]
   codeChanges       CodeChange[]
+  processVersions   ProcessVersion[]
+  processDraft      ProcessDraft?
 
   @@unique([pilotId, githubRepoId])
-  /// The key the Projet's Tickets, milestones and changes of code point at, with their Pilote.
+  /// The key the Projet's Tickets, milestones, changes of code and Process point at, with their Pilote.
   @@unique([pilotId, id])
   @@map("projects")
+}
+
+/// What a change of GitHub names (`zGitHubChangeKind`).
+enum GitHubChangeKind {
+  issue
+  pull
+  push
+  check
+  release
+  label
+  milestone
+
+  @@map("github_change_kind")
+}
+
+/// The envelope of each webhook of a Projet's repository, for the Runner's
+/// Miroir (ADR 0010): identifiers, states and dates only, never a title, a
+/// body, a label's name nor a branch other than `ref` (ADR 0003). `seq` comes
+/// from `pilots.github_change_seq`. Kept 7 days (`GitHubChangesRetention`);
+/// `projectId` has no foreign key: a removed Projet's envelopes age out.
+model GitHubChange {
+  pilotId    String           @map("pilot_id") @db.Uuid
+  seq        BigInt
+  projectId  String           @map("project_id") @db.Uuid
+  /// `<owner>/<name>`.
+  repository String
+  kind       GitHubChangeKind
+  number     Int?
+  sha        String?
+  ref        String?
+  action     String?
+  /// When the server received the webhook.
+  at         DateTime         @db.Timestamptz
+  pilot      Pilot            @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@id([pilotId, seq])
+  @@index([at])
+  @@map("github_changes")
 }
 
 /// Where a row of `tickets`, `milestones` or `code_changes` comes from (ADR
@@ -713,4 +793,54 @@ model CodeChangeCheck {
   @@unique([codeChangeId, sha, name])
   @@index([pilotId, codeChangeId, sha])
   @@map("code_change_checks")
+}
+
+/// Who activated a version of a Process: the Projet's creation (its Modèle copied), or the Pilote (PROCESS-10).
+enum ProcessActivation {
+  creation
+  pilot
+
+  @@map("process_activation")
+}
+
+/// A version of a Projet's Process (ADR 0011): one immutable document, numbered
+/// from 1 per Projet, its Commandes' text in `sealed` (a `SealedItem`, stored
+/// as received). A trigger of the migration refuses any `UPDATE`; the active
+/// version is the highest number.
+model ProcessVersion {
+  id           String            @id @db.Uuid
+  pilotId      String            @map("pilot_id") @db.Uuid
+  projectId    String            @map("project_id") @db.Uuid
+  number       Int
+  /// A `ProcessDefinition`: configuration the server reads.
+  definition   Json
+  sealed       Json?
+  activatedAt  DateTime          @map("activated_at") @db.Timestamptz
+  activatedBy  ProcessActivation @map("activated_by")
+  /// The Modèle it was copied from, `null` once the Pilote drew it.
+  templateName String?           @map("template_name")
+  project      Project           @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+
+  @@unique([projectId, number])
+  @@index([pilotId, projectId])
+  @@map("process_versions")
+}
+
+/// The Brouillon of a Projet's Process, one at most, saved whole on every
+/// change of the canvas: `revision` counts its saves, `baseVersion` is the
+/// version it was drawn from (`0` while the Projet has none).
+model ProcessDraft {
+  id          String   @id @db.Uuid
+  pilotId     String   @map("pilot_id") @db.Uuid
+  projectId   String   @unique @map("project_id") @db.Uuid
+  definition  Json
+  sealed      Json?
+  revision    Int
+  baseVersion Int      @map("base_version")
+  updatedAt   DateTime @map("updated_at") @db.Timestamptz
+  project     Project  @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+
+  /// The one-to-one key of its Projet, with their Pilote.
+  @@unique([pilotId, projectId])
+  @@map("process_drafts")
 }

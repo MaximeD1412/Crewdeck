@@ -127,7 +127,11 @@ export const boot = async ({
       const { slices } = store.getState();
       if (match.composant === PageProjets) return projetsView(slices.project?.values() ?? []);
       if (match.composant !== PageRunner) return pageData(match);
-      return runnerView({ runner: slices.runner ?? null, accounts: slices['ai-account']?.values() ?? [] });
+      return runnerView({
+        runner: slices.runner ?? null,
+        accounts: slices['ai-account']?.values() ?? [],
+        mcpServers: slices['mcp-server']?.values() ?? [],
+      });
     },
   });
   // The Cadre and the page follow the store: a change made elsewhere shows without a reload.

@@ -5,14 +5,15 @@ import { PasserelleElement, sharedStyles } from './base.js';
 type State = ComposantData<typeof ProcessTrack>['steps'][number]['state'];
 
 /** The icon in each state's mark; `current` has a dot, `todo` nothing (`design/components.js`, `STEP_ICON`). */
-const MARKS: Readonly<Partial<Record<State, IconName>>> = { done: 'check', halt: 'x', off: 'pause' };
+const MARKS: Readonly<Partial<Record<State, IconName>>> = { done: 'check', halt: 'x', off: 'pause', stopped: 'stop' };
 
 /**
  * `cd-process-track`: the Étapes as an ordered list, each a round mark and
  * its label over its meta, joined by a line, green up to the last one done.
- * The current one is `aria-current="step"`; one turned off has a dashed mark
- * and says « désactivée »; the others say their state to screen readers
- * only. `horizontal` lines them up from 1280 px and stacks them below;
+ * The current one is `aria-current="step"`; one absent from the version the
+ * item runs on has a dashed mark and says « hors de sa version »; one stopped
+ * at the Source keeps a neutral mark with `stop`, its label in `ink-2`, apart
+ * from a halt; the others say their state to screen readers only. `horizontal` lines them up from 1280 px and stacks them below;
  * `compact` lines them up at every width, each label beside its mark,
  * without line nor meta.
  */
@@ -101,6 +102,9 @@ export class PasserelleProcessTrack extends PasserelleElement<typeof ProcessTrac
       .todo b,
       .off b {
         color: var(--cd-muted);
+      }
+      .stopped b {
+        color: var(--cd-ink-2);
       }
       .meta,
       .state {

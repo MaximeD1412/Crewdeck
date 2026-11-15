@@ -85,6 +85,8 @@ export class RunnerPresence {
     return this.serial(pilotId, async () => {
       const now = this.clock.now();
       await this.transactions.run(async (tx) => {
+        // The Pilote first, as every writer of an event, then the Runner: never the reverse (a deadlock).
+        await this.events.lock(tx, pilotId);
         const row = await tx.runner.update({
           where: { id: runnerId },
           data: {
@@ -110,6 +112,8 @@ export class RunnerPresence {
     return this.serial(pilotId, async () => {
       const now = this.clock.now();
       const back = await this.transactions.run(async (tx) => {
+        // The Pilote first, as every writer of an event, then the Runner: never the reverse (a deadlock).
+        await this.events.lock(tx, pilotId);
         const { count } = await tx.runner.updateMany({ where: { id: runnerId, state: 'offline', revokedAt: null }, data: { state: 'online', lastSeenAt: now } });
         if (count === 0) {
           await tx.runner.updateMany({ where: { id: runnerId }, data: { lastSeenAt: now } });
@@ -142,6 +146,10 @@ export class RunnerPresence {
 
   private goOffline(pilotId: string, runnerId: string, where: { lastSeenAt?: { lt: Date } }): Promise<boolean> {
     return this.transactions.run(async (tx) => {
+      // The Pilote first, as every writer of an event, then the Runner: never the reverse (a deadlock).
+      // A Pilote deleted meanwhile (its account, a test's reset) has no Runner left to change.
+      const { count: pilots } = await tx.pilot.updateMany({ where: { id: pilotId }, data: { seq: { increment: 0 } } });
+      if (pilots === 0) return false;
       const { count } = await tx.runner.updateMany({ where: { id: runnerId, state: 'online', revokedAt: null, ...where }, data: { state: 'offline' } });
       if (count === 0) return false;
       await this.writeEvent(tx, pilotId, runnerId);

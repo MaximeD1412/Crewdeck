@@ -11,6 +11,7 @@ import { PublicConfigModule } from './config/public-config.controller.js';
 import { ErrorFilter } from './errors/error.filter.js';
 import { GitHubModule } from './github/github.module.js';
 import { ReconciliationModule } from './github/reconciliation/reconciliation.module.js';
+import { GitHubChangesModule } from './github/changes/changes.module.js';
 import { RepositoriesModule } from './github/repositories/repositories.module.js';
 import { WebhooksModule } from './github/webhooks/webhooks.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -70,6 +71,7 @@ export class AppModule {
         DevicesModule,
         RunnersModule,
         RepositoriesModule,
+        GitHubChangesModule,
         ProjectsModule,
         TicketsModule,
         DecisionsModule,

@@ -317,7 +317,7 @@ describe('the Dépôts GitHub and the Projets against PostgreSQL', () => {
         { displayName: 'new-idea', fullName: 'octo-fixture/new-idea', integrationBranch: 'develop', releaseBranch: 'main', hasCode: false, inventoryState: 'not-needed', accessLost: false },
       ]);
       const events = (await eventsOf(alice)).slice(before);
-      expect(events.map((event) => event.type)).toEqual(['project.upserted', 'repository.upserted', 'project.upserted', 'repository.upserted']);
+      expect(events.map((event) => event.type)).toEqual(['project.upserted', 'process.upserted', 'repository.upserted', 'project.upserted', 'process.upserted', 'repository.upserted']);
       expect(events.filter((event) => event.type === 'repository.upserted').map((event) => zRepository.parse(event.payload).followed)).toEqual([true, true]);
       for (const event of events.filter((event) => event.type === 'project.upserted')) zProject.parse(event.payload);
 

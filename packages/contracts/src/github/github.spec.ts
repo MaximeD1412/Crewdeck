@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import { zBranch, zCheckRun, zCombinedStatus, zIssue, zIssueRef, zLabel, zPullRequest, zRepoRef } from '../index.js';
+import { zBranch, zCheckRun, zCombinedStatus, zGitHubMilestone, zIssue, zIssueRef, zLabel, zPullRequest, zRepoRef } from '../index.js';
 
 /** What the server never carries (ADR 0002): a body, a diff, a file's content. */
 const CONTENT_KEYS = ['body', 'bodyText', 'bodyHtml', 'patch', 'diff', 'content'];
@@ -15,20 +15,51 @@ describe('the GitHub types the server maps', () => {
     ['zCombinedStatus', zCombinedStatus],
     ['zLabel', zLabel],
     ['zBranch', zBranch],
+    ['zGitHubMilestone', zGitHubMilestone],
   ] as const)('%s has no body, diff nor content', (_, schema) => {
     expect(keysOf(schema).filter((key) => CONTENT_KEYS.includes(key))).toEqual([]);
   });
 
   it('keeps an issue to its metadata', () => {
-    expect(keysOf(zIssue).sort()).toEqual(['labels', 'milestone', 'number', 'state', 'title', 'updatedAt']);
+    expect(keysOf(zIssue).sort()).toEqual(['closedAt', 'createdAt', 'labels', 'milestone', 'number', 'state', 'stateReason', 'title', 'updatedAt']);
   });
 
   it('keeps a PR to its metadata', () => {
-    expect(keysOf(zPullRequest).sort()).toEqual(['baseRef', 'draft', 'headRef', 'headSha', 'labels', 'merged', 'number', 'state', 'title', 'updatedAt']);
+    expect(keysOf(zPullRequest).sort()).toEqual([
+      'baseRef',
+      'createdAt',
+      'draft',
+      'headRef',
+      'headSha',
+      'labels',
+      'mergeSha',
+      'merged',
+      'mergedAt',
+      'mergedBy',
+      'number',
+      'state',
+      'title',
+      'updatedAt',
+    ]);
+  });
+
+  it('keeps a milestone to its state, due day and counts', () => {
+    expect(keysOf(zGitHubMilestone).sort()).toEqual(['closedAt', 'closedIssues', 'dueOn', 'number', 'openIssues', 'state', 'title']);
   });
 
   it('drops the body of a payload it parses', () => {
-    const issue = { number: 3, title: 'Un ticket', state: 'open', labels: [], milestone: null, updatedAt: '2026-11-10T12:00:00Z', body: 'secret' };
+    const issue = {
+      number: 3,
+      title: 'Un ticket',
+      state: 'open',
+      stateReason: null,
+      labels: [],
+      milestone: null,
+      createdAt: '2026-11-10T11:00:00Z',
+      closedAt: null,
+      updatedAt: '2026-11-10T12:00:00Z',
+      body: 'secret',
+    };
 
     expect(zIssue.parse(issue)).not.toHaveProperty('body');
   });

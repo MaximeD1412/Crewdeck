@@ -129,6 +129,6 @@ export const linkFirstAppareil = async (page: Page, baseURL: string | undefined)
   close();
   await demarrage.getByRole('button', { name: 'Continuer' }).click();
   await expect(demarrage.getByRole('heading', { level: 1, name: 'Choisis tes Projets' })).toBeVisible();
-  await demarrage.getByRole('button', { name: 'Continuer' }).click();
+  await demarrage.getByRole('button', { name: 'Plus tard' }).click();
   await expect(page).toHaveURL('/a-toi');
 };

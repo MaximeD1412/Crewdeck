@@ -5,25 +5,31 @@ import type {
   CheckRun,
   CombinedStatus,
   CommitRef,
+  GitHubMilestone,
   GitHubUser,
+  InstallationRepository,
   InstallationToken,
   InstallationTokenOptions,
   Issue,
   IssuePage,
   IssueQuery,
   IssueRef,
+  IssueMilestone,
+  IssueParent,
   IssueState,
+  IssueStateReason,
   Label,
   LabelInput,
   MergeOptions,
-  Milestone,
   NewPullRequest,
   PullRequest,
+  PullRequestPage,
+  PullRequestQuery,
   RepoRef,
   UserTokens,
 } from '@crewdeck/contracts';
 import type { GitHubClient } from '../github/github.client.js';
-import { branchProtected, githubUnavailable, headMoved, processJsonInvalid, userTokenRefused } from '../github/github.errors.js';
+import { branchProtected, githubUnavailable, headMoved, installationGone, processJsonInvalid, userTokenRefused } from '../github/github.errors.js';
 import type { Fake } from './fakes.js';
 
 /** A file's content: text, or the bytes of an image (the captures). */
@@ -40,7 +46,8 @@ export interface FakeCall {
   readonly args: readonly unknown[];
 }
 
-interface FakeIssue extends Issue {
+/** An issue of the fake; its `parent` is the issue whose `subIssues` hold it, read when listed. */
+interface FakeIssue extends Omit<Issue, 'parent'> {
   body: string;
   subIssues: number[];
   blockedBy: IssueRef[];
@@ -60,11 +67,13 @@ interface FakePullRequest extends PullRequest {
 
 interface FakeRepo {
   readonly ref: RepoRef;
-  readonly installationId: number | undefined;
+  installationId: number | undefined;
+  readonly private: boolean;
   readonly defaultBranch: string;
   readonly branches: Map<string, { sha: string; protected: boolean }>;
   readonly labels: Map<string, Label>;
   readonly issues: Map<number, FakeIssue>;
+  readonly milestones: Map<number, GitHubMilestone>;
   readonly pullRequests: Map<number, FakePullRequest>;
   readonly checkRuns: Map<string, CheckRun[]>;
   readonly statuses: Map<string, CombinedStatus>;
@@ -77,6 +86,8 @@ export interface SeedRepo {
   readonly name: string;
   readonly id?: number;
   readonly installationId?: number;
+  /** True by default, as most of a Pilote's repositories. */
+  readonly private?: boolean;
   readonly defaultBranch?: string;
   /** The files of the first commit of the default branch. */
   readonly files?: Record<string, FileContent>;
@@ -86,12 +97,27 @@ export interface SeedIssue {
   readonly number?: number;
   readonly title: string;
   readonly state?: IssueState;
+  readonly stateReason?: IssueStateReason | null;
   readonly labels?: string[];
-  readonly milestone?: Milestone | null;
+  readonly milestone?: IssueMilestone | null;
   readonly body?: string;
+  readonly createdAt?: string;
+  readonly closedAt?: string | null;
   readonly updatedAt?: string;
   readonly subIssues?: number[];
   readonly blockedBy?: IssueRef[];
+}
+
+export interface SeedMilestone {
+  readonly number: number;
+  readonly title: string;
+  readonly state?: IssueState;
+  readonly dueOn?: string | null;
+  readonly openIssues?: number;
+  readonly closedIssues?: number;
+  readonly closedAt?: string | null;
+  /** The milestone's description: the fake keeps it, `listMilestones` never returns it. */
+  readonly description?: string;
 }
 
 const HOUR = 3_600_000;
@@ -118,6 +144,8 @@ export class FakeGitHub implements GitHubClient, Fake {
   private accessTokens = new Map<string, number>();
   private refreshTokens = new Map<string, number>();
   private installations = new Set<number>();
+  /** The installations uninstalled on GitHub: `github.installation-gone`, not `github.unavailable`. */
+  private uninstalled = new Set<number>();
   private counter = 0;
 
   reset(): void {
@@ -129,6 +157,7 @@ export class FakeGitHub implements GitHubClient, Fake {
     this.accessTokens = new Map();
     this.refreshTokens = new Map();
     this.installations = new Set();
+    this.uninstalled = new Set();
     this.counter = 0;
   }
 
@@ -145,6 +174,12 @@ export class FakeGitHub implements GitHubClient, Fake {
     this.installations.add(installationId);
   }
 
+  /** The App uninstalled on GitHub, as when the Pilote removes it (its webhook may be lost). */
+  uninstall(installationId: number): void {
+    this.installations.delete(installationId);
+    this.uninstalled.add(installationId);
+  }
+
   /** A repository with one commit on its default branch (`main`). */
   seedRepo(seed: SeedRepo): RepoRef {
     const ref: RepoRef = { owner: seed.owner, name: seed.name, id: seed.id ?? 1000 + this.repos.size + 1 };
@@ -153,10 +188,12 @@ export class FakeGitHub implements GitHubClient, Fake {
     this.repos.set(this.key(ref), {
       ref,
       installationId: seed.installationId,
+      private: seed.private ?? true,
       defaultBranch,
       branches: new Map([[defaultBranch, { sha: this.commit(new Map(Object.entries(seed.files ?? {}))), protected: false }]]),
       labels: new Map(),
       issues: new Map(),
+      milestones: new Map(),
       pullRequests: new Map(),
       checkRuns: new Map(),
       statuses: new Map(),
@@ -174,15 +211,44 @@ export class FakeGitHub implements GitHubClient, Fake {
       number,
       title: seed.title,
       state: seed.state ?? 'open',
+      stateReason: seed.stateReason ?? (seed.state === 'closed' ? 'completed' : null),
       labels: [...(seed.labels ?? [])],
       milestone: seed.milestone ?? null,
+      createdAt: seed.createdAt ?? SEEDED_AT,
+      closedAt: seed.closedAt ?? (seed.state === 'closed' ? (seed.updatedAt ?? SEEDED_AT) : null),
       updatedAt: seed.updatedAt ?? SEEDED_AT,
       body: seed.body ?? '',
       subIssues: [...(seed.subIssues ?? [])],
       blockedBy: [...(seed.blockedBy ?? [])],
     };
     fake.issues.set(number, issue);
-    return toIssue(issue);
+    return toIssue(fake, issue);
+  }
+
+  /** A milestone, or its new state when `number` exists. */
+  seedMilestone(repo: RepoRef, seed: SeedMilestone): GitHubMilestone {
+    const milestone: GitHubMilestone = {
+      number: seed.number,
+      title: seed.title,
+      state: seed.state ?? 'open',
+      dueOn: seed.dueOn ?? null,
+      openIssues: seed.openIssues ?? 0,
+      closedIssues: seed.closedIssues ?? 0,
+      closedAt: seed.closedAt ?? null,
+    };
+    this.repo(repo).milestones.set(seed.number, milestone);
+    return { ...milestone };
+  }
+
+  /** A PR merged on GitHub by `login` (the Pilote's button, not the App's merge). */
+  mergeByHand(repo: RepoRef, number: number, login: string): PullRequest {
+    const fake = this.repo(repo);
+    const pr = fake.pullRequests.get(number);
+    if (pr === undefined || pr.state !== 'open') throw new Error(`No open PR #${number} in ${this.key(repo)}`);
+    const sha = this.merge(fake, pr.baseRef, pr.headSha);
+    const at = new Date().toISOString();
+    Object.assign(pr, { state: 'closed', merged: true, mergedAt: at, mergeSha: sha, mergedBy: login, updatedAt: at });
+    return toPullRequest(pr);
   }
 
   /**
@@ -190,6 +256,11 @@ export class FakeGitHub implements GitHubClient, Fake {
    * exist) with `files` over its current ones; the open PRs of that head move
    * with it. Its SHA, to test `github.head-moved`.
    */
+  /** Takes the repository out of its installation, as the Pilote unticking it on GitHub. */
+  removeFromInstallation(repo: RepoRef): void {
+    this.repo(repo).installationId = undefined;
+  }
+
   async pushCommit(repo: RepoRef, branch: string, files: Record<string, FileContent> = {}): Promise<string> {
     const fake = this.repo(repo);
     if (!fake.branches.has(branch)) fake.branches.set(branch, { sha: this.head(fake, fake.defaultBranch), protected: false });
@@ -197,6 +268,14 @@ export class FakeGitHub implements GitHubClient, Fake {
     const sha = this.commit(new Map([...this.files(parent), ...Object.entries(files)]), [parent]);
     this.moveBranch(fake, branch, sha);
     return Promise.resolve(sha);
+  }
+
+  /** A force push of one commit, without a parent, holding the branch's current files: its history rewritten. */
+  squashBranch(repo: RepoRef, branch: string): string {
+    const fake = this.repo(repo);
+    const sha = this.commit(new Map(this.files(this.head(fake, branch))));
+    this.moveBranch(fake, branch, sha);
+    return sha;
   }
 
   protectBranch(repo: RepoRef, name: string): void {
@@ -295,11 +374,11 @@ export class FakeGitHub implements GitHubClient, Fake {
     });
   }
 
-  listInstallationRepositories(installationId: number): Promise<RepoRef[]> {
+  listInstallationRepositories(installationId: number): Promise<InstallationRepository[]> {
     this.record('listInstallationRepositories', installationId);
     return this.run(() => {
-      if (!this.installations.has(installationId)) throw githubUnavailable();
-      return [...this.repos.values()].filter((repo) => repo.installationId === installationId).map((repo) => repo.ref);
+      this.installed(installationId);
+      return [...this.repos.values()].filter((repo) => repo.installationId === installationId).map((repo) => ({ ...repo.ref, private: repo.private }));
     });
   }
 
@@ -323,6 +402,14 @@ export class FakeGitHub implements GitHubClient, Fake {
     return this.run(() => this.repo(repo).defaultBranch);
   }
 
+  countCommits(repo: RepoRef, branch: string, max: number): Promise<number> {
+    this.record('countCommits', repo, branch, max);
+    return this.run(() => {
+      const head = this.repo(repo).branches.get(branch);
+      return head === undefined ? 0 : Math.min(this.ancestors(head.sha).size, max);
+    });
+  }
+
   listIssues(repo: RepoRef, query: IssueQuery): Promise<IssuePage> {
     this.record('listIssues', repo, query);
     return this.run(() => {
@@ -332,8 +419,26 @@ export class FakeGitHub implements GitHubClient, Fake {
         .filter((issue) => since === undefined || Date.parse(issue.updatedAt) >= since)
         .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || b.number - a.number);
       const page = Number(query.cursor ?? '1');
-      const items = issues.slice((page - 1) * 100, page * 100).map(toIssue);
+      const items = issues.slice((page - 1) * 100, page * 100).map((issue) => toIssue(this.repo(repo), issue));
       return { items, nextCursor: issues.length > page * 100 ? String(page + 1) : null };
+    });
+  }
+
+  listMilestones(repo: RepoRef): Promise<GitHubMilestone[]> {
+    this.record('listMilestones', repo);
+    return this.run(() => [...this.repo(repo).milestones.values()].sort((a, b) => a.number - b.number).map((milestone) => ({ ...milestone })));
+  }
+
+  listPullRequests(repo: RepoRef, query: PullRequestQuery): Promise<PullRequestPage> {
+    this.record('listPullRequests', repo, query);
+    return this.run(() => {
+      const prs = [...this.repo(repo).pullRequests.values()]
+        .filter((pr) => query.state === 'all' || pr.state === query.state)
+        .sort((a, b) => b.number - a.number);
+      const page = Number(query.cursor ?? '1');
+      // As GitHub's list: `merged_by` only comes with a single PR.
+      const items = prs.slice((page - 1) * 100, page * 100).map((pr) => ({ ...toPullRequest(pr), mergedBy: null }));
+      return { items, nextCursor: prs.length > page * 100 ? String(page + 1) : null };
     });
   }
 
@@ -361,7 +466,7 @@ export class FakeGitHub implements GitHubClient, Fake {
       const fake = this.repo(repo);
       return this.issue(fake, number).subIssues.flatMap((sub) => {
         const issue = fake.issues.get(sub);
-        return issue === undefined ? [] : [toIssue(issue)];
+        return issue === undefined ? [] : [toIssue(fake, issue)];
       });
     });
   }
@@ -444,6 +549,10 @@ export class FakeGitHub implements GitHubClient, Fake {
         headSha: head.sha,
         baseRef: pullRequest.base,
         labels: [],
+        createdAt: new Date().toISOString(),
+        mergedAt: null,
+        mergeSha: null,
+        mergedBy: null,
         updatedAt: new Date().toISOString(),
         body: '',
         files: [],
@@ -461,7 +570,8 @@ export class FakeGitHub implements GitHubClient, Fake {
       if (pr === undefined || pr.state !== 'open') throw githubUnavailable();
       if (pr.headSha !== options.sha) throw headMoved();
       const sha = this.merge(fake, pr.baseRef, pr.headSha);
-      Object.assign(pr, { state: 'closed', merged: true, updatedAt: new Date().toISOString() });
+      const at = new Date().toISOString();
+      Object.assign(pr, { state: 'closed', merged: true, mergedAt: at, mergeSha: sha, mergedBy: APP_LOGIN, updatedAt: at });
       return { sha };
     });
   }
@@ -516,6 +626,12 @@ export class FakeGitHub implements GitHubClient, Fake {
   private async run<T>(fn: () => T): Promise<T> {
     await Promise.resolve();
     return fn();
+  }
+
+  /** What `listInstallationRepositories` says of an installation: `github.installation-gone` uninstalled, `github.unavailable` never seeded. */
+  private installed(installationId: number): void {
+    if (this.uninstalled.has(installationId)) throw installationGone();
+    if (!this.installations.has(installationId)) throw githubUnavailable();
   }
 
   private next(): number {
@@ -651,14 +767,27 @@ const CONFLICT = Symbol('conflict');
 const sameContent = (a: FileContent | undefined, b: FileContent | undefined): boolean =>
   a === undefined || b === undefined ? a === b : Buffer.from(a).equals(Buffer.from(b));
 
-const toIssue = (issue: FakeIssue): Issue => ({
+/** The login of the App's merges. */
+const APP_LOGIN = 'crewdeck[bot]';
+
+/** An issue as GitHub lists it: its parent, the issue of its repository whose sub-issues hold it. */
+const toIssue = (fake: FakeRepo, issue: FakeIssue): Issue => ({
   number: issue.number,
   title: issue.title,
   state: issue.state,
+  stateReason: issue.stateReason,
   labels: [...issue.labels],
   milestone: issue.milestone && { ...issue.milestone },
+  parent: parentIn(fake, issue.number),
+  createdAt: issue.createdAt,
+  closedAt: issue.closedAt,
   updatedAt: issue.updatedAt,
 });
+
+const parentIn = (fake: FakeRepo, number: number): IssueParent | null => {
+  const parent = [...fake.issues.values()].find((candidate) => candidate.subIssues.includes(number));
+  return parent ? { owner: fake.ref.owner, name: fake.ref.name, number: parent.number } : null;
+};
 
 const toPullRequest = (pr: FakePullRequest): PullRequest => ({
   number: pr.number,
@@ -670,5 +799,9 @@ const toPullRequest = (pr: FakePullRequest): PullRequest => ({
   headSha: pr.headSha,
   baseRef: pr.baseRef,
   labels: [...pr.labels],
+  createdAt: pr.createdAt,
+  mergedAt: pr.mergedAt,
+  mergeSha: pr.mergeSha,
+  mergedBy: pr.mergedBy,
   updatedAt: pr.updatedAt,
 });

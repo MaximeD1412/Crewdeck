@@ -7,9 +7,32 @@ const pilotSlice: StateContributor = { key: 'pilot', snapshot: () => Promise.rej
 const runnerSlice: StateContributor = { ...pilotSlice, key: 'runner' };
 const linkSlice: StateContributor = { ...pilotSlice, key: 'runner-link' };
 const aiAccountSlice: StateContributor = { ...pilotSlice, key: 'ai-account' };
+const mcpServerSlice: StateContributor = { ...pilotSlice, key: 'mcp-server' };
 const devicesSlice: StateContributor = { ...pilotSlice, key: 'devices' };
 const settingsSlice: StateContributor = { ...pilotSlice, key: 'settings' };
+const projectsSlice: StateContributor = { ...pilotSlice, key: 'projects' };
+const processesSlice: StateContributor = { ...pilotSlice, key: 'processes' };
+const repositoriesSlice: StateContributor = { ...pilotSlice, key: 'repositories' };
 const decisionsSlice: StateContributor = { ...pilotSlice, key: 'decisions' };
+const ticketsSlice: StateContributor = { ...pilotSlice, key: 'tickets' };
+const milestonesSlice: StateContributor = { ...pilotSlice, key: 'milestones' };
+const codeChangesSlice: StateContributor = { ...pilotSlice, key: 'codeChanges' };
+const all = [
+  pilotSlice,
+  runnerSlice,
+  linkSlice,
+  aiAccountSlice,
+  mcpServerSlice,
+  devicesSlice,
+  settingsSlice,
+  projectsSlice,
+  processesSlice,
+  repositoriesSlice,
+  decisionsSlice,
+  ticketsSlice,
+  milestonesSlice,
+  codeChangesSlice,
+];
 
 const boot = (contributors: StateContributor[]): void => {
   const registry = new Registry<StateContributor>();
@@ -19,13 +42,15 @@ const boot = (contributors: StateContributor[]): void => {
 
 describe('StateController at boot', () => {
   it('starts when every slice of STATE_SLICES has one contributor', () => {
-    expect(() => boot([pilotSlice, runnerSlice, linkSlice, aiAccountSlice, devicesSlice, settingsSlice, decisionsSlice])).not.toThrow();
+    expect(() => boot(all)).not.toThrow();
   });
 
   it('refuses to start with a slice missing, repeated or not in STATE_SLICES', () => {
-    expect(() => boot([])).toThrow(/missing \[pilot, runner, runner-link, ai-account, devices, settings, decisions\]/);
-    expect(() => boot([pilotSlice])).toThrow(/missing \[runner, runner-link, ai-account, devices, settings, decisions\]/);
-    expect(() => boot([pilotSlice, runnerSlice, linkSlice, aiAccountSlice, devicesSlice, settingsSlice, decisionsSlice, pilotSlice])).toThrow(/repeated \[pilot\]/);
+    expect(() => boot([])).toThrow(/missing \[pilot, runner, runner-link, ai-account, mcp-server, devices, settings, projects, processes, repositories, decisions, tickets, milestones, codeChanges\]/);
+    expect(() => boot([pilotSlice])).toThrow(
+      /missing \[runner, runner-link, ai-account, mcp-server, devices, settings, projects, processes, repositories, decisions, tickets, milestones, codeChanges\]/,
+    );
+    expect(() => boot([...all, pilotSlice])).toThrow(/repeated \[pilot\]/);
     expect(() => boot([pilotSlice, runnerSlice, { ...pilotSlice, key: 'ideas' as never }])).toThrow(/repeated \[ideas\]/);
   });
 });

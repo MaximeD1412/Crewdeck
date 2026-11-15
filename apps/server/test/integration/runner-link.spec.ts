@@ -23,7 +23,10 @@ import { WebSessions } from '../../src/auth/web-sessions.js';
 import { appOrigin, parseEnv } from '../../src/config/env.js';
 import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
+import { DecisionsService } from '../../src/decisions/decisions.service.js';
+import { Transactions } from '../../src/realtime/transactions.js';
 import { RunnerClock } from '../../src/runners/clock.js';
+import { runnerOfflineDecision } from '../../src/runners/runner-offline.service.js';
 import { RunnerLinkLimiter } from '../../src/runners/link/link-limiter.js';
 import { RunnerLinkSweep } from '../../src/runners/link/runner-link-sweep.job.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
@@ -392,6 +395,22 @@ describe('linking a Runner against PostgreSQL', () => {
       expect(await again.expect('hello.rejected')).toMatchObject({ reason: 'revoked' });
       expect(await (await page(alice, '/api/runner')).json()).toEqual(second.runner);
       expect((await state(alice)).runner).toMatchObject({ id: second.runner.id, machine: 'portable' });
+    });
+
+    it('resolves the replaced Runner’s « Runner hors ligne » in the confirm’s transaction (ATOI-3)', async () => {
+      const alice = await pilot();
+      const first = await link(alice);
+      const waiting = [{ projectId: null, name: 'Idées', items: [{ kind: 'ideas-waiting' as const, count: 1 }] }];
+      await runInPilotScope(alice.id, () =>
+        app.get(Transactions).run((tx) => app.get(DecisionsService).raise(tx, runnerOfflineDecision({ id: first.runner.id, lastSeenAt: new Date() }, waiting))),
+      );
+
+      await link(alice, { machine: 'portable' }, { deviceId: first.code.deviceId, sides: first.code.sides, first: false });
+
+      expect(await sql('SELECT subject_id, state, outcome FROM decisions WHERE pilot_id = $1', [alice.id])).toEqual([
+        { subject_id: first.runner.id, state: 'resolved', outcome: 'runner-replaced' },
+      ]);
+      expect(await eventsOf(alice.id, 'decision.removed')).toHaveLength(1);
     });
 
     it('answers 409 to a pending code past its 10 minutes, the code expired', async () => {

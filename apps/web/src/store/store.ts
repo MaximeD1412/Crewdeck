@@ -1,4 +1,22 @@
-import type { AccountSettings, AiAccount, Decision, Device, Event, Me, Resource, Runner, RunnerLink, State } from '@crewdeck/contracts';
+import type {
+  AccountSettings,
+  AiAccount,
+  CodeChange,
+  Decision,
+  Device,
+  Event,
+  McpServer,
+  Me,
+  Milestone,
+  Project,
+  ProjectProcess,
+  Repository,
+  Resource,
+  Runner,
+  RunnerLink,
+  State,
+  Ticket,
+} from '@crewdeck/contracts';
 import type { VaultState } from '../keys/vault.js';
 
 /**
@@ -21,11 +39,28 @@ export interface Slices {
   readonly 'runner-link': RunnerLink | null;
   /** The Pilote's Comptes IA by id, one per Moteur their Runner reported (RUNNER-7). */
   readonly 'ai-account': ReadonlyMap<string, AiAccount>;
+  /** The Serveurs MCP declared on the Pilote's Runner, by id, as it last reported them (RUNNER-16). */
+  readonly 'mcp-server': ReadonlyMap<string, McpServer>;
   /** The Pilote's Appareils, by id (E2E-2), from the snapshot's `devices`. */
   readonly device: ReadonlyMap<string, Device>;
   readonly settings: AccountSettings | null;
+  /** The Pilote's Projets, by id (PROJET-2), from the snapshot's `projects`. */
+  readonly project: ReadonlyMap<string, Project>;
+  /** The Process of each Projet (PROCESS-3), by the Projet's id, from the snapshot's `processes`: its active version and its draft. */
+  readonly process: ReadonlyMap<string, ProjectProcess>;
+  /**
+   * Their Dépôts GitHub, by id (PROJET-2), from the snapshot's `repositories`:
+   * those not followed; one followed since stays, `followed: true`.
+   */
+  readonly repository: ReadonlyMap<string, Repository>;
   /** The open Décisions (ATOI-1), by id, from the snapshot's `decisions`. */
   readonly decision: ReadonlyMap<string, Decision>;
+  /** The Tickets of every Projet (BOUCLE-1), by id, from the snapshot's `tickets`: the open ones and those closed in the last 30 days. */
+  readonly ticket: ReadonlyMap<string, Ticket>;
+  /** Their milestones, by id, from the snapshot's `milestones`. */
+  readonly milestone: ReadonlyMap<string, Milestone>;
+  /** Their changes of code, by id, from the snapshot's `codeChanges`. */
+  readonly 'code-change': ReadonlyMap<string, CodeChange>;
 }
 
 export interface StoreState {

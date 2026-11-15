@@ -107,7 +107,10 @@ export const MenuItem = defineComposant({
  * The Cadre (US-23): what lays out the whole page. At 1280 a sidebar (the
  * brand, the menu, the Runner's state and the Pilote at its foot), at 390 a
  * top bar and a tab bar whose « Plus » opens the other entries in a sheet;
- * `bare` shows only the brand above the page (sign-in, getting started).
+ * `bare` shows only the brand above the page (sign-in, getting started);
+ * `compact` keeps only the icons in a narrow sidebar at 1280 and gives the
+ * page the rest of the width and the whole height (« Gestion du process »),
+ * and is the default Cadre below.
  * `openPilot` is the Pilote's avatar, which leads to `/parametres`.
  */
 export const Cadre = defineComposant({
@@ -117,7 +120,7 @@ export const Cadre = defineComposant({
   category: 'cadre',
   description: 'Le Cadre de la page : le menu, la page, le panneau et les dialogues.',
   data: z.object({
-    variant: z.enum(['default', 'bare']),
+    variant: z.enum(['default', 'bare', 'compact']),
     current: zNavId.nullable(),
     screenLabel: z.string(),
     status: zCadreStatus,
@@ -179,6 +182,19 @@ export const Cadre = defineComposant({
         pilot: null,
       },
       slots: { default: PAGE },
+    },
+    {
+      name: 'compact, la Gestion du process',
+      data: {
+        variant: 'compact',
+        current: 'projets',
+        screenLabel: 'Gestion du process',
+        status: 'online',
+        statusDetail: 'Claude Code, Codex',
+        live: true,
+        pilot: { login: 'maximed1412', avatarUrl: null },
+      },
+      slots: { menu: menu(entries('projets', { 'a-toi': 9, idees: 4, conceptions: 2, boucle: 2 })), default: PAGE },
     },
   ],
 });

@@ -1,0 +1,77 @@
+{
+  "action": "completed",
+  "check_run": {
+    "id": 128620228,
+    "name": "ci",
+    "head_sha": "6dcb09b5b57875f334f61aebed695e2e4193db5e",
+    "status": "completed",
+    "conclusion": "success",
+    "started_at": "2026-11-11T09:00:00Z",
+    "completed_at": "2026-11-11T09:02:30Z",
+    "html_url": "https://github.com/octo-fixture/fixture-app/runs/128620228",
+    "output": {
+      "title": "<title>",
+      "summary": "<summary>",
+      "text": "<text>",
+      "annotations_count": 0
+    },
+    "check_suite": {
+      "id": 118578147,
+      "head_branch": "feat/42-connexion",
+      "head_sha": "6dcb09b5b57875f334f61aebed695e2e4193db5e",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "app": {
+      "id": 4242,
+      "slug": "ci"
+    },
+    "pull_requests": [
+      {
+        "id": 279147437,
+        "number": 43,
+        "url": "https://api.github.com/repos/octo-fixture/fixture-app/pulls/43",
+        "head": {
+          "ref": "feat/42-connexion",
+          "sha": "6dcb09b5b57875f334f61aebed695e2e4193db5e",
+          "repo": {
+            "id": 71000001,
+            "name": "fixture-app"
+          }
+        },
+        "base": {
+          "ref": "develop",
+          "sha": "9049f1265b7d61be4a8904a9a27120d2064dab3b",
+          "repo": {
+            "id": 71000001,
+            "name": "fixture-app"
+          }
+        }
+      }
+    ]
+  },
+  "repository": {
+    "id": 71000001,
+    "node_id": "R_fixture",
+    "name": "fixture-app",
+    "full_name": "octo-fixture/fixture-app",
+    "private": true,
+    "owner": {
+      "login": "octo-fixture",
+      "id": 9100001,
+      "type": "User"
+    },
+    "default_branch": "main",
+    "html_url": "https://github.com/octo-fixture/fixture-app",
+    "description": "<description>"
+  },
+  "installation": {
+    "id": 51000001,
+    "node_id": "MDIzOkludGVncmF0aW9uSW5zdGFsbGF0aW9uNTEwMDAwMDE="
+  },
+  "sender": {
+    "login": "octo-fixture",
+    "id": 9100001,
+    "type": "User"
+  }
+}

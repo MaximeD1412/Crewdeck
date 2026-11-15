@@ -37,6 +37,10 @@ const ONLINE: Data = {
   ],
   command: 'crewdeck-runner login claude',
   runner: RUNNER,
+  mcpServers: [
+    { name: 'figma', transport: 'http', state: 'ready', toolCount: 4 },
+    { name: 'stitch', transport: 'stdio', state: 'ready', toolCount: 12 },
+  ],
 };
 
 const page = (data: Data, slots?: Record<string, string>) => render(COMPOSANTS.PageRunner, data, slots);
@@ -48,6 +52,7 @@ const rows = (host: Element) =>
     meta: row.data['meta'],
     badge: (row.querySelector('cd-status-badge') as WithData | null)?.data,
   }));
+const mainCards = (el: Element) => all(el, '.main > *').map((node) => (node.tagName === 'SLOT' ? 'usage' : node.className));
 
 describe('PageRunner', () => {
   it('lists every model of every Moteur, usable or why not, under « Moteurs et modèles »', async () => {
@@ -122,11 +127,62 @@ describe('PageRunner', () => {
     });
   });
 
-  it('places the Emplacement usage at the top of the main column', async () => {
+  it('lists the Serveurs MCP declared on the Runner, their transport and tool count, and whether their test passed', async () => {
+    const el = await page({
+      ...ONLINE,
+      mcpServers: [
+        { name: 'figma', transport: 'http', state: 'ready', toolCount: 4 },
+        { name: 'notion', transport: 'http', state: 'failed', toolCount: null },
+        { name: 'stitch', transport: 'stdio', state: 'ready', toolCount: 1 },
+      ],
+    });
+    const mcp = child(el, 'cd-card.mcp');
+    expect(mcp.data).toEqual({ title: 'Serveurs MCP', count: 3, label: 'Serveurs MCP', flush: true });
+    expect(rows(mcp)).toEqual([
+      { title: 'figma', meta: 'HTTP · 4 outils', badge: { tone: 'go', label: 'déclaré' } },
+      { title: 'notion', meta: 'HTTP', badge: { tone: 'halt', label: 'en échec' } },
+      { title: 'stitch', meta: 'stdio · 1 outil', badge: { tone: 'go', label: 'déclaré' } },
+    ]);
+    expect([...mcp.querySelectorAll<WithData>('cd-list-row')].map((row) => row.data['icon'])).toEqual(['layers', 'layers', 'layers']);
+  });
+
+  it('says when no Serveur MCP is declared', async () => {
+    const el = await page({ ...ONLINE, mcpServers: [] });
+    const mcp = child(el, 'cd-card.mcp');
+    expect(mcp.data).toEqual({ title: 'Serveurs MCP', count: 0, label: 'Serveurs MCP' });
+    expect(rows(mcp)).toEqual([]);
+    expect(textOf(mcp.querySelector('p') as HTMLElement)).toBe('Aucun Serveur MCP déclaré.');
+  });
+
+  it('shows how to declare a Serveur MCP, on the machine, its secrets kept there', async () => {
+    const el = await page(ONLINE);
+    const declare = child(el, 'cd-card.mcp-declare');
+    expect(declare.data).toEqual({ title: 'Déclarer un Serveur MCP', label: 'Déclarer un Serveur MCP' });
+    expect(textOf(declare.querySelector('p') as HTMLElement)).toBe(
+      'Sur ta machine, jamais ici : ses secrets restent sur le Runner. Il s’attache ensuite aux Étapes, dans la Gestion du process de chaque Projet.',
+    );
+    expect((declare.querySelector('cd-code-block') as WithData).data).toEqual({ code: 'crewdeck-runner mcp add <nom> -- <commande>' });
+  });
+
+  it('keeps the Serveurs MCP as last reported while the Runner is offline', async () => {
+    const el = await page({ ...ONLINE, runner: { ...RUNNER, state: 'offline' } });
+    expect(rows(child(el, 'cd-card.mcp')).map((row) => row.title)).toEqual(['figma', 'stitch']);
+  });
+
+  it('places the Serveurs MCP first in the main column, then the Emplacement usage', async () => {
     const el = await page(ONLINE, { usage: '<p class="usage">Usage</p>' });
     const slot = inside<HTMLSlotElement>(el, '.main slot[name=usage]');
     expect(slot.assignedElements().map((node) => node.className)).toEqual(['usage']);
-    expect(slot.compareDocumentPosition(child(el, 'cd-card.engines')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(mainCards(el)).toEqual(['mcp', 'mcp-declare', 'usage', 'engines', 'connect']);
+  });
+
+  it('draws both MCP cards for each of its examples', async () => {
+    for (const example of COMPOSANTS.PageRunner.examples) {
+      const el = await page(example.data as Data);
+      expect(mainCards(el).slice(0, 2), example.name).toEqual(['mcp', 'mcp-declare']);
+      expect(rows(child(el, 'cd-card.mcp')).length, example.name).toBe(example.data.mcpServers.length);
+      document.body.replaceChildren();
+    }
   });
 
   it('shows no Runner card while none is linked', async () => {

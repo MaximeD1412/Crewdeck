@@ -2,10 +2,14 @@ import { z } from 'zod';
 import { zAiAccount } from './ai-accounts.js';
 import { zDecision } from './decisions.js';
 import { zDevice } from './devices.js';
+import { zMcpServer } from './mcp-servers.js';
 import { zMe } from './me.js';
+import { zProjectProcess } from './process.js';
+import { REPOSITORIES_MAX, zProject, zRepository } from './projects.js';
 import { zRunner } from './runner.js';
 import { zRunnerLink } from './runner-link.js';
 import { zAccountSettings } from './settings.js';
+import { zCodeChange, zMilestone, zTicket } from './tickets.js';
 import { zSeq } from '../values.js';
 
 /**
@@ -21,12 +25,26 @@ export const STATE_SLICES = {
   'runner-link': zRunnerLink.nullable(),
   /** The Pilote's Comptes IA, one per Moteur their Runner reported (RUNNER-7). */
   'ai-account': z.array(zAiAccount),
+  /** The Serveurs MCP the Pilote's Runner last reported, by name (RUNNER-16). */
+  'mcp-server': z.array(zMcpServer),
   /** The Pilote's Appareils (E2E-2), newest first; `current` is `false`, each page sets its own. */
   devices: z.array(zDevice),
   /** The Paramètres of the account. */
   settings: zAccountSettings,
+  /** The Pilote's Projets (PROJET-2), by name. */
+  projects: z.array(zProject),
+  /** The Process of each Projet (PROCESS-3): its active version and its draft, keyed by the Projet's id. */
+  processes: z.array(zProjectProcess),
+  /** The Dépôts GitHub their installations reach and they do not follow yet (PROJET-2), by name, at most `REPOSITORIES_MAX`. */
+  repositories: z.array(zRepository).max(REPOSITORIES_MAX),
   /** The open Décisions, every one (« À toi »). */
   decisions: z.array(zDecision),
+  /** Every open Ticket of every Projet, and those closed in the last 30 days (BOUCLE-1). */
+  tickets: z.array(zTicket),
+  /** The open milestones, and those closed in the last 30 days. */
+  milestones: z.array(zMilestone),
+  /** The open and draft changes of code, and those merged or closed in the last 30 days. */
+  codeChanges: z.array(zCodeChange),
 } as const;
 export type StateKey = keyof typeof STATE_SLICES;
 

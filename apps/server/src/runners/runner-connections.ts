@@ -1,4 +1,4 @@
-import { type ServerToRunner, zServerToRunner } from '@crewdeck/contracts';
+import { type Hello, type ServerToRunner, zServerToRunner } from '@crewdeck/contracts';
 import { Injectable } from '@nestjs/common';
 import { newId } from '../ids.js';
 
@@ -22,14 +22,32 @@ export interface RunnerLink {
   close(code: number, reason: string): void;
 }
 
+/** Called with a socket whose `hello` was just accepted, and that `hello`. */
+export type RunnerAcceptedHandler = (link: RunnerLink, hello: Hello) => void;
+
 /**
  * The socket of each Pilote's Runner (one Runner per Pilote, one socket per
  * Runner), in the memory of this server process: a newer accepted `hello`
  * takes the place of the one before, which its caller closes with 4409.
+ * Who answers a `hello` once accepted (the Miroir's replay, MIROIR-1)
+ * registers with `onAccepted`.
  */
 @Injectable()
 export class RunnerConnections {
   private readonly links = new Map<string, RunnerLink>();
+  private readonly acceptedHandlers = new Set<RunnerAcceptedHandler>();
+
+  /** Calls `handler` after each accepted `hello`, its socket still its Pilote's; returns its removal. */
+  onAccepted(handler: RunnerAcceptedHandler): () => void {
+    this.acceptedHandlers.add(handler);
+    return () => this.acceptedHandlers.delete(handler);
+  }
+
+  /** `link`'s `hello` was accepted, after `hello.accepted` and the presence's hooks; a handler handles its own failures. */
+  accepted(link: RunnerLink, hello: Hello): void {
+    if (this.links.get(link.pilotId) !== link) return;
+    for (const handler of this.acceptedHandlers) handler(link, hello);
+  }
 
   /** The socket of `pilotId`'s Runner, `undefined` when it is not connected. */
   of(pilotId: string): RunnerLink | undefined {

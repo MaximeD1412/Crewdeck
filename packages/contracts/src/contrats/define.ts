@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AGENT_KINDS } from '../process/catalogue.js';
 
 /**
  * Contrats as data (ADR 0005): each Étape's output is checked against a
@@ -8,8 +9,8 @@ import { z } from 'zod';
  * declarations (`contratLabel`), so the content never travels.
  */
 
-/** The Étapes of the Process that may have a Contrat. */
-export const STEP_IDS = ['idea-analysis', 'inventory', 'prd', 'mockups', 'technical-design', 'cross-review', 'split', 'code', 'review'] as const;
+/** The Étapes of the Process that may have a Contrat: the agent kinds of the catalogue (ADR 0011). */
+export const STEP_IDS = AGENT_KINDS;
 export const zStepId = z.enum(STEP_IDS);
 export type StepId = z.infer<typeof zStepId>;
 

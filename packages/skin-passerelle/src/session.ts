@@ -4,11 +4,12 @@ import { PasserelleElement, sharedStyles } from './base.js';
 
 type State = ComposantData<typeof Session>['state'];
 
-const STATES: Readonly<Record<State, { tone: 'go' | 'caution' | 'neutral'; label: MessageKey }>> = {
+const STATES: Readonly<Record<State, { tone: 'go' | 'caution' | 'neutral' | 'halt'; label: MessageKey }>> = {
   active: { tone: 'go', label: 'session.state.active' },
   waiting: { tone: 'caution', label: 'session.state.waiting' },
   stopped: { tone: 'neutral', label: 'session.state.stopped' },
   interrupted: { tone: 'caution', label: 'session.state.interrupted' },
+  failed: { tone: 'halt', label: 'session.state.failed' },
 };
 
 /** How close to the bottom, in px, still counts as « at the bottom ». */
@@ -16,7 +17,8 @@ const BOTTOM_SLACK = 24;
 
 /**
  * `cd-session`: its head (the back arrow on a phone, its state, « Arrêter »
- * or « Reprendre », « Agrandir » and « Fermer » at 1280 px), its messages in a
+ * or « Reprendre » (or its `resumeLabel` and `resumeIcon`, « Relancer » for a
+ * failed Commande), « Agrandir » and « Fermer » at 1280 px), its messages in a
  * polite log that keeps to the bottom while the Pilote has not scrolled up,
  * then its Composer. Given a height, the log scrolls; without one, it grows.
  */
@@ -165,7 +167,7 @@ export class PasserelleSession extends PasserelleElement<typeof Session> {
   }
 
   protected override render() {
-    const { title, meta, state, resumeDisabledReason } = this.data;
+    const { title, meta, state, resumeLabel, resumeIcon, resumeDisabledReason } = this.data;
     const { tone, label } = STATES[state];
     const running = state === 'active' || state === 'waiting';
     return html`<header part="head" class=${state}>
@@ -191,10 +193,10 @@ export class PasserelleSession extends PasserelleElement<typeof Session> {
             : html`<cd-button
                 class="resume"
                 .data=${{
-                  label: t('session.resume'),
+                  label: resumeLabel ?? t('session.resume'),
                   variant: 'secondary',
                   size: 'sm',
-                  icon: 'play',
+                  icon: resumeIcon ?? 'play',
                   ...(resumeDisabledReason === null ? {} : { state: 'disabled', disabledReason: resumeDisabledReason }),
                 }}
                 @click=${() => this.resume()}

@@ -1,4 +1,4 @@
-import type { EngineEvent, TabRelayClientMessage, TabRelayServerMessage } from '@crewdeck/contracts';
+import { type EngineEvent, INPUT_CIPHERTEXT_MAX, type TabRelayClientMessage, type TabRelayServerMessage } from '@crewdeck/contracts';
 import { server } from 'vitest/browser';
 import { concat, fromBase64Url, toBase64Url, utf8 } from '../keys/bytes.js';
 import { aesGcmOpen, aesGcmSeal, importAesKey } from '../keys/crypto.js';
@@ -262,6 +262,51 @@ describe('the relay of a Session in the page', () => {
     socket.drop();
     await expect(relay.sendInput(v.sessionId, v.input.payload)).rejects.toEqual(new SessionInputError('not-connected'));
     expect(socket.sent.filter((sent) => sent.type === 'session.input')).toEqual([]);
+  });
+
+  it('sends an input up to the frame’s limit once sealed, and refuses one beyond it without sending it', async () => {
+    const { v, socket, relay } = await setUp();
+    relay.openSession(v.sessionId);
+    socket.receive(v.keys);
+    // '{"kind":"message","text":""}' is 28 bytes, "漢" 3: 28 + 87 366 × 3 + 2 + the 16 bytes of the tag is the limit.
+    const atTheLimit = { kind: 'message' as const, text: `${'漢'.repeat(87_366)}ok` };
+    const beyond = { kind: 'message' as const, text: `${'漢'.repeat(87_366)}oui` };
+
+    await relay.sendInput(v.sessionId, atTheLimit);
+    await expect(relay.sendInput(v.sessionId, beyond)).rejects.toEqual(new SessionInputError('too-large'));
+
+    const inputs = socket.sent.filter((sent) => sent.type === 'session.input');
+    expect(inputs).toHaveLength(1);
+    expect(fromBase64Url((inputs[0] as Extract<TabRelayClientMessage, { type: 'session.input' }>).ciphertext)).toHaveLength(INPUT_CIPHERTEXT_MAX);
+  });
+
+  it('shows nothing of a frame whose decryption ends after the Session was closed', async () => {
+    const { v, socket, relay } = await setUp();
+    const session = relay.openSession(v.sessionId);
+    socket.receive(v.keys);
+    // Its key opened: an input goes.
+    await relay.sendInput(v.sessionId, v.input.payload);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const decrypt = crypto.subtle.decrypt.bind(crypto.subtle);
+    const spy = vi.spyOn(crypto.subtle, 'decrypt').mockImplementation(async (...args) => {
+      await gate;
+      return decrypt(...args);
+    });
+
+    try {
+      socket.receive((v.frames[0] as RelayVectors['frames'][0]).frame);
+      await vi.waitFor(() => expect(spy).toHaveBeenCalled());
+      relay.closeSession(v.sessionId);
+      release();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(session.events()).toEqual([]);
   });
 
   it('stops following a closed Session, drops what it decrypted, and keeps none of it in the browser’s storage', async () => {

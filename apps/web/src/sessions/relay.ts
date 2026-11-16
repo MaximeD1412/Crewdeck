@@ -1,5 +1,6 @@
 import {
   type EngineEvent,
+  INPUT_CIPHERTEXT_MAX,
   type SessionInputPayload,
   type SessionRelayError,
   type TabRelayClientMessage,
@@ -29,7 +30,10 @@ import { type SessionBuffer, createSessionBuffer } from './session-buffer.js';
  *   per missing `seq`; a socket open again (a reconnection) too;
  * - `sendInput`: the Pilote's input sealed under
  *   `"<sessionId>:input:<inputId>"`; sent again with the same `inputId`, the
- *   Runner hands it to the Moteur once.
+ *   Runner hands it to the Moteur once. One whose ciphertext would exceed
+ *   `INPUT_CIPHERTEXT_MAX` is refused in the page, never sent.
+ *
+ * A Session closed while a key or a frame is being opened keeps nothing of it.
  *
  * Nothing it decrypts leaves memory: no IndexedDB, no localStorage, no store
  * event; `closeSession` drops it.
@@ -55,9 +59,13 @@ export interface SessionSubscription {
   onChange(listener: () => void): () => void;
 }
 
-/** Why `sendInput` sent nothing: no key yet (the Session's keys not come), or no socket. */
+/**
+ * Why `sendInput` sent nothing: no key yet (the Session's keys not come), no
+ * socket, or an input whose ciphertext would exceed the frame's limit (the
+ * server would close the socket on it).
+ */
 export class SessionInputError extends Error {
-  constructor(readonly code: 'no-key' | 'not-connected') {
+  constructor(readonly code: 'no-key' | 'not-connected' | 'too-large') {
     super(`session relay: input not sent (${code})`);
     this.name = 'SessionInputError';
   }
@@ -139,6 +147,7 @@ export const createSessionRelay = ({
 
   const installKey = async (sessionId: string, session: Followed, { wraps }: Keys) => {
     const device = await devices.getDevice();
+    if (session.closed) return;
     if (!device?.runnerPublicKey) return warn('session relay: no Runner key on this Appareil, keys dropped', { sessionId });
     const holderId = toBase64Url(device.publicKey);
     const wrap = wraps.find((candidate) => candidate.holderId === holderId);
@@ -155,11 +164,16 @@ export const createSessionRelay = ({
     } catch {
       return warn('session relay: the keys do not open, dropped', { sessionId });
     }
+    let key: CryptoKey;
     try {
-      session.key = await importAesKey(raw);
+      if (session.closed) return;
+      key = await importAesKey(raw);
     } finally {
       raw.fill(0);
     }
+    // Closed while the key was opened: it stays out of the Session.
+    if (session.closed) return;
+    session.key = key;
     for (const frame of session.pending.splice(0)) await take(sessionId, session, frame);
   };
 
@@ -180,6 +194,8 @@ export const createSessionRelay = ({
       return;
     }
     const event = await openFrame(session.key, sessionId, frame);
+    // Closed while the frame was opened: nothing of it is shown nor kept.
+    if (session.closed) return;
     if (!event) return warn('session relay: a frame did not open, dropped', { sessionId, seq: frame.seq });
     const added = session.buffer.add(event);
     if (added === 'gap' && session.buffer.missing() !== session.asked) open(sessionId, session);
@@ -247,8 +263,11 @@ export const createSessionRelay = ({
       // The keys being opened come first.
       await session?.chain;
       if (!session?.key || session.closed) throw new SessionInputError('no-key');
-      const payload = zSessionInputPayload.parse(input);
-      const sealed = await aesGcmSeal(session.key, utf8(JSON.stringify(payload)), utf8(`${sessionId}:input:${inputId}`));
+      const plain = utf8(JSON.stringify(zSessionInputPayload.parse(input)));
+      // The ciphertext is the plaintext and the 16 bytes of the tag.
+      if (plain.length + 16 > INPUT_CIPHERTEXT_MAX) throw new SessionInputError('too-large');
+      const sealed = await aesGcmSeal(session.key, plain, utf8(`${sessionId}:input:${inputId}`));
+      if (session.closed) throw new SessionInputError('no-key');
       const sent = socket.sendRelay({
         type: 'session.input',
         sessionId,

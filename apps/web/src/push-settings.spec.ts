@@ -1,4 +1,4 @@
-import { DEFAULT_ACCOUNT_SETTINGS, type PushSubscription } from '@crewdeck/contracts';
+import { type AccountSettings, DEFAULT_ACCOUNT_SETTINGS, type PushSubscription } from '@crewdeck/contracts';
 import { t } from '@crewdeck/sdk';
 import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
@@ -14,6 +14,9 @@ const SUBSCRIBED: PushSubscribed = {
 const CHROME_WINDOWS = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 const ROW: PushSubscription = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a02', endpoint: ENDPOINT, label: 'Chrome · Windows', createdAt: '2026-11-12T09:00:00.000Z' };
 const OTHER: PushSubscription = { ...ROW, id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a01', endpoint: 'https://web.push.apple.com/QGx1', label: 'Safari · iPhone' };
+
+/** The account's settings, its push `push`. */
+const withPush = (push: boolean): AccountSettings => ({ ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'UTC', notifications: { push } });
 
 const refused = (status: number, code: string, message: string) => new ApiError({ status, code, message });
 
@@ -63,13 +66,40 @@ describe('createPushSettings', () => {
   });
 
   it('switches the account’s push with PATCH /api/settings, shown on its way until the store has it', async () => {
-    const { push, commands } = setup({ command: async () => DEFAULT_ACCOUNT_SETTINGS });
-    await push.toggle(true);
+    let answer: (value: unknown) => void = () => undefined;
+    const { push, commands } = setup({ command: () => new Promise((resolve) => (answer = resolve)) });
+    push.settled(withPush(false));
+    const switching = push.toggle(true);
     expect(commands).toHaveBeenCalledWith('PATCH', '/api/settings', { notifications: { push: true } }, expect.anything());
     expect(push.view().pushing).toBe(true);
-    push.settled(false);
+    push.settled(withPush(true));
+    expect(push.view().pushing).toBeNull();
+    answer(withPush(true));
+    await switching;
+    expect(push.view().pushing).toBeNull();
+  });
+
+  it('keeps the switch on its way, once acknowledged, until the store has moved on, then shows the store’s', async () => {
+    const { push } = setup({ command: async () => withPush(true) });
+    const before = withPush(false);
+    push.settled(before);
+    await push.toggle(true);
+    push.settled(before);
     expect(push.view().pushing).toBe(true);
-    push.settled(true);
+    // Its event lost in a disconnection, the Resynchronisation brings another tab’s switch off since.
+    push.settled(withPush(false));
+    expect(push.view().pushing).toBeNull();
+  });
+
+  it('ends the switch on its way at its acknowledgement when the store moved on meanwhile', async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    const { push } = setup({ command: () => new Promise((resolve) => (answer = resolve)) });
+    push.settled(withPush(false));
+    const switching = push.toggle(true);
+    push.settled({ ...withPush(false), timeZone: 'Europe/Paris' });
+    expect(push.view().pushing).toBe(true);
+    answer(withPush(true));
+    await switching;
     expect(push.view().pushing).toBeNull();
   });
 

@@ -175,7 +175,7 @@ export const boot = async ({
   const unsubscribe = [
     store.subscribe(() => {
       gettingStarted.sync();
-      pushSettings.settled(store.getState().slices.settings?.notifications.push);
+      pushSettings.settled(store.getState().slices.settings);
       router.refresh();
       shell.refresh();
     }),

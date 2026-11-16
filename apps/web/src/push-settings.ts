@@ -1,4 +1,4 @@
-import { zPublicConfig, type PushSubscription } from '@crewdeck/contracts';
+import { type AccountSettings, zPublicConfig, type PushSubscription } from '@crewdeck/contracts';
 import { t } from '@crewdeck/sdk';
 import type { Client } from './api/client.js';
 import { addPushSubscription, removePushSubscription } from './api/push-subscriptions.js';
@@ -24,8 +24,13 @@ export interface PushSettingsState {
   sync(): Promise<void>;
   /** Switches the account's push (`PATCH /api/settings`), shown on its way; refused, the Toggle back and why. */
   toggle(push: boolean): Promise<void>;
-  /** The store's account push (`settings.upserted`): the switch on its way ends once the store has it. */
-  settled(stored: boolean | undefined): void;
+  /**
+   * The store's account settings, after each change of the store: the switch
+   * on its way ends once the store has its value, or, once acknowledged, as
+   * soon as the store has moved on (a later change, a Resynchronisation that
+   * skipped its event).
+   */
+  settled(settings: AccountSettings | null | undefined): void;
   /** « Activer sur cet appareil »: the permission, the subscription with the server's VAPID key, then `POST /api/push-subscriptions`; why it failed under the button. */
   activate(): Promise<void>;
   /** « Retirer » (`DELETE /api/push-subscriptions/:id`); this browser's own row unsubscribes it too. */
@@ -50,6 +55,10 @@ export const createPushSettings = ({ client, device, userAgent, subscriptionOf }
   };
   const messageOf = (error: unknown) => (error instanceof ApiError ? error.message : t('settings.notifications.failed'));
   let toggles = 0;
+  // The store's settings as last seen (`settled`), and as they were when the switch on its way was acknowledged.
+  let stored: AccountSettings | null | undefined;
+  const PENDING = Symbol('pending');
+  let acked: AccountSettings | null | undefined | typeof PENDING = PENDING;
   // The server's VAPID key, read once ahead of the click (`sync`): read again after a failure.
   let key: Promise<string> | null = null;
   const keyOf = (): Promise<string> =>
@@ -71,16 +80,24 @@ export const createPushSettings = ({ client, device, userAgent, subscriptionOf }
     },
     async toggle(push) {
       const mine = ++toggles;
+      const before = stored;
+      acked = PENDING;
       set({ pushing: push, error: null });
       try {
         await updateSettings(client, { notifications: { push } });
+        if (mine !== toggles || state.pushing === null) return;
+        // The store moved on while it was on its way: it has this switch, or a later one, or soon will.
+        if (stored !== before) set({ pushing: null });
+        else acked = stored;
       } catch (error) {
         if (mine === toggles) set({ pushing: null, error: error instanceof ApiError ? error.message : t('settings.notifications.push.failed') });
       }
     },
-    settled(stored) {
+    settled(settings) {
+      stored = settings;
       // Silent: called as the store changes, which renders the page anyway.
-      if (state.pushing !== null && state.pushing === stored) state = { ...state, pushing: null };
+      if (state.pushing === null) return;
+      if (settings?.notifications.push === state.pushing || (acked !== PENDING && settings !== acked)) state = { ...state, pushing: null };
     },
     async activate() {
       if (!device.available || state.busy) return;

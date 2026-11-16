@@ -136,9 +136,9 @@ export const boot = async ({
     client,
     ...(keys.vault ? { vault: keys.vault } : {}),
     stored: {
-      worktreeCommands: (projectId) => {
+      projectSettings: (projectId) => {
         const settings = store.getState().slices.settings;
-        return settings ? (settings.projects.find((candidate) => candidate.projectId === projectId)?.worktreeCommands ?? null) : undefined;
+        return settings ? (settings.projects.find((candidate) => candidate.projectId === projectId) ?? null) : undefined;
       },
       subscribe: (fn) => store.subscribe(() => fn()),
     },

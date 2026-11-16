@@ -18,12 +18,14 @@ export interface ProjectSettingsOptions {
   /** The vault that opens and seals the worktree Commandes; none, they stay locked. */
   readonly vault?: Pick<Vault, 'sealItem' | 'openItem'>;
   /**
-   * The store's worktree Commandes of a Projet (`undefined` before it has the
-   * Paramètres), followed while the page's saves wait for it to hold them,
-   * whether the page is shown or not.
+   * The store's Paramètres of a Projet (`null` for none, `undefined` before
+   * it has the Paramètres), followed while the page's saves wait for it to
+   * hold them, whether the page is shown or not. Each `settings.upserted` of
+   * the Projet brings a new object, even when its Commandes stay the same:
+   * the event that confirms a save of `null` over `null`.
    */
   readonly stored?: {
-    worktreeCommands(projectId: string): SealedItem | null | undefined;
+    projectSettings(projectId: string): Pick<ProjectSettings, 'worktreeCommands'> | null | undefined;
     subscribe(fn: () => void): () => void;
   };
 }
@@ -83,8 +85,18 @@ interface Local {
    * one they replace) is never opened over what the page saved.
    */
   readonly pending: readonly Pending[];
-  /** The store's item last seen (`undefined` for none yet): only a change of it is recorded by a save on its way. */
-  readonly held: string | null | undefined;
+  /**
+   * What the store held when last seen (`undefined` for not yet): its item,
+   * and the Projet's Paramètres it came with (`undefined` without the store,
+   * the item given by `view`). Only a change of either is recorded by a save
+   * on its way.
+   */
+  readonly held: Held | undefined;
+}
+
+interface Held {
+  readonly version: unknown;
+  readonly current: string | null;
 }
 
 /**
@@ -143,14 +155,16 @@ export const createProjectSettings = ({ client, vault, stored }: ProjectSettings
    * item that confirms none, once it changed, is recorded by the save on its
    * way when that one is first: it may be its own event, come before its answer.
    */
-  const settle = (projectId: string, current: string | null) => {
+  const settle = (projectId: string, current: string | null, version: unknown) => {
     const local = localOf(projectId);
     const count = confirmed(local.pending, current);
     const pending = count > 0 ? local.pending.slice(count) : local.pending;
     const first = pending[0];
-    if (count === 0 && current !== local.held && isSaving(first)) first.seen.push(current);
-    locals.set(projectId, { ...local, pending, held: current });
+    const changed = !local.held || local.held.version !== version || local.held.current !== current;
+    if (count === 0 && changed && isSaving(first)) first.seen.push(current);
+    locals.set(projectId, { ...local, pending, held: { version, current } });
   };
+  const heldOf = (own: Pick<ProjectSettings, 'worktreeCommands'> | null): Held => ({ version: own, current: own?.worktreeCommands?.ciphertext ?? null });
 
   /**
    * A save on its way answered with what it stored (`undefined`: refused). The
@@ -166,11 +180,17 @@ export const createProjectSettings = ({ client, vault, stored }: ProjectSettings
   /** Follows the store while a save waits for it: each item it holds settles the saves, the page shown or not. */
   let following: (() => void) | null = null;
   const onStored = () => {
+    let settled = false;
     for (const [projectId, local] of locals) {
-      const current = stored?.worktreeCommands(projectId);
-      if (local.pending.length > 0 && current !== undefined) settle(projectId, current?.ciphertext ?? null);
+      const own = stored?.projectSettings(projectId);
+      if (local.pending.length === 0 || own === undefined) continue;
+      const { version, current } = heldOf(own);
+      settle(projectId, current, version);
+      settled ||= localOf(projectId).pending.length !== local.pending.length;
     }
     follow();
+    // The page shown follows: an item another tab wrote, the saves all confirmed, opens.
+    if (settled) notify();
   };
   function follow() {
     const waiting = [...locals.values()].some((local) => local.pending.length > 0);
@@ -255,9 +275,9 @@ export const createProjectSettings = ({ client, vault, stored }: ProjectSettings
         }
         // Followed from the start: its event may reach the store before its answer.
         const saving: Saving = { seen: [] };
-        const held = stored?.worktreeCommands(projectId);
+        const own = stored?.projectSettings(projectId);
         const before = localOf(projectId);
-        set(projectId, { pending: [...before.pending, saving], held: held === undefined ? before.held : (held?.ciphertext ?? null) });
+        set(projectId, { pending: [...before.pending, saving], held: own === undefined ? before.held : heldOf(own) });
         let answer: ProjectSettings;
         try {
           answer = await updateProjectSettings(client, projectId, { worktreeCommands });
@@ -282,10 +302,11 @@ export const createProjectSettings = ({ client, vault, stored }: ProjectSettings
       const current = sealed?.ciphertext ?? null;
       if (local.pending.length > 0) {
         // The store follows the page's saves; whatever it holds until it has them all, the page keeps what it saved.
-        settle(projectId, current);
+        // Followed by its events when given (a render is no event); else by what each render shows.
+        if (!stored) settle(projectId, current, undefined);
         follow();
       } else {
-        locals.set(projectId, { ...local, held: current });
+        if (!stored) locals.set(projectId, { ...local, held: { version: undefined, current } });
         if (!local.opened || local.opened.from !== current) open(projectId, sealed);
       }
       return { errors: local.errors, drafts: local.drafts, worktree: localOf(projectId).opened?.worktree ?? { state: 'opening' } };

@@ -310,24 +310,27 @@ describe('createProjectSettings, the worktree Commandes', () => {
   });
 
   it.each([
-    ['after its answer', false],
-    ['before its answer', true],
-  ] as const)('settles its saves on the store’s events while the page is closed, its own event come %s: another tab’s item, come meanwhile, opened on return and kept by the other field', async (_, late) => {
+    ['an item, its own event come after its answer', 'pnpm install', false],
+    ['an item, its own event come before its answer', 'pnpm install', true],
+    ['blanks (no item over no item), its own event come before its answer', '   ', true],
+  ] as const)('settles its saves on the store’s events while the page is closed, for %s: another tab’s item, come meanwhile, opened on return and kept by the other field', async (_, typed, late) => {
     const { client, calls, answer } = fakeClient();
     const vault = await unlockedVault();
     const seal = async (commands: object): Promise<SealedItem> => {
       const item = await vault.sealItem(utf8(JSON.stringify(commands)), AAD);
       return { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
     };
-    // The store at the page's boundary: what it holds of the Projet, its listeners told on each event.
+    // The store at the page's boundary: the Projet's Paramètres, a new object on each of its events, its listeners told.
     let inStore: SealedItem | null = null;
+    let own = stored(inStore);
     const listeners = new Set<() => void>();
     const deliver = (item: SealedItem | null) => {
       inStore = item;
+      own = stored(item);
       for (const listener of [...listeners]) listener();
     };
     const store = {
-      worktreeCommands: (projectId: string) => (projectId === PROJECT ? inStore : undefined),
+      projectSettings: (projectId: string) => (projectId === PROJECT ? own : undefined),
       subscribe: (fn: () => void) => {
         listeners.add(fn);
         return () => listeners.delete(fn);
@@ -336,25 +339,27 @@ describe('createProjectSettings, the worktree Commandes', () => {
     const settings = createProjectSettings({ client, vault, stored: store });
     settings.view(PROJECT, inStore, 'unlocked');
 
-    const saving = settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
+    const saving = settings.change(PROJECT, 'worktree:prepare', typed);
     if (late) {
       // The answer waits until both events below came: its own, then another tab's item.
       let release = () => undefined as void;
       const gate = new Promise<void>((done) => (release = done));
       answer(async (body) => {
         await gate;
-        return stored(body['worktreeCommands'] as SealedItem);
+        return stored(body['worktreeCommands'] as SealedItem | null);
       });
       await new Promise((done) => setTimeout(done, 20));
       expect(calls).toHaveLength(1);
-      deliver(calls[0]?.body['worktreeCommands'] as SealedItem);
+      // An event of something else meanwhile (another Projet's, the account's) changes nothing of this Projet's.
+      for (const listener of [...listeners]) listener();
+      deliver(calls[0]?.body['worktreeCommands'] as SealedItem | null);
       deliver(await seal({ prepare: 'pnpm ci', clean: null }));
       release();
       await saving;
     } else {
       await saving;
       // The Pilote leaves the page: no view() while its event, then another tab's item, come.
-      deliver(calls[0]?.body['worktreeCommands'] as SealedItem);
+      deliver(calls[0]?.body['worktreeCommands'] as SealedItem | null);
       deliver(await seal({ prepare: 'pnpm ci', clean: null }));
     }
     expect(listeners.size).toBe(0);

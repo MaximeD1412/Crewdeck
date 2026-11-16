@@ -643,13 +643,26 @@ func TestAStopAsTheResumeAskedWhileStoppingStartsTheMoteurKeepsTheSessionStopped
 	m.Start(start(firstID, "feat/12-panier"))
 	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
 
-	// The last stop lands while the resume asked meanwhile starts the Moteur
-	// again: whenever it lands, the Session ends stopped.
+	// Stop, resume, then the last stop, in that order: the last one sent as
+	// the old Moteur ends, once the resume is asked, so that it lands while
+	// the resume starts the Moteur again. Whenever it lands, the Session ends
+	// stopped.
 	for i := 0; i < 200; i++ {
-		stop := func() { m.Stop(firstID) }
+		resumed, stopped := make(chan struct{}), make(chan struct{})
+		stop := func() {
+			<-resumed
+			m.Stop(firstID)
+			close(stopped)
+		}
 		hook.armed.Store(&stop)
 		m.Stop(firstID)
 		m.Resume(firstID)
+		close(resumed)
+		select {
+		case <-stopped:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("round %d: the old Moteur never ended", i)
+		}
 		s.reports.await(t, firstID, contracts.RunnerSessionStateStateStopped)
 		if got := m.Hello(); len(got) != 1 || got[0].Alive {
 			t.Fatalf("round %d: hello %+v, want the Session stopped", i, got)

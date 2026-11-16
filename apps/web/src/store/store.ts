@@ -5,6 +5,7 @@ import type {
   Decision,
   Device,
   Event,
+  Idea,
   McpServer,
   Me,
   Milestone,
@@ -60,6 +61,8 @@ export interface Slices {
   readonly repository: ReadonlyMap<string, Repository>;
   /** The open Décisions (ATOI-1), by id, from the snapshot's `decisions`. */
   readonly decision: ReadonlyMap<string, Decision>;
+  /** The Idées (IDEE-1), by id, from the snapshot's `ideas`: every one not merged nor rejected, and those of the last 90 days. */
+  readonly idea: ReadonlyMap<string, Idea>;
   /** The Tickets of every Projet (BOUCLE-1), by id, from the snapshot's `tickets`: the open ones and those closed in the last 30 days. */
   readonly ticket: ReadonlyMap<string, Ticket>;
   /** Their milestones, by id, from the snapshot's `milestones`. */

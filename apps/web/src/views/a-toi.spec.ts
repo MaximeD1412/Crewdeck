@@ -109,12 +109,12 @@ describe('aToiView', () => {
     expect(offline?.actions[0]?.disabledReason).toBeNull();
   });
 
-  it('has nothing to list when no Décision waits, and no « Noter une Idée » yet', () => {
+  it('has nothing to list when no Décision waits, and offers « Noter une Idée »', () => {
     expect(view({}, [])).toEqual({
       total: 0,
       projects: [{ id: null, name: 'Tous les Projets', count: 0, selected: true }],
       decisions: [],
-      canNoteIdea: false,
+      canNoteIdea: true,
     });
   });
 });

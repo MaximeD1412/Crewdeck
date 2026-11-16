@@ -3,8 +3,10 @@ import {
   Cadre,
   PageAToi,
   PageComposants,
+  NoteIdeaDialog,
   PageConnexion,
   PageDemarrage,
+  PageIdees,
   PageParametres,
   PageProjets,
   PageRunner,
@@ -21,20 +23,23 @@ import { updateSettings } from './api/settings.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
 import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
 import { createPageKeys, type PageKeys } from './keys/index.js';
+import { createNoteIdea } from './note-idea.js';
 import { createProjects } from './projects.js';
 import { bootSkin } from './registry.js';
 import { createRoleSettings } from './role-settings.js';
 import { routeData, routeSlots, startRouter, type Route, type Router } from './router.js';
-import { aToiHref, composantsHref, ROUTES } from './routes.js';
+import { aToiHref, composantsHref, ideesHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
 import { signInGuard, signInHref } from './sign-in.js';
 import { client as pageClient, connection as pageConnection, store as pageStore } from './store/index.js';
 import type { Connection } from './store/connection.js';
+import { createIdeaPlaintext } from './store/idea-plaintext.js';
 import { createLatencyMeter, type LatencyMeter } from './store/latency.js';
 import type { Store } from './store/store.js';
 import { decisionViews } from './views/decisions/registry.js';
 import './views/decisions/runner-offline.js';
 import { systemOfBrowser } from './views/demarrage.js';
+import { ideesQuery, ideesView } from './views/idees.js';
 import { parametresView, timeZones } from './views/parametres.js';
 import { projetsView } from './views/projets.js';
 import { runnerView } from './views/runner.js';
@@ -65,7 +70,7 @@ export interface BootOptions {
   /** The latency the page measures on its store's live events (CORE-8): started with the socket. */
   readonly latency?: LatencyMeter;
   /** This browser's Appareil and the vault (E2E-2): IndexedDB and WebCrypto by default. */
-  readonly keys?: Pick<PageKeys, 'linkKeys' | 'nameDevice' | 'unlockVault'>;
+  readonly keys?: Pick<PageKeys, 'linkKeys' | 'vault' | 'nameDevice' | 'unlockVault'>;
 }
 
 export interface App {
@@ -126,6 +131,19 @@ export const boot = async ({
     unlockVault: () => keys.unlockVault(),
   });
   const projects = createProjects({ store, client });
+  // The boot's opening of the vault: until it settles, an Idée's text is « Déchiffrement… », not unreadable.
+  let vaultTried: () => void = () => undefined;
+  const plaintext = createIdeaPlaintext({
+    vault: keys.vault,
+    vaultState: () => store.getState().vaultState,
+    settled: new Promise<void>((resolve) => {
+      vaultTried = resolve;
+    }),
+  });
+  const noteIdea = createNoteIdea({ client, vault: keys.vault, store });
+  const noteDialog = document.createElement(NoteIdeaDialog.tag) as HTMLElement & { data: unknown };
+  noteDialog.data = noteIdea.view();
+  shell.append(noteDialog);
   const roleSettings = createRoleSettings({ client });
   const signIn = signInGuard(pilot);
   const started = gettingStartedGuard(gettingStarted.pilot);
@@ -147,6 +165,7 @@ export const boot = async ({
       if (match.composant === RepositoryPicker) return projects.picker('projets');
       const { slices } = store.getState();
       if (match.composant === PageProjets) return projetsView(slices.project?.values() ?? []);
+      if (match.composant === PageIdees) return ideesView(slices, (idea) => plaintext.text(idea), ideesQuery(match.query));
       if (match.composant !== PageRunner) return pageData(match);
       return runnerView({
         runner: slices.runner ?? null,
@@ -156,12 +175,18 @@ export const boot = async ({
     },
   });
   // The Cadre and the page follow the store: a change made elsewhere shows without a reload.
+  const refreshNoteDialog = () => {
+    noteDialog.data = noteIdea.view();
+  };
   const unsubscribe = [
     store.subscribe(() => {
       gettingStarted.sync();
       router.refresh();
       shell.refresh();
+      refreshNoteDialog();
     }),
+    plaintext.subscribe(() => router.refresh()),
+    noteIdea.subscribe(refreshNoteDialog),
     gettingStarted.subscribe(() => router.refresh()),
     projects.subscribe(() => router.refresh()),
     roleSettings.subscribe(() => router.refresh()),
@@ -169,10 +194,11 @@ export const boot = async ({
   if (pilot) {
     // The Appareil named before the snapshot, which says which one is `current`.
     await keys.nameDevice();
-    void keys.unlockVault();
+    void keys.unlockVault().finally(vaultTried);
     latency.start();
     connection.start();
   }
+  if (!pilot) vaultTried();
   dispatcher.registerAction(PageConnexion, 'signIn', {
     run: () => leave(signInHref(router.current.query['next'], Intl.DateTimeFormat().resolvedOptions().timeZone)),
   });
@@ -206,7 +232,15 @@ export const boot = async ({
       return button.run(decision, { navigate: (url) => router.navigate(url) });
     },
   });
-  dispatcher.registerAction(PageAToi, 'note-idea', { run: () => router.navigate('/idees') });
+  dispatcher.registerAction(PageAToi, 'note-idea', { run: () => noteIdea.open(null) });
+  const ideesFilter = () => ideesQuery(router.current.query);
+  dispatcher.registerAction(PageIdees, 'note', { run: () => noteIdea.open(ideesFilter().projectFilter) });
+  dispatcher.registerAction(PageIdees, 'filter', { run: ({ projectId }) => router.navigate(ideesHref(projectId, ideesFilter().tab)) });
+  dispatcher.registerAction(PageIdees, 'tab', { run: ({ tab }) => router.navigate(ideesHref(ideesFilter().projectFilter, tab)) });
+  // The Idée's page (`/idees/:id`) and its analysis beside the list come with their tickets: a row leads nowhere yet.
+  dispatcher.registerAction(PageIdees, 'open', { run: () => undefined });
+  dispatcher.registerAction(NoteIdeaDialog, 'submit', { run: (input) => noteIdea.submit(input) });
+  dispatcher.registerAction(NoteIdeaDialog, 'cancel', { run: () => noteIdea.cancel() });
   dispatcher.registerAction(PageDemarrage, 'selectSystem', { run: ({ system }) => gettingStarted.selectSystem(system) });
   dispatcher.registerAction(PageDemarrage, 'retry', { run: () => gettingStarted.retry() });
   dispatcher.registerAction(PageDemarrage, 'continue', { run: () => gettingStarted.advance() });

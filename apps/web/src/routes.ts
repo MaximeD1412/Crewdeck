@@ -1,4 +1,4 @@
-import { COMPOSANTS, PageAToi, PageComposants, PageConnexion, PageDemarrage, PageParametres, PageProjets, PageRunner, RepositoryPicker } from '@crewdeck/sdk';
+import { type IdeesTab, COMPOSANTS, PageAToi, PageComposants, PageIdees, PageConnexion, PageDemarrage, PageParametres, PageProjets, PageRunner, RepositoryPicker } from '@crewdeck/sdk';
 import type { Route } from './router.js';
 import { aToiView } from './views/a-toi.js';
 import { composantsView } from './views/composants.js';
@@ -11,13 +11,23 @@ export const composantsHref = (name: string): string => `/parametres/composants?
 /** « À toi », every Projet's Décisions, or one Projet's (`?projet=`). */
 export const aToiHref = (projectId: string | null): string => (projectId ? `/a-toi?projet=${encodeURIComponent(projectId)}` : '/a-toi');
 
+/** « Idées », every Projet's or one Projet's (`?projet=`), on a tab (`?onglet=`, « À trier » by default). */
+export const ideesHref = (projectId: string | null, tab: IdeesTab): string => {
+  const query = new URLSearchParams();
+  if (projectId) query.set('projet', projectId);
+  if (tab !== 'a-trier') query.set('onglet', tab);
+  const search = query.toString();
+  return search ? `/idees?${search}` : '/idees';
+};
+
 /**
  * The page URLs of ADR 0008 and their page Composant, filled by the page
  * tickets: `/a-toi` → `PageAToi`, `/idees` and `/idees/:id`, `/conceptions`,
  * `/boucle`, `/planning`, `/statistiques`, `/projets`, `/parametres`,
  * `/parametres/composants`; `/connexion` → `PageConnexion`, the only page
  * open signed out; `/demarrage` → `PageDemarrage`, whose data `app.ts` gives
- * from « Premiers pas »' state (`getting-started.ts`); `/runner` →
+ * from « Premiers pas »' state (`getting-started.ts`); `/idees` → `PageIdees`, whose data `app.ts` gives from the store and the texts
+ * in clear (`views/idees.ts`); `/runner` →
  * `PageRunner`, whose data `app.ts` gives from the store
  * (`views/runner.ts`); `/projets` → `PageProjets` and `/projets/ajouter` →
  * `RepositoryPicker`, whose data `app.ts` gives from the store
@@ -32,6 +42,7 @@ export const ROUTES: readonly Route[] = [
     data: (match, state) =>
       aToiView(state.slices.decision?.values() ?? [], match.query, { runnerOnline: state.slices.runner?.state === 'online' }),
   },
+  { path: '/idees', composant: PageIdees },
   { path: '/connexion', composant: PageConnexion, data: (match) => connexionView(match.query) },
   { path: '/demarrage', composant: PageDemarrage },
   { path: '/runner', composant: PageRunner },

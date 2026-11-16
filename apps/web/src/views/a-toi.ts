@@ -88,6 +88,6 @@ export const aToiView = (
         }),
       };
     }),
-    canNoteIdea: false,
+    canNoteIdea: true,
   };
 };

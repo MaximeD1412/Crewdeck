@@ -1,5 +1,17 @@
 import type { Me } from '@crewdeck/contracts';
-import { Cadre, PageAToi, PageComposants, PageConnexion, PageDemarrage, PageParametres, PageProjets, PageRunner, RepositoryPicker, type Skin } from '@crewdeck/sdk';
+import {
+  Cadre,
+  PageAToi,
+  PageComposants,
+  PageConnexion,
+  PageDemarrage,
+  PageParametres,
+  PageProjets,
+  PageRunner,
+  RepositoryPicker,
+  RoleSettings,
+  type Skin,
+} from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
 import { me as readMe } from './api/auth.js';
@@ -11,7 +23,8 @@ import { createGettingStarted, gettingStartedGuard } from './getting-started.js'
 import { createPageKeys, type PageKeys } from './keys/index.js';
 import { createProjects } from './projects.js';
 import { bootSkin } from './registry.js';
-import { routeData, startRouter, type Route, type Router } from './router.js';
+import { createRoleSettings } from './role-settings.js';
+import { routeData, routeSlots, startRouter, type Route, type Router } from './router.js';
 import { aToiHref, composantsHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
 import { signInGuard, signInHref } from './sign-in.js';
@@ -22,6 +35,7 @@ import type { Store } from './store/store.js';
 import { decisionViews } from './views/decisions/registry.js';
 import './views/decisions/runner-offline.js';
 import { systemOfBrowser } from './views/demarrage.js';
+import { parametresView, timeZones } from './views/parametres.js';
 import { projetsView } from './views/projets.js';
 import { runnerView } from './views/runner.js';
 
@@ -112,15 +126,22 @@ export const boot = async ({
     unlockVault: () => keys.unlockVault(),
   });
   const projects = createProjects({ store, client });
+  const roleSettings = createRoleSettings({ client });
   const signIn = signInGuard(pilot);
   const started = gettingStartedGuard(gettingStarted.pilot);
   const pageData = routeData(routes, () => store.getState());
+  const pageSlots = routeSlots(routes, () => store.getState());
   const router = startRouter({
     routes,
     outlet: shell.outlet,
     onRoute: shell.update,
     state: store.getState,
     guard: (match) => started(match) ?? signIn(match),
+    slots: (match) => {
+      if (match.composant !== PageParametres) return pageSlots(match);
+      const { slices } = store.getState();
+      return parametresView(slices.settings, timeZones(), { accounts: [...(slices['ai-account']?.values() ?? [])], local: roleSettings.view() });
+    },
     data: (match) => {
       if (match.composant === PageDemarrage) return { ...gettingStarted.view(), picker: projects.picker('demarrage') };
       if (match.composant === RepositoryPicker) return projects.picker('projets');
@@ -143,6 +164,7 @@ export const boot = async ({
     }),
     gettingStarted.subscribe(() => router.refresh()),
     projects.subscribe(() => router.refresh()),
+    roleSettings.subscribe(() => router.refresh()),
   ];
   if (pilot) {
     // The Appareil named before the snapshot, which says which one is `current`.
@@ -160,6 +182,11 @@ export const boot = async ({
       if (name === 'timeZone' && typeof value === 'string') await updateSettings(client, { timeZone: value });
     },
   });
+  dispatcher.registerAction(RoleSettings, 'choose', { run: ({ roleId, engine, model }) => roleSettings.choose(roleId, { engine, model }) });
+  dispatcher.registerAction(RoleSettings, 'remove', { run: ({ roleId }) => roleSettings.remove(roleId) });
+  dispatcher.registerAction(RoleSettings, 'add', { run: () => roleSettings.open() });
+  dispatcher.registerAction(RoleSettings, 'create', { run: (body) => roleSettings.create(body) });
+  dispatcher.registerAction(RoleSettings, 'cancel', { run: () => roleSettings.cancel() });
   dispatcher.registerAction(Cadre, 'openPilot', { run: () => router.navigate('/parametres') });
   const openDecision = (id: string) => store.getState().slices.decision?.get(id);
   dispatcher.registerAction(PageAToi, 'filter', { run: ({ projectId }) => router.navigate(aToiHref(projectId)) });

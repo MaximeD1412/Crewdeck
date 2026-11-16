@@ -20,9 +20,9 @@ export class RolesController {
   @Post()
   @HttpCode(201)
   @ZodResponse({ status: 201, description: 'The Paramètres of the account, with the new Rôle.', type: AccountSettingsDto })
-  create(@Body() { seq: _seq, ...body }: CreateRoleDto): Promise<AccountSettings> {
+  create(@Body() { name, engine, model }: CreateRoleDto): Promise<AccountSettings> {
     const pilotId = currentPilotId();
-    return this.transactions.run((tx) => this.roles.create(tx, pilotId, body));
+    return this.transactions.run((tx) => this.roles.create(tx, pilotId, { name, engine, model }));
   }
 
   @Delete(':id')

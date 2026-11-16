@@ -105,6 +105,27 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     native.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
     native.dispatchEvent(new Event('change', { bubbles: true }));
   },
+  'RoleSettings.choose': (el) => {
+    const native = inside<HTMLSelectElement>(el, 'cd-setting-row cd-select', 'select');
+    native.value = '2';
+    native.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    native.dispatchEvent(new Event('change', { bubbles: true }));
+  },
+  'RoleSettings.remove': (el) => inside(el, 'cd-button.remove', 'button').click(),
+  'RoleSettings.add': (el) => inside(el, 'cd-button.add', 'button').click(),
+  'RoleSettings.create': async (el) => {
+    el.data = COMPOSANTS.RoleSettings.examples[2]?.data;
+    await settle(el);
+    const field = inside<HTMLInputElement>(el, 'cd-text-field.name', 'input');
+    field.value = 'Revue Sonnet';
+    field.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    inside(el, 'cd-button.create', 'button').click();
+  },
+  'RoleSettings.cancel': async (el) => {
+    el.data = COMPOSANTS.RoleSettings.examples[2]?.data;
+    await settle(el);
+    inside(el, 'cd-button.cancel', 'button').click();
+  },
 };
 
 afterEach(() => document.body.replaceChildren());

@@ -29,6 +29,13 @@ const sql = async <T extends pg.QueryResultRow>(text: string, values: unknown[] 
 
 const REVUE_CODEX = { name: 'Revue Codex', engine: 'codex', model: 'gpt-5.5' } as const;
 
+/** The id of the one Rôle the Pilote added, from the settings a response gives. */
+const onlyCustomId = async (res: Response): Promise<string> => {
+  const [custom] = zAccountSettings.parse(await res.json()).customRoles;
+  if (!custom) throw new Error('no Rôle added');
+  return custom.id;
+};
+
 describe('the Rôles the Pilote adds against PostgreSQL', () => {
   let app: INestApplication;
   let url: string;
@@ -75,7 +82,7 @@ describe('the Rôles the Pilote adds against PostgreSQL', () => {
       expect(res.status).toBe(201);
       const body = zAccountSettings.parse(await res.json());
       expect(body.customRoles).toEqual([{ id: expect.stringMatching(/^r-[a-z0-9]{8}$/), name: 'Revue Codex', createdAt: expect.any(String) }]);
-      const id = body.customRoles[0]!.id;
+      const id = body.customRoles[0]?.id ?? '';
       expect(body.roles).toEqual({ idea: null, design: null, code: null, review: null, [id]: { engine: 'codex', model: 'gpt-5.5' } });
       expect(await events(alice.id)).toEqual([{ seq: '1', type: 'settings.upserted', payload: body }]);
       expect(await settings(alice.cookie)).toEqual(body);
@@ -154,7 +161,7 @@ describe('the Rôles the Pilote adds against PostgreSQL', () => {
 
     it('changes its model, kept in its own row', async () => {
       const alice = await pilot('alice');
-      const id = (zAccountSettings.parse(await (await create(alice.cookie, REVUE_CODEX)).json())).customRoles[0]!.id;
+      const id = await onlyCustomId(await create(alice.cookie, REVUE_CODEX));
 
       const res = await patch(alice.cookie, { roles: { [id]: { engine: 'claude-code', model: 'claude-sonnet-5-5' } } });
 
@@ -166,7 +173,7 @@ describe('the Rôles the Pilote adds against PostgreSQL', () => {
 
     it('answers 422 settings.role-choice-required for null: a Rôle the Pilote added always has its model', async () => {
       const alice = await pilot('alice');
-      const id = (zAccountSettings.parse(await (await create(alice.cookie, REVUE_CODEX)).json())).customRoles[0]!.id;
+      const id = await onlyCustomId(await create(alice.cookie, REVUE_CODEX));
 
       const envelope = await expectEnvelope(await patch(alice.cookie, { roles: { [id]: null } }), 422, 'settings.role-choice-required');
       expect(envelope.message).toBe('Un Rôle que tu as ajouté a toujours son modèle.');
@@ -177,7 +184,7 @@ describe('the Rôles the Pilote adds against PostgreSQL', () => {
     it('answers 400 on the field of another Pilote’s Rôle', async () => {
       const alice = await pilot('alice');
       const bob = await pilot('bob');
-      const id = (zAccountSettings.parse(await (await create(alice.cookie, REVUE_CODEX)).json())).customRoles[0]!.id;
+      const id = await onlyCustomId(await create(alice.cookie, REVUE_CODEX));
 
       await expectFields(await patch(bob.cookie, { roles: { [id]: { engine: 'codex', model: 'gpt-5.5' } } }), [`roles.${id}`]);
     });
@@ -186,7 +193,7 @@ describe('the Rôles the Pilote adds against PostgreSQL', () => {
   describe('DELETE /api/roles/:id', () => {
     it('removes the Rôle, with one settings.upserted, and its id never comes back', async () => {
       const alice = await pilot('alice');
-      const id = (zAccountSettings.parse(await (await create(alice.cookie, REVUE_CODEX)).json())).customRoles[0]!.id;
+      const id = await onlyCustomId(await create(alice.cookie, REVUE_CODEX));
 
       const res = await remove(alice.cookie, id);
 
@@ -214,7 +221,7 @@ describe('the Rôles the Pilote adds against PostgreSQL', () => {
     it('answers 404 roles.not-found for another Pilote’s Rôle or an unknown one, and removes nothing', async () => {
       const alice = await pilot('alice');
       const bob = await pilot('bob');
-      const id = (zAccountSettings.parse(await (await create(alice.cookie, REVUE_CODEX)).json())).customRoles[0]!.id;
+      const id = await onlyCustomId(await create(alice.cookie, REVUE_CODEX));
 
       await expectEnvelope(await remove(bob.cookie, id), 404, 'roles.not-found');
       await expectEnvelope(await remove(bob.cookie, 'r-zzzzzzzz'), 404, 'roles.not-found');
@@ -225,7 +232,7 @@ describe('the Rôles the Pilote adds against PostgreSQL', () => {
 
     it('answers 409 roles.in-use while a RoleUsage provider counts an Étape naming it', async () => {
       const alice = await pilot('alice');
-      const id = (zAccountSettings.parse(await (await create(alice.cookie, REVUE_CODEX)).json())).customRoles[0]!.id;
+      const id = await onlyCustomId(await create(alice.cookie, REVUE_CODEX));
       const unregister = registerRoleUsage(async (_tx, pilotId, roleId) => (pilotId === alice.id && roleId === id ? 2 : 0));
       try {
         const envelope = await expectEnvelope(await remove(alice.cookie, id), 409, 'roles.in-use');

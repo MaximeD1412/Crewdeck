@@ -157,7 +157,7 @@ describe('the Paramètres of the account against PostgreSQL', () => {
       const res = await patch(alice.cookie, { seq: '1', roles: { code: null } });
 
       expect(res.status).toBe(200);
-      expect((await res.json()).roles).toEqual(DEFAULTS.roles);
+      expect(((await res.json()) as { roles: unknown }).roles).toEqual(DEFAULTS.roles);
     });
 
     it('answers 401 without a session', async () => {
@@ -220,7 +220,7 @@ describe('the Paramètres of the account against PostgreSQL', () => {
 
       expect((await effective(alice.id)).roles).toEqual({ idea: CLAUDE, design: CLAUDE, code: CLAUDE, review: CODEX });
       // The account's own settings keep the defaults as defaults: never stored.
-      expect((await (await fetch(`${url}/api/settings`, { headers: { cookie: alice.cookie } })).json()).roles).toEqual(DEFAULTS.roles);
+      expect(((await (await fetch(`${url}/api/settings`, { headers: { cookie: alice.cookie } })).json()) as { roles: unknown }).roles).toEqual(DEFAULTS.roles);
     });
 
     it('gives Codex to every default Rôle when it is the only Moteur usable', async () => {

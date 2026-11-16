@@ -24,6 +24,10 @@ const (
 	TypeMirrorResync   = "mirror.resync"
 	TypeMirrorLive     = "mirror.live"
 	TypeMirrorProjects = "mirror.projects"
+	// The « Miroir » token (ADR 0010): the Runner asks it, the server answers (MIROIR-2, MIROIR-4).
+	TypeMirrorToken       = "mirror.token"
+	TypeMirrorTokenIssued = "mirror.token.issued"
+	TypeMirrorTokenFailed = "mirror.token.failed"
 )
 
 // Machine is what the Runner says of itself in its hello.

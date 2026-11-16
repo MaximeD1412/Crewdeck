@@ -72,7 +72,7 @@ func decodeInto[T any](data []byte) error {
 }
 
 func TestTheHelloAndTheHeartbeatMatchTheirSchema(t *testing.T) {
-	hello := NewHello(Machine{RunnerVersion: "0.1.0", Machine: "atelier", OS: contracts.RunnerHelloOsLinux, Arch: contracts.RunnerHelloArchAmd64})
+	hello := NewHello(Machine{RunnerVersion: "0.1.0", Machine: "atelier", OS: contracts.RunnerHelloOsLinux, Arch: contracts.RunnerHelloArchAmd64}, nil)
 	data, err := json.Marshal(hello)
 	if err != nil {
 		t.Fatal(err)

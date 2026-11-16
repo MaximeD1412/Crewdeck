@@ -170,9 +170,35 @@ describe('the page’s store', () => {
 
     const done: StepRun = { ...STEP_RUN, state: 'done', outputs: [{ portId: 'changement', type: 'code-change', id: '57' }], endedAt: AT };
     expect(store.applyEvent({ seq: 2, type: 'step-run.upserted', payload: done, at: AT })).toBe('applied');
-    expect(store.applyEvent({ seq: 3, type: 'phase-run.upserted', payload: { ...PHASE_RUN, state: 'done', endedAt: AT }, at: AT })).toBe('applied');
 
     expect(store.getState().slices['step-run']?.get(STEP_RUN.id)).toEqual(done);
-    expect(store.getState().slices['phase-run']?.get(PHASE_RUN.id)).toMatchObject({ state: 'done' });
+    expect(store.getState().slices['phase-run']?.get(PHASE_RUN.id)).toEqual(PHASE_RUN);
+  });
+
+  it('drops a PhaseRun once finished, with its StepRuns, as the snapshot at that seq would, and holds them again when a retry reopens it', () => {
+    const OTHER: PhaseRun = { ...PHASE_RUN, id: '01900000-0000-7000-8000-0000000000a2', itemId: '43' };
+    store.applySnapshot({ ...SNAPSHOT, phaseRuns: [PHASE_RUN, OTHER] });
+    const failed: StepRun = { ...STEP_RUN, state: 'failed', failure: 'agent-failed', endedAt: AT };
+    const ended: PhaseRun = { ...PHASE_RUN, state: 'failed', endedAt: AT };
+    store.applyEvent({ seq: 2, type: 'step-run.upserted', payload: failed, at: AT });
+    store.applyEvent({ seq: 3, type: 'phase-run.upserted', payload: ended, at: AT });
+
+    const followed = store.getState().slices;
+    store.applySnapshot({ ...SNAPSHOT, seq: 3, phaseRuns: [OTHER], stepRuns: [] });
+    const reloaded = store.getState().slices;
+    expect([...(followed['phase-run']?.values() ?? [])]).toEqual([...(reloaded['phase-run']?.values() ?? [])]);
+    expect([...(followed['step-run']?.values() ?? [])]).toEqual([]);
+    // A StepRun of a PhaseRun the page no longer holds is not kept.
+    expect(store.applyEvent({ seq: 4, type: 'step-run.upserted', payload: failed, at: AT })).toBe('applied');
+    expect(store.getState().slices['step-run']?.size).toBe(0);
+
+    // `retry`: the PhaseRun `running` again, then each of its StepRuns published anew.
+    const retried: StepRun = { ...STEP_RUN, id: '01900000-0000-7000-8000-0000000000b2' };
+    store.applyEvent({ seq: 5, type: 'phase-run.upserted', payload: PHASE_RUN, at: AT });
+    store.applyEvent({ seq: 6, type: 'step-run.upserted', payload: failed, at: AT });
+    store.applyEvent({ seq: 7, type: 'step-run.upserted', payload: retried, at: AT });
+
+    expect([...(store.getState().slices['phase-run']?.keys() ?? [])].sort()).toEqual([PHASE_RUN.id, OTHER.id]);
+    expect([...(store.getState().slices['step-run']?.values() ?? [])]).toEqual([failed, retried]);
   });
 });

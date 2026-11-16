@@ -59,13 +59,35 @@ const zOutputs = z.array(zArtifactRef);
 
 const json = (value: unknown): Prisma.InputJsonValue => value as Prisma.InputJsonValue;
 
-/** A PhaseRun as the engine works on it: its row, its pinned definition and its StepRuns, in the order they were created. */
+/**
+ * The starts `retry` and `rerunFrom` asked, by Étape, until the Étape's
+ * StepRun is written: with the iteration and the reason it starts with, and
+ * for a retry the `failed` StepRun it replaces. The start guard may hold
+ * them; `startQueued` then starts them as it does any ready Étape.
+ */
+const zPendingStarts = z.record(z.string(), z.object({ iteration: z.number().int().min(1), reason: z.string().nullable(), retryOf: z.string().optional() }));
+type PendingStarts = z.infer<typeof zPendingStarts>;
+
+/** What `retry` and `rerunFrom` give: the new StepRun, or `held` while the start guard refuses it (`startQueued` starts it later). */
+export type Restart = StepRun | 'held';
+
+/**
+ * A PhaseRun as the engine works on it: its row, its pinned definition, its
+ * StepRuns in the order they were created, its pending starts, and `live`:
+ * its StepRuns but the `failed` ones of an Étape whose retry is pending, so
+ * that this Étape is ready again.
+ */
 interface Loaded {
   readonly row: PhaseRunRow;
   readonly phaseRun: PhaseRun;
   readonly definition: ProcessDefinition;
   readonly stepRuns: StepRun[];
+  readonly pending: PendingStarts;
+  readonly live: StepRun[];
 }
+
+const nextIteration = (stepRuns: readonly StepRun[], stepId: string): number =>
+  Math.max(0, ...stepRuns.filter((run) => run.stepId === stepId).map((run) => run.iteration)) + 1;
 
 /**
  * The engine (ADR 0011, « The engine »): it interprets each Projet's pinned
@@ -105,23 +127,24 @@ export class Engine {
   /**
    * An item enters a Phase: a `running` PhaseRun pinned to the active
    * version, then its first Étapes started. An unfinished PhaseRun of the
-   * same item and Phase is returned as is (a double click, a retry). The
-   * Phase must exist and repeat for the item's type.
+   * same item and Phase is returned as is (a double click, a retry), whatever
+   * the active version became since. Otherwise the active version's Phase
+   * must exist and repeat for the item's type.
    */
   async admit(tx: Tx, { projectId, phaseId, item }: { projectId: string; phaseId: string; item: PhaseItem }): Promise<PhaseRun> {
     const pilotId = currentPilotId();
     await this.events.lock(tx, pilotId);
-    const version = await this.activeVersion(tx, projectId);
-    if (!version) throw new EngineInputError(`The Projet ${projectId} has no active version of its Process.`);
-    const phase = version.definition.phases.find((candidate) => candidate.id === phaseId);
-    if (!phase) throw new EngineInputError(`The version ${version.number} has no Phase ${phaseId}.`);
-    if (!phase.forEach || FOR_EACH[phase.forEach].type !== item.type) throw new EngineInputError(`The Phase ${phaseId} does not repeat for ${item.type}.`);
-
     const unfinished = await tx.phaseRun.findFirst({
       where: { projectId, phaseId, itemType: item.type, itemId: item.id, state: { in: UNFINISHED } },
       select: PHASE_RUN_VIEW,
     });
     if (unfinished) return toPhaseRun(unfinished);
+
+    const version = await this.activeVersion(tx, projectId);
+    if (!version) throw new EngineInputError(`The Projet ${projectId} has no active version of its Process.`);
+    const phase = version.definition.phases.find((candidate) => candidate.id === phaseId);
+    if (!phase) throw new EngineInputError(`The version ${version.number} has no Phase ${phaseId}.`);
+    if (!phase.forEach || FOR_EACH[phase.forEach].type !== item.type) throw new EngineInputError(`The Phase ${phaseId} does not repeat for ${item.type}.`);
 
     const row = await tx.phaseRun.create({
       data: { id: newId(), pilotId, projectId, processVersionId: version.id, phaseId, itemType: item.type, itemId: item.id, state: 'running', startedAt: new Date() },
@@ -156,22 +179,27 @@ export class Engine {
   /**
    * « Relancer l'Étape » (ATOI-2): a `failed` StepRun gets a new StepRun of
    * the same Étape and iteration, on the same inputs, and its PhaseRun is
-   * `running` again. `null` when the StepRun is not `failed`, or was retried
-   * already. The start guard is not asked: the Étape had started.
+   * `running` again; the `failed` one stays, for the history. The start
+   * guard is asked as for any start: `held` while it refuses, the Étape
+   * ready until `startQueued`. `null`, nothing written, when the StepRun is
+   * not the current `failed` one of its Étape, its retry is already asked,
+   * its PhaseRun is `stopped` or `done`, or the item already went through
+   * the Phase again (a later admission: one unfinished PhaseRun per item and
+   * Phase).
    */
-  async retry(tx: Tx, stepRunId: string): Promise<StepRun | null> {
+  async retry(tx: Tx, stepRunId: string): Promise<Restart | null> {
     const found = await tx.stepRun.findUnique({ where: { id: stepRunId }, select: { phaseRunId: true } });
     if (!found) return null;
     const loaded = await this.lockAndLoad(tx, found.phaseRunId);
     const failed = loaded.stepRuns.find((run) => run.id === stepRunId);
-    if (!failed || failed.state !== 'failed' || loaded.row.state === 'stopped') return null;
-    if (!currentStepRuns(loaded.stepRuns).some((run) => run.id === failed.id)) return null;
+    if (!failed || failed.state !== 'failed' || loaded.row.state === 'stopped' || loaded.row.state === 'done') return null;
+    if (loaded.pending[failed.stepId] || !currentStepRuns(loaded.live).some((run) => run.id === failed.id)) return null;
+    if (loaded.row.state === 'failed' && (await this.anotherUnfinished(tx, loaded.row))) return null;
 
-    if (loaded.row.state !== 'running') await this.setPhaseRunState(tx, loaded.row.id, 'running');
-    const reloaded = await this.load(tx, loaded.row.id);
-    const started = await this.startStep(tx, reloaded, this.stepOf(reloaded, failed.stepId), failed.inputs, failed.iteration, failed.reason);
-    await this.advanceLoaded(tx, await this.load(tx, loaded.row.id));
-    return started;
+    await this.writePending(tx, loaded.row.id, { ...loaded.pending, [failed.stepId]: { iteration: failed.iteration, reason: failed.reason, retryOf: failed.id } });
+    if (loaded.row.state !== 'running') await this.reopen(tx, loaded);
+    const after = await this.advanceLoaded(tx, await this.load(tx, loaded.row.id));
+    return this.restarted(after, failed.stepId, failed.id);
   }
 
   /** Stops a PhaseRun: each open StepRun through its handler's `stop`, then `stopped`; the PhaseRun `stopped`. A finished one is returned as is. */
@@ -182,14 +210,16 @@ export class Engine {
       await this.handlers.of(run.kind)?.stop?.(tx, this.contextOf(loaded, run));
       await this.writeStepRun(tx, run.id, { state: 'stopped', endedAt: new Date() });
     }
+    if (Object.keys(loaded.pending).length > 0) await this.writePending(tx, phaseRunId, {});
     return this.setPhaseRunState(tx, phaseRunId, 'stopped');
   }
 
   /**
    * Undoes `stepId` and every Étape it reaches by arrows inside the Phase:
    * their StepRuns not yet `superseded` are stopped through their handler
-   * when they run, then `superseded`; their outputs no longer feed anything.
-   * For a rerun: `rerunFrom`'s, a Retour's (PROCESS-6).
+   * when they run, then `superseded`; their outputs no longer feed anything,
+   * and a start pending for them is dropped. For a rerun: `rerunFrom`'s, a
+   * Retour's (PROCESS-6).
    */
   async supersedeFrom(tx: Tx, phaseRun: Pick<PhaseRun, 'id'>, stepId: string): Promise<void> {
     const loaded = await this.lockAndLoad(tx, phaseRun.id);
@@ -199,6 +229,8 @@ export class Engine {
       if (OPEN.includes(run.state)) await this.handlers.of(run.kind)?.stop?.(tx, this.contextOf(loaded, run));
       await this.writeStepRun(tx, run.id, { state: 'superseded', endedAt: run.endedAt === null ? new Date() : undefined });
     }
+    const kept = Object.fromEntries(Object.entries(loaded.pending).filter(([pendingStep]) => !undone.has(pendingStep)));
+    if (Object.keys(kept).length !== Object.keys(loaded.pending).length) await this.writePending(tx, phaseRun.id, kept);
   }
 
   /**
@@ -206,23 +238,27 @@ export class Engine {
    * at the next iteration, `reason` recorded, its inputs resolved again,
    * then the PhaseRun advances and the Étapes after it run on its new
    * outputs. Counts against no Retour: a caller counts its own reruns by
-   * `reason` (BOUCLE-4's `fix-conflict`). The PhaseRun must be `running` or
-   * `waiting`; it is `running` after.
+   * `reason` (BOUCLE-4's `fix-conflict`). The start guard is asked as for
+   * any start: `held` while it refuses, the Étape ready with its iteration
+   * and reason until `startQueued`. The PhaseRun must be `running` or
+   * `waiting`, and the Étape's Entrées fed without what it undoes (else
+   * `EngineInputError`, nothing written); it is `running` after.
    */
-  async rerunFrom(tx: Tx, phaseRunId: string, stepId: string, { reason }: { reason: string }): Promise<StepRun> {
+  async rerunFrom(tx: Tx, phaseRunId: string, stepId: string, { reason }: { reason: string }): Promise<Restart> {
     const loaded = await this.lockAndLoad(tx, phaseRunId);
     if (!(UNFINISHED as string[]).includes(loaded.row.state)) throw new EngineInputError(`The PhaseRun ${phaseRunId} is ${loaded.row.state}: it cannot rerun an Étape.`);
     const step = this.stepOf(loaded, stepId);
-    const iteration = Math.max(0, ...loaded.stepRuns.filter((run) => run.stepId === stepId).map((run) => run.iteration)) + 1;
+    const undone = new Set(reachedFrom(loaded.definition, stepId));
+    const kept = loaded.live.filter((run) => run.state !== 'superseded' && !undone.has(run.stepId));
+    if (resolveInputs(loaded.definition, loaded.phaseRun, kept, step) === null) throw new EngineInputError(`The Entrées of ${stepId} are not fed: it cannot run again.`);
+    const iteration = nextIteration(loaded.stepRuns, stepId);
 
     await this.supersedeFrom(tx, loaded.phaseRun, stepId);
+    const superseded = await this.load(tx, phaseRunId);
+    await this.writePending(tx, phaseRunId, { ...superseded.pending, [stepId]: { iteration, reason } });
     if (loaded.row.state !== 'running') await this.setPhaseRunState(tx, phaseRunId, 'running');
-    const reloaded = await this.load(tx, phaseRunId);
-    const inputs = resolveInputs(reloaded.definition, reloaded.phaseRun, reloaded.stepRuns.filter((run) => run.state !== 'superseded'), step);
-    if (inputs === null) throw new EngineInputError(`The Entrées of ${stepId} are not fed: it cannot run again.`);
-    const started = await this.startStep(tx, reloaded, step, inputs, iteration, reason);
-    await this.advanceLoaded(tx, await this.load(tx, phaseRunId));
-    return started;
+    const after = await this.advanceLoaded(tx, await this.load(tx, phaseRunId));
+    return this.restarted(after, stepId, superseded.stepRuns.at(-1)?.id ?? '');
   }
 
   /** For the start guard's owner once a slot frees: `advance` of every `running` PhaseRun of the Projet, the oldest first. */
@@ -247,21 +283,24 @@ export class Engine {
     if (loaded.row.state !== 'running') return loaded;
     const phase = loaded.definition.phases.find((candidate) => candidate.id === loaded.row.phaseId);
     const guard = phase?.forEach ? this.guards.get(phase.forEach) : undefined;
-    for (const ready of readySteps(loaded.definition, loaded.phaseRun, loaded.stepRuns)) {
+    const pending = { ...loaded.pending };
+    for (const ready of readySteps(loaded.definition, loaded.phaseRun, loaded.live)) {
       const step = this.stepOf(loaded, ready.stepId);
       if (guard && !(await guard(tx, { projectId: loaded.row.projectId, phaseRun: loaded.phaseRun, stepId: step.id, kind: step.kind }))) continue;
-      const iteration = Math.max(0, ...loaded.stepRuns.filter((run) => run.stepId === step.id).map((run) => run.iteration)) + 1;
-      await this.startStep(tx, loaded, step, ready.inputs, iteration, null);
+      const asked = pending[step.id];
+      await this.startStep(tx, loaded, step, ready.inputs, asked?.iteration ?? nextIteration(loaded.stepRuns, step.id), asked?.reason ?? null);
+      delete pending[step.id];
     }
+    if (Object.keys(pending).length !== Object.keys(loaded.pending).length) await this.writePending(tx, loaded.row.id, pending);
 
     const after = await this.load(tx, loaded.row.id);
-    const current = currentStepRuns(after.stepRuns);
+    const current = currentStepRuns(after.live);
     if (current.some((run) => OPEN.includes(run.state))) return after;
     if (current.some((run) => run.state === 'failed')) {
       await this.setPhaseRunState(tx, after.row.id, 'failed');
       return this.load(tx, after.row.id);
     }
-    if (readySteps(after.definition, after.phaseRun, after.stepRuns).length > 0) return after;
+    if (readySteps(after.definition, after.phaseRun, after.live).length > 0) return after;
     await this.setPhaseRunState(tx, after.row.id, 'done');
     return this.load(tx, after.row.id);
   }
@@ -314,6 +353,36 @@ export class Engine {
     }
   }
 
+  /** The StepRun of `stepId` a restart wrote after `since`, or `held` while the guard refuses it. */
+  private restarted(after: Loaded, stepId: string, since: string): Restart {
+    const started = after.stepRuns.filter((run) => run.stepId === stepId && run.id > since).at(-1);
+    return started ?? 'held';
+  }
+
+  /** An unfinished PhaseRun of the same item and Phase but `row`: the item went through the Phase again. */
+  private async anotherUnfinished(tx: Tx, row: PhaseRunRow): Promise<boolean> {
+    const other = await tx.phaseRun.findFirst({
+      where: { projectId: row.projectId, phaseId: row.phaseId, itemType: row.itemType, itemId: row.itemId, state: { in: UNFINISHED }, id: { not: row.id } },
+      select: { id: true },
+    });
+    return other !== null;
+  }
+
+  /**
+   * A `failed` PhaseRun `running` again, then each of its StepRuns published
+   * anew: a page drops a finished PhaseRun's StepRuns, as `GET /api/state`
+   * does, and gets them back so.
+   */
+  private async reopen(tx: Tx, loaded: Loaded): Promise<void> {
+    await this.setPhaseRunState(tx, loaded.row.id, 'running');
+    if (loaded.row.state === 'failed') for (const run of loaded.stepRuns) await this.publishStepRun(tx, run);
+  }
+
+  /** The pending starts: the engine's own, in no view, so no event. */
+  private async writePending(tx: Tx, id: string, pending: PendingStarts): Promise<void> {
+    await tx.phaseRun.update({ where: { id }, data: { pendingStarts: json(pending) }, select: { id: true } });
+  }
+
   private async writeStepRun(tx: Tx, id: string, data: Prisma.StepRunUpdateInput): Promise<void> {
     await this.publishStepRun(tx, toStepRun(await tx.stepRun.update({ where: { id }, data, select: STEP_RUN_VIEW })));
   }
@@ -351,7 +420,10 @@ export class Engine {
       this.definitionOf(tx, row.processVersionId),
       tx.stepRun.findMany({ where: { phaseRunId }, select: STEP_RUN_VIEW, orderBy: { id: 'asc' } }),
     ]);
-    return { row, phaseRun: toPhaseRun(row), definition, stepRuns: stepRuns.map(toStepRun) };
+    const pending = zPendingStarts.parse(row.pendingStarts);
+    const runs = stepRuns.map(toStepRun);
+    const live = runs.filter((run) => !(run.state === 'failed' && pending[run.stepId]?.retryOf !== undefined));
+    return { row, phaseRun: toPhaseRun(row), definition, stepRuns: runs, pending, live };
   }
 
   private async definitionOf(tx: Tx, processVersionId: string): Promise<ProcessDefinition> {

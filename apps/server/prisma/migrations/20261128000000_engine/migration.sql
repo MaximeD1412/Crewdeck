@@ -20,6 +20,7 @@ CREATE TABLE "phase_runs" (
     "waiting_on" TEXT,
     "started_at" TIMESTAMPTZ NOT NULL,
     "ended_at" TIMESTAMPTZ,
+    "pending_starts" JSONB NOT NULL DEFAULT '{}',
     "last_seq" BIGINT NOT NULL DEFAULT 0,
 
     CONSTRAINT "phase_runs_pkey" PRIMARY KEY ("id")

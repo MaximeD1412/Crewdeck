@@ -14,6 +14,7 @@ export const PHASE_RUN_VIEW = {
   waitingOn: true,
   startedAt: true,
   endedAt: true,
+  pendingStarts: true,
   processVersion: { select: { number: true } },
 } as const;
 
@@ -47,6 +48,8 @@ export interface PhaseRunRow {
   readonly waitingOn: string | null;
   readonly startedAt: Date;
   readonly endedAt: Date | null;
+  /** Not in the view: the engine's own (`Engine`'s pending starts). */
+  readonly pendingStarts: unknown;
   readonly processVersion: { readonly number: number };
 }
 

@@ -925,6 +925,10 @@ model PhaseRun {
   waitingOn        String?        @map("waiting_on")
   startedAt        DateTime       @map("started_at") @db.Timestamptz
   endedAt          DateTime?      @map("ended_at") @db.Timestamptz
+  /// The starts asked by `retry` or `rerunFrom` that the start guard holds,
+  /// by Étape: `{ iteration, reason, retryOf? }`, for `startQueued`. Codes
+  /// and ids only, never shown: not in the view.
+  pendingStarts    Json           @default("{}") @map("pending_starts")
   lastSeq          BigInt         @default(0) @map("last_seq")
   project          Project        @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
   processVersion   ProcessVersion @relation(fields: [pilotId, processVersionId], references: [pilotId, id], onDelete: Cascade)

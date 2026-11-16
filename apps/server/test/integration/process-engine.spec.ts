@@ -305,6 +305,19 @@ describe('the engine against PostgreSQL', () => {
     ]);
   });
 
+  it('returns the unfinished PhaseRun on a second admission even when the active version no longer has its Phase', async () => {
+    const run = await admit('42');
+    const rename = (phaseId: string) => (phaseId === 'ph-dev' ? 'ph-build' : phaseId);
+    await writeVersion({
+      ...PROCESS_CREWDECK,
+      phases: PROCESS_CREWDECK.phases.map((phase) => ({ ...phase, id: rename(phase.id) })),
+      steps: PROCESS_CREWDECK.steps.map((step) => ({ ...step, phaseId: rename(step.phaseId) })),
+    });
+
+    expect(await admit('42')).toEqual(run);
+    await expect(admit('43')).rejects.toThrow(/no Phase ph-dev/);
+  });
+
   it('returns the unfinished PhaseRun on a second admission, and a new one once it is finished', async () => {
     const first = await admit('42');
 
@@ -357,6 +370,62 @@ describe('the engine against PostgreSQL', () => {
     await signal(run.id, 'st-review', done([verdict('v-review')], 'passed'));
     await signal(run.id, 'st-merge', done([CHANGE]));
     expect(await phaseRunState(run.id)).toBe('done');
+  });
+
+  it('publishes again every StepRun of a failed PhaseRun a retry reopens, after the PhaseRun: what a page dropped comes back', async () => {
+    const run = await admit('42');
+    await signal(run.id, 'st-code', { state: 'failed', failure: 'agent-failed' });
+    const failed = await stepRun(run.id, 'st-code');
+    const before = await lastSeq();
+
+    await inAlice((tx) => engine.retry(tx, failed.id));
+
+    const events = await eventsSince(before);
+    expect(events.map((event) => [event.type, event.payload['stepId'] ?? event.payload['state']])).toEqual([
+      ['phase-run.upserted', 'running'],
+      ['step-run.upserted', 'st-code'],
+      ['step-run.upserted', 'st-code'],
+    ]);
+    expect(events[1]?.payload).toMatchObject({ id: failed.id, state: 'failed' });
+    expect(events[2]?.payload).toMatchObject({ state: 'running', iteration: 1 });
+  });
+
+  it('asks the start guard on a retry: held, the PhaseRun running and the Étape ready, until startQueued starts it at the same iteration', async () => {
+    const run = await admit('42');
+    await signal(run.id, 'st-code', { state: 'failed', failure: 'agent-failed' });
+    const failed = await stepRun(run.id, 'st-code');
+    held = true;
+
+    expect(await inAlice((tx) => engine.retry(tx, failed.id))).toBe('held');
+
+    expect(await phaseRunState(run.id)).toBe('running');
+    expect(await states(run.id)).toEqual(['st-code:failed']);
+    expect(await inAlice((tx) => engine.retry(tx, failed.id))).toBeNull();
+    await inAlice((tx) => engine.startQueued(tx, projectId));
+    expect(await states(run.id)).toEqual(['st-code:failed']);
+
+    held = false;
+    await inAlice((tx) => engine.startQueued(tx, projectId));
+
+    expect(await states(run.id)).toEqual(['st-code:failed', 'st-code:running']);
+    expect(await stepRun(run.id, 'st-code')).toMatchObject({ iteration: 1, inputs: failed.inputs });
+    await signal(run.id, 'st-code', done([CHANGE]));
+    expect(await states(run.id)).toEqual(['st-code:failed', 'st-code:done', 'st-checks:running', 'st-rv:waiting']);
+  });
+
+  it('refuses the retry of a failed PhaseRun whose item went through the Phase again since, writing nothing', async () => {
+    const first = await admit('42');
+    await signal(first.id, 'st-code', { state: 'failed', failure: 'agent-failed' });
+    const failed = await stepRun(first.id, 'st-code');
+    const second = await admit('42');
+    expect(second.id).not.toBe(first.id);
+    const before = await lastSeq();
+
+    expect(await inAlice((tx) => engine.retry(tx, failed.id))).toBeNull();
+
+    expect(await phaseRunState(first.id)).toBe('failed');
+    expect(await states(first.id)).toEqual(['st-code:failed']);
+    expect(await eventsSince(before)).toEqual([]);
   });
 
   it('fails an Étape whose kind has no handler with no-handler, and its PhaseRun', async () => {
@@ -421,6 +490,23 @@ describe('the engine against PostgreSQL', () => {
     expect((await stepRun(run.id, 'st-rv')).iteration).toBe(2);
     // No Retour was taken: only the caller's reason names this rerun.
     expect((await stepRuns(run.id)).map((candidate) => candidate.reason).filter((reason) => reason !== null)).toEqual(['fix-conflict']);
+  });
+
+  it('asks the start guard on a rerun: held, every StepRun from st-code superseded, until startQueued starts st-code at iteration 2 with its reason', async () => {
+    const run = await upToMerge();
+    held = true;
+
+    expect(await inAlice((tx) => engine.rerunFrom(tx, run.id, 'st-code', { reason: 'fix-conflict' }))).toBe('held');
+
+    expect(await phaseRunState(run.id)).toBe('running');
+    expect((await stepRuns(run.id)).every((candidate) => candidate.state === 'superseded')).toBe(true);
+
+    held = false;
+    await inAlice((tx) => engine.startQueued(tx, projectId));
+
+    expect(await stepRun(run.id, 'st-code')).toMatchObject({ state: 'running', iteration: 2, reason: 'fix-conflict' });
+    await signal(run.id, 'st-code', done([NEW_CHANGE]));
+    expect(await stepRun(run.id, 'st-checks')).toMatchObject({ state: 'running', iteration: 2, reason: null });
   });
 
   it('refuses rerunFrom on a finished PhaseRun', async () => {

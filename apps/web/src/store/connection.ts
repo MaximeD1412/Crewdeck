@@ -1,4 +1,12 @@
-import { WS_CLOSE, zServerMessage, type ServerMessage, type State, type zClientMessage } from '@crewdeck/contracts';
+import {
+  WS_CLOSE,
+  zServerMessage,
+  type ServerMessage,
+  type State,
+  type TabRelayClientMessage,
+  type TabRelayServerMessage,
+  type zClientMessage,
+} from '@crewdeck/contracts';
 import type { z } from 'zod';
 import type { Store } from './store.js';
 
@@ -32,6 +40,12 @@ export interface Connection {
    * One `hello` at a time: asked again meanwhile, the next one goes after that `live`, and only its own `live` ends the `resync`.
    */
   catchUp(): void;
+  /** A message of a Session's relay (SESSION-1) on the open socket; false when none is open. */
+  sendRelay(message: TabRelayClientMessage): boolean;
+  /** The relay's messages from the server: `session.keys`, `relay`, `session.error`. */
+  onRelay(listener: (message: TabRelayServerMessage) => void): () => void;
+  /** Each socket opened, after its `hello`: the relay opens its Sessions again on it. */
+  onOpen(listener: () => void): () => void;
 }
 
 /** The waits before each reconnection after a loss, the last one repeated. */
@@ -89,8 +103,13 @@ export const createConnection = ({
   /** A catch-up asked while one was waiting: its `hello` goes once the server is `live`. */
   let again = false;
 
-  const send = (message: Outgoing) => {
-    if (socket?.readyState === OPEN) socket.send(JSON.stringify(message));
+  const relayListeners = new Set<(message: TabRelayServerMessage) => void>();
+  const openListeners = new Set<() => void>();
+
+  const send = (message: Outgoing): boolean => {
+    if (socket?.readyState !== OPEN) return false;
+    socket.send(JSON.stringify(message));
+    return true;
   };
 
   const sendVisibility = () => send({ type: 'visibility', visible: visibility() === 'visible' });
@@ -164,6 +183,11 @@ export const createConnection = ({
         return;
       case 'pong':
         return;
+      case 'session.keys':
+      case 'relay':
+      case 'session.error':
+        for (const listener of relayListeners) listener(message);
+        return;
     }
   };
 
@@ -182,6 +206,7 @@ export const createConnection = ({
     current.onopen = () => {
       hello();
       pingTimer = setInterval(ping, PING_INTERVAL_MS);
+      for (const listener of openListeners) listener();
     };
     current.onmessage = (event) => {
       clearTimeout(pongTimer);
@@ -216,6 +241,15 @@ export const createConnection = ({
       store.markStale();
       if (awaiting) again = true;
       else hello();
+    },
+    sendRelay: (message) => send(message),
+    onRelay(listener) {
+      relayListeners.add(listener);
+      return () => relayListeners.delete(listener);
+    },
+    onOpen(listener) {
+      openListeners.add(listener);
+      return () => openListeners.delete(listener);
     },
   };
 };

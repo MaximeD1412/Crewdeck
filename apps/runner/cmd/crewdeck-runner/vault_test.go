@@ -235,3 +235,31 @@ func TestVaultProbe(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// The relay of the Sessions (SESSION-1) wraps each Session's key as the
+// Runner, for the Appareil the link authenticated: the key of the browser
+// that sealed vault.wrap, read again at each wrap.
+func TestTheRelaysKeysAreTheRunnersAndItsHoldersTheLinkedAppareil(t *testing.T) {
+	fake := &fakeLink{polls: []string{linked}}
+	srv := httptest.NewServer(fake.handler(t))
+	t.Cleanup(srv.Close)
+	h := newHarness(t, srv.URL, "claude")
+	if err := h.linker.link(context.Background(), code); err != nil {
+		t.Fatalf("link: %v", err)
+	}
+
+	relay, err := relayKeys(state.Store{Dir: h.home})
+	if err != nil {
+		t.Fatalf("relayKeys: %v", err)
+	}
+	if !bytes.Equal(keys.PublicKeyBytes(relay.Runner), fake.browser.runner) {
+		t.Fatal("the relay's sender is not the Runner the browser authenticated")
+	}
+	holders, err := relay.Holders()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(holders) != 1 || !bytes.Equal(holders[0], keys.PublicKeyBytes(fake.browser.device)) {
+		t.Fatalf("holders %x, want the linked Appareil's key", holders)
+	}
+}

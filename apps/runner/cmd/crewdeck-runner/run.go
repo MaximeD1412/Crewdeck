@@ -47,6 +47,10 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	if err != nil {
 		return err
 	}
+	relay, err := relayKeys(store)
+	if err != nil {
+		return err
+	}
 	if server != "" {
 		linked.Server = server
 	}
@@ -103,6 +107,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		Home:    store.Dir,
 		Engines: reporter.Engines,
 		Logger:  logger,
+		Keys:    relay,
 		Send: func(ctx context.Context, m any) error {
 			client := current.Load()
 			if client == nil {

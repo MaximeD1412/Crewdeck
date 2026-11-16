@@ -116,6 +116,16 @@ describe('the pairing', () => {
     await expect(openFor(runner.privateKey, device.publicKey, confirm.runnerVaultWrap, DEVICE_ID, 1)).rejects.toThrow();
   });
 
+  it('keeps the Runner’s public key its proof authenticated with the Appareil, the sender of the Session keys', async () => {
+    const c = await pairingCase('first-appareil');
+    const { keys, link, devices } = await setUp(c);
+
+    await keys.confirmPairing(link);
+
+    expect(toBase64Url(devices.current()?.runnerPublicKey ?? new Uint8Array())).toBe(c.runnerPublicKey);
+    expect(devices.current()?.deviceId).toBe(DEVICE_ID);
+  });
+
   it('draws a new vault key for each first link', async () => {
     const c = await pairingCase('first-appareil');
     const { keys, link, device } = await setUp(c);
@@ -128,7 +138,7 @@ describe('the pairing', () => {
 
   it('refuses a Runner key the server swapped: its proof does not match', async () => {
     const c = await pairingCase('first-appareil');
-    const { keys, link } = await setUp(c);
+    const { keys, link, devices } = await setUp(c);
     // The server hands its own key with the Runner's proof…
     const swapped = (await pairingCase('relink')).runnerPublicKey;
     expect(await keys.confirmPairing({ ...link, runnerPairing: { ...link.runnerPairing, runnerPublicKey: swapped } })).toBeNull();
@@ -137,6 +147,8 @@ describe('the pairing', () => {
     expect(await keys.confirmPairing({ ...link, runnerPairing: { runnerPublicKey: swapped, proof: forged } })).toBeNull();
     // The device proof replayed as the Runner's.
     expect(await keys.confirmPairing({ ...link, runnerPairing: { ...link.runnerPairing, proof: c.deviceProof } })).toBeNull();
+    // None of the swapped keys is kept.
+    expect(devices.current()?.runnerPublicKey).toBeUndefined();
   });
 
   it('never puts the secret nor the vault key in what it sends', async () => {

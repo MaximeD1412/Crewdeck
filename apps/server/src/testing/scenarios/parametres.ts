@@ -48,3 +48,9 @@ export const parametres = defineScenario({
     return { ...seed, runnerToken: token, runnerMachine: RUNNER_MACHINE };
   },
 });
+
+/** The same Paramètres, the capture showing « Notifications » (its section opened at 390 px): this browser may subscribe. */
+export const parametresNotifications = defineScenario({ ...parametres, name: 'parametres-notifications' });
+
+/** The same, the capture's browser without `PushManager` (an iPhone outside the home-screen app): the help instead of the button. */
+export const parametresNotificationsIphone = defineScenario({ ...parametres, name: 'parametres-notifications-iphone' });

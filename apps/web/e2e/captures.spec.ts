@@ -54,6 +54,20 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   parametres: async (page) => {
     await expect(page.getByRole('combobox', { name: 'Moteur et modèle du Rôle Idée' }).filter({ visible: true })).toHaveValue('claude-code:claude-sonnet-5-5');
   },
+  // « Notifications » (ATOI-4): on the phone its section opened, as a link of the nav does.
+  'parametres-notifications': async (page, width) => {
+    if (width < 1280) await page.getByRole('navigation', { name: 'Paramètres / Sections' }).getByRole('link', { name: 'Notifications' }).click();
+    await expect(page.getByRole('button', { name: 'Activer sur cet appareil' })).toBeVisible();
+  },
+  // A browser without PushManager, an iPhone outside the home-screen app: the help instead of the button.
+  'parametres-notifications-iphone': async (page, width) => {
+    await page.addInitScript(() => {
+      Reflect.deleteProperty(window, 'PushManager');
+    });
+    await page.reload();
+    if (width < 1280) await page.getByRole('navigation', { name: 'Paramètres / Sections' }).getByRole('link', { name: 'Notifications' }).click();
+    await expect(page.getByText('Sur iPhone, ajoute Crewdeck à l’écran d’accueil', { exact: false })).toBeVisible();
+  },
   runner: async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('en ligne');
   },

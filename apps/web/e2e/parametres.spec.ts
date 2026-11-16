@@ -168,3 +168,18 @@ test('« Notifications »: the push switched and a browser removed, shown live i
   const scope = await page.evaluate(async () => (await navigator.serviceWorker.ready).scope);
   expect(scope).toBe(new URL('/', page.url()).href);
 });
+
+/** ATOI-4: where this browser cannot push (no `PushManager`, an iPhone outside the home-screen app), the help instead of the button. */
+test('« Notifications » without PushManager: the help of the home screen instead of « Activer sur cet appareil »', async ({ page, scenario, expectAccessible, viewport }) => {
+  await page.addInitScript(() => {
+    Reflect.deleteProperty(window, 'PushManager');
+  });
+  await scenario('parametres-notifications-iphone');
+  await show(page, 'Notifications', viewport);
+  await expect(page.locator('cd-push-settings')).toContainText(
+    'Sur iPhone, ajoute Crewdeck à l’écran d’accueil (Partager → Sur l’écran d’accueil) pour recevoir les notifications.',
+  );
+  await expect(page.locator('cd-push-settings').getByRole('button', { name: 'Activer sur cet appareil' })).toHaveCount(0);
+  await expect(browsers(page)).toContainText(['Safari · iPhone']);
+  await expectAccessible(page);
+});

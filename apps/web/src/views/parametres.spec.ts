@@ -209,6 +209,12 @@ describe('parametresView’s « Notifications » (ATOI-4)', () => {
     expect(pushOf(SETTINGS, [IPHONE], NO_PUSH_LOCAL).device).toBe('unavailable');
   });
 
+  it('gives the account’s push on its way rather than the store’s, until the store has it', () => {
+    expect(pushOf({ ...SETTINGS, notifications: { push: false } }, [], { ...HERE, pushing: true }).push).toBe(true);
+    expect(pushOf({ ...SETTINGS, notifications: { push: true } }, [], { ...HERE, pushing: null }).push).toBe(true);
+    expect(pushOf({ ...SETTINGS, notifications: { push: true } }, [], { ...HERE, pushing: false }).push).toBe(false);
+  });
+
   it('gives the page’s own state: busy while subscribing, why it failed', () => {
     expect(pushOf(SETTINGS, [], { ...HERE, busy: true, error: 'L’activation a échoué : réessaie.' })).toMatchObject({ busy: true, error: 'L’activation a échoué : réessaie.' });
   });

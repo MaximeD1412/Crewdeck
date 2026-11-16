@@ -9,10 +9,10 @@ type Subscription = Data['subscriptions'][number];
  * `cd-push-settings` (`design/screens/crewdeck/parametres.html`, the card
  * « Notifications »): a Card holding the Toggle « Notifications push » of the
  * account, a ListRow per browser that receives them with a ghost « Retirer »,
- * then this browser's own way: « Activer sur cet appareil » and, under it,
- * why it failed; nothing once it is subscribed; the help to add Crewdeck to
- * the home screen where it cannot receive any. The Toggle's `change` stays
- * inside: `toggle` says it.
+ * then this browser's own way: « Activer sur cet appareil »; nothing once it
+ * is subscribed; the help to add Crewdeck to the home screen where it cannot
+ * receive any. Under it, why the last action failed, whichever it was. The
+ * Toggle's `change` stays inside: `toggle` says it.
  */
 export class PasserellePushSettings extends PasserelleElement<typeof PushSettings> {
   static override styles = [
@@ -63,10 +63,15 @@ export class PasserellePushSettings extends PasserelleElement<typeof PushSetting
     </cd-list-row>`;
   }
 
+  private error(): TemplateResult | typeof nothing {
+    const { error } = this.data;
+    return error ? html`<p class="error" role="alert">${error}</p>` : nothing;
+  }
+
   private device(): TemplateResult | typeof nothing {
-    const { device, busy, error } = this.data;
-    if (device === 'subscribed') return nothing;
-    if (device === 'unavailable') return html`<p class="install">${t('settings.notifications.install')}</p>`;
+    const { device, busy } = this.data;
+    if (device === 'subscribed') return this.error();
+    if (device === 'unavailable') return html`<p class="install">${t('settings.notifications.install')}</p>${this.error()}`;
     return html`<div class="device">
       <cd-button
         class="subscribe"
@@ -79,7 +84,7 @@ export class PasserellePushSettings extends PasserelleElement<typeof PushSetting
         }}
         @click=${this.subscribe}
       ></cd-button>
-      ${error ? html`<p class="error" role="alert">${error}</p>` : nothing}
+      ${this.error()}
     </div>`;
   }
 

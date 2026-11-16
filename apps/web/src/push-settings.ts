@@ -20,10 +20,12 @@ export interface PushSettingsOptions {
 export interface PushSettingsState {
   /** The page's own state of « Notifications », for `parametresView`. */
   view(): PushLocal;
-  /** Reads the endpoint this browser receives on (at boot, and when its push service may have changed it). */
+  /** Reads the endpoint this browser receives on (at boot, and when its push service may have changed it), and the server's VAPID key ahead of « Activer ». */
   sync(): Promise<void>;
-  /** Switches the account's push (`PATCH /api/settings`). */
+  /** Switches the account's push (`PATCH /api/settings`), shown on its way; refused, the Toggle back and why. */
   toggle(push: boolean): Promise<void>;
+  /** The store's account push (`settings.upserted`): the switch on its way ends once the store has it. */
+  settled(stored: boolean | undefined): void;
   /** « Activer sur cet appareil »: the permission, the subscription with the server's VAPID key, then `POST /api/push-subscriptions`; why it failed under the button. */
   activate(): Promise<void>;
   /** « Retirer » (`DELETE /api/push-subscriptions/:id`); this browser's own row unsubscribes it too. */
@@ -47,23 +49,45 @@ export const createPushSettings = ({ client, device, userAgent, subscriptionOf }
     for (const listener of [...listeners]) listener();
   };
   const messageOf = (error: unknown) => (error instanceof ApiError ? error.message : t('settings.notifications.failed'));
+  let toggles = 0;
+  // The server's VAPID key, read once ahead of the click (`sync`): read again after a failure.
+  let key: Promise<string> | null = null;
+  const keyOf = (): Promise<string> =>
+    (key ??= client.query('/api/config', zPublicConfig).then(
+      ({ vapidPublicKey }) => vapidPublicKey,
+      (error: unknown) => {
+        key = null;
+        throw error;
+      },
+    ));
 
   return {
     view: () => state,
     async sync() {
       if (!device.available) return;
+      void keyOf().catch(() => undefined);
       const endpoint = await device.endpoint().catch(() => null);
       if (endpoint !== state.endpoint) set({ endpoint });
     },
     async toggle(push) {
-      await updateSettings(client, { notifications: { push } });
+      const mine = ++toggles;
+      set({ pushing: push, error: null });
+      try {
+        await updateSettings(client, { notifications: { push } });
+      } catch (error) {
+        if (mine === toggles) set({ pushing: null, error: error instanceof ApiError ? error.message : t('settings.notifications.push.failed') });
+      }
+    },
+    settled(stored) {
+      // Silent: called as the store changes, which renders the page anyway.
+      if (state.pushing !== null && state.pushing === stored) state = { ...state, pushing: null };
     },
     async activate() {
       if (!device.available || state.busy) return;
       set({ busy: true, error: null });
       try {
-        const { vapidPublicKey } = await client.query('/api/config', zPublicConfig);
-        const subscribed = await device.subscribe(vapidPublicKey);
+        // The key not awaited here: the permission is asked in the click's user activation (Safari).
+        const subscribed = await device.subscribe(keyOf());
         if (subscribed === 'denied') {
           set({ busy: false, error: t('settings.notifications.denied') });
           return;

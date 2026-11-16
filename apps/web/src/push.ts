@@ -36,8 +36,12 @@ export interface PushDevice {
   readonly available: boolean;
   /** The endpoint this browser receives on, `null` when it is not subscribed. */
   endpoint(): Promise<string | null>;
-  /** Asks the permission, then subscribes with the server's VAPID key (`userVisibleOnly`). */
-  subscribe(applicationServerKey: string): Promise<PushSubscribed>;
+  /**
+   * Asks the permission at once, in the click's user activation (Safari
+   * refuses it after a wait), then subscribes with the server's VAPID key
+   * once it comes (`userVisibleOnly`).
+   */
+  subscribe(applicationServerKey: Promise<string>): Promise<PushSubscribed>;
   /** Unsubscribes this browser, its row removed. */
   unsubscribe(): Promise<void>;
 }
@@ -67,11 +71,14 @@ export const createBrowserPush = (window: Window): PushDevice => {
     available,
     endpoint: async () => (await current())?.endpoint ?? null,
     async subscribe(applicationServerKey) {
-      if ((await (window as Window & typeof globalThis).Notification.requestPermission()) !== 'granted') return 'denied';
-      const subscription = await (await registration()).pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: fromBase64Url(applicationServerKey),
-      });
+      // Nothing awaited before: the permission is asked while the click is still the user's.
+      const permission = (window as Window & typeof globalThis).Notification.requestPermission();
+      if ((await permission) !== 'granted') {
+        applicationServerKey.catch(() => undefined);
+        return 'denied';
+      }
+      const [ready, key] = await Promise.all([registration(), applicationServerKey]);
+      const subscription = await ready.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: fromBase64Url(key) });
       const { keys } = subscription.toJSON();
       return { endpoint: subscription.endpoint, keys: { p256dh: keys?.['p256dh'] ?? '', auth: keys?.['auth'] ?? '' } };
     },

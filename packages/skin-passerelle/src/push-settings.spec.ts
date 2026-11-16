@@ -75,6 +75,15 @@ describe('PushSettings', () => {
     expect(has(await pushSettings(toSubscribe), '.error')).toBe(false);
   });
 
+  it('says why the last action failed on a browser already subscribed, or one that cannot receive any', async () => {
+    const message = 'Le réglage n’a pas pu être enregistré.';
+    for (const data of [onIphone, unavailable]) {
+      const el = await pushSettings({ ...data, error: message });
+      expect(textOf(inside(el, '.error'))).toBe(message);
+      expect(inside(el, '.error').getAttribute('role')).toBe('alert');
+    }
+  });
+
   it('shows nothing to do on a browser already subscribed', async () => {
     const el = await pushSettings(onIphone);
     expect(has(el, 'cd-button.subscribe')).toBe(false);

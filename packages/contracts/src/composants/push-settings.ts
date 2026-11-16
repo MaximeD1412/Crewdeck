@@ -10,10 +10,11 @@ const LAPTOP = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a02', label: 'Chrome · W
  * « Notifications push » of the account (`toggle`), then each browser that
  * receives them, with « Retirer » (`remove`), then this browser's own way:
  * « Activer sur cet appareil » (`subscribe`, `busy` while the permission and
- * the subscription are on their way, `error` when they failed) when it is
- * not subscribed (`subscribe`), nothing once it is (`subscribed`), the help
- * to add Crewdeck to the home screen where it cannot receive any
- * (`unavailable`: no `PushManager`, or an iPhone outside the home-screen app).
+ * the subscription are on their way) when it is not subscribed (`subscribe`),
+ * nothing once it is (`subscribed`), the help to add Crewdeck to the home
+ * screen where it cannot receive any (`unavailable`: no `PushManager`, or an
+ * iPhone outside the home-screen app). `error`: why the last action failed,
+ * whichever it was, shown in every state.
  */
 export const PushSettings = defineComposant({
   name: 'PushSettings',

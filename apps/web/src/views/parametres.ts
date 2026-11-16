@@ -128,11 +128,13 @@ export interface PushLocal {
   readonly available: boolean;
   /** The endpoint this browser receives on, `null` when it is not subscribed. */
   readonly endpoint: string | null;
+  /** The account's push on its way (`PATCH /api/settings`), shown until the store has it; `null` otherwise. */
+  readonly pushing: boolean | null;
   readonly busy: boolean;
   readonly error: string | null;
 }
 
-export const NO_PUSH_LOCAL: PushLocal = { available: false, endpoint: null, busy: false, error: null };
+export const NO_PUSH_LOCAL: PushLocal = { available: false, endpoint: null, pushing: null, busy: false, error: null };
 
 /** What « Notifications » reads beside the settings: the store's browsers, the page's own state. */
 export interface PushInput {
@@ -150,7 +152,7 @@ const notifications = (settings: AccountSettings, { subscriptions = [], local = 
   const sorted = [...subscriptions].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const subscribed = local.endpoint !== null && sorted.some((subscription) => subscription.endpoint === local.endpoint);
   const data: ComposantData<typeof PushSettings> = {
-    push: settings.notifications.push,
+    push: local.pushing ?? settings.notifications.push,
     subscriptions: sorted.map(({ id, label, createdAt }) => ({ id, label, meta: t('settings.notifications.authorized', { date: formatDate(createdAt) }) })),
     device: !local.available ? 'unavailable' : subscribed ? 'subscribed' : 'subscribe',
     busy: local.busy,

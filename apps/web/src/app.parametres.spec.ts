@@ -12,7 +12,10 @@ const KEYS = { p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg
 const push = {
   available: true,
   endpoint: vi.fn(async () => null),
-  subscribe: vi.fn(async () => ({ endpoint: ENDPOINT, keys: KEYS })),
+  subscribe: vi.fn(async (key: Promise<string>) => {
+    await key;
+    return { endpoint: ENDPOINT, keys: KEYS };
+  }),
   unsubscribe: vi.fn(async () => undefined),
 };
 
@@ -88,9 +91,10 @@ describe('the page’s Paramètres', () => {
     expect(notifications.data).toMatchObject({ push: false, device: 'subscribe', subscriptions: [] });
     emitAction(notifications, PushSettings, 'toggle', { push: true });
     await vi.waitFor(() => expect(command).toHaveBeenCalledWith('PATCH', '/api/settings', { notifications: { push: true } }, expect.anything()));
+    await vi.waitFor(() => expect(notifications.data.push).toBe(true));
     emitAction(notifications, PushSettings, 'subscribe', {});
     await vi.waitFor(() => expect(command).toHaveBeenCalledWith('POST', '/api/push-subscriptions', { endpoint: ENDPOINT, keys: KEYS, label: expect.any(String) }, expect.anything()));
-    expect(push.subscribe).toHaveBeenCalledWith(VAPID);
+    await expect(push.subscribe.mock.calls[0]?.[0]).resolves.toBe(VAPID);
     const row = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a02', endpoint: ENDPOINT, label: 'Chrome · Windows', createdAt: '2026-11-12T09:00:00.000Z' };
     store.applyEvent({ seq: 3, type: 'push-subscription.upserted', payload: row, at: '2026-11-12T09:00:00.000Z' });
     await vi.waitFor(() => expect(notifications.data.device).toBe('subscribed'));

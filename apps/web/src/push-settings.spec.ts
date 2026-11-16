@@ -22,15 +22,16 @@ const setup = ({
   endpoint = null as string | null,
   subscribe = async (): Promise<PushSubscribed> => SUBSCRIBED,
   command = async (): Promise<unknown> => ROW,
+  config = async (): Promise<unknown> => ({ vapidPublicKey: KEY }),
 } = {}) => {
   let current = endpoint;
   const device = {
     available,
     endpoint: vi.fn(async () => current),
-    subscribe: vi.fn(async (key: string) => {
+    subscribe: vi.fn(async (key: Promise<string>) => {
       const answer = await subscribe();
       if (answer !== 'denied') current = answer.endpoint;
-      void key;
+      await key;
       return answer;
     }),
     unsubscribe: vi.fn(async () => {
@@ -38,7 +39,7 @@ const setup = ({
     }),
   } satisfies PushDevice;
   const commands = vi.fn<(...args: unknown[]) => Promise<unknown>>(command);
-  const query = vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ vapidPublicKey: KEY }));
+  const query = vi.fn<(...args: unknown[]) => Promise<unknown>>(config);
   const rows = new Map([ROW, OTHER].map((row) => [row.id, row]));
   const push = createPushSettings({
     client: { command: commands as unknown as Client['command'], query: query as unknown as Client['query'] },
@@ -54,17 +55,46 @@ const setup = ({
 describe('createPushSettings', () => {
   it('knows whether this browser can push and, once synced, the endpoint it receives on', async () => {
     const { push, changes } = setup({ endpoint: ENDPOINT });
-    expect(push.view()).toEqual({ available: true, endpoint: null, busy: false, error: null });
+    expect(push.view()).toEqual({ available: true, endpoint: null, pushing: null, busy: false, error: null });
     await push.sync();
     expect(push.view().endpoint).toBe(ENDPOINT);
     expect(changes).toHaveBeenCalledTimes(1);
     expect(setup({ available: false }).push.view().available).toBe(false);
   });
 
-  it('switches the account’s push with PATCH /api/settings', async () => {
+  it('switches the account’s push with PATCH /api/settings, shown on its way until the store has it', async () => {
     const { push, commands } = setup({ command: async () => DEFAULT_ACCOUNT_SETTINGS });
     await push.toggle(true);
     expect(commands).toHaveBeenCalledWith('PATCH', '/api/settings', { notifications: { push: true } }, expect.anything());
+    expect(push.view().pushing).toBe(true);
+    push.settled(false);
+    expect(push.view().pushing).toBe(true);
+    push.settled(true);
+    expect(push.view().pushing).toBeNull();
+  });
+
+  it('puts the Toggle back and says why when the account’s push could not be switched', async () => {
+    const { push } = setup({ command: async () => Promise.reject(refused(409, 'realtime.stale', 'La page n’était plus à jour : réessaie.')) });
+    await push.toggle(true);
+    expect(push.view()).toMatchObject({ pushing: null, error: 'La page n’était plus à jour : réessaie.' });
+
+    const offline = setup({ command: async () => Promise.reject(new TypeError('Failed to fetch')) });
+    await offline.push.toggle(true);
+    expect(offline.push.view()).toMatchObject({ pushing: null, error: t('settings.notifications.push.failed') });
+    await expect(offline.push.toggle(false)).resolves.toBeUndefined();
+  });
+
+  it('keeps the last switch on its way when an earlier one fails', async () => {
+    const answers: ((error: unknown) => void)[] = [];
+    const { push } = setup({ command: () => new Promise((_, reject) => answers.push(reject)) });
+    const first = push.toggle(true);
+    const second = push.toggle(false);
+    answers[0]?.(new TypeError('Failed to fetch'));
+    await first;
+    expect(push.view()).toMatchObject({ pushing: false, error: null });
+    answers[1]?.(new TypeError('Failed to fetch'));
+    await second;
+    expect(push.view()).toMatchObject({ pushing: null, error: t('settings.notifications.push.failed') });
   });
 
   it('activates this browser with the server’s VAPID key, then POST /api/push-subscriptions with its label, busy meanwhile', async () => {
@@ -74,13 +104,39 @@ describe('createPushSettings', () => {
     expect(push.view().busy).toBe(true);
     await vi.waitFor(() => expect(commands).toHaveBeenCalled());
     expect(query).toHaveBeenCalledWith('/api/config', expect.anything());
-    expect(device.subscribe).toHaveBeenCalledWith(KEY);
+    await expect(device.subscribe.mock.calls[0]?.[0]).resolves.toBe(KEY);
     expect(commands).toHaveBeenCalledWith('POST', '/api/push-subscriptions', { ...SUBSCRIBED, label: 'Chrome · Windows' }, expect.anything());
     push.activate();
     expect(device.subscribe).toHaveBeenCalledTimes(1);
     answer(ROW);
     await subscribing;
-    expect(push.view()).toEqual({ available: true, endpoint: ENDPOINT, busy: false, error: null });
+    expect(push.view()).toEqual({ available: true, endpoint: ENDPOINT, pushing: null, busy: false, error: null });
+  });
+
+  it('asks this browser to subscribe in the click itself, the server’s key read ahead and not waited for', async () => {
+    const config = Promise.withResolvers<unknown>();
+    const { push, device, query } = setup({ config: () => config.promise });
+    void push.sync();
+    expect(query).toHaveBeenCalledTimes(1);
+
+    const subscribing = push.activate();
+
+    expect(device.subscribe).toHaveBeenCalledTimes(1);
+    config.resolve({ vapidPublicKey: KEY });
+    await subscribing;
+    await expect(device.subscribe.mock.calls[0]?.[0]).resolves.toBe(KEY);
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(push.view()).toMatchObject({ endpoint: ENDPOINT, error: null });
+  });
+
+  it('reads the server’s key again on the next try when it could not be read', async () => {
+    let calls = 0;
+    const { push, query } = setup({ config: async () => (++calls === 1 ? Promise.reject(new Error('offline')) : { vapidPublicKey: KEY }) });
+    await push.activate();
+    expect(push.view().error).toBe(t('settings.notifications.failed'));
+    await push.activate();
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(push.view()).toMatchObject({ endpoint: ENDPOINT, error: null });
   });
 
   it('says the notifications are blocked when the permission is refused, and sends nothing', async () => {

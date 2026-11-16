@@ -327,7 +327,7 @@ export const fr = {
   'composants.PushSettings.actions.toggle': 'Active ou coupe les notifications push du compte',
   'composants.PushSettings.data.busy': 'L’activation sur cet appareil est en route : le bouton attend',
   'composants.PushSettings.data.device': 'Cet appareil : à activer, déjà abonné, ou sans notifications possibles (l’aide de l’écran d’accueil à la place du bouton)',
-  'composants.PushSettings.data.error': 'Pourquoi l’activation sur cet appareil a échoué, sous son bouton',
+  'composants.PushSettings.data.error': 'Pourquoi la dernière action a échoué (l’interrupteur, l’activation ou un retrait), sous l’appareil',
   'composants.PushSettings.data.push': 'Si les notifications push du compte sont activées',
   'composants.PushSettings.data.subscriptions': 'Les navigateurs qui les reçoivent : leur libellé et depuis quand',
   'composants.PushSettings.description':
@@ -773,6 +773,7 @@ export const fr = {
   'settings.notifications.failed': 'L’activation a échoué : réessaie.',
   'settings.notifications.install': 'Sur iPhone, ajoute Crewdeck à l’écran d’accueil (Partager → Sur l’écran d’accueil) pour recevoir les notifications.',
   'settings.notifications.label': 'Paramètres / Notifications',
+  'settings.notifications.push.failed': 'Le réglage n’a pas pu être enregistré : réessaie.',
   'settings.notifications.push.help':
     'Sur tes appareils autorisés : quand une Décision t’attend et que tu n’as aucun onglet Crewdeck visible depuis 2 min, et quand le Runner est hors ligne alors que du travail attend.',
   'settings.notifications.push.label': 'Notifications push',

@@ -1,5 +1,5 @@
 import { PUSH_LABEL_MAX } from '@crewdeck/contracts';
-import { canPush, pushLabelOf } from './push.js';
+import { canPush, createBrowserPush, pushLabelOf } from './push.js';
 
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1';
 const CHROME_WINDOWS = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
@@ -30,6 +30,25 @@ const windowOf = ({ userAgent = CHROME_WINDOWS, push = true, standalone = false 
     matchMedia: () => ({ matches: false }),
     ...(push ? { PushManager: class {}, Notification: class {} } : {}),
   }) satisfies FakeWindow as unknown as Window;
+
+describe('createBrowserPush', () => {
+  it('asks the permission in the click itself, before waiting for the server’s key', async () => {
+    const asked = vi.fn(async () => 'denied' as NotificationPermission);
+    const window = {
+      navigator: { userAgent: CHROME_WINDOWS, serviceWorker: { ready: new Promise(() => undefined) } },
+      matchMedia: () => ({ matches: false }),
+      PushManager: class {},
+      Notification: { requestPermission: asked },
+    } as unknown as Window;
+    const key = Promise.withResolvers<string>();
+
+    const subscribing = createBrowserPush(window).subscribe(key.promise);
+
+    expect(asked).toHaveBeenCalledTimes(1);
+    key.reject(new Error('the server is slow'));
+    await expect(subscribing).resolves.toBe('denied');
+  });
+});
 
 describe('canPush', () => {
   it('needs a service worker, PushManager and Notification', () => {

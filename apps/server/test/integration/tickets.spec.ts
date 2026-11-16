@@ -478,7 +478,7 @@ describe('the Tickets and changes of code against PostgreSQL', () => {
 
   describe('the Sources', () => {
     it('writes nothing for a Projet whose groups are not on GitHub', async () => {
-      vi.spyOn(app.get(ProjectSources), 'isGithub').mockResolvedValue(false);
+      await sql(`UPDATE artifact_sources SET source = 'local'`);
       const before = (await eventsOf()).length;
 
       await issue('opened', { number: 42, title: 'Connexion GitHub', labels: ['ready-for-agent'] });

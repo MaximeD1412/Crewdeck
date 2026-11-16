@@ -40,6 +40,7 @@ import { ProjectFilter } from './project-filter.js';
 import { Question } from './question.js';
 import { Radio } from './radio.js';
 import { RepositoryPicker } from './repository-picker.js';
+import { RoleSettings } from './role-settings.js';
 import { Select } from './select.js';
 import { Session } from './session.js';
 import { SettingRow } from './setting-row.js';
@@ -105,6 +106,7 @@ export * from './project-filter.js';
 export * from './question.js';
 export * from './radio.js';
 export * from './repository-picker.js';
+export * from './role-settings.js';
 export * from './select.js';
 export * from './sensitive.js';
 export * from './session.js';
@@ -151,6 +153,7 @@ export const COMPOSANTS = {
   KeyValue,
   ListRow,
   RepositoryPicker,
+  RoleSettings,
   Session,
   Message,
   ToolCall,

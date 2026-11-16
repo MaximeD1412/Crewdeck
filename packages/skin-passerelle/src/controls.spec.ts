@@ -111,6 +111,23 @@ describe('Select', () => {
     expect(inside<HTMLSelectElement>(el, 'select').disabled).toBe(true);
     expect(new FormData(form).has('engine')).toBe(false);
   });
+
+  it('with an error, reports itself invalid to its form and shows the message under it, linked by aria-describedby', async () => {
+    const form = newForm();
+    const el = await render(COMPOSANTS.Select, { ...select, error: 'Quota atteint : choisis un autre modèle.' }, {}, form);
+    expect(form.checkValidity()).toBe(false);
+    const native = inside<HTMLSelectElement>(el, 'select');
+    expect(native.getAttribute('aria-invalid')).toBe('true');
+    const described = (native.getAttribute('aria-describedby') ?? '').split(' ').map((id) => textOf(inside(el, `#${id}`)));
+    expect(described).toContain('Quota atteint : choisis un autre modèle.');
+    expect(inside(el, '.error').getBoundingClientRect().top).toBeGreaterThanOrEqual(native.getBoundingClientRect().bottom);
+
+    el.data = { ...select };
+    await settle(el);
+    expect(form.checkValidity()).toBe(true);
+    expect(el.shadowRoot?.querySelector('.error')).toBeNull();
+    expect(native.hasAttribute('aria-invalid')).toBe(false);
+  });
 });
 
 describe('Toggle', () => {

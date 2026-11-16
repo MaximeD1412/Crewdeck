@@ -21,9 +21,17 @@ const fixture = (name: string): Fixture => JSON.parse(readFileSync(join(FIXTURES
 
 type Row = Record<string, unknown>;
 
-/** The tables `ProcessService` touches, in memory: what it queries of Prisma, nothing more. */
-const fakeDatabase = (projects: string[] = [PROJECT]) => {
+const GITHUB: ProcessSources = { ticket: 'github', code: 'github' };
+const LOCAL: ProcessSources = { ticket: 'github', code: 'local' };
+
+const SINCE = new Date('2026-11-15T08:00:00.000Z');
+
+/** The tables `ProcessService` touches, in memory: what it queries of Prisma, nothing more; each Projet's Sources as `sources` says. */
+const fakeDatabase = (projects: string[] = [PROJECT], sources: ProcessSources = GITHUB) => {
   const versions: Row[] = [];
+  const artifactSources = projects.flatMap((projectId) =>
+    (['ticket', 'code'] as const).map((group) => ({ projectId, group, source: sources[group], since: SINCE })),
+  );
   const drafts: Row[] = [];
   const pick = (row: Row | undefined): Row | null => (row ? { ...row } : null);
   /** As PostgreSQL stores it: `Prisma.DbNull` is SQL's NULL. */
@@ -40,6 +48,9 @@ const fakeDatabase = (projects: string[] = [PROJECT]) => {
       },
       findFirst: async ({ where }: { where: { projectId: string } }) =>
         pick(versions.filter((row) => row['projectId'] === where.projectId).sort((a, b) => Number(b['number']) - Number(a['number']))[0]),
+    },
+    artifactSource: {
+      findMany: async ({ where }: { where: { projectId: string } }) => artifactSources.filter((row) => row.projectId === where.projectId).map((row) => ({ ...row })),
     },
     processDraft: {
       create: async ({ data }: { data: Row }) => {
@@ -70,8 +81,6 @@ const fakeDatabase = (projects: string[] = [PROJECT]) => {
 
 const inScope = <T>(fn: () => Promise<T>): Promise<T> => runInPilotScope(PILOT, fn);
 
-const GITHUB: ProcessSources = { ticket: 'github', code: 'github' };
-const LOCAL: ProcessSources = { ticket: 'github', code: 'local' };
 
 const draftInput = (edit: Partial<ProcessDraftInput> = {}): ProcessDraftInput => ({ definition: PROCESS_CREWDECK, sealed: null, revision: 0, baseVersion: 1, ...edit });
 
@@ -88,12 +97,13 @@ describe('ProcessService.createInitialVersion', () => {
   it('writes version 1, « Process Crewdeck » copied by the creation, no draft, and its process.upserted', async () => {
     const db = fakeDatabase();
 
-    const view = await inScope(() => db.service.createInitialVersion(db.tx, PROJECT, { template: 'process-crewdeck' }, GITHUB));
+    const view = await inScope(() => db.service.createInitialVersion(db.tx, PROJECT, { template: 'process-crewdeck' }));
 
     expect(view).toEqual({
       id: PROJECT,
       active: { number: 1, definition: PROCESS_CREWDECK, sealed: null, activatedAt: expect.any(String), activatedBy: 'creation', templateName: PROCESS_CREWDECK_NAME },
       draft: null,
+      sources: { ticket: { source: 'github', since: SINCE.toISOString() }, code: { source: 'github', since: SINCE.toISOString() } },
     });
     expect(db.versions).toEqual([expect.objectContaining({ pilotId: PILOT, projectId: PROJECT, number: 1 })]);
     expect(db.drafts).toEqual([]);
@@ -101,10 +111,10 @@ describe('ProcessService.createInitialVersion', () => {
   });
 
   it('writes no version but a draft based on 0 when the copy has a Manque on the Projet’s Sources (code Local)', async () => {
-    const db = fakeDatabase();
+    const db = fakeDatabase([PROJECT], LOCAL);
     expect(fixture('crewdeck-local').sources.code).toBe('local');
 
-    const view = await inScope(() => db.service.createInitialVersion(db.tx, PROJECT, { template: 'process-crewdeck' }, LOCAL));
+    const view = await inScope(() => db.service.createInitialVersion(db.tx, PROJECT, { template: 'process-crewdeck' }));
 
     expect(view.active).toBeNull();
     expect(view.draft).toEqual({ definition: PROCESS_CREWDECK, sealed: null, revision: 1, baseVersion: 0, updatedAt: expect.any(String) });
@@ -116,7 +126,7 @@ describe('ProcessService.createInitialVersion', () => {
 describe('ProcessService.saveDraft', () => {
   const created = async () => {
     const db = fakeDatabase();
-    await inScope(() => db.service.createInitialVersion(db.tx, PROJECT, { template: 'process-crewdeck' }, GITHUB));
+    await inScope(() => db.service.createInitialVersion(db.tx, PROJECT, { template: 'process-crewdeck' }));
     db.events.length = 0;
     return db;
   };
@@ -157,8 +167,8 @@ describe('ProcessService.saveDraft', () => {
   });
 
   it('saves a draft based on 0 while the Projet has no version', async () => {
-    const db = fakeDatabase();
-    await inScope(() => db.service.createInitialVersion(db.tx, PROJECT, { template: 'process-crewdeck' }, LOCAL));
+    const db = fakeDatabase([PROJECT], LOCAL);
+    await inScope(() => db.service.createInitialVersion(db.tx, PROJECT, { template: 'process-crewdeck' }));
 
     const view = await inScope(() => db.service.saveDraft(PROJECT, draftInput({ baseVersion: 0, revision: 1 })));
     expect(view.draft).toMatchObject({ revision: 2, baseVersion: 0 });

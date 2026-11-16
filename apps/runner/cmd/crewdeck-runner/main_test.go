@@ -114,6 +114,10 @@ func TestRunConnectsWithTheLinkedTokenAndStopsCleanlyWhenItsContextEnds(t *testi
 		if !strings.Contains(data, `"type":"hello"`) {
 			t.Fatalf("first message %s", data)
 		}
+		// The Miroir is opened, empty: the server is asked to resync it.
+		if !strings.Contains(data, `"mirrorAfter":null`) {
+			t.Errorf("the hello carries no cursor of the Miroir: %s", data)
+		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("no hello")
 	}

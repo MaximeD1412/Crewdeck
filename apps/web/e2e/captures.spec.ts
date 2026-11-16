@@ -74,6 +74,10 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   projets: async (page) => {
     await expect(page.locator('cd-page-projets cd-list-row')).toHaveCount(4);
   },
+  // « Rôles et modèles » once the snapshot gave the Comptes IA: the Idée on Sonnet, as the mockup.
+  parametres: async (page) => {
+    await expect(page.getByRole('combobox', { name: 'Moteur et modèle du Rôle Idée' }).filter({ visible: true })).toHaveValue('claude-code:claude-sonnet-5-5');
+  },
   runner: async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('en ligne');
   },

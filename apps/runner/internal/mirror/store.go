@@ -14,6 +14,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
@@ -27,8 +29,13 @@ const SchemaVersion = 1
 // FileName is the copy's file in the Runner's folder.
 const FileName = "miroir.db"
 
-// MetaMirrorAfter is the meta key of the last github_changes.seq applied (MIROIR-4).
+// MetaMirrorAfter is the meta key of the cursor: every github_changes.seq up
+// to it is applied (MIROIR-4).
 const MetaMirrorAfter = "mirror_after"
+
+// MetaMirrorApplied is the meta key of the seqs applied after the cursor
+// (another Projet's, while one is held), comma-separated, ascending.
+const MetaMirrorApplied = "mirror_applied"
 
 //go:embed schema.sql
 var schema string
@@ -355,4 +362,81 @@ func SetMeta(tx *sql.Tx, key, value string) error {
 		return fmt.Errorf("mirror: meta %s: %w", key, err)
 	}
 	return nil
+}
+
+// meta reads one of the Runner's values, "" when it has none.
+func (s *Store) meta(key string) (string, error) {
+	var value string
+	err := s.db.QueryRow("SELECT value FROM meta WHERE key = ?", key).Scan(&value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("mirror: meta %s: %w", key, err)
+	}
+	return value, nil
+}
+
+// Cursor is the last github_changes.seq up to which every envelope is
+// applied, meta.mirror_after; nil when there is none (a new or rebuilt copy).
+// The hello of each connection says it (mirrorAfter).
+func (s *Store) Cursor() (*int64, error) {
+	value, err := s.meta(MetaMirrorAfter)
+	if err != nil || value == "" {
+		return nil, err
+	}
+	cursor, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("mirror: meta %s is not a seq", MetaMirrorAfter)
+	}
+	return &cursor, nil
+}
+
+// applied are the seqs applied after the cursor, meta.mirror_applied.
+func (s *Store) applied() (map[int64]bool, error) {
+	value, err := s.meta(MetaMirrorApplied)
+	if err != nil {
+		return nil, err
+	}
+	out := map[int64]bool{}
+	for _, part := range strings.Split(value, ",") {
+		if part == "" {
+			continue
+		}
+		seq, err := strconv.ParseInt(part, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("mirror: meta %s is not a list of seqs", MetaMirrorApplied)
+		}
+		out[seq] = true
+	}
+	return out, nil
+}
+
+// marks are the Projets' filled_at (set or not) and synced_at, by repository.
+func (s *Store) marks() (map[string]marks, error) {
+	rows, err := s.db.Query("SELECT repository, filled_at IS NOT NULL, coalesce(synced_at, '') FROM projects")
+	if err != nil {
+		return nil, fmt.Errorf("mirror: projects: %w", err)
+	}
+	defer rows.Close()
+	out := map[string]marks{}
+	for rows.Next() {
+		var repo, synced string
+		var m marks
+		if err := rows.Scan(&repo, &m.filled, &synced); err != nil {
+			return nil, err
+		}
+		if synced != "" {
+			if m.synced, err = time.Parse(time.RFC3339, synced); err != nil {
+				return nil, fmt.Errorf("mirror: synced_at of %s: %w", repo, err)
+			}
+		}
+		out[repo] = m
+	}
+	return out, rows.Err()
+}
+
+type marks struct {
+	filled bool
+	synced time.Time
 }

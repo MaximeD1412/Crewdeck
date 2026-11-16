@@ -8,7 +8,8 @@ import { GITHUB_CLIENT, type GitHubClient } from '../github/github.client.js';
 import { REPOSITORY_VIEW } from '../github/repositories/repositories.js';
 import { newId } from '../ids.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { GITHUB_SOURCES, ProcessService } from '../process/process.service.js';
+import { ProcessService } from '../process/process.service.js';
+import { SourcesService } from '../process/sources/sources.service.js';
 import { EventsWriter } from '../realtime/events.writer.js';
 import { assertFresh } from '../realtime/freshness.js';
 import { STATE_CONTRIBUTORS, type StateContributor, type StateContributors } from '../realtime/state-contributors.js';
@@ -35,8 +36,9 @@ const isUniqueViolation = (error: unknown): boolean => error instanceof Prisma.P
 /**
  * The Projets (US-3, PROJET-2): following a Dépôt GitHub makes it a Projet,
  * named and branched after its `.process.json` when it has one. One
- * transaction writes every Projet of the command, each with its Process
- * (version 1 of « Process Crewdeck », PROCESS-3) and its `process.upserted`,
+ * transaction writes every Projet of the command, each with its Sources
+ * (both groups on GitHub, SOURCE-1), its Process (version 1 of « Process
+ * Crewdeck », PROCESS-3) and its `process.upserted`,
  * its `project.upserted` and its repository's `repository.upserted` (followed).
  */
 @Injectable()
@@ -47,6 +49,7 @@ export class Projects {
     private readonly transactions: Transactions,
     private readonly events: EventsWriter,
     private readonly process: ProcessService,
+    private readonly sources: SourcesService,
     private readonly changes: ProjectChanges,
   ) {}
 
@@ -108,7 +111,9 @@ export class Projects {
         const project = toProject(row);
         const projectSeq = await this.events.write(tx, pilotId, 'project.upserted', project);
         await tx.project.update({ where: { id: projectId }, data: { lastSeq: projectSeq } });
-        await this.process.createInitialVersion(tx, projectId, { template: 'process-crewdeck' }, GITHUB_SOURCES);
+        // Its Sources first, so that its first process.upserted holds them: a Dépôt GitHub, both groups on GitHub.
+        await this.sources.createDefaults(tx, projectId, 'github');
+        await this.process.createInitialVersion(tx, projectId, { template: 'process-crewdeck' });
         const view = { id, owner: repository.owner, name: repository.name, fullName: repository.fullName, private: repository.private, defaultBranch: repository.defaultBranch, hasCode: repository.hasCode };
         const repositorySeq = await this.events.write(tx, pilotId, 'repository.upserted', { ...view, followed: true });
         await tx.repository.update({ where: { id }, data: { lastSeq: repositorySeq } });

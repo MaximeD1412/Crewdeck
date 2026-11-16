@@ -5,6 +5,7 @@ import { zStepKind } from '../process/catalogue.js';
 import { zProcessId } from '../process/definition.js';
 import { BUILTIN_TEMPLATES } from '../process/templates/process-crewdeck.js';
 import { zId, zInstant } from '../values.js';
+import { withSeq } from './commands.js';
 
 /**
  * The engine's runs (ADR 0011, « The engine »): a PhaseRun is one item
@@ -141,9 +142,10 @@ export type StepRun = z.infer<typeof zStepRun>;
 
 /**
  * The body of `POST /api/phase-runs/:id/one-more-pass` and `…/stop`: the
- * Décision `loop-back.exhausted` they answer (PROCESS-6).
+ * Décision `loop-back.exhausted` they answer (PROCESS-6), and the `seq` of
+ * the PhaseRun the page showed.
  */
-export const zPhaseRunDecisionAnswer = z.object({ decisionId: zId });
+export const zPhaseRunDecisionAnswer = withSeq(z.object({ decisionId: zId }));
 export type PhaseRunDecisionAnswer = z.infer<typeof zPhaseRunDecisionAnswer>;
 
 /**

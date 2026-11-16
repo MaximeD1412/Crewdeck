@@ -404,7 +404,8 @@ export class Engine {
    * raised, labelled by the item's module (`PHASE_ITEMS`). `exhausted`: the
    * Retour reached its maximum, « Encore un passage » offered; `null`: no
    * Retour leaves the Étape, only « Arrêter ». Its Session to read is the
-   * judging StepRun's, else that of the Retour target's last StepRun.
+   * judging StepRun's, else that of the Retour target's last StepRun; its
+   * `itemType` lets the page say what stopped (« le Ticket s’est arrêté »).
    */
   private async raiseExhausted(tx: Tx, loaded: Loaded, judged: StepRun, exhausted: { loopBack: LoopBack; taken: number } | null): Promise<void> {
     const phaseRun = await this.publishPhaseRun(
@@ -429,6 +430,7 @@ export class Engine {
       link: sessionId === null ? '/a-toi' : `/a-toi?session=${sessionId}`,
       params: {
         phaseRunId: loaded.row.id,
+        itemType: loaded.row.itemType,
         stepRunId: judged.id,
         stepName: step.name,
         targetName: target?.name ?? null,

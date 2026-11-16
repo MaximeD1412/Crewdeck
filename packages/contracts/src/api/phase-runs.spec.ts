@@ -101,9 +101,10 @@ describe('zPhaseRun and zStepRun', () => {
 });
 
 describe('zPhaseRunDecisionAnswer', () => {
-  it('is the body of one-more-pass and stop: the Décision answered, by its id', () => {
-    expect(zPhaseRunDecisionAnswer.parse({ decisionId: PHASE_RUN.id })).toEqual({ decisionId: PHASE_RUN.id });
-    expect(zPhaseRunDecisionAnswer.safeParse({ decisionId: 'abc' }).success).toBe(false);
+  it('is the body of one-more-pass and stop: the Décision answered, by its id, with the seq the page saw', () => {
+    expect(zPhaseRunDecisionAnswer.parse({ decisionId: PHASE_RUN.id, seq: '12' })).toEqual({ decisionId: PHASE_RUN.id, seq: 12 });
+    expect(zPhaseRunDecisionAnswer.safeParse({ decisionId: 'abc', seq: '12' }).success).toBe(false);
+    expect(zPhaseRunDecisionAnswer.safeParse({ decisionId: PHASE_RUN.id }).success).toBe(false);
     expect(zPhaseRunDecisionAnswer.safeParse({}).success).toBe(false);
   });
 });

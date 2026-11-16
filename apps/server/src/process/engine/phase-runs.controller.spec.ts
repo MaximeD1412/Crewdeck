@@ -21,7 +21,7 @@ describe('/api/phase-runs, without a database', () => {
       const response = await fetch(`${url}/api/phase-runs/${newId()}/${answer}`, {
         method: 'POST',
         headers: { origin: appOrigin(env), 'content-type': 'application/json' },
-        body: JSON.stringify({ decisionId: newId() }),
+        body: JSON.stringify({ decisionId: newId(), seq: '1' }),
       });
       await expectEnvelope(response, 401, 'auth.required');
     }

@@ -247,7 +247,7 @@ describe('the Retours against PostgreSQL', () => {
       kind: 'loop-back.exhausted',
       subject_id: run.id,
       label: '#57 Recherche d’actes',
-      params: { phaseRunId: run.id, stepRunId: review.id, stepName: 'Review', targetName: 'Code', taken: 3, max: 3, canContinue: true, sessionId: null },
+      params: { phaseRunId: run.id, itemType: 'ticket', stepRunId: review.id, stepName: 'Review', targetName: 'Code', taken: 3, max: 3, canContinue: true, sessionId: null },
     });
     const events = await eventsSince(before);
     expect(events.map((event) => event.type)).toEqual(['step-run.upserted', 'phase-run.upserted', 'decision.upserted']);
@@ -306,7 +306,7 @@ describe('the Retours against PostgreSQL', () => {
     const { run, decision } = await exhausted();
     const before = await lastSeq();
 
-    const response = await call('POST', `/api/phase-runs/${run.id}/one-more-pass`, { decisionId: decision.id });
+    const response = await call('POST', `/api/phase-runs/${run.id}/one-more-pass`, { decisionId: decision.id, seq: String(await lastSeq()) });
 
     expect(response.status).toBe(200);
     expect(zPhaseRun.parse(await response.json())).toMatchObject({ id: run.id, state: 'running', waitingOn: null, loopBacks: [{ from: 'st-review', to: 'st-code', taken: 4, extra: 1 }] });
@@ -330,7 +330,7 @@ describe('the Retours against PostgreSQL', () => {
     stops.length = 0;
     const before = await lastSeq();
 
-    const response = await call('POST', `/api/phase-runs/${run.id}/stop`, { decisionId: decision.id });
+    const response = await call('POST', `/api/phase-runs/${run.id}/stop`, { decisionId: decision.id, seq: String(await lastSeq()) });
 
     expect(response.status).toBe(200);
     expect(zPhaseRun.parse(await response.json())).toMatchObject({ id: run.id, state: 'stopped' });
@@ -346,10 +346,10 @@ describe('the Retours against PostgreSQL', () => {
 
   it('answers once: 409 decision.already-answered after « Arrêter » or « Encore un passage »', async () => {
     const { run, decision } = await exhausted();
-    expect((await call('POST', `/api/phase-runs/${run.id}/stop`, { decisionId: decision.id })).status).toBe(200);
+    expect((await call('POST', `/api/phase-runs/${run.id}/stop`, { decisionId: decision.id, seq: String(await lastSeq()) })).status).toBe(200);
 
     for (const answer of ['stop', 'one-more-pass']) {
-      const response = await call('POST', `/api/phase-runs/${run.id}/${answer}`, { decisionId: decision.id });
+      const response = await call('POST', `/api/phase-runs/${run.id}/${answer}`, { decisionId: decision.id, seq: String(await lastSeq()) });
       await expectEnvelope(response, 409, 'decision.already-answered');
     }
   });
@@ -361,22 +361,32 @@ describe('the Retours against PostgreSQL', () => {
 
     for (const answer of ['stop', 'one-more-pass']) {
       const path = `/api/phase-runs/${run.id}/${answer}`;
-      const asBob = await call('POST', path, { decisionId: decision.id }, bob.cookie);
+      const asBob = await call('POST', path, { decisionId: decision.id, seq: String(await lastSeq()) }, bob.cookie);
       await expectEnvelope(asBob, 404, 'phase-run.not-found');
       for (const id of [newId(), 'not-an-id']) {
-        const unknown = await call('POST', `/api/phase-runs/${id}/${answer}`, { decisionId: decision.id });
+        const unknown = await call('POST', `/api/phase-runs/${id}/${answer}`, { decisionId: decision.id, seq: String(await lastSeq()) });
         await expectEnvelope(unknown, 404, 'phase-run.not-found');
       }
-      const notItsOwn = await call('POST', `/api/phase-runs/${other.id}/${answer}`, { decisionId: decision.id });
+      const notItsOwn = await call('POST', `/api/phase-runs/${other.id}/${answer}`, { decisionId: decision.id, seq: String(await lastSeq()) });
       await expectEnvelope(notItsOwn, 404, 'decision.not-found');
-      const unknownDecision = await call('POST', path, { decisionId: newId() });
+      const unknownDecision = await call('POST', path, { decisionId: newId(), seq: String(await lastSeq()) });
       await expectEnvelope(unknownDecision, 404, 'decision.not-found');
       const invalid = await call('POST', path, {});
       await expectEnvelope(invalid, 400, 'validation.invalid');
-      expect((await call('POST', path, { decisionId: decision.id }, null)).status).toBe(401);
+      expect((await call('POST', path, { decisionId: decision.id, seq: String(await lastSeq()) }, null)).status).toBe(401);
     }
     expect(await phaseRun(run.id)).toMatchObject({ state: 'waiting', waiting_on: 'decision' });
     expect(await openDecisions()).toHaveLength(1);
+  });
+
+  it('refuses an answer on a PhaseRun changed since the seq the page saw: 409 realtime.stale', async () => {
+    const { run, decision } = await exhausted();
+    const [{ last_seq: lastOfRun } = { last_seq: '0' }] = await sql<{ last_seq: string }>('SELECT last_seq::text FROM phase_runs WHERE id = $1', [run.id]);
+
+    const stale = await call('POST', `/api/phase-runs/${run.id}/stop`, { decisionId: decision.id, seq: String(BigInt(lastOfRun) - 1n) });
+
+    await expectEnvelope(stale, 409, 'realtime.stale');
+    expect(await phaseRun(run.id)).toMatchObject({ state: 'waiting', waiting_on: 'decision' });
   });
 
   it('stops the item without a Retour to take when none leaves the Review: only « Arrêter », « Encore un passage » refused with 422', async () => {
@@ -389,10 +399,10 @@ describe('the Retours against PostgreSQL', () => {
     const [decision] = await openDecisions();
     expect(decision).toMatchObject({ kind: 'loop-back.exhausted', params: { stepName: 'Review', targetName: null, taken: null, max: null, canContinue: false } });
 
-    const refused = await call('POST', `/api/phase-runs/${run.id}/one-more-pass`, { decisionId: decision?.id });
+    const refused = await call('POST', `/api/phase-runs/${run.id}/one-more-pass`, { decisionId: decision?.id, seq: String(await lastSeq()) });
     await expectEnvelope(refused, 422, 'phase-run.no-loop-back');
     expect(await openDecisions()).toHaveLength(1);
-    expect((await call('POST', `/api/phase-runs/${run.id}/stop`, { decisionId: decision?.id })).status).toBe(200);
+    expect((await call('POST', `/api/phase-runs/${run.id}/stop`, { decisionId: decision?.id, seq: String(await lastSeq()) })).status).toBe(200);
   });
 
   it('refuses a « changements » of a gate without a Retour, nothing written; its StepRun says it cannot ask for changes', async () => {

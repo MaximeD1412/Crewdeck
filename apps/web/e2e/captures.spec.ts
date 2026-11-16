@@ -7,6 +7,7 @@ import type { Page } from '@playwright/test';
 import { openConfirm } from './confirm.js';
 import { expect, test } from './fixtures.js';
 import { routeSocket } from './socket.js';
+import { becomeTrustedDevice } from './trusted-device.js';
 
 /** What a scenario's capture shows beyond its page: a sheet or a dialog opened, by width. */
 const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<void>>> = {
@@ -53,6 +54,12 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   // « Rôles et modèles » once the snapshot gave the Comptes IA: the Idée on Sonnet, as the mockup.
   parametres: async (page) => {
     await expect(page.getByRole('combobox', { name: 'Moteur et modèle du Rôle Idée' }).filter({ visible: true })).toHaveValue('claude-code:claude-sonnet-5-5');
+  },
+  // On the trusted Appareil, its worktree Commandes opened; the Code on Codex once the snapshot is there.
+  'parametres-projet': async (page) => {
+    await becomeTrustedDevice(page);
+    await expect(page.getByRole('combobox', { name: 'Moteur et modèle du Rôle Code' }).filter({ visible: true })).toHaveValue('codex:gpt-5.5');
+    await expect(page.getByRole('textbox', { name: 'Préparer le worktree' })).toHaveValue('pnpm install --frozen-lockfile');
   },
   runner: async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('en ligne');

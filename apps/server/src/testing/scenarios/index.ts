@@ -18,6 +18,7 @@ import type { Scenario } from './define.js';
 import { menuPlus } from './menu-plus.js';
 import { demarrageProjets, projets, projetsVide } from './projets.js';
 import { parametres } from './parametres.js';
+import { parametresProjet } from './parametres-projet.js';
 import { resynchronisation } from './resynchronisation.js';
 import { runner, runnerServeursMcp } from './runner.js';
 import { aToiRunnerHorsLigne, runnerHorsLigne } from './runner-offline.js';
@@ -41,6 +42,7 @@ const SCENARIOS: readonly Scenario[] = [
   demarrageProjets,
   menuPlus,
   parametres,
+  parametresProjet,
   projets,
   projetsVide,
   resynchronisation,

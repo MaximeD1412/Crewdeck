@@ -5,7 +5,9 @@ import { DecisionsService } from '../decisions/decisions.service.js';
 import { SettingsModule } from '../settings/settings.module.js';
 import { PushDelivery } from './push-delivery.js';
 import { PushRule } from './push-rule.js';
-import { PushSender, WebPushSender } from './push-sender.js';
+import { ENV } from '../config/env.module.js';
+import type { Env } from '../config/env.js';
+import { InertPushSender, PushSender, WebPushSender } from './push-sender.js';
 import { PushSubscriptionsController, PushSubscriptionsState } from './push-subscriptions.controller.js';
 import { PushSubscriptions } from './push-subscriptions.js';
 
@@ -21,9 +23,9 @@ export class PushOnDecision implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
-    this.removal = this.decisions.onCreated((pilotId, decision) => {
+    this.removal = this.decisions.onCreated((pilotId) => {
       try {
-        this.rule.created(pilotId, decision);
+        this.rule.created(pilotId);
       } catch (error) {
         this.logger.error({ err: error }, 'push rule failed');
       }
@@ -39,6 +41,18 @@ export class PushOnDecision implements OnModuleInit, OnModuleDestroy {
 @Module({
   imports: [DecisionsModule, SettingsModule],
   controllers: [PushSubscriptionsController],
-  providers: [PushSubscriptions, PushSubscriptionsState, PushRule, PushDelivery, { provide: PushSender, useClass: WebPushSender }, PushOnDecision],
+  providers: [
+    PushSubscriptions,
+    PushSubscriptionsState,
+    PushRule,
+    PushDelivery,
+    WebPushSender,
+    {
+      provide: PushSender,
+      inject: [ENV, WebPushSender],
+      useFactory: (env: Env, web: WebPushSender): PushSender => (env.CREWDECK_ENV === 'test' ? new InertPushSender() : web),
+    },
+    PushOnDecision,
+  ],
 })
 export class NotificationsModule {}

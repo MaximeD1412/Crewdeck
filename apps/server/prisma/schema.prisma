@@ -415,8 +415,9 @@ model Decision {
   outcome     String?
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
   resolvedAt  DateTime?     @map("resolved_at") @db.Timestamptz
-  /// When it was pushed to the Pilote's browsers (ATOI-4): `null` until then,
-  /// what a push 2 minutes after their last visible tab still has to send.
+  /// When the Pilote was told of it (ATOI-4): pushed to their browsers, seen
+  /// on a tab visible again, or its push off. `null` while it waits, what the
+  /// next push sends (`src/notifications/push-delivery.ts`).
   notifiedAt  DateTime?     @map("notified_at") @db.Timestamptz
   pilot       Pilot         @relation(fields: [pilotId], references: [id], onDelete: Cascade)
 

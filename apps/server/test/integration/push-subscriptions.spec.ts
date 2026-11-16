@@ -9,7 +9,7 @@ import { appOrigin, parseEnv } from '../../src/config/env.js';
 import { DecisionsService, type RaiseInput } from '../../src/decisions/decisions.service.js';
 import { newId } from '../../src/ids.js';
 import { PushDelivery } from '../../src/notifications/push-delivery.js';
-import { type PushOutcome, PushSender } from '../../src/notifications/push-sender.js';
+import { InertPushSender, type PushOutcome, PushSender } from '../../src/notifications/push-sender.js';
 import type { PushTarget } from '../../src/notifications/push-subscriptions.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { TabPresence } from '../../src/realtime/tab-presence.js';
@@ -46,9 +46,13 @@ const BLOCKED: RaiseInput = {
   params: { number: 42 },
 };
 
-/** A browser's subscription as `PushManager.subscribe` gives it: a P-256 public key, 16 bytes of secret. */
+/**
+ * A browser's subscription as `PushManager.subscribe` gives it: a P-256
+ * public key, 16 bytes of secret. Its endpoint is a push service's, never
+ * requested: the sender of `CREWDECK_ENV=test` is inert, and a spy here.
+ */
 const browser = (label = 'Safari · iPhone') => ({
-  endpoint: `https://push.example.invalid/send/${newId()}`,
+  endpoint: `https://fcm.googleapis.com/fcm/send/${newId()}`,
   keys: { p256dh: createECDH('prime256v1').generateKeys().toString('base64url'), auth: randomBytes(16).toString('base64url') },
   label,
 });
@@ -58,6 +62,10 @@ describe('the push notifications against PostgreSQL', () => {
   let app: INestApplication;
   let url: string;
   let send: MockInstance<(target: PushTarget, payload: PushPayload) => Promise<PushOutcome>>;
+
+  const spySend = () => {
+    send = vi.spyOn(app.get(PushSender), 'send').mockResolvedValue('sent');
+  };
 
   beforeAll(async () => {
     ({ app, url } = await startApp(env));
@@ -70,10 +78,8 @@ describe('the push notifications against PostgreSQL', () => {
 
   beforeEach(async () => {
     await sql('TRUNCATE pilots CASCADE');
-    send = vi.spyOn(app.get(PushSender), 'send').mockResolvedValue('sent');
+    spySend();
   });
-
-  afterEach(() => vi.restoreAllMocks());
 
   /** A Pilote with a session: their id and the cookie of a tab. */
   const pilot = async (login = 'octocat'): Promise<{ id: string; cookie: string }> => {
@@ -166,6 +172,8 @@ describe('the push notifications against PostgreSQL', () => {
         'label',
       ]);
       await expectFields(await subscribe(alice.cookie, { ...browser(), label: 'x'.repeat(61) }), ['label']);
+      await expectFields(await subscribe(alice.cookie, { ...browser(), endpoint: 'https://127.0.0.1:8443/internal' }), ['endpoint']);
+      await expectFields(await subscribe(alice.cookie, { ...browser(), endpoint: 'https://fcm.googleapis.com.example.org/send/x' }), ['endpoint']);
       expect(await sql('SELECT * FROM push_subscriptions')).toEqual([]);
     });
 
@@ -226,6 +234,13 @@ describe('the push notifications against PostgreSQL', () => {
   });
 
   describe('the push of a Décision', () => {
+    it('never requests a push service from a test: the sender of CREWDECK_ENV=test is inert', async () => {
+      vi.restoreAllMocks();
+      const target = { id: newId(), endpoint: browser().endpoint, p256dh: '', auth: '' };
+      expect(app.get(PushSender)).toBeInstanceOf(InertPushSender);
+      await expect(app.get(PushSender).send(target, { title: 'x', url: '/a-toi', tag: 'decisions' })).resolves.toBe('failed');
+    });
+
     it('pushes a Décision raised while no tab is open at once to every browser, then marks it notified', async () => {
       const alice = await pilot();
       await pushOn(alice.cookie);
@@ -291,33 +306,97 @@ describe('the push notifications against PostgreSQL', () => {
       const tab = {};
       presence.open(alice.id, tab);
       presence.setVisibility(alice.id, tab, true);
-      let ids: string[];
       try {
-        const first = await raise(alice.id);
-        const second = await raise(alice.id, { subjectId: '43', label: '#43 Liste des Projets' });
-        const resolved = await raise(alice.id, { subjectId: '44', label: '#44 Revue' });
+        await raise(alice.id);
+        await raise(alice.id, { subjectId: '43', label: '#43 Liste des Projets' });
+        await raise(alice.id, { subjectId: '44', label: '#44 Revue' });
         await runInPilotScope(alice.id, () => app.get(Transactions).run((tx) => app.get(DecisionsService).resolve(tx, 'ticket-blocked', '44', 'answered')));
-        ids = [first.decision.id, second.decision.id, resolved.decision.id];
       } finally {
         presence.close(alice.id, tab);
       }
 
-      await app.get(PushDelivery).waiting(alice.id, ids);
+      await expect(app.get(PushDelivery).push(alice.id)).resolves.toBe('done');
 
       expect(send.mock.calls.map(([, payload]) => payload)).toEqual([{ title: '2 Décisions t’attendent', url: '/a-toi', tag: 'decisions' }]);
-      await app.get(PushDelivery).waiting(alice.id, ids);
+      await app.get(PushDelivery).push(alice.id);
       expect(send).toHaveBeenCalledTimes(1);
     });
 
-    it('sends nothing when the account has push off', async () => {
+    it('reads what waits from the database: a restart loses none of it', async () => {
+      const alice = await pilot();
+      await pushOn(alice.cookie);
+      await subscribe(alice.cookie);
+      const tab = {};
+      const presence = app.get(TabPresence);
+      presence.open(alice.id, tab);
+      presence.setVisibility(alice.id, tab, true);
+      const { decision } = await raise(alice.id);
+      presence.close(alice.id, tab);
+      await app.close();
+      ({ app, url } = await startApp(env));
+      spySend();
+
+      await expect(app.get(PushDelivery).push(alice.id)).resolves.toBe('done');
+
+      expect(send.mock.calls.map(([, payload]) => payload.tag)).toEqual([decision.id]);
+      expect(await notifiedAt(decision.id)).toBeInstanceOf(Date);
+    });
+
+    it('never pushes what waited once a tab is visible again, and still what is raised after', async () => {
+      const alice = await pilot();
+      await pushOn(alice.cookie);
+      await subscribe(alice.cookie);
+      const presence = app.get(TabPresence);
+      const tab = {};
+      presence.open(alice.id, tab);
+      presence.setVisibility(alice.id, tab, true);
+      try {
+        const seen = await raise(alice.id);
+        presence.setVisibility(alice.id, tab, false);
+        presence.setVisibility(alice.id, tab, true);
+        await vi.waitFor(async () => expect(await notifiedAt(seen.decision.id)).toBeInstanceOf(Date));
+        const later = await raise(alice.id, { subjectId: '43', label: '#43 Liste des Projets' });
+
+        await app.get(PushDelivery).push(alice.id);
+
+        expect(send.mock.calls.map(([, payload]) => payload.tag)).toEqual([later.decision.id]);
+      } finally {
+        presence.close(alice.id, tab);
+      }
+    });
+
+    it('keeps waiting a Décision no browser got, its push service failing, and pushes it on the next try', async () => {
+      const alice = await pilot();
+      await pushOn(alice.cookie);
+      await subscribe(alice.cookie);
+      const presence = app.get(TabPresence);
+      const tab = {};
+      presence.open(alice.id, tab);
+      presence.setVisibility(alice.id, tab, true);
+      const { decision } = await raise(alice.id);
+      presence.close(alice.id, tab);
+      send.mockResolvedValueOnce('failed');
+
+      await expect(app.get(PushDelivery).push(alice.id)).resolves.toBe('retry');
+      expect(await notifiedAt(decision.id)).toBeNull();
+      expect(await sql('SELECT last_pushed_at FROM push_subscriptions')).toEqual([{ last_pushed_at: null }]);
+
+      await expect(app.get(PushDelivery).push(alice.id)).resolves.toBe('done');
+      expect(send).toHaveBeenCalledTimes(2);
+      expect(await notifiedAt(decision.id)).toBeInstanceOf(Date);
+    });
+
+    it('sends nothing when the account has push off, and never later what was raised then', async () => {
       const alice = await pilot();
       await subscribe(alice.cookie);
 
       const { decision } = await raise(alice.id);
-      await app.get(PushDelivery).now(alice.id, decision);
+      await app.get(PushDelivery).push(alice.id);
+      await pushOn(alice.cookie);
+      await app.get(PushDelivery).push(alice.id);
 
       expect(send).not.toHaveBeenCalled();
-      expect(await notifiedAt(decision.id)).toBeNull();
+      expect(await notifiedAt(decision.id)).toBeInstanceOf(Date);
     });
 
     it('sends nothing for a Décision whose Projet has push off, the others still', async () => {
@@ -334,20 +413,17 @@ describe('the push notifications against PostgreSQL', () => {
       const tab = {};
       presence.open(alice.id, tab);
       presence.setVisibility(alice.id, tab, true);
-      let ids: string[];
       try {
-        const muted = await raise(alice.id);
-        const elsewhere = await raise(alice.id, { projectId: null, projectName: null, subjectType: 'runner', subjectId: newId(), kind: 'runner-offline', label: 'Le travail attend', link: '/runner' });
-        ids = [muted.decision.id, elsewhere.decision.id];
+        await raise(alice.id);
+        await raise(alice.id, { projectId: null, projectName: null, subjectType: 'runner', subjectId: newId(), kind: 'runner-offline', label: 'Le travail attend', link: '/runner' });
       } finally {
         presence.close(alice.id, tab);
       }
 
-      await app.get(PushDelivery).now(alice.id, { id: ids[0] ?? '' });
-      expect(send).not.toHaveBeenCalled();
-      await app.get(PushDelivery).waiting(alice.id, ids);
+      await app.get(PushDelivery).push(alice.id);
+      await app.get(PushDelivery).push(alice.id);
+
       expect(send.mock.calls.map(([, payload]) => payload.title)).toEqual(['Runner hors ligne · Le travail attend']);
-      expect(await notifiedAt(ids[0] ?? '')).toBeNull();
     });
 
     it('removes a browser its push service says is gone (410), with its event, and keeps the others', async () => {
@@ -357,8 +433,7 @@ describe('the push notifications against PostgreSQL', () => {
       const kept = zPushSubscription.parse(await (await subscribe(alice.cookie, browser('Safari · iPhone'))).json());
       send.mockImplementation((target) => Promise.resolve(target.id === gone.id ? 'gone' : 'sent'));
 
-      const { decision } = await raise(alice.id);
-      await app.get(PushDelivery).now(alice.id, decision);
+      await raise(alice.id);
 
       await vi.waitFor(async () => expect(await sql('SELECT id FROM push_subscriptions')).toEqual([{ id: kept.id }]));
       expect((await events(alice.id)).at(-1)).toEqual({ type: 'push-subscription.removed', payload: { id: gone.id } });
@@ -369,7 +444,7 @@ describe('the push notifications against PostgreSQL', () => {
       await pushOn(alice.cookie);
 
       const { decision } = await raise(alice.id);
-      await app.get(PushDelivery).now(alice.id, decision);
+      await app.get(PushDelivery).push(alice.id);
 
       expect(send).not.toHaveBeenCalled();
       expect(await notifiedAt(decision.id)).toBeNull();

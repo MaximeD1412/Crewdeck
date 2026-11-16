@@ -1,23 +1,36 @@
 import type { Decision } from '@crewdeck/contracts';
 import { Injectable } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { Transactions } from '../realtime/transactions.js';
+import { type Tx, Transactions } from '../realtime/transactions.js';
 import { runInPilotScope } from '../scope/scope.context.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { pushPayloadOf } from './push-payload.js';
-import { PushSender } from './push-sender.js';
+import { PushSender, type PushOutcome } from './push-sender.js';
 import { PushSubscriptions, type PushTarget } from './push-subscriptions.js';
 
 type Claimed = Pick<Decision, 'id' | 'kind' | 'label' | 'link'>;
 
 /**
- * Pushes Décisions to every browser of the Pilote (ATOI-4), when `PushRule`
- * says so: nothing when the account has `notifications.push` off, nor for a
- * Décision whose Projet has it off (`SettingsService.effective`); only the
- * Décisions still open and never pushed, `notified_at` set as they are
- * claimed (two pushes never send one twice). A subscription its push service
- * says is gone (404, 410) is removed, with its event. Never rejects: a
- * failure is logged, the Décision stays on « À toi ».
+ * What a push gave: `retry` when it had Décisions to send and reached no
+ * browser because a push service failed (they still wait), `done` otherwise.
+ */
+export type PushResult = 'done' | 'retry';
+
+/** The Décisions still waiting for the Pilote: open, neither pushed nor seen (`notified_at`). */
+const WAITING = { state: 'open', notifiedAt: null } as const;
+
+/**
+ * Pushes to every browser of the Pilote (ATOI-4), when `PushRule` says so,
+ * the Décisions still waiting for them: read from the database, so a restart
+ * loses none. `notified_at` says the Pilote has been told, by a push or by a
+ * tab of theirs visible again (`seen`); a Décision whose push the account or
+ * its Projet has off (`SettingsService.effective`) counts as told too, and
+ * is never pushed later.
+ * The Décisions are claimed (`notified_at` set) before they are sent, so two
+ * pushes never send one twice, and handed back when no browser got them.
+ * A subscription its push service says is gone (404, 410) is removed, with
+ * its event. Never rejects: a failure is logged, the Décision stays on
+ * « À toi ».
  */
 @Injectable()
 export class PushDelivery {
@@ -29,60 +42,77 @@ export class PushDelivery {
     @InjectPinoLogger(PushDelivery.name) private readonly logger: PinoLogger,
   ) {}
 
-  /** `decision`, just raised while the Pilote is away. */
-  now(pilotId: string, decision: Pick<Decision, 'id'>): Promise<void> {
-    return this.deliver(pilotId, [decision.id]);
-  }
-
-  /** The Décisions `ids` that waited for the Pilote to be away: one notification for them all. */
-  waiting(pilotId: string, ids: readonly string[]): Promise<void> {
-    return this.deliver(pilotId, ids);
-  }
-
-  private async deliver(pilotId: string, ids: readonly string[]): Promise<void> {
+  /** Pushes what waits for `pilotId`, as one notification. */
+  async push(pilotId: string): Promise<PushResult> {
     try {
-      await runInPilotScope(pilotId, () => this.push(pilotId, ids));
+      return await runInPilotScope(pilotId, () => this.deliver(pilotId));
     } catch (error) {
       this.logger.error({ err: error }, 'push delivery failed');
+      return 'retry';
     }
   }
 
-  private async push(pilotId: string, ids: readonly string[]): Promise<void> {
-    if (ids.length === 0 || !(await this.settings.effective(pilotId)).notifications.push) return;
-    const claim = await this.claim(pilotId, ids);
-    if (!claim) return;
+  /** A tab of `pilotId` visible again at `at`: what waited before is seen, never pushed. */
+  async seen(pilotId: string, at: Date): Promise<void> {
+    try {
+      await runInPilotScope(pilotId, () =>
+        this.transactions.run((tx) => tx.decision.updateMany({ where: { ...WAITING, createdAt: { lt: at } }, data: { notifiedAt: at } })),
+      );
+    } catch (error) {
+      this.logger.error({ err: error }, 'push seen failed');
+    }
+  }
+
+  private async deliver(pilotId: string): Promise<PushResult> {
+    const at = new Date();
+    if (!(await this.settings.effective(pilotId)).notifications.push) {
+      await this.transactions.run((tx) => tx.decision.updateMany({ where: WAITING, data: { notifiedAt: at } }));
+      return 'done';
+    }
+    const claim = await this.claim(pilotId, at);
+    if (!claim) return 'done';
     const payload = pushPayloadOf(claim.decisions);
-    const outcomes = await Promise.all(claim.targets.map(async (target) => ({ target, outcome: await this.sender.send(target, payload) })));
+    const outcomes = await Promise.all(
+      claim.targets.map(async (target) => ({ target, outcome: await this.sender.send(target, payload).catch((): PushOutcome => 'failed') })),
+    );
     const sent = outcomes.filter(({ outcome }) => outcome === 'sent').map(({ target }) => target.id);
     const gone = outcomes.filter(({ outcome }) => outcome === 'gone').map(({ target }) => target.id);
     await this.transactions.run(async (tx) => {
       for (const id of gone) await this.subscriptions.removed(tx, pilotId, id);
       await this.subscriptions.pushed(tx, sent, new Date());
+      if (sent.length === 0) await this.handBack(tx, claim.decisions, at);
     });
+    return sent.length === 0 && outcomes.some(({ outcome }) => outcome === 'failed') ? 'retry' : 'done';
   }
 
-  /** The browsers, and the Décisions of `ids` this push takes (marked pushed): nothing to send without either. */
-  private claim(pilotId: string, ids: readonly string[]): Promise<{ targets: PushTarget[]; decisions: Claimed[] } | null> {
+  /**
+   * The browsers, and the Décisions waiting this push takes (marked told,
+   * those whose Projet has push off with them): nothing to send without
+   * either. No browser, and what waits keeps waiting, for one to come.
+   */
+  private claim(pilotId: string, at: Date): Promise<{ targets: PushTarget[]; decisions: Claimed[] } | null> {
     return this.transactions.run(async (tx) => {
       const targets = await this.subscriptions.targets(tx);
       if (targets.length === 0) return null;
-      const candidates = await tx.decision.findMany({
-        where: { id: { in: [...ids] }, state: 'open', notifiedAt: null },
-        select: { id: true, projectId: true },
-      });
-      const allowed = await this.allowedByProject(pilotId, candidates);
-      if (allowed.length === 0) return null;
+      const candidates = await tx.decision.findMany({ where: WAITING, select: { id: true, projectId: true } });
+      if (candidates.length === 0) return null;
+      const allowed = new Set(await this.allowedByProject(pilotId, candidates));
       const rows = await tx.decision.updateManyAndReturn({
-        where: { id: { in: allowed }, state: 'open', notifiedAt: null },
-        data: { notifiedAt: new Date() },
+        where: { ...WAITING, id: { in: candidates.map(({ id }) => id) } },
+        data: { notifiedAt: at },
         select: { id: true, kind: true, label: true, link: true, createdAt: true },
       });
-      if (rows.length === 0) return null;
       const decisions = rows
+        .filter(({ id }) => allowed.has(id))
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
         .map(({ id, kind, label, link }) => ({ id, kind: kind as Decision['kind'], label, link }));
-      return { targets, decisions };
+      return decisions.length === 0 ? null : { targets, decisions };
     });
+  }
+
+  /** `decisions`, claimed at `at` and sent to no browser, waiting again (unless seen meanwhile). */
+  private handBack(tx: Tx, decisions: readonly Claimed[], at: Date): Promise<unknown> {
+    return tx.decision.updateMany({ where: { id: { in: decisions.map(({ id }) => id) }, notifiedAt: at }, data: { notifiedAt: null } });
   }
 
   /** The ids of `candidates` whose Projet (if any) has push on, its settings read once per Projet. */

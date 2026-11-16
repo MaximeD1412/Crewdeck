@@ -1,6 +1,9 @@
--- The browsers that receive a Pilote's push notifications, and when each Décision was pushed (ATOI-4).
+-- The browsers that receive a Pilote's push notifications, and when the Pilote was told of each Décision (ATOI-4).
 -- AlterTable
 ALTER TABLE "decisions" ADD COLUMN     "notified_at" TIMESTAMPTZ;
+
+-- The Décisions raised before push existed are not news: never pushed.
+UPDATE "decisions" SET "notified_at" = "created_at";
 
 -- CreateTable
 CREATE TABLE "push_subscriptions" (

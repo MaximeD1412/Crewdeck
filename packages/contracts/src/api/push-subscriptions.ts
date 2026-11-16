@@ -10,6 +10,33 @@ export const PUSH_LABEL_MAX = 60;
 /** The longest endpoint a push service is trusted with (theirs are a few hundred characters). */
 export const PUSH_ENDPOINT_MAX = 2048;
 
+/** The hosts of the browsers' push services: Chrome and the Chromium ones (FCM), Firefox (Mozilla), Safari (Apple). */
+const PUSH_SERVICE_HOSTS: ReadonlySet<string> = new Set(['fcm.googleapis.com', 'updates.push.services.mozilla.com']);
+/** And the subdomains of these: Safari's `*.push.apple.com`, Edge's `*.notify.windows.com` (WNS). */
+const PUSH_SERVICE_DOMAINS = ['.push.apple.com', '.notify.windows.com'] as const;
+
+/**
+ * The authority of an `https` URL, a lowercase host and no other port than
+ * 443, then its path, query or end: nothing that `URL` would read as
+ * credentials, a port or another host (a `@`, a backslash, a tab) gets through.
+ */
+const HTTPS_HOST = /^https:\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)+)(?::443)?(?:[/?#]|$)/;
+
+/**
+ * Whether `endpoint` is a browser's push service, the only place the server
+ * ever sends a push (ATOI-4): `https` on 443, no credentials, a host of
+ * `PUSH_SERVICE_HOSTS` or under `PUSH_SERVICE_DOMAINS`. Any other URL, an
+ * address of the server's network included, is refused before it is stored
+ * and again before a push (no request of the server's to where a Pilote
+ * says). The hosts are the push services' own names: what they resolve to
+ * is theirs, not the Pilote's.
+ */
+export const isPushServiceEndpoint = (endpoint: string): boolean => {
+  const host = HTTPS_HOST.exec(endpoint)?.[1];
+  if (host === undefined) return false;
+  return PUSH_SERVICE_HOSTS.has(host) || PUSH_SERVICE_DOMAINS.some((domain) => host.endsWith(domain));
+};
+
 /** A key of `PushSubscription.toJSON().keys`: base64url, without padding. */
 const zBase64Url = (min: number, max: number) =>
   z
@@ -20,12 +47,13 @@ const zBase64Url = (min: number, max: number) =>
 
 /**
  * `POST /api/push-subscriptions` (ATOI-4, US-18): what `pushManager.subscribe`
- * gave this browser (its endpoint, an `https` URL of its push service, and
+ * gave this browser (its endpoint, an `https` URL of its push service
+ * (`isPushServiceEndpoint`), and
  * its keys: `p256dh` the P-256 public key, 65 bytes; `auth` its secret, 16
  * bytes) and its label. An endpoint already known is updated.
  */
 export const zPushSubscriptionInput = z.object({
-  endpoint: z.url({ protocol: /^https$/ }).max(PUSH_ENDPOINT_MAX),
+  endpoint: z.url().max(PUSH_ENDPOINT_MAX).refine(isPushServiceEndpoint, 'Service push inconnu'),
   keys: z.object({ p256dh: zBase64Url(86, 88), auth: zBase64Url(22, 24) }),
   label: z.string().trim().min(1).max(PUSH_LABEL_MAX),
 });

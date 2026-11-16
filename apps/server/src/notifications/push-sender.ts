@@ -1,4 +1,4 @@
-import type { PushPayload } from '@crewdeck/contracts';
+import { isPushServiceEndpoint, type PushPayload } from '@crewdeck/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import webpush from 'web-push';
@@ -17,9 +17,22 @@ export abstract class PushSender {
 }
 
 /**
+ * The sender of `CREWDECK_ENV=test` (the integration tests): no push service
+ * is ever requested from a test, even by a timer a test left running.
+ */
+@Injectable()
+export class InertPushSender extends PushSender {
+  send(): Promise<PushOutcome> {
+    return Promise.resolve('failed');
+  }
+}
+
+/**
  * Web Push (ADR 0007, RFC 8291 and 8292, `web-push`): the payload encrypted
- * with the browser's keys, signed with the server's VAPID keys. Neither the
- * endpoint nor the payload is logged.
+ * with the browser's keys, signed with the server's VAPID keys. Only to a
+ * push service (`isPushServiceEndpoint`, checked again here): any other
+ * endpoint is never requested, its subscription gone. Neither the endpoint
+ * nor the payload is logged.
  */
 @Injectable()
 export class WebPushSender extends PushSender {
@@ -31,6 +44,7 @@ export class WebPushSender extends PushSender {
   }
 
   async send(target: PushTarget, payload: PushPayload): Promise<PushOutcome> {
+    if (!isPushServiceEndpoint(target.endpoint)) return 'gone';
     try {
       await webpush.sendNotification({ endpoint: target.endpoint, keys: { p256dh: target.p256dh, auth: target.auth } }, JSON.stringify(payload), {
         vapidDetails: { subject: this.vapid.subject, publicKey: this.vapid.publicKey, privateKey: this.vapid.privateKey },

@@ -167,6 +167,24 @@ describe('SessionRelay', () => {
     expect(s.runner.sent.at(-1)).toEqual(expect.objectContaining({ type: 'session.replay', tabId: tab.tabId, fromSeq: 3 }));
   });
 
+  it('replays, at the Runner’s hello, from the first seq missing below a live frame that came during the replay', async () => {
+    const s = setup();
+    const tab = tabOf(ALICE);
+    s.tab(open(), tab);
+    await vi.waitFor(() => expect(s.runner.sent).toHaveLength(1));
+    // Seq 3 live, while the replay has sent seq 1 only: the Runner goes away before seq 2.
+    await s.fromRunner(relayFrame(3));
+    await s.fromRunner(relayFrame(1, tab.tabId));
+
+    s.goOnline();
+    expect(s.runner.sent.at(-1)).toEqual(expect.objectContaining({ type: 'session.replay', tabId: tab.tabId, fromSeq: 2 }));
+    // The replay sends seq 2, then seq 3 again: the next hello asks from 4.
+    await s.fromRunner(relayFrame(2, tab.tabId));
+    await s.fromRunner(relayFrame(3, tab.tabId));
+    s.goOnline();
+    expect(s.runner.sent.at(-1)).toEqual(expect.objectContaining({ type: 'session.replay', tabId: tab.tabId, fromSeq: 4 }));
+  });
+
   it('sends nothing more to a tab that closed the Session or its socket, nor replays it at the hello', async () => {
     const s = setup();
     const closing = tabOf(ALICE);

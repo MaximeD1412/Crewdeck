@@ -9,7 +9,11 @@ import { type OutgoingRunnerMessage, RunnerConnections } from '../../runners/run
 import { RunnerDispatcher } from '../../runners/runner-dispatcher.js';
 import { runInPilotScope } from '../../scope/scope.context.js';
 
-/** A tab that opened a Session, and the first `seq` it has not been sent: where its replay starts. */
+/**
+ * A tab that opened a Session, and the first `seq` it has not been sent with
+ * every one before it: where its replay starts again, at the cost of frames
+ * it already has (the tab drops them).
+ */
 interface Opened {
   readonly tab: TabSocket;
   next: number;
@@ -157,7 +161,8 @@ export class SessionRelay implements OnModuleInit, OnModuleDestroy {
         ? { type: 'relay', sessionId: message.sessionId, seq: message.seq, nonce: message.nonce, ciphertext: message.ciphertext }
         : { type: 'session.keys', sessionId: message.sessionId, wraps: message.wraps };
     for (const opened of to) {
-      if (message.type === 'relay') opened.next = Math.max(opened.next, message.seq + 1);
+      // Only in order: a live frame sent ahead of the replay leaves the hole below it to replay.
+      if (message.type === 'relay' && message.seq === opened.next) opened.next += 1;
       opened.tab.send(frame);
     }
   }

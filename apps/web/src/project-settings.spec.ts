@@ -309,6 +309,47 @@ describe('createProjectSettings, the worktree Commandes', () => {
     expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: '', clean: '' });
   });
 
+  it('settles its saves on the store’s events while the page is closed: another tab’s item, come meanwhile, opened on return and kept by the other field', async () => {
+    const { client, calls } = fakeClient();
+    const vault = await unlockedVault();
+    const seal = async (commands: object): Promise<SealedItem> => {
+      const item = await vault.sealItem(utf8(JSON.stringify(commands)), AAD);
+      return { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
+    };
+    // The store at the page's boundary: what it holds of the Projet, its listeners told on each event.
+    let inStore: SealedItem | null = null;
+    const listeners = new Set<() => void>();
+    const deliver = (item: SealedItem | null) => {
+      inStore = item;
+      for (const listener of [...listeners]) listener();
+    };
+    const stored = {
+      worktreeCommands: (projectId: string) => (projectId === PROJECT ? inStore : undefined),
+      subscribe: (fn: () => void) => {
+        listeners.add(fn);
+        return () => listeners.delete(fn);
+      },
+    };
+    const settings = createProjectSettings({ client, vault, stored });
+    settings.view(PROJECT, inStore, 'unlocked');
+
+    await settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
+    // The Pilote leaves the page: no view() while its event, then another tab's item, come.
+    deliver(calls[0]?.body['worktreeCommands'] as SealedItem);
+    deliver(await seal({ prepare: 'pnpm ci', clean: null }));
+    expect(listeners.size).toBe(0);
+
+    // Back on the page: the other tab's item opened, and kept by a change of the other field.
+    const reopening = notified(settings);
+    expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'opening' });
+    await reopening;
+    expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm ci', clean: '' });
+    await settings.change(PROJECT, 'worktree:clean', 'rm -rf .cache');
+    const sent = calls.at(-1)?.body['worktreeCommands'] as SealedItem;
+    const opened = await vault.openItem({ key: fromBase64Url(sent.key), ciphertext: fromBase64Url(sent.ciphertext) }, AAD);
+    expect(JSON.parse(new TextDecoder().decode(opened))).toEqual({ prepare: 'pnpm ci', clean: 'rm -rf .cache' });
+  });
+
   it('keeps a Commande refused on its field, with the text typed', async () => {
     const { client, answer } = fakeClient();
     const vault = await unlockedVault();

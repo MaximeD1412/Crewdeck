@@ -16,6 +16,15 @@ export interface ProjectSettingsOptions {
   readonly client: Pick<Client, 'command'>;
   /** The vault that opens and seals the worktree Commandes; none, they stay locked. */
   readonly vault?: Pick<Vault, 'sealItem' | 'openItem'>;
+  /**
+   * The store's worktree Commandes of a Projet (`undefined` before it has the
+   * Paramètres), followed while the page's saves wait for it to hold them,
+   * whether the page is shown or not.
+   */
+  readonly stored?: {
+    worktreeCommands(projectId: string): SealedItem | null | undefined;
+    subscribe(fn: () => void): () => void;
+  };
 }
 
 export interface ProjectSettingsLocalState {
@@ -98,7 +107,7 @@ const asCommand = (text: string): string | null => (text.trim() === '' ? null : 
  * under `settings:<projectId>`, before they leave the page (ADR 0003). What
  * the commands change comes back through `settings.upserted`.
  */
-export const createProjectSettings = ({ client, vault }: ProjectSettingsOptions): ProjectSettingsLocalState => {
+export const createProjectSettings = ({ client, vault, stored }: ProjectSettingsOptions): ProjectSettingsLocalState => {
   const listeners = new Set<() => void>();
   const locals = new Map<string, Local>();
 
@@ -108,8 +117,34 @@ export const createProjectSettings = ({ client, vault }: ProjectSettingsOptions)
   const localOf = (projectId: string): Local => locals.get(projectId) ?? EMPTY;
   const set = (projectId: string, next: Partial<Local>) => {
     locals.set(projectId, { ...localOf(projectId), ...next });
+    follow();
     notify();
   };
+
+  /** Drops from a Projet's pending saves those the store's item confirms. */
+  const settle = (projectId: string, current: string | null) => {
+    const local = localOf(projectId);
+    const count = confirmed(local.pending, current);
+    if (count > 0) locals.set(projectId, { ...local, pending: local.pending.slice(count) });
+  };
+
+  /** Follows the store while a save waits for it: each item it holds settles the saves, the page shown or not. */
+  let following: (() => void) | null = null;
+  const onStored = () => {
+    for (const [projectId, local] of locals) {
+      const current = stored?.worktreeCommands(projectId);
+      if (local.pending.length > 0 && current !== undefined) settle(projectId, current?.ciphertext ?? null);
+    }
+    follow();
+  };
+  function follow() {
+    const waiting = [...locals.values()].some((local) => local.pending.length > 0);
+    if (waiting && stored && !following) following = stored.subscribe(onStored);
+    else if (!waiting && following) {
+      following();
+      following = null;
+    }
+  }
   const without = (record: Readonly<Record<string, string>>, name: string): Readonly<Record<string, string>> => {
     const rest = { ...record };
     delete rest[name];
@@ -201,8 +236,8 @@ export const createProjectSettings = ({ client, vault }: ProjectSettingsOptions)
       const current = sealed?.ciphertext ?? null;
       if (local.pending.length > 0) {
         // The store follows the page's saves; whatever it holds until it has them all, the page keeps what it saved.
-        const count = confirmed(local.pending, current);
-        if (count > 0) locals.set(projectId, { ...local, pending: local.pending.slice(count) });
+        settle(projectId, current);
+        follow();
       } else if (!local.opened || local.opened.from !== current) open(projectId, sealed);
       return { errors: local.errors, drafts: local.drafts, worktree: localOf(projectId).opened?.worktree ?? { state: 'opening' } };
     },

@@ -132,7 +132,17 @@ export const boot = async ({
   });
   const projects = createProjects({ store, client });
   const roleSettings = createRoleSettings({ client });
-  const projectSettings = createProjectSettings({ client, ...(keys.vault ? { vault: keys.vault } : {}) });
+  const projectSettings = createProjectSettings({
+    client,
+    ...(keys.vault ? { vault: keys.vault } : {}),
+    stored: {
+      worktreeCommands: (projectId) => {
+        const settings = store.getState().slices.settings;
+        return settings ? (settings.projects.find((candidate) => candidate.projectId === projectId)?.worktreeCommands ?? null) : undefined;
+      },
+      subscribe: (fn) => store.subscribe(() => fn()),
+    },
+  });
   /** A Projet's Paramètres from the store and the page's own state; `null` until the store has the Projet and the settings. */
   const projetParametres = (match: RouteMatch): ParametresProjetView | null => {
     const { slices, vaultState } = store.getState();

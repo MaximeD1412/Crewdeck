@@ -551,3 +551,16 @@ func TestTheLinkCommandAsksForAServerWhenItKnowsNone(t *testing.T) {
 		t.Fatalf("err %v", err)
 	}
 }
+
+func TestLinkHelpSaysNoServiceIsForTheSmokeTestAndCI(t *testing.T) {
+	var out bytes.Buffer
+	root := newRootCommand()
+	root.SetOut(&out)
+	root.SetArgs([]string{"link", "--help"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("link --help: %v", err)
+	}
+	if help := out.String(); !strings.Contains(help, "--no-service") || !strings.Contains(help, "smoke test and CI") {
+		t.Fatalf("link --help does not document --no-service:\n%s", help)
+	}
+}

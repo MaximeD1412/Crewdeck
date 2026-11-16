@@ -1,7 +1,9 @@
 import {
   eventPayloadSchema,
+  findGaps,
   PROCESS_CREWDECK,
   PROCESS_CREWDECK_NAME,
+  processSourcesOf,
   type ProjectProcess,
   RESOURCES,
   STATE_SLICES,
@@ -23,6 +25,16 @@ const VIEW: ProjectProcess = {
     templateName: PROCESS_CREWDECK_NAME,
   },
   draft: { definition: PROCESS_CREWDECK, sealed: null, revision: 2, baseVersion: 1, updatedAt: '2026-11-15T09:00:00.000Z' },
+  sources: {
+    ticket: { source: 'github', since: '2026-11-15T08:00:00.000Z' },
+    code: { source: 'github', since: '2026-11-15T08:00:00.000Z' },
+  },
+};
+
+/** The same view for a Local Projet: both groups Local. */
+const LOCAL_VIEW: ProjectProcess = {
+  ...VIEW,
+  sources: { ticket: { source: 'local', since: '2026-11-15T08:00:00.000Z' }, code: { source: 'local', since: '2026-11-15T08:00:00.000Z' } },
 };
 
 /** « Process Crewdeck » with one Commande on its « Checks ». */
@@ -45,6 +57,23 @@ describe('zProjectProcess', () => {
     expect(zProjectProcess.safeParse({ ...VIEW, draft: { ...VIEW.draft, revision: 0 } }).success).toBe(false);
     expect(zProjectProcess.safeParse({ ...VIEW, active: { ...VIEW.active, number: 0 } }).success).toBe(false);
     expect(zProjectProcess.safeParse({ ...VIEW, active: { ...VIEW.active, activatedBy: 'import' } }).success).toBe(false);
+  });
+});
+
+describe('the Sources in the view', () => {
+  it('holds both groups, each with its Source and since when; a group missing or another Source is refused', () => {
+    expect(zProjectProcess.parse(LOCAL_VIEW).sources).toEqual(LOCAL_VIEW.sources);
+    expect(zProjectProcess.safeParse({ ...VIEW, sources: { ticket: VIEW.sources.ticket } }).success).toBe(false);
+    expect(zProjectProcess.safeParse({ ...VIEW, sources: { ...VIEW.sources, code: { source: 'gitlab', since: VIEW.sources.code.since } } }).success).toBe(false);
+    expect(zProjectProcess.safeParse({ ...VIEW, sources: { ...VIEW.sources, code: { source: 'github', since: 'hier' } } }).success).toBe(false);
+  });
+
+  it('gives findGaps the kinds alone: no Manque for « Process Crewdeck » on a GitHub Projet, « Checks » without CI on a Local one', () => {
+    expect(processSourcesOf(VIEW)).toEqual({ ticket: 'github', code: 'github' });
+    expect(processSourcesOf(LOCAL_VIEW)).toEqual({ ticket: 'local', code: 'local' });
+
+    expect(findGaps(PROCESS_CREWDECK, processSourcesOf(VIEW))).toEqual([]);
+    expect(findGaps(PROCESS_CREWDECK, processSourcesOf(LOCAL_VIEW))).toEqual([expect.objectContaining({ kind: 'capability.missing', target: 'steps.st-checks' })]);
   });
 });
 

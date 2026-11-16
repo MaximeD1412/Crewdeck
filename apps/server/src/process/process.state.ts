@@ -4,8 +4,9 @@ import { STATE_CONTRIBUTORS, type StateContributor, type StateContributors } fro
 import type { Tx } from '../realtime/transactions.js';
 import { activeVersions } from './process.service.js';
 import { PROCESS_DRAFT_VIEW, toProjectProcess } from './process.view.js';
+import { ARTIFACT_SOURCE_VIEW, type ArtifactSourceRow, toProjectProcessSources } from './sources/sources.view.js';
 
-/** The `processes` slice: every Projet's Process, its active version and its draft, in the order of the Projets' ids. */
+/** The `processes` slice: every Projet's Process, its active version, its draft and its Sources, in the order of the Projets' ids. */
 @Injectable()
 export class ProcessState implements StateContributor<'processes'>, OnModuleInit {
   readonly key = 'processes';
@@ -17,13 +18,16 @@ export class ProcessState implements StateContributor<'processes'>, OnModuleInit
   }
 
   async snapshot(tx: Tx): Promise<ProjectProcess[]> {
-    const [projects, versions, drafts] = await Promise.all([
+    const [projects, versions, drafts, sources] = await Promise.all([
       tx.project.findMany({ select: { id: true }, orderBy: { id: 'asc' } }),
       activeVersions(tx),
       tx.processDraft.findMany({ select: PROCESS_DRAFT_VIEW }),
+      tx.artifactSource.findMany({ select: ARTIFACT_SOURCE_VIEW }),
     ]);
     const versionOf = new Map(versions.map((row) => [row.projectId, row]));
     const draftOf = new Map(drafts.map((row) => [row.projectId, row]));
-    return projects.map(({ id }) => toProjectProcess(id, versionOf.get(id) ?? null, draftOf.get(id) ?? null));
+    const sourcesOf = new Map<string, ArtifactSourceRow[]>();
+    for (const row of sources) sourcesOf.set(row.projectId, [...(sourcesOf.get(row.projectId) ?? []), row]);
+    return projects.map(({ id }) => toProjectProcess(id, versionOf.get(id) ?? null, draftOf.get(id) ?? null, toProjectProcessSources(id, sourcesOf.get(id) ?? [])));
   }
 }

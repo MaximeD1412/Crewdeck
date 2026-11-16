@@ -6,6 +6,7 @@ import {
   type ProcessDefinition,
   type ProcessDraftInput,
   type ProjectProcess,
+  processSourcesOf,
   zProjectList,
   zProjectProcess,
   zState,
@@ -20,6 +21,8 @@ import { WebhookDispatcher } from '../../src/github/webhooks/dispatcher.js';
 import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { ProcessBackfill } from '../../src/process/process-backfill.js';
+import { SourcesService } from '../../src/process/sources/sources.service.js';
+import { Transactions } from '../../src/realtime/transactions.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
 import { roleUsage } from '../../src/settings/role-usage.js';
 import { FAKES, type Fakes } from '../../src/testing/fakes.js';
@@ -55,6 +58,7 @@ const created = webhookFixture<Record<string, unknown>>('installation.created');
 const APP_REPO = { owner: 'octo-fixture', name: 'fixture-app', id: 71000001 };
 
 const FIXTURES = join(import.meta.dirname, '../../../../packages/contracts/fixtures/process');
+const MIGRATIONS = join(import.meta.dirname, '../../prisma/migrations');
 interface Fixture {
   readonly definition: ProcessDefinition;
   readonly refusals: readonly { kind: string; target: string; label: string }[];
@@ -129,6 +133,9 @@ describe('the Process of a Projet against PostgreSQL', () => {
 
   let alice: Tab;
   let projectId: string;
+  /** When Alice's Projet started being followed, and when it was. */
+  let followedFrom: number;
+  let followedTo: number;
 
   /** Alice follows the fixture's repository: her Projet, as `POST /api/projects` creates it. */
   const follow = async (tab: Tab): Promise<string> => {
@@ -147,7 +154,9 @@ describe('the Process of a Projet against PostgreSQL', () => {
     fakes.github.reset();
     fakes.github.seedRepo({ ...APP_REPO, installationId: INSTALLATION_ID, files: { 'README.md': '# App' } });
     alice = await pilot(SENDER_ID, 'octo-fixture');
+    followedFrom = Date.now();
     projectId = await follow(alice);
+    followedTo = Date.now();
   });
 
   const getProcess = (tab: Tab | undefined, id = projectId) => call(tab, 'GET', `/api/projects/${id}/process`);
@@ -166,6 +175,7 @@ describe('the Process of a Projet against PostgreSQL', () => {
         id: projectId,
         active: { number: 1, definition: PROCESS_CREWDECK, sealed: null, activatedAt: expect.any(String), activatedBy: 'creation', templateName: PROCESS_CREWDECK_NAME },
         draft: null,
+        sources: { ticket: { source: 'github', since: expect.any(String) }, code: { source: 'github', since: expect.any(String) } },
       });
       const events = await eventsOf(alice);
       const project = events.find((event) => event.type === 'project.upserted');
@@ -203,6 +213,106 @@ describe('the Process of a Projet against PostgreSQL', () => {
     it('cannot update a process_versions row: the trigger refuses it', async () => {
       await expect(sql(`UPDATE process_versions SET template_name = 'Autre' WHERE project_id = $1`, [projectId])).rejects.toThrow(/process_versions rows are immutable/);
       expect(await sql('SELECT template_name FROM process_versions')).toEqual([{ template_name: PROCESS_CREWDECK_NAME }]);
+    });
+  });
+
+  describe('the Sources of a Projet', () => {
+    const inAlice = <T>(fn: (sources: SourcesService, tx: Parameters<Parameters<Transactions['run']>[0]>[0]) => Promise<T>): Promise<T> =>
+      runInPilotScope(alice.id, () => app.get(Transactions).run((tx) => fn(app.get(SourcesService), tx)));
+    const rows = () => sql<{ group: string; source: string }>(`SELECT "group", source FROM artifact_sources WHERE project_id = $1 ORDER BY "group"`, [projectId]);
+
+    it('puts both groups of a Projet followed from a Dépôt GitHub on GitHub, since its creation, in the view and its first process.upserted', async () => {
+      const view = await saved(await getProcess(alice));
+
+      expect(view.sources).toEqual({ ticket: { source: 'github', since: view.sources.code.since }, code: { source: 'github', since: expect.any(String) } });
+      const since = Date.parse(view.sources.code.since);
+      expect(since).toBeGreaterThanOrEqual(followedFrom);
+      expect(since).toBeLessThanOrEqual(followedTo);
+      const events = await eventsOf(alice);
+      const first = events.find((event) => event.type === 'process.upserted');
+      expect(zProjectProcess.parse(first?.payload).sources).toEqual(view.sources);
+      expect(await inAlice((sources, tx) => sources.sourcesOf(tx, projectId))).toEqual({ ticket: 'github', code: 'github' });
+    });
+
+    it('puts both groups Local with createDefaults(…, local), and the view shows them', async () => {
+      await sql('DELETE FROM artifact_sources WHERE project_id = $1', [projectId]);
+
+      await inAlice((sources, tx) => sources.createDefaults(tx, projectId, 'local'));
+
+      expect(await rows()).toEqual([
+        { group: 'ticket', source: 'local' },
+        { group: 'code', source: 'local' },
+      ]);
+      const view = await saved(await getProcess(alice));
+      expect(view.sources).toEqual({ ticket: { source: 'local', since: expect.any(String) }, code: { source: 'local', since: expect.any(String) } });
+      expect((await state(alice)).processes.map((process) => process.sources)).toEqual([view.sources]);
+      expect(await inAlice((sources, tx) => sources.sourcesOf(tx, projectId))).toEqual({ ticket: 'local', code: 'local' });
+    });
+
+    it('refuses a second row of one group: a second createDefaults for the same Projet fails on the unique index', async () => {
+      await expect(inAlice((sources, tx) => sources.createDefaults(tx, projectId, 'local'))).rejects.toMatchObject({ code: 'P2002' });
+      await expect(
+        sql(`INSERT INTO artifact_sources (id, pilot_id, project_id, "group", source, since) VALUES ($1, $2, $3, 'code', 'local', now())`, [newId(), alice.id, projectId]),
+      ).rejects.toThrow(/artifact_sources_project_id_group_key/);
+
+      expect(await rows()).toEqual([
+        { group: 'ticket', source: 'github' },
+        { group: 'code', source: 'github' },
+      ]);
+    });
+
+    it('gives a Projet followed before this ticket both groups on GitHub, since it was followed, with the migration’s backfill', async () => {
+      const migration = readFileSync(join(MIGRATIONS, '20261126000000_artifact_sources/migration.sql'), 'utf8');
+      const backfill = migration.slice(migration.indexOf('INSERT INTO'));
+      await sql('DELETE FROM artifact_sources');
+
+      await sql(backfill);
+
+      const backfilled = await sql<{ group: string; source: string; same: boolean }>(
+        `SELECT s."group", s.source, s.since = p.followed_at AS same, s.pilot_id = p.pilot_id AS pilot FROM artifact_sources s JOIN projects p ON p.id = s.project_id ORDER BY s."group"`,
+      );
+      expect(backfilled).toEqual([
+        { group: 'ticket', source: 'github', same: true, pilot: true },
+        { group: 'code', source: 'github', same: true, pilot: true },
+      ]);
+      expect((await saved(await getProcess(alice))).sources.ticket.source).toBe('github');
+    });
+    it('completes at the server’s start the Sources of a Projet a previous release followed after the migration, since it was followed, once', async () => {
+      // Followed by the previous release after the migration ran (a deploy, or its rollback): a Process, no Sources.
+      await sql('DELETE FROM artifact_sources WHERE project_id = $1', [projectId]);
+      await expectEnvelope(await call(alice, 'GET', '/api/state'), 500, 'server.internal');
+
+      expect(await app.get(ProcessBackfill).completeSources()).toBe(1);
+      expect(await app.get(ProcessBackfill).completeSources()).toBe(0);
+
+      expect(await sql(`SELECT s."group", s.source, s.since = p.followed_at AS same FROM artifact_sources s JOIN projects p ON p.id = s.project_id ORDER BY s."group"`)).toEqual([
+        { group: 'ticket', source: 'github', same: true },
+        { group: 'code', source: 'github', same: true },
+      ]);
+      expect((await state(alice)).processes.map((process) => process.sources.code.source)).toEqual(['github']);
+    });
+
+    it('completes a Projet holding one group only', async () => {
+      await sql(`DELETE FROM artifact_sources WHERE project_id = $1 AND "group" = 'code'`, [projectId]);
+
+      expect(await app.get(ProcessBackfill).completeSources()).toBe(1);
+
+      expect(await rows()).toEqual([
+        { group: 'ticket', source: 'github' },
+        { group: 'code', source: 'github' },
+      ]);
+    });
+
+    it('gives a Projet with neither Sources nor Process its Sources first at the start, then its version 1 on them', async () => {
+      await sql('DELETE FROM artifact_sources WHERE project_id = $1', [projectId]);
+      await sql('DELETE FROM process_versions WHERE project_id = $1', [projectId]);
+
+      expect(await app.get(ProcessBackfill).run()).toBe(1);
+
+      const view = await saved(await getProcess(alice));
+      expect(view.active?.number).toBe(1);
+      expect(view.draft).toBeNull();
+      expect(processSourcesOf(view)).toEqual({ ticket: 'github', code: 'github' });
     });
   });
 

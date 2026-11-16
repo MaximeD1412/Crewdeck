@@ -3,7 +3,6 @@ import {
   findGaps,
   PROCESS_CREWDECK_NAME,
   type ProcessDraftInput,
-  type ProcessSources,
   type ProjectProcess,
   type SealedItem,
   validateDefinition,
@@ -17,6 +16,8 @@ import { EventsWriter } from '../realtime/events.writer.js';
 import { Transactions, type Tx } from '../realtime/transactions.js';
 import { currentPilotId } from '../scope/scope.context.js';
 import { PROCESS_DRAFT_VIEW, PROCESS_VERSION_VIEW, type ProcessVersionRow, toProjectProcess } from './process.view.js';
+import { readProjectProcessSources, readSourceRows } from './sources/sources.service.js';
+import { toProcessSources } from './sources/sources.view.js';
 
 /** The Modèle a new Projet copies: the built-in « Process Crewdeck » until PROCESS-14's Modèles of the Pilote. */
 export interface InitialProcess {
@@ -26,27 +27,22 @@ export interface InitialProcess {
 /** The names of the built-in Modèles, as the version keeps them. */
 const TEMPLATE_NAMES: Readonly<Record<keyof typeof BUILTIN_TEMPLATES, string>> = { 'process-crewdeck': PROCESS_CREWDECK_NAME };
 
-/**
- * The Sources of a Dépôt GitHub followed: both groups on GitHub, until
- * SOURCE-1 stores each Projet's.
- */
-export const GITHUB_SOURCES: ProcessSources = { ticket: 'github', code: 'github' };
-
-/** The part of a transaction the Process reads and writes. */
-export type ProcessTx = Pick<Tx, 'project' | 'processVersion' | 'processDraft'>;
+/** The part of a transaction the Process reads and writes; its view holds the Projet's Sources. */
+export type ProcessTx = Pick<Tx, 'project' | 'processVersion' | 'processDraft' | 'artifactSource'>;
 
 const json = (value: SealedItem | null): typeof Prisma.DbNull | Prisma.InputJsonValue => (value === null ? Prisma.DbNull : (value as unknown as Prisma.InputJsonValue));
 
 const projectNotFound = () => notFound('project.not-found', MESSAGES['project.not-found']);
 const stale = () => conflict('process.draft-stale', MESSAGES['process.draft-stale']);
 
-/** A Projet's whole Process, in the current Pilote's scope: its highest version and its draft. */
+/** A Projet's whole Process, in the current Pilote's scope: its highest version, its draft and its Sources. */
 export const readProjectProcess = async (tx: ProcessTx, projectId: string): Promise<ProjectProcess> => {
-  const [version, draft] = await Promise.all([
+  const [version, draft, sources] = await Promise.all([
     tx.processVersion.findFirst({ where: { projectId }, orderBy: { number: 'desc' }, select: PROCESS_VERSION_VIEW }),
     tx.processDraft.findUnique({ where: { projectId }, select: PROCESS_DRAFT_VIEW }),
+    readProjectProcessSources(tx, projectId),
   ]);
-  return toProjectProcess(projectId, version, draft);
+  return toProjectProcess(projectId, version, draft, sources);
 };
 
 /** The active version of each of the Pilote's Projets (scoped by `tx`): each one's highest number. */
@@ -69,17 +65,19 @@ export class ProcessService {
   ) {}
 
   /**
-   * The Process of a Projet just created, in its transaction: version 1, a
-   * copy of the Modèle, when it has no Manque on the Projet's Sources;
+   * The Process of a Projet just created, in its transaction, after its
+   * Sources (`SourcesService.createDefaults`): version 1, a copy of the
+   * Modèle, when it has no Manque on those Sources;
    * otherwise no version and a draft of that copy (`baseVersion: 0`), which
    * the Pilote fixes and activates (PROCESS-10). The Manques never forbid
    * creating a Projet.
    */
-  async createInitialVersion(tx: Tx, projectId: string, from: InitialProcess, sources: ProcessSources): Promise<ProjectProcess> {
+  async createInitialVersion(tx: Tx, projectId: string, from: InitialProcess): Promise<ProjectProcess> {
     const pilotId = currentPilotId();
     const definition = BUILTIN_TEMPLATES[from.template];
     const value = definition as unknown as Prisma.InputJsonValue;
     const now = new Date();
+    const sources = toProcessSources(await readSourceRows(tx, projectId));
     if (findGaps(definition, sources).length === 0) {
       await tx.processVersion.create({
         data: { id: newId(), pilotId, projectId, number: 1, definition: value, sealed: Prisma.DbNull, activatedAt: now, activatedBy: 'creation', templateName: TEMPLATE_NAMES[from.template] },

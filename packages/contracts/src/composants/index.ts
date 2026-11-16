@@ -26,6 +26,7 @@ import { PageComposants } from './page-composants.js';
 import { PageConnexion } from './page-connexion.js';
 import { PageDemarrage } from './page-demarrage.js';
 import { PageParametres } from './page-parametres.js';
+import { PageParametresProjet } from './page-parametres-projet.js';
 import { PageHeader } from './page-header.js';
 import { PageIntrouvable } from './page-introuvable.js';
 import { PageProjets } from './page-projets.js';
@@ -92,6 +93,7 @@ export * from './page-composants.js';
 export * from './page-connexion.js';
 export * from './page-demarrage.js';
 export * from './page-parametres.js';
+export * from './page-parametres-projet.js';
 export * from './page-header.js';
 export * from './page-introuvable.js';
 export * from './page-projets.js';
@@ -144,6 +146,7 @@ export const COMPOSANTS = {
   PageConnexion,
   PageDemarrage,
   PageParametres,
+  PageParametresProjet,
   PageIntrouvable,
   PageProjets,
   PageRunner,

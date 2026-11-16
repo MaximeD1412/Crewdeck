@@ -47,6 +47,7 @@ export const MESSAGES = {
   'runner.offline': 'Le Runner est hors ligne.',
   'sensitive-action.stale': 'L’état a changé pendant que tu confirmais : vérifie et confirme de nouveau.',
   'server.internal': 'Une erreur inattendue est survenue.',
+  'settings.branches-same': 'La branche d’intégration et la branche de release sont deux branches.',
   'settings.engine-unusable': 'Ce modèle n’est pas utilisable sur ton Runner.',
   'settings.role-choice-required': 'Un Rôle que tu as ajouté a toujours son modèle.',
   'testing.no-runner': 'Aucun Runner de test connecté : lance d’abord un scénario qui en relie un.',

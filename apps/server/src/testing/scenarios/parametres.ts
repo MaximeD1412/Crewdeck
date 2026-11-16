@@ -23,7 +23,6 @@ export const parametres = defineScenario({
       data: {
         pilotId: seed.pilotId,
         roles: { ...DEFAULT_ACCOUNT_SETTINGS.roles, idea: { engine: 'claude-code', model: 'claude-sonnet-5-5' } },
-        optionalSteps: DEFAULT_ACCOUNT_SETTINGS.optionalSteps,
       },
     });
     const name = 'Revue Codex';

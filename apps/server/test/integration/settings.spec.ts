@@ -30,7 +30,6 @@ const sql = async <T extends pg.QueryResultRow>(text: string, values: unknown[] 
 const DEFAULTS = {
   roles: { idea: null, design: null, code: null, review: null },
   customRoles: [],
-  optionalSteps: { mockups: true, 'visual-review': true, 'cross-review': true },
   notifications: { push: false },
   timeZone: 'Europe/Paris',
 };
@@ -87,10 +86,10 @@ describe('the Paramètres of the account against PostgreSQL', () => {
       const alice = await pilot('alice');
       await accounts(alice.id);
 
-      const res = await patch(alice.cookie, { seq: '0', roles: { code: { engine: 'codex', model: 'gpt-5.5' } }, optionalSteps: { mockups: false } });
+      const res = await patch(alice.cookie, { seq: '0', roles: { code: { engine: 'codex', model: 'gpt-5.5' } } });
 
       expect(res.status).toBe(200);
-      const expected = { ...DEFAULTS, roles: { ...DEFAULTS.roles, code: { engine: 'codex', model: 'gpt-5.5' } }, optionalSteps: { ...DEFAULTS.optionalSteps, mockups: false } };
+      const expected = { ...DEFAULTS, roles: { ...DEFAULTS.roles, code: { engine: 'codex', model: 'gpt-5.5' } } };
       expect(zAccountSettings.parse(await res.json())).toEqual(expected);
       expect(await events(alice.id)).toEqual([{ seq: '1', type: 'settings.upserted', payload: expected }]);
       expect(await sql('SELECT seq FROM pilots WHERE id = $1', [alice.id])).toEqual([{ seq: '1' }]);
@@ -122,6 +121,8 @@ describe('the Paramètres of the account against PostgreSQL', () => {
       const alice = await pilot('alice');
 
       await expectFields(await patch(alice.cookie, { seq: '0', theme: 'dark' }), ['theme']);
+      // The Étapes optionnelles are no longer a setting of the account (PARAM-3): the Process holds them.
+      await expectFields(await patch(alice.cookie, { seq: '0', optionalSteps: { mockups: false } }), ['optionalSteps']);
       await expectFields(await patch(alice.cookie, { seq: '0', roles: { pilot: null } }), ['roles.pilot']);
       await expectFields(await patch(alice.cookie, { seq: '0', roles: { code: { engine: 'codex', model: 'gpt-5', typo: true } } }), ['roles.code.typo']);
       await expectFields(await patch(alice.cookie, { seq: '0', roles: { 'r-zzzzzzzz': { engine: 'codex', model: 'gpt-5.5' } } }), ['roles.r-zzzzzzzz']);
@@ -179,7 +180,8 @@ describe('the Paramètres of the account against PostgreSQL', () => {
       ['before the first row', false],
     ])('keeps both of two concurrent changes to distinct fields, %s', async (_case, existing) => {
       const alice = await pilot('alice');
-      if (existing) await patch(alice.cookie, { seq: '0', optionalSteps: { 'cross-review': false } });
+      await accounts(alice.id);
+      if (existing) await patch(alice.cookie, { seq: '0', roles: { idea: { engine: 'codex', model: 'gpt-5.5' } } });
 
       // A transaction holds the Pilote's row so that the two PATCHes overlap.
       const holder = new pg.Client({ connectionString: databaseUrl });
@@ -189,7 +191,7 @@ describe('the Paramètres of the account against PostgreSQL', () => {
       try {
         await holder.query('BEGIN');
         await holder.query('SELECT id FROM pilots WHERE id = $1 FOR UPDATE', [alice.id]);
-        first = patch(alice.cookie, { seq: '1', optionalSteps: { mockups: false } });
+        first = patch(alice.cookie, { seq: '1', roles: { code: { engine: 'codex', model: 'gpt-5.5' } } });
         second = patch(alice.cookie, { seq: '1', notifications: { push: true } });
         await expect
           .poll(async () => (await sql<{ n: number }>(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND datname = current_database()`))[0]?.n, { timeout: 5000 })
@@ -203,10 +205,14 @@ describe('the Paramètres of the account against PostgreSQL', () => {
 
       expect(await (await fetch(`${url}/api/settings`, { headers: { cookie: alice.cookie } })).json()).toEqual({
         ...DEFAULTS,
-        optionalSteps: { mockups: false, 'visual-review': true, 'cross-review': !existing },
+        roles: { ...DEFAULTS.roles, code: { engine: 'codex', model: 'gpt-5.5' }, idea: existing ? { engine: 'codex', model: 'gpt-5.5' } : null },
         notifications: { push: true },
       });
     });
+  });
+
+  it('has no column of Étapes optionnelles left', async () => {
+    expect(await sql(`SELECT column_name FROM information_schema.columns WHERE table_name = 'account_settings' AND column_name = 'optional_steps'`)).toEqual([]);
   });
 
   describe('SettingsService.effective', () => {
@@ -264,8 +270,8 @@ describe('the Paramètres of the account against PostgreSQL', () => {
       const settings = app.get(SettingsService);
 
       expect(await runInPilotScope(alice.id, () => settings.effective(alice.id))).toEqual(DEFAULTS);
-      await patch(alice.cookie, { seq: '0', optionalSteps: { 'cross-review': false } });
-      expect(await runInPilotScope(alice.id, () => settings.effective(alice.id, newId()))).toEqual({ ...DEFAULTS, optionalSteps: { ...DEFAULTS.optionalSteps, 'cross-review': false } });
+      await patch(alice.cookie, { seq: '0', notifications: { push: true } });
+      expect(await runInPilotScope(alice.id, () => settings.effective(alice.id, newId()))).toEqual({ ...DEFAULTS, notifications: { push: true } });
     });
   });
 });

@@ -46,7 +46,7 @@ describe('withSeq', () => {
 
 describe('zState', () => {
   it('is the seq it reflects and one slice per registered key', () => {
-    const settings = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' };
+    const settings = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] };
     expect(Object.keys(STATE_SLICES)).toEqual([
       'pilot',
       'runner',

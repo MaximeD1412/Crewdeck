@@ -9,7 +9,7 @@ import { zProjectProcess } from './process.js';
 import { REPOSITORIES_MAX, zProject, zRepository } from './projects.js';
 import { zRunner } from './runner.js';
 import { zRunnerLink } from './runner-link.js';
-import { zAccountSettings } from './settings.js';
+import { zSettingsState } from './project-settings.js';
 import { zCodeChange, zMilestone, zTicket } from './tickets.js';
 import { zSeq } from '../values.js';
 
@@ -49,7 +49,7 @@ export const STATE_SLICES = {
   /** The open and draft changes of code, and those merged or closed in the last 30 days. */
   codeChanges: z.array(zCodeChange),
   /** The Paramètres of the account. */
-  settings: zAccountSettings,
+  settings: zSettingsState,
 } as const;
 export type StateKey = keyof typeof STATE_SLICES;
 

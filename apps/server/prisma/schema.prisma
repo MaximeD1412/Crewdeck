@@ -288,12 +288,12 @@ model VaultKeyWrap {
 
 /// The Paramètres of the Pilote's account (PARAM-1), the default of each of
 /// their Projets: no row until they change one, `SettingsService` then reads
-/// the defaults. `roles` and `optionalSteps` are JSON, parsed by the
-/// contract's schemas on every read. The time zone stays on `pilots`.
+/// the defaults. `roles` is JSON, parsed by the contract's schemas on every
+/// read. The time zone stays on `pilots`. No Étapes optionnelles any more
+/// (PARAM-3): an Étape runs because it is in the Projet's Process.
 model AccountSettings {
   pilotId           String   @id @map("pilot_id") @db.Uuid
   roles             Json
-  optionalSteps     Json     @map("optional_steps")
   notificationsPush Boolean  @default(false) @map("notifications_push")
   updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
   pilot             Pilot    @relation(fields: [pilotId], references: [id], onDelete: Cascade)
@@ -568,11 +568,32 @@ model Project {
   phaseRuns         PhaseRun[]
   stepRuns          StepRun[]
   artifactSources   ArtifactSource[]
+  settings          ProjectSettings?
 
   @@unique([pilotId, githubRepoId])
   /// The key the Projet's Tickets, milestones, changes of code and Process point at, with their Pilote.
   @@unique([pilotId, id])
   @@map("projects")
+}
+
+/// What a Projet changed over its Pilote's account (PARAM-3, US-82): no row
+/// until it changes one. `roles` holds only the Rôles overridden
+/// (`zProjectSettingsOverrides`, parsed on every read); `notificationsPush`
+/// `null` follows the account. `worktreeCommands` is one sealed item
+/// (`zSealedItem`, base64url) of the two worktree Commandes, which the server
+/// never opens (ADR 0003): RUNNER-20's Runner does. The branches stay on
+/// `projects`.
+model ProjectSettings {
+  projectId         String   @id @map("project_id") @db.Uuid
+  pilotId           String   @map("pilot_id") @db.Uuid
+  roles             Json
+  notificationsPush Boolean? @map("notifications_push")
+  worktreeCommands  Json?    @map("worktree_commands")
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  project           Project  @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+
+  @@unique([pilotId, projectId])
+  @@map("project_settings")
 }
 
 /// What a change of GitHub names (`zGitHubChangeKind`).

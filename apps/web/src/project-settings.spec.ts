@@ -309,8 +309,11 @@ describe('createProjectSettings, the worktree Commandes', () => {
     expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: '', clean: '' });
   });
 
-  it('settles its saves on the store’s events while the page is closed: another tab’s item, come meanwhile, opened on return and kept by the other field', async () => {
-    const { client, calls } = fakeClient();
+  it.each([
+    ['after its answer', false],
+    ['before its answer', true],
+  ] as const)('settles its saves on the store’s events while the page is closed, its own event come %s: another tab’s item, come meanwhile, opened on return and kept by the other field', async (_, late) => {
+    const { client, calls, answer } = fakeClient();
     const vault = await unlockedVault();
     const seal = async (commands: object): Promise<SealedItem> => {
       const item = await vault.sealItem(utf8(JSON.stringify(commands)), AAD);
@@ -323,20 +326,37 @@ describe('createProjectSettings, the worktree Commandes', () => {
       inStore = item;
       for (const listener of [...listeners]) listener();
     };
-    const stored = {
+    const store = {
       worktreeCommands: (projectId: string) => (projectId === PROJECT ? inStore : undefined),
       subscribe: (fn: () => void) => {
         listeners.add(fn);
         return () => listeners.delete(fn);
       },
     };
-    const settings = createProjectSettings({ client, vault, stored });
+    const settings = createProjectSettings({ client, vault, stored: store });
     settings.view(PROJECT, inStore, 'unlocked');
 
-    await settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
-    // The Pilote leaves the page: no view() while its event, then another tab's item, come.
-    deliver(calls[0]?.body['worktreeCommands'] as SealedItem);
-    deliver(await seal({ prepare: 'pnpm ci', clean: null }));
+    const saving = settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
+    if (late) {
+      // The answer waits until both events below came: its own, then another tab's item.
+      let release = () => undefined as void;
+      const gate = new Promise<void>((done) => (release = done));
+      answer(async (body) => {
+        await gate;
+        return stored(body['worktreeCommands'] as SealedItem);
+      });
+      await new Promise((done) => setTimeout(done, 20));
+      expect(calls).toHaveLength(1);
+      deliver(calls[0]?.body['worktreeCommands'] as SealedItem);
+      deliver(await seal({ prepare: 'pnpm ci', clean: null }));
+      release();
+      await saving;
+    } else {
+      await saving;
+      // The Pilote leaves the page: no view() while its event, then another tab's item, come.
+      deliver(calls[0]?.body['worktreeCommands'] as SealedItem);
+      deliver(await seal({ prepare: 'pnpm ci', clean: null }));
+    }
     expect(listeners.size).toBe(0);
 
     // Back on the page: the other tab's item opened, and kept by a change of the other field.

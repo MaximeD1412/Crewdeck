@@ -1,6 +1,7 @@
 import {
   worktreeCommandsAad,
   zWorktreeCommands,
+  type ProjectSettings,
   type ProjectSettingsPatch,
   type SealedItem,
   type WorktreeCommands,
@@ -81,10 +82,26 @@ interface Local {
    * answers. Until then what it holds (the item before them, one of them, or
    * one they replace) is never opened over what the page saved.
    */
-  readonly pending: readonly (string | null)[];
+  readonly pending: readonly Pending[];
+  /** The store's item last seen (`undefined` for none yet): only a change of it is recorded by a save on its way. */
+  readonly held: string | null | undefined;
 }
 
-const EMPTY: Local = { errors: {}, drafts: {}, opened: null, pending: [] };
+/**
+ * A save on its way, its answer not come yet: what the store held while it
+ * was the first of `pending`, its own event possibly among them, to know once
+ * it is answered whether the store already had it.
+ */
+interface Saving {
+  readonly seen: (string | null)[];
+}
+
+/** A save answered (what it stored), or one on its way. */
+type Pending = string | null | Saving;
+
+const isSaving = (entry: Pending | undefined): entry is Saving => typeof entry === 'object' && entry !== null;
+
+const EMPTY: Local = { errors: {}, drafts: {}, opened: null, pending: [], held: undefined };
 
 /**
  * How many of `pending` the store's item confirms: up to the one it holds. A
@@ -92,7 +109,7 @@ const EMPTY: Local = { errors: {}, drafts: {}, opened: null, pending: [] };
  * before the saves until it has the items saved before that one; 0 for an
  * item none of them stored.
  */
-const confirmed = (pending: readonly (string | null)[], current: string | null): number => {
+const confirmed = (pending: readonly Pending[], current: string | null): number => {
   if (current === null) return pending[0] === null ? 1 : 0;
   return pending.indexOf(current) + 1;
 };
@@ -121,11 +138,29 @@ export const createProjectSettings = ({ client, vault, stored }: ProjectSettings
     notify();
   };
 
-  /** Drops from a Projet's pending saves those the store's item confirms. */
+  /**
+   * Drops from a Projet's pending saves those the store's item confirms; an
+   * item that confirms none, once it changed, is recorded by the save on its
+   * way when that one is first: it may be its own event, come before its answer.
+   */
   const settle = (projectId: string, current: string | null) => {
     const local = localOf(projectId);
     const count = confirmed(local.pending, current);
-    if (count > 0) locals.set(projectId, { ...local, pending: local.pending.slice(count) });
+    const pending = count > 0 ? local.pending.slice(count) : local.pending;
+    const first = pending[0];
+    if (count === 0 && current !== local.held && isSaving(first)) first.seen.push(current);
+    locals.set(projectId, { ...local, pending, held: current });
+  };
+
+  /**
+   * A save on its way answered with what it stored (`undefined`: refused). The
+   * store already had it: confirmed, whatever came after it then held. Else it
+   * waits for the store as any answered save.
+   */
+  const answered = (projectId: string, saving: Saving, ciphertext: string | null | undefined) => {
+    const { pending } = localOf(projectId);
+    const done = ciphertext === undefined || saving.seen.includes(ciphertext);
+    locals.set(projectId, { ...localOf(projectId), pending: pending.flatMap((entry) => (entry !== saving ? [entry] : done ? [] : [ciphertext])) });
   };
 
   /** Follows the store while a save waits for it: each item it holds settles the saves, the page shown or not. */
@@ -218,13 +253,24 @@ export const createProjectSettings = ({ client, vault, stored }: ProjectSettings
           const item = await vault.sealItem(utf8(JSON.stringify(commands)), utf8(worktreeCommandsAad(projectId)));
           worktreeCommands = { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
         }
-        const stored = await updateProjectSettings(client, projectId, { worktreeCommands });
-        // What was sealed is what the page shows: the item stored needs no opening, and waits for the store to hold it.
-        const { opened: opening, pending } = localOf(projectId);
-        if (opening?.from === from) {
-          const ciphertext = stored.worktreeCommands?.ciphertext ?? null;
-          set(projectId, { opened: { from: ciphertext, worktree: opening.worktree }, pending: [...pending, ciphertext] });
+        // Followed from the start: its event may reach the store before its answer.
+        const saving: Saving = { seen: [] };
+        const held = stored?.worktreeCommands(projectId);
+        const before = localOf(projectId);
+        set(projectId, { pending: [...before.pending, saving], held: held === undefined ? before.held : (held?.ciphertext ?? null) });
+        let answer: ProjectSettings;
+        try {
+          answer = await updateProjectSettings(client, projectId, { worktreeCommands });
+        } catch (error) {
+          answered(projectId, saving, undefined);
+          follow();
+          throw error;
         }
+        // What was sealed is what the page shows: the item stored needs no opening, and waits for the store to hold it.
+        const ciphertext = answer.worktreeCommands?.ciphertext ?? null;
+        answered(projectId, saving, ciphertext);
+        const { opened: opening } = localOf(projectId);
+        set(projectId, opening?.from === from ? { opened: { from: ciphertext, worktree: opening.worktree } } : {});
       }),
     );
   };
@@ -238,7 +284,10 @@ export const createProjectSettings = ({ client, vault, stored }: ProjectSettings
         // The store follows the page's saves; whatever it holds until it has them all, the page keeps what it saved.
         settle(projectId, current);
         follow();
-      } else if (!local.opened || local.opened.from !== current) open(projectId, sealed);
+      } else {
+        locals.set(projectId, { ...local, held: current });
+        if (!local.opened || local.opened.from !== current) open(projectId, sealed);
+      }
       return { errors: local.errors, drafts: local.drafts, worktree: localOf(projectId).opened?.worktree ?? { state: 'opening' } };
     },
     change(projectId, name, value) {

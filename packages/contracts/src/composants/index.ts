@@ -28,6 +28,7 @@ import { PageDemarrage } from './page-demarrage.js';
 import { PageParametres } from './page-parametres.js';
 import { PageHeader } from './page-header.js';
 import { PageIntrouvable } from './page-introuvable.js';
+import { PageProcessEditor } from './page-process-editor.js';
 import { PageProjets } from './page-projets.js';
 import { PageRunner } from './page-runner.js';
 import { PermissionRequest } from './permission-request.js';
@@ -94,6 +95,7 @@ export * from './page-demarrage.js';
 export * from './page-parametres.js';
 export * from './page-header.js';
 export * from './page-introuvable.js';
+export * from './page-process-editor.js';
 export * from './page-projets.js';
 export * from './page-runner.js';
 export * from './permission-request.js';
@@ -146,6 +148,7 @@ export const COMPOSANTS = {
   PageParametres,
   PageIntrouvable,
   PageProjets,
+  PageProcessEditor,
   PageRunner,
   Card,
   CodeBlock,

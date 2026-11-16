@@ -1,4 +1,4 @@
-import { formatDay, formatEuros, formatHour, formatNumber, formatPercent, formatRelative } from './format.js';
+import { formatDate, formatDay, formatEuros, formatHour, formatNumber, formatPercent, formatRelative } from './format.js';
 
 const NNBSP = ' ';
 const NBSP = ' ';
@@ -63,5 +63,12 @@ describe('formatEuros', () => {
     expect(formatEuros(180)).toBe(`1,80${NBSP}€`);
     expect(formatEuros(123456)).toBe(`1${NNBSP}234,56${NBSP}€`);
     expect(formatEuros(0)).toBe(`0,00${NBSP}€`);
+  });
+});
+
+describe('formatDate', () => {
+  it('gives the day of an instant in the browser’s time zone, however recent', () => {
+    expect(formatDate(local(4, 9))).toBe('4 nov.');
+    expect(formatDate(local(4, 23, 30).toISOString())).toBe('4 nov.');
   });
 });

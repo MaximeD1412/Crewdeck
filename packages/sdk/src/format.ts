@@ -45,6 +45,9 @@ export const formatRelative = (instant: Instant, now: Date = new Date()): string
   return dayMonth.format(date);
 };
 
+/** « 4 nov. »: the day of an instant, in the browser's time zone, however recent. */
+export const formatDate = (instant: Instant): string => dayMonth.format(toDate(instant));
+
 /** « 16:40 ». */
 export const formatHour = (instant: Instant): string => hourMinute.format(toDate(instant));
 

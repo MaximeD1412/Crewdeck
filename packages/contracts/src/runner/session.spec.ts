@@ -43,7 +43,7 @@ describe('the Sessions of the Runner protocol', () => {
     ['feat/12-sessions', true],
     ['develop', true],
   ])('takes the branch %s: %s', (branch, valid) => {
-    expect(zSessionStart.safeParse({ ...fixture('session.start'), branch }).success).toBe(valid);
+    expect(zSessionStart.safeParse({ ...fixture<Record<string, unknown>>('session.start'), branch }).success).toBe(valid);
   });
 
   it('refuses an origin other than a GitHub repository, or a repository named . or ..', () => {

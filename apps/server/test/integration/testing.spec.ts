@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import { LINK_ATTEMPTS_PER_MINUTE, zScenarioRun } from '@crewdeck/contracts';
+import { ideaItemAad, LINK_ATTEMPTS_PER_MINUTE, vaultWrapAad, zIdeaList, zScenarioRun, zVaultKeyWrap } from '@crewdeck/contracts';
 import pg from 'pg';
 import { inject } from 'vitest';
 import { createApp } from '../../src/app.js';
@@ -10,6 +10,7 @@ import { createLinkedRunner } from '../../src/testing/runners.js';
 import { ScenariosService } from '../../src/testing/scenarios.service.js';
 import { defineScenario } from '../../src/testing/scenarios/define.js';
 import { signInPilot } from '../../src/testing/scenarios/sign-in.js';
+import { openItem, openWrap } from '../../src/testing/vault.js';
 
 const databaseUrl = inject('databaseUrl');
 
@@ -62,7 +63,7 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
       const response = await post(app, 'blank');
 
       expect(response.status).toBe(200);
-      expect(zScenarioRun.parse(await response.json())).toEqual({ name: 'blank', path: '/', sessionCookie: null });
+      expect(zScenarioRun.parse(await response.json())).toEqual({ name: 'blank', path: '/', sessionCookie: null, device: null });
       expect(await sql('SELECT * FROM scenario_parent')).toEqual([]);
       expect(await sql('SELECT * FROM scenario_child')).toEqual([]);
       expect(await sql('SELECT count(*) FROM _prisma_migrations')).toEqual([migrationsBefore]);
@@ -103,12 +104,28 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
       expect(await me.json()).toMatchObject({ login: 'octocat', timeZone: 'Europe/Paris' });
     });
 
+    it('trusts the Appareil of « Idées », whose wrap opens the vault, and the vault every Idée’s text', async () => {
+      const run = zScenarioRun.parse(await (await post(app, 'idees')).json());
+      const { device } = run;
+      if (!device) throw new Error('no Appareil');
+      const headers = { cookie: run.sessionCookie ?? '' };
+      const base = await app.getUrl();
+      const wrap = zVaultKeyWrap.parse(await (await fetch(`${base}/api/devices/${device.deviceId}/vault-key-wrap`, { headers })).json());
+      const b = (text: string) => Buffer.from(text, 'base64url');
+      const vaultKey = openWrap(b(device.privateKey), b(device.publicKey), { enc: b(wrap.enc), ciphertext: b(wrap.ciphertext), tag: b(wrap.tag) }, 'crewdeck/v1/vault-wrap', vaultWrapAad(device.deviceId, wrap.vaultKeyVersion));
+
+      const { items } = zIdeaList.parse(await (await fetch(`${base}/api/ideas?states=to-triage,retained,merged,rejected`, { headers })).json());
+      const texts = items.map((idea) => [idea.number, openItem(vaultKey, idea.text, ideaItemAad(idea.id, 'text')).toString('utf8').split('\n')[0]]);
+      expect(texts).toContainEqual([63, 'Exporter le planning en PDF pour le client']);
+      expect(items.filter((idea) => idea.state === 'to-triage').map((idea) => idea.number).sort()).toEqual([61, 62, 63, 64]);
+    });
+
     it.each([
       ['connexion', '/connexion'],
       ['connexion-erreur', '/connexion?erreur=state-mismatch'],
     ])('opens %s signed out, with the fake GitHub user who signs in at once', async (name, path) => {
       const run = zScenarioRun.parse(await (await post(app, name)).json());
-      expect(run).toEqual({ name, path, sessionCookie: null });
+      expect(run).toEqual({ name, path, sessionCookie: null, device: null });
 
       const base = await app.getUrl();
       const start = await fetch(`${base}/api/auth/github/start?timeZone=Europe%2FParis&next=%2Fa-toi`, { redirect: 'manual' });

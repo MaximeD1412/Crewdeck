@@ -49,7 +49,7 @@ export class ScenariosService implements OnModuleInit, OnModuleDestroy {
     const runnerOffline = this.moduleRef.get(RunnerOffline, { strict: false });
     const seeded = await scenario.seed({ prisma: this.prisma, fakes: this.fakes, refreshRunnerOffline: (pilotId) => runnerOffline.refresh(pilotId) });
     if (seeded.runnerToken) await this.fakes.runner.connect(this.ownUrl(), seeded.runnerToken, seeded.runnerMachine);
-    return { name: scenario.name, path: scenario.path, sessionCookie: seeded.sessionCookie ?? null };
+    return { name: scenario.name, path: scenario.path, sessionCookie: seeded.sessionCookie ?? null, device: seeded.device ?? null };
   }
 
   /**

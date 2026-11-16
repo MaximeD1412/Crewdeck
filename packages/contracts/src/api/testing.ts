@@ -1,18 +1,34 @@
 import { z } from 'zod';
+import { zBytes32 } from '../keys/pairing.js';
 import { zCapabilities } from '../runner/capabilities.js';
 import { zMcpServers } from '../runner/mcp.js';
 import { zDecision, zDecisionKind } from './decisions.js';
 import { zWaitingProject } from './runner-offline.js';
+import { zId } from '../values.js';
+
+/**
+ * A trusted Appareil a scenario seeds, its keys base64url: the browser keeps
+ * its private key as its own (`crewdeck-keys`) to open the vault and the
+ * scenario's sealed texts. A test key, never a Pilote's.
+ */
+export const zScenarioDevice = z.object({
+  deviceId: zId,
+  privateKey: zBytes32,
+  publicKey: zBytes32,
+});
+export type ScenarioDevice = z.infer<typeof zScenarioDevice>;
 
 /**
  * `POST /api/testing/scenarios/:name`, outside production only: the scenario
- * that ran, the page it shows, and the session cookie (`<name>=<value>`) the
- * browser must carry there, `null` when it signs no Pilote in.
+ * that ran, the page it shows, the session cookie (`<name>=<value>`) the
+ * browser must carry there, `null` when it signs no Pilote in, and the
+ * Appareil it trusts, `null` when it seeds none.
  */
 export const zScenarioRun = z.object({
   name: z.string().min(1),
   path: z.string().startsWith('/'),
   sessionCookie: z.string().min(1).nullable(),
+  device: zScenarioDevice.nullable(),
 });
 export type ScenarioRun = z.infer<typeof zScenarioRun>;
 

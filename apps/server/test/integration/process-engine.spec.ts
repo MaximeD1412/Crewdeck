@@ -19,7 +19,7 @@ import { appOrigin, parseEnv } from '../../src/config/env.js';
 import { WebhookDispatcher } from '../../src/github/webhooks/dispatcher.js';
 import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
-import { DuplicateStartGuardError, Engine, type StartGuard } from '../../src/process/engine/engine.js';
+import { DuplicateStartGuardError, Engine, EngineInputError, type StartGuard } from '../../src/process/engine/engine.js';
 import { EngineModule } from '../../src/process/engine/engine.module.js';
 import { DuplicateStepKindHandlerError, STEP_KIND_HANDLERS, type StepKindHandler, type StepKindHandlers, type StepResult } from '../../src/process/engine/kinds/handler.js';
 import { Transactions, type Tx } from '../../src/realtime/transactions.js';
@@ -61,8 +61,23 @@ const APP_REPO = { owner: 'octo-fixture', name: 'fixture-app', id: 71000001 };
  * with.
  */
 const stops: string[] = [];
-/** The kinds the test handlers take: « Développement » of « Process Crewdeck », its gate « Revue visuelle » waiting on the Pilote. */
-const HANDLED: readonly StepKind[] = ['code', 'checks', 'review', 'visual-review', 'merge'];
+/** The kinds the test handlers take: every Étape of « Process Crewdeck », its gates waiting on the Pilote, and the Commande of a « Livraison ». */
+const HANDLED: readonly StepKind[] = [
+  'idea-analysis',
+  'idea-triage',
+  'prd',
+  'cross-review',
+  'approval',
+  'mockups',
+  'technical-design',
+  'split',
+  'code',
+  'checks',
+  'review',
+  'visual-review',
+  'merge',
+  'command',
+];
 const handler = (kind: StepKind): StepKindHandler => ({
   kind,
   start: () => Promise.resolve(CATALOGUE[kind].family === 'gate' ? 'waiting' : 'running'),
@@ -223,7 +238,7 @@ describe('the engine against PostgreSQL', () => {
     expect(run).toMatchObject({ projectId, processVersion: 1, phaseId: 'ph-dev', itemType: 'ticket', itemId: '42', state: 'running', waitingOn: null, endedAt: null });
     const [code] = await stepRuns(run.id);
     expect(await states(run.id)).toEqual(['st-code:running']);
-    expect(code).toMatchObject({ iteration: 1, reason: null, failure: null, inputs: [{ portId: 'ticket', artifacts: [{ portId: 'ticket', type: 'ticket', id: '42' }] }] });
+    expect(code).toMatchObject({ iteration: 1, reason: null, failure: null, inputs: [{ portId: 'ticket', artifacts: [{ portId: 'ticket', type: 'ticket', id: '42' }], absent: false }] });
 
     const events = await eventsSince(before);
     expect(events.map((event) => event.type)).toEqual(['phase-run.upserted', 'step-run.upserted']);
@@ -257,7 +272,7 @@ describe('the engine against PostgreSQL', () => {
 
     await signal(run.id, 'st-code', done([CHANGE]));
     expect(await states(run.id)).toEqual(['st-code:done', 'st-checks:running', 'st-rv:waiting']);
-    expect((await stepRun(run.id, 'st-checks')).inputs).toEqual([{ portId: 'changement', artifacts: [CHANGE] }]);
+    expect((await stepRun(run.id, 'st-checks')).inputs).toEqual([{ portId: 'changement', artifacts: [CHANGE], absent: false }]);
 
     await signal(run.id, 'st-checks', done([verdict('v-checks')], 'passed'));
     expect(await states(run.id)).toEqual(['st-code:done', 'st-checks:done', 'st-rv:waiting', 'st-review:running']);
@@ -267,9 +282,9 @@ describe('the engine against PostgreSQL', () => {
 
     await signal(run.id, 'st-rv', done([verdict('v-rv')], 'passed'));
     expect((await stepRun(run.id, 'st-merge')).inputs).toEqual([
-      { portId: 'changement', artifacts: [CHANGE] },
-      { portId: 'v-review', artifacts: [verdict('v-review')] },
-      { portId: 'v-rv', artifacts: [verdict('v-rv')] },
+      { portId: 'changement', artifacts: [CHANGE], absent: false },
+      { portId: 'v-review', artifacts: [verdict('v-review')], absent: false },
+      { portId: 'v-rv', artifacts: [verdict('v-rv')], absent: false },
     ]);
 
     expect(await signal(run.id, 'st-merge', done([{ ...CHANGE, sha: 'c'.repeat(40) }]))).toBe(true);
@@ -456,7 +471,7 @@ describe('the engine against PostgreSQL', () => {
 
   it('fails an Étape whose kind has no handler with no-handler, and its PhaseRun', async () => {
     const [code] = PROCESS_CREWDECK.steps.filter((step) => step.id === 'st-code');
-    await writeVersion({ ...PROCESS_CREWDECK, steps: PROCESS_CREWDECK.steps.map((step) => (step === code ? { ...step, kind: 'command' } : step)) });
+    await writeVersion({ ...PROCESS_CREWDECK, steps: PROCESS_CREWDECK.steps.map((step) => (step === code ? { ...step, kind: 'inventory' } : step)) });
 
     const run = await admit('42');
 
@@ -512,7 +527,7 @@ describe('the engine against PostgreSQL', () => {
 
     await signal(run.id, 'st-code', done([NEW_CHANGE]));
     const checks = await stepRun(run.id, 'st-checks');
-    expect(checks).toMatchObject({ state: 'running', iteration: 2, reason: null, inputs: [{ portId: 'changement', artifacts: [NEW_CHANGE] }] });
+    expect(checks).toMatchObject({ state: 'running', iteration: 2, reason: null, inputs: [{ portId: 'changement', artifacts: [NEW_CHANGE], absent: false }] });
     expect((await stepRun(run.id, 'st-rv')).iteration).toBe(2);
     // No Retour was taken: only the caller's reason names this rerun.
     expect((await stepRuns(run.id)).map((candidate) => candidate.reason).filter((reason) => reason !== null)).toEqual(['fix-conflict']);
@@ -568,6 +583,186 @@ describe('the engine against PostgreSQL', () => {
     };
     await expect(boot(SecondCodeHandlerModule)).rejects.toThrow(DuplicateStepKindHandlerError);
     await expect(boot(SecondGuardModule)).rejects.toThrow(DuplicateStartGuardError);
+  });
+
+  /** An Artefact of git, by the commit it was approved at. */
+  const doc = (portId: string, type: ArtifactRef['type'], id: string, sha: string): ArtifactRef => ({ portId, type, id, sha: sha.repeat(40) });
+  const ticketRef = (portId: string, id: string): ArtifactRef => ({ portId, type: 'ticket', id });
+  const ideaRef = (portId: string, id: string): ArtifactRef => ({ portId, type: 'idea', id });
+  const admitIdea = (idea: string, phaseId: string, project: string | null = projectId) =>
+    inAlice((tx) => engine.admit(tx, { projectId: project, phaseId, item: { type: 'idea', id: idea } }));
+  const parentOf = async (phaseRunId: string) =>
+    (await sql<{ parent_phase_run_id: string | null }>('SELECT parent_phase_run_id FROM phase_runs WHERE id = $1', [phaseRunId]))[0]?.parent_phase_run_id;
+  const phaseRunsOf = (phaseId: string) =>
+    sql<{ id: string; item_id: string; state: string; waiting_on: string | null; parent_phase_run_id: string | null }>(
+      'SELECT id, item_id, state, waiting_on, parent_phase_run_id FROM phase_runs WHERE phase_id = $1 ORDER BY item_id, id',
+      [phaseId],
+    );
+
+  /** The Maquettes a Conception approves, at the commit `sha`. */
+  const mockupsOf = (idea: string, sha: string) => doc('document', 'mockups', `design/${idea}`, sha);
+
+  /** An Idée retained through « Conception » to its end: its Maquettes approved at `sha`, its Découpage writing `tickets`, validated. */
+  const throughConception = async (idea: string, sha: string, tickets: string[]) => {
+    const run = await admitIdea(idea, 'ph-conception');
+    await signal(run.id, 'st-prd', done([doc('prd', 'prd', `docs/${idea}/prd.md`, sha)]));
+    await signal(run.id, 'st-rc-prd', done([verdict(`rc-prd-${idea}`)], 'passed'));
+    await signal(run.id, 'st-ap-prd', done([doc('document', 'prd', `docs/${idea}/prd.md`, sha)], 'passed'));
+    await signal(run.id, 'st-maquettes', done([{ ...mockupsOf(idea, sha), portId: 'maquettes' }]));
+    await signal(run.id, 'st-ap-maquettes', done([mockupsOf(idea, sha)], 'passed'));
+    await signal(run.id, 'st-ct', done([doc('conception', 'technical-design', `docs/${idea}/ct.md`, sha)]));
+    await signal(run.id, 'st-rc-ct', done([verdict(`rc-ct-${idea}`)], 'passed'));
+    await signal(run.id, 'st-ap-ct', done([doc('document', 'technical-design', `docs/${idea}/ct.md`, sha)], 'passed'));
+    await signal(run.id, 'st-decoupage', done(tickets.map((ticket) => ticketRef('ticket', ticket))));
+    await signal(run.id, 'st-ap-tickets', done(tickets.map((ticket) => ticketRef('document', ticket)), 'passed'));
+    expect(await phaseRunState(run.id)).toBe('done');
+    return run;
+  };
+
+  it('gives a Ticket the Conception whose Découpage wrote it as parent, and its Revue visuelle the Maquettes that Conception approved, never another’s', async () => {
+    const first = await throughConception('idee-1', '1', ['101']);
+    const second = await throughConception('idee-2', '2', ['102']);
+    // « Validation des Tickets » sends its Tickets to « Développement » (ticket.ready): that starts nothing, the Boucle admits them.
+    expect(await phaseRunsOf('ph-dev')).toEqual([]);
+
+    const ticketOfSecond = await admit('102');
+    const ticketOfFirst = await admit('101');
+
+    expect(ticketOfFirst.parentPhaseRunId).toBe(first.id);
+    expect(ticketOfSecond.parentPhaseRunId).toBe(second.id);
+    expect(await parentOf(ticketOfFirst.id)).toBe(first.id);
+    await signal(ticketOfFirst.id, 'st-code', done([CHANGE]));
+    await signal(ticketOfSecond.id, 'st-code', done([{ ...CHANGE, id: '58' }]));
+    expect((await stepRun(ticketOfFirst.id, 'st-rv')).inputs[1]).toEqual({ portId: 'maquettes', artifacts: [mockupsOf('idee-1', '1')], absent: false });
+    expect((await stepRun(ticketOfSecond.id, 'st-rv')).inputs[1]).toEqual({ portId: 'maquettes', artifacts: [mockupsOf('idee-2', '2')], absent: false });
+  });
+
+  it('gives a Ticket written by hand no parent: its Revue visuelle’s Maquettes are absent, and it starts', async () => {
+    await throughConception('idee-1', '1', ['101']);
+
+    const byHand = await admit('42');
+
+    expect(byHand.parentPhaseRunId).toBeNull();
+    await signal(byHand.id, 'st-code', done([CHANGE]));
+    expect(await stepRun(byHand.id, 'st-rv')).toMatchObject({ state: 'waiting', inputs: [{ portId: 'changement', artifacts: [CHANGE], absent: false }, { portId: 'maquettes', artifacts: [], absent: true }] });
+  });
+
+  it('runs an Idée noted without a Projet through « Analyse » and « Tri » of the builtin « Process Crewdeck »; its Conception on a Projet points to that PhaseRun', async () => {
+    const before = await lastSeq();
+
+    const noted = await admitIdea('idee-9', 'ph-idee', null);
+
+    expect(noted).toMatchObject({ projectId: null, processVersion: null, builtinTemplate: 'process-crewdeck', parentPhaseRunId: null, phaseId: 'ph-idee', state: 'running' });
+    expect(await states(noted.id)).toEqual(['st-analyse:running']);
+    expect(await sql('SELECT project_id FROM step_runs WHERE phase_run_id = $1', [noted.id])).toEqual([{ project_id: null }]);
+    for (const event of await eventsSince(before)) expect(eventPayloadSchema(event.type as EventType)?.safeParse(event.payload).success).toBe(true);
+    expect((await state()).phaseRuns).toEqual([noted]);
+    expect(await admitIdea('idee-9', 'ph-idee', null)).toEqual(noted);
+
+    await signal(noted.id, 'st-analyse', done([ideaRef('idee', 'idee-9')]));
+    expect(await states(noted.id)).toEqual(['st-analyse:done', 'st-tri:waiting']);
+    await signal(noted.id, 'st-tri', done([ideaRef('idee', 'idee-9')], 'passed'));
+    expect(await phaseRunState(noted.id)).toBe('done');
+    // Retained, it waits for « Démarrer la Conception » (and its Projet): the arrow into an idea.retained Phase starts nothing.
+    expect(await phaseRunsOf('ph-conception')).toEqual([]);
+
+    const conception = await admitIdea('idee-9', 'ph-conception');
+
+    expect(conception).toMatchObject({ projectId, processVersion: 1, builtinTemplate: null, parentPhaseRunId: noted.id });
+    expect((await stepRun(conception.id, 'st-prd')).inputs).toEqual([{ portId: 'idee', artifacts: [ideaRef('idee', 'idee-9')], absent: false }]);
+  });
+
+  it('refuses an admission without a Projet into any Phase but the idea.noted one of « Process Crewdeck »', async () => {
+    await expect(admitIdea('idee-9', 'ph-conception', null)).rejects.toThrow(EngineInputError);
+    await expect(inAlice((tx) => engine.admit(tx, { projectId: null, phaseId: 'ph-dev', item: { type: 'ticket', id: '42' } }))).rejects.toThrow(EngineInputError);
+    await expect(inAlice((tx) => engine.admit(tx, { projectId: null, phaseId: 'ph-idee', item: { type: 'ticket', id: '42' } }))).rejects.toThrow(/does not repeat/);
+    await expect(admitIdea('idee-9', 'ph-nowhere', null)).rejects.toThrow(/no Phase/);
+    expect(await sql('SELECT id FROM phase_runs')).toEqual([]);
+    await expect(
+      sql(`INSERT INTO phase_runs (id, pilot_id, project_id, process_version_id, phase_id, item_type, item_id, state, started_at)
+           VALUES ($1, $2, NULL, NULL, 'ph-idee', 'idea', 'idee-9', 'running', now())`, [newId(), alice.id]),
+    ).rejects.toThrow(/phase_runs_project_or_builtin/);
+  });
+
+  it('admits at once an Idée an arrow carries into an idea.noted Phase, with the PhaseRun that gave it as parent', async () => {
+    await writeVersion({ ...PROCESS_CREWDECK, phases: PROCESS_CREWDECK.phases.map((phase) => (phase.id === 'ph-conception' ? { ...phase, forEach: 'idea.noted' } : phase)) });
+    const noted = await admitIdea('idee-3', 'ph-idee');
+    await signal(noted.id, 'st-analyse', done([ideaRef('idee', 'idee-3')]));
+
+    await signal(noted.id, 'st-tri', done([ideaRef('idee', 'idee-3')], 'passed'));
+
+    const [conception] = await phaseRunsOf('ph-conception');
+    expect(conception).toMatchObject({ item_id: 'idee-3', state: 'running', parent_phase_run_id: noted.id });
+    expect(await states(conception?.id ?? '')).toEqual(['st-prd:running']);
+  });
+
+  /** « Process Crewdeck » and a « Livraison » after the Merge: a Phase without forEach whose Commande « Lancer » takes the merged change. */
+  const withDelivery = (): ProcessDefinition => ({
+    ...PROCESS_CREWDECK,
+    phases: [...PROCESS_CREWDECK.phases, { id: 'ph-livraison', name: 'Livraison', col: 1, row: 4, forEach: null }],
+    steps: [
+      ...PROCESS_CREWDECK.steps,
+      {
+        id: 'st-lancer',
+        phaseId: 'ph-livraison',
+        kind: 'command',
+        name: 'Lancer',
+        col: 1,
+        row: 1,
+        inputs: [{ id: 'changement', type: 'code-change' }],
+        outputs: [{ id: 'livraison', type: 'delivery' }],
+        tools: [],
+      },
+    ],
+    arrows: [...PROCESS_CREWDECK.arrows, { from: { stepId: 'st-merge', portId: 'changement' }, to: { stepId: 'st-lancer', portId: 'changement' } }],
+  });
+  const merged = (change: string): ArtifactRef => ({ portId: 'changement', type: 'code-change', id: change, sha: 'e'.repeat(40) });
+  /** A Ticket merged as the change `change`: its Développement, then the Merge done. */
+  const merge = async (ticket: string, change: string) => {
+    const run = await upToMerge(ticket);
+    await signal(run.id, 'st-merge', done([merged(change)]));
+    expect(await phaseRunState(run.id)).toBe('done');
+    return run;
+  };
+  const deliveries = async () => (await phaseRunsOf('ph-livraison')).map((run) => `${run.item_id}:${run.state}${run.waiting_on ? `:${run.waiting_on}` : ''}`);
+
+  it('starts a « Livraison » per merged change, one at a time in order: the second waiting on its turn until the first is done', async () => {
+    await writeVersion(withDelivery());
+
+    const first = await merge('42', '57');
+    await merge('43', '58');
+
+    expect(await deliveries()).toEqual(['57:running', '58:waiting:queue']);
+    const [delivery57, delivery58] = await phaseRunsOf('ph-livraison');
+    expect(delivery57?.parent_phase_run_id).toBe(first.id);
+    expect(await stepRun(delivery57?.id ?? '', 'st-lancer')).toMatchObject({ state: 'running', inputs: [{ portId: 'changement', artifacts: [merged('57')], absent: false }] });
+    expect(await stepRuns(delivery58?.id ?? '')).toEqual([]);
+
+    await signal(delivery57?.id ?? '', 'st-lancer', done([{ portId: 'livraison', type: 'delivery', id: '57' }]));
+
+    expect(await deliveries()).toEqual(['57:done', '58:running']);
+    expect(await stepRun(delivery58?.id ?? '', 'st-lancer')).toMatchObject({ state: 'running', inputs: [{ portId: 'changement', artifacts: [merged('58')], absent: false }] });
+  });
+
+  it('keeps the turn of a failed « Livraison » until it is retried and done, or stopped', async () => {
+    await writeVersion(withDelivery());
+    await merge('42', '57');
+    const [delivery57] = await phaseRunsOf('ph-livraison');
+    await signal(delivery57?.id ?? '', 'st-lancer', { state: 'failed', failure: 'command-failed' });
+    await merge('43', '58');
+    await merge('44', '59');
+    expect(await deliveries()).toEqual(['57:failed', '58:waiting:queue', '59:waiting:queue']);
+
+    expect(await inAlice(async (tx) => engine.retry(tx, (await stepRun(delivery57?.id ?? '', 'st-lancer')).id))).toMatchObject({ state: 'running' });
+    expect(await deliveries()).toEqual(['57:running', '58:waiting:queue', '59:waiting:queue']);
+    await signal(delivery57?.id ?? '', 'st-lancer', done([{ portId: 'livraison', type: 'delivery', id: '57' }]));
+    expect(await deliveries()).toEqual(['57:done', '58:running', '59:waiting:queue']);
+
+    const [, delivery58] = await phaseRunsOf('ph-livraison');
+    await signal(delivery58?.id ?? '', 'st-lancer', { state: 'failed', failure: 'command-failed' });
+    expect(await deliveries()).toEqual(['57:done', '58:failed', '59:waiting:queue']);
+    await inAlice((tx) => engine.stop(tx, delivery58?.id ?? ''));
+    expect(await deliveries()).toEqual(['57:done', '58:stopped', '59:running']);
   });
 
   it('lists the unfinished PhaseRuns and their StepRuns in GET /api/state, not the finished ones', async () => {

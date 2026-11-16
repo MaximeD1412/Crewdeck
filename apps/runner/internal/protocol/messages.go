@@ -43,10 +43,13 @@ func now() time.Time {
 	return time.Now().UTC().Truncate(time.Millisecond)
 }
 
-// NewHello is the hello of `machine`, at the Runner's protocol.
-func NewHello(machine Machine) contracts.RunnerHello {
+// NewHello is the hello of `machine`, at the Runner's protocol, with the
+// Miroir's cursor mirrorAfter (null for none: the server resyncs the copy).
+func NewHello(machine Machine, mirrorAfter *int64) contracts.RunnerHello {
 	at := now()
 	return contracts.RunnerHello{
+		// A nil *int64 in the interface is written null, never left out.
+		MirrorAfter:     mirrorAfter,
 		Type:            TypeHello,
 		Id:              newID(at),
 		At:              at,
@@ -91,4 +94,10 @@ func NewMcpServers(servers []contracts.RunnerMcpServersServersElem) contracts.Ru
 		servers = []contracts.RunnerMcpServersServersElem{}
 	}
 	return contracts.RunnerMcpServers{Type: TypeMcpServers, Id: newID(at), At: at, Servers: servers}
+}
+
+// NewMirrorToken asks the server for the « Miroir » tokens (MIROIR-2).
+func NewMirrorToken() contracts.RunnerMirrorToken {
+	at := now()
+	return contracts.RunnerMirrorToken{Type: TypeMirrorToken, Id: newID(at), At: at}
 }

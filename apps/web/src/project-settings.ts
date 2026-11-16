@@ -66,15 +66,27 @@ interface Local {
   readonly drafts: Readonly<Record<string, string>>;
   readonly opened: Opened | null;
   /**
-   * The items (their ciphertext, `null` for none) this page's own saves
-   * replaced: the store may still hold one until their `settings.upserted`
-   * comes, and it is never opened again over what the page saved.
+   * What this page's own saves stored (the item's ciphertext, `null` for
+   * none), in their order, until the store holds each: the store gets them by
+   * `settings.upserted`, one after the other, and may lag behind the HTTP
+   * answers. Until then what it holds (the item before them, one of them, or
+   * one they replace) is never opened over what the page saved.
    */
-  readonly superseded: ReadonlySet<string | null>;
+  readonly pending: readonly (string | null)[];
 }
 
-const NONE: ReadonlySet<string | null> = new Set();
-const EMPTY: Local = { errors: {}, drafts: {}, opened: null, superseded: NONE };
+const EMPTY: Local = { errors: {}, drafts: {}, opened: null, pending: [] };
+
+/**
+ * How many of `pending` the store's item confirms: up to the one it holds. A
+ * `null` confirms only the first, since the store may hold the `null` from
+ * before the saves until it has the items saved before that one; 0 for an
+ * item none of them stored.
+ */
+const confirmed = (pending: readonly (string | null)[], current: string | null): number => {
+  if (current === null) return pending[0] === null ? 1 : 0;
+  return pending.indexOf(current) + 1;
+};
 
 const asText = (command: string | null): string => command ?? '';
 const asCommand = (text: string): string | null => (text.trim() === '' ? null : text);
@@ -109,10 +121,10 @@ export const createProjectSettings = ({ client, vault }: ProjectSettingsOptions)
     const from = sealed?.ciphertext ?? null;
     // An item the page did not seal: it is what the Projet holds now, the page's own saves behind it.
     if (!sealed) {
-      locals.set(projectId, { ...localOf(projectId), opened: { from, worktree: { state: 'open', prepare: '', clean: '' } }, superseded: NONE });
+      locals.set(projectId, { ...localOf(projectId), opened: { from, worktree: { state: 'open', prepare: '', clean: '' } }, pending: [] });
       return;
     }
-    locals.set(projectId, { ...localOf(projectId), opened: { from, worktree: { state: 'opening' } }, superseded: NONE });
+    locals.set(projectId, { ...localOf(projectId), opened: { from, worktree: { state: 'opening' } }, pending: [] });
     const aad = utf8(worktreeCommandsAad(projectId));
     void (async (): Promise<WorktreeLocal> => {
       try {
@@ -152,11 +164,7 @@ export const createProjectSettings = ({ client, vault }: ProjectSettingsOptions)
     return next;
   };
 
-  /**
-   * Seals both Commandes, one changed, as one item, both empty included: each
-   * save of the page is then an item of its own, never `null`, which the store
-   * may hold still from before it (or another tab write).
-   */
+  /** Seals both Commandes, one changed, as one item; both empty removes them (`null`). */
   const changeWorktree = (projectId: string, name: string, text: string): Promise<void> => {
     const opened = localOf(projectId).opened?.worktree;
     if (!vault || !opened || (opened.state !== 'open' && opened.state !== 'unreadable')) return Promise.resolve();
@@ -170,13 +178,17 @@ export const createProjectSettings = ({ client, vault }: ProjectSettingsOptions)
         // The item this save replaces: the one the save before it stored, once its turn comes.
         const from = localOf(projectId).opened?.from ?? null;
         const commands: WorktreeCommands = { prepare: asCommand(texts.prepare), clean: asCommand(texts.clean) };
-        const item = await vault.sealItem(utf8(JSON.stringify(commands)), utf8(worktreeCommandsAad(projectId)));
-        const worktreeCommands = { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
+        let worktreeCommands: ProjectSettingsPatch['worktreeCommands'] = null;
+        if (commands.prepare !== null || commands.clean !== null) {
+          const item = await vault.sealItem(utf8(JSON.stringify(commands)), utf8(worktreeCommandsAad(projectId)));
+          worktreeCommands = { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
+        }
         const stored = await updateProjectSettings(client, projectId, { worktreeCommands });
-        // What was sealed is what the page shows: the item stored needs no opening again, the one it replaced never again.
-        const { opened: opening, superseded } = localOf(projectId);
+        // What was sealed is what the page shows: the item stored needs no opening, and waits for the store to hold it.
+        const { opened: opening, pending } = localOf(projectId);
         if (opening?.from === from) {
-          set(projectId, { opened: { from: stored.worktreeCommands?.ciphertext ?? null, worktree: opening.worktree }, superseded: new Set([...superseded, from]) });
+          const ciphertext = stored.worktreeCommands?.ciphertext ?? null;
+          set(projectId, { opened: { from: ciphertext, worktree: opening.worktree }, pending: [...pending, ciphertext] });
         }
       }),
     );
@@ -187,9 +199,11 @@ export const createProjectSettings = ({ client, vault }: ProjectSettingsOptions)
       const local = localOf(projectId);
       if (vaultState !== 'unlocked' || !vault) return { errors: local.errors, drafts: local.drafts, worktree: NO_PROJECT_SETTINGS_LOCAL.worktree };
       const current = sealed?.ciphertext ?? null;
-      // The store caught up with the page's saves: what they replaced cannot come back.
-      if (local.opened?.from === current && local.superseded.size > 0) locals.set(projectId, { ...local, superseded: NONE });
-      else if (!local.opened || (local.opened.from !== current && !local.superseded.has(current))) open(projectId, sealed);
+      if (local.pending.length > 0) {
+        // The store follows the page's saves; whatever it holds until it has them all, the page keeps what it saved.
+        const count = confirmed(local.pending, current);
+        if (count > 0) locals.set(projectId, { ...local, pending: local.pending.slice(count) });
+      } else if (!local.opened || local.opened.from !== current) open(projectId, sealed);
       return { errors: local.errors, drafts: local.drafts, worktree: localOf(projectId).opened?.worktree ?? { state: 'opening' } };
     },
     change(projectId, name, value) {

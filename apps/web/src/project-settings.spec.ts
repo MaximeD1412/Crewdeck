@@ -182,7 +182,7 @@ describe('createProjectSettings, the worktree Commandes', () => {
     expect(reloaded.view(PROJECT, sent, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' });
   });
 
-  it('seals an item that holds neither once both are emptied, never null: each save its own item', async () => {
+  it('removes the item when both are emptied', async () => {
     const { client, calls } = fakeClient();
     const vault = await unlockedVault();
     const settings = createProjectSettings({ client, vault });
@@ -190,9 +190,7 @@ describe('createProjectSettings, the worktree Commandes', () => {
 
     await settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
     await settings.change(PROJECT, 'worktree:prepare', '   ');
-    const sent = calls.at(-1)?.body['worktreeCommands'] as SealedItem;
-    const opened = await vault.openItem({ key: fromBase64Url(sent.key), ciphertext: fromBase64Url(sent.ciphertext) }, AAD);
-    expect(JSON.parse(new TextDecoder().decode(opened))).toEqual({ prepare: null, clean: null });
+    expect(calls.at(-1)?.body).toEqual({ worktreeCommands: null });
   });
 
   it('says an item this vault cannot open is unreadable, and replaces it with what the Pilote writes', async () => {
@@ -287,6 +285,7 @@ describe('createProjectSettings, the worktree Commandes', () => {
 
     await settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
     await settings.change(PROJECT, 'worktree:prepare', '');
+    expect(calls.map((call) => call.body['worktreeCommands'] === null)).toEqual([false, true]);
     // The store still holds no item: the page's emptying is not confirmed by it.
     expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: '', clean: '' });
     // The first save's event, late.
@@ -299,6 +298,15 @@ describe('createProjectSettings, the worktree Commandes', () => {
     const sent = calls.at(-1)?.body['worktreeCommands'] as SealedItem;
     const opened = await vault.openItem({ key: fromBase64Url(sent.key), ciphertext: fromBase64Url(sent.ciphertext) }, AAD);
     expect(JSON.parse(new TextDecoder().decode(opened))).toEqual({ prepare: null, clean: 'rm -rf .cache' });
+
+    // The other events, in order: the emptying, then the last item; the store then holds what the page saved.
+    for (const call of calls.slice(1)) {
+      inStore = call.body['worktreeCommands'] as SealedItem | null;
+      expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: '', clean: 'rm -rf .cache' });
+    }
+    // Another tab removes them: shown, the page's saves all confirmed.
+    inStore = null;
+    expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: '', clean: '' });
   });
 
   it('keeps a Commande refused on its field, with the text typed', async () => {

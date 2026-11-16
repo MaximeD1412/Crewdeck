@@ -1,4 +1,4 @@
-import type { AccountSettings, AiAccount, CodeChange, Decision, Device, Event, McpServer, Me, Milestone, Project, ProjectProcess, Repository, Resource, Runner, RunnerLink, State, Ticket } from '@crewdeck/contracts';
+import type { AccountSettings, AiAccount, CodeChange, Decision, Device, Event, McpServer, Me, Milestone, Project, ProjectProcess, PushSubscription, Repository, Resource, Runner, RunnerLink, State, Ticket } from '@crewdeck/contracts';
 import type { VaultState } from '../keys/vault.js';
 
 /**
@@ -25,6 +25,8 @@ export interface Slices {
   readonly 'mcp-server': ReadonlyMap<string, McpServer>;
   /** The Pilote's Appareils, by id (E2E-2), from the snapshot's `devices`. */
   readonly device: ReadonlyMap<string, Device>;
+  /** The browsers that receive the Pilote's push notifications, by id (ATOI-4), from the snapshot's `push-subscriptions`. */
+  readonly 'push-subscription': ReadonlyMap<string, PushSubscription>;
   /** The Pilote's Projets, by id (PROJET-2), from the snapshot's `projects`. */
   readonly project: ReadonlyMap<string, Project>;
   /** The Process of each Projet (PROCESS-3), by the Projet's id, from the snapshot's `processes`: its active version and its draft. */

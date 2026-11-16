@@ -17,6 +17,7 @@ store.registerSlice('runner-link', { shape: 'single' });
 store.registerSlice('ai-account', { shape: 'collection' });
 store.registerSlice('mcp-server', { shape: 'collection' });
 store.registerSlice('device', { shape: 'collection', snapshotKey: 'devices' });
+store.registerSlice('push-subscription', { shape: 'collection', snapshotKey: 'push-subscriptions' });
 store.registerSlice('project', { shape: 'collection', snapshotKey: 'projects' });
 store.registerSlice('process', { shape: 'collection', snapshotKey: 'processes' });
 store.registerSlice('repository', { shape: 'collection', snapshotKey: 'repositories' });

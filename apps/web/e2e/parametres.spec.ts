@@ -7,6 +7,8 @@ const library = (page: Page) => page.getByRole('link', { name: /Bibliothèque de
 const roleRows = (page: Page) => page.locator('cd-role-settings cd-setting-row');
 const roleSelect = (page: Page, name: string) => page.getByRole('combobox', { name: `Moteur et modèle du Rôle ${name}` });
 const chosen = (page: Page, name: string) => roleSelect(page, name).locator('option:checked');
+const pushToggle = (page: Page) => page.locator('cd-push-settings').getByRole('switch', { name: 'Notifications push' });
+const browsers = (page: Page) => page.locator('cd-push-settings cd-list-row');
 const desktop = (viewport: { width: number } | null) => (viewport?.width ?? 0) >= 1280;
 
 /** On the phone the Paramètres show one section at a time: opens `section`'s; at 1280 px they all show. */
@@ -16,8 +18,8 @@ const show = async (page: Page, section: string, viewport: { width: number } | n
 
 /**
  * US-82, US-18: the Paramètres of the account show only the sections that
- * have content, « Rôles et modèles », « Compte » with the time zone and
- * « Pour les Moddeurs »; on the phone one at a time, the one its link opens,
+ * have content, « Rôles et modèles », « Notifications », « Compte » with the
+ * time zone and « Pour les Moddeurs »; on the phone one at a time, the one its link opens,
  * at 1280 px all. A time zone picked is saved, and another tab of the Pilote
  * shows it at once.
  */
@@ -29,7 +31,7 @@ test('the Paramètres: the sections with content only, the time zone saved and s
 }) => {
   await scenario('parametres');
   await expect(page.getByRole('heading', { level: 1, name: 'Paramètres' })).toBeVisible();
-  await expect(nav(page).getByRole('link')).toHaveText(['Rôles et modèles', 'Compte', 'Pour les Moddeurs']);
+  await expect(nav(page).getByRole('link')).toHaveText(['Rôles et modèles', 'Notifications', 'Compte', 'Pour les Moddeurs']);
   await show(page, 'Compte', viewport);
   await expect(zone(page)).toHaveValue('Europe/Paris');
   await expectAccessible(page);
@@ -121,4 +123,48 @@ test('« Rôles et modèles »: the usable models only, a choice and a Rôle add
   await expect(roleRows(other)).toHaveCount(5);
   await expect(chosen(other, 'Code')).toHaveText('Codex · GPT-5.5');
   await other.close();
+});
+
+/**
+ * ATOI-4, US-18: « Notifications », the account's push and the browsers that
+ * receive it; switched off or a browser removed, another tab shows it at
+ * once. The page is installable: its manifest, its icons and its service
+ * worker, registered at the scope of the whole page. Subscribing needs a push
+ * service the test browser lacks: `push-settings.spec.ts` proves it.
+ */
+test('« Notifications »: the push switched and a browser removed, shown live in another tab; the manifest and the service worker', async ({
+  page,
+  scenario,
+  expectAccessible,
+  viewport,
+}) => {
+  await scenario('parametres');
+  await show(page, 'Notifications', viewport);
+  await expect(pushToggle(page)).toBeChecked();
+  await expect(browsers(page)).toHaveCount(1);
+  await expect(browsers(page)).toContainText(['Safari · iPhone']);
+  await expect(browsers(page)).toContainText(['autorisé le 3 nov.']);
+  await expect(page.locator('cd-push-settings').getByRole('button', { name: 'Activer sur cet appareil' })).toBeVisible();
+  await expectAccessible(page);
+
+  const other = await page.context().newPage();
+  await other.goto('/parametres');
+  await show(other, 'Notifications', viewport);
+  await expect(pushToggle(other)).toBeChecked();
+
+  await pushToggle(page).click();
+  await expect(pushToggle(other)).not.toBeChecked();
+  const settings = await page.request.get('/api/settings');
+  expect(await settings.json()).toMatchObject({ notifications: { push: false } });
+
+  await browsers(page).getByRole('button', { name: 'Retirer' }).click();
+  await expect(browsers(page)).toHaveCount(0);
+  await expect(browsers(other)).toHaveCount(0);
+  await other.close();
+
+  const manifest = await page.request.get('/manifest.webmanifest');
+  expect(await manifest.json()).toMatchObject({ name: 'Crewdeck', start_url: '/a-toi', display: 'standalone', theme_color: '#0d1317' });
+  expect((await page.request.get('/icons/icon-512.png')).headers()['content-type']).toBe('image/png');
+  const scope = await page.evaluate(async () => (await navigator.serviceWorker.ready).scope);
+  expect(scope).toBe(new URL('/', page.url()).href);
 });

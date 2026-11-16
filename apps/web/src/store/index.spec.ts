@@ -83,6 +83,7 @@ const SNAPSHOT: State = {
   'ai-account': [],
   'mcp-server': [],
   devices: [],
+  'push-subscriptions': [],
   projects: [],
   processes: [PROCESS],
   repositories: [],

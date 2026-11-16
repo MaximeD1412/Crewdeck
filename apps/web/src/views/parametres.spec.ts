@@ -1,7 +1,7 @@
-import { DEFAULT_ACCOUNT_SETTINGS, type AccountSettings, type AiAccount } from '@crewdeck/contracts';
-import { t, type ComposantData, type RoleSettings } from '@crewdeck/sdk';
+import { DEFAULT_ACCOUNT_SETTINGS, type AccountSettings, type AiAccount, type PushSubscription } from '@crewdeck/contracts';
+import { t, type ComposantData, type PushSettings, type RoleSettings } from '@crewdeck/sdk';
 import type { PlacedNode } from '../placed.js';
-import { NO_ROLES_LOCAL, parametresView } from './parametres.js';
+import { NO_PUSH_LOCAL, NO_ROLES_LOCAL, parametresView, type PushLocal } from './parametres.js';
 
 const SETTINGS = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Asia/Tokyo' };
 const ZONES = ['America/Montreal', 'Asia/Tokyo', 'Europe/Paris'];
@@ -22,7 +22,7 @@ const MODDERS = {
 
 describe('parametresView', () => {
   it('fills « Compte » with the time zone, every IANA zone to pick, and « Pour les Moddeurs »', () => {
-    expect(parametresView(SETTINGS, ZONES).filter((node) => node.slot !== 'roles')).toEqual([
+    expect(parametresView(SETTINGS, ZONES).filter((node) => node.slot === 'account' || node.slot === 'modders')).toEqual([
       {
         tag: 'cd-card',
         slot: 'account',
@@ -161,5 +161,55 @@ describe('parametresView, « Rôles et modèles »', () => {
     expect(data.models).toEqual([]);
     expect(choices(data)).toEqual({ idea: null, design: null, code: null, review: null });
     expect(data.roles.every((role) => role.error === null)).toBe(true);
+  });
+});
+
+const IPHONE: PushSubscription = {
+  id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a01',
+  endpoint: 'https://web.push.apple.com/QGx1',
+  label: 'Safari · iPhone',
+  createdAt: '2026-11-03T09:00:00.000Z',
+};
+const LAPTOP: PushSubscription = {
+  id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a02',
+  endpoint: 'https://fcm.googleapis.com/fcm/send/abc',
+  label: 'Chrome · Windows',
+  createdAt: '2026-11-12T09:00:00.000Z',
+};
+const HERE: PushLocal = { ...NO_PUSH_LOCAL, available: true };
+
+const pushOf = (settings: AccountSettings, subscriptions: readonly PushSubscription[], local: PushLocal = HERE): ComposantData<typeof PushSettings> => {
+  const node = parametresView(settings, ZONES, { push: { subscriptions, local } }).find((candidate) => candidate.slot === 'notifications');
+  expect(node?.tag).toBe('cd-push-settings');
+  return node?.data as ComposantData<typeof PushSettings>;
+};
+
+describe('parametresView’s « Notifications » (ATOI-4)', () => {
+  it('comes second, after « Rôles et modèles », once the settings are known', () => {
+    expect(parametresView(SETTINGS, ZONES).map((node) => node.slot)).toEqual(['roles', 'notifications', 'account', 'modders']);
+  });
+
+  it('gives the account’s push and every browser that receives it, in the order they were authorized, with its date', () => {
+    expect(pushOf({ ...SETTINGS, notifications: { push: true } }, [LAPTOP, IPHONE])).toEqual({
+      push: true,
+      subscriptions: [
+        { id: IPHONE.id, label: 'Safari · iPhone', meta: 'autorisé le 3 nov.' },
+        { id: LAPTOP.id, label: 'Chrome · Windows', meta: 'autorisé le 12 nov.' },
+      ],
+      device: 'subscribe',
+      busy: false,
+      error: null,
+    });
+    expect(pushOf(SETTINGS, []).push).toBe(SETTINGS.notifications.push);
+  });
+
+  it('says whether this browser receives them: subscribed when its endpoint is listed, unavailable where it cannot push', () => {
+    expect(pushOf(SETTINGS, [IPHONE], { ...HERE, endpoint: IPHONE.endpoint }).device).toBe('subscribed');
+    expect(pushOf(SETTINGS, [IPHONE], { ...HERE, endpoint: LAPTOP.endpoint }).device).toBe('subscribe');
+    expect(pushOf(SETTINGS, [IPHONE], NO_PUSH_LOCAL).device).toBe('unavailable');
+  });
+
+  it('gives the page’s own state: busy while subscribing, why it failed', () => {
+    expect(pushOf(SETTINGS, [], { ...HERE, busy: true, error: 'L’activation a échoué : réessaie.' })).toMatchObject({ busy: true, error: 'L’activation a échoué : réessaie.' });
   });
 });

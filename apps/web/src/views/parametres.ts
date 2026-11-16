@@ -6,9 +6,21 @@ import {
   type AccountSettings,
   type AiAccount,
   type EngineId,
+  type PushSubscription,
   type RoleChoice,
 } from '@crewdeck/contracts';
-import { t, type Card, type ComposantData, type Icon, type ListRow, type RoleSettings, type Select, type SettingRow } from '@crewdeck/sdk';
+import {
+  formatDate,
+  t,
+  type Card,
+  type ComposantData,
+  type Icon,
+  type ListRow,
+  type PushSettings,
+  type RoleSettings,
+  type Select,
+  type SettingRow,
+} from '@crewdeck/sdk';
 import type { PlacedNode } from '../placed.js';
 
 /** The time zones the Pilote may pick: the IANA zones the browser knows. */
@@ -110,20 +122,62 @@ const roles = (settings: AccountSettings, accounts: readonly AiAccount[], local:
   return { tag: 'cd-role-settings', slot: 'roles', data };
 };
 
-/** What « Rôles et modèles » reads beside the settings: the Comptes IA the Runner reports, the page's own state. */
-export interface RolesInput {
+/** The page's own state of « Notifications » (`push-settings.ts`): what this browser can do, its endpoint, its subscription on its way, why it failed. */
+export interface PushLocal {
+  /** Whether this browser can receive a push (`canPush`). */
+  readonly available: boolean;
+  /** The endpoint this browser receives on, `null` when it is not subscribed. */
+  readonly endpoint: string | null;
+  readonly busy: boolean;
+  readonly error: string | null;
+}
+
+export const NO_PUSH_LOCAL: PushLocal = { available: false, endpoint: null, busy: false, error: null };
+
+/** What « Notifications » reads beside the settings: the store's browsers, the page's own state. */
+export interface PushInput {
+  readonly subscriptions?: readonly PushSubscription[];
+  readonly local?: PushLocal;
+}
+
+/**
+ * « Notifications » (ATOI-4, US-18): the account's push, each browser that
+ * receives it in the order it was authorized, and whether this one does (its
+ * endpoint listed), may (« Activer sur cet appareil ») or cannot (the help
+ * of the home screen).
+ */
+const notifications = (settings: AccountSettings, { subscriptions = [], local = NO_PUSH_LOCAL }: PushInput): PlacedNode => {
+  const sorted = [...subscriptions].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const subscribed = local.endpoint !== null && sorted.some((subscription) => subscription.endpoint === local.endpoint);
+  const data: ComposantData<typeof PushSettings> = {
+    push: settings.notifications.push,
+    subscriptions: sorted.map(({ id, label, createdAt }) => ({ id, label, meta: t('settings.notifications.authorized', { date: formatDate(createdAt) }) })),
+    device: !local.available ? 'unavailable' : subscribed ? 'subscribed' : 'subscribe',
+    busy: local.busy,
+    error: local.error,
+  };
+  return { tag: 'cd-push-settings', slot: 'notifications', data };
+};
+
+/** What « Rôles et modèles » and « Notifications » read beside the settings. */
+export interface ParametresInput {
   readonly accounts?: readonly AiAccount[];
   readonly local?: RolesLocal;
+  readonly push?: PushInput;
 }
 
 /**
  * The Emplacements of the Paramètres (pure, US-82): once the snapshot gave
- * the settings, « Rôles et modèles » (PARAM-2) and « Compte » with the time
- * zone (a zone the list lacks, an alias, kept among the options), then « Pour
- * les Moddeurs ». The other sections are their tickets'.
+ * the settings, « Rôles et modèles » (PARAM-2), « Notifications » (ATOI-4)
+ * and « Compte » with the time zone (a zone the list lacks, an alias, kept
+ * among the options), then « Pour les Moddeurs ». The other sections are
+ * their tickets'.
  */
 export const parametresView = (
   settings: AccountSettings | null | undefined,
   zones: readonly string[],
-  { accounts = [], local = NO_ROLES_LOCAL }: RolesInput = {},
-): readonly PlacedNode[] => [...(settings ? [roles(settings, accounts, local), account(settings, zones)] : []), modders()];
+  { accounts = [], local = NO_ROLES_LOCAL, push = {} }: ParametresInput = {},
+): readonly PlacedNode[] => [
+  ...(settings ? [roles(settings, accounts, local), notifications(settings, push), account(settings, zones)] : []),
+  modders(),
+];

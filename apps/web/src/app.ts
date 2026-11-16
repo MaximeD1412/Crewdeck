@@ -9,6 +9,7 @@ import {
   PageProjets,
   PageRunner,
   RepositoryPicker,
+  PushSettings,
   RoleSettings,
   type Skin,
 } from '@crewdeck/sdk';
@@ -23,6 +24,8 @@ import { createGettingStarted, gettingStartedGuard } from './getting-started.js'
 import { createPageKeys, type PageKeys } from './keys/index.js';
 import { createProjects } from './projects.js';
 import { bootSkin } from './registry.js';
+import { createBrowserPush, type PushDevice } from './push.js';
+import { createPushSettings } from './push-settings.js';
 import { createRoleSettings } from './role-settings.js';
 import { routeData, routeSlots, startRouter, type Route, type Router } from './router.js';
 import { aToiHref, composantsHref, ROUTES } from './routes.js';
@@ -66,6 +69,8 @@ export interface BootOptions {
   readonly latency?: LatencyMeter;
   /** This browser's Appareil and the vault (E2E-2): IndexedDB and WebCrypto by default. */
   readonly keys?: Pick<PageKeys, 'linkKeys' | 'nameDevice' | 'unlockVault'>;
+  /** This browser's push (ATOI-4): its service worker's `PushManager` by default. */
+  readonly push?: PushDevice;
 }
 
 export interface App {
@@ -96,6 +101,7 @@ export const boot = async ({
   client = pageClient,
   latency = createLatencyMeter({ store }),
   keys = createPageKeys({ store, client, userAgent: navigator.userAgent }),
+  push = createBrowserPush(window),
 }: BootOptions): Promise<App> => {
   const [pilot] = await Promise.all([me().catch(() => null), bootSkin(skin, resolveSkin)]);
   dispatcher.listen(document);
@@ -127,6 +133,12 @@ export const boot = async ({
   });
   const projects = createProjects({ store, client });
   const roleSettings = createRoleSettings({ client });
+  const pushSettings = createPushSettings({
+    client,
+    device: push,
+    userAgent: navigator.userAgent,
+    subscriptionOf: (id) => store.getState().slices['push-subscription']?.get(id),
+  });
   const signIn = signInGuard(pilot);
   const started = gettingStartedGuard(gettingStarted.pilot);
   const pageData = routeData(routes, () => store.getState());
@@ -140,7 +152,11 @@ export const boot = async ({
     slots: (match) => {
       if (match.composant !== PageParametres) return pageSlots(match);
       const { slices } = store.getState();
-      return parametresView(slices.settings, timeZones(), { accounts: [...(slices['ai-account']?.values() ?? [])], local: roleSettings.view() });
+      return parametresView(slices.settings, timeZones(), {
+        accounts: [...(slices['ai-account']?.values() ?? [])],
+        local: roleSettings.view(),
+        push: { subscriptions: [...(slices['push-subscription']?.values() ?? [])], local: pushSettings.view() },
+      });
     },
     data: (match) => {
       if (match.composant === PageDemarrage) return { ...gettingStarted.view(), picker: projects.picker('demarrage') };
@@ -165,6 +181,7 @@ export const boot = async ({
     gettingStarted.subscribe(() => router.refresh()),
     projects.subscribe(() => router.refresh()),
     roleSettings.subscribe(() => router.refresh()),
+    pushSettings.subscribe(() => router.refresh()),
   ];
   if (pilot) {
     // The Appareil named before the snapshot, which says which one is `current`.
@@ -172,6 +189,7 @@ export const boot = async ({
     void keys.unlockVault();
     latency.start();
     connection.start();
+    void pushSettings.sync();
   }
   dispatcher.registerAction(PageConnexion, 'signIn', {
     run: () => leave(signInHref(router.current.query['next'], Intl.DateTimeFormat().resolvedOptions().timeZone)),
@@ -187,6 +205,9 @@ export const boot = async ({
   dispatcher.registerAction(RoleSettings, 'add', { run: () => roleSettings.open() });
   dispatcher.registerAction(RoleSettings, 'create', { run: (body) => roleSettings.create(body) });
   dispatcher.registerAction(RoleSettings, 'cancel', { run: () => roleSettings.cancel() });
+  dispatcher.registerAction(PushSettings, 'toggle', { run: ({ push }) => pushSettings.toggle(push) });
+  dispatcher.registerAction(PushSettings, 'subscribe', { run: () => pushSettings.activate() });
+  dispatcher.registerAction(PushSettings, 'remove', { run: ({ id }) => pushSettings.remove(id) });
   dispatcher.registerAction(Cadre, 'openPilot', { run: () => router.navigate('/parametres') });
   const openDecision = (id: string) => store.getState().slices.decision?.get(id);
   dispatcher.registerAction(PageAToi, 'filter', { run: ({ projectId }) => router.navigate(aToiHref(projectId)) });

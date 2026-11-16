@@ -176,7 +176,8 @@ describe('the Paramètres of a Projet against PostgreSQL', () => {
         body: JSON.stringify({ seq: '0', name: 'Revue Codex', engine: 'codex', model: 'gpt-5.5' }),
       });
       expect(created.status).toBe(201);
-      const roleId = ((await created.json()) as { customRoles: { id: string }[] }).customRoles[0]!.id;
+      const [role] = ((await created.json()) as { customRoles: { id: string }[] }).customRoles;
+      const roleId = role?.id ?? '';
 
       const res = zProjectSettings.parse(await (await patch(alice.cookie, projectId, { seq: '0', roles: { [roleId]: CLAUDE } })).json());
       expect(res.effective.roles[roleId]).toEqual(CLAUDE);

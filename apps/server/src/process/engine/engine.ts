@@ -294,12 +294,15 @@ export class Engine {
    * `reason` (BOUCLE-4's `fix-conflict`). The start guard is asked as for
    * any start: `held` while it refuses, the Étape ready with its iteration
    * and reason until `startQueued`. The PhaseRun must be `running` or
-   * `waiting`, and the Étape's Entrées fed without what it undoes (else
-   * `EngineInputError`, nothing written); it is `running` after.
+   * `waiting`, but not on `queue` (a Phase without `forEach` runs one at a
+   * time: its turn comes through `passTurn` only), and the Étape's Entrées
+   * fed without what it undoes (else `EngineInputError`, nothing written);
+   * it is `running` after.
    */
   async rerunFrom(tx: Tx, phaseRunId: string, stepId: string, { reason }: { reason: string }): Promise<Restart> {
     const loaded = await this.lockAndLoad(tx, phaseRunId);
     if (!(UNFINISHED as string[]).includes(loaded.row.state)) throw new EngineInputError(`The PhaseRun ${phaseRunId} is ${loaded.row.state}: it cannot rerun an Étape.`);
+    if (loaded.row.waitingOn === 'queue') throw new EngineInputError(`The PhaseRun ${phaseRunId} waits for its turn in its Phase: it cannot rerun an Étape before it starts.`);
     const step = this.stepOf(loaded, stepId);
     const undone = new Set(reachedFrom(loaded.definition, stepId));
     const kept = loaded.live.filter((run) => run.state !== 'superseded' && !undone.has(run.stepId));

@@ -765,6 +765,22 @@ describe('the engine against PostgreSQL', () => {
     expect(await deliveries()).toEqual(['57:done', '58:stopped', '59:running']);
   });
 
+  it('refuses to rerun an Étape of a « Livraison » waiting on its turn, before changing anything, whether the turn is held by a running or a failed one', async () => {
+    await writeVersion(withDelivery());
+    await merge('42', '57');
+    await merge('43', '58');
+    const [delivery57, delivery58] = await phaseRunsOf('ph-livraison');
+
+    await expect(inAlice((tx) => engine.rerunFrom(tx, delivery58?.id ?? '', 'st-lancer', { reason: 'fix-conflict' }))).rejects.toThrow(/waits for its turn/);
+    expect(await deliveries()).toEqual(['57:running', '58:waiting:queue']);
+    expect(await stepRuns(delivery58?.id ?? '')).toEqual([]);
+
+    await signal(delivery57?.id ?? '', 'st-lancer', { state: 'failed', failure: 'command-failed' });
+    await expect(inAlice((tx) => engine.rerunFrom(tx, delivery58?.id ?? '', 'st-lancer', { reason: 'fix-conflict' }))).rejects.toThrow(/waits for its turn/);
+    expect(await deliveries()).toEqual(['57:failed', '58:waiting:queue']);
+    expect(await stepRuns(delivery58?.id ?? '')).toEqual([]);
+  });
+
   it('lists the unfinished PhaseRuns and their StepRuns in GET /api/state, not the finished ones', async () => {
     const finished = await admit('41');
     await inAlice((tx) => engine.stop(tx, finished.id));

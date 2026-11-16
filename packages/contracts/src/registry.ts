@@ -9,6 +9,7 @@ import { zHeartbeat, zHeartbeatAck } from './runner/heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './runner/hello.js';
 import { zMcpServers } from './runner/mcp.js';
 import { zGitHubChanged, zMirrorLive, zMirrorProjects, zMirrorResync, zMirrorToken, zMirrorTokenFailed, zMirrorTokenIssued } from './runner/mirror.js';
+import { zSessionResume, zSessionStart, zSessionStateMessage, zSessionStop } from './runner/session.js';
 import { zStepVerdict } from './runner/step.js';
 import { zProcessSealedPayload } from './process/definition.js';
 import { HEARTBEAT_SECONDS, OFFLINE_AFTER_SECONDS, PROTOCOL_VERSION, RUNNER_WS_CLOSE, zProtocolError, zRunnerEnvelope } from './runner/protocol.js';
@@ -44,6 +45,10 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-mirror-token', schema: zMirrorToken },
   { name: 'runner-mirror-token-issued', schema: zMirrorTokenIssued },
   { name: 'runner-mirror-token-failed', schema: zMirrorTokenFailed },
+  { name: 'runner-session-start', schema: zSessionStart },
+  { name: 'runner-session-stop', schema: zSessionStop },
+  { name: 'runner-session-resume', schema: zSessionResume },
+  { name: 'runner-session-state', schema: zSessionStateMessage },
   // The plaintext of a Process version's sealed part, once the Runner opened it (RUNNER-18).
   { name: 'process-sealed', schema: zProcessSealedPayload },
 ];

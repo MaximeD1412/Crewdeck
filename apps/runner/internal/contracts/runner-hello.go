@@ -34,6 +34,9 @@ type RunnerHello struct {
 	// RunnerVersion corresponds to the JSON schema field "runnerVersion".
 	RunnerVersion string `json:"runnerVersion"`
 
+	// Sessions corresponds to the JSON schema field "sessions".
+	Sessions []RunnerHelloSessionsElem `json:"sessions,omitempty,omitzero"`
+
 	// Type corresponds to the JSON schema field "type".
 	Type string `json:"type"`
 
@@ -103,6 +106,38 @@ func (j *RunnerHelloOs) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+type RunnerHelloSessionsElem struct {
+	// Alive corresponds to the JSON schema field "alive".
+	Alive bool `json:"alive"`
+
+	// SessionId corresponds to the JSON schema field "sessionId".
+	SessionId string `json:"sessionId"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerHelloSessionsElem) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["alive"]; raw != nil && !ok {
+		return fmt.Errorf("field alive in RunnerHelloSessionsElem: required")
+	}
+	if _, ok := raw["sessionId"]; raw != nil && !ok {
+		return fmt.Errorf("field sessionId in RunnerHelloSessionsElem: required")
+	}
+	type Plain RunnerHelloSessionsElem
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`, string(plain.SessionId)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "SessionId", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
+	}
+	*j = RunnerHelloSessionsElem(plain)
+	return nil
+}
+
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *RunnerHello) UnmarshalJSON(value []byte) error {
 	var raw map[string]interface{}
@@ -155,6 +190,9 @@ func (j *RunnerHello) UnmarshalJSON(value []byte) error {
 	}
 	if utf8.RuneCountInString(string(plain.RunnerVersion)) < 1 {
 		return fmt.Errorf("field %s length: must be >= %d", "runnerVersion", 1)
+	}
+	if len(plain.Sessions) > 1000 {
+		return fmt.Errorf("field %s length: must be <= %d", "sessions", 1000)
 	}
 	if plain.Type != "hello" {
 		return fmt.Errorf("field %s: must be equal to %s", "type", "hello")

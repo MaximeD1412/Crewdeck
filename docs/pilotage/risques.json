@@ -699,7 +699,7 @@
         {
           "texte": "Clones et worktrees propres au Runner, jamais le checkout du Pilote",
           "ref": "ADR 0004",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Sessions pilotées en mode auto ; conteneur par Session avec le Runner sur serveur (Bêta)",

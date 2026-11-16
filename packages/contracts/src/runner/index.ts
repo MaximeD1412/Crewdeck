@@ -7,3 +7,4 @@ export * from './capabilities.js';
 export * from './events.js';
 export * from './engines.js';
 export * from './mcp.js';
+export * from './session.js';

@@ -65,12 +65,21 @@ export const zBuiltinTemplateId = z.enum(Object.keys(BUILTIN_TEMPLATES) as [keyo
 export type BuiltinTemplateId = z.infer<typeof zBuiltinTemplateId>;
 
 /**
+ * A Retour of the PhaseRun's Phase as the PhaseRun took it: `taken` times so
+ * far, and `extra` passes the Pilote allowed beyond its `max` (« Encore un
+ * passage »). Listed once a Retour is taken; one never taken is not.
+ */
+export const zPhaseRunLoopBack = z.object({ from: zProcessId, to: zProcessId, taken: z.int().min(0), extra: z.int().min(0) });
+export type PhaseRunLoopBack = z.infer<typeof zPhaseRunLoopBack>;
+
+/**
  * One item through one Phase: `processVersion` is the number of the version
  * it is pinned to, `itemType` the type of its Phase's `forEach` (or of the
  * Artefact that started a Phase without one). Without a Projet, it runs on
  * `builtinTemplate`, with no version. `parentPhaseRunId` is its lineage: the
  * PhaseRun whose output became its item (a Ticket's Développement, its
- * Conception), `null` when none did. The payload of `phase-run.upserted`, an
+ * Conception), `null` when none did; `loopBacks` what it took of its
+ * Phase's Retours (PROCESS-6). The payload of `phase-run.upserted`, an
  * item of the `phaseRuns` slice while unfinished.
  */
 export const zPhaseRun = z.object({
@@ -84,6 +93,7 @@ export const zPhaseRun = z.object({
   itemId: z.string().min(1).max(200),
   state: zPhaseRunState,
   waitingOn: zPhaseRunWaitingOn.nullable(),
+  loopBacks: z.array(zPhaseRunLoopBack).max(50),
   startedAt: zInstant,
   endedAt: zInstant.nullable(),
 }).refine((run) => (run.projectId === null) === (run.builtinTemplate !== null) && (run.processVersion === null) === (run.builtinTemplate !== null), {
@@ -103,8 +113,10 @@ export type StepRunInput = z.infer<typeof zStepRunInput>;
  * One pass of an Étape in a PhaseRun: its kind, its `iteration` (1, then + 1
  * on each rerun), what fed its Entrées, what it gave on its Sorties, its
  * Verdict when it judges, why it failed (`failure`, a code), why a rerun
- * started it (`reason`: `loop-back`, or the caller's, `fix-conflict`), and
- * the agent's Session when it has one. The payload of `step-run.upserted`,
+ * started it (`reason`: `loop-back`, or the caller's, `fix-conflict`), the
+ * agent's Session when it has one, and whether it may ask for changes
+ * (`canAskChanges`: its Étape judges and a Retour of its PhaseRun's version
+ * leaves it; a gate hides its « Demander des changements » otherwise). The payload of `step-run.upserted`,
  * an item of the `stepRuns` slice while its PhaseRun is unfinished.
  */
 export const zStepRun = z.object({
@@ -121,10 +133,18 @@ export const zStepRun = z.object({
   failure: zCode.nullable(),
   reason: zCode.nullable(),
   sessionId: zId.nullable(),
+  canAskChanges: z.boolean(),
   startedAt: zInstant,
   endedAt: zInstant.nullable(),
 });
 export type StepRun = z.infer<typeof zStepRun>;
+
+/**
+ * The body of `POST /api/phase-runs/:id/one-more-pass` and `…/stop`: the
+ * Décision `loop-back.exhausted` they answer (PROCESS-6).
+ */
+export const zPhaseRunDecisionAnswer = z.object({ decisionId: zId });
+export type PhaseRunDecisionAnswer = z.infer<typeof zPhaseRunDecisionAnswer>;
 
 /**
  * The work in progress of each version: the `running` and `waiting`

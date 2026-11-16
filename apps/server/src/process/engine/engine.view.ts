@@ -1,4 +1,16 @@
-import { type PhaseRun, type StepRun, zArtifactRef, zBuiltinTemplateId, zArtifactType, zPhaseRunWaitingOn, zStepKind, zStepRunInput } from '@crewdeck/contracts';
+import {
+  canAskChanges,
+  type PhaseRun,
+  type ProcessDefinition,
+  type StepRun,
+  zArtifactRef,
+  zArtifactType,
+  zBuiltinTemplateId,
+  zPhaseRunLoopBack,
+  zPhaseRunWaitingOn,
+  zStepKind,
+  zStepRunInput,
+} from '@crewdeck/contracts';
 import { z } from 'zod';
 import type { PhaseRunState, StepRunState, StepVerdict } from '../../generated/prisma/client.js';
 
@@ -14,6 +26,7 @@ export const PHASE_RUN_VIEW = {
   itemId: true,
   state: true,
   waitingOn: true,
+  loopBacks: true,
   startedAt: true,
   endedAt: true,
   pendingStarts: true,
@@ -50,6 +63,7 @@ export interface PhaseRunRow {
   readonly itemId: string;
   readonly state: PhaseRunState;
   readonly waitingOn: string | null;
+  readonly loopBacks: unknown;
   readonly startedAt: Date;
   readonly endedAt: Date | null;
   /** Not in the view: the engine's own (`Engine`'s pending starts). */
@@ -86,11 +100,13 @@ export const toPhaseRun = (row: PhaseRunRow): PhaseRun => ({
   itemId: row.itemId,
   state: row.state,
   waitingOn: row.waitingOn === null ? null : zPhaseRunWaitingOn.parse(row.waitingOn),
+  loopBacks: z.array(zPhaseRunLoopBack).parse(row.loopBacks),
   startedAt: row.startedAt.toISOString(),
   endedAt: row.endedAt?.toISOString() ?? null,
 });
 
-export const toStepRun = (row: StepRunRow): StepRun => ({
+/** The StepRun as the contracts have it; `definition`, its PhaseRun's pinned one, says whether it may ask for changes. */
+export const toStepRun = (row: StepRunRow, definition: ProcessDefinition): StepRun => ({
   id: row.id,
   projectId: row.projectId,
   phaseRunId: row.phaseRunId,
@@ -104,6 +120,7 @@ export const toStepRun = (row: StepRunRow): StepRun => ({
   failure: row.failure,
   reason: row.reason,
   sessionId: row.sessionId,
+  canAskChanges: canAskChanges(definition, row.stepId),
   startedAt: row.startedAt.toISOString(),
   endedAt: row.endedAt?.toISOString() ?? null,
 });

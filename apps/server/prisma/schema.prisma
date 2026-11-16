@@ -940,6 +940,9 @@ model PhaseRun {
   /// by Étape: `{ iteration, reason, retryOf? }`, for `startQueued`. Codes
   /// and ids only, never shown: not in the view.
   pendingStarts    Json            @default("{}") @map("pending_starts")
+  /// What the PhaseRun took of its Phase's Retours (`zPhaseRunLoopBack`):
+  /// `{ from, to, taken, extra }`, ids and counts. In the view.
+  loopBacks        Json            @default("[]") @map("loop_backs")
   lastSeq          BigInt          @default(0) @map("last_seq")
   project          Project?        @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
   processVersion   ProcessVersion? @relation(fields: [pilotId, processVersionId], references: [pilotId, id], onDelete: Cascade)

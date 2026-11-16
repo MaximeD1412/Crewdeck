@@ -7,6 +7,7 @@ import {
   type StepRun,
   zArtifactRef,
   zPhaseRun,
+  zPhaseRunDecisionAnswer,
   zStepRun,
 } from '../index.js';
 
@@ -24,6 +25,7 @@ const PHASE_RUN: PhaseRun = {
   itemId: '42',
   state: 'running',
   waitingOn: null,
+  loopBacks: [],
   startedAt: AT,
   endedAt: null,
 };
@@ -45,6 +47,7 @@ const STEP_RUN: StepRun = {
   failure: null,
   reason: null,
   sessionId: null,
+  canAskChanges: false,
   startedAt: AT,
   endedAt: AT,
 };
@@ -79,9 +82,29 @@ describe('zPhaseRun and zStepRun', () => {
     expect(zPhaseRun.safeParse({ ...noted, builtinTemplate: 'preparation' }).success).toBe(false);
   });
 
+  it('counts the Retours a PhaseRun took and the passes the Pilote allowed beyond their maximum', () => {
+    const counted = { ...PHASE_RUN, loopBacks: [{ from: 'st-review', to: 'st-code', taken: 3, extra: 1 }] };
+    expect(zPhaseRun.parse(counted)).toEqual(counted);
+    expect(zPhaseRun.safeParse({ ...PHASE_RUN, loopBacks: [{ from: 'st-review', to: 'st-code', taken: -1, extra: 0 }] }).success).toBe(false);
+    expect(zPhaseRun.safeParse({ ...PHASE_RUN, loopBacks: undefined }).success).toBe(false);
+  });
+
+  it('says whether a StepRun may ask for changes', () => {
+    expect(zStepRun.parse({ ...STEP_RUN, stepId: 'st-rv', kind: 'visual-review', canAskChanges: true }).canAskChanges).toBe(true);
+    expect(zStepRun.safeParse({ ...STEP_RUN, canAskChanges: undefined }).success).toBe(false);
+  });
+
   it('says of each Entrée whether it is absent', () => {
     expect(zStepRun.safeParse({ ...STEP_RUN, inputs: [{ portId: 'maquettes', artifacts: [], absent: true }] }).success).toBe(true);
     expect(zStepRun.safeParse({ ...STEP_RUN, inputs: [{ portId: 'maquettes', artifacts: [] }] }).success).toBe(false);
+  });
+});
+
+describe('zPhaseRunDecisionAnswer', () => {
+  it('is the body of one-more-pass and stop: the Décision answered, by its id', () => {
+    expect(zPhaseRunDecisionAnswer.parse({ decisionId: PHASE_RUN.id })).toEqual({ decisionId: PHASE_RUN.id });
+    expect(zPhaseRunDecisionAnswer.safeParse({ decisionId: 'abc' }).success).toBe(false);
+    expect(zPhaseRunDecisionAnswer.safeParse({}).success).toBe(false);
   });
 });
 

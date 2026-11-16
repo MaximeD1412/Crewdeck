@@ -51,11 +51,13 @@ test.describe('the form Composants and the Dialog in the library (UI-4)', () => 
     await expect(preview.nth(1)).toContainText('Modifié pour ce Projet');
     await expect(preview.nth(2)).not.toContainText(/Hérité du compte|Modifié pour ce Projet/);
 
-    const toggle = page.getByRole('switch', { name: 'Activée' });
-    await expect(toggle).toHaveAttribute('aria-checked', 'true');
+    // The row changed for a Projet offers « Revenir au compte »; its control keeps its name.
+    await expect(preview.nth(1).getByRole('button', { name: 'Revenir au compte pour Notifications push' })).toBeVisible();
+    const toggle = page.getByRole('switch', { name: 'Notifications push' });
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
     await toggle.focus();
     await page.keyboard.press('Space');
-    await expect(toggle).toHaveAttribute('aria-checked', 'false');
+    await expect(toggle).toHaveAttribute('aria-checked', 'true');
 
     const name = page.getByRole('textbox', { name: 'Nom' });
     await name.focus();

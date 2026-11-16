@@ -59,6 +59,23 @@ export class PasserelleSettingRow extends PasserelleElement<typeof SettingRow> {
       .projet::before {
         background: var(--cd-accent);
       }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--cd-space-3);
+      }
+      .revert {
+        font: var(--cd-font-meta-weight) var(--cd-font-meta-size) / var(--cd-font-meta-line-height)
+          var(--cd-font-meta-family), monospace;
+        color: var(--cd-accent-text);
+        text-decoration: underline;
+        text-underline-offset: var(--cd-stroke);
+        min-height: var(--cd-control-sm);
+      }
+      .revert:hover {
+        color: var(--cd-accent-hover);
+      }
       .control {
         display: flex;
         flex-direction: column;
@@ -84,14 +101,19 @@ export class PasserelleSettingRow extends PasserelleElement<typeof SettingRow> {
   protected readonly composant = SettingRow;
 
   protected override render() {
-    const { label, help, origin } = this.data;
+    const { label, help, origin, name } = this.data;
     return html`<div part="setting" class="setting">
       <div class="text">
         <span class="label" part="label">${label}</span>
         ${help ? html`<span class="help" part="help">${help}</span>` : nothing}
         ${origin
-          ? html`<span class="origin ${origin}" part="origin">
-              ${t(origin === 'projet' ? 'settingRow.changed' : 'settingRow.inherited')}
+          ? html`<span class="meta">
+              <span class="origin ${origin}" part="origin">${t(origin === 'projet' ? 'settingRow.changed' : 'settingRow.inherited')}</span>
+              ${origin === 'projet' && name
+                ? html`<button type="button" class="revert" part="revert" aria-label=${t('settingRow.revertLabel', { label })} @click=${() => this.emit('revert', { name })}>
+                    ${t('settingRow.revert')}
+                  </button>`
+                : nothing}
             </span>`
           : nothing}
       </div>

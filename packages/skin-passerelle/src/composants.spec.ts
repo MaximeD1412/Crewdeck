@@ -105,6 +105,12 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     native.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
     native.dispatchEvent(new Event('change', { bubbles: true }));
   },
+  'PageParametresProjet.change': (el) => inside(el.querySelector('cd-toggle') as Element, 'button, input').click(),
+  'SettingRow.revert': async (el) => {
+    el.data = COMPOSANTS.SettingRow.examples[1]?.data;
+    await settle(el);
+    inside(el, 'button.revert').click();
+  },
   'RoleSettings.choose': (el) => {
     const native = inside<HTMLSelectElement>(el, 'cd-setting-row cd-select', 'select');
     const other = [...native.options].find((option) => !option.disabled && !option.selected);

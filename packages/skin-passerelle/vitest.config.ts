@@ -24,6 +24,7 @@ const BROWSER_SPECS = [
   'src/role-settings.spec.ts',
   'src/page-runner.spec.ts',
   'src/page-parametres.spec.ts',
+  'src/page-parametres-projet.spec.ts',
   'src/session.spec.ts',
   'src/composer.spec.ts',
   'src/process-canvas.spec.ts',

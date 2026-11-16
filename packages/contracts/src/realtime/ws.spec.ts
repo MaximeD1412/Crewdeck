@@ -63,6 +63,7 @@ describe('zState', () => {
       'tickets',
       'milestones',
       'codeChanges',
+      'sessions',
       'settings',
     ]);
     const state = {
@@ -82,6 +83,7 @@ describe('zState', () => {
       tickets: [],
       milestones: [],
       codeChanges: [],
+      sessions: [],
       settings,
     };
     expect(zState.parse(state)).toEqual(state);

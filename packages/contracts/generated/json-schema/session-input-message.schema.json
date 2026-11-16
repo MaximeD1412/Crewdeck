@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "message",
+      "type": "string"
+    },
+    "text": {
+      "maxLength": 100000,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "text"
+  ],
+  "title": "SessionInputMessage",
+  "type": "object"
+}

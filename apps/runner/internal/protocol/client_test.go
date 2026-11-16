@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -409,6 +410,34 @@ func TestEachHelloCarriesTheMiroirsCursorReadAtItsConnection(t *testing.T) {
 	_ = awaitResult(t, result)
 }
 
+func TestEachHelloSaysTheSessionsTheRunnerKnowsReadAtItsConnection(t *testing.T) {
+	s := newFakeServer(t, func(ctx context.Context, conn *websocket.Conn, n int) {
+		accept(ctx, conn)
+		if n == 1 {
+			conn.CloseNow()
+			return
+		}
+		holdOpen(ctx, conn)
+	})
+	id := "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a91"
+	calls := 0
+	stop, result := run(t, newClient(s.url, func(c *Config) {
+		c.Sessions = func() []contracts.RunnerHelloSessionsElem {
+			calls++
+			if calls == 1 {
+				return nil
+			}
+			return []contracts.RunnerHelloSessionsElem{{SessionId: id, Alive: true}}
+		}
+	}))
+	first, second := awaitHello(t, s), awaitHello(t, s)
+	if len(first.Sessions) != 0 || len(second.Sessions) != 1 || second.Sessions[0].SessionId != id || !second.Sessions[0].Alive {
+		t.Fatalf("sessions %+v then %+v, want none then %s alive", first.Sessions, second.Sessions, id)
+	}
+	stop()
+	_ = awaitResult(t, result)
+}
+
 func TestAHelloWithoutACursorSaysNull(t *testing.T) {
 	data := mustJSON(t, NewHello(Machine{RunnerVersion: "0.1.0", Machine: "atelier", OS: contracts.RunnerHelloOsLinux, Arch: contracts.RunnerHelloArchAmd64}, nil))
 	var fields map[string]any
@@ -499,4 +528,33 @@ func TestOnAcceptedCanSendAndOnClosedFollowsEachAcceptedConnection(t *testing.T)
 	}
 	stop()
 	_ = awaitResult(t, result)
+}
+
+// A Pilote's input of the relay (SESSION-1) is up to 256 KiB sealed: more than
+// the socket's default read limit of 32 KiB.
+func TestTheClientReadsAMessageAsLongAsTheLongestInput(t *testing.T) {
+	s := newFakeServer(t, func(ctx context.Context, conn *websocket.Conn, _ int) {
+		accept(ctx, conn)
+		sendJSON(ctx, conn, stamped("custom", map[string]any{"code": strings.Repeat("A", 360<<10)}))
+		holdOpen(ctx, conn)
+	})
+	client := newClient(s.url, nil)
+	type custom struct {
+		Code string `json:"code"`
+	}
+	got := make(chan int, 1)
+	On(client, "custom", func(_ context.Context, message custom) error {
+		got <- len(message.Code)
+		return nil
+	})
+	_, _ = run(t, client)
+	awaitHello(t, s)
+	select {
+	case n := <-got:
+		if n != 360<<10 {
+			t.Fatalf("the handler got %d bytes", n)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the long message never reached its handler")
+	}
 }

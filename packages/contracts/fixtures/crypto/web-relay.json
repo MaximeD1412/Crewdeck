@@ -1,0 +1,17 @@
+{
+  "description": "Written by the browser (apps/web/src/sessions/relay.spec.ts, Chromium WebCrypto): an input sealed under the Session key of relay.json, opened by the Runner (apps/runner/internal/session/relay_test.go).",
+  "seed": "Y3Jld2RlY2std2ViL3JlbGF5LWlucHV0",
+  "sessionId": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a91",
+  "sessionKey": "s7sgqqrplNRXk2rrCYoAh3GuCp09bpAl7EE8yY-3kKY",
+  "payload": {
+    "kind": "message",
+    "text": "Écrit dans le navigateur, lu par le Moteur."
+  },
+  "frame": {
+    "type": "session.input",
+    "sessionId": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a91",
+    "inputId": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6aa3",
+    "nonce": "yIhFUOm7Kct7d9om",
+    "ciphertext": "lvopMpbjAFdglHXnDD2Pj6X3gam0z89Tx_wc5FoAFEXpqp3DCEoXLwmmQcEJG3lht1FH37oQs8tGRFIADmSf5raTTjJ4jtTWg6pr8aa9vCsefduOptZqcg"
+  }
+}

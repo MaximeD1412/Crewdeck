@@ -3,6 +3,7 @@ import { zSha } from '../github/index.js';
 import { zArtifactType } from '../process/artifact-types.js';
 import { zStepKind } from '../process/catalogue.js';
 import { zProcessId } from '../process/definition.js';
+import { BUILTIN_TEMPLATES } from '../process/templates/process-crewdeck.js';
 import { zId, zInstant } from '../values.js';
 
 /**
@@ -59,15 +60,25 @@ export type ArtifactRef = z.infer<typeof zArtifactRef>;
 /** A code, never free text: `no-handler`, a handler's own (`checks-failed`). */
 const zCode = z.string().min(1).max(60);
 
+/** A definition of the release a PhaseRun without a Projet runs on: an Idée noted without one (US-5). */
+export const zBuiltinTemplateId = z.enum(Object.keys(BUILTIN_TEMPLATES) as [keyof typeof BUILTIN_TEMPLATES, ...(keyof typeof BUILTIN_TEMPLATES)[]]);
+export type BuiltinTemplateId = z.infer<typeof zBuiltinTemplateId>;
+
 /**
  * One item through one Phase: `processVersion` is the number of the version
- * it is pinned to, `itemType` the type of its Phase's `forEach`. The payload
- * of `phase-run.upserted`, an item of the `phaseRuns` slice while unfinished.
+ * it is pinned to, `itemType` the type of its Phase's `forEach` (or of the
+ * Artefact that started a Phase without one). Without a Projet, it runs on
+ * `builtinTemplate`, with no version. `parentPhaseRunId` is its lineage: the
+ * PhaseRun whose output became its item (a Ticket's Développement, its
+ * Conception), `null` when none did. The payload of `phase-run.upserted`, an
+ * item of the `phaseRuns` slice while unfinished.
  */
 export const zPhaseRun = z.object({
   id: zId,
-  projectId: zId,
-  processVersion: z.int().min(1),
+  projectId: zId.nullable(),
+  processVersion: z.int().min(1).nullable(),
+  builtinTemplate: zBuiltinTemplateId.nullable(),
+  parentPhaseRunId: zId.nullable(),
   phaseId: zProcessId,
   itemType: zArtifactType,
   itemId: z.string().min(1).max(200),
@@ -75,11 +86,17 @@ export const zPhaseRun = z.object({
   waitingOn: zPhaseRunWaitingOn.nullable(),
   startedAt: zInstant,
   endedAt: zInstant.nullable(),
+}).refine((run) => (run.projectId === null) === (run.builtinTemplate !== null) && (run.processVersion === null) === (run.builtinTemplate !== null), {
+  message: 'A PhaseRun has a Projet and its version, or neither and a builtin definition.',
 });
 export type PhaseRun = z.infer<typeof zPhaseRun>;
 
-/** What fed one Entrée of a StepRun: none for an arrow from another Phase PROCESS-5 has not resolved yet. */
-export const zStepRunInput = z.object({ portId: zProcessId, artifacts: z.array(zArtifactRef) });
+/**
+ * What fed one Entrée of a StepRun. `absent`: no Artefact reached it (an
+ * arrow from another Phase whose Étape no ancestor ran); the Étape runs all
+ * the same, its Skill and Contrat say what that means.
+ */
+export const zStepRunInput = z.object({ portId: zProcessId, artifacts: z.array(zArtifactRef), absent: z.boolean() });
 export type StepRunInput = z.infer<typeof zStepRunInput>;
 
 /**
@@ -92,7 +109,7 @@ export type StepRunInput = z.infer<typeof zStepRunInput>;
  */
 export const zStepRun = z.object({
   id: zId,
-  projectId: zId,
+  projectId: zId.nullable(),
   phaseRunId: zId,
   stepId: zProcessId,
   kind: zStepKind,
@@ -112,12 +129,13 @@ export type StepRun = z.infer<typeof zStepRun>;
 /**
  * The work in progress of each version: the `running` and `waiting`
  * PhaseRuns counted by the number of the version they are pinned to, in its
- * order. The foot of the panel and the activation's dialog (PROCESS-10).
+ * order; those without a version (no Projet) are no version's. The foot of
+ * the panel and the activation's dialog (PROCESS-10).
  */
 export const runningWorkByVersion = (phaseRuns: readonly Pick<PhaseRun, 'processVersion' | 'state'>[]): { version: number; count: number }[] => {
   const counts = new Map<number, number>();
   for (const run of phaseRuns) {
-    if (!(UNFINISHED_PHASE_RUN_STATES as readonly PhaseRunState[]).includes(run.state)) continue;
+    if (run.processVersion === null || !(UNFINISHED_PHASE_RUN_STATES as readonly PhaseRunState[]).includes(run.state)) continue;
     counts.set(run.processVersion, (counts.get(run.processVersion) ?? 0) + 1);
   }
   return [...counts].sort(([a], [b]) => a - b).map(([version, count]) => ({ version, count }));

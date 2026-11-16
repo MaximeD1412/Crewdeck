@@ -1,4 +1,5 @@
 import type {
+  AgentSession,
   AiAccount,
   CodeChange,
   Decision,
@@ -66,6 +67,8 @@ export interface Slices {
   readonly milestone: ReadonlyMap<string, Milestone>;
   /** Their changes of code, by id, from the snapshot's `codeChanges`. */
   readonly 'code-change': ReadonlyMap<string, CodeChange>;
+  /** Their Sessions (RUNNER-9), by id, from the snapshot's `sessions`: those not ended, and those ended in the last 24 h. */
+  readonly 'agent-session': ReadonlyMap<string, AgentSession>;
   /** The account's Paramètres and each Projet's (PARAM-3): an event gives the account's, or one Projet's (`applySettingsEvent`). */
   readonly settings: SettingsState | null;
 }

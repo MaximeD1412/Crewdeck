@@ -85,7 +85,7 @@ describe('a Projet’s Paramètres in the page', () => {
   it('then shows the Projet’s sections, its Rôles inherited from the account, following the events of its Paramètres', () => {
     store.applySnapshot({
       seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [CODEX], 'mcp-server': [], devices: [], projects: [PROJECT], processes: [], phaseRuns: [], stepRuns: [],
-      repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], settings: { ...ACCOUNT, projects: [OWN] },
+      repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...ACCOUNT, projects: [OWN] },
     });
     expect(page()?.data).toEqual({ project: 'Site mairie', changedCount: 0, counts: {} });
     expect(slotsOf()).toEqual(['roles', 'steps', 'branches', 'worktree', 'notifications']);

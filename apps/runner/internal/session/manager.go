@@ -189,8 +189,12 @@ func (m *Manager) Start(message contracts.RunnerSessionStart) {
 		failure = contracts.RunnerSessionStateErrorSetupFailed
 	case m.busy(s):
 		failure = contracts.RunnerSessionStateErrorBranchBusy
-	default:
-		s.alive = true
+	}
+	var run func()
+	if failure == "" {
+		s.mu.Lock()
+		run = m.arm(s, true)
+		s.mu.Unlock()
 	}
 	m.mu.Unlock()
 	if failure != "" {
@@ -200,7 +204,7 @@ func (m *Manager) Start(message contracts.RunnerSessionStart) {
 		m.end(s, contracts.RunnerSessionStateOutcomeError, failure)
 		return
 	}
-	m.launch(s, true)
+	run()
 }
 
 // busy: another Session not ended holds the worktree (a stopped one keeps
@@ -254,9 +258,9 @@ func (m *Manager) revive(s *live) {
 		m.report(s)
 		return
 	}
-	s.alive = true
+	run := m.arm(s, false)
 	s.mu.Unlock()
-	m.launch(s, false)
+	run()
 }
 
 // Stop stops the Session's Moteur: interrupted, then killed once its turn
@@ -299,17 +303,21 @@ func (m *Manager) Stop(id string) {
 	}()
 }
 
-func (m *Manager) launch(s *live, fresh bool) {
+// arm makes the Session alive with the context of its next run, and gives
+// what starts that run, to be called once s.mu is released. It is called
+// with s.mu held, in the same hold as what decided the run: a Stop that comes
+// after cancels this run, never the one before it.
+func (m *Manager) arm(s *live, fresh bool) func() {
 	ctx, cancel := context.WithCancel(m.ctx)
-	s.mu.Lock()
-	s.cancel, s.stopping, s.run = cancel, false, nil
-	s.mu.Unlock()
+	s.alive, s.cancel, s.stopping, s.resume, s.run = true, cancel, false, false, nil
 	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
-		defer cancel()
-		m.runSession(ctx, s, fresh)
-	}()
+	return func() {
+		go func() {
+			defer m.wg.Done()
+			defer cancel()
+			m.runSession(ctx, s, fresh)
+		}()
+	}
 }
 
 // runSession makes the worktree when it has none (always for a new
@@ -463,9 +471,9 @@ func (m *Manager) halt(s *live) {
 	m.mu.Unlock()
 	s.mu.Lock()
 	if s.resume && !closed {
-		s.resume = false
+		run := m.arm(s, false)
 		s.mu.Unlock()
-		m.launch(s, false)
+		run()
 		return
 	}
 	s.alive, s.stopping, s.resume = false, false, false

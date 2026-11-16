@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -601,6 +602,60 @@ func TestAStopAfterAResumeAskedWhileStoppingKeepsTheSessionStopped(t *testing.T)
 	s.reports.await(t, firstID, contracts.RunnerSessionStateStateStopped)
 	if runs := s.engine.Runs(); len(runs) != 1 {
 		t.Fatalf("%d runs, want none after the last stop", len(runs))
+	}
+}
+
+// afterWait is the fake Moteur whose run, once its Wait returned, calls the
+// function armed (once): something the Pilote does as the Moteur ends.
+type afterWait struct {
+	*fake.Engine
+	armed atomic.Pointer[func()]
+}
+
+func (e *afterWait) Start(ctx context.Context, opts engine.StartOptions) (engine.Run, error) {
+	run, err := e.Engine.Start(ctx, opts)
+	return &afterWaitRun{Run: run, engine: e}, err
+}
+
+func (e *afterWait) Resume(ctx context.Context, opts engine.ResumeOptions) (engine.Run, error) {
+	run, err := e.Engine.Resume(ctx, opts)
+	return &afterWaitRun{Run: run, engine: e}, err
+}
+
+type afterWaitRun struct {
+	engine.Run
+	engine *afterWait
+}
+
+func (r *afterWaitRun) Wait() error {
+	err := r.Run.Wait()
+	if f := r.engine.armed.Swap(nil); f != nil {
+		go (*f)()
+	}
+	return err
+}
+
+func TestAStopAsTheResumeAskedWhileStoppingStartsTheMoteurKeepsTheSessionStopped(t *testing.T) {
+	s := newSetup(t, result("eng-1"), question("q1"))
+	hook := &afterWait{Engine: s.engine}
+	s.adapter = hook
+	m := s.manager(t)
+	m.Start(start(firstID, "feat/12-panier"))
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+
+	// The last stop lands while the resume asked meanwhile starts the Moteur
+	// again: whenever it lands, the Session ends stopped.
+	for i := 0; i < 200; i++ {
+		stop := func() { m.Stop(firstID) }
+		hook.armed.Store(&stop)
+		m.Stop(firstID)
+		m.Resume(firstID)
+		s.reports.await(t, firstID, contracts.RunnerSessionStateStateStopped)
+		if got := m.Hello(); len(got) != 1 || got[0].Alive {
+			t.Fatalf("round %d: hello %+v, want the Session stopped", i, got)
+		}
+		m.Resume(firstID)
+		s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
 	}
 }
 

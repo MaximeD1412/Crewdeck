@@ -31,6 +31,10 @@ interface AiAccountRow {
 const spelled = <T extends string>(value: string): T => value.replaceAll('_', '-') as T;
 const stored = <T extends string>(value: string): T => value.replaceAll('-', '_') as T;
 
+/** A Moteur's id as Prisma's enum keeps it (`claude_code`), and back as the contracts spell it. */
+export const storedEngine = (engine: AiAccount['engine']): EngineId => stored<EngineId>(engine);
+export const spelledEngine = (engine: EngineId): AiAccount['engine'] => spelled(engine);
+
 const zModels = z.array(zAiAccountModel);
 
 export const toAiAccount = (row: AiAccountRow): AiAccount => ({

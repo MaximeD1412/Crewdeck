@@ -8,7 +8,10 @@ import { appOrigin, parseEnv } from '../../src/config/env.js';
 import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
+import { RolesService } from '../../src/settings/roles.js';
 import { SettingsService } from '../../src/settings/settings.service.js';
+import { createAiAccounts } from '../../src/testing/runners.js';
+import { CLAUDE_SUBSCRIPTION, CODEX_API_KEY } from '../../src/testing/scenarios/engines.js';
 import { expectEnvelope, expectFields, startApp } from '../route-baseline.js';
 
 const databaseUrl = inject('databaseUrl');
@@ -26,6 +29,7 @@ const sql = async <T extends pg.QueryResultRow>(text: string, values: unknown[] 
 
 const DEFAULTS = {
   roles: { idea: null, design: null, code: null, review: null },
+  customRoles: [],
   optionalSteps: { mockups: true, 'visual-review': true, 'cross-review': true },
   notifications: { push: false },
   timeZone: 'Europe/Paris',
@@ -55,6 +59,9 @@ describe('the Paramètres of the account against PostgreSQL', () => {
     return { id, cookie: `${SESSION_COOKIE}=${token}` };
   };
 
+  /** The Comptes IA of `pilotId` as their Runner last reported them. */
+  const accounts = (pilotId: string, engines = [CLAUDE_SUBSCRIPTION, CODEX_API_KEY]) => createAiAccounts(app.get(PrismaService), pilotId, engines);
+
   const patch = (cookie: string, body: unknown): Promise<Response> =>
     fetch(`${url}/api/settings`, { method: 'PATCH', headers: { cookie, 'content-type': 'application/json', origin: appOrigin(env) }, body: JSON.stringify(body) });
 
@@ -78,11 +85,12 @@ describe('the Paramètres of the account against PostgreSQL', () => {
   describe('PATCH /api/settings', () => {
     it('changes only the fields given, returns the settings and writes settings.upserted in the same transaction', async () => {
       const alice = await pilot('alice');
+      await accounts(alice.id);
 
-      const res = await patch(alice.cookie, { seq: '0', roles: { code: { engine: 'codex', model: 'gpt-5' } }, optionalSteps: { mockups: false } });
+      const res = await patch(alice.cookie, { seq: '0', roles: { code: { engine: 'codex', model: 'gpt-5.5' } }, optionalSteps: { mockups: false } });
 
       expect(res.status).toBe(200);
-      const expected = { ...DEFAULTS, roles: { ...DEFAULTS.roles, code: { engine: 'codex', model: 'gpt-5' } }, optionalSteps: { ...DEFAULTS.optionalSteps, mockups: false } };
+      const expected = { ...DEFAULTS, roles: { ...DEFAULTS.roles, code: { engine: 'codex', model: 'gpt-5.5' } }, optionalSteps: { ...DEFAULTS.optionalSteps, mockups: false } };
       expect(zAccountSettings.parse(await res.json())).toEqual(expected);
       expect(await events(alice.id)).toEqual([{ seq: '1', type: 'settings.upserted', payload: expected }]);
       expect(await sql('SELECT seq FROM pilots WHERE id = $1', [alice.id])).toEqual([{ seq: '1' }]);
@@ -116,12 +124,40 @@ describe('the Paramètres of the account against PostgreSQL', () => {
       await expectFields(await patch(alice.cookie, { seq: '0', theme: 'dark' }), ['theme']);
       await expectFields(await patch(alice.cookie, { seq: '0', roles: { pilot: null } }), ['roles.pilot']);
       await expectFields(await patch(alice.cookie, { seq: '0', roles: { code: { engine: 'codex', model: 'gpt-5', typo: true } } }), ['roles.code.typo']);
+      await expectFields(await patch(alice.cookie, { seq: '0', roles: { 'r-zzzzzzzz': { engine: 'codex', model: 'gpt-5.5' } } }), ['roles.r-zzzzzzzz']);
       const fields = await expectFields(await patch(alice.cookie, { seq: '0', timeZone: 'Mars/Olympus' }), ['timeZone']);
       expect(fields).toEqual({ timeZone: 'Fuseau horaire inconnu.' });
 
       expect(await events(alice.id)).toEqual([]);
       expect(await sql('SELECT time_zone FROM pilots WHERE id = $1', [alice.id])).toEqual([{ time_zone: 'Europe/Paris' }]);
       expect(await sql('SELECT pilot_id FROM account_settings')).toEqual([]);
+    });
+
+    it('answers 422 settings.engine-unusable on the field of a model the Runner cannot run, and writes nothing', async () => {
+      const alice = await pilot('alice');
+      await accounts(alice.id);
+
+      const quota = await expectEnvelope(await patch(alice.cookie, { seq: '0', roles: { review: { engine: 'codex', model: 'gpt-5.5-pro' } } }), 422, 'settings.engine-unusable');
+      expect(quota.fields).toEqual({ 'roles.review': 'Ce modèle n’est pas utilisable sur ton Runner.' });
+      const unknown = await patch(alice.cookie, { seq: '0', roles: { idea: { engine: 'claude-code', model: 'claude-haiku-5-5' }, code: { engine: 'codex', model: 'gpt-5.5' } } });
+      expect((await expectEnvelope(unknown, 422, 'settings.engine-unusable')).fields).toEqual({ 'roles.idea': 'Ce modèle n’est pas utilisable sur ton Runner.' });
+      const bob = await pilot('bob');
+      await expectEnvelope(await patch(bob.cookie, { seq: '0', roles: { code: { engine: 'codex', model: 'gpt-5.5' } } }), 422, 'settings.engine-unusable');
+
+      expect(await events(alice.id)).toEqual([]);
+      expect(await sql('SELECT pilot_id FROM account_settings')).toEqual([]);
+    });
+
+    it('sets a default Rôle back to its default with null, whatever the Runner can run', async () => {
+      const alice = await pilot('alice');
+      await accounts(alice.id);
+      await patch(alice.cookie, { seq: '0', roles: { code: { engine: 'codex', model: 'gpt-5.5' } } });
+      await sql('DELETE FROM ai_accounts WHERE pilot_id = $1', [alice.id]);
+
+      const res = await patch(alice.cookie, { seq: '1', roles: { code: null } });
+
+      expect(res.status).toBe(200);
+      expect((await res.json()).roles).toEqual(DEFAULTS.roles);
     });
 
     it('answers 401 without a session', async () => {
@@ -174,6 +210,55 @@ describe('the Paramètres of the account against PostgreSQL', () => {
   });
 
   describe('SettingsService.effective', () => {
+    const effective = (pilotId: string) => runInPilotScope(pilotId, () => app.get(SettingsService).effective(pilotId));
+    const CLAUDE = { engine: 'claude-code', model: 'claude-opus-5-5' };
+    const CODEX = { engine: 'codex', model: 'gpt-5.5' };
+
+    it('gives Claude Code to Idée, Conception and Code, and Codex to the Review, with both usable and nothing chosen', async () => {
+      const alice = await pilot('alice');
+      await accounts(alice.id);
+
+      expect((await effective(alice.id)).roles).toEqual({ idea: CLAUDE, design: CLAUDE, code: CLAUDE, review: CODEX });
+      // The account's own settings keep the defaults as defaults: never stored.
+      expect((await (await fetch(`${url}/api/settings`, { headers: { cookie: alice.cookie } })).json()).roles).toEqual(DEFAULTS.roles);
+    });
+
+    it('gives Codex to every default Rôle when it is the only Moteur usable', async () => {
+      const alice = await pilot('alice');
+      await accounts(alice.id, [CODEX_API_KEY]);
+
+      expect((await effective(alice.id)).roles).toEqual({ idea: CODEX, design: CODEX, code: CODEX, review: CODEX });
+    });
+
+    it('puts the Review on Claude Code when the Code is on Codex', async () => {
+      const alice = await pilot('alice');
+      await accounts(alice.id);
+      await patch(alice.cookie, { seq: '0', roles: { code: CODEX } });
+
+      expect((await effective(alice.id)).roles).toEqual({ idea: CLAUDE, design: CLAUDE, code: CODEX, review: CLAUDE });
+    });
+
+    it('keeps a stored model that reached its quota as stored, and RolesService.check says why it cannot run', async () => {
+      const alice = await pilot('alice');
+      await accounts(alice.id);
+      await patch(alice.cookie, { seq: '0', roles: { review: CODEX } });
+      const models = CODEX_API_KEY.models.map((model) => (model.id === 'gpt-5.5' ? { ...model, usable: false, reason: 'quota-reached' } : model));
+      await sql(`UPDATE ai_accounts SET models = $2 WHERE pilot_id = $1 AND engine = 'codex'`, [alice.id, JSON.stringify(models)]);
+
+      expect((await effective(alice.id)).roles.review).toEqual(CODEX);
+      const checks = await runInPilotScope(alice.id, () => app.get(RolesService).check(alice.id));
+      expect(checks).toEqual([
+        { roleId: 'idea', ...CLAUDE, usable: true },
+        { roleId: 'design', ...CLAUDE, usable: true },
+        { roleId: 'code', ...CLAUDE, usable: true },
+        { roleId: 'review', ...CODEX, usable: false, reason: 'quota-reached' },
+      ]);
+      expect(await runInPilotScope(alice.id, () => app.get(RolesService).check(alice.id, { roleIds: ['review', 'r-zzzzzzzz'] }))).toEqual([
+        { roleId: 'review', ...CODEX, usable: false, reason: 'quota-reached' },
+        { roleId: 'r-zzzzzzzz', engine: null, model: null, usable: false, reason: 'no-engine' },
+      ]);
+    });
+
     it('gives a Projet the account’s settings, the defaults without a row', async () => {
       const alice = await pilot('alice');
       const settings = app.get(SettingsService);

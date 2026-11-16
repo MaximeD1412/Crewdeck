@@ -65,6 +65,7 @@ model Pilot {
   codeChangeChecks   CodeChangeCheck[]
   githubChanges      GitHubChange[]
   settings           AccountSettings?
+  customRoles        CustomRole[]
 
   @@map("pilots")
 }
@@ -298,6 +299,26 @@ model AccountSettings {
   pilot             Pilot    @relation(fields: [pilotId], references: [id], onDelete: Cascade)
 
   @@map("account_settings")
+}
+
+/// A Rôle the Pilote added (PARAM-2), beside the four default ones: its id
+/// (`r-` then 8 characters, drawn by the server, stable: a Process names it),
+/// its name, unique per Pilote case aside (`nameKey`, the four default names
+/// refused by the service), and its own Moteur and model, never left to a
+/// default. At most 20 per Pilote. Its name is configuration the server
+/// reads (ADR 0011), not ciphertext.
+model CustomRole {
+  id        String   @id
+  pilotId   String   @map("pilot_id") @db.Uuid
+  name      String
+  nameKey   String   @map("name_key")
+  engine    EngineId
+  model     String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  pilot     Pilot    @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@unique([pilotId, nameKey])
+  @@map("custom_roles")
 }
 
 /// A webhook delivery GitHub sent (ADR 0002), by its `X-GitHub-Delivery`:

@@ -3,6 +3,7 @@ import { DEFAULT_ACCOUNT_SETTINGS, zAccountSettings, zAccountSettingsPatch, zSet
 describe('zAccountSettings', () => {
   const settings = {
     roles: { idea: { engine: 'claude-code', model: 'opus' }, design: null, code: { engine: 'codex', model: 'gpt-5' }, review: null },
+    customRoles: [],
     optionalSteps: { mockups: true, 'visual-review': false, 'cross-review': true },
     notifications: { push: false },
     timeZone: 'Europe/Paris',
@@ -20,9 +21,10 @@ describe('zAccountSettings', () => {
     expect(zAccountSettings.safeParse({ ...settings, roles: { idea, design, code } }).success).toBe(false);
   });
 
-  it('has defaults: every role null, every optional step on, push off', () => {
+  it('has defaults: every role null, no Rôle of the Pilote’s, every optional step on, push off', () => {
     expect(DEFAULT_ACCOUNT_SETTINGS).toEqual({
       roles: { idea: null, design: null, code: null, review: null },
+      customRoles: [],
       optionalSteps: { mockups: true, 'visual-review': true, 'cross-review': true },
       notifications: { push: false },
     });

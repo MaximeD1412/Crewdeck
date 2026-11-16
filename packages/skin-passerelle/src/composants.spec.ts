@@ -127,6 +127,13 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     await settle(el);
     inside(el, 'cd-button.cancel', 'button').click();
   },
+  'PushSettings.toggle': (el) => inside(el, 'cd-toggle', 'button').click(),
+  'PushSettings.subscribe': async (el) => {
+    el.data = COMPOSANTS.PushSettings.examples[1]?.data;
+    await settle(el);
+    inside(el, 'cd-button.subscribe', 'button').click();
+  },
+  'PushSettings.remove': (el) => inside(el, 'cd-button.remove', 'button').click(),
 };
 
 afterEach(() => document.body.replaceChildren());

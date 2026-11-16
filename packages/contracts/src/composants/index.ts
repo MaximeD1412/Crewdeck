@@ -37,6 +37,7 @@ import { ProcessCanvas } from './process-canvas.js';
 import { PhaseGroup } from './phase-group.js';
 import { ProcessTrack } from './process-track.js';
 import { ProjectFilter } from './project-filter.js';
+import { PushSettings } from './push-settings.js';
 import { Question } from './question.js';
 import { Radio } from './radio.js';
 import { RepositoryPicker } from './repository-picker.js';
@@ -103,6 +104,7 @@ export * from './process-canvas.js';
 export * from './phase-group.js';
 export * from './process-track.js';
 export * from './project-filter.js';
+export * from './push-settings.js';
 export * from './question.js';
 export * from './radio.js';
 export * from './repository-picker.js';
@@ -154,6 +156,7 @@ export const COMPOSANTS = {
   ListRow,
   RepositoryPicker,
   RoleSettings,
+  PushSettings,
   Session,
   Message,
   ToolCall,

@@ -2,9 +2,10 @@
  * What no server log ever shows (ADR 0003, risk SEC-7), replaced by
  * `REDACT_CENSOR`: the credentials of a request, its body, and the keys
  * that carry a ciphertext, a wrapped key, a Runner protocol or relay
- * payload, or a token, at the top of a log object or one level down.
+ * payload, a token, or an Idée's sealed fields (its text, its analysis, the
+ * reason of its triage), at the top of a log object or one level down.
  */
-const SECRET_KEYS = ['ciphertext', 'wrappedKey', 'payload', 'token', 'accessToken', 'refreshToken'];
+const SECRET_KEYS = ['ciphertext', 'wrappedKey', 'payload', 'token', 'accessToken', 'refreshToken', 'text', 'analysis', 'reason'];
 
 export const REDACT_PATHS: readonly string[] = [
   'req.headers.authorization',

@@ -24,6 +24,8 @@ export const MESSAGES = {
   'github.user-token-refused': 'GitHub a refusé l’autorisation, reconnecte-toi.',
   'http.bad-request': 'La requête n’est pas valide.',
   'http.not-found': 'Cette adresse n’existe pas.',
+  'idea.cursor-invalid': 'Ce curseur ne vient pas de la liste des Idées.',
+  'idea.id-taken': 'Cette Idée existe déjà : note-la de nouveau.',
   'process.draft-stale': 'Le brouillon a changé dans un autre onglet : recharge-le avant de continuer.',
   'process.invalid': 'Ce Process ne peut pas être dessiné ainsi.',
   'project.already-followed': 'Ce dépôt est déjà un Projet.',

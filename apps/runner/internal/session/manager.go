@@ -10,7 +10,7 @@
 //
 //	repos/github/<owner>/<name>              the clones, one per repository
 //	worktrees/<projectId>/<branch, / as __>  one worktree per live Session
-//	sessions/<id>/                           session.json, log.jsonl, the Moteur's socket
+//	sessions/<id>/                           session.json, log.jsonl, key (the relay's), the Moteur's socket
 package session
 
 import (
@@ -45,6 +45,9 @@ type Config struct {
 	// offline: the report is lost, the hello says the Sessions again).
 	Send   func(ctx context.Context, message any) error
 	Logger *slog.Logger
+	// Keys seal the relay of the Sessions (SESSION-1); nil, nothing is
+	// relayed and no input taken.
+	Keys *RelayKeys
 	// StopGrace is how long a stopped Moteur has to end its turn before it
 	// is killed; zero, 10 s.
 	StopGrace time.Duration
@@ -62,6 +65,9 @@ type Manager struct {
 	mu       sync.Mutex
 	closed   bool
 	sessions map[string]*live
+
+	relayMu sync.Mutex
+	relay   relayState
 }
 
 // live is a Session the manager knows: running when alive.
@@ -98,15 +104,15 @@ func New(cfg Config) (*Manager, error) {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	m := &Manager{cfg: cfg, ctx: ctx, cancel: cancel, sessions: map[string]*live{}}
+	m := &Manager{cfg: cfg, ctx: ctx, cancel: cancel, sessions: map[string]*live{}, relay: relayState{keys: map[string][]byte{}, inputs: map[string]*seenInputs{}}}
 	for _, r := range records {
 		m.sessions[r.SessionID] = &live{rec: *r}
 	}
 	return m, nil
 }
 
-// Register makes the client hand the server's session.start, stop and
-// resume to the manager.
+// Register makes the client hand the server's session.start, stop, resume,
+// and the relay's session.replay and session.input, to the manager.
 func (m *Manager) Register(client *protocol.Client) {
 	protocol.On(client, protocol.TypeSessionStart, func(_ context.Context, message contracts.RunnerSessionStart) error {
 		m.Start(message)
@@ -118,6 +124,14 @@ func (m *Manager) Register(client *protocol.Client) {
 	})
 	protocol.On(client, protocol.TypeSessionResume, func(_ context.Context, message contracts.RunnerSessionResume) error {
 		m.Resume(message.SessionId)
+		return nil
+	})
+	protocol.On(client, protocol.TypeSessionReplay, func(_ context.Context, message contracts.RunnerSessionReplay) error {
+		m.ReplayTo(message)
+		return nil
+	})
+	protocol.On(client, protocol.TypeSessionInput, func(_ context.Context, message contracts.RunnerSessionInput) error {
+		m.Input(message)
 		return nil
 	})
 }
@@ -362,6 +376,8 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 		return
 	}
 	defer log.close()
+	// The key goes to the tabs before any event of the run.
+	key := m.liveKeys(rec.SessionID)
 	opts := engine.StartOptions{Dir: w.Dir, Model: rec.Model, Role: rec.Role, PermissionMode: engine.PermissionMode(rec.PermissionMode), SessionDir: dir}
 	var run engine.Run
 	if rec.EngineSessionID != "" {
@@ -380,8 +396,10 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 
 	offset := log.lastSeq
 	for event := range run.Events() {
-		if _, err := log.append(event, offset); err != nil {
+		if stamped, err := log.append(event, offset); err != nil {
 			m.cfg.Logger.Warn("session.log", "sessionId", rec.SessionID, "error", err)
+		} else {
+			m.relayLive(key, rec.SessionID, stamped)
 		}
 		state := contracts.RunnerSessionStateStateActive
 		switch {

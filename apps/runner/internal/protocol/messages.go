@@ -33,6 +33,13 @@ const (
 	TypeSessionStop   = "session.stop"
 	TypeSessionResume = "session.resume"
 	TypeSessionState  = "session.state"
+	// The relay of a Session (SESSION-1): the server asks a replay and hands
+	// the Pilote's input, the Runner sends the Session's key and its events,
+	// all sealed for the Appareils.
+	TypeSessionReplay = "session.replay"
+	TypeSessionInput  = "session.input"
+	TypeSessionKeys   = "session.keys"
+	TypeRelay         = "relay"
 )
 
 // Machine is what the Runner says of itself in its hello.
@@ -120,6 +127,28 @@ func NewSessionState(sessionID string, state contracts.RunnerSessionStateState, 
 	}
 	if engineSessionID != "" {
 		message.EngineSessionId = &engineSessionID
+	}
+	return message
+}
+
+// NewSessionKeys sends the Session's key wrapped for each holder, to the tab
+// tabID of a replay, or to every tab of the Session when tabID is empty.
+func NewSessionKeys(sessionID, tabID string, wraps []contracts.RunnerSessionKeysWrapsElem) contracts.RunnerSessionKeys {
+	at := now()
+	message := contracts.RunnerSessionKeys{Type: TypeSessionKeys, Id: newID(at), At: at, SessionId: sessionID, Wraps: wraps}
+	if tabID != "" {
+		message.TabId = &tabID
+	}
+	return message
+}
+
+// NewRelay sends one sealed event of the Session, to the tab tabID of a
+// replay, or live to every tab of the Session when tabID is empty.
+func NewRelay(sessionID, tabID string, seq int, nonce, ciphertext string) contracts.RunnerRelay {
+	at := now()
+	message := contracts.RunnerRelay{Type: TypeRelay, Id: newID(at), At: at, SessionId: sessionID, Seq: seq, Nonce: nonce, Ciphertext: ciphertext}
+	if tabID != "" {
+		message.TabId = &tabID
 	}
 	return message
 }

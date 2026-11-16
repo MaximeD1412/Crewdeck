@@ -38,8 +38,9 @@ export type Repository = z.infer<typeof zRepository>;
 
 /**
  * A Projet (US-3): a Dépôt GitHub the Pilote follows, prepared for the
- * Process. Its name and branches come from the `.process.json` of its default
- * branch when it has one. `accessLost` once the App can no longer reach its
+ * Process. Its name is its repository's; its integration branch is `develop`
+ * and its release branch the repository's default branch until the Pilote
+ * changes them in its Paramètres (ADR 0011). `accessLost` once the App can no longer reach its
  * repository (removed from the installation, the installation deleted). The
  * payload of `project.upserted`, an item of `GET /api/projects` and of the
  * `projects` slice of `GET /api/state`.

@@ -1,4 +1,4 @@
-import { zGitHubMilestone, zIssue, zPullRequest } from '@crewdeck/contracts';
+import { type RepoRef, zGitHubMilestone, zIssue, zPullRequest } from '@crewdeck/contracts';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { githubAppEnv } from '../../test/github-app.js';
@@ -336,12 +336,10 @@ describe('OctokitGitHubClient', () => {
         expect.objectContaining({ number: 3, headSha: SHA }),
       ],
       [
-        'readProcessJson',
-        http.get(`${API}/repos/o/r/contents/.process.json`, () =>
-          HttpResponse.json({ type: 'file', encoding: 'base64', content: Buffer.from('{"version":1}').toString('base64') }),
-        ),
-        (client: OctokitGitHubClient) => client.readProcessJson(repo, 'main'),
-        { version: 1 },
+        'pathExists',
+        http.get(`${API}/repos/o/r/contents/CONTEXT.md`, () => HttpResponse.json({ type: 'file', name: 'CONTEXT.md' })),
+        (client: OctokitGitHubClient) => client.pathExists(repo, 'main', 'CONTEXT.md'),
+        true,
       ],
       [
         'removeLabel',
@@ -577,21 +575,6 @@ describe('OctokitGitHubClient', () => {
   });
 
   describe('the allowlist of contents', () => {
-    it('reads .process.json at a ref, and null when it does not exist', async () => {
-      server.use(
-        ...installation(),
-        http.get(`${API}/repos/o/r/contents/.process.json`, ({ request }) =>
-          new URL(request.url).searchParams.get('ref') === 'main'
-            ? HttpResponse.json({ type: 'file', encoding: 'base64', content: Buffer.from('{"version":1}').toString('base64') })
-            : HttpResponse.json({ message: 'Not Found' }, { status: 404 }),
-        ),
-      );
-      const client = new OctokitGitHubClient(env, logger());
-
-      expect(await client.readProcessJson(repo, 'main')).toEqual({ version: 1 });
-      expect(await client.readProcessJson(repo, 'other')).toBeNull();
-    });
-
     it('tells whether docs/adr exists', async () => {
       server.use(
         ...installation(),
@@ -604,21 +587,23 @@ describe('OctokitGitHubClient', () => {
       expect(await client.pathExists(repo, 'main', 'CONTEXT.md')).toBe(false);
     });
 
-    it('commits .process.json over its current version', async () => {
-      let body: unknown;
+    it.each(['GET', 'PUT', 'DELETE'])('throws GitHubReadForbiddenError for %s contents/.process.json before it leaves the server', async (method) => {
+      const sent: string[] = [];
       server.use(
         ...installation(),
-        http.get(`${API}/repos/o/r/contents/.process.json`, () => HttpResponse.json({ type: 'file', sha: 'c'.repeat(40), content: '' })),
-        http.put(`${API}/repos/o/r/contents/.process.json`, async ({ request }) => {
-          body = await request.json();
-          return HttpResponse.json({ commit: { sha: OTHER_SHA } });
+        http.all(`${API}/repos/o/r/contents/*`, ({ request }) => {
+          sent.push(`${request.method} ${request.url}`);
+          return HttpResponse.json({ type: 'file', content: '' });
         }),
       );
+      const client = new OctokitGitHubClient(env, logger());
+      // Through the client's own plumbing: no method of the interface names this file, which is the first fence.
+      const onRepo = (client as unknown as { onRepo: (repo: RepoRef, fn: (request: (route: string, parameters?: Record<string, unknown>) => Promise<unknown>) => Promise<unknown>) => Promise<unknown> }).onRepo.bind(client);
 
-      const commit = await new OctokitGitHubClient(env, logger()).commitProcessJson(repo, 'develop', '{"version":1}\n', 'chore(crewdeck) : Process');
-
-      expect(commit).toEqual({ sha: OTHER_SHA });
-      expect(body).toEqual({ message: 'chore(crewdeck) : Process', content: Buffer.from('{"version":1}\n').toString('base64'), branch: 'develop', sha: 'c'.repeat(40) });
+      await expect(
+        onRepo(repo, (request) => request(`${method} /repos/{owner}/{repo}/contents/{path}`, { owner: 'o', repo: 'r', path: '.process.json', message: 'x', content: 'e30=', sha: SHA })),
+      ).rejects.toBeInstanceOf(GitHubReadForbiddenError);
+      expect(sent).toEqual([]);
     });
 
     it('never lets the read guard fall into github.unavailable', async () => {

@@ -20,7 +20,6 @@ export const MESSAGES = {
   'github.branch-protected': 'Une protection de branche refuse cette écriture.',
   'github.head-moved': 'La PR a changé depuis la dernière vérification.',
   'github.installation-gone': 'Cette installation de Crewdeck n’existe plus sur GitHub.',
-  'github.process-json-invalid': 'Le fichier .process.json du dépôt n’est pas du JSON valide.',
   'github.unavailable': 'GitHub ne répond pas, réessaie dans un instant.',
   'github.user-token-refused': 'GitHub a refusé l’autorisation, reconnecte-toi.',
   'http.bad-request': 'La requête n’est pas valide.',

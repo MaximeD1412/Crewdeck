@@ -4,7 +4,7 @@ import { FakeGitHub } from './fake-github.js';
 
 const setup = () => {
   const github = new FakeGitHub();
-  const repo = github.seedRepo({ owner: 'o', name: 'r', files: { '.process.json': '{"version":1}', 'docs/adr/0001-shape.md': '# Shape', 'src/main.ts': 'code' } });
+  const repo = github.seedRepo({ owner: 'o', name: 'r', files: { 'docs/adr/0001-shape.md': '# Shape', 'src/main.ts': 'code' } });
   return { github, repo };
 };
 
@@ -35,15 +35,16 @@ describe('FakeGitHub', () => {
       expect(await github.getPullRequest(repo, pr.number)).toMatchObject({ state: 'open', merged: false, headSha: moved });
     });
 
-    it('throws github.head-moved when .process.json was committed on the head since', async () => {
+    it('throws github.head-moved when a file was added on the head since, and leaves the base as it was', async () => {
       const { github, repo } = setup();
+      const base = (await github.getBranch(repo, 'main'))?.sha;
       const judged = await github.pushCommit(repo, 'feat/1-x', { 'src/a.ts': 'a' });
       const pr = await github.createPullRequest(repo, { head: 'feat/1-x', base: 'main', title: 'feat : x', draft: false });
-      const moved = await github.commitProcessJson(repo, 'feat/1-x', '{"version":2}', 'chore(crewdeck) : Process');
+      const moved = await github.pushCommit(repo, 'feat/1-x', { 'src/b.ts': 'b' });
 
       await expect(github.mergePullRequest(repo, pr.number, { sha: judged, method: 'squash' })).rejects.toMatchObject({ code: 'github.head-moved' });
-      expect(await github.getPullRequest(repo, pr.number)).toMatchObject({ state: 'open', headSha: moved.sha });
-      expect(await github.readProcessJson(repo, 'main')).toEqual({ version: 1 });
+      expect(await github.getPullRequest(repo, pr.number)).toMatchObject({ state: 'open', headSha: moved });
+      expect((await github.getBranch(repo, 'main'))?.sha).toBe(base);
     });
 
     it('moves the head of a PR whose branch a merge writes', async () => {
@@ -120,37 +121,7 @@ describe('FakeGitHub', () => {
     });
   });
 
-  describe('.process.json, the only file the server writes', () => {
-    it('commits it on a branch', async () => {
-      const { github, repo } = setup();
-
-      const commit = await github.commitProcessJson(repo, 'main', '{"version":2}', 'chore(crewdeck) : Process');
-
-      expect(await github.readProcessJson(repo, 'main')).toEqual({ version: 2 });
-      expect(await github.readProcessJson(repo, commit.sha)).toEqual({ version: 2 });
-    });
-
-    it('throws github.branch-protected on a protected branch, and writes nothing', async () => {
-      const { github, repo } = setup();
-      github.protectBranch(repo, 'main');
-
-      const commit = github.commitProcessJson(repo, 'main', '{"version":2}', 'chore(crewdeck) : Process');
-
-      await expect(commit).rejects.toMatchObject({ status: 422, code: 'github.branch-protected', message: 'Une protection de branche refuse cette écriture.' });
-      expect(await github.readProcessJson(repo, 'main')).toEqual({ version: 1 });
-      expect(await github.getBranch(repo, 'main')).toMatchObject({ protected: true });
-    });
-
-    it('reads null where it does not exist, and refuses invalid JSON', async () => {
-      const github = new FakeGitHub();
-      const repo = github.seedRepo({ owner: 'o', name: 'r' });
-      expect(await github.readProcessJson(repo, 'main')).toBeNull();
-
-      await github.pushCommit(repo, 'main', { '.process.json': '{ nope' });
-
-      await expect(github.readProcessJson(repo, 'main')).rejects.toMatchObject({ status: 422, code: 'github.process-json-invalid' });
-    });
-
+  describe('the allowlist of contents, the only files the server reads', () => {
     it('tells whether CONTEXT.md and docs/adr exist', async () => {
       const { github, repo } = setup();
 

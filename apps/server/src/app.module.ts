@@ -17,6 +17,7 @@ import { WebhooksModule } from './github/webhooks/webhooks.module.js';
 import { HealthModule } from './health/health.module.js';
 import { type LogDestination, loggerParams } from './logging/logger.js';
 import { MetricsModule } from './metrics/metrics.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 import { PilotsModule } from './pilots/me.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
@@ -77,6 +78,7 @@ export class AppModule {
         DecisionsModule,
         MetricsModule,
         SettingsModule,
+        NotificationsModule,
         WebModule.forRoot(env),
         ...imports,
       ],

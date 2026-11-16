@@ -9,6 +9,7 @@ const linkSlice: StateContributor = { ...pilotSlice, key: 'runner-link' };
 const aiAccountSlice: StateContributor = { ...pilotSlice, key: 'ai-account' };
 const mcpServerSlice: StateContributor = { ...pilotSlice, key: 'mcp-server' };
 const devicesSlice: StateContributor = { ...pilotSlice, key: 'devices' };
+const pushSubscriptionsSlice: StateContributor = { ...pilotSlice, key: 'push-subscriptions' };
 const projectsSlice: StateContributor = { ...pilotSlice, key: 'projects' };
 const processesSlice: StateContributor = { ...pilotSlice, key: 'processes' };
 const repositoriesSlice: StateContributor = { ...pilotSlice, key: 'repositories' };
@@ -24,6 +25,7 @@ const all = [
   aiAccountSlice,
   mcpServerSlice,
   devicesSlice,
+  pushSubscriptionsSlice,
   projectsSlice,
   processesSlice,
   repositoriesSlice,
@@ -46,9 +48,9 @@ describe('StateController at boot', () => {
   });
 
   it('refuses to start with a slice missing, repeated or not in STATE_SLICES', () => {
-    expect(() => boot([])).toThrow(/missing \[pilot, runner, runner-link, ai-account, mcp-server, devices, projects, processes, repositories, decisions, tickets, milestones, codeChanges, settings\]/);
+    expect(() => boot([])).toThrow(/missing \[pilot, runner, runner-link, ai-account, mcp-server, devices, push-subscriptions, projects, processes, repositories, decisions, tickets, milestones, codeChanges, settings\]/);
     expect(() => boot([pilotSlice])).toThrow(
-      /missing \[runner, runner-link, ai-account, mcp-server, devices, projects, processes, repositories, decisions, tickets, milestones, codeChanges, settings\]/,
+      /missing \[runner, runner-link, ai-account, mcp-server, devices, push-subscriptions, projects, processes, repositories, decisions, tickets, milestones, codeChanges, settings\]/,
     );
     expect(() => boot([...all, pilotSlice])).toThrow(/repeated \[pilot\]/);
     expect(() => boot([pilotSlice, runnerSlice, { ...pilotSlice, key: 'ideas' as never }])).toThrow(/repeated \[ideas\]/);

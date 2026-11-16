@@ -13,6 +13,7 @@ export interface TransactionOptions {
 /** What a transaction of `Transactions.run` has written so far: its place, per Pilote, in the order of publication. */
 export class TransactionEvents {
   private readonly places = new Map<string, Place>();
+  private readonly committedHooks: (() => void)[] = [];
 
   constructor(private readonly order: PublicationOrder) {}
 
@@ -29,8 +30,14 @@ export class TransactionEvents {
     return place;
   }
 
+  /** Calls `hook` once the transaction has committed, after its events are handed to the order of publication; never on a rollback. */
+  onCommit(hook: () => void): void {
+    this.committedHooks.push(hook);
+  }
+
   settle(committed: boolean): void {
     for (const [pilotId, place] of this.places) this.order.settle(pilotId, place, committed);
+    if (committed) for (const hook of this.committedHooks.splice(0)) hook();
   }
 }
 
@@ -50,6 +57,16 @@ export const pendingEventsOf = (tx: object): TransactionEvents => {
   const events = eventsByTx.get(tx);
   if (!events) throw new TransactionMissingError();
   return events;
+};
+
+/**
+ * Calls `hook` once `tx` (a transaction of `Transactions.run`) has committed:
+ * for what must not happen before the change is there for everyone (a push
+ * of a new Décision, ATOI-4), nor at all on a rollback. A hook must not
+ * throw: it runs after the transaction, whose caller would get its error.
+ */
+export const onCommit = (tx: object, hook: () => void): void => {
+  pendingEventsOf(tx).onCommit(hook);
 };
 
 /**

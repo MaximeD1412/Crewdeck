@@ -10,7 +10,7 @@ import { DecisionsService, type RaiseInput } from '../../src/decisions/decisions
 import { newId } from '../../src/ids.js';
 import { PushDelivery } from '../../src/notifications/push-delivery.js';
 import { InertPushSender, type PushOutcome, PushSender } from '../../src/notifications/push-sender.js';
-import type { PushTarget } from '../../src/notifications/push-subscriptions.js';
+import { PushSubscriptions, type PushTarget } from '../../src/notifications/push-subscriptions.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { TabPresence } from '../../src/realtime/tab-presence.js';
 import { Transactions } from '../../src/realtime/transactions.js';
@@ -115,6 +115,23 @@ describe('the push notifications against PostgreSQL', () => {
     runInPilotScope(pilotId, () => app.get(Transactions).run((tx) => app.get(DecisionsService).raise(tx, { ...BLOCKED, ...input })));
 
   const notifiedAt = async (id: string) => (await sql<{ notified_at: Date | null }>('SELECT notified_at FROM decisions WHERE id = $1', [id]))[0]?.notified_at ?? null;
+  const claimedAt = async (id: string) => (await sql<{ push_claimed_at: Date | null }>('SELECT push_claimed_at FROM decisions WHERE id = $1', [id]))[0]?.push_claimed_at ?? null;
+
+  /** `PUSH_CLAIM_MS` and more go by for the claims of the pushes. */
+  const lapse = () => sql(`UPDATE decisions SET push_claimed_at = push_claimed_at - interval '3 minutes' WHERE push_claimed_at IS NOT NULL`);
+
+  /** A Décision raised while a tab was visible, the tab closed since: it waits, and no push has taken it yet. */
+  const raiseUnseen = async (pilotId: string) => {
+    const presence = app.get(TabPresence);
+    const tab = {};
+    presence.open(pilotId, tab);
+    presence.setVisibility(pilotId, tab, true);
+    try {
+      return (await raise(pilotId)).decision;
+    } finally {
+      presence.close(pilotId, tab);
+    }
+  };
 
   describe('POST /api/push-subscriptions', () => {
     it('subscribes the browser, returns the resource without its keys and writes push-subscription.upserted', async () => {
@@ -384,6 +401,75 @@ describe('the push notifications against PostgreSQL', () => {
       await expect(app.get(PushDelivery).push(alice.id)).resolves.toBe('done');
       expect(send).toHaveBeenCalledTimes(2);
       expect(await notifiedAt(decision.id)).toBeInstanceOf(Date);
+    });
+
+    it('pushes again, once its claim lapses, a Décision a push took before the server stopped', async () => {
+      const alice = await pilot();
+      await pushOn(alice.cookie);
+      await subscribe(alice.cookie);
+      const decision = await raiseUnseen(alice.id);
+      send.mockReturnValueOnce(new Promise<PushOutcome>(() => undefined));
+      void app.get(PushDelivery).push(alice.id);
+      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+      await app.close();
+      ({ app, url } = await startApp(env));
+      spySend();
+
+      await expect(app.get(PushDelivery).push(alice.id)).resolves.toBe('retry');
+      expect(send).not.toHaveBeenCalled();
+      await lapse();
+      await expect(app.get(PushDelivery).push(alice.id)).resolves.toBe('done');
+
+      expect(send.mock.calls.map(([, payload]) => payload.tag)).toEqual([decision.id]);
+      expect(await notifiedAt(decision.id)).toBeInstanceOf(Date);
+      expect(await claimedAt(decision.id)).toBeNull();
+    });
+
+    it('pushes again, once its claim lapses, a Décision whose hand back failed', async () => {
+      const alice = await pilot();
+      await pushOn(alice.cookie);
+      await subscribe(alice.cookie);
+      const decision = await raiseUnseen(alice.id);
+      send.mockResolvedValueOnce('failed');
+      vi.spyOn(app.get(PushSubscriptions), 'pushed').mockRejectedValueOnce(new Error('the database is gone'));
+
+      await expect(app.get(PushDelivery).push(alice.id)).resolves.toBe('retry');
+      await expect(app.get(PushDelivery).push(alice.id)).resolves.toBe('retry');
+      expect(send).toHaveBeenCalledTimes(1);
+      await lapse();
+      await expect(app.get(PushDelivery).push(alice.id)).resolves.toBe('done');
+
+      expect(send.mock.calls.map(([, payload]) => payload.tag)).toEqual([decision.id, decision.id]);
+      expect(await notifiedAt(decision.id)).toBeInstanceOf(Date);
+    });
+
+    it('never pushes again a Décision seen while a push held it, that push failing', async () => {
+      const alice = await pilot();
+      await pushOn(alice.cookie);
+      await subscribe(alice.cookie);
+      const decision = await raiseUnseen(alice.id);
+      let fail: (outcome: PushOutcome) => void = () => undefined;
+      send.mockReturnValueOnce(
+        new Promise<PushOutcome>((resolve) => {
+          fail = resolve;
+        }),
+      );
+      const pushing = app.get(PushDelivery).push(alice.id);
+      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+      const presence = app.get(TabPresence);
+      const tab = {};
+      presence.open(alice.id, tab);
+      presence.setVisibility(alice.id, tab, true);
+      await vi.waitFor(async () => expect(await notifiedAt(decision.id)).toBeInstanceOf(Date));
+      presence.close(alice.id, tab);
+
+      fail('failed');
+
+      await expect(pushing).resolves.toBe('done');
+      await expect(app.get(PushDelivery).push(alice.id)).resolves.toBe('done');
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(await notifiedAt(decision.id)).toBeInstanceOf(Date);
+      expect(await claimedAt(decision.id)).toBeNull();
     });
 
     it('sends nothing when the account has push off, and never later what was raised then', async () => {

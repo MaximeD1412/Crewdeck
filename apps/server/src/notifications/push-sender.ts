@@ -11,6 +11,9 @@ export type PushOutcome = 'sent' | 'gone' | 'failed';
 /** How long a push service keeps a push for a browser that is offline: a day, after which the Décision is no news. */
 const TTL_SECONDS = 24 * 60 * 60;
 
+/** How long a push service may keep the socket of a send silent before it fails: well under a push's claim (`PUSH_CLAIM_MS`). */
+export const PUSH_SEND_TIMEOUT_MS = 30_000;
+
 /** Sends one push to one browser: the boundary with the push services, which the tests replace. */
 export abstract class PushSender {
   abstract send(target: PushTarget, payload: PushPayload): Promise<PushOutcome>;
@@ -50,6 +53,7 @@ export class WebPushSender extends PushSender {
         vapidDetails: { subject: this.vapid.subject, publicKey: this.vapid.publicKey, privateKey: this.vapid.privateKey },
         TTL: TTL_SECONDS,
         urgency: 'high',
+        timeout: PUSH_SEND_TIMEOUT_MS,
       });
       return 'sent';
     } catch (error) {

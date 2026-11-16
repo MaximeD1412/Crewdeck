@@ -1,6 +1,7 @@
 import type { PinoLogger } from 'nestjs-pino';
 import webpush from 'web-push';
-import { WebPushSender } from './push-sender.js';
+import { PUSH_CLAIM_MS } from './push-delivery.js';
+import { PUSH_SEND_TIMEOUT_MS, WebPushSender } from './push-sender.js';
 import type { PushTarget } from './push-subscriptions.js';
 
 const VAPID = { publicKey: 'B'.padEnd(87, 'A'), privateKey: 'A'.repeat(43), subject: 'mailto:pilote@example.invalid' };
@@ -16,6 +17,13 @@ describe('WebPushSender', () => {
     const send = vi.spyOn(webpush, 'sendNotification').mockResolvedValue({ statusCode: 201, body: '', headers: {} });
     expect(await new WebPushSender(VAPID, logger).send(target('https://fcm.googleapis.com/fcm/send/abc'), PAYLOAD)).toBe('sent');
     expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives up on a push service silent for 30 seconds, long before the claim of its push lapses', async () => {
+    const send = vi.spyOn(webpush, 'sendNotification').mockResolvedValue({ statusCode: 201, body: '', headers: {} });
+    await new WebPushSender(VAPID, logger).send(target('https://fcm.googleapis.com/fcm/send/abc'), PAYLOAD);
+    expect(send.mock.calls[0]?.[2]).toMatchObject({ timeout: 30_000 });
+    expect(PUSH_SEND_TIMEOUT_MS * 2).toBeLessThan(PUSH_CLAIM_MS);
   });
 
   it.each(['https://127.0.0.1:8443/internal', 'https://push.invalid/abc'])('never sends a request to what is no push service, the subscription gone: %s', async (endpoint) => {

@@ -4,7 +4,7 @@ import { PushDelivery } from './push-delivery.js';
 
 /** How long the Pilote has had no Crewdeck tab visible before a Décision is pushed (US-18, ADR 0007). */
 export const PUSH_AFTER_MS = 2 * 60_000;
-/** How long after a push that reached no browser (its push service failing) it is tried again… */
+/** How long after a push that left Décisions waiting (its push service failing, or another push holding them, `PUSH_CLAIM_MS`) it is tried again… */
 export const PUSH_RETRY_MS = 5 * 60_000;
 /** …and how many times, before what waits is left for the next Décision or the Pilote's return. */
 export const PUSH_RETRIES = 3;

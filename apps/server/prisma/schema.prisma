@@ -419,6 +419,10 @@ model Decision {
   /// on a tab visible again, or its push off. `null` while it waits, what the
   /// next push sends (`src/notifications/push-delivery.ts`).
   notifiedAt  DateTime?     @map("notified_at") @db.Timestamptz
+  /// When a push took it, on its way to the browsers: not yet told. Handed
+  /// back (`null`) when no browser got it; a claim older than its lease, a
+  /// push interrupted (a restart, a failed hand back), waits again.
+  pushClaimedAt DateTime?   @map("push_claimed_at") @db.Timestamptz
   pilot       Pilot         @relation(fields: [pilotId], references: [id], onDelete: Cascade)
 
   @@unique([pilotId, kind, subjectId], map: "decisions_pilot_id_kind_subject_id_open_key", where: raw("state = 'open'"))

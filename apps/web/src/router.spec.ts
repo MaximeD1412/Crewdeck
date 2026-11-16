@@ -223,6 +223,25 @@ describe('startRouter', () => {
     expect(pageElement.firstElementChild).toBe(row);
   });
 
+  it('takes the page’s Emplacements from its own `slots` when given, the route’s otherwise', () => {
+    history.replaceState(null, '', '/parametres');
+    outlet = document.createElement('main');
+    document.body.append(outlet);
+    let local = 'ouvert';
+    router = startRouter({
+      routes: [{ path: '/parametres', composant: page('PageParametres', 'cd-page-parametres'), slots: () => [{ tag: 'cd-card', slot: 'account' }] }],
+      outlet,
+      slots: () => [{ tag: 'cd-card', slot: 'roles', data: { local } }],
+    });
+    const pageElement = outlet.firstElementChild as HTMLElement;
+    const card = pageElement.querySelector(':scope > cd-card[slot=roles]') as HTMLElement & { data: unknown };
+    expect([...pageElement.children].map((child) => child.getAttribute('slot'))).toEqual(['roles']);
+    expect(card.data).toEqual({ local: 'ouvert' });
+    local = 'fermé';
+    router.refresh();
+    expect(card.data).toEqual({ local: 'fermé' });
+  });
+
   it('sends / to « À toi »', () => {
     start('/');
     expect(location.pathname).toBe('/a-toi');

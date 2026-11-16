@@ -61,7 +61,7 @@ describe('the snapshot and the retention against PostgreSQL', () => {
 
       expect(res.status).toBe(200);
       const body = zState.parse(await res.json());
-      expect(body).toEqual({ seq: 12, pilot: { id: alice.id, displayName: 'alice', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [] }, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
+      expect(body).toEqual({ seq: 12, pilot: { id: alice.id, displayName: 'alice', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [] }, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
     });
 
     it('answers 401 without a session', async () => {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"os/signal"
 	"runtime"
@@ -14,12 +15,18 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/logging"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/mcp"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/mirror"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/service"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/session"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/update"
 	"github.com/spf13/cobra"
 )
+
+// sessionsGitHubURL is where the Sessions clone the GitHub repositories
+// from; empty, GitHub. Only the smoke build changes it (smoke.go).
+var sessionsGitHubURL = ""
 
 const notLinked = "Ce Runner n’est relié à aucun compte : relie-le avec la commande que donne Crewdeck, crewdeck-runner link <code>."
 
@@ -41,6 +48,10 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	}
 	// The vault opens at start: a Runner that cannot open it does not run.
 	vault, err := openVault(store)
+	if err != nil {
+		return err
+	}
+	relay, err := relayKeys(store)
 	if err != nil {
 		return err
 	}
@@ -72,6 +83,13 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	}
 	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// The Miroir (ADR 0010): the copy of the Projets' GitHub, its follower its
+	// only writer, fed by the server's envelopes on each connection.
+	follower, closeMirror, err := followMirror(ctx, logger)
+	if err != nil {
+		return err
+	}
+	defer closeMirror()
 	// The client of the current connection: a new one after each update attempt.
 	var current atomic.Pointer[protocol.Client]
 	reporter := &accounts.Reporter{
@@ -87,6 +105,26 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	// The adapters, their Sessions watched: a limit or a sign-in they meet
 	// reaches the capabilities. The Sessions (RUNNER-9) start from this registry.
 	reporter.Engines = reporter.Watch(runnerEngines(keys))
+	// The Sessions the server asks for, those kept under ~/.crewdeck/sessions
+	// said in each hello: none alive after a restart.
+	sessions, err := session.New(session.Config{
+		Home:      store.Dir,
+		Engines:   reporter.Engines,
+		GitHubURL: sessionsGitHubURL,
+		Logger:    logger,
+		Keys:      relay,
+		Send: func(ctx context.Context, m any) error {
+			client := current.Load()
+			if client == nil {
+				return protocol.ErrNotConnected
+			}
+			return client.Send(ctx, m)
+		},
+	})
+	if err != nil {
+		return err
+	}
+	defer sessions.Close()
 	// The Serveurs MCP declared here, as their last `add` or `test` left
 	// them: the Runner starts none of them to report them (US-73).
 	reportMCP := func(ctx context.Context) {
@@ -128,14 +166,16 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		Logger: logger,
 	}
 	for {
-		client := protocol.New(protocol.Config{
+		client := follower.NewClient(protocol.Config{
 			Server:  linked.Server,
 			Token:   linked.Token,
 			Machine: described,
 			Logger:  logger,
 			// What each Moteur can run (US-38) and the Serveurs MCP (US-73), on each accepted connection.
 			OnConnected: report,
+			Sessions:    sessions.Hello,
 		})
+		sessions.Register(client)
 		current.Store(client)
 		err := client.Run(ctx)
 		var required *protocol.UpdateRequiredError
@@ -151,8 +191,38 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			continue
 		}
 		logger.Info("update.restart", "binary", binary)
+		sessions.Close() // their Moteurs end with this build; the next one reports them
 		return m.restart(ctx, binary)
 	}
+}
+
+// followMirror opens the Miroir and follows GitHub until ctx ends; closeMirror
+// waits for the follower, then closes the copy.
+func followMirror(ctx context.Context, logger *slog.Logger) (*mirror.Follower, func(), error) {
+	path, err := mirror.DefaultPath()
+	if err != nil {
+		return nil, nil, err
+	}
+	store, err := mirror.Open(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	follower, err := mirror.NewFollower(mirror.FollowerConfig{Store: store, GitHub: &mirror.Client{Logger: logger}, Logger: logger})
+	if err != nil {
+		store.Close()
+		return nil, nil, err
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = follower.Run(ctx)
+	}()
+	return follower, func() {
+		cancel()
+		<-done
+		store.Close()
+	}, nil
 }
 
 // sleepUntil waits for at, false when ctx ends first.

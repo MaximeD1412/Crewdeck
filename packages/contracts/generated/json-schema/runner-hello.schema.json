@@ -51,6 +51,28 @@
       "minLength": 1,
       "type": "string"
     },
+    "sessions": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "alive": {
+            "type": "boolean"
+          },
+          "sessionId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "alive",
+          "sessionId"
+        ],
+        "type": "object"
+      },
+      "maxItems": 1000,
+      "type": "array"
+    },
     "type": {
       "const": "hello",
       "type": "string"

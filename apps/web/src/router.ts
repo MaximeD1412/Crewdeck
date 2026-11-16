@@ -81,6 +81,12 @@ export const routeData =
   (match: RouteMatch): unknown =>
     routeOf(routes, match)?.data?.(match, state()) ?? {};
 
+/** The page's Emplacements by default: its route's `slots`, from the match and the store's state; `undefined` for a route without. */
+export const routeSlots =
+  (routes: readonly Route[], state: () => StoreState = () => NO_STATE) =>
+  (match: RouteMatch): readonly PlacedNode[] | undefined =>
+    routeOf(routes, match)?.slots?.(match, state());
+
 export interface Router {
   readonly current: RouteMatch;
   /** Goes to a page URL of the app (path, query, hash) through the History API. */
@@ -103,6 +109,8 @@ export interface RouterOptions {
   readonly outlet: HTMLElement;
   /** The `data` of the page; CORE-6's view functions give it from the store. By default, its route's `data`, from the match and `state`. */
   readonly data?: (match: RouteMatch) => unknown;
+  /** What the page's Emplacements hold, `undefined` to leave them; by default its route's `slots`, from the match and `state`. */
+  readonly slots?: (match: RouteMatch) => readonly PlacedNode[] | undefined;
   /** The store's state the routes' views (`data`, `slots`) read: nothing received by default. */
   readonly state?: () => StoreState;
   /** Called after each render, with the match. */
@@ -132,7 +140,16 @@ const linkOf = (event: MouseEvent): URL | null => {
  * `outlet`, then follows `navigate()`, the same-origin links (shadow roots
  * included) and the browser's back and forward.
  */
-export const startRouter = ({ routes, outlet, state, data = routeData(routes, state), onRoute, redirects = REDIRECTS, guard }: RouterOptions): Router => {
+export const startRouter = ({
+  routes,
+  outlet,
+  state,
+  data = routeData(routes, state),
+  slots = routeSlots(routes, state),
+  onRoute,
+  redirects = REDIRECTS,
+  guard,
+}: RouterOptions): Router => {
   let current: RouteMatch;
   let given: unknown;
 
@@ -155,8 +172,8 @@ export const startRouter = ({ routes, outlet, state, data = routeData(routes, st
     const next = data(current);
     if (page !== existing || !sameData(given, next)) (page as Element & { data: unknown }).data = next;
     given = next;
-    const slots = routeOf(routes, current)?.slots;
-    if (slots) fillPlaced(page, slots(current, (state ?? (() => NO_STATE))()));
+    const placed = slots(current);
+    if (placed) fillPlaced(page, placed);
     if (page !== existing || outlet.childElementCount !== 1) outlet.replaceChildren(page);
     if (navigated || location.href !== before) onRoute?.(current);
   };

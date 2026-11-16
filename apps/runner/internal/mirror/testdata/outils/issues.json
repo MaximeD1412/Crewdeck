@@ -1,0 +1,28 @@
+{
+  "operation": "MirrorIssues",
+  "variables": {
+    "owner": "acme",
+    "name": "outils",
+    "after": null
+  },
+  "data": {
+    "repository": {
+      "issues": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        },
+        "nodes": [
+          {
+            "number": 3,
+            "updatedAt": "2026-11-08T09:00:00Z",
+            "state": "OPEN",
+            "blockedBy": {
+              "nodes": []
+            }
+          }
+        ]
+      }
+    }
+  }
+}

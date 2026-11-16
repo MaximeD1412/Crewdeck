@@ -1,4 +1,25 @@
-import type { AccountSettings, AiAccount, CodeChange, Decision, Device, Event, McpServer, Me, Milestone, Project, ProjectProcess, Repository, Resource, Runner, RunnerLink, State, Ticket } from '@crewdeck/contracts';
+import type {
+  AccountSettings,
+  AgentSession,
+  AiAccount,
+  CodeChange,
+  Decision,
+  Device,
+  Event,
+  McpServer,
+  Me,
+  Milestone,
+  PhaseRun,
+  Project,
+  ProjectProcess,
+  Repository,
+  Resource,
+  Runner,
+  RunnerLink,
+  State,
+  StepRun,
+  Ticket,
+} from '@crewdeck/contracts';
 import type { VaultState } from '../keys/vault.js';
 
 /**
@@ -29,6 +50,10 @@ export interface Slices {
   readonly project: ReadonlyMap<string, Project>;
   /** The Process of each Projet (PROCESS-3), by the Projet's id, from the snapshot's `processes`: its active version and its draft. */
   readonly process: ReadonlyMap<string, ProjectProcess>;
+  /** The unfinished PhaseRuns of every Projet (PROCESS-4), by id, from the snapshot's `phaseRuns`: one item through one Phase. */
+  readonly 'phase-run': ReadonlyMap<string, PhaseRun>;
+  /** The StepRuns of those PhaseRuns, by id, from the snapshot's `stepRuns`: one pass of an Étape each. */
+  readonly 'step-run': ReadonlyMap<string, StepRun>;
   /**
    * Their Dépôts GitHub, by id (PROJET-2), from the snapshot's `repositories`:
    * those not followed; one followed since stays, `followed: true`.
@@ -42,6 +67,8 @@ export interface Slices {
   readonly milestone: ReadonlyMap<string, Milestone>;
   /** Their changes of code, by id, from the snapshot's `codeChanges`. */
   readonly 'code-change': ReadonlyMap<string, CodeChange>;
+  /** Their Sessions (RUNNER-9), by id, from the snapshot's `sessions`: those not ended, and those ended in the last 24 h. */
+  readonly 'agent-session': ReadonlyMap<string, AgentSession>;
   readonly settings: AccountSettings | null;
 }
 
@@ -59,6 +86,13 @@ export interface StoreState {
 
 export type SliceShape = 'collection' | 'single';
 
+/**
+ * Which items a collection keeps after each event, given every slice: what
+ * `GET /api/state` would give at that `seq` (the unfinished PhaseRuns, the
+ * StepRuns of those). An item it does not hold is dropped.
+ */
+export type SliceHolds = (item: unknown, slices: Partial<Slices>) => boolean;
+
 /** What `applyEvent` did: `gap` when a `seq` was skipped, the store then in `resync`. */
 export type EventOutcome = 'applied' | 'ignored' | 'gap';
 
@@ -66,8 +100,8 @@ export interface Store {
   getState(): StoreState;
   /** Calls `fn` after each change; returns the function that stops. */
   subscribe(fn: (state: StoreState) => void): () => void;
-  /** Declares the slice of `resource`, fed by its events and by the snapshot's key of the same name, or `snapshotKey`. */
-  registerSlice(resource: Resource, options: { shape: SliceShape; snapshotKey?: string }): void;
+  /** Declares the slice of `resource`, fed by its events and by the snapshot's key of the same name, or `snapshotKey`; a collection keeps only what `holds` holds. */
+  registerSlice(resource: Resource, options: { shape: SliceShape; snapshotKey?: string; holds?: SliceHolds }): void;
   /** Replaces every registered slice and the `seq` with `GET /api/state`'s. */
   applySnapshot(state: State): void;
   /** Applies the event that follows the `seq`; ignores one already applied; a later one is a gap. */
@@ -94,7 +128,7 @@ type Identified = { readonly id: string };
  * Each change gives a new state; a slice that did not change keeps its value.
  */
 export const createStore = (): Store => {
-  const shapes = new Map<string, { shape: SliceShape; snapshotKey: string }>();
+  const shapes = new Map<string, { shape: SliceShape; snapshotKey: string; holds?: SliceHolds }>();
   const listeners = new Set<(state: StoreState) => void>();
   const eventListeners = new Set<(event: Event, live: boolean) => void>();
   let state: StoreState = { seq: null, connection: 'connecting', lostAt: null, slices: {}, vaultState: 'locked' };
@@ -120,7 +154,19 @@ export const createStore = (): Store => {
       else map.delete(id);
       next[resource] = map;
     }
-    return next as Partial<Slices>;
+    return held(next as Partial<Slices>);
+  };
+
+  /** Each collection with `holds`, in the order registered, without what it no longer holds; one that loses nothing keeps its value. */
+  const held = (next: Partial<Slices>): Partial<Slices> => {
+    const values = next as Record<string, unknown>;
+    for (const [resource, { shape, holds }] of shapes) {
+      const map = values[resource] as ReadonlyMap<string, unknown> | undefined;
+      if (shape !== 'collection' || !holds || !map) continue;
+      const kept = [...map].filter(([, item]) => holds(item, next));
+      if (kept.length !== map.size) values[resource] = new Map(kept);
+    }
+    return next;
   };
 
   return {
@@ -137,9 +183,9 @@ export const createStore = (): Store => {
         eventListeners.delete(fn);
       };
     },
-    registerSlice(resource, { shape, snapshotKey = resource }) {
+    registerSlice(resource, { shape, snapshotKey = resource, holds }) {
       if (shapes.has(resource)) throw new Error(`La tranche ${resource} est déjà enregistrée`);
-      shapes.set(resource, { shape, snapshotKey });
+      shapes.set(resource, { shape, snapshotKey, ...(holds ? { holds } : {}) });
     },
     applySnapshot(snapshot) {
       const next = slices();

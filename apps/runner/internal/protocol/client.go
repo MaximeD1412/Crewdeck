@@ -59,8 +59,19 @@ type Config struct {
 	HelloTimeout time.Duration
 	// Backoff defaults to DefaultBackoff.
 	Backoff Backoff
-	// OnAccepted is called on each accepted hello.
+	// Cursor, read for each hello, is the Miroir's (ADR 0010): the last
+	// github.changed seq it applied, nil for none (null: the server resyncs
+	// the copy). Without a Cursor, the hello leaves mirrorAfter out: no Miroir.
+	Cursor func() (*int64, error)
+	// Sessions, read for each hello, are the Sessions the Runner knows and
+	// has not ended (RUNNER-9); nil leaves them out.
+	Sessions func() []contracts.RunnerHelloSessionsElem
+	// OnAccepted is called on each accepted hello, once the connection can
+	// Send and before any other message of the server is handled.
 	OnAccepted func(contracts.RunnerHelloAccepted)
+	// OnClosed is called when an accepted connection ends, before the next
+	// one's OnAccepted.
+	OnClosed func()
 	// OnConnected is called on its own goroutine once each accepted
 	// connection can Send (the capabilities, RUNNER-7); its context ends with
 	// the connection.
@@ -178,6 +189,10 @@ func (c *Client) socketURL() (string, error) {
 	return u.String(), nil
 }
 
+// readLimit is the longest message the Runner reads: a Pilote's input of the
+// relay (256 KiB sealed, in base64url) with room to spare.
+const readLimit = 1 << 20
+
 // session is one connection, from its dial to its end; accepted says whether its hello was.
 func (c *Client) session(ctx context.Context) (accepted bool, err error) {
 	target, err := c.socketURL()
@@ -191,6 +206,7 @@ func (c *Client) session(ctx context.Context) (accepted bool, err error) {
 		return false, fmt.Errorf("protocol: dial: %w", err)
 	}
 	defer conn.CloseNow()
+	conn.SetReadLimit(readLimit)
 
 	// The connection ends with ctx: closed cleanly, which ends its reads.
 	done := make(chan struct{})
@@ -203,10 +219,24 @@ func (c *Client) session(ctx context.Context) (accepted bool, err error) {
 		}
 	}()
 
-	if err := write(ctx, conn, NewHello(c.cfg.Machine)); err != nil {
+	hello := NewHello(c.cfg.Machine, nil)
+	if c.cfg.Cursor == nil {
+		hello.MirrorAfter = nil // no Miroir: left out, the server sends nothing of it
+	} else {
+		cursor, err := c.cfg.Cursor()
+		if err != nil {
+			return false, err
+		}
+		hello.MirrorAfter = cursor
+	}
+	if c.cfg.Sessions != nil {
+		hello.Sessions = c.cfg.Sessions()
+	}
+	if err := write(ctx, conn, hello); err != nil {
 		return false, closeError(err)
 	}
-	if err := c.awaitAcceptance(ctx, conn); err != nil {
+	welcome, err := c.awaitAcceptance(ctx, conn)
+	if err != nil {
 		return false, err
 	}
 
@@ -219,7 +249,13 @@ func (c *Client) session(ctx context.Context) (accepted bool, err error) {
 			c.conn = nil
 		}
 		c.mu.Unlock()
+		if c.cfg.OnClosed != nil {
+			c.cfg.OnClosed()
+		}
 	}()
+	if c.cfg.OnAccepted != nil {
+		c.cfg.OnAccepted(welcome)
+	}
 
 	var lastHeard atomic.Int64
 	lastHeard.Store(time.Now().UnixNano())
@@ -240,13 +276,13 @@ func (c *Client) session(ctx context.Context) (accepted bool, err error) {
 	}
 }
 
-func (c *Client) awaitAcceptance(ctx context.Context, conn *websocket.Conn) error {
+func (c *Client) awaitAcceptance(ctx context.Context, conn *websocket.Conn) (contracts.RunnerHelloAccepted, error) {
 	readCtx, cancel := context.WithTimeout(context.Background(), c.cfg.HelloTimeout)
 	defer cancel()
 	for {
 		_, data, err := conn.Read(readCtx)
 		if err != nil {
-			return closeError(err)
+			return contracts.RunnerHelloAccepted{}, closeError(err)
 		}
 		typ, err := typeOf(data)
 		if err != nil {
@@ -257,20 +293,17 @@ func (c *Client) awaitAcceptance(ctx context.Context, conn *websocket.Conn) erro
 		case TypeHelloAccepted:
 			var accepted contracts.RunnerHelloAccepted
 			if err := json.Unmarshal(data, &accepted); err != nil {
-				return fmt.Errorf("protocol: decode %s: %w", typ, err)
+				return accepted, fmt.Errorf("protocol: decode %s: %w", typ, err)
 			}
 			c.cfg.Logger.Info("connected to the server", "runnerId", accepted.RunnerId, "protocolVersion", accepted.ProtocolVersion)
-			if c.cfg.OnAccepted != nil {
-				c.cfg.OnAccepted(accepted)
-			}
-			return nil
+			return accepted, nil
 		case TypeHelloRejected:
 			var rejected contracts.RunnerHelloRejected
 			if err := json.Unmarshal(data, &rejected); err != nil {
-				return fmt.Errorf("protocol: decode %s: %w", typ, err)
+				return contracts.RunnerHelloAccepted{}, fmt.Errorf("protocol: decode %s: %w", typ, err)
 			}
 			conn.Close(websocket.StatusNormalClosure, "rejected")
-			return rejection(rejected)
+			return contracts.RunnerHelloAccepted{}, rejection(rejected)
 		case TypeError:
 			c.logError(data)
 		default:

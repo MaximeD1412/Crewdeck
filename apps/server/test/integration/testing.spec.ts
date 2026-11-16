@@ -62,7 +62,7 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
       const response = await post(app, 'blank');
 
       expect(response.status).toBe(200);
-      expect(zScenarioRun.parse(await response.json())).toEqual({ name: 'blank', path: '/', sessionCookie: null });
+      expect(zScenarioRun.parse(await response.json())).toEqual({ name: 'blank', path: '/', sessionCookie: null, runnerLink: null });
       expect(await sql('SELECT * FROM scenario_parent')).toEqual([]);
       expect(await sql('SELECT * FROM scenario_child')).toEqual([]);
       expect(await sql('SELECT count(*) FROM _prisma_migrations')).toEqual([migrationsBefore]);
@@ -109,7 +109,7 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
       ['connexion-lien-envoye', '/connexion'],
     ])('opens %s signed out, with the fake GitHub user who signs in at once', async (name, path) => {
       const run = zScenarioRun.parse(await (await post(app, name)).json());
-      expect(run).toEqual({ name, path, sessionCookie: null });
+      expect(run).toEqual({ name, path, sessionCookie: null, runnerLink: null });
 
       const base = await app.getUrl();
       const start = await fetch(`${base}/api/auth/github/start?timeZone=Europe%2FParis&next=%2Fa-toi`, { redirect: 'manual' });
@@ -123,7 +123,7 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
     it('opens connexion-lien on a link drawn for pilote@example.com, its token in the fragment: verified, it signs that address up', async () => {
       const run = zScenarioRun.parse(await (await post(app, 'connexion-lien')).json());
 
-      expect(run).toEqual({ name: 'connexion-lien', path: expect.stringMatching(/^\/connexion\/lien#[\w-]{43}$/), sessionCookie: null });
+      expect(run).toEqual({ name: 'connexion-lien', path: expect.stringMatching(/^\/connexion\/lien#[\w-]{43}$/), sessionCookie: null, runnerLink: null });
       expect(await sql('SELECT count(*)::int AS n FROM pilots')).toEqual([{ n: 0 }]);
       const token = run.path.split('#')[1] ?? '';
       const verified = await fetch(`${await app.getUrl()}/api/auth/email/verify`, {

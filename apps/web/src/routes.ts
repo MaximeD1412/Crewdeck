@@ -23,7 +23,9 @@ export const aToiHref = (projectId: string | null): string => (projectId ? `/a-t
  * `PageRunner`, whose data `app.ts` gives from the store
  * (`views/runner.ts`); `/projets` → `PageProjets` and `/projets/ajouter` →
  * `RepositoryPicker`, whose data `app.ts` gives from the store
- * (`views/projets.ts`, `projects.ts`). The first route that matches wins.
+ * (`views/projets.ts`, `projects.ts`); `/parametres` → `PageParametres`,
+ * whose « Rôles et modèles » `app.ts` completes with the page's own state
+ * (`role-settings.ts`). The first route that matches wins.
  */
 export const ROUTES: readonly Route[] = [
   {
@@ -41,7 +43,7 @@ export const ROUTES: readonly Route[] = [
   {
     path: '/parametres',
     composant: PageParametres,
-    slots: (_match, state) => parametresView(state.slices.settings, timeZones()),
+    slots: (_match, state) => parametresView(state.slices.settings, timeZones(), { accounts: [...(state.slices['ai-account']?.values() ?? [])] }),
   },
   {
     path: '/parametres/composants',

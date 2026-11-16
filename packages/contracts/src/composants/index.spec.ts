@@ -41,6 +41,7 @@ describe('COMPOSANTS', () => {
         'ProcessTrack',
         'Question',
         'RepositoryPicker',
+        'RoleSettings',
         'Session',
         'SettingRow',
         'Stat',

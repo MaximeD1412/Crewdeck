@@ -13,6 +13,7 @@ import { TabPresence } from './tab-presence.js';
 import { Transactions } from './transactions.js';
 import { WS_AUTHENTICATORS } from './ws-authenticators.js';
 import { WS_CLIENTS } from './ws-clients.js';
+import { WS_TABS } from './ws-tabs.js';
 import { WsRevocations } from './ws-revocations.js';
 
 /**
@@ -31,7 +32,8 @@ import { WsRevocations } from './ws-revocations.js';
  *   `STATE_CONTRIBUTORS`.
  * - The events are kept 7 days (`EventsRetention`).
  * - A socket of another client than a tab (`?client=runner`) goes to the
- *   handler its module adds to `WS_CLIENTS`.
+ *   handler its module adds to `WS_CLIENTS`; a tab's message of another
+ *   module, to the handler it adds to `WS_TABS`.
  */
 @Global()
 @Module({
@@ -49,8 +51,9 @@ import { WsRevocations } from './ws-revocations.js';
     EventsRetention,
     { provide: WS_AUTHENTICATORS, useFactory: () => new Registry() },
     { provide: WS_CLIENTS, useFactory: () => new Registry() },
+    { provide: WS_TABS, useFactory: () => new Registry() },
     { provide: STATE_CONTRIBUTORS, useFactory: () => new Registry() },
   ],
-  exports: [Transactions, EventsWriter, EventsBus, TabPresence, WS_AUTHENTICATORS, WS_CLIENTS, WsRevocations, STATE_CONTRIBUTORS],
+  exports: [Transactions, EventsWriter, EventsBus, TabPresence, WS_AUTHENTICATORS, WS_CLIENTS, WS_TABS, WsRevocations, STATE_CONTRIBUTORS],
 })
 export class RealtimeModule {}

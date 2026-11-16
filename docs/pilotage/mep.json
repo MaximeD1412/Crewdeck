@@ -313,7 +313,7 @@
       "id": "migration-identites",
       "phase": "db",
       "source": "#196",
-      "titre": "Migration 20261126000000_identities : les Identités et le nom affiché des Pilotes",
+      "titre": "Migration 20261201000000_identities : les Identités et le nom affiché des Pilotes",
       "pourquoi": "Elle crée pilot_identities et email_login_tokens, change chaque github_user_id en une Identité github et le login en display_name, et rend github_user_id et login facultatifs. Des déclencheurs gardent la version précédente compatible : un Pilote qu'elle crée (un retour en arrière) reçoit son nom affiché et son Identité github, et l'Identité github que cette version écrit est recopiée dans github_user_id et login, où la version précédente la retrouve. Une sauvegarde d'avant la migration a les colonnes d'avant.",
       "etapes": [
         "Avant le merge develop → main : répéter la migration sur la dernière sauvegarde de la prod (ADR 0009) ; elle s'applique au démarrage du serveur.",
@@ -428,6 +428,32 @@
       ],
       "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261123000000_mcp_servers'\"",
       "ajouteLe": "2026-11-14"
+    },
+    {
+      "id": "migration-custom-roles",
+      "phase": "db",
+      "source": "#60",
+      "titre": "Appliquer la migration 20261127000000_custom_roles en staging puis en production",
+      "pourquoi": "La table custom_roles garde les Rôles que le Pilote ajoute dans « Rôles et modèles » : leur nom, leur Moteur et leur modèle, sous un id r-… stable. Sans elle, GET /api/settings et POST /api/roles échouent. La migration ne fait qu'ajouter : la version précédente du serveur tourne sur la base migrée.",
+      "etapes": [
+        "Rien à lancer à la main : deploy.sh répète la migration sur la dernière sauvegarde (rehearse.sh), puis l'applique au déploiement du staging, puis à celui de la production.",
+        "Vérifier sur chaque base (crewdeck-prod, puis crewdeck-staging) que la commande imprime une date : la migration est appliquée."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261127000000_custom_roles'\"",
+      "ajouteLe": "2026-11-16"
+    },
+    {
+      "id": "migration-agent-sessions",
+      "phase": "db",
+      "source": "#47",
+      "titre": "Appliquer la migration 20261130000000_agent_sessions en staging puis en production",
+      "pourquoi": "La table agent_sessions garde l'état de chaque Session d'agent (démarrage, active, en attente, arrêtée, interrompue, terminée), sans son contenu, qui reste sur le Runner. Sans elle, GET /api/state et /api/sessions échouent. La migration ne fait qu'ajouter une table et ses types : la version précédente du serveur tourne sur la base migrée.",
+      "etapes": [
+        "Rien à lancer à la main : deploy.sh répète la migration sur la dernière sauvegarde (rehearse.sh), puis l'applique au déploiement du staging, puis à celui de la production.",
+        "Vérifier sur chaque base (crewdeck-prod, puis crewdeck-staging) que la commande imprime une date : la migration est appliquée."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261130000000_agent_sessions'\"",
+      "ajouteLe": "2026-11-16"
     }
   ]
 }

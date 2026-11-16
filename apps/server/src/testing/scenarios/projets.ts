@@ -17,8 +17,7 @@ interface SeededRepository {
 
 /**
  * The Pilote's installation with `repositories`, as the webhooks would leave
- * it: in the fake GitHub (where following reads `.process.json`, and those
- * with code have two commits) and in `repositories`, with a Projet for those
+ * it: in the fake GitHub (those with code have two commits) and in `repositories`, with a Projet for those
  * that name one: a reconciliation finds them as they are.
  */
 export const seedRepositories = async (ctx: ScenarioContext, pilotId: string, repositories: readonly SeededRepository[]): Promise<void> => {
@@ -54,7 +53,10 @@ export const seedRepositories = async (ctx: ScenarioContext, pilotId: string, re
         inventoryState: hasCode ? 'pending' : 'not_needed',
       },
     });
-    // Its version 1, « Process Crewdeck », as following it writes.
+    // Its Sources and its version 1, « Process Crewdeck », as following it writes.
+    await ctx.prisma.unscoped.artifactSource.createMany({
+      data: (['ticket', 'code'] as const).map((group) => ({ id: newId(), pilotId, projectId, group, source: 'github' as const, since: new Date() })),
+    });
     await ctx.prisma.unscoped.processVersion.create({
       data: {
         id: newId(),

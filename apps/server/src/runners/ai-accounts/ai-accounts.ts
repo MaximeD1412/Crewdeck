@@ -13,7 +13,7 @@ import { AI_ACCOUNT_VIEW, rowOf, toAiAccount } from './ai-account.view.js';
 export class AiAccountListDto extends createZodDto(zAiAccountList) {}
 
 /** The Pilote's Comptes IA (scoped by `tx`), in the order of the Moteurs' ids. */
-const listAccounts = async (tx: Pick<Tx, 'aiAccount'>): Promise<AiAccount[]> =>
+export const listAccounts = async (tx: Pick<Tx, 'aiAccount'>): Promise<AiAccount[]> =>
   (await tx.aiAccount.findMany({ select: AI_ACCOUNT_VIEW, orderBy: { engine: 'asc' } })).map(toAiAccount);
 
 /**

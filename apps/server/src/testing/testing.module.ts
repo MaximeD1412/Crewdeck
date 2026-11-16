@@ -11,6 +11,7 @@ import { TestingDecisionsController } from './testing-decisions.controller.js';
 import { TestingMailsController } from './testing-mails.controller.js';
 import { TestingPilotController } from './testing-pilot.controller.js';
 import { TestingRunnerController } from './testing-runner.controller.js';
+import { TestingSmokeController } from './testing-smoke.controller.js';
 import { TestingWaitingWorkController } from './testing-waiting-work.controller.js';
 
 /**
@@ -18,7 +19,8 @@ import { TestingWaitingWorkController } from './testing-waiting-work.controller.
  * end-to-end tests and of the captures (`/api/testing/*`, and the change of
  * the Pilote that makes the page miss an event, the Décisions raised and
  * resolved as their modules would, the Runner stopped and relaunched and the
- * work that waits for it), what the page
+ * work that waits for it, the page's part of the compiled Runner's smoke
+ * test), what the page
  * reads from the fake GitHub (`/fake-github/*`). Imported only with
  * `CREWDECK_FAKES=1`, which the boot refuses in production, and only through
  * a dynamic `import()` (`AppModule`): without it, nothing of `src/testing/` is
@@ -33,7 +35,7 @@ export class TestingModule {
     return {
       module: TestingModule,
       imports: [DecisionsModule, RunnersModule],
-      controllers: [TestingController, TestingPilotController, TestingDecisionsController, TestingRunnerController, TestingWaitingWorkController, TestingMailsController, FakeGitHubController],
+      controllers: [TestingController, TestingPilotController, TestingDecisionsController, TestingRunnerController, TestingSmokeController, TestingWaitingWorkController, TestingMailsController, FakeGitHubController],
       providers: [
         ScenariosService,
         { provide: FAKES, useFactory: createFakes },

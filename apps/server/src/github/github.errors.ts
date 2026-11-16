@@ -10,8 +10,6 @@ export const branchProtected = (): AppError => unprocessable('github.branch-prot
 /** 404: GitHub has no such installation any more (uninstalled, its webhook lost): not a failure to retry. */
 export const installationGone = (): AppError => notFound('github.installation-gone', MESSAGES['github.installation-gone']);
 
-/** 422: the repository's `.process.json` is not JSON. */
-export const processJsonInvalid = (): AppError => unprocessable('github.process-json-invalid', MESSAGES['github.process-json-invalid']);
 
 /** 401: GitHub refuses a user grant (a stale code, a refresh token used, expired or revoked): only signing in again fixes it. */
 export const userTokenRefused = (): AppError => new AppError(401, 'github.user-token-refused', MESSAGES['github.user-token-refused']);

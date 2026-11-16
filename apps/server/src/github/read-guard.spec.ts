@@ -18,6 +18,7 @@ describe('the read guard', () => {
     'GET /repos/o/r/contents/src/main.ts',
     'GET /repos/o/r/contents/docs/adr/0001-shape.md',
     'GET /repos/o/r/contents/docs/adr/../../src/main.ts',
+    'GET /repos/o/r/contents/.process.json',
     'GET /repos/o/r/contents/.process.json.bak',
     'GET /repos/o/r/contents',
     'GET /repos/o/r/pulls/3/files',
@@ -61,26 +62,25 @@ describe('the read guard', () => {
     await expect(octokit.request('GET /repos/o/r/pulls/3', { mediaType: { format: 'diff' } })).rejects.toThrow(GitHubReadForbiddenError);
   });
 
-  it('throws for a write of any file but .process.json', async () => {
-    const { octokit } = guarded();
+  it.each([
+    'PUT /repos/o/r/contents/.process.json',
+    'PUT /repos/o/r/contents/src/main.ts',
+    'PUT /repos/o/r/contents/CONTEXT.md',
+    'DELETE /repos/o/r/contents/.process.json',
+    'DELETE /repos/o/r/contents/docs/adr',
+  ])('throws for a write of a file, %s, and sends nothing', async (route) => {
+    const { octokit, sent } = guarded();
 
-    await expect(octokit.request('PUT /repos/o/r/contents/src/main.ts', { message: 'x', content: '' })).rejects.toThrow(GitHubReadForbiddenError);
+    await expect(octokit.request(route, { message: 'x', content: '', sha: 'a'.repeat(40) })).rejects.toThrow(GitHubReadForbiddenError);
+    expect(sent).toEqual([]);
   });
 
-  it.each(['.process.json', 'CONTEXT.md', 'docs/adr', 'docs/adr/'])('lets GET contents/%s through', async (path) => {
+  it.each(['CONTEXT.md', 'docs/adr', 'docs/adr/'])('lets GET contents/%s through', async (path) => {
     const { octokit, sent } = guarded();
 
     await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', { owner: 'o', repo: 'r', path, ref: 'main' });
 
     expect(sent).toHaveLength(1);
-  });
-
-  it('lets a write of .process.json through', async () => {
-    const { octokit, sent } = guarded();
-
-    await octokit.request('PUT /repos/o/r/contents/.process.json', { message: 'chore(crewdeck) : x', content: 'e30=' });
-
-    expect(sent).toEqual(['https://api.github.com/repos/o/r/contents/.process.json']);
   });
 
   it.each(['GET /repos/o/r/labels', 'GET /repos/o/r/pulls/3', 'GET /repos/o/r/issues?state=open', 'PUT /repos/o/r/pulls/3/merge', 'POST /repos/o/r/merges'])(

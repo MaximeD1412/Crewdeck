@@ -70,6 +70,8 @@ model Pilot {
   codeChangeChecks   CodeChangeCheck[]
   githubChanges      GitHubChange[]
   settings           AccountSettings?
+  customRoles        CustomRole[]
+  agentSessions      AgentSession[]
 
   @@map("pilots")
 }
@@ -354,6 +356,26 @@ model AccountSettings {
   @@map("account_settings")
 }
 
+/// A Rôle the Pilote added (PARAM-2), beside the four default ones: its id
+/// (`r-` then 8 characters, drawn by the server, stable: a Process names it),
+/// its name, unique per Pilote case aside (`nameKey`, the four default names
+/// refused by the service), and its own Moteur and model, never left to a
+/// default. At most 20 per Pilote. Its name is configuration the server
+/// reads (ADR 0011), not ciphertext.
+model CustomRole {
+  id        String   @id
+  pilotId   String   @map("pilot_id") @db.Uuid
+  name      String
+  nameKey   String   @map("name_key")
+  engine    EngineId
+  model     String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  pilot     Pilot    @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@unique([pilotId, nameKey])
+  @@map("custom_roles")
+}
+
 /// A webhook delivery GitHub sent (ADR 0002), by its `X-GitHub-Delivery`:
 /// global, recorded once its signature is valid, so that a redelivery is
 /// dispatched once. Its payload is never stored. Kept 7 days
@@ -577,27 +599,31 @@ enum InventoryState {
 /// deleted, its Projet marked `accessLost`, and `repositoryId` is given back
 /// to the repository when it comes back.
 model Project {
-  id                String         @id @db.Uuid
-  pilotId           String         @map("pilot_id") @db.Uuid
-  repositoryId      String         @unique @map("repository_id") @db.Uuid
-  githubRepoId      BigInt         @map("github_repo_id")
+  id                String           @id @db.Uuid
+  pilotId           String           @map("pilot_id") @db.Uuid
+  repositoryId      String           @unique @map("repository_id") @db.Uuid
+  githubRepoId      BigInt           @map("github_repo_id")
   owner             String
   name              String
-  fullName          String         @map("full_name")
-  displayName       String         @map("display_name")
-  releaseBranch     String         @map("release_branch")
-  integrationBranch String         @map("integration_branch")
-  hasCode           Boolean        @map("has_code")
-  inventoryState    InventoryState @map("inventory_state")
-  accessLost        Boolean        @default(false) @map("access_lost")
-  lastSeq           BigInt         @default(0) @map("last_seq")
-  followedAt        DateTime       @default(now()) @map("followed_at") @db.Timestamptz
-  pilot             Pilot          @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  fullName          String           @map("full_name")
+  displayName       String           @map("display_name")
+  releaseBranch     String           @map("release_branch")
+  integrationBranch String           @map("integration_branch")
+  hasCode           Boolean          @map("has_code")
+  inventoryState    InventoryState   @map("inventory_state")
+  accessLost        Boolean          @default(false) @map("access_lost")
+  lastSeq           BigInt           @default(0) @map("last_seq")
+  followedAt        DateTime         @default(now()) @map("followed_at") @db.Timestamptz
+  pilot             Pilot            @relation(fields: [pilotId], references: [id], onDelete: Cascade)
   tickets           Ticket[]
   milestones        Milestone[]
   codeChanges       CodeChange[]
   processVersions   ProcessVersion[]
   processDraft      ProcessDraft?
+  phaseRuns         PhaseRun[]
+  stepRuns          StepRun[]
+  artifactSources   ArtifactSource[]
+  agentSessions     AgentSession[]
 
   @@unique([pilotId, githubRepoId])
   /// The key the Projet's Tickets, milestones, changes of code and Process point at, with their Pilote.
@@ -874,8 +900,11 @@ model ProcessVersion {
   /// The Modèle it was copied from, `null` once the Pilote drew it.
   templateName String?           @map("template_name")
   project      Project           @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+  phaseRuns    PhaseRun[]
 
   @@unique([projectId, number])
+  /// The key the PhaseRuns pinned to it point at, with their Pilote.
+  @@unique([pilotId, id])
   @@index([pilotId, projectId])
   @@map("process_versions")
 }
@@ -897,4 +926,237 @@ model ProcessDraft {
   /// The one-to-one key of its Projet, with their Pilote.
   @@unique([pilotId, projectId])
   @@map("process_drafts")
+}
+
+/// Where a PhaseRun stands (`zPhaseRunState`).
+enum PhaseRunState {
+  running
+  waiting
+  done
+  stopped
+  failed
+
+  @@map("phase_run_state")
+}
+
+/// Where a StepRun stands (`zStepRunState`).
+enum StepRunState {
+  running
+  waiting
+  interrupted
+  blocked
+  done
+  failed
+  stopped
+  superseded
+
+  @@map("step_run_state")
+}
+
+/// What an Étape that judges concludes (`zStepRunVerdict`).
+enum StepVerdict {
+  passed
+  changes
+  failed
+
+  @@map("step_verdict")
+}
+
+/// One item through one Phase (ADR 0011, « The engine »), pinned to the
+/// version active when it started: activating another never touches it.
+/// One unfinished (`running` or `waiting`) per item and Phase, by the partial
+/// unique indexes of the migrations. An Idée without a Projet (US-5) runs on
+/// the release's « Process Crewdeck »: no Projet, no version row, its
+/// `builtinTemplate` instead (the checks of `20261129000000_lineage`).
+model PhaseRun {
+  id               String          @id @db.Uuid
+  pilotId          String          @map("pilot_id") @db.Uuid
+  projectId        String?         @map("project_id") @db.Uuid
+  processVersionId String?         @map("process_version_id") @db.Uuid
+  /// The id of a `BUILTIN_TEMPLATES` definition, for a PhaseRun without a Projet.
+  builtinTemplate  String?         @map("builtin_template")
+  /// Lineage: the PhaseRun whose output became its item (a Ticket's
+  /// Développement, its Conception), `null` when none did. Its foreign key
+  /// sets only this column to null on delete (the migration's).
+  parentPhaseRunId String?         @map("parent_phase_run_id") @db.Uuid
+  phaseId          String          @map("phase_id")
+  /// The type of its Phase's `forEach`, or of the Artefact that started a
+  /// Phase without `forEach` (`zArtifactType`).
+  itemType         String          @map("item_type")
+  /// An Idée's or a Ticket's id, readable by the server.
+  itemId           String          @map("item_id")
+  state            PhaseRunState
+  /// What a `waiting` one waits for (`zPhaseRunWaitingOn`).
+  waitingOn        String?         @map("waiting_on")
+  startedAt        DateTime        @map("started_at") @db.Timestamptz
+  endedAt          DateTime?       @map("ended_at") @db.Timestamptz
+  /// The starts asked by `retry` or `rerunFrom` that the start guard holds,
+  /// by Étape: `{ iteration, reason, retryOf? }`, for `startQueued`. Codes
+  /// and ids only, never shown: not in the view.
+  pendingStarts    Json            @default("{}") @map("pending_starts")
+  lastSeq          BigInt          @default(0) @map("last_seq")
+  project          Project?        @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+  processVersion   ProcessVersion? @relation(fields: [pilotId, processVersionId], references: [pilotId, id], onDelete: Cascade)
+  parent           PhaseRun?       @relation("Lineage", fields: [pilotId, parentPhaseRunId], references: [pilotId, id], onDelete: NoAction)
+  children         PhaseRun[]      @relation("Lineage")
+  stepRuns         StepRun[]
+
+  /// The key its StepRuns and its children point at, with their Pilote.
+  @@unique([pilotId, id])
+  @@unique([projectId, phaseId, itemType, itemId], map: "phase_runs_project_id_phase_id_item_unfinished_key", where: raw("state IN ('running', 'waiting')"))
+  @@unique([pilotId, builtinTemplate, phaseId, itemType, itemId], map: "phase_runs_builtin_phase_id_item_unfinished_key", where: raw("state IN ('running', 'waiting') AND project_id IS NULL"))
+  @@index([pilotId, projectId, state])
+  @@index([pilotId, itemType, itemId])
+  @@index([pilotId, parentPhaseRunId])
+  @@map("phase_runs")
+}
+
+/// One pass of an Étape in a PhaseRun (ADR 0011): what fed its Entrées and
+/// what it gave, as Artefact references (`zArtifactRef`), never content
+/// (ADR 0003). Its kind's handler does the work; the engine alone writes its
+/// state. An agent Étape's Session writes `sessionId` and `contratVerdict`
+/// (RUNNER-12).
+model StepRun {
+  id             String       @id @db.Uuid
+  pilotId        String       @map("pilot_id") @db.Uuid
+  /// Its PhaseRun's: `null` for an Idée without a Projet.
+  projectId      String?      @map("project_id") @db.Uuid
+  phaseRunId     String       @map("phase_run_id") @db.Uuid
+  stepId         String       @map("step_id")
+  /// Its Étape's kind (`zStepKind`).
+  kind           String
+  iteration      Int          @default(1)
+  state          StepRunState
+  /// `{ portId, artifacts: ArtifactRef[], absent }[]`.
+  inputs         Json
+  /// `ArtifactRef[]`.
+  outputs        Json         @default("[]")
+  verdict        StepVerdict?
+  /// A code (`no-handler`), never free text.
+  failure        String?
+  /// Why a rerun started it: `loop-back`, or the caller's (`fix-conflict`).
+  reason         String?
+  sessionId      String?      @map("session_id") @db.Uuid
+  /// The verdict of its Contrat, from the Runner's `step.verdict` (RUNNER-12).
+  contratVerdict Json?        @map("contrat_verdict")
+  startedAt      DateTime     @map("started_at") @db.Timestamptz
+  endedAt        DateTime?    @map("ended_at") @db.Timestamptz
+  lastSeq        BigInt       @default(0) @map("last_seq")
+  project        Project?     @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+  phaseRun       PhaseRun     @relation(fields: [pilotId, phaseRunId], references: [pilotId, id], onDelete: Cascade)
+
+  @@index([pilotId, phaseRunId])
+  @@index([outputs(ops: JsonbPathOps)], type: Gin)
+  @@map("step_runs")
+}
+
+/// A group of a Projet's artifacts (ADR 0012, « Which Source for what »):
+/// `ticket`, its Tickets; `code`, its Changement de code and its documents.
+enum SourceGroup {
+  ticket
+  code
+
+  @@map("source_group")
+}
+
+/// Where a group lives: a folder of the Pilote's machine, or a Dépôt GitHub.
+enum SourceKind {
+  local
+  github
+
+  @@map("source_kind")
+}
+
+/// The Source of one group of a Projet (SOURCE-1): both rows written at its
+/// creation, `since` then; moving a group (SOURCE-7) updates `source` and
+/// `since`.
+model ArtifactSource {
+  id        String      @id @db.Uuid
+  pilotId   String      @map("pilot_id") @db.Uuid
+  projectId String      @map("project_id") @db.Uuid
+  group     SourceGroup
+  source    SourceKind
+  since     DateTime    @db.Timestamptz
+  project   Project     @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+
+  @@unique([projectId, group])
+  @@index([pilotId, projectId])
+  @@map("artifact_sources")
+}
+
+/// A Session's state (`SESSION_STATES`).
+enum AgentSessionState {
+  starting
+  active
+  waiting
+  stopped
+  interrupted
+  ended
+
+  @@map("agent_session_state")
+}
+
+/// How an `ended` Session ended (`SESSION_OUTCOMES`).
+enum AgentSessionOutcome {
+  ok
+  error
+
+  @@map("agent_session_outcome")
+}
+
+/// Why an `ended` Session ended in `error` (`SESSION_ERRORS`): a code, never the error's text.
+enum AgentSessionError {
+  setup_failed  @map("setup-failed")
+  branch_busy   @map("branch-busy")
+  engine_failed @map("engine-failed")
+  clone_failed  @map("clone-failed")
+
+  @@map("agent_session_error")
+}
+
+/// Why a Session is `interrupted` (`SESSION_INTERRUPTED_REASONS`).
+enum AgentSessionInterruptedReason {
+  runner_offline   @map("runner-offline")
+  runner_restarted @map("runner-restarted")
+
+  @@map("agent_session_interrupted_reason")
+}
+
+/// A Session (RUNNER-9): one conversation of an agent in one Rôle, on the
+/// Runner, with one Moteur, in the worktree of `branch`. Its state only: its
+/// content stays in the Runner's log (SESSION-1 relays it). `title` is
+/// readable for a GitHub Projet (a Ticket's or a Conception's title, ADR
+/// 0003); nothing else is free text.
+model AgentSession {
+  id                String                         @id @db.Uuid
+  pilotId           String                         @map("pilot_id") @db.Uuid
+  projectId         String                         @map("project_id") @db.Uuid
+  /// A Rôle's id (`zRoleId`): one of the four defaults, or one the Pilote added.
+  role              String
+  engine            EngineId
+  model             String
+  title             String
+  branch            String
+  /// The branch the worktree starts from when `branch` is not on the remote.
+  base              String
+  permissionMode    String                         @map("permission_mode")
+  state             AgentSessionState
+  interruptedReason AgentSessionInterruptedReason? @map("interrupted_reason")
+  outcome           AgentSessionOutcome?
+  error             AgentSessionError?
+  /// Its StepRun's, with no foreign key: the StepRun points at it by its own `sessionId`.
+  stepRunId         String?                        @map("step_run_id") @db.Uuid
+  /// The Étape's kind of its StepRun, which the Runner builds the first message from.
+  stepKind          String?                        @map("step_kind")
+  /// The Moteur's own id of the Session, once the Runner reported it: what a resume takes.
+  engineSessionId   String?                        @map("engine_session_id")
+  startedAt         DateTime                       @map("started_at") @db.Timestamptz
+  endedAt           DateTime?                      @map("ended_at") @db.Timestamptz
+  lastSeq           BigInt                         @default(0) @map("last_seq")
+  pilot             Pilot                          @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  project           Project                        @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+
+  @@index([pilotId, projectId, startedAt])
+  @@index([pilotId, state])
+  @@map("agent_sessions")
 }

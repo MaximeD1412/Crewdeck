@@ -32,6 +32,10 @@ func TestEveryFixtureOfTheProtocolDecodesIntoItsGeneratedType(t *testing.T) {
 		TypeMirrorToken:       decodeInto[contracts.RunnerMirrorToken],
 		TypeMirrorTokenIssued: decodeInto[contracts.RunnerMirrorTokenIssued],
 		TypeMirrorTokenFailed: decodeInto[contracts.RunnerMirrorTokenFailed],
+		TypeSessionStart:      decodeInto[contracts.RunnerSessionStart],
+		TypeSessionStop:       decodeInto[contracts.RunnerSessionStop],
+		TypeSessionResume:     decodeInto[contracts.RunnerSessionResume],
+		TypeSessionState:      decodeInto[contracts.RunnerSessionState],
 	}
 	entries, err := os.ReadDir(fixturesDir)
 	if err != nil {
@@ -72,7 +76,7 @@ func decodeInto[T any](data []byte) error {
 }
 
 func TestTheHelloAndTheHeartbeatMatchTheirSchema(t *testing.T) {
-	hello := NewHello(Machine{RunnerVersion: "0.1.0", Machine: "atelier", OS: contracts.RunnerHelloOsLinux, Arch: contracts.RunnerHelloArchAmd64})
+	hello := NewHello(Machine{RunnerVersion: "0.1.0", Machine: "atelier", OS: contracts.RunnerHelloOsLinux, Arch: contracts.RunnerHelloArchAmd64}, nil)
 	data, err := json.Marshal(hello)
 	if err != nil {
 		t.Fatal(err)
@@ -90,5 +94,83 @@ func TestTheHelloAndTheHeartbeatMatchTheirSchema(t *testing.T) {
 	}
 	if err := decodeInto[contracts.RunnerHeartbeat](beat); err != nil {
 		t.Fatalf("decode the heartbeat: %v", err)
+	}
+}
+
+// The relay's fixtures (SESSION-1) are in relay/, beside the tab's
+// (`tab.<type>.json`), which the Runner never reads: each of the Runner's
+// decodes into its generated type, and a frame outside its schema does not.
+func TestEveryFixtureOfTheRelayDecodesIntoItsGeneratedType(t *testing.T) {
+	decoders := map[string]func([]byte) error{
+		TypeSessionReplay: decodeInto[contracts.RunnerSessionReplay],
+		TypeSessionInput:  decodeInto[contracts.RunnerSessionInput],
+		TypeSessionKeys:   decodeInto[contracts.RunnerSessionKeys],
+		TypeRelay:         decodeInto[contracts.RunnerRelay],
+	}
+	dir := filepath.Join(fixturesDir, "relay")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := 0
+	for _, entry := range entries {
+		typ := strings.TrimSuffix(entry.Name(), ".json")
+		if strings.HasPrefix(typ, "tab.") {
+			continue
+		}
+		decode, ok := decoders[typ]
+		if !ok {
+			t.Errorf("fixture %s: no generated type maps it", entry.Name())
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := decode(data); err != nil {
+			t.Errorf("fixture %s: %v", entry.Name(), err)
+		}
+		seen++
+	}
+	if seen != len(decoders) {
+		t.Errorf("%d fixtures, want one per type of %d", seen, len(decoders))
+	}
+	var replay map[string]any
+	data, _ := os.ReadFile(filepath.Join(dir, "session.replay.json"))
+	if err := json.Unmarshal(data, &replay); err != nil {
+		t.Fatal(err)
+	}
+	delete(replay, "tabId")
+	data, _ = json.Marshal(replay)
+	if decodeInto[contracts.RunnerSessionReplay](data) == nil {
+		t.Error("a session.replay without its tabId decodes")
+	}
+}
+
+func TestTheRelaysFramesMatchTheirSchemaWithOrWithoutTheirTab(t *testing.T) {
+	wraps := []contracts.RunnerSessionKeysWrapsElem{{HolderId: strings.Repeat("A", 43), Enc: strings.Repeat("B", 43), WrappedKey: strings.Repeat("C", 64), Tag: strings.Repeat("D", 43)}}
+	for _, message := range []any{
+		NewSessionKeys("019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a91", "", wraps),
+		NewSessionKeys("019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a91", "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6aa1", wraps),
+		NewRelay("019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a91", "", 1, strings.Repeat("E", 16), strings.Repeat("F", 22)),
+		NewRelay("019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a91", "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6aa1", 2, strings.Repeat("E", 16), strings.Repeat("F", 22)),
+	} {
+		data, err := json.Marshal(message)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var err2 error
+		switch message.(type) {
+		case contracts.RunnerSessionKeys:
+			err2 = decodeInto[contracts.RunnerSessionKeys](data)
+		case contracts.RunnerRelay:
+			err2 = decodeInto[contracts.RunnerRelay](data)
+		}
+		if err2 != nil {
+			t.Errorf("%s: %v", data, err2)
+		}
+		if strings.Contains(string(data), `"tabId":""`) {
+			t.Errorf("%s: an empty tabId", data)
+		}
 	}
 }

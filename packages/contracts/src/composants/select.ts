@@ -2,7 +2,11 @@ import { z } from 'zod';
 import { defineComposant } from './define.js';
 import { FORM_CONTROL_NOTE } from './form.js';
 
-/** A choice among options: the native `<select>` (no custom dropdown, the phones' pickers), a form control (`form.ts`). */
+/**
+ * A choice among options: the native `<select>` (no custom dropdown, the
+ * phones' pickers), a form control (`form.ts`). With an `error` it reports
+ * itself invalid to its form and shows the message under it, which describes it.
+ */
 export const Select = defineComposant({
   name: 'Select',
   version: 1,
@@ -15,6 +19,7 @@ export const Select = defineComposant({
     value: z.string(),
     options: z.array(z.object({ value: z.string(), label: z.string(), disabled: z.boolean() })),
     help: z.string().nullable(),
+    error: z.string().optional(),
     state: z.enum(['disabled']).nullable(),
   }),
   actions: {},
@@ -32,6 +37,21 @@ export const Select = defineComposant({
           { value: 'gemini', label: 'Gemini CLI · aucun Compte IA', disabled: true },
         ],
         help: 'Le Moteur que le Runner lance pour écrire le code.',
+        state: null,
+      },
+    },
+    {
+      name: 'en erreur',
+      data: {
+        name: 'review',
+        label: 'Review',
+        value: 'codex:gpt-5.5-pro',
+        options: [
+          { value: 'codex:gpt-5.5-pro', label: 'Codex · GPT-5.5 Pro', disabled: false },
+          { value: 'codex:gpt-5.5', label: 'Codex · GPT-5.5', disabled: false },
+        ],
+        help: null,
+        error: 'Quota atteint : choisis un autre modèle.',
         state: null,
       },
     },

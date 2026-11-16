@@ -1,18 +1,32 @@
 import { z } from 'zod';
 import { zCapabilities } from '../runner/capabilities.js';
 import { zMcpServers } from '../runner/mcp.js';
+import { zLinkCode } from './runner-link.js';
 import { zDecision, zDecisionKind } from './decisions.js';
 import { zWaitingProject } from './runner-offline.js';
 
 /**
+ * The link code a scenario drew as the page would (the scenario `smoke`,
+ * RUNNER-14): the command's `code` for `crewdeck-runner link`, and the token
+ * its helpers (`/api/testing/smoke/*`) take in place of the page.
+ */
+export const zScenarioRunnerLink = z.object({
+  code: zLinkCode,
+  confirmToken: z.string().min(1),
+});
+export type ScenarioRunnerLink = z.infer<typeof zScenarioRunnerLink>;
+
+/**
  * `POST /api/testing/scenarios/:name`, outside production only: the scenario
  * that ran, the page it shows, and the session cookie (`<name>=<value>`) the
- * browser must carry there, `null` when it signs no Pilote in.
+ * browser must carry there, `null` when it signs no Pilote in; the link code
+ * it drew, `null` when it draws none.
  */
 export const zScenarioRun = z.object({
   name: z.string().min(1),
   path: z.string().startsWith('/'),
   sessionCookie: z.string().min(1).nullable(),
+  runnerLink: zScenarioRunnerLink.nullable(),
 });
 export type ScenarioRun = z.infer<typeof zScenarioRun>;
 
@@ -81,3 +95,14 @@ export type TestingRunnerMcpServers = z.infer<typeof zTestingRunnerMcpServers>;
  */
 export const zTestingWaitingWork = z.object({ projects: z.array(zWaitingProject) });
 export type TestingWaitingWork = z.infer<typeof zTestingWaitingWork>;
+
+/**
+ * `POST /api/testing/smoke/confirm` and `POST /api/testing/smoke/sessions`,
+ * outside production only: the page's part of the smoke test of the compiled
+ * Runner (RUNNER-14), for the link the scenario `smoke` drew. `confirm`
+ * confirms it once the binary sent its pairing (204; 409
+ * `testing.smoke-not-pending` before); `sessions` starts a Session on the
+ * scenario's Projet (201, the Session).
+ */
+export const zTestingSmoke = z.object({ confirmToken: z.string().min(1) });
+export type TestingSmoke = z.infer<typeof zTestingSmoke>;

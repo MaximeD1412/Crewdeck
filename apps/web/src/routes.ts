@@ -1,8 +1,9 @@
-import { COMPOSANTS, PageAToi, PageComposants, PageConnexion, PageConnexionLien, PageDemarrage, PageProjets, PageRunner, RepositoryPicker } from '@crewdeck/sdk';
+import { COMPOSANTS, PageAToi, PageComposants, PageConnexion, PageConnexionLien, PageDemarrage, PageParametres, PageProjets, PageRunner, RepositoryPicker } from '@crewdeck/sdk';
 import type { Route } from './router.js';
 import { aToiView } from './views/a-toi.js';
 import { composantsView } from './views/composants.js';
 import { connexionView } from './views/connexion.js';
+import { parametresView, timeZones } from './views/parametres.js';
 
 /** The library of Composants' URL for one of them. */
 export const composantsHref = (name: string): string => `/parametres/composants?c=${encodeURIComponent(name)}`;
@@ -37,6 +38,11 @@ export const ROUTES: readonly Route[] = [
   { path: '/runner', composant: PageRunner },
   { path: '/projets', composant: PageProjets },
   { path: '/projets/ajouter', composant: RepositoryPicker },
+  {
+    path: '/parametres',
+    composant: PageParametres,
+    slots: (_match, state) => parametresView(state.slices.settings, timeZones()),
+  },
   {
     path: '/parametres/composants',
     composant: PageComposants,

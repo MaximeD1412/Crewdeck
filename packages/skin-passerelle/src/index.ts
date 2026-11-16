@@ -33,6 +33,7 @@ import { PasserellePageComposants } from './page-composants.js';
 import { PasserellePageConnexion } from './page-connexion.js';
 import { PasserellePageConnexionLien } from './page-connexion-lien.js';
 import { PasserellePageDemarrage } from './page-demarrage.js';
+import { PasserellePageParametres } from './page-parametres.js';
 import { PasserellePageHeader } from './page-header.js';
 import { PasserellePageIntrouvable } from './page-introuvable.js';
 import { PasserellePageProjets } from './page-projets.js';
@@ -81,6 +82,7 @@ export default defineSkin({
     PageConnexion: PasserellePageConnexion,
     PageConnexionLien: PasserellePageConnexionLien,
     PageDemarrage: PasserellePageDemarrage,
+    PageParametres: PasserellePageParametres,
     PageIntrouvable: PasserellePageIntrouvable,
     PageProjets: PasserellePageProjets,
     PageRunner: PasserellePageRunner,

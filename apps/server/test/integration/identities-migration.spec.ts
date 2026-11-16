@@ -12,7 +12,7 @@ import { startApp } from '../route-baseline.js';
 const runDatabaseUrl = inject('databaseUrl');
 const APP_URL = 'https://crewdeck.example';
 const MIGRATIONS = resolve(import.meta.dirname, '../../prisma/migrations');
-const IDENTITIES = '20261125000000_identities';
+const IDENTITIES = '20261126000000_identities';
 const OCTOCAT = { id: 583231, login: 'octocat', avatarUrl: 'https://avatars.example/u/583231' };
 const HUBOT = { id: 9100002, login: 'hubot', avatarUrl: 'https://avatars.example/u/9100002' };
 

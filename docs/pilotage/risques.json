@@ -332,7 +332,7 @@
         {
           "texte": "Spike en premier ticket ; smoke test du Runner compilé chaque nuit",
           "ref": "ADR 0004, ADR 0009",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Le Runner déclare les versions de Moteur qu'il connaît et le dit dans son état",

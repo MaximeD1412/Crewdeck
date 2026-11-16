@@ -65,9 +65,16 @@ interface Local {
   readonly errors: Readonly<Record<string, string>>;
   readonly drafts: Readonly<Record<string, string>>;
   readonly opened: Opened | null;
+  /**
+   * The items (their ciphertext, `null` for none) this page's own saves
+   * replaced: the store may still hold one until their `settings.upserted`
+   * comes, and it is never opened again over what the page saved.
+   */
+  readonly superseded: ReadonlySet<string | null>;
 }
 
-const EMPTY: Local = { errors: {}, drafts: {}, opened: null };
+const NONE: ReadonlySet<string | null> = new Set();
+const EMPTY: Local = { errors: {}, drafts: {}, opened: null, superseded: NONE };
 
 const asText = (command: string | null): string => command ?? '';
 const asCommand = (text: string): string | null => (text.trim() === '' ? null : text);
@@ -100,11 +107,12 @@ export const createProjectSettings = ({ client, vault }: ProjectSettingsOptions)
   /** Opens `sealed` with the vault, the page told once it is open (or cannot be). */
   const open = (projectId: string, sealed: SealedItem | null) => {
     const from = sealed?.ciphertext ?? null;
+    // An item the page did not seal: it is what the Projet holds now, the page's own saves behind it.
     if (!sealed) {
-      locals.set(projectId, { ...localOf(projectId), opened: { from, worktree: { state: 'open', prepare: '', clean: '' } } });
+      locals.set(projectId, { ...localOf(projectId), opened: { from, worktree: { state: 'open', prepare: '', clean: '' } }, superseded: NONE });
       return;
     }
-    locals.set(projectId, { ...localOf(projectId), opened: { from, worktree: { state: 'opening' } } });
+    locals.set(projectId, { ...localOf(projectId), opened: { from, worktree: { state: 'opening' } }, superseded: NONE });
     const aad = utf8(worktreeCommandsAad(projectId));
     void (async (): Promise<WorktreeLocal> => {
       try {
@@ -151,11 +159,12 @@ export const createProjectSettings = ({ client, vault }: ProjectSettingsOptions)
     const command = name === 'worktree:prepare' ? 'prepare' : 'clean';
     const current = opened.state === 'open' ? opened : { prepare: '', clean: '' };
     const texts = { prepare: current.prepare, clean: current.clean, [command]: text };
-    const from = localOf(projectId).opened?.from ?? null;
     // Shown at once; the next change of the other field seals this one with it.
-    set(projectId, { opened: { from, worktree: { state: 'open', ...texts } }, drafts: { ...localOf(projectId).drafts, [name]: text } });
+    set(projectId, { opened: { from: localOf(projectId).opened?.from ?? null, worktree: { state: 'open', ...texts } }, drafts: { ...localOf(projectId).drafts, [name]: text } });
     return queued(projectId, () =>
       onControl(projectId, name, async () => {
+        // The item this save replaces: the one the save before it stored, once its turn comes.
+        const from = localOf(projectId).opened?.from ?? null;
         const commands: WorktreeCommands = { prepare: asCommand(texts.prepare), clean: asCommand(texts.clean) };
         let worktreeCommands: ProjectSettingsPatch['worktreeCommands'] = null;
         if (commands.prepare !== null || commands.clean !== null) {
@@ -163,9 +172,11 @@ export const createProjectSettings = ({ client, vault }: ProjectSettingsOptions)
           worktreeCommands = { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
         }
         const stored = await updateProjectSettings(client, projectId, { worktreeCommands });
-        // What was sealed is what the page shows: the item stored needs no opening again.
-        const opening = localOf(projectId).opened;
-        if (opening?.from === from) set(projectId, { opened: { from: stored.worktreeCommands?.ciphertext ?? null, worktree: opening.worktree } });
+        // What was sealed is what the page shows: the item stored needs no opening again, the one it replaced never again.
+        const { opened: opening, superseded } = localOf(projectId);
+        if (opening?.from === from) {
+          set(projectId, { opened: { from: stored.worktreeCommands?.ciphertext ?? null, worktree: opening.worktree }, superseded: new Set([...superseded, from]) });
+        }
       }),
     );
   };
@@ -174,7 +185,10 @@ export const createProjectSettings = ({ client, vault }: ProjectSettingsOptions)
     view(projectId, sealed, vaultState) {
       const local = localOf(projectId);
       if (vaultState !== 'unlocked' || !vault) return { errors: local.errors, drafts: local.drafts, worktree: NO_PROJECT_SETTINGS_LOCAL.worktree };
-      if (!local.opened || local.opened.from !== (sealed?.ciphertext ?? null)) open(projectId, sealed);
+      const current = sealed?.ciphertext ?? null;
+      // The store caught up with the page's saves: what they replaced cannot come back.
+      if (local.opened?.from === current && local.superseded.size > 0) locals.set(projectId, { ...local, superseded: NONE });
+      else if (!local.opened || (local.opened.from !== current && !local.superseded.has(current))) open(projectId, sealed);
       return { errors: local.errors, drafts: local.drafts, worktree: localOf(projectId).opened?.worktree ?? { state: 'opening' } };
     },
     change(projectId, name, value) {

@@ -211,6 +211,70 @@ describe('createProjectSettings, the worktree Commandes', () => {
     expect(JSON.parse(new TextDecoder().decode(opened))).toEqual({ prepare: null, clean: 'rm -rf .cache' });
   });
 
+  it.each([
+    ['no item', null],
+    ['an item', { prepare: 'npm ci', clean: null }],
+  ] as const)(
+    'keeps what it saved over %s while the store still holds the item before, the other field then sealed with it; another tab’s item opened again',
+    async (_, before) => {
+      const { client, calls } = fakeClient();
+      const vault = await unlockedVault();
+      const seal = async (commands: object): Promise<SealedItem> => {
+        const item = await vault.sealItem(utf8(JSON.stringify(commands)), AAD);
+        return { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
+      };
+      const decoded = async (item: SealedItem) =>
+        JSON.parse(new TextDecoder().decode(await vault.openItem({ key: fromBase64Url(item.key), ciphertext: fromBase64Url(item.ciphertext) }, AAD))) as unknown;
+      let inStore: SealedItem | null = before ? await seal(before) : null;
+      const settings = createProjectSettings({ client, vault });
+      // The page renders on each change of this state, with what the store holds (router.refresh()).
+      const views: unknown[] = [];
+      settings.subscribe(() => views.push(settings.view(PROJECT, inStore, 'unlocked').worktree));
+      const opening = before ? notified(settings) : Promise.resolve();
+      settings.view(PROJECT, inStore, 'unlocked');
+      await opening;
+
+      // The HTTP answer comes before settings.upserted: the store still holds the item before.
+      await settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
+      await new Promise((done) => setTimeout(done, 20));
+      expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: '' });
+      await settings.change(PROJECT, 'worktree:clean', 'rm -rf .cache');
+      await new Promise((done) => setTimeout(done, 20));
+      expect(await decoded(calls.at(-1)?.body['worktreeCommands'] as SealedItem)).toEqual({ prepare: 'pnpm install', clean: 'rm -rf .cache' });
+      expect(views).not.toContainEqual({ state: 'open', prepare: '', clean: 'rm -rf .cache' });
+
+      // The events then come, in order: what the page shows stays what it saved.
+      inStore = calls[0]?.body['worktreeCommands'] as SealedItem;
+      expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' });
+      inStore = calls[1]?.body['worktreeCommands'] as SealedItem;
+      expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' });
+
+      // Another tab writes its own item: opened, as any item the page did not seal.
+      inStore = await seal({ prepare: 'make setup', clean: null });
+      const reopening = notified(settings);
+      settings.view(PROJECT, inStore, 'unlocked');
+      await reopening;
+      expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'make setup', clean: '' });
+    },
+  );
+
+  it('keeps both Commandes changed one after the other before the first answer, the store then catching up', async () => {
+    const { client, calls } = fakeClient();
+    const vault = await unlockedVault();
+    let inStore: SealedItem | null = null;
+    const settings = createProjectSettings({ client, vault });
+    const views: unknown[] = [];
+    settings.subscribe(() => views.push(settings.view(PROJECT, inStore, 'unlocked').worktree));
+    settings.view(PROJECT, inStore, 'unlocked');
+
+    await Promise.all([settings.change(PROJECT, 'worktree:prepare', 'pnpm install'), settings.change(PROJECT, 'worktree:clean', 'rm -rf .cache')]);
+    for (const call of calls) {
+      inStore = call.body['worktreeCommands'] as SealedItem;
+      expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' });
+    }
+    expect(views).not.toContainEqual({ state: 'opening' });
+  });
+
   it('keeps a Commande refused on its field, with the text typed', async () => {
     const { client, answer } = fakeClient();
     const vault = await unlockedVault();

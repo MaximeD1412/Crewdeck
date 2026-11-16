@@ -1,4 +1,5 @@
 import {
+  type AgentSession,
   type CodeChange,
   DEFAULT_ACCOUNT_SETTINGS,
   type Me,
@@ -14,6 +15,23 @@ import {
 import { store } from './index.js';
 
 const PROJECT = '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a80';
+
+const SESSION: AgentSession = {
+  id: '01900000-0000-7000-8000-0000000000c1',
+  projectId: PROJECT,
+  role: 'code',
+  engine: 'claude-code',
+  model: 'claude-opus-5-5',
+  title: 'Le panier garde ses articles',
+  state: 'active',
+  interruptedReason: null,
+  outcome: null,
+  error: null,
+  stepRunId: null,
+  branch: 'feat/12-panier',
+  startedAt: '2026-11-15T07:00:00.000Z',
+  endedAt: null,
+};
 const AT = '2026-11-15T08:00:00.000Z';
 const SHA = 'a'.repeat(40);
 const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
@@ -137,6 +155,7 @@ const SNAPSHOT: State = {
   tickets: [TICKET],
   milestones: [MILESTONE],
   codeChanges: [CHANGE],
+  sessions: [SESSION],
   settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' },
 };
 
@@ -202,5 +221,15 @@ describe('the page’s store', () => {
 
     expect([...(store.getState().slices['phase-run']?.keys() ?? [])].sort()).toEqual([PHASE_RUN.id, OTHER.id]);
     expect([...(store.getState().slices['step-run']?.values() ?? [])]).toEqual([failed, retried]);
+  });
+
+  it('holds the Sessions by id, from the snapshot then their events', () => {
+    store.applySnapshot(SNAPSHOT);
+    expect([...(store.getState().slices['agent-session']?.values() ?? [])]).toEqual([SESSION]);
+
+    const interrupted: AgentSession = { ...SESSION, state: 'interrupted', interruptedReason: 'runner-offline' };
+    store.applyEvent({ seq: 2, type: 'agent-session.upserted', payload: interrupted, at: AT });
+
+    expect(store.getState().slices['agent-session']?.get(SESSION.id)).toEqual(interrupted);
   });
 });

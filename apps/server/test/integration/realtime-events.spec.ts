@@ -7,7 +7,7 @@ import { newId } from '../../src/ids.js';
 import { EventsBus } from '../../src/realtime/events.bus.js';
 import { EventsReplay } from '../../src/realtime/events.replay.js';
 import { EventPayloadError, EventsWriter, TransactionMissingError } from '../../src/realtime/events.writer.js';
-import { Transactions } from '../../src/realtime/transactions.js';
+import { afterCommit, Transactions } from '../../src/realtime/transactions.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
 import { startApp } from '../route-baseline.js';
@@ -87,6 +87,43 @@ describe('the events writer against PostgreSQL', () => {
 
     expect(seenInside).toBe(0);
     expect(published).toHaveLength(1);
+  });
+
+  it('runs what afterCommit was given once the transaction committed, after its events are published', async () => {
+    const seen: number[] = [];
+    await inScope(() =>
+      transactions.run(async (tx) => {
+        await writer.write(tx, pilotId, 'pilot.upserted', me());
+        afterCommit(tx, () => seen.push(published.length));
+        expect(seen).toEqual([]);
+      }),
+    );
+
+    expect(seen).toEqual([1]);
+  });
+
+  it('runs nothing of afterCommit when the transaction rolls back, and a failing one keeps the others and the result', async () => {
+    const ran: string[] = [];
+    await expect(
+      inScope(() =>
+        transactions.run((tx) => {
+          afterCommit(tx, () => ran.push('rolled back'));
+          return Promise.reject(new Error('the change fails'));
+        }),
+      ),
+    ).rejects.toThrow('the change fails');
+    const result = await inScope(() =>
+      transactions.run((tx) => {
+        afterCommit(tx, () => {
+          throw new Error('a hook fails');
+        });
+        afterCommit(tx, () => ran.push('committed'));
+        return Promise.resolve('done');
+      }),
+    );
+
+    expect(result).toBe('done');
+    expect(ran).toEqual(['committed']);
   });
 
   it('leaves no row and publishes nothing when the transaction rolls back after write', async () => {

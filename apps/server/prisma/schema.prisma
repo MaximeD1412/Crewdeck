@@ -66,6 +66,7 @@ model Pilot {
   githubChanges      GitHubChange[]
   settings           AccountSettings?
   customRoles        CustomRole[]
+  agentSessions      AgentSession[]
 
   @@map("pilots")
 }
@@ -568,6 +569,7 @@ model Project {
   phaseRuns         PhaseRun[]
   stepRuns          StepRun[]
   artifactSources   ArtifactSource[]
+  agentSessions     AgentSession[]
 
   @@unique([pilotId, githubRepoId])
   /// The key the Projet's Tickets, milestones, changes of code and Process point at, with their Pilote.
@@ -1026,4 +1028,81 @@ model ArtifactSource {
   @@unique([projectId, group])
   @@index([pilotId, projectId])
   @@map("artifact_sources")
+}
+
+/// A Session's state (`SESSION_STATES`).
+enum AgentSessionState {
+  starting
+  active
+  waiting
+  stopped
+  interrupted
+  ended
+
+  @@map("agent_session_state")
+}
+
+/// How an `ended` Session ended (`SESSION_OUTCOMES`).
+enum AgentSessionOutcome {
+  ok
+  error
+
+  @@map("agent_session_outcome")
+}
+
+/// Why an `ended` Session ended in `error` (`SESSION_ERRORS`): a code, never the error's text.
+enum AgentSessionError {
+  setup_failed  @map("setup-failed")
+  branch_busy   @map("branch-busy")
+  engine_failed @map("engine-failed")
+  clone_failed  @map("clone-failed")
+
+  @@map("agent_session_error")
+}
+
+/// Why a Session is `interrupted` (`SESSION_INTERRUPTED_REASONS`).
+enum AgentSessionInterruptedReason {
+  runner_offline   @map("runner-offline")
+  runner_restarted @map("runner-restarted")
+
+  @@map("agent_session_interrupted_reason")
+}
+
+/// A Session (RUNNER-9): one conversation of an agent in one Rôle, on the
+/// Runner, with one Moteur, in the worktree of `branch`. Its state only: its
+/// content stays in the Runner's log (SESSION-1 relays it). `title` is
+/// readable for a GitHub Projet (a Ticket's or a Conception's title, ADR
+/// 0003); nothing else is free text.
+model AgentSession {
+  id                String                         @id @db.Uuid
+  pilotId           String                         @map("pilot_id") @db.Uuid
+  projectId         String                         @map("project_id") @db.Uuid
+  /// A Rôle's id (`zRoleId`): one of the four defaults, or one the Pilote added.
+  role              String
+  engine            EngineId
+  model             String
+  title             String
+  branch            String
+  /// The branch the worktree starts from when `branch` is not on the remote.
+  base              String
+  permissionMode    String                         @map("permission_mode")
+  state             AgentSessionState
+  interruptedReason AgentSessionInterruptedReason? @map("interrupted_reason")
+  outcome           AgentSessionOutcome?
+  error             AgentSessionError?
+  /// Its StepRun's, with no foreign key: the StepRun points at it by its own `sessionId`.
+  stepRunId         String?                        @map("step_run_id") @db.Uuid
+  /// The Étape's kind of its StepRun, which the Runner builds the first message from.
+  stepKind          String?                        @map("step_kind")
+  /// The Moteur's own id of the Session, once the Runner reported it: what a resume takes.
+  engineSessionId   String?                        @map("engine_session_id")
+  startedAt         DateTime                       @map("started_at") @db.Timestamptz
+  endedAt           DateTime?                      @map("ended_at") @db.Timestamptz
+  lastSeq           BigInt                         @default(0) @map("last_seq")
+  pilot             Pilot                          @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  project           Project                        @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+
+  @@index([pilotId, projectId, startedAt])
+  @@index([pilotId, state])
+  @@map("agent_sessions")
 }

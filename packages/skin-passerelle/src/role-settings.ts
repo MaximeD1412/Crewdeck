@@ -1,5 +1,5 @@
 import { CUSTOM_ROLES_MAX, ROLE_NAME_MAX, RoleSettings, t, type CdActionDetail, type ComposantData } from '@crewdeck/sdk';
-import { css, html, nothing, type TemplateResult } from 'lit';
+import { css, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { PasserelleElement, sharedStyles } from './base.js';
 
 type Data = ComposantData<typeof RoleSettings>;
@@ -7,27 +7,33 @@ type Role = Data['roles'][number];
 type Model = Data['models'][number];
 type Control = HTMLElement & { value: string };
 
-const same = (a: Model, b: Model): boolean => a.engine === b.engine && a.model === b.model;
+/** A model's value in a Select: its Moteur and its id, the same whatever the list around it. */
+const keyOf = (model: { readonly engine: string; readonly model: string }): string => `${model.engine}:${model.model}`;
 
 /** A Rôle's options: the usable models, its stored choice first when it is no longer one of them. */
 const optionsOf = (models: readonly Model[], choice: Model | null): readonly Model[] =>
-  choice && !models.some((model) => same(model, choice)) ? [choice, ...models] : models;
+  choice && !models.some((model) => keyOf(model) === keyOf(choice)) ? [choice, ...models] : models;
 
-/** A Select's data over `models`, its value the index of `chosen`; disabled, with its reason, without any. */
-const selectData = (name: string, label: string, models: readonly Model[], chosen: Model | null, error: string | null) => {
-  const index = chosen ? models.findIndex((model) => same(model, chosen)) : -1;
-  return models.length === 0
+/**
+ * A Select's data over `models`, its value the key of `chosen`; with nothing
+ * chosen, « Choisis un modèle » first, not choosable; disabled, with its
+ * reason, without any model.
+ */
+const selectData = (name: string, label: string, models: readonly Model[], chosen: string | null, error: string | null) =>
+  models.length === 0
     ? { name, label, value: '', options: [{ value: '', label: t('settings.roles.noModel'), disabled: true }], help: null, state: 'disabled' as const }
     : {
         name,
         label,
-        value: String(Math.max(index, 0)),
-        options: models.map((model, i) => ({ value: String(i), label: model.label, disabled: false })),
+        value: chosen ?? '',
+        options: [
+          ...(chosen === null ? [{ value: '', label: t('settings.roles.dialog.pick'), disabled: true }] : []),
+          ...models.map((model) => ({ value: keyOf(model), label: model.label, disabled: false })),
+        ],
         help: null,
         state: null,
         ...(error ? { error } : {}),
       };
-};
 
 /**
  * `cd-role-settings` (`design/screens/crewdeck/parametres.html`, the card
@@ -39,6 +45,12 @@ const selectData = (name: string, label: string, models: readonly Model[], chose
  * Rôle » opens with `adding.open`: « Nom », « Moteur et modèle », « Annuler »
  * and « Ajouter » (Enter in the name too); its fields are new at each
  * opening. The actions of the Composants it places stay inside.
+ *
+ * A model is known by its Moteur and its id, never by its place in the list:
+ * the list changes as the Runner reports. The model picked in the Dialog
+ * stays picked; gone from the list, it asks for another. A row's last pick
+ * is the one it shows and compares to until the store has it, or the row its
+ * refusal: picking back the stored model while another is on its way sends it.
  */
 export class PasserelleRoleSettings extends PasserelleElement<typeof RoleSettings> {
   static override styles = [
@@ -58,7 +70,33 @@ export class PasserelleRoleSettings extends PasserelleElement<typeof RoleSetting
     `,
   ];
 
+  static override properties = { picked: { state: true } };
+
   protected readonly composant = RoleSettings;
+
+  /** The model picked in the Dialog « Nouveau Rôle »: the first usable one at its opening, then the Pilote's. */
+  declare picked: string | null;
+
+  /** Each row's last pick not yet in the store: the model it shows and compares a new pick to. */
+  private readonly pending = new Map<string, string>();
+
+  constructor() {
+    super();
+    this.picked = null;
+  }
+
+  protected override willUpdate(changed: PropertyValues<this>): void {
+    super.willUpdate(changed);
+    if (!changed.has('data')) return;
+    const previous = changed.get('data') as Data | undefined;
+    const first = this.data.models[0];
+    if (this.data.adding.open && !previous?.adding.open) this.picked = first ? keyOf(first) : null;
+    for (const [roleId, key] of this.pending) {
+      const role = this.data.roles.find((candidate) => candidate.id === roleId);
+      const refused = role?.error != null && role.error !== previous?.roles.find((candidate) => candidate.id === roleId)?.error;
+      if (!role || refused || (role.choice && keyOf(role.choice) === key)) this.pending.delete(roleId);
+    }
+  }
 
   private stop(event: Event) {
     event.stopPropagation();
@@ -73,16 +111,28 @@ export class PasserelleRoleSettings extends PasserelleElement<typeof RoleSetting
     if (!this.data.adding.busy) this.emit('cancel', {});
   }
 
+  /** What a row shows: its last pick on its way, else its stored choice. */
+  private shownOf(role: Role): string | null {
+    return this.pending.get(role.id) ?? (role.choice ? keyOf(role.choice) : null);
+  }
+
   private choose(role: Role, options: readonly Model[], event: Event) {
-    const picked = options[Number((event.currentTarget as Control).value)];
-    if (!picked || (role.choice && same(picked, role.choice))) return;
+    const key = (event.currentTarget as Control).value;
+    const picked = options.find((model) => keyOf(model) === key);
+    if (!picked || key === this.shownOf(role)) return;
+    this.pending.set(role.id, key);
+    this.requestUpdate();
     this.emit('choose', { roleId: role.id, engine: picked.engine, model: picked.model });
+  }
+
+  private pick(event: Event) {
+    this.picked = (event.currentTarget as Control).value;
   }
 
   private create() {
     const { models, adding } = this.data;
     const name = this.shadowRoot?.querySelector<Control>('cd-text-field.name')?.value ?? '';
-    const picked = models[Number(this.shadowRoot?.querySelector<Control>('cd-select.model')?.value ?? 0)];
+    const picked = models.find((model) => keyOf(model) === this.picked);
     if (adding.busy || !picked) return;
     this.emit('create', { name, engine: picked.engine, model: picked.model });
   }
@@ -97,7 +147,7 @@ export class PasserelleRoleSettings extends PasserelleElement<typeof RoleSetting
     const options = optionsOf(this.data.models, role.choice);
     return html`<cd-setting-row data-role=${role.id} .data=${{ label: role.name, help: role.help, origin: null }}>
       <cd-select
-        .data=${selectData(`roles.${role.id}`, t('settings.roles.select', { name: role.name }), options, role.choice, role.error)}
+        .data=${selectData(`roles.${role.id}`, t('settings.roles.select', { name: role.name }), options, this.shownOf(role), role.error)}
         @change=${(event: Event) => this.choose(role, options, event)}
       ></cd-select>
       ${role.removable
@@ -136,6 +186,8 @@ export class PasserelleRoleSettings extends PasserelleElement<typeof RoleSetting
 
   private fields(): TemplateResult {
     const { models, adding } = this.data;
+    const available = models.some((model) => keyOf(model) === this.picked);
+    const gone = this.picked !== null && !available;
     return html`<cd-text-field
         class="name"
         .data=${{
@@ -151,7 +203,11 @@ export class PasserelleRoleSettings extends PasserelleElement<typeof RoleSetting
         }}
         @keydown=${this.onNameKey}
       ></cd-text-field>
-      <cd-select class="model" .data=${selectData('model', t('settings.roles.dialog.model'), models, null, adding.modelError)}></cd-select>`;
+      <cd-select
+        class="model"
+        .data=${selectData('model', t('settings.roles.dialog.model'), models, available ? this.picked : null, adding.modelError ?? (gone ? t('settings.roles.dialog.modelGone') : null))}
+        @change=${this.pick}
+      ></cd-select>`;
   }
 
   protected override render() {

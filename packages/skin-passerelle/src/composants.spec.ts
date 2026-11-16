@@ -107,7 +107,8 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
   },
   'RoleSettings.choose': (el) => {
     const native = inside<HTMLSelectElement>(el, 'cd-setting-row cd-select', 'select');
-    native.value = '2';
+    const other = [...native.options].find((option) => !option.disabled && !option.selected);
+    native.value = other?.value ?? '';
     native.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
     native.dispatchEvent(new Event('change', { bubbles: true }));
   },

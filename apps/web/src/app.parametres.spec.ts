@@ -68,9 +68,9 @@ describe('the page’s Paramètres', () => {
     expect(command).toHaveBeenCalledWith('POST', '/api/roles', { name: 'Revue Codex', engine: 'codex', model: 'gpt-5.5' }, expect.anything());
 
     emitAction(roles, RoleSettings, 'choose', { roleId: 'review', engine: 'codex', model: 'gpt-5.5' });
-    expect(command).toHaveBeenCalledWith('PATCH', '/api/settings', { roles: { review: { engine: 'codex', model: 'gpt-5.5' } } }, expect.anything());
+    await vi.waitFor(() => expect(command).toHaveBeenCalledWith('PATCH', '/api/settings', { roles: { review: { engine: 'codex', model: 'gpt-5.5' } } }, expect.anything()));
     emitAction(roles, RoleSettings, 'remove', { roleId: 'r-k3v9q2m7' });
-    expect(command).toHaveBeenCalledWith('DELETE', '/api/roles/r-k3v9q2m7', {}, expect.anything());
+    await vi.waitFor(() => expect(command).toHaveBeenCalledWith('DELETE', '/api/roles/r-k3v9q2m7', {}, expect.anything()));
     app.stop();
   });
 });

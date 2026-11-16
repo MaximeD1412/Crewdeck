@@ -19,7 +19,7 @@ export interface RoleSettingsState {
   cancel(): void;
   /** Adds the Rôle (`POST /api/roles`), the Dialog busy meanwhile; a refusal under its field, the Dialog left open. */
   create(body: CreateRole): Promise<void>;
-  /** Stores a Rôle's model (`PATCH /api/settings`); a refusal on its row. */
+  /** Stores a Rôle's model (`PATCH /api/settings`) once the row's commands before it are done; a refusal on its row. */
   choose(roleId: string, choice: NonNullable<RoleChoice>): Promise<void>;
   /** Removes a Rôle the Pilote added (`DELETE /api/roles/:id`); a refusal on its row. */
   remove(roleId: string): Promise<void>;
@@ -57,6 +57,21 @@ export const createRoleSettings = ({ client }: RoleSettingsOptions): RoleSetting
     }
   };
 
+  /**
+   * A row's commands, one after the other in the order the Pilote gave them:
+   * its last choice is the one the server stores, its last refusal the one shown.
+   */
+  const rows = new Map<string, Promise<void>>();
+  const queued = (roleId: string, command: () => Promise<unknown>, field?: string): Promise<void> => {
+    const next = (rows.get(roleId) ?? Promise.resolve()).then(() => onRow(roleId, command, field));
+    const settled = next.catch(() => undefined);
+    rows.set(roleId, settled);
+    void settled.then(() => {
+      if (rows.get(roleId) === settled) rows.delete(roleId);
+    });
+    return next;
+  };
+
   return {
     view: () => state,
     open: () => set({ adding: { open: true, busy: false, nameError: null, modelError: null } }),
@@ -83,8 +98,8 @@ export const createRoleSettings = ({ client }: RoleSettingsOptions): RoleSetting
         setAdding({ busy: false, nameError: error.fields?.['name'] ?? (modelError ? null : error.message), modelError });
       }
     },
-    choose: (roleId, choice) => onRow(roleId, () => updateSettings(client, { roles: { [roleId]: choice } }), `roles.${roleId}`),
-    remove: (roleId) => onRow(roleId, () => removeRole(client, roleId)),
+    choose: (roleId, choice) => queued(roleId, () => updateSettings(client, { roles: { [roleId]: choice } }), `roles.${roleId}`),
+    remove: (roleId) => queued(roleId, () => removeRole(client, roleId)),
     subscribe(fn) {
       listeners.add(fn);
       return () => {

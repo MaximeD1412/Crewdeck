@@ -104,4 +104,37 @@ describe('createRoleSettings', () => {
     expect(command).toHaveBeenCalledWith('DELETE', '/api/roles/r-k3v9q2m7', {}, expect.anything());
     expect(roles.view().errors).toEqual({ 'r-k3v9q2m7': 'Des Étapes de tes Projets utilisent ce Rôle : change-les d’abord.' });
   });
+
+  it('sends a row’s choices one after the other, in the order picked, another row not waiting', async () => {
+    const answers: ((value: unknown) => void)[] = [];
+    const { roles, command } = setup(() => new Promise((resolve) => answers.push(resolve)));
+    const patch = (roleId: string, engine: string, model: string) => ['PATCH', '/api/settings', { roles: { [roleId]: { engine, model } } }, expect.anything()];
+    const first = roles.choose('code', { engine: 'codex', model: 'gpt-5.5' });
+    const last = roles.choose('code', { engine: 'claude-code', model: 'claude-opus-5-5' });
+    const other = roles.choose('idea', { engine: 'codex', model: 'gpt-5.5' });
+    await vi.waitFor(() => expect(command).toHaveBeenCalledTimes(2));
+    expect(command.mock.calls).toEqual([patch('code', 'codex', 'gpt-5.5'), patch('idea', 'codex', 'gpt-5.5')]);
+
+    answers[0]?.(SETTINGS);
+    await first;
+    await vi.waitFor(() => expect(command).toHaveBeenCalledTimes(3));
+    expect(command.mock.calls[2]).toEqual(patch('code', 'claude-code', 'claude-opus-5-5'));
+    answers[1]?.(SETTINGS);
+    answers[2]?.(SETTINGS);
+    await Promise.all([last, other]);
+  });
+
+  it('sends the next choice of a row even when the one before was refused', async () => {
+    let calls = 0;
+    const { roles, command } = setup(async () => {
+      calls += 1;
+      if (calls === 1) throw refused(422, 'settings.engine-unusable', 'Ce modèle n’est pas utilisable sur ton Runner.');
+      return SETTINGS;
+    });
+    const first = roles.choose('code', { engine: 'codex', model: 'gpt-5.5' });
+    const last = roles.choose('code', { engine: 'claude-code', model: 'claude-opus-5-5' });
+    await Promise.all([first, last]);
+    expect(command).toHaveBeenCalledTimes(2);
+    expect(roles.view().errors).toEqual({});
+  });
 });

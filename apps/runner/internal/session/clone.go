@@ -16,10 +16,12 @@ import (
 )
 
 // Origin is where a Session's code comes from (ADR 0012): Clone makes its
-// clone once, fetches it before each Session, and gives its folder. The
-// GitHub one is here; SOURCE-2 adds the Local one.
+// clone once, fetches it before each Session, and gives its folder and the
+// environment git needs to read it (a partial clone fetches the worktree's
+// files at its checkout), never kept in the clone. The GitHub one is here;
+// SOURCE-2 adds the Local one.
 type Origin interface {
-	Clone(ctx context.Context) (dir string, err error)
+	Clone(ctx context.Context) (dir string, auth []string, err error)
 }
 
 // DefaultGitHubURL is where the GitHub repositories are cloned from.
@@ -50,28 +52,28 @@ func (o *GitHubOrigin) dir() string {
 	return filepath.Join(o.Home, "repos", "github", o.Owner, o.Name)
 }
 
-func (o *GitHubOrigin) Clone(ctx context.Context) (string, error) {
+func (o *GitHubOrigin) Clone(ctx context.Context) (string, []string, error) {
 	if !githubOwner.MatchString(o.Owner) || !githubName.MatchString(o.Name) || o.Name == "." || o.Name == ".." {
-		return "", errors.New("session: not a GitHub repository")
+		return "", nil, errors.New("session: not a GitHub repository")
 	}
 	env, err := o.auth(ctx)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	dir := o.dir()
 	unlock := o.locks.lock(dir)
 	defer unlock()
 	if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
-		return dir, runGit(ctx, dir, env, "fetch", "--prune", "origin")
+		return dir, env, runGit(ctx, dir, env, "fetch", "--prune", "origin")
 	}
 	if err := os.MkdirAll(filepath.Dir(dir), 0o700); err != nil {
-		return "", err
+		return "", nil, err
 	}
 	_ = os.RemoveAll(dir) // a clone a killed Runner left half made
 	url := strings.TrimSuffix(o.URL, "/") + "/" + o.Owner + "/" + o.Name + ".git"
 	if err := runGit(ctx, filepath.Dir(dir), env, "clone", "--filter=blob:none", "--no-checkout", "--quiet", url, dir); err != nil {
 		_ = os.RemoveAll(dir)
-		return "", err
+		return "", nil, err
 	}
 	// The clone's own HEAD holds no branch, so that every branch may have its
 	// worktree (git refuses a branch already checked out).
@@ -79,7 +81,7 @@ func (o *GitHubOrigin) Clone(ctx context.Context) (string, error) {
 	if err == nil {
 		err = runGit(ctx, dir, nil, "update-ref", "--no-deref", "HEAD", head)
 	}
-	return dir, err
+	return dir, env, err
 }
 
 // auth is the environment that gives git the token, as an HTTP header in

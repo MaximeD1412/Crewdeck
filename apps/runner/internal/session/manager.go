@@ -70,8 +70,10 @@ type live struct {
 	rec      record
 	alive    bool
 	stopping bool
-	cancel   context.CancelFunc
-	run      engine.Run
+	// resume is a resume asked while stopping: run once the Moteur stopped.
+	resume bool
+	cancel context.CancelFunc
+	run    engine.Run
 }
 
 var uuid = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
@@ -237,9 +239,16 @@ func (m *Manager) Resume(id string) {
 	m.revive(s)
 }
 
-// revive reports an alive or ended Session again, and resumes the others.
+// revive reports an alive or ended Session again, and resumes the others;
+// one still stopping is resumed once its Moteur stopped (the server took the
+// stop at once, then the Pilote's resume).
 func (m *Manager) revive(s *live) {
 	s.mu.Lock()
+	if s.alive && s.stopping {
+		s.resume = true
+		s.mu.Unlock()
+		return
+	}
 	if s.alive || s.rec.State == contracts.RunnerSessionStateStateEnded {
 		s.mu.Unlock()
 		m.report(s)
@@ -273,7 +282,7 @@ func (m *Manager) Stop(id string) {
 		m.report(s)
 		return
 	}
-	s.stopping = true
+	s.stopping, s.resume = true, false
 	run, cancel := s.run, s.cancel
 	s.mu.Unlock()
 	if run == nil {
@@ -315,12 +324,13 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 	w.Clone = origin.dir()
 
 	if _, err := os.Stat(w.Dir); fresh || err != nil {
-		if _, err := origin.Clone(ctx); err != nil {
+		_, auth, err := origin.Clone(ctx)
+		if err != nil {
 			m.fail(s, w, false, contracts.RunnerSessionStateErrorCloneFailed, "clone", err)
 			return
 		}
 		unlock := m.locks.lock(w.Clone)
-		err := addWorktree(ctx, w.Clone, w.Dir, rec.Branch, rec.Base)
+		err = addWorktree(ctx, w.Clone, auth, w.Dir, rec.Branch, rec.Base)
 		unlock()
 		if err != nil {
 			m.fail(s, w, true, contracts.RunnerSessionStateErrorSetupFailed, "worktree", err)
@@ -445,10 +455,20 @@ func (m *Manager) end(s *live, outcome contracts.RunnerSessionStateOutcome, fail
 	m.report(s)
 }
 
-// halt is a stop done: the Session keeps its worktree and its Moteur's id.
+// halt is a stop done: the Session keeps its worktree and its Moteur's id;
+// a resume asked meanwhile starts it again at once.
 func (m *Manager) halt(s *live) {
+	m.mu.Lock()
+	closed := m.closed
+	m.mu.Unlock()
 	s.mu.Lock()
-	s.alive, s.stopping = false, false
+	if s.resume && !closed {
+		s.resume = false
+		s.mu.Unlock()
+		m.launch(s, false)
+		return
+	}
+	s.alive, s.stopping, s.resume = false, false, false
 	s.rec.State = contracts.RunnerSessionStateStateStopped
 	s.mu.Unlock()
 	m.save(s)

@@ -2,7 +2,11 @@ package session_test
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
+	"net/http"
+	"net/http/cgi"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -129,6 +133,8 @@ type setup struct {
 	engine  *fake.Engine
 	reports *reports
 	hooks   session.Hooks
+	// adapter, when set, is the Moteur registered instead of engine.
+	adapter engine.Engine
 }
 
 func newSetup(t *testing.T, events ...contracts.EngineEvent) *setup {
@@ -144,7 +150,11 @@ func newSetup(t *testing.T, events ...contracts.EngineEvent) *setup {
 func (s *setup) manager(t *testing.T) *session.Manager {
 	t.Helper()
 	var engines engine.Registry
-	engines.Register(s.engine)
+	if s.adapter != nil {
+		engines.Register(s.adapter)
+	} else {
+		engines.Register(s.engine)
+	}
 	m, err := session.New(session.Config{Home: s.home, Engines: &engines, GitHubURL: s.remote.url(), Hooks: s.hooks, Send: s.reports.send})
 	if err != nil {
 		t.Fatal(err)
@@ -516,4 +526,188 @@ func equal(a, b []int) bool {
 		}
 	}
 	return true
+}
+
+// slowStop is the fake Moteur whose runs take their Interrupt only once
+// gate is closed: a Moteur that takes its time to end its turn.
+type slowStop struct {
+	*fake.Engine
+	gate chan struct{}
+}
+
+func (e *slowStop) Start(ctx context.Context, opts engine.StartOptions) (engine.Run, error) {
+	run, err := e.Engine.Start(ctx, opts)
+	return &slowRun{Run: run, gate: e.gate}, err
+}
+
+func (e *slowStop) Resume(ctx context.Context, opts engine.ResumeOptions) (engine.Run, error) {
+	run, err := e.Engine.Resume(ctx, opts)
+	return &slowRun{Run: run, gate: e.gate}, err
+}
+
+type slowRun struct {
+	engine.Run
+	gate chan struct{}
+}
+
+func (r *slowRun) Interrupt(ctx context.Context) error {
+	select {
+	case <-r.gate:
+		return r.Run.Interrupt(ctx)
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func TestAResumeAskedWhileTheMoteurStillStopsRunsOnceItHasStopped(t *testing.T) {
+	s := newSetup(t, result("eng-1"), question("q1"))
+	slow := &slowStop{Engine: s.engine, gate: make(chan struct{})}
+	s.adapter = slow
+	m := s.manager(t)
+	m.Start(start(firstID, "feat/12-panier"))
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	waitForSeq(t, s.home, firstID, 2)
+
+	m.Stop(firstID)
+	// The server took the stop, then the Pilote's resume, before the Moteur ended its turn.
+	m.Resume(firstID)
+	close(slow.gate)
+
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateActive)
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	runs := s.engine.Runs()
+	if len(runs) != 2 || runs[1].EngineSessionID() != "eng-1" {
+		t.Fatalf("%d runs, want the resume on eng-1 after the stop", len(runs))
+	}
+	if got := m.Hello(); len(got) != 1 || !got[0].Alive {
+		t.Fatalf("hello %+v, want the Session alive again", got)
+	}
+}
+
+func TestAStopAfterAResumeAskedWhileStoppingKeepsTheSessionStopped(t *testing.T) {
+	s := newSetup(t, result("eng-1"), question("q1"))
+	slow := &slowStop{Engine: s.engine, gate: make(chan struct{})}
+	s.adapter = slow
+	m := s.manager(t)
+	m.Start(start(firstID, "feat/12-panier"))
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	waitForSeq(t, s.home, firstID, 2)
+
+	m.Stop(firstID)
+	m.Resume(firstID)
+	m.Stop(firstID) // the Pilote changed their mind again
+	close(slow.gate)
+
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateStopped)
+	if runs := s.engine.Runs(); len(runs) != 1 {
+		t.Fatalf("%d runs, want none after the last stop", len(runs))
+	}
+}
+
+func TestAResumeAfterAHalfWrittenLastLineRepairsTheLogAndItsSeqContinues(t *testing.T) {
+	s := newSetup(t, result("eng-1"), question("q1"))
+	m := s.manager(t)
+	m.Start(start(firstID, "feat/12-panier"))
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	waitForSeq(t, s.home, firstID, 2)
+	m.Stop(firstID)
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateStopped)
+	waitForSeq(t, s.home, firstID, 3)
+	// A Runner killed in the middle of a write left half an event.
+	logPath := filepath.Join(s.home, "sessions", firstID, "log.jsonl")
+	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.WriteString(`{"kind":"message","seq":4,"from":"age`); err != nil {
+		t.Fatal(err)
+	}
+	file.Close()
+
+	for round := range 2 {
+		m.Resume(firstID)
+		s.reports.await(t, firstID, contracts.RunnerSessionStateStateActive)
+		s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+		waitForSeq(t, s.home, firstID, 5+3*round)
+		m.Stop(firstID)
+		s.reports.await(t, firstID, contracts.RunnerSessionStateStateStopped)
+		waitForSeq(t, s.home, firstID, 6+3*round)
+	}
+
+	var seqs []int
+	for event, err := range session.Replay(s.home, firstID, 0) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		seqs = append(seqs, seqOf(event))
+	}
+	if want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}; !equal(seqs, want) {
+		t.Fatalf("log seqs %v, want %v", seqs, want)
+	}
+}
+
+// staticToken is a TokenSource that always gives the same token.
+type staticToken string
+
+func (t staticToken) Token(context.Context) (string, error) { return string(t), nil }
+
+// privateGitHub serves the remote's bare repositories over HTTP, as GitHub
+// does a private one: `git http-backend`, partial clones allowed, every
+// request refused without the token.
+func privateGitHub(t *testing.T, r *remote, token string) string {
+	t.Helper()
+	git(t, filepath.Join(r.root, "acme", "shop.git"), "config", "uploadpack.allowFilter", "true")
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := &cgi.Handler{
+		Path: gitPath,
+		Args: []string{"http-backend"},
+		Env:  []string{"GIT_PROJECT_ROOT=" + r.root, "GIT_HTTP_EXPORT_ALL=1"},
+	}
+	want := "Basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:"+token))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Header.Get("Authorization") != want {
+			w.Header().Set("WWW-Authenticate", `Basic realm="github"`)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		backend.ServeHTTP(w, req)
+	}))
+	t.Cleanup(server.Close)
+	return server.URL
+}
+
+func TestTheWorktreeOfAPrivateRepositoryFetchesItsFilesWithTheToken(t *testing.T) {
+	// No Git identity of the machine's: only the TokenSource's token.
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	s := newSetup(t, message("fait"))
+	url := privateGitHub(t, s.remote, "secret")
+	var engines engine.Registry
+	engines.Register(s.engine)
+	m, err := session.New(session.Config{Home: s.home, Engines: &engines, GitHubURL: url, Tokens: staticToken("secret"), Send: s.reports.send})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(m.Close)
+
+	m.Start(start(firstID, "feat/12-panier"))
+
+	ended := s.reports.await(t, firstID, contracts.RunnerSessionStateStateEnded)
+	if ended.Outcome == nil || *ended.Outcome != contracts.RunnerSessionStateOutcomeOk {
+		t.Fatalf("ended %+v, want ok: the worktree's files fetched with the token", ended)
+	}
+	runs := s.engine.Runs()
+	if len(runs) != 1 {
+		t.Fatalf("%d runs, want the Moteur started", len(runs))
+	}
+	config, err := os.ReadFile(filepath.Join(s.home, "repos", "github", "acme", "shop", ".git", "config"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(config), "secret") || strings.Contains(string(config), "extraHeader") || strings.Contains(string(config), "extraheader") {
+		t.Fatal("the token is in the clone's configuration")
+	}
 }

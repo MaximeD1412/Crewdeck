@@ -45,8 +45,9 @@ func worktreeDir(home, projectID, branch string) string {
 
 // addWorktree makes the worktree of `branch` in clone: from origin/<branch>
 // when the remote has it, else from origin/<base>. A folder a killed Runner
-// left there is removed first.
-func addWorktree(ctx context.Context, clone, dir, branch, base string) error {
+// left there is removed first. auth is the Origin's environment: the
+// checkout of a partial clone fetches the files it lacks.
+func addWorktree(ctx context.Context, clone string, auth []string, dir, branch, base string) error {
 	if !validBranch(branch) || !validBranch(base) {
 		return errors.New("session: not a branch")
 	}
@@ -58,7 +59,7 @@ func addWorktree(ctx context.Context, clone, dir, branch, base string) error {
 	if runGit(ctx, clone, nil, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+branch) == nil {
 		from = "origin/" + branch
 	}
-	return runGit(ctx, clone, nil, "worktree", "add", "--quiet", "--no-track", "-B", branch, dir, from)
+	return runGit(ctx, clone, auth, "worktree", "add", "--quiet", "--no-track", "-B", branch, dir, from)
 }
 
 // removeWorktree removes the worktree and what git knows of it; the branch

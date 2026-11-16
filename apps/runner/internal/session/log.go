@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
 	"iter"
 	"os"
@@ -27,20 +28,53 @@ type sessionLog struct {
 	lastSeq int
 }
 
-// openLog opens the log for appending; lastSeq is its last event's.
+// openLog opens the log for appending; lastSeq is its last event's. What a
+// killed Runner left after the last whole event (half a line) is cut first,
+// so that the next events follow it and Replay sees them.
 func openLog(dir string) (*sessionLog, error) {
-	last := 0
-	for event, err := range replayFile(filepath.Join(dir, logFile), 0) {
-		if err != nil {
-			return nil, err
-		}
-		last = seqOf(event)
-	}
-	file, err := os.OpenFile(filepath.Join(dir, logFile), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	path := filepath.Join(dir, logFile)
+	last, whole, err := scanLog(path)
 	if err != nil {
 		return nil, err
 	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := file.Truncate(whole); err != nil {
+		file.Close()
+		return nil, err
+	}
 	return &sessionLog{file: file, lastSeq: last}, nil
+}
+
+// scanLog gives the seq of the log's last whole event, and the length of
+// the log up to the end of its line: a line not ended, or not an event, ends
+// the log, as it does Replay.
+func scanLog(path string) (last int, whole int64, err error) {
+	file, err := os.Open(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return 0, 0, nil
+	}
+	if err != nil {
+		return 0, 0, err
+	}
+	defer file.Close()
+	reader := bufio.NewReaderSize(file, 64<<10)
+	for {
+		line, err := reader.ReadBytes('\n')
+		if errors.Is(err, io.EOF) {
+			return last, whole, nil
+		}
+		if err != nil {
+			return 0, 0, err
+		}
+		var event contracts.EngineEvent
+		if json.Unmarshal(line, &event) != nil {
+			return last, whole, nil
+		}
+		last, whole = seqOf(event), whole+int64(len(line))
+	}
 }
 
 // append writes the run's event, its seq offset by the runs before.

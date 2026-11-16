@@ -152,7 +152,11 @@ export const createProjectSettings = ({ client, vault }: ProjectSettingsOptions)
     return next;
   };
 
-  /** Seals both Commandes, one changed, as one item; both empty removes them. */
+  /**
+   * Seals both Commandes, one changed, as one item, both empty included: each
+   * save of the page is then an item of its own, never `null`, which the store
+   * may hold still from before it (or another tab write).
+   */
   const changeWorktree = (projectId: string, name: string, text: string): Promise<void> => {
     const opened = localOf(projectId).opened?.worktree;
     if (!vault || !opened || (opened.state !== 'open' && opened.state !== 'unreadable')) return Promise.resolve();
@@ -166,11 +170,8 @@ export const createProjectSettings = ({ client, vault }: ProjectSettingsOptions)
         // The item this save replaces: the one the save before it stored, once its turn comes.
         const from = localOf(projectId).opened?.from ?? null;
         const commands: WorktreeCommands = { prepare: asCommand(texts.prepare), clean: asCommand(texts.clean) };
-        let worktreeCommands: ProjectSettingsPatch['worktreeCommands'] = null;
-        if (commands.prepare !== null || commands.clean !== null) {
-          const item = await vault.sealItem(utf8(JSON.stringify(commands)), utf8(worktreeCommandsAad(projectId)));
-          worktreeCommands = { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
-        }
+        const item = await vault.sealItem(utf8(JSON.stringify(commands)), utf8(worktreeCommandsAad(projectId)));
+        const worktreeCommands = { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
         const stored = await updateProjectSettings(client, projectId, { worktreeCommands });
         // What was sealed is what the page shows: the item stored needs no opening again, the one it replaced never again.
         const { opened: opening, superseded } = localOf(projectId);

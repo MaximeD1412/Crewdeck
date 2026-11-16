@@ -182,7 +182,7 @@ describe('createProjectSettings, the worktree Commandes', () => {
     expect(reloaded.view(PROJECT, sent, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' });
   });
 
-  it('removes the item when both are emptied', async () => {
+  it('seals an item that holds neither once both are emptied, never null: each save its own item', async () => {
     const { client, calls } = fakeClient();
     const vault = await unlockedVault();
     const settings = createProjectSettings({ client, vault });
@@ -190,7 +190,9 @@ describe('createProjectSettings, the worktree Commandes', () => {
 
     await settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
     await settings.change(PROJECT, 'worktree:prepare', '   ');
-    expect(calls.at(-1)?.body).toEqual({ worktreeCommands: null });
+    const sent = calls.at(-1)?.body['worktreeCommands'] as SealedItem;
+    const opened = await vault.openItem({ key: fromBase64Url(sent.key), ciphertext: fromBase64Url(sent.ciphertext) }, AAD);
+    expect(JSON.parse(new TextDecoder().decode(opened))).toEqual({ prepare: null, clean: null });
   });
 
   it('says an item this vault cannot open is unreadable, and replaces it with what the Pilote writes', async () => {
@@ -273,6 +275,30 @@ describe('createProjectSettings, the worktree Commandes', () => {
       expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' });
     }
     expect(views).not.toContainEqual({ state: 'opening' });
+  });
+
+  it('keeps a Commande emptied after it was saved, before either event, the first event then delivered and the other field changed', async () => {
+    const { client, calls } = fakeClient();
+    const vault = await unlockedVault();
+    let inStore: SealedItem | null = null;
+    const settings = createProjectSettings({ client, vault });
+    settings.subscribe(() => settings.view(PROJECT, inStore, 'unlocked'));
+    settings.view(PROJECT, inStore, 'unlocked');
+
+    await settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
+    await settings.change(PROJECT, 'worktree:prepare', '');
+    // The store still holds no item: the page's emptying is not confirmed by it.
+    expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: '', clean: '' });
+    // The first save's event, late.
+    inStore = calls[0]?.body['worktreeCommands'] as SealedItem;
+    settings.view(PROJECT, inStore, 'unlocked');
+    await new Promise((done) => setTimeout(done, 20));
+    expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: '', clean: '' });
+
+    await settings.change(PROJECT, 'worktree:clean', 'rm -rf .cache');
+    const sent = calls.at(-1)?.body['worktreeCommands'] as SealedItem;
+    const opened = await vault.openItem({ key: fromBase64Url(sent.key), ciphertext: fromBase64Url(sent.ciphertext) }, AAD);
+    expect(JSON.parse(new TextDecoder().decode(opened))).toEqual({ prepare: null, clean: 'rm -rf .cache' });
   });
 
   it('keeps a Commande refused on its field, with the text typed', async () => {

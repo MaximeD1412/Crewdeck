@@ -605,8 +605,9 @@ func TestAStopAfterAResumeAskedWhileStoppingKeepsTheSessionStopped(t *testing.T)
 	}
 }
 
-// afterWait is the fake Moteur whose run, once its Wait returned, calls the
-// function armed (once): something the Pilote does as the Moteur ends.
+// afterWait is the fake Moteur whose run, as its Wait returns, calls the
+// function armed (once), Wait returning only once it has: the Moteur ends
+// when the test lets it.
 type afterWait struct {
 	*fake.Engine
 	armed atomic.Pointer[func()]
@@ -630,7 +631,7 @@ type afterWaitRun struct {
 func (r *afterWaitRun) Wait() error {
 	err := r.Run.Wait()
 	if f := r.engine.armed.Swap(nil); f != nil {
-		go (*f)()
+		(*f)()
 	}
 	return err
 }
@@ -643,16 +644,19 @@ func TestAStopAsTheResumeAskedWhileStoppingStartsTheMoteurKeepsTheSessionStopped
 	m.Start(start(firstID, "feat/12-panier"))
 	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
 
-	// Stop, resume, then the last stop, in that order: the last one sent as
-	// the old Moteur ends, once the resume is asked, so that it lands while
-	// the resume starts the Moteur again. Whenever it lands, the Session ends
-	// stopped.
+	// Stop, resume, then the last stop, in that order. The old Moteur ends
+	// only once the resume is asked, so that the resume is one asked while
+	// stopping, with no stopped reported before it; the last stop is sent as
+	// it ends, so that it lands while the resume starts the Moteur again.
+	// Whenever it lands, the Session ends stopped.
 	for i := 0; i < 200; i++ {
 		resumed, stopped := make(chan struct{}), make(chan struct{})
 		stop := func() {
 			<-resumed
-			m.Stop(firstID)
-			close(stopped)
+			go func() {
+				m.Stop(firstID)
+				close(stopped)
+			}()
 		}
 		hook.armed.Store(&stop)
 		m.Stop(firstID)

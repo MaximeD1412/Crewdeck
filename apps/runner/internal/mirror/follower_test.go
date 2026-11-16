@@ -1,15 +1,18 @@
 package mirror
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -258,7 +261,16 @@ func mirrorProjects(projects ...Project) any {
 // follow runs a follower of store, and its client, until the test ends or stop is called.
 func follow(t *testing.T, store *Store, fake *githubtest.Server, server *runnerServer) (f *Follower, stop func()) {
 	t.Helper()
+	return followThrough(t, store, fake, server, nil)
+}
+
+// followThrough is follow, GitHub reached through transport (nil for the default).
+func followThrough(t *testing.T, store *Store, fake *githubtest.Server, server *runnerServer, transport http.RoundTripper) (f *Follower, stop func()) {
+	t.Helper()
 	client := &Client{BaseURL: fake.URL, Logger: testLogger}
+	if transport != nil {
+		client.HTTP = &http.Client{Transport: transport, Timeout: 10 * time.Second}
+	}
 	f, err := NewFollower(FollowerConfig{Store: store, GitHub: client, Logger: testLogger, Clock: server.clock,
 		Backoff: protocol.Backoff{Min: time.Second, Max: 4 * time.Second, Rand: func() float64 { return 0.999999 }}})
 	if err != nil {
@@ -749,5 +761,140 @@ func TestMirrorProjectsRemovesAProjetNoLongerFollowed(t *testing.T) {
 	awaitCursor(t, store, 2)
 	if fetched := objectsFetched(fake); len(fetched) != 1 || fetched[0] != float64(3) {
 		t.Errorf("objects fetched %v, want outils's #3 only", fetched)
+	}
+}
+
+func TestAResyncAdoptsTheServersSeqEvenBelowTheStoredCursor(t *testing.T) {
+	clock := newClock()
+	server := newRunnerServer(t, clock)
+	fake := newFake(t, "testdata/graphql")
+	// A cursor of another server, ahead of this one's counter.
+	store, path := followedStore(t, 100, followedAtelier)
+	server.set(func(s *runnerServer) {
+		s.onHello = func(conn *websocket.Conn) {
+			ctx := context.Background()
+			write(ctx, conn, stamp(protocol.TypeMirrorResync, nil))
+			write(ctx, conn, stamp(protocol.TypeMirrorLive, map[string]any{"seq": 5}))
+			write(ctx, conn, changed(6, followedAtelier, "issue", 38, nil))
+		}
+	})
+	f, stop := follow(t, store, fake, server)
+	if hello := server.awaitHello(); hello.MirrorAfter != float64(100) {
+		t.Fatalf("mirrorAfter %v, want 100", hello.MirrorAfter)
+	}
+	awaitFilled(t, path, 1)
+	awaitCursor(t, store, 6)
+	if fetched := objectsFetched(fake); len(fetched) != 6 || fetched[5] != float64(38) {
+		t.Errorf("objects fetched %v, want the reconciliation's then the live envelope's #38", fetched)
+	}
+	// The envelopes after it are this server's, applied too.
+	server.send(changed(7, followedAtelier, "issue", 40, nil))
+	awaitCursor(t, store, 7)
+	eventually(t, "live", func() bool {
+		freshness, err := f.State("acme/atelier")
+		return err == nil && freshness.State == FreshnessLive
+	})
+	stop()
+
+	server.set(func(s *runnerServer) { s.onHello = nil })
+	follow(t, store, fake, server)
+	if hello := server.awaitHello(); hello.MirrorAfter != float64(7) {
+		t.Errorf("after a restart, mirrorAfter %v, want 7", hello.MirrorAfter)
+	}
+}
+
+// heldObject holds GitHub's answer to the first MirrorObject of number once
+// armed, until released.
+type heldObject struct {
+	number   int
+	armed    atomic.Bool
+	held     chan struct{}
+	released chan struct{}
+}
+
+func holdObject(number int) *heldObject {
+	return &heldObject{number: number, held: make(chan struct{}, 1), released: make(chan struct{})}
+}
+
+func (h *heldObject) RoundTrip(r *http.Request) (*http.Response, error) {
+	body, _ := io.ReadAll(r.Body)
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	var request struct {
+		OperationName string `json:"operationName"`
+		Variables     struct {
+			Number int `json:"number"`
+		} `json:"variables"`
+	}
+	if json.Unmarshal(body, &request) == nil && request.OperationName == "MirrorObject" && request.Variables.Number == h.number && h.armed.CompareAndSwap(true, false) {
+		h.held <- struct{}{}
+		<-h.released
+	}
+	return http.DefaultTransport.RoundTrip(r)
+}
+
+func (h *heldObject) await(t *testing.T) {
+	t.Helper()
+	select {
+	case <-h.held:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("#%d never fetched", h.number)
+	}
+}
+
+func TestMirrorProjectsWhileAnEnvelopeIsAppliedChangesNothingOfIt(t *testing.T) {
+	clock := newClock()
+	server := newRunnerServer(t, clock)
+	fake := newFake(t, "testdata/graphql")
+	store, path := followedStore(t, 0, followedAtelier)
+	hold := holdObject(38)
+	followThrough(t, store, fake, server, hold)
+	server.awaitHello()
+	awaitFilled(t, path, 1)
+
+	hold.armed.Store(true)
+	server.send(changed(1, followedAtelier, "issue", 38, nil))
+	hold.await(t)
+	// The Projet renamed while its envelope is fetched.
+	renamed := followedAtelier
+	renamed.DisplayName = "Atelier renommé"
+	asked := server.tokensAsked()
+	server.send(mirrorProjects(renamed))
+	eventually(t, "mirror.projects handled", func() bool { return server.tokensAsked() > asked })
+	close(hold.released)
+	awaitCursor(t, store, 1)
+	assertRows(t, path, "SELECT display_name FROM projects", [][]any{{"Atelier renommé"}})
+}
+
+func TestAnEnvelopeOfTheServerBeforeAResyncMovesNoCursorOfTheNext(t *testing.T) {
+	clock := newClock()
+	server := newRunnerServer(t, clock)
+	fake := newFake(t, "testdata/graphql")
+	store, path := followedStore(t, 100, followedAtelier)
+	hold := holdObject(38)
+	followThrough(t, store, fake, server, hold)
+	server.awaitHello()
+	awaitFilled(t, path, 1)
+
+	// 101 is fetched when the server changes: the next one's counter is at 5.
+	hold.armed.Store(true)
+	server.send(changed(101, followedAtelier, "issue", 38, nil))
+	hold.await(t)
+	server.send(stamp(protocol.TypeMirrorResync, nil))
+	server.send(stamp(protocol.TypeMirrorLive, map[string]any{"seq": 5}))
+	// Handled in order: once mirror.projects is, so are the resync and its live.
+	asked := server.tokensAsked()
+	server.send(mirrorProjects(followedAtelier))
+	eventually(t, "mirror.projects handled", func() bool { return server.tokensAsked() > asked })
+	close(hold.released)
+	awaitCursor(t, store, 5)
+
+	// The next server's own 101 is applied, not taken for the one before.
+	fetched := len(objectsFetched(fake))
+	for seq := 6; seq <= 101; seq++ {
+		server.send(changed(seq, followedAtelier, "issue", 40, nil))
+	}
+	awaitCursor(t, store, 101)
+	if got := len(objectsFetched(fake)) - fetched; got != 96 {
+		t.Errorf("%d envelopes fetched after the resync, want 96", got)
 	}
 }

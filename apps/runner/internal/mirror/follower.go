@@ -100,6 +100,9 @@ type Follower struct {
 	connected    bool
 	live         bool // mirror.live received on this connection
 	resync       *resync
+	// epoch counts the resyncs: an envelope's seq is of the server of its
+	// epoch, one of an older epoch moves no cursor.
+	epoch uint64
 
 	tokens      map[string]installationToken // by repository, lower case
 	tokensReady bool                         // a mirror.token.issued arrived
@@ -149,6 +152,7 @@ type change struct {
 	number     int
 	sha        string
 	received   time.Time
+	epoch      uint64
 }
 
 // NewFollower is the follower of cfg.Store, from where its last run left the copy.
@@ -334,7 +338,7 @@ func (f *Follower) projectsChanged(_ context.Context, m contracts.RunnerMirrorPr
 	}
 	f.mu.Lock()
 	var removed []*followed
-	var orphans []int64
+	var orphans []change
 	for k, p := range f.projects {
 		if kept[k] {
 			continue
@@ -344,9 +348,7 @@ func (f *Follower) projectsChanged(_ context.Context, m contracts.RunnerMirrorPr
 			delete(f.resync.need, k)
 		}
 		removed = append(removed, p)
-		for _, c := range p.queue {
-			orphans = append(orphans, c.seq)
-		}
+		orphans = append(orphans, p.queue...)
 		if p.cancel != nil {
 			p.cancel()
 		}
@@ -376,9 +378,9 @@ func (f *Follower) projectsChanged(_ context.Context, m contracts.RunnerMirrorPr
 		f.start(added)
 	}
 	f.mu.Unlock()
-	sort.Slice(orphans, func(i, j int) bool { return orphans[i] < orphans[j] })
-	for _, seq := range orphans {
-		if err := f.commit(seq, "", nil); err != nil {
+	sort.Slice(orphans, func(i, j int) bool { return orphans[i].seq < orphans[j].seq })
+	for _, c := range orphans {
+		if err := f.commit(c.seq, c.epoch, "", nil); err != nil {
 			return err
 		}
 	}
@@ -401,12 +403,14 @@ func (f *Follower) changed(_ context.Context, m contracts.RunnerGithubChanged) e
 		c.sha = sha
 	}
 	f.mu.Lock()
-	if c.seq <= f.lastReceived || f.ahead[c.seq] || (f.hasCursor && c.seq <= f.cursor) {
+	// While a resync runs, the stored cursor is no longer the server's.
+	if c.seq <= f.lastReceived || f.ahead[c.seq] || (f.hasCursor && f.resync == nil && c.seq <= f.cursor) {
 		f.lastReceived = max(f.lastReceived, c.seq)
 		f.mu.Unlock()
 		return nil
 	}
 	f.lastReceived = c.seq
+	c.epoch = f.epoch
 	p, ok := f.projects[key(c.repository)]
 	if ok {
 		p.queue = append(p.queue, c)
@@ -414,7 +418,7 @@ func (f *Follower) changed(_ context.Context, m contracts.RunnerGithubChanged) e
 	}
 	f.mu.Unlock()
 	if !ok {
-		return f.commit(c.seq, "", nil)
+		return f.commit(c.seq, c.epoch, "", nil)
 	}
 	return nil
 }
@@ -431,12 +435,17 @@ func asInt(v any) (int, bool) {
 	return 0, false
 }
 
-// resynced: the server no longer has every envelope after the cursor. Every
+// resynced: the server no longer has every envelope after the cursor, or
+// never had them (another server, whose counter may be below it). Every
 // Projet is reconciled; the queued envelopes are dropped, the
-// reconciliations cover them; the cursor moves to mirror.live's seq once
-// they all finished.
+// reconciliations cover them, and so are the seqs applied after the cursor;
+// the cursor becomes mirror.live's seq once they all finished.
 func (f *Follower) resynced(context.Context, contracts.RunnerMirrorResync) error {
+	f.writing.Lock()
+	defer f.writing.Unlock()
 	f.mu.Lock()
+	f.epoch++
+	f.ahead = map[int64]bool{}
 	r := &resync{need: map[string]uint64{}}
 	for k, p := range f.projects {
 		p.queue = nil
@@ -456,9 +465,12 @@ func (f *Follower) lived(_ context.Context, m contracts.RunnerMirrorLive) error 
 	seq := int64(m.Seq)
 	f.mu.Lock()
 	f.live = true
-	f.lastReceived = max(f.lastReceived, seq)
 	if f.resync != nil && f.resync.live == nil {
+		// The server's counter, even below the stored cursor.
 		f.resync.live = &seq
+		f.lastReceived = seq
+	} else {
+		f.lastReceived = max(f.lastReceived, seq)
 	}
 	f.mu.Unlock()
 	f.logger.Info("mirror live", "seq", seq)
@@ -483,9 +495,6 @@ func (f *Follower) finishResync() error {
 		}
 	}
 	cursor := *r.live
-	if f.hasCursor {
-		cursor = max(cursor, f.cursor)
-	}
 	ahead := map[int64]bool{}
 	for seq := range f.ahead {
 		if seq > cursor {
@@ -537,18 +546,22 @@ func writeAhead(tx *sql.Tx, ahead map[int64]bool) error {
 	return SetMeta(tx, MetaMirrorApplied, strings.Join(parts, ","))
 }
 
-// commit applies the envelope seq: in one transaction, what write puts (for
-// the repository, still a Projet), the Projet's synced_at, and the cursor.
-func (f *Follower) commit(seq int64, repository string, write func(*sql.Tx) error) error {
+// commit applies the envelope seq of epoch: in one transaction, what write
+// puts (for the repository, still a Projet), the Projet's synced_at, and the
+// cursor. One of an older epoch moves no cursor: its seq is of the server
+// before the resync; one received during a resync is only marked applied,
+// the cursor waits for mirror.live's seq.
+func (f *Follower) commit(seq int64, epoch uint64, repository string, write func(*sql.Tx) error) error {
 	f.writing.Lock()
 	defer f.writing.Unlock()
 	f.mu.Lock()
-	cursor, has := f.cursor, f.hasCursor
+	current := epoch == f.epoch
+	cursor, has := f.cursor, f.hasCursor && f.resync == nil
 	ahead := make(map[int64]bool, len(f.ahead)+1)
 	for s := range f.ahead {
 		ahead[s] = true
 	}
-	if !has || seq > cursor {
+	if current && (!has || seq > cursor) {
 		ahead[seq] = true
 	}
 	if has {
@@ -573,7 +586,10 @@ func (f *Follower) commit(seq int64, repository string, write func(*sql.Tx) erro
 				}
 			}
 		}
-		if has {
+		switch {
+		case !current:
+			return nil
+		case has:
 			return writeCursor(tx, cursor, ahead)
 		}
 		return writeAhead(tx, ahead)
@@ -582,7 +598,9 @@ func (f *Follower) commit(seq int64, repository string, write func(*sql.Tx) erro
 		return err
 	}
 	f.mu.Lock()
-	f.cursor, f.ahead = cursor, ahead
+	if current {
+		f.cursor, f.ahead = cursor, ahead
+	}
 	if p, ok := f.projects[key(repository)]; ok && repository != "" {
 		p.synced = at.UTC().Truncate(time.Second)
 	}
@@ -590,8 +608,11 @@ func (f *Follower) commit(seq int64, repository string, write func(*sql.Tx) erro
 	return nil
 }
 
-// job is a worker's next step: its Projet's reconciliation, or its first envelope.
+// job is a worker's next step: its Projet's reconciliation, or its first
+// envelope; repository is the Projet's when the job was taken, mirror.projects
+// may change the Projet meanwhile.
 type job struct {
+	repository string
 	reconcile  bool
 	generation uint64
 	change     change
@@ -606,11 +627,11 @@ func (f *Follower) next(p *followed) (job, bool) {
 	case !f.tokensReady:
 		return job{}, false
 	case p.done < p.wanted:
-		return job{reconcile: true, generation: p.wanted}, true
+		return job{repository: p.project.Repository, reconcile: true, generation: p.wanted}, true
 	case f.resync != nil || len(p.queue) == 0:
 		return job{}, false
 	}
-	return job{change: p.queue[0]}, true
+	return job{repository: p.project.Repository, change: p.queue[0]}, true
 }
 
 // work is p's worker: one job at a time, a failed one retried after its wait.
@@ -627,9 +648,9 @@ func (f *Follower) work(ctx context.Context, p *followed) {
 		}
 		var err error
 		if j.reconcile {
-			err = f.reconcileProject(ctx, p, j.generation)
+			err = f.reconcileProject(ctx, p, j.repository, j.generation)
 		} else {
-			err = f.apply(ctx, p, j.change)
+			err = f.apply(ctx, p, j.repository, j.change)
 		}
 		if ctx.Err() != nil {
 			return
@@ -681,7 +702,7 @@ func acquire(ctx context.Context, slots chan struct{}) bool {
 }
 
 // reconcileProject runs p's reconciliation, one Projet at a time.
-func (f *Follower) reconcileProject(ctx context.Context, p *followed, generation uint64) error {
+func (f *Follower) reconcileProject(ctx context.Context, p *followed, repository string, generation uint64) error {
 	if !acquire(ctx, f.reconcile) {
 		return ctx.Err()
 	}
@@ -689,11 +710,11 @@ func (f *Follower) reconcileProject(ctx context.Context, p *followed, generation
 	if !acquire(ctx, f.fetches) {
 		return ctx.Err()
 	}
-	_, err := f.mirror.Reconcile(ctx, p.project.Repository)
+	_, err := f.mirror.Reconcile(ctx, repository)
 	<-f.fetches
 	if err != nil {
 		if ctx.Err() == nil {
-			f.logger.Warn("mirror reconcile failed", "repository", p.project.Repository, "class", errorClass(err), "error", err.Error())
+			f.logger.Warn("mirror reconcile failed", "repository", repository, "class", errorClass(err), "error", err.Error())
 		}
 		return err
 	}
@@ -702,24 +723,24 @@ func (f *Follower) reconcileProject(ctx context.Context, p *followed, generation
 		return err
 	}
 	f.mu.Lock()
-	m := marks[p.project.Repository]
+	m := marks[repository]
 	p.done, p.filled, p.synced = max(p.done, generation), m.filled, m.synced
 	f.mu.Unlock()
 	return f.finishResync()
 }
 
 // apply fetches what the envelope c names and commits it with the cursor.
-func (f *Follower) apply(ctx context.Context, p *followed, c change) error {
+func (f *Follower) apply(ctx context.Context, p *followed, repository string, c change) error {
 	started := f.clock.Now()
 	if !acquire(ctx, f.fetches) {
 		return ctx.Err()
 	}
-	write, err := f.fetch(ctx, p.project.Repository, c)
+	write, err := f.fetch(ctx, repository, c)
 	<-f.fetches
 	if err == nil {
-		err = f.commit(c.seq, p.project.Repository, write)
+		err = f.commit(c.seq, c.epoch, repository, write)
 	}
-	attrs := []any{"repository", p.project.Repository, "kind", string(c.kind), "number", c.number, "seq", c.seq,
+	attrs := []any{"repository", repository, "kind", string(c.kind), "number", c.number, "seq", c.seq,
 		"duration_ms", f.clock.Now().Sub(started).Milliseconds()}
 	if err != nil {
 		if ctx.Err() == nil {
@@ -728,7 +749,7 @@ func (f *Follower) apply(ctx context.Context, p *followed, c change) error {
 		return err
 	}
 	f.mu.Lock()
-	if len(p.queue) > 0 && p.queue[0].seq == c.seq {
+	if len(p.queue) > 0 && p.queue[0].seq == c.seq && p.queue[0].epoch == c.epoch {
 		p.queue = p.queue[1:]
 	}
 	f.mu.Unlock()

@@ -1,0 +1,124 @@
+import { z } from 'zod';
+import { zSha } from '../github/index.js';
+import { zArtifactType } from '../process/artifact-types.js';
+import { zStepKind } from '../process/catalogue.js';
+import { zProcessId } from '../process/definition.js';
+import { zId, zInstant } from '../values.js';
+
+/**
+ * The engine's runs (ADR 0011, « The engine »): a PhaseRun is one item
+ * through one Phase, pinned to the version active when it started; a StepRun
+ * is one pass of an Étape inside it. What they hold is readable by the
+ * server (ADR 0003): ids, states, Artefact references, never content.
+ */
+
+/** `waiting`: on its turn or a Décision (`waitingOn`); the last three are final. */
+export const PHASE_RUN_STATES = ['running', 'waiting', 'done', 'stopped', 'failed'] as const;
+export const zPhaseRunState = z.enum(PHASE_RUN_STATES);
+export type PhaseRunState = z.infer<typeof zPhaseRunState>;
+
+/** What a `waiting` PhaseRun waits for: its turn in a Phase without `forEach` (PROCESS-5), a Décision (PROCESS-6). */
+export const PHASE_RUN_WAITING_ON = ['queue', 'decision'] as const;
+export const zPhaseRunWaitingOn = z.enum(PHASE_RUN_WAITING_ON);
+export type PhaseRunWaitingOn = z.infer<typeof zPhaseRunWaitingOn>;
+
+/**
+ * `waiting`: on the Pilote (a gate); `interrupted`: its Session cut, the
+ * Runner gone or a limit reached, to resume; `blocked`: its agent cannot go
+ * on and says why, to unblock; `superseded`: undone by a rerun (a Retour's,
+ * `rerunFrom`'s), its outputs feeding nothing any more.
+ */
+export const STEP_RUN_STATES = ['running', 'waiting', 'interrupted', 'blocked', 'done', 'failed', 'stopped', 'superseded'] as const;
+export const zStepRunState = z.enum(STEP_RUN_STATES);
+export type StepRunState = z.infer<typeof zStepRunState>;
+
+/** A PhaseRun in these states is unfinished: `GET /api/state` lists it, the item cannot enter the Phase again. */
+export const UNFINISHED_PHASE_RUN_STATES = ['running', 'waiting'] as const satisfies readonly PhaseRunState[];
+
+/** A StepRun in these states holds its PhaseRun open. */
+export const OPEN_STEP_RUN_STATES = ['running', 'waiting', 'interrupted', 'blocked'] as const satisfies readonly StepRunState[];
+
+/** What an Étape that judges concludes: `changes` is what a Retour follows (PROCESS-6). */
+export const STEP_VERDICTS = ['passed', 'changes', 'failed'] as const;
+export const zStepRunVerdict = z.enum(STEP_VERDICTS);
+export type StepRunVerdict = z.infer<typeof zStepRunVerdict>;
+
+/**
+ * An Artefact, by reference: the port it came out of (or the Entrée it fed,
+ * for the item), its type, its `id` (an Idée's or a Ticket's id, a
+ * document's path, a change's number) and, for what lives in git, its SHA.
+ */
+export const zArtifactRef = z.object({
+  portId: zProcessId,
+  type: zArtifactType,
+  id: z.string().min(1).max(200),
+  sha: zSha.optional(),
+});
+export type ArtifactRef = z.infer<typeof zArtifactRef>;
+
+/** A code, never free text: `no-handler`, a handler's own (`checks-failed`). */
+const zCode = z.string().min(1).max(60);
+
+/**
+ * One item through one Phase: `processVersion` is the number of the version
+ * it is pinned to, `itemType` the type of its Phase's `forEach`. The payload
+ * of `phase-run.upserted`, an item of the `phaseRuns` slice while unfinished.
+ */
+export const zPhaseRun = z.object({
+  id: zId,
+  projectId: zId,
+  processVersion: z.int().min(1),
+  phaseId: zProcessId,
+  itemType: zArtifactType,
+  itemId: z.string().min(1).max(200),
+  state: zPhaseRunState,
+  waitingOn: zPhaseRunWaitingOn.nullable(),
+  startedAt: zInstant,
+  endedAt: zInstant.nullable(),
+});
+export type PhaseRun = z.infer<typeof zPhaseRun>;
+
+/** What fed one Entrée of a StepRun: none for an arrow from another Phase PROCESS-5 has not resolved yet. */
+export const zStepRunInput = z.object({ portId: zProcessId, artifacts: z.array(zArtifactRef) });
+export type StepRunInput = z.infer<typeof zStepRunInput>;
+
+/**
+ * One pass of an Étape in a PhaseRun: its kind, its `iteration` (1, then + 1
+ * on each rerun), what fed its Entrées, what it gave on its Sorties, its
+ * Verdict when it judges, why it failed (`failure`, a code), why a rerun
+ * started it (`reason`: `loop-back`, or the caller's, `fix-conflict`), and
+ * the agent's Session when it has one. The payload of `step-run.upserted`,
+ * an item of the `stepRuns` slice while its PhaseRun is unfinished.
+ */
+export const zStepRun = z.object({
+  id: zId,
+  projectId: zId,
+  phaseRunId: zId,
+  stepId: zProcessId,
+  kind: zStepKind,
+  iteration: z.int().min(1),
+  state: zStepRunState,
+  inputs: z.array(zStepRunInput),
+  outputs: z.array(zArtifactRef),
+  verdict: zStepRunVerdict.nullable(),
+  failure: zCode.nullable(),
+  reason: zCode.nullable(),
+  sessionId: zId.nullable(),
+  startedAt: zInstant,
+  endedAt: zInstant.nullable(),
+});
+export type StepRun = z.infer<typeof zStepRun>;
+
+/**
+ * The work in progress of each version: the `running` and `waiting`
+ * PhaseRuns counted by the number of the version they are pinned to, in its
+ * order. The foot of the panel and the activation's dialog (PROCESS-10).
+ */
+export const runningWorkByVersion = (phaseRuns: readonly Pick<PhaseRun, 'processVersion' | 'state'>[]): { version: number; count: number }[] => {
+  const counts = new Map<number, number>();
+  for (const run of phaseRuns) {
+    if (!(UNFINISHED_PHASE_RUN_STATES as readonly PhaseRunState[]).includes(run.state)) continue;
+    counts.set(run.processVersion, (counts.get(run.processVersion) ?? 0) + 1);
+  }
+  return [...counts].sort(([a], [b]) => a - b).map(([version, count]) => ({ version, count }));
+};

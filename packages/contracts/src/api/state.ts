@@ -4,6 +4,7 @@ import { zDecision } from './decisions.js';
 import { zDevice } from './devices.js';
 import { zMcpServer } from './mcp-servers.js';
 import { zMe } from './me.js';
+import { zPhaseRun, zStepRun } from './phase-runs.js';
 import { zProjectProcess } from './process.js';
 import { REPOSITORIES_MAX, zProject, zRepository } from './projects.js';
 import { zRunner } from './runner.js';
@@ -33,6 +34,10 @@ export const STATE_SLICES = {
   projects: z.array(zProject),
   /** The Process of each Projet (PROCESS-3): its active version and its draft, keyed by the Projet's id. */
   processes: z.array(zProjectProcess),
+  /** Every unfinished PhaseRun (`running` or `waiting`) of every Projet (PROCESS-4); finished ones are read by their pages' lists. */
+  phaseRuns: z.array(zPhaseRun),
+  /** Every StepRun of those PhaseRuns, `superseded` ones included. */
+  stepRuns: z.array(zStepRun),
   /** The Dépôts GitHub their installations reach and they do not follow yet (PROJET-2), by name, at most `REPOSITORIES_MAX`. */
   repositories: z.array(zRepository).max(REPOSITORIES_MAX),
   /** The open Décisions, every one (« À toi »). */

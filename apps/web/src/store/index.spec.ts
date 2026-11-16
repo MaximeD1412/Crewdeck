@@ -1,4 +1,16 @@
-import { type CodeChange, DEFAULT_ACCOUNT_SETTINGS, type Me, type Milestone, PROCESS_CREWDECK, PROCESS_CREWDECK_NAME, type ProjectProcess, type State, type Ticket } from '@crewdeck/contracts';
+import {
+  type CodeChange,
+  DEFAULT_ACCOUNT_SETTINGS,
+  type Me,
+  type Milestone,
+  type PhaseRun,
+  PROCESS_CREWDECK,
+  PROCESS_CREWDECK_NAME,
+  type ProjectProcess,
+  type State,
+  type StepRun,
+  type Ticket,
+} from '@crewdeck/contracts';
 import { store } from './index.js';
 
 const PROJECT = '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a80';
@@ -75,6 +87,37 @@ const PROCESS: ProjectProcess = {
   sources: { ticket: { source: 'github', since: AT }, code: { source: 'github', since: AT } },
 };
 
+const PHASE_RUN: PhaseRun = {
+  id: '01900000-0000-7000-8000-0000000000a1',
+  projectId: PROJECT,
+  processVersion: 1,
+  phaseId: 'ph-dev',
+  itemType: 'ticket',
+  itemId: '42',
+  state: 'running',
+  waitingOn: null,
+  startedAt: AT,
+  endedAt: null,
+};
+
+const STEP_RUN: StepRun = {
+  id: '01900000-0000-7000-8000-0000000000b1',
+  projectId: PROJECT,
+  phaseRunId: PHASE_RUN.id,
+  stepId: 'st-code',
+  kind: 'code',
+  iteration: 1,
+  state: 'running',
+  inputs: [{ portId: 'ticket', artifacts: [{ portId: 'ticket', type: 'ticket', id: '42' }] }],
+  outputs: [],
+  verdict: null,
+  failure: null,
+  reason: null,
+  sessionId: null,
+  startedAt: AT,
+  endedAt: null,
+};
+
 const SNAPSHOT: State = {
   seq: 1,
   pilot: PILOT,
@@ -85,6 +128,8 @@ const SNAPSHOT: State = {
   devices: [],
   projects: [],
   processes: [PROCESS],
+  phaseRuns: [PHASE_RUN],
+  stepRuns: [STEP_RUN],
   repositories: [],
   decisions: [],
   tickets: [TICKET],
@@ -116,5 +161,18 @@ describe('the page’s store', () => {
 
     expect(store.getState().slices.process?.size).toBe(1);
     expect(store.getState().slices.process?.get(PROJECT)).toEqual(saved);
+  });
+
+  it('holds the PhaseRuns and the StepRuns by id, from the snapshot then their events', () => {
+    store.applySnapshot(SNAPSHOT);
+    expect(store.getState().slices['phase-run']?.get(PHASE_RUN.id)).toEqual(PHASE_RUN);
+    expect(store.getState().slices['step-run']?.get(STEP_RUN.id)).toEqual(STEP_RUN);
+
+    const done: StepRun = { ...STEP_RUN, state: 'done', outputs: [{ portId: 'changement', type: 'code-change', id: '57' }], endedAt: AT };
+    expect(store.applyEvent({ seq: 2, type: 'step-run.upserted', payload: done, at: AT })).toBe('applied');
+    expect(store.applyEvent({ seq: 3, type: 'phase-run.upserted', payload: { ...PHASE_RUN, state: 'done', endedAt: AT }, at: AT })).toBe('applied');
+
+    expect(store.getState().slices['step-run']?.get(STEP_RUN.id)).toEqual(done);
+    expect(store.getState().slices['phase-run']?.get(PHASE_RUN.id)).toMatchObject({ state: 'done' });
   });
 });

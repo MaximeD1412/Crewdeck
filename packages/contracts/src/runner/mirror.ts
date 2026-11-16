@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { zSha } from '../github/index.js';
+import { zErrorCode } from '../api/errors.js';
+import { type InstallationPermissions, zSha } from '../github/index.js';
 import { zId, zInstant, zSeq } from '../values.js';
 import { runnerMessage } from './envelope.js';
 
@@ -79,3 +80,53 @@ export type MirrorProject = z.infer<typeof zMirrorProject>;
  */
 export const zMirrorProjects = runnerMessage('mirror.projects', { projects: z.array(zMirrorProject) });
 export type MirrorProjects = z.infer<typeof zMirrorProjects>;
+
+/**
+ * What the « Miroir » token may do (ADR 0010, risk SEC-6): six permissions,
+ * read only. Never `write`: a Session keeps its own token for its writes.
+ */
+export const MIRROR_TOKEN_PERMISSIONS = {
+  metadata: 'read',
+  contents: 'read',
+  issues: 'read',
+  pull_requests: 'read',
+  checks: 'read',
+  statuses: 'read',
+} as const satisfies InstallationPermissions;
+
+/**
+ * Runner → server: the « Miroir » tokens, asked at the start and again
+ * 10 min before the earliest `expiresAt`, and after each `mirror.projects`
+ * (MIROIR-4). The server never pushes one.
+ */
+export const zMirrorToken = runnerMessage('mirror.token');
+export type MirrorToken = z.infer<typeof zMirrorToken>;
+
+/**
+ * An installation token of one App installation, restricted to the
+ * repositories of the Pilote's Projets it reaches and to
+ * `MIRROR_TOKEN_PERMISSIONS`, valid 1 h. Never stored nor logged by the server.
+ */
+export const zMirrorInstallationToken = z.object({
+  installationId: z.int().positive(),
+  token: z.string().min(1),
+  expiresAt: zInstant,
+  repositories: z.array(zRepositoryName),
+});
+export type MirrorInstallationToken = z.infer<typeof zMirrorInstallationToken>;
+
+/**
+ * Server → Runner: one token per installation of the Pilote's Projets that
+ * have a GitHub repository whose access is not lost; `tokens: []` when there
+ * is none (a Local Projet needs no token).
+ */
+export const zMirrorTokenIssued = runnerMessage('mirror.token.issued', { tokens: z.array(zMirrorInstallationToken) });
+export type MirrorTokenIssued = z.infer<typeof zMirrorTokenIssued>;
+
+/**
+ * Server → Runner: one installation's token could not be minted
+ * (`github.unavailable`: GitHub refused or did not answer); the Runner asks
+ * the whole request again.
+ */
+export const zMirrorTokenFailed = runnerMessage('mirror.token.failed', { code: zErrorCode });
+export type MirrorTokenFailed = z.infer<typeof zMirrorTokenFailed>;

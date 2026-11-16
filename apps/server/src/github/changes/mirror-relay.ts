@@ -1,4 +1,4 @@
-import type { GitHubChange, Hello, MirrorProject } from '@crewdeck/contracts';
+import type { GitHubChange, Hello } from '@crewdeck/contracts';
 import { Injectable, type OnModuleInit } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -6,6 +6,7 @@ import { ProjectChanges } from '../../projects/project-changes.js';
 import { type OutgoingRunnerMessage, type RunnerLink, RunnerConnections, stamp } from '../../runners/runner-connections.js';
 import { runInPilotScope } from '../../scope/scope.context.js';
 import { CHANGE_VIEW, toChange } from './change.view.js';
+import { mirrorProjectsOf } from './mirror-projects.js';
 
 /** How many changes a replay reads at a time. */
 export const MIRROR_PAGE = 500;
@@ -155,34 +156,7 @@ export class MirrorRelay implements OnModuleInit {
   }
 
   private async sendProjects(stream: Stream): Promise<void> {
-    this.send(stream, { type: 'mirror.projects', projects: await this.projectsOf() });
-  }
-
-  /** The Pilote's Projets whose access is not lost, with the installation that reaches each. */
-  private async projectsOf(): Promise<MirrorProject[]> {
-    return this.prisma.scoped.$transaction(async (tx) => {
-      const projects = await tx.project.findMany({
-        where: { accessLost: false },
-        select: { id: true, repositoryId: true, githubRepoId: true, fullName: true, displayName: true, integrationBranch: true },
-        orderBy: { followedAt: 'asc' },
-      });
-      const repositories = await tx.repository.findMany({ where: { id: { in: projects.map((project) => project.repositoryId) } }, select: { id: true, installationId: true } });
-      const installations = new Map(repositories.map((repository) => [repository.id, Number(repository.installationId)]));
-      return projects.flatMap((project) => {
-        const installationId = installations.get(project.repositoryId);
-        if (installationId === undefined) return [];
-        return [
-          {
-            projectId: project.id,
-            repository: project.fullName,
-            githubRepoId: Number(project.githubRepoId),
-            installationId,
-            displayName: project.displayName,
-            integrationBranch: project.integrationBranch,
-          },
-        ];
-      });
-    });
+    this.send(stream, { type: 'mirror.projects', projects: await mirrorProjectsOf(this.prisma.scoped) });
   }
 
   private send(stream: Stream, message: OutgoingRunnerMessage): void {

@@ -23,6 +23,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { RunnersModule } from './runners/runners.module.js';
+import { EngineModule } from './process/engine/engine.module.js';
 import { ScopeModule } from './scope/scope.module.js';
 import { TicketsModule } from './tickets/tickets.module.js';
 import { SensitiveActionsModule } from './sensitive-actions/sensitive-actions.module.js';
@@ -74,6 +75,7 @@ export class AppModule {
         RepositoriesModule,
         GitHubChangesModule,
         ProjectsModule,
+        EngineModule,
         TicketsModule,
         DecisionsModule,
         MetricsModule,

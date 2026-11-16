@@ -459,13 +459,13 @@
       "id": "migration-push-subscriptions",
       "phase": "db",
       "source": "#54",
-      "titre": "Appliquer la migration 20261128000000_push_subscriptions en staging puis en production",
+      "titre": "Appliquer la migration 20261129000000_push_subscriptions en staging puis en production",
       "pourquoi": "La table push_subscriptions garde les navigateurs qui reçoivent les notifications push de chaque Pilote (leur endpoint, leurs clés, leur libellé), et la colonne decisions.notified_at ce qui a déjà été poussé. Sans elles, « Notifications » des Paramètres et GET /api/state échouent. La migration ne fait qu'ajouter : la version précédente du serveur tourne sur la base migrée ; les Décisions déjà ouvertes ne sont jamais poussées.",
       "etapes": [
         "Rien à lancer à la main : deploy.sh répète la migration sur la dernière sauvegarde (rehearse.sh), puis l'applique au déploiement du staging, puis à celui de la production.",
         "Vérifier sur chaque base (crewdeck-prod, puis crewdeck-staging) que la commande imprime une date : la migration est appliquée."
       ],
-      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261128000000_push_subscriptions'\"",
+      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261129000000_push_subscriptions'\"",
       "ajouteLe": "2026-11-16"
     },
     {

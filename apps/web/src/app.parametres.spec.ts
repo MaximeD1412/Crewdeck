@@ -55,7 +55,7 @@ describe('the page’s Paramètres', () => {
       models: [{ id: 'gpt-5.5', label: 'GPT-5.5', usable: true }],
       reportedAt: '2026-11-11T08:30:00.000Z',
     };
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [codex], 'mcp-server': [], devices: [], 'push-subscriptions': [], projects: [], processes: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], settings });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [codex], 'mcp-server': [], devices: [], 'push-subscriptions': [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], settings });
     expect(slotsOf()).toEqual(['roles', 'notifications', 'account', 'modders']);
     const select = page.querySelector('cd-card[slot=account] cd-select') as HTMLElement & { data: { value: string } };
     expect(select.data.value).toBe('Europe/Paris');

@@ -26,6 +26,7 @@ export const RESOURCES = [
   'agent-loop',
   'schedule',
   'agent-session',
+  'phase-run',
   'step-run',
   'decision',
   'idea',

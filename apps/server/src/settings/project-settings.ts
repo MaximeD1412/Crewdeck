@@ -1,12 +1,14 @@
 import {
   type ProjectSettings,
   type ProjectSettingsPatch,
+  type ProjectSettingsUpdated,
   type RoleChoice,
   type SealedItem,
   withSeq,
   zId,
   zProjectSettings,
   zProjectSettingsPatch,
+  zProjectSettingsUpdated,
   zSealedItem,
 } from '@crewdeck/contracts';
 import { Body, Controller, Get, Injectable, Param, Patch } from '@nestjs/common';
@@ -23,6 +25,7 @@ import { currentPilotId } from '../scope/scope.context.js';
 import { overridesOf, SettingsService, validateRoleChoices } from './settings.service.js';
 
 export class ProjectSettingsDto extends createZodDto(zProjectSettings) {}
+export class ProjectSettingsUpdatedDto extends createZodDto(zProjectSettingsUpdated) {}
 /** No 409 on it: a setting is a value, the last write wins. */
 export class ProjectSettingsPatchDto extends createZodDto(withSeq(zProjectSettingsPatch)) {}
 
@@ -61,14 +64,15 @@ export class ProjectSettingsService {
 
   /**
    * Writes what `patch` changes; returns the Projet's Paramètres, written in
-   * `settings.upserted` `{ projectSettings }` in the same `tx`, with
+   * `settings.upserted` `{ projectSettings }` in the same `tx` (`seq`, that
+   * event's), with
    * `project.upserted` when a branch changes (`branchesChanged` then true).
    * 404 for a Projet that is not the Pilote's; a Rôle validated as the
    * account's (400 on an unknown id, 422 `settings.engine-unusable`), `null`
    * back to the account; 422 `settings.branches-same` when both branches
    * would be one. Serialised on the Pilote's row, as the account's changes.
    */
-  async update(tx: Tx, pilotId: string, projectId: string, patch: ProjectSettingsPatch): Promise<{ settings: ProjectSettings; branchesChanged: boolean }> {
+  async update(tx: Tx, pilotId: string, projectId: string, patch: ProjectSettingsPatch): Promise<{ settings: ProjectSettings; seq: bigint; branchesChanged: boolean }> {
     if (!zId.safeParse(projectId).success) throw projectNotFound();
     await this.settings.lock(tx, pilotId);
     const project = await tx.project.findFirst({
@@ -104,8 +108,8 @@ export class ProjectSettingsService {
     }
     const settings = await this.settings.project(pilotId, projectId, tx);
     if (!settings) throw projectNotFound();
-    await this.events.write(tx, pilotId, 'settings.upserted', { projectSettings: settings });
-    return { settings, branchesChanged };
+    const seq = await this.events.write(tx, pilotId, 'settings.upserted', { projectSettings: settings });
+    return { settings, seq, branchesChanged };
   }
 }
 
@@ -125,14 +129,14 @@ export class ProjectSettingsController {
   }
 
   @Patch()
-  @ZodResponse({ status: 200, description: 'The Paramètres of the Projet, once changed.', type: ProjectSettingsDto })
-  async update(@Param('id') id: string, @Body() body: ProjectSettingsPatchDto): Promise<ProjectSettings> {
+  @ZodResponse({ status: 200, description: 'The Paramètres of the Projet, once changed, with the seq of their settings.upserted.', type: ProjectSettingsUpdatedDto })
+  async update(@Param('id') id: string, @Body() body: ProjectSettingsPatchDto): Promise<ProjectSettingsUpdated> {
     const pilotId = currentPilotId();
     // The `seq` the page carries is not read: the last change wins.
     const { seq: _seq, ...patch } = body;
-    const { settings, branchesChanged } = await this.transactions.run((tx) => this.settings.update(tx, pilotId, id, patch));
+    const { settings, seq, branchesChanged } = await this.transactions.run((tx) => this.settings.update(tx, pilotId, id, patch));
     // The Runner's Miroir learns the Projet's new integration branch (MIROIR-1).
     if (branchesChanged) this.changes.changed(pilotId);
-    return settings;
+    return { ...settings, seq: Number(seq) };
   }
 }

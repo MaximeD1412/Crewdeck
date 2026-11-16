@@ -1,4 +1,4 @@
-import { zProject, zProjectSettings, zState } from '@crewdeck/contracts';
+import { zProject, zProjectSettings, zProjectSettingsUpdated, zState } from '@crewdeck/contracts';
 import type { INestApplication } from '@nestjs/common';
 import pg from 'pg';
 import { inject } from 'vitest';
@@ -139,13 +139,16 @@ describe('the Paramètres of a Projet against PostgreSQL', () => {
       const res = await patch(alice.cookie, projectId, { seq: '0', roles: { code: CODEX } });
 
       expect(res.status).toBe(200);
-      const body = zProjectSettings.parse(await res.json());
+      const answer = zProjectSettingsUpdated.parse(await res.json());
+      const body = zProjectSettings.parse(answer);
       // The Review moves to Claude Code, the other Moteur than the Projet's Code.
       expect(body.effective.roles).toEqual({ idea: CLAUDE, design: CLAUDE, code: CODEX, review: CLAUDE });
       expect(body.origins.roles).toEqual({ ...INHERITED.roles, code: 'projet' });
       expect(body.changedCount).toBe(1);
       expect(await events(alice.id)).toEqual([{ type: 'settings.upserted', payload: { projectSettings: body } }]);
       expect(await sql('SELECT seq FROM pilots WHERE id = $1', [alice.id])).toEqual([{ seq: '1' }]);
+      // The seq of its settings.upserted: the page knows the store holds the write once it reaches it.
+      expect(answer.seq).toBe(1);
 
       const settings = app.get(SettingsService);
       expect((await runInPilotScope(alice.id, () => settings.effective(alice.id, projectId))).roles).toEqual(body.effective.roles);
@@ -199,7 +202,10 @@ describe('the Paramètres of a Projet against PostgreSQL', () => {
       try {
         const res = await patch(alice.cookie, projectId, { seq: '0', branches: { integration: 'main-2', release: 'release/2026' } });
         expect(res.status).toBe(200);
-        expect(zProjectSettings.parse(await res.json()).branches).toEqual({ integration: 'main-2', release: 'release/2026' });
+        const answer = zProjectSettingsUpdated.parse(await res.json());
+        expect(answer.branches).toEqual({ integration: 'main-2', release: 'release/2026' });
+        // settings.upserted's seq, after project.upserted's.
+        expect(answer.seq).toBe(2);
       } finally {
         off();
       }

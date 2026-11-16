@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { zBytes } from '../keys/pairing.js';
 import { zSealedItem } from '../keys/sealed.js';
-import { zId } from '../values.js';
+import { zId, zSeq } from '../values.js';
 import { zRoleId } from './roles.js';
 import { zAccountSettings, zEffectiveSettings, zRoleChoice } from './settings.js';
 
@@ -88,6 +88,15 @@ export const zProjectSettings = z.object({
   worktreeCommands: zSealedItem.nullable(),
 });
 export type ProjectSettings = z.infer<typeof zProjectSettings>;
+
+/**
+ * `PATCH /api/projects/:id/settings`'s answer: the Projet's Paramètres once
+ * changed, and the `seq` of their `settings.upserted`. The page knows the
+ * store holds its write once the store's `seq` reaches it, by that event or
+ * by a snapshot that covers it (ADR 0007).
+ */
+export const zProjectSettingsUpdated = zProjectSettings.extend({ seq: zSeq });
+export type ProjectSettingsUpdated = z.infer<typeof zProjectSettingsUpdated>;
 
 /**
  * `PATCH /api/projects/:id/settings`: what to change, any part of it; an

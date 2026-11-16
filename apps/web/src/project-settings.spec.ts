@@ -27,7 +27,7 @@ const unlockedVault = async (): Promise<Vault> => {
   return created;
 };
 
-const stored = (worktreeCommands: SealedItem | null = null): ProjectSettings => ({
+const settingsOf = (worktreeCommands: SealedItem | null = null): ProjectSettings => ({
   projectId: PROJECT,
   effective: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' },
   origins: { roles: { idea: 'compte', design: 'compte', code: 'compte', review: 'compte' }, notifications: { push: 'compte' } },
@@ -36,20 +36,74 @@ const stored = (worktreeCommands: SealedItem | null = null): ProjectSettings => 
   worktreeCommands,
 });
 
-/** The API at the page's boundary: each command recorded, answered with what the server stored, or refused. */
+/**
+ * The page's boundaries: the API, each command recorded and answered with
+ * what the server stored and the `seq` of its event once it commits (at once
+ * unless the answer commits it), or refused; and the store, which holds the
+ * events it was given (`deliver`, `write`) or a snapshot of the server.
+ */
 const fakeClient = () => {
   const calls: { method: string; path: string; body: Record<string, unknown> }[] = [];
-  let answer: (body: Record<string, unknown>) => Promise<ProjectSettings> = async (body) => {
-    const sent = body['worktreeCommands'] as SealedItem | null | undefined;
-    return stored(sent ?? null);
-  };
+  const commits: number[] = [];
+  let seq = 0;
+  let current: SealedItem | null = null;
+  let answer: (body: Record<string, unknown>, commit: () => void) => Promise<ProjectSettings> = async (body) => settingsOf((body['worktreeCommands'] as SealedItem | null | undefined) ?? null);
   const client = {
     command: vi.fn(async (method: string, path: string, body: object) => {
-      calls.push({ method, path, body: body as Record<string, unknown> });
-      return answer(body as Record<string, unknown>);
+      const index = calls.push({ method, path, body: body as Record<string, unknown> }) - 1;
+      const commit = () => {
+        if (commits[index] !== undefined) return;
+        commits[index] = ++seq;
+        if ('worktreeCommands' in body) current = (body as { worktreeCommands: SealedItem | null }).worktreeCommands;
+      };
+      const settings = await answer(body as Record<string, unknown>, commit);
+      commit();
+      return { ...settings, seq: commits[index] };
     }),
   };
-  return { client: client as never, calls, answer: (next: typeof answer) => (answer = next) };
+
+  let storeSeq: bigint | null = 0n;
+  let inStore: SealedItem | null = null;
+  const listeners = new Set<() => void>();
+  const tell = () => {
+    for (const listener of [...listeners]) listener();
+  };
+  const store = {
+    /** The worktree Commandes the store holds. */
+    inStore: () => inStore,
+    listeners,
+    /** Tells the listeners of an event of something else (another Projet's, the account's). */
+    tell,
+    /** The event of the call at `index`. */
+    deliver(index: number) {
+      storeSeq = BigInt(commits[index] as number);
+      inStore = calls[index]?.body['worktreeCommands'] as SealedItem | null;
+      tell();
+    },
+    /** Another tab's write, and its event unless it is lost. */
+    write(item: SealedItem | null, { event = true } = {}) {
+      seq += 1;
+      current = item;
+      if (!event) return;
+      storeSeq = BigInt(seq);
+      inStore = item;
+      tell();
+    },
+    /** A resynchronisation: the server's state and `seq`, the events it covers never given. */
+    snapshot() {
+      storeSeq = BigInt(seq);
+      inStore = current;
+      tell();
+    },
+  };
+  const ownStore = {
+    seq: () => storeSeq,
+    subscribe: (fn: () => void) => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+  };
+  return { client: client as never, stored: ownStore, store, calls, answer: (next: typeof answer) => (answer = next) };
 };
 
 const refusal = (fields?: Record<string, string>) =>
@@ -67,8 +121,8 @@ const notified = (settings: ReturnType<typeof createProjectSettings>) => new Pro
 
 describe('createProjectSettings, the Rôles, the branches, push', () => {
   it('stores a Rôle’s Moteur and model, push, a branch trimmed, each as its own patch of the Projet', async () => {
-    const { client, calls } = fakeClient();
-    const settings = createProjectSettings({ client });
+    const { client, stored, calls } = fakeClient();
+    const settings = createProjectSettings({ client, stored });
 
     await settings.change(PROJECT, 'role:code', 'codex:gpt-5.5');
     await settings.change(PROJECT, 'role:r-k3v9q2m7', 'claude-code:claude-opus-5-5');
@@ -83,8 +137,8 @@ describe('createProjectSettings, the Rôles, the branches, push', () => {
   });
 
   it('sends a Rôle and push back to the account’s', async () => {
-    const { client, calls } = fakeClient();
-    const settings = createProjectSettings({ client });
+    const { client, stored, calls } = fakeClient();
+    const settings = createProjectSettings({ client, stored });
 
     await settings.revert(PROJECT, 'role:review');
     await settings.revert(PROJECT, 'push');
@@ -93,8 +147,8 @@ describe('createProjectSettings, the Rôles, the branches, push', () => {
   });
 
   it('ignores a control it does not know, and a value of the wrong kind', async () => {
-    const { client, calls } = fakeClient();
-    const settings = createProjectSettings({ client });
+    const { client, stored, calls } = fakeClient();
+    const settings = createProjectSettings({ client, stored });
 
     await settings.change(PROJECT, 'unknown', true);
     await settings.change(PROJECT, 'push', 'on');
@@ -104,8 +158,8 @@ describe('createProjectSettings, the Rôles, the branches, push', () => {
   });
 
   it('keeps a branch typed while it is on its way and once refused, the refusal on its field; drops both once stored', async () => {
-    const { client, answer } = fakeClient();
-    const settings = createProjectSettings({ client });
+    const { client, stored, answer } = fakeClient();
+    const settings = createProjectSettings({ client, stored });
     answer(async () => {
       expect(settings.view(PROJECT, null, 'locked').drafts).toEqual({ 'branch:release': 'prod..x' });
       throw refusal({ 'branches.release': 'Ce nom de branche n’est pas valide.' });
@@ -114,14 +168,14 @@ describe('createProjectSettings, the Rôles, the branches, push', () => {
     await settings.change(PROJECT, 'branch:release', 'prod..x');
     expect(settings.view(PROJECT, null, 'locked')).toMatchObject({ drafts: { 'branch:release': 'prod..x' }, errors: { 'branch:release': 'Ce nom de branche n’est pas valide.' } });
 
-    answer(async () => stored());
+    answer(async () => settingsOf());
     await settings.change(PROJECT, 'branch:release', 'prod');
     expect(settings.view(PROJECT, null, 'locked')).toMatchObject({ drafts: {}, errors: {} });
   });
 
   it('puts a refusal without a field’s message on the control, by its message', async () => {
-    const { client, answer } = fakeClient();
-    const settings = createProjectSettings({ client });
+    const { client, stored, answer } = fakeClient();
+    const settings = createProjectSettings({ client, stored });
     answer(async () => {
       throw refusal();
     });
@@ -131,16 +185,16 @@ describe('createProjectSettings, the Rôles, the branches, push', () => {
   });
 
   it('sends a Projet’s changes one after the other, in the order given', async () => {
-    const { client, calls, answer } = fakeClient();
-    const settings = createProjectSettings({ client });
+    const { client, stored, calls, answer } = fakeClient();
+    const settings = createProjectSettings({ client, stored });
     let release: () => void = () => undefined;
-    answer(() => new Promise((resolve) => (release = () => resolve(stored()))));
+    answer(() => new Promise((resolve) => (release = () => resolve(settingsOf()))));
 
     const first = settings.change(PROJECT, 'branch:integration', 'a');
     const second = settings.change(PROJECT, 'branch:integration', 'b');
     await Promise.resolve();
     expect(calls).toHaveLength(1);
-    answer(async () => stored());
+    answer(async () => settingsOf());
     release();
     await Promise.all([first, second]);
     expect(calls.map((call) => call.body)).toEqual([{ branches: { integration: 'a' } }, { branches: { integration: 'b' } }]);
@@ -148,12 +202,21 @@ describe('createProjectSettings, the Rôles, the branches, push', () => {
 });
 
 describe('createProjectSettings, the worktree Commandes', () => {
+  const sealer = (vault: Vault) => ({
+    seal: async (commands: object): Promise<SealedItem> => {
+      const item = await vault.sealItem(utf8(JSON.stringify(commands)), AAD);
+      return { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
+    },
+    decoded: async (item: SealedItem) =>
+      JSON.parse(new TextDecoder().decode(await vault.openItem({ key: fromBase64Url(item.key), ciphertext: fromBase64Url(item.ciphertext) }, AAD))) as unknown,
+  });
+
   it('keeps them locked, and sends nothing, while the vault is locked or the browser has none', async () => {
-    const { client, calls } = fakeClient();
+    const { client, stored, calls } = fakeClient();
     const vault = await unlockedVault();
-    expect(createProjectSettings({ client, vault }).view(PROJECT, null, 'locked').worktree).toEqual({ state: 'locked' });
-    expect(createProjectSettings({ client, vault }).view(PROJECT, null, 'no-device').worktree).toEqual({ state: 'locked' });
-    const without = createProjectSettings({ client });
+    expect(createProjectSettings({ client, vault, stored }).view(PROJECT, null, 'locked').worktree).toEqual({ state: 'locked' });
+    expect(createProjectSettings({ client, vault, stored }).view(PROJECT, null, 'no-device').worktree).toEqual({ state: 'locked' });
+    const without = createProjectSettings({ client, stored });
     expect(without.view(PROJECT, null, 'unlocked').worktree).toEqual({ state: 'locked' });
 
     await without.change(PROJECT, 'worktree:prepare', 'pnpm install');
@@ -161,21 +224,22 @@ describe('createProjectSettings, the worktree Commandes', () => {
   });
 
   it('seals both in one item before they leave the page, and opens it again after a reload', async () => {
-    const { client, calls } = fakeClient();
+    const { client, stored, store, calls } = fakeClient();
     const vault = await unlockedVault();
-    const settings = createProjectSettings({ client, vault });
+    const settings = createProjectSettings({ client, vault, stored });
     expect(settings.view(PROJECT, null, 'unlocked').worktree).toEqual({ state: 'open', prepare: '', clean: '' });
 
     await settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
     await settings.change(PROJECT, 'worktree:clean', 'rm -rf .cache');
     expect(JSON.stringify(calls)).not.toMatch(/pnpm|rm -rf/);
     const sent = calls.at(-1)?.body['worktreeCommands'] as SealedItem;
-    const opened = await vault.openItem({ key: fromBase64Url(sent.key), ciphertext: fromBase64Url(sent.ciphertext) }, AAD);
-    expect(JSON.parse(new TextDecoder().decode(opened))).toEqual({ prepare: 'pnpm install', clean: 'rm -rf .cache' });
-    expect(settings.view(PROJECT, sent, 'unlocked')).toMatchObject({ drafts: {}, worktree: { state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' } });
+    expect(await sealer(vault).decoded(sent)).toEqual({ prepare: 'pnpm install', clean: 'rm -rf .cache' });
+    store.deliver(0);
+    store.deliver(1);
+    expect(settings.view(PROJECT, store.inStore(), 'unlocked')).toMatchObject({ drafts: {}, worktree: { state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' } });
 
     // A reload: a new page, the same vault, the item the server kept.
-    const reloaded = createProjectSettings({ client, vault });
+    const reloaded = createProjectSettings({ client, vault, stored });
     const opening = notified(reloaded);
     expect(reloaded.view(PROJECT, sent, 'unlocked').worktree).toEqual({ state: 'opening' });
     await opening;
@@ -183,9 +247,9 @@ describe('createProjectSettings, the worktree Commandes', () => {
   });
 
   it('removes the item when both are emptied', async () => {
-    const { client, calls } = fakeClient();
+    const { client, stored, calls } = fakeClient();
     const vault = await unlockedVault();
-    const settings = createProjectSettings({ client, vault });
+    const settings = createProjectSettings({ client, vault, stored });
     settings.view(PROJECT, null, 'unlocked');
 
     await settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
@@ -194,11 +258,11 @@ describe('createProjectSettings, the worktree Commandes', () => {
   });
 
   it('says an item this vault cannot open is unreadable, and replaces it with what the Pilote writes', async () => {
-    const { client, calls } = fakeClient();
+    const { client, stored, calls } = fakeClient();
     const vault = await unlockedVault();
     const other = await vault.sealItem(utf8(JSON.stringify({ prepare: 'x', clean: null })), utf8('settings:another-project'));
     const foreign = { key: toBase64Url(other.key), ciphertext: toBase64Url(other.ciphertext) };
-    const settings = createProjectSettings({ client, vault });
+    const settings = createProjectSettings({ client, vault, stored });
 
     const opening = notified(settings);
     settings.view(PROJECT, foreign, 'unlocked');
@@ -206,9 +270,7 @@ describe('createProjectSettings, the worktree Commandes', () => {
     expect(settings.view(PROJECT, foreign, 'unlocked').worktree).toEqual({ state: 'unreadable' });
 
     await settings.change(PROJECT, 'worktree:clean', 'rm -rf .cache');
-    const sent = calls.at(-1)?.body['worktreeCommands'] as SealedItem;
-    const opened = await vault.openItem({ key: fromBase64Url(sent.key), ciphertext: fromBase64Url(sent.ciphertext) }, AAD);
-    expect(JSON.parse(new TextDecoder().decode(opened))).toEqual({ prepare: null, clean: 'rm -rf .cache' });
+    expect(await sealer(vault).decoded(calls.at(-1)?.body['worktreeCommands'] as SealedItem)).toEqual({ prepare: null, clean: 'rm -rf .cache' });
   });
 
   it.each([
@@ -217,96 +279,86 @@ describe('createProjectSettings, the worktree Commandes', () => {
   ] as const)(
     'keeps what it saved over %s while the store still holds the item before, the other field then sealed with it; another tab’s item opened again',
     async (_, before) => {
-      const { client, calls } = fakeClient();
+      const { client, stored, store, calls } = fakeClient();
       const vault = await unlockedVault();
-      const seal = async (commands: object): Promise<SealedItem> => {
-        const item = await vault.sealItem(utf8(JSON.stringify(commands)), AAD);
-        return { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
-      };
-      const decoded = async (item: SealedItem) =>
-        JSON.parse(new TextDecoder().decode(await vault.openItem({ key: fromBase64Url(item.key), ciphertext: fromBase64Url(item.ciphertext) }, AAD))) as unknown;
-      let inStore: SealedItem | null = before ? await seal(before) : null;
-      const settings = createProjectSettings({ client, vault });
+      const { seal, decoded } = sealer(vault);
+      if (before) store.write(await seal(before));
+      const settings = createProjectSettings({ client, vault, stored });
       // The page renders on each change of this state, with what the store holds (router.refresh()).
       const views: unknown[] = [];
-      settings.subscribe(() => views.push(settings.view(PROJECT, inStore, 'unlocked').worktree));
+      settings.subscribe(() => views.push(settings.view(PROJECT, store.inStore(), 'unlocked').worktree));
       const opening = before ? notified(settings) : Promise.resolve();
-      settings.view(PROJECT, inStore, 'unlocked');
+      settings.view(PROJECT, store.inStore(), 'unlocked');
       await opening;
 
       // The HTTP answer comes before settings.upserted: the store still holds the item before.
       await settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
       await new Promise((done) => setTimeout(done, 20));
-      expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: '' });
+      expect(settings.view(PROJECT, store.inStore(), 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: '' });
       await settings.change(PROJECT, 'worktree:clean', 'rm -rf .cache');
       await new Promise((done) => setTimeout(done, 20));
       expect(await decoded(calls.at(-1)?.body['worktreeCommands'] as SealedItem)).toEqual({ prepare: 'pnpm install', clean: 'rm -rf .cache' });
       expect(views).not.toContainEqual({ state: 'open', prepare: '', clean: 'rm -rf .cache' });
 
       // The events then come, in order: what the page shows stays what it saved.
-      inStore = calls[0]?.body['worktreeCommands'] as SealedItem;
-      expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' });
-      inStore = calls[1]?.body['worktreeCommands'] as SealedItem;
-      expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' });
+      store.deliver(0);
+      expect(settings.view(PROJECT, store.inStore(), 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' });
+      store.deliver(1);
+      expect(settings.view(PROJECT, store.inStore(), 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' });
 
       // Another tab writes its own item: opened, as any item the page did not seal.
-      inStore = await seal({ prepare: 'make setup', clean: null });
+      store.write(await seal({ prepare: 'make setup', clean: null }));
       const reopening = notified(settings);
-      settings.view(PROJECT, inStore, 'unlocked');
+      settings.view(PROJECT, store.inStore(), 'unlocked');
       await reopening;
-      expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'make setup', clean: '' });
+      expect(settings.view(PROJECT, store.inStore(), 'unlocked').worktree).toEqual({ state: 'open', prepare: 'make setup', clean: '' });
     },
   );
 
   it('keeps both Commandes changed one after the other before the first answer, the store then catching up', async () => {
-    const { client, calls } = fakeClient();
+    const { client, stored, store, calls } = fakeClient();
     const vault = await unlockedVault();
-    let inStore: SealedItem | null = null;
-    const settings = createProjectSettings({ client, vault });
+    const settings = createProjectSettings({ client, vault, stored });
     const views: unknown[] = [];
-    settings.subscribe(() => views.push(settings.view(PROJECT, inStore, 'unlocked').worktree));
-    settings.view(PROJECT, inStore, 'unlocked');
+    settings.subscribe(() => views.push(settings.view(PROJECT, store.inStore(), 'unlocked').worktree));
+    settings.view(PROJECT, store.inStore(), 'unlocked');
 
     await Promise.all([settings.change(PROJECT, 'worktree:prepare', 'pnpm install'), settings.change(PROJECT, 'worktree:clean', 'rm -rf .cache')]);
-    for (const call of calls) {
-      inStore = call.body['worktreeCommands'] as SealedItem;
-      expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' });
+    for (const index of calls.keys()) {
+      store.deliver(index);
+      expect(settings.view(PROJECT, store.inStore(), 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' });
     }
     expect(views).not.toContainEqual({ state: 'opening' });
   });
 
   it('keeps a Commande emptied after it was saved, before either event, the first event then delivered and the other field changed', async () => {
-    const { client, calls } = fakeClient();
+    const { client, stored, store, calls } = fakeClient();
     const vault = await unlockedVault();
-    let inStore: SealedItem | null = null;
-    const settings = createProjectSettings({ client, vault });
-    settings.subscribe(() => settings.view(PROJECT, inStore, 'unlocked'));
-    settings.view(PROJECT, inStore, 'unlocked');
+    const settings = createProjectSettings({ client, vault, stored });
+    settings.subscribe(() => settings.view(PROJECT, store.inStore(), 'unlocked'));
+    settings.view(PROJECT, store.inStore(), 'unlocked');
 
     await settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
     await settings.change(PROJECT, 'worktree:prepare', '');
     expect(calls.map((call) => call.body['worktreeCommands'] === null)).toEqual([false, true]);
     // The store still holds no item: the page's emptying is not confirmed by it.
-    expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: '', clean: '' });
+    expect(settings.view(PROJECT, store.inStore(), 'unlocked').worktree).toEqual({ state: 'open', prepare: '', clean: '' });
     // The first save's event, late.
-    inStore = calls[0]?.body['worktreeCommands'] as SealedItem;
-    settings.view(PROJECT, inStore, 'unlocked');
+    store.deliver(0);
     await new Promise((done) => setTimeout(done, 20));
-    expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: '', clean: '' });
+    expect(settings.view(PROJECT, store.inStore(), 'unlocked').worktree).toEqual({ state: 'open', prepare: '', clean: '' });
 
     await settings.change(PROJECT, 'worktree:clean', 'rm -rf .cache');
-    const sent = calls.at(-1)?.body['worktreeCommands'] as SealedItem;
-    const opened = await vault.openItem({ key: fromBase64Url(sent.key), ciphertext: fromBase64Url(sent.ciphertext) }, AAD);
-    expect(JSON.parse(new TextDecoder().decode(opened))).toEqual({ prepare: null, clean: 'rm -rf .cache' });
+    expect(await sealer(vault).decoded(calls.at(-1)?.body['worktreeCommands'] as SealedItem)).toEqual({ prepare: null, clean: 'rm -rf .cache' });
 
     // The other events, in order: the emptying, then the last item; the store then holds what the page saved.
-    for (const call of calls.slice(1)) {
-      inStore = call.body['worktreeCommands'] as SealedItem | null;
-      expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: '', clean: 'rm -rf .cache' });
+    for (const index of [1, 2]) {
+      store.deliver(index);
+      expect(settings.view(PROJECT, store.inStore(), 'unlocked').worktree).toEqual({ state: 'open', prepare: '', clean: 'rm -rf .cache' });
     }
-    // Another tab removes them: shown, the page's saves all confirmed.
-    inStore = null;
-    expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: '', clean: '' });
+    // Another tab removes them: shown, the page's saves all in the store.
+    store.write(null);
+    expect(settings.view(PROJECT, store.inStore(), 'unlocked').worktree).toEqual({ state: 'open', prepare: '', clean: '' });
   });
 
   it.each([
@@ -314,134 +366,124 @@ describe('createProjectSettings, the worktree Commandes', () => {
     ['an item, its own event come before its answer', 'pnpm install', true],
     ['blanks (no item over no item), its own event come before its answer', '   ', true],
   ] as const)('settles its saves on the store’s events while the page is closed, for %s: another tab’s item, come meanwhile, opened on return and kept by the other field', async (_, typed, late) => {
-    const { client, calls, answer } = fakeClient();
+    const { client, stored, store, calls, answer } = fakeClient();
     const vault = await unlockedVault();
-    const seal = async (commands: object): Promise<SealedItem> => {
-      const item = await vault.sealItem(utf8(JSON.stringify(commands)), AAD);
-      return { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
-    };
-    // The store at the page's boundary: the Projet's Paramètres, a new object on each of its events, its listeners told.
-    let inStore: SealedItem | null = null;
-    let own = stored(inStore);
-    const listeners = new Set<() => void>();
-    const deliver = (item: SealedItem | null) => {
-      inStore = item;
-      own = stored(item);
-      for (const listener of [...listeners]) listener();
-    };
-    const store = {
-      projectSettings: (projectId: string) => (projectId === PROJECT ? own : undefined),
-      live: () => true,
-      subscribe: (fn: () => void) => {
-        listeners.add(fn);
-        return () => listeners.delete(fn);
-      },
-    };
-    const settings = createProjectSettings({ client, vault, stored: store });
-    settings.view(PROJECT, inStore, 'unlocked');
+    const { seal, decoded } = sealer(vault);
+    const settings = createProjectSettings({ client, vault, stored });
+    settings.view(PROJECT, store.inStore(), 'unlocked');
 
+    let release = () => undefined as void;
+    if (late) {
+      // Committed at once, the answer waits until both events below came: its own, then another tab's item.
+      const gate = new Promise<void>((done) => (release = done));
+      answer(async (body, commit) => {
+        commit();
+        await gate;
+        return settingsOf(body['worktreeCommands'] as SealedItem | null);
+      });
+    }
     const saving = settings.change(PROJECT, 'worktree:prepare', typed);
     if (late) {
-      // The answer waits until both events below came: its own, then another tab's item.
-      let release = () => undefined as void;
-      const gate = new Promise<void>((done) => (release = done));
-      answer(async (body) => {
-        await gate;
-        return stored(body['worktreeCommands'] as SealedItem | null);
-      });
       await new Promise((done) => setTimeout(done, 20));
       expect(calls).toHaveLength(1);
-      // An event of something else meanwhile (another Projet's, the account's) changes nothing of this Projet's.
-      for (const listener of [...listeners]) listener();
-      deliver(calls[0]?.body['worktreeCommands'] as SealedItem | null);
-      deliver(await seal({ prepare: 'pnpm ci', clean: null }));
+      // An event of something else meanwhile changes nothing of this Projet's.
+      store.tell();
+      store.deliver(0);
+      store.write(await seal({ prepare: 'pnpm ci', clean: null }));
       release();
       await saving;
     } else {
       await saving;
       // The Pilote leaves the page: no view() while its event, then another tab's item, come.
-      deliver(calls[0]?.body['worktreeCommands'] as SealedItem | null);
-      deliver(await seal({ prepare: 'pnpm ci', clean: null }));
+      store.deliver(0);
+      store.write(await seal({ prepare: 'pnpm ci', clean: null }));
     }
-    expect(listeners.size).toBe(0);
+    expect(store.listeners.size).toBe(0);
 
     // Back on the page: the other tab's item opened, and kept by a change of the other field.
     const reopening = notified(settings);
-    expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'opening' });
+    expect(settings.view(PROJECT, store.inStore(), 'unlocked').worktree).toEqual({ state: 'opening' });
     await reopening;
-    expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm ci', clean: '' });
+    expect(settings.view(PROJECT, store.inStore(), 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm ci', clean: '' });
     await settings.change(PROJECT, 'worktree:clean', 'rm -rf .cache');
-    const sent = calls.at(-1)?.body['worktreeCommands'] as SealedItem;
-    const opened = await vault.openItem({ key: fromBase64Url(sent.key), ciphertext: fromBase64Url(sent.ciphertext) }, AAD);
-    expect(JSON.parse(new TextDecoder().decode(opened))).toEqual({ prepare: 'pnpm ci', clean: 'rm -rf .cache' });
+    expect(await decoded(calls.at(-1)?.body['worktreeCommands'] as SealedItem)).toEqual({ prepare: 'pnpm ci', clean: 'rm -rf .cache' });
   });
 
   it.each([
     ['before the outage', false],
     ['during the outage', true],
-  ] as const)('settles a save answered %s once the store is live again, its event replaced by a snapshot holding another tab’s later item, the other field then keeping it', async (_, late) => {
-    const { client, calls, answer } = fakeClient();
+  ] as const)('holds a save answered %s once a snapshot covers it, its event replaced by the snapshot of another tab’s later item, the other field then keeping it', async (_, late) => {
+    const { client, stored, store, calls, answer } = fakeClient();
     const vault = await unlockedVault();
-    const seal = async (commands: object): Promise<SealedItem> => {
-      const item = await vault.sealItem(utf8(JSON.stringify(commands)), AAD);
-      return { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
-    };
-    // The store at the page's boundary: the Projet's Paramètres, its connection, its listeners told on each change.
-    let inStore: SealedItem | null = null;
-    let own = stored(inStore);
-    let live = true;
-    const listeners = new Set<() => void>();
-    const tell = () => {
-      for (const listener of [...listeners]) listener();
-    };
-    const store = {
-      projectSettings: (projectId: string) => (projectId === PROJECT ? own : undefined),
-      live: () => live,
-      subscribe: (fn: () => void) => {
-        listeners.add(fn);
-        return () => listeners.delete(fn);
-      },
-    };
-    const settings = createProjectSettings({ client, vault, stored: store });
-    settings.view(PROJECT, inStore, 'unlocked');
+    const { seal, decoded } = sealer(vault);
+    const settings = createProjectSettings({ client, vault, stored });
+    settings.view(PROJECT, store.inStore(), 'unlocked');
     let release = () => undefined as void;
     if (late) {
       const gate = new Promise<void>((done) => (release = done));
-      answer(async (body) => {
+      answer(async (body, commit) => {
+        commit();
         await gate;
-        return stored(body['worktreeCommands'] as SealedItem | null);
+        return settingsOf(body['worktreeCommands'] as SealedItem | null);
       });
     }
     const saving = settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
     if (!late) await saving;
     await new Promise((done) => setTimeout(done, 20));
 
-    // The socket lost: the save's event never comes; the snapshot holds another tab's later item, then the store is live.
-    live = false;
-    tell();
-    inStore = await seal({ prepare: 'pnpm ci', clean: null });
-    own = stored(inStore);
-    tell();
-    live = true;
-    tell();
+    // The socket lost: the save's event never comes; another tab writes; the snapshot holds its item.
+    store.write(await seal({ prepare: 'pnpm ci', clean: null }), { event: false });
+    store.snapshot();
     release();
     await saving;
-    expect(listeners.size).toBe(0);
+    expect(store.listeners.size).toBe(0);
 
     const reopening = notified(settings);
-    expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'opening' });
+    expect(settings.view(PROJECT, store.inStore(), 'unlocked').worktree).toEqual({ state: 'opening' });
     await reopening;
-    expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm ci', clean: '' });
+    expect(settings.view(PROJECT, store.inStore(), 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm ci', clean: '' });
     await settings.change(PROJECT, 'worktree:clean', 'rm -rf .cache');
-    const sent = calls.at(-1)?.body['worktreeCommands'] as SealedItem;
-    const opened = await vault.openItem({ key: fromBase64Url(sent.key), ciphertext: fromBase64Url(sent.ciphertext) }, AAD);
-    expect(JSON.parse(new TextDecoder().decode(opened))).toEqual({ prepare: 'pnpm ci', clean: 'rm -rf .cache' });
+    expect(await decoded(calls.at(-1)?.body['worktreeCommands'] as SealedItem)).toEqual({ prepare: 'pnpm ci', clean: 'rm -rf .cache' });
+  });
+
+  it('keeps a save committed after the snapshot of a resynchronisation, its answer come before its event, the other field then sealed with it', async () => {
+    const { client, stored, store, calls, answer } = fakeClient();
+    const vault = await unlockedVault();
+    const settings = createProjectSettings({ client, vault, stored });
+    const views: unknown[] = [];
+    settings.subscribe(() => views.push(settings.view(PROJECT, store.inStore(), 'unlocked').worktree));
+    settings.view(PROJECT, store.inStore(), 'unlocked');
+    // The request on its way while the store resynchronises: committed only after its snapshot, which holds no Commandes.
+    let release = () => undefined as void;
+    const gate = new Promise<void>((done) => (release = done));
+    answer(async (body, commit) => {
+      await gate;
+      commit();
+      return settingsOf(body['worktreeCommands'] as SealedItem | null);
+    });
+    const saving = settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
+    await new Promise((done) => setTimeout(done, 20));
+    store.snapshot();
+    release();
+    await saving;
+
+    expect(settings.view(PROJECT, store.inStore(), 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: '' });
+    answer(async (body) => settingsOf(body['worktreeCommands'] as SealedItem | null));
+    await settings.change(PROJECT, 'worktree:clean', 'rm -rf .cache');
+    expect(await sealer(vault).decoded(calls.at(-1)?.body['worktreeCommands'] as SealedItem)).toEqual({ prepare: 'pnpm install', clean: 'rm -rf .cache' });
+    expect(views).not.toContainEqual({ state: 'open', prepare: '', clean: '' });
+
+    // Their events then come: the store holds what the page saved, nothing more to wait for.
+    store.deliver(0);
+    store.deliver(1);
+    expect(settings.view(PROJECT, store.inStore(), 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' });
+    expect(store.listeners.size).toBe(0);
   });
 
   it('keeps a Commande refused on its field, with the text typed', async () => {
-    const { client, answer } = fakeClient();
+    const { client, stored, answer } = fakeClient();
     const vault = await unlockedVault();
-    const settings = createProjectSettings({ client, vault });
+    const settings = createProjectSettings({ client, vault, stored });
     settings.view(PROJECT, null, 'unlocked');
     answer(async () => {
       throw refusal({ worktreeCommands: 'Les Commandes sont trop longues.' });

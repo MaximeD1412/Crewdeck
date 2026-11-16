@@ -1,0 +1,2 @@
+{"kind":"message","seq":1,"at":"2026-11-16T03:30:00.000Z","from":"agent","text":"Le dépôt du smoke test est prêt.","final":true}
+{"kind":"result","seq":2,"at":"2026-11-16T03:30:01.000Z","status":"ok","engineSessionId":"smoke-session"}

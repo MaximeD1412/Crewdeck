@@ -62,7 +62,7 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
       const response = await post(app, 'blank');
 
       expect(response.status).toBe(200);
-      expect(zScenarioRun.parse(await response.json())).toEqual({ name: 'blank', path: '/', sessionCookie: null });
+      expect(zScenarioRun.parse(await response.json())).toEqual({ name: 'blank', path: '/', sessionCookie: null, runnerLink: null });
       expect(await sql('SELECT * FROM scenario_parent')).toEqual([]);
       expect(await sql('SELECT * FROM scenario_child')).toEqual([]);
       expect(await sql('SELECT count(*) FROM _prisma_migrations')).toEqual([migrationsBefore]);
@@ -108,7 +108,7 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
       ['connexion-erreur', '/connexion?erreur=state-mismatch'],
     ])('opens %s signed out, with the fake GitHub user who signs in at once', async (name, path) => {
       const run = zScenarioRun.parse(await (await post(app, name)).json());
-      expect(run).toEqual({ name, path, sessionCookie: null });
+      expect(run).toEqual({ name, path, sessionCookie: null, runnerLink: null });
 
       const base = await app.getUrl();
       const start = await fetch(`${base}/api/auth/github/start?timeZone=Europe%2FParis&next=%2Fa-toi`, { redirect: 'manual' });

@@ -294,6 +294,37 @@ func TestRelayHandsAMessageToTheMoteurDecryptedOnceForItsInputID(t *testing.T) {
 	}
 }
 
+func TestRelayTakesAnInputOnceAcrossARestartAndAResume(t *testing.T) {
+	r := newRelayed(t, message("une question ?"), question("q1"))
+	m := r.manager(t)
+	m.Start(start(firstID, "feat/12-panier"))
+	key := r.openKeys(t, r.frame(t).(contracts.RunnerSessionKeys), r.holders[0])
+	r.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	input := sealInput(t, key, firstID, inputID, map[string]any{"kind": "message", "text": "Continue avec le bleu"})
+	m.Input(input)
+	if sent := r.engine.Runs()[0].Sent(); len(sent) != 1 {
+		t.Fatalf("sent %q before the restart, want the message once", sent)
+	}
+	m.Close()
+
+	restarted := r.manager(t)
+	restarted.Resume(firstID)
+	r.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	runs := r.engine.Runs()
+	if len(runs) != 2 {
+		t.Fatalf("%d runs, want the resumed one", len(runs))
+	}
+	restarted.Input(input) // the tab sends it again after the restart
+	fresh := sealInput(t, key, firstID, "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6d04", map[string]any{"kind": "message", "text": "Et le rouge"})
+	restarted.Input(fresh)
+	if sent := runs[1].Sent(); len(sent) != 1 || sent[0] != "Et le rouge" {
+		t.Fatalf("sent %q after the restart, want only the new message", sent)
+	}
+	if info, err := os.Stat(filepath.Join(r.home, "sessions", firstID, "inputs")); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("inputs file %v (%v), want mode 600", info, err)
+	}
+}
+
 // web-relay.json is written by the browser's test run
 // (apps/web/src/sessions/relay.spec.ts): an input the page sealed under the
 // Session key of relay.json, which the Runner hands to its Moteur.

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
@@ -30,7 +31,8 @@ import (
 //   - replay: for one tab, the keys, then the log's events from its fromSeq;
 //   - input: the Pilote's, sealed by the tab under
 //     "<sessionId>:input:<inputId>", opened, checked against its schema, and
-//     handed to the Moteur once per inputId.
+//     handed to the Moteur once per inputId, recorded in `sessions/<id>/inputs`
+//     so that a Runner started again does not hand it twice.
 
 // RelayKeys are what the relay seals with.
 type RelayKeys struct {
@@ -47,6 +49,11 @@ const keyFile = "key"
 // inputsKept is how many inputIds a Session remembers, to take each once.
 const inputsKept = 10_000
 
+// inputsFile holds the inputIds a Session took, one per line, appended
+// before each input reaches the Moteur: a Runner started again takes none of
+// them a second time.
+const inputsFile = "inputs"
+
 var b64 = base64.RawURLEncoding
 
 // relayState is the relay's memory: the Sessions' keys, the inputIds taken.
@@ -60,8 +67,8 @@ type seenInputs struct {
 	order []string
 }
 
-// take records id, false when it was already taken.
-func (s *seenInputs) take(id string) bool {
+// add records id, false when it was already taken.
+func (s *seenInputs) add(id string) bool {
 	if _, seen := s.ids[id]; seen {
 		return false
 	}
@@ -72,6 +79,70 @@ func (s *seenInputs) take(id string) bool {
 		s.order = s.order[1:]
 	}
 	return true
+}
+
+// forget drops the last id added, which could not be recorded on disk.
+func (s *seenInputs) forget(id string) {
+	if n := len(s.order); n > 0 && s.order[n-1] == id {
+		s.order = s.order[:n-1]
+		delete(s.ids, id)
+	}
+}
+
+// loadInputs reads the inputIds a Session took from its folder, the last
+// inputsKept of them; a file grown past twice that is rewritten with those.
+func loadInputs(path string) (*seenInputs, error) {
+	seen := &seenInputs{ids: map[string]struct{}{}}
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return seen, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	lines := strings.Fields(string(data))
+	for _, id := range lines {
+		seen.add(id)
+	}
+	if len(lines) > 2*inputsKept {
+		if err := writePrivate(path, []byte(strings.Join(seen.order, "\n")+"\n")); err != nil {
+			return nil, err
+		}
+	}
+	return seen, nil
+}
+
+// takeInput records the input's id, in memory and in the Session's folder,
+// false when the Session took it already. An id that cannot be written is
+// not taken: the tab's next send of it tries again.
+func (m *Manager) takeInput(sessionID, inputID string) (bool, error) {
+	m.relayMu.Lock()
+	defer m.relayMu.Unlock()
+	path := filepath.Join(sessionDir(m.cfg.Home, sessionID), inputsFile)
+	seen, ok := m.relay.inputs[sessionID]
+	if !ok {
+		loaded, err := loadInputs(path)
+		if err != nil {
+			return false, err
+		}
+		seen = loaded
+		m.relay.inputs[sessionID] = seen
+	}
+	if !seen.add(inputID) {
+		return false, nil
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err == nil {
+		_, err = f.WriteString(inputID + "\n")
+		if closeErr := f.Close(); err == nil {
+			err = closeErr
+		}
+	}
+	if err != nil {
+		seen.forget(inputID)
+		return false, err
+	}
+	return true, nil
 }
 
 // sessionKey is the Session's key: from memory, else from its file, else
@@ -272,14 +343,11 @@ func (m *Manager) Input(message contracts.RunnerSessionInput) {
 		m.cfg.Logger.Warn("session.input", "sessionId", message.SessionId, "inputId", message.InputId, "error", "dropped")
 		return
 	}
-	m.relayMu.Lock()
-	seen, ok := m.relay.inputs[message.SessionId]
-	if !ok {
-		seen = &seenInputs{ids: map[string]struct{}{}}
-		m.relay.inputs[message.SessionId] = seen
+	fresh, err := m.takeInput(message.SessionId, message.InputId)
+	if err != nil {
+		m.cfg.Logger.Warn("session.input", "sessionId", message.SessionId, "inputId", message.InputId, "error", "not recorded")
+		return
 	}
-	fresh := seen.take(message.InputId)
-	m.relayMu.Unlock()
 	if !fresh {
 		return
 	}

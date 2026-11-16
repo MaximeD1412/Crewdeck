@@ -23,6 +23,18 @@ describe('the relay of a Session', () => {
     );
   });
 
+  it('accepts the frames of the encryption vectors shared by the Runner and the browser', () => {
+    const crypto = (name: string) => JSON.parse(readFileSync(join(import.meta.dirname, '../../fixtures/crypto', name), 'utf8'));
+    const runner = crypto('relay.json') as { keys: unknown; frames: { frame: unknown }[]; input: { payload: unknown; frame: unknown } };
+    const browser = crypto('web-relay.json') as { payload: unknown; frame: unknown };
+
+    for (const frame of [runner.keys, ...runner.frames.map(({ frame }) => frame)]) expect(zServerMessage.parse(frame)).toEqual(frame);
+    for (const { frame, payload } of [runner.input, browser]) {
+      expect(zClientMessage.parse(frame)).toEqual(frame);
+      expect(zSessionInputPayload.parse(payload)).toEqual(payload);
+    }
+  });
+
   it.each(['session.keys', 'relay'])('accepts %s, Runner to server', (name) => {
     expect(zRunnerToServer.parse(fixture(name))).toEqual(fixture(name));
   });

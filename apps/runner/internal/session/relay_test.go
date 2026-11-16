@@ -294,6 +294,54 @@ func TestRelayHandsAMessageToTheMoteurDecryptedOnceForItsInputID(t *testing.T) {
 	}
 }
 
+// web-relay.json is written by the browser's test run
+// (apps/web/src/sessions/relay.spec.ts): an input the page sealed under the
+// Session key of relay.json, which the Runner hands to its Moteur.
+func TestRelayHandsTheMoteurAnInputTheBrowserSealed(t *testing.T) {
+	var v struct {
+		SessionID  string `json:"sessionId"`
+		SessionKey string `json:"sessionKey"`
+		Payload    struct {
+			Text string `json:"text"`
+		} `json:"payload"`
+		Frame struct {
+			InputID    string `json:"inputId"`
+			Nonce      string `json:"nonce"`
+			Ciphertext string `json:"ciphertext"`
+		} `json:"frame"`
+	}
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "packages", "contracts", "fixtures", "crypto", "web-relay.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &v); err != nil {
+		t.Fatal(err)
+	}
+	r := newRelayed(t, message("une question ?"), question("q1"))
+	// The Session's key is the one the browser sealed under.
+	dir := filepath.Join(r.home, "sessions", v.SessionID)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "key"), decode(t, v.SessionKey), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m := r.manager(t)
+	m.Start(start(v.SessionID, "feat/12-panier"))
+	if key := r.openKeys(t, r.frame(t).(contracts.RunnerSessionKeys), r.holders[0]); !bytes.Equal(key, decode(t, v.SessionKey)) {
+		t.Fatal("the Session is not under the browser's key")
+	}
+	r.reports.await(t, v.SessionID, contracts.RunnerSessionStateStateWaiting)
+
+	m.Input(contracts.RunnerSessionInput{
+		Type: "session.input", Id: "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6d03", At: time.Now().UTC(),
+		SessionId: v.SessionID, TabId: tabID, InputId: v.Frame.InputID, Nonce: v.Frame.Nonce, Ciphertext: v.Frame.Ciphertext,
+	})
+	if sent := r.engine.Runs()[0].Sent(); len(sent) != 1 || sent[0] != v.Payload.Text {
+		t.Fatalf("sent %q, want %q", sent, v.Payload.Text)
+	}
+}
+
 func TestRelayDropsAnInputSealedForAnotherInputIDOrOutsideItsSchema(t *testing.T) {
 	r := newRelayed(t, message("une question ?"), question("q1"))
 	m := r.manager(t)

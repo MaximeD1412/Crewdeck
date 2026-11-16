@@ -32,6 +32,17 @@ describe('the device store', () => {
     await expect(crypto.subtle.exportKey('jwk', stored.privateKey)).rejects.toThrow();
   });
 
+  it('keeps the Runner’s public key with the Appareil once a pairing authenticated it', async () => {
+    await createLinkKeys({ devices, vault, userAgent: '' }).browserPairing();
+    const stored = await devices.getDevice();
+    if (!stored) throw new Error('no device');
+    const runnerPublicKey = new Uint8Array(32).fill(7);
+
+    await devices.saveDevice({ ...stored, runnerPublicKey });
+
+    expect((await devices.getDevice())?.runnerPublicKey).toEqual(runnerPublicKey);
+  });
+
   it('forgets the Appareil', async () => {
     await createLinkKeys({ devices, vault, userAgent: '' }).browserPairing();
     await devices.clearDevice();

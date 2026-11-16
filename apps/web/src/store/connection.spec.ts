@@ -356,6 +356,35 @@ describe('what the page tells the server', () => {
     expect(store.getState()).toMatchObject({ connection: 'live', slices: { pilot: { login: 'snapshot' } } });
   });
 
+  it('carries a Session’s relay: its messages to the relay, the relay’s on the open socket, and each socket opened again', async () => {
+    const SESSION = '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a91';
+    const { connection, socket } = await liveAt(7);
+    const relayed = vi.fn();
+    const opened = vi.fn();
+    connection.onRelay(relayed);
+    connection.onOpen(opened);
+
+    const bytes = (length: number) => 'A'.repeat(Math.ceil((length * 4) / 3));
+    const wrap = { holderId: bytes(32), enc: bytes(32), wrappedKey: bytes(48), tag: bytes(32) };
+    const frame: ServerMessage = { type: 'relay', sessionId: SESSION, seq: 1, nonce: bytes(12), ciphertext: bytes(40) };
+    socket.receive({ type: 'session.keys', sessionId: SESSION, wraps: [wrap] });
+    socket.receive(frame);
+    socket.receive({ type: 'session.error', sessionId: SESSION, code: 'session.runner-offline' });
+    expect(relayed.mock.calls.map(([message]) => (message as ServerMessage).type)).toEqual(['session.keys', 'relay', 'session.error']);
+    expect(store.getState().seq).toBe(7n);
+
+    expect(connection.sendRelay({ type: 'session.open', sessionId: SESSION, fromSeq: 1 })).toBe(true);
+    expect(socket.sent).toEqual([{ type: 'session.open', sessionId: SESSION, fromSeq: 1 }]);
+
+    socket.drop();
+    expect(connection.sendRelay({ type: 'session.close', sessionId: SESSION })).toBe(false);
+    vi.advanceTimersByTime(1_000);
+    MockSocket.last().open();
+    expect(opened).toHaveBeenCalledTimes(1);
+    // After the socket's hello: the relay's open follows it.
+    expect(MockSocket.last().sent[0]?.type).toBe('hello');
+  });
+
   it('stop closes the socket, and nothing reconnects nor listens', async () => {
     const { connection, socket } = await liveAt(7);
     connection.stop();

@@ -19,6 +19,9 @@ const B64 = (byte: number, length: number): string => Buffer.alloc(length, byte)
 const WRAP = { holderId: B64(1, 32), enc: B64(2, 32), wrappedKey: B64(3, 48), tag: B64(4, 32) };
 const SEALED = { nonce: B64(5, 12), ciphertext: B64(6, 40) };
 
+/** A frame of the Runner, without its envelope's `id` and `at`. */
+type FromRunner = Extract<RunnerToServer, { type: 'relay' | 'session.keys' }> extends infer M ? (M extends unknown ? Omit<M, 'id' | 'at'> : never) : never;
+
 interface Tab extends TabSocket {
   readonly received: ServerMessage[];
 }
@@ -52,7 +55,8 @@ const setup = () => {
   const sent: ServerToRunner[] = [];
   const link: RunnerLink = { pilotId: ALICE, runnerId: 'runner-1', accepted: true, send: (message) => sent.push(message), close: vi.fn() };
   connections.take(link);
-  const handler = tabs.all()[0]!;
+  const [handler] = tabs.all();
+  if (!handler) throw new Error('the relay registered no tab handler');
 
   return {
     runner: { sent },
@@ -66,7 +70,7 @@ const setup = () => {
     },
     tab: (message: TabMessage, tab: Tab) => handler.handle(tab, message),
     closeTab: (tab: Tab) => handler.closed(tab),
-    fromRunner: (message: Omit<Extract<RunnerToServer, { type: 'relay' | 'session.keys' }>, 'id' | 'at'>, pilotId = ALICE) =>
+    fromRunner: (message: FromRunner, pilotId = ALICE) =>
       dispatcher.dispatch({ ...message, id: 'm-1', at: '2026-11-16T09:00:00.000Z' } as RunnerToServer, { pilotId, runnerId: 'runner-1', reply: vi.fn() }),
   };
 };

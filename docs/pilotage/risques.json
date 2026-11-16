@@ -132,6 +132,11 @@
           "fait": true
         },
         {
+          "texte": "Clé de chaque Session enveloppée par le Runner (enveloppe authentifiée) et ouverte par l'Appareil avec la clé du Runner vérifiée à la liaison, jamais une clé envoyée par le serveur",
+          "ref": "ADR 0003",
+          "fait": true
+        },
+        {
           "texte": "Nouvel Appareil approuvé par un QR code portant son propre secret de 128 bits, depuis un Appareil de confiance",
           "ref": "ADR 0003",
           "fait": false
@@ -204,8 +209,8 @@
       "categorie": "sec",
       "gravite": "moyenne",
       "titre": "Contenu chiffré ou texte d'une Idée dans les logs du serveur",
-      "statut": "solution choisie",
-      "statutDepuis": "2026-11-10",
+      "statut": "implémenté",
+      "statutDepuis": "2026-11-16",
       "solutions": [
         {
           "texte": "Liste de masquage du logger testée : en-têtes d'authentification, cookies, corps, ciphertext, clés enveloppées, charges du protocole Runner et du relais, jetons",
@@ -215,7 +220,7 @@
         {
           "texte": "Messages WebSocket jamais journalisés (seulement leur type et leur taille)",
           "ref": "ADR 0003",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

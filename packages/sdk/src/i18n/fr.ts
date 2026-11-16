@@ -802,7 +802,7 @@ export const fr = {
   'settings.project.worktree.label': 'Paramètres du Projet / Worktree',
   'settings.project.worktree.locked': 'Ouvre ces Paramètres sur un Appareil de confiance pour lire et changer les Commandes.',
   'settings.project.worktree.prepare': 'Préparer le worktree',
-  'settings.project.worktree.prepare.help': 'Lancée dans le worktree de chaque Session avant l’agent, sur ta machine : `pnpm install`, la copie d’un `.env`. Son échec fait échouer l’Étape.',
+  'settings.project.worktree.prepare.help': 'Lancée dans le worktree de chaque Session avant l’agent, sur ta machine : « pnpm install », la copie d’un .env. Son échec fait échouer l’Étape.',
   'settings.project.worktree.title': 'Worktree',
   'settings.project.worktree.unreadable': 'Les Commandes enregistrées ne s’ouvrent pas sur cet Appareil : celles écrites ici les remplacent.',
   'settings.projects.changed.one': '1 Paramètre modifié',

@@ -1,3 +1,4 @@
+import type { ScenarioRunnerLink } from '@crewdeck/contracts';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { RunnerMachine } from '../fake-runner.js';
 import type { Fakes } from '../fakes.js';
@@ -17,6 +18,8 @@ export interface ScenarioSeed {
   readonly runnerToken?: string;
   /** That Runner's machine, which the fake Runner says in its `hello` (else its own, `atelier`). */
   readonly runnerMachine?: RunnerMachine;
+  /** The link code it drew as the page would, for a real Runner (the scenario `smoke`). */
+  readonly runnerLink?: ScenarioRunnerLink;
 }
 
 /**

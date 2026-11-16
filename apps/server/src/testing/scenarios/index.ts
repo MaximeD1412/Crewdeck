@@ -17,6 +17,7 @@ import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaiso
 import type { Scenario } from './define.js';
 import { menuPlus } from './menu-plus.js';
 import { demarrageProjets, projets, projetsVide } from './projets.js';
+import { parametres } from './parametres.js';
 import { resynchronisation } from './resynchronisation.js';
 import { runner, runnerServeursMcp } from './runner.js';
 import { aToiRunnerHorsLigne, runnerHorsLigne } from './runner-offline.js';
@@ -39,6 +40,7 @@ const SCENARIOS: readonly Scenario[] = [
   demarrageComptesIaAucun,
   demarrageProjets,
   menuPlus,
+  parametres,
   projets,
   projetsVide,
   resynchronisation,

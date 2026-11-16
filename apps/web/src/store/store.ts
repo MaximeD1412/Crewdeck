@@ -1,4 +1,4 @@
-import type { AiAccount, CodeChange, Decision, Device, Event, McpServer, Me, Milestone, Project, ProjectProcess, Repository, Resource, Runner, RunnerLink, State, Ticket } from '@crewdeck/contracts';
+import type { AccountSettings, AiAccount, CodeChange, Decision, Device, Event, McpServer, Me, Milestone, Project, ProjectProcess, Repository, Resource, Runner, RunnerLink, State, Ticket } from '@crewdeck/contracts';
 import type { VaultState } from '../keys/vault.js';
 
 /**
@@ -42,6 +42,7 @@ export interface Slices {
   readonly milestone: ReadonlyMap<string, Milestone>;
   /** Their changes of code, by id, from the snapshot's `codeChanges`. */
   readonly 'code-change': ReadonlyMap<string, CodeChange>;
+  readonly settings: AccountSettings | null;
 }
 
 export interface StoreState {

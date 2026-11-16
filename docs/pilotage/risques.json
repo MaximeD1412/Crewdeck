@@ -204,18 +204,18 @@
       "categorie": "sec",
       "gravite": "moyenne",
       "titre": "Contenu chiffré ou texte d'une Idée dans les logs du serveur",
-      "statut": "solution choisie",
-      "statutDepuis": "2026-11-10",
+      "statut": "implémenté",
+      "statutDepuis": "2026-11-16",
       "solutions": [
         {
-          "texte": "Liste de masquage du logger testée : en-têtes d'authentification, cookies, corps, ciphertext, clés enveloppées, charges du protocole Runner et du relais, jetons",
+          "texte": "Liste de masquage du logger testée : en-têtes d'authentification, cookies, corps, ciphertext, clés enveloppées, charges du protocole Runner et du relais, jetons, et le texte, l'analyse et la raison des Idées (le corps d'un POST /api/ideas absent des logs)",
           "ref": "ADR 0003",
           "fait": true
         },
         {
           "texte": "Messages WebSocket jamais journalisés (seulement leur type et leur taille)",
           "ref": "ADR 0003",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

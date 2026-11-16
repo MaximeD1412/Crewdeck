@@ -477,5 +477,42 @@ key it knows and read what the Pilote types.
 
 ## Idées (IDEE-1)
 
-To be written by IDEE-1: the sealed fields of an Idée and their additional
-data.
+An Idée's free text is three [items under the vault key](#items-under-the-vault-key),
+each bound to its Idée and its field:
+
+| Field | Sealed by | Additional data |
+|---|---|---|
+| `text` | the page, when the Pilote notes it (IDEE-1) | `"<ideaId>:text"` |
+| `analysis` | the Runner, after the agent's analysis (IDEE-2) | `"<ideaId>:analysis"` |
+| `reason` | the page, a rejection's or a merge's reason (IDEE-3) | `"<ideaId>:reason"` |
+
+`ideaItemAad(ideaId, field)` (`packages/contracts/src/api/ideas.ts`) gives
+them on every side. The server cannot move a text to another Idée nor to
+another field: it would no longer open.
+
+To seal the text before the Idée exists, the page draws its id (a UUIDv7)
+and sends it with the item to `POST /api/ideas`. An id already taken is a 409
+`idea.id-taken`: the server never lets a new text replace another Idée's.
+The plaintext is trimmed and refused empty before sealing. It stays in the
+page's memory only, never in its storage. The server stores and sends `{ key,
+ciphertext }` as received, and checks only their lengths (29 to
+`12 + 500 × 4 + 16` bytes for `text`). The logger masks `text`, `analysis` and
+`reason` (SEC-7).
+
+An Appareil whose vault is not open (`vaultState` other than `unlocked`)
+cannot seal: the dialog says « Approuve cet Appareil pour noter une Idée »
+and links to « Paramètres ». Its rows read « Déchiffrement… », or « Illisible
+sur cet Appareil » when an item does not open.
+
+The scenarios of the end-to-end tests (`idees`, `idees-vide`) seal their
+Idées in Node with a test-only vault (`apps/server/src/testing/vault.ts`,
+checked against `item.json`). They draw a trusted Appareil's key at each run
+and hand it to the test's browser only (`ScenarioRun.device`), never in a
+committed file.
+
+| What | Test |
+|---|---|
+| The page seals the text under `"<id>:text"`, and the request carries no plaintext | `apps/web/src/note-idea.spec.ts`; `e2e/idees.spec.ts` |
+| Only ciphertext in the stored row, an id taken refused | `test/integration/ideas.spec.ts` |
+| No `text`, `analysis` nor `reason` in the logs | `apps/server/src/logging/redact.spec.ts` |
+| The scenarios' vault matches the page's and the Runner's | `apps/server/src/testing/vault.spec.ts`; `test/integration/testing.spec.ts` |

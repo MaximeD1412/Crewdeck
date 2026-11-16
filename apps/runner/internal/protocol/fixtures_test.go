@@ -32,6 +32,10 @@ func TestEveryFixtureOfTheProtocolDecodesIntoItsGeneratedType(t *testing.T) {
 		TypeMirrorToken:       decodeInto[contracts.RunnerMirrorToken],
 		TypeMirrorTokenIssued: decodeInto[contracts.RunnerMirrorTokenIssued],
 		TypeMirrorTokenFailed: decodeInto[contracts.RunnerMirrorTokenFailed],
+		TypeSessionStart:      decodeInto[contracts.RunnerSessionStart],
+		TypeSessionStop:       decodeInto[contracts.RunnerSessionStop],
+		TypeSessionResume:     decodeInto[contracts.RunnerSessionResume],
+		TypeSessionState:      decodeInto[contracts.RunnerSessionState],
 	}
 	entries, err := os.ReadDir(fixturesDir)
 	if err != nil {

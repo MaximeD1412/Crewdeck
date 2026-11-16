@@ -28,6 +28,11 @@ const (
 	TypeMirrorToken       = "mirror.token"
 	TypeMirrorTokenIssued = "mirror.token.issued"
 	TypeMirrorTokenFailed = "mirror.token.failed"
+	// The Sessions (RUNNER-9): the server starts, stops and resumes them, the Runner reports their states.
+	TypeSessionStart  = "session.start"
+	TypeSessionStop   = "session.stop"
+	TypeSessionResume = "session.resume"
+	TypeSessionState  = "session.state"
 )
 
 // Machine is what the Runner says of itself in its hello.
@@ -100,4 +105,21 @@ func NewMcpServers(servers []contracts.RunnerMcpServersServersElem) contracts.Ru
 func NewMirrorToken() contracts.RunnerMirrorToken {
 	at := now()
 	return contracts.RunnerMirrorToken{Type: TypeMirrorToken, Id: newID(at), At: at}
+}
+
+// NewSessionState reports the Session's state; outcome, failure and
+// engineSessionID are left out when empty.
+func NewSessionState(sessionID string, state contracts.RunnerSessionStateState, outcome contracts.RunnerSessionStateOutcome, failure contracts.RunnerSessionStateError, engineSessionID string) contracts.RunnerSessionState {
+	at := now()
+	message := contracts.RunnerSessionState{Type: TypeSessionState, Id: newID(at), At: at, SessionId: sessionID, State: state}
+	if outcome != "" {
+		message.Outcome = &outcome
+	}
+	if failure != "" {
+		message.Error = &failure
+	}
+	if engineSessionID != "" {
+		message.EngineSessionId = &engineSessionID
+	}
+	return message
 }

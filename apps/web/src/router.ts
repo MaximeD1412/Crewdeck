@@ -1,25 +1,21 @@
 import { PageIntrouvable, type AnyComposant } from '@crewdeck/sdk';
+import { fillPlaced, type PlacedNode } from './placed.js';
+import { sameData } from './same-data.js';
 import type { StoreState } from './store/store.js';
 
+export { sameData };
+
 /**
- * A page URL (French, ADR 0008), `:name` for a parameter, its page Composant
- * and the view giving its `data`, from the match and the store's state.
+ * A page URL (French, ADR 0008), `:name` for a parameter, its page Composant,
+ * the view giving its `data` and the one giving the Composants of its
+ * Emplacements, from the match and the store's state.
  */
 export interface Route {
   readonly path: string;
   readonly composant: AnyComposant;
   readonly data?: (match: RouteMatch, state: StoreState) => unknown;
-  /** What fills the page's Emplacements, by name: a Composant and its `data`, or `null` for nothing. */
-  readonly slots?: (match: RouteMatch, state: StoreState) => RouteSlots;
+  readonly slots?: (match: RouteMatch, state: StoreState) => readonly PlacedNode[];
 }
-
-/** A Composant the core places in an Emplacement of the page, with its `data` (a view's, like the page's own). */
-export interface SlotContent {
-  readonly composant: AnyComposant;
-  readonly data: unknown;
-}
-
-export type RouteSlots = Readonly<Record<string, SlotContent | null>>;
 
 export interface RouteMatch {
   /** The normalised path, without its query. */
@@ -73,69 +69,17 @@ export const matchRoute = (routes: readonly Route[], url: string | URL): RouteMa
   return { path, composant: PageIntrouvable, params: {}, query, panel };
 };
 
+const routeOf = (routes: readonly Route[], match: RouteMatch): Route | undefined =>
+  routes.find((route) => route.composant === match.composant && matchPath(route.path, match.path));
+
 /** The state of a router without a store: nothing received yet. */
 export const NO_STATE: StoreState = { seq: null, connection: 'connecting', lostAt: null, slices: {}, vaultState: 'locked' };
-
-/**
- * Whether two `data` hold the same values: plain objects and arrays compared
- * field by field, anything else by identity (`Object.is`).
- */
-export const sameData = (a: unknown, b: unknown): boolean => {
-  if (Object.is(a, b)) return true;
-  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
-  if (Array.isArray(a) !== Array.isArray(b)) return false;
-  if (Array.isArray(a)) return a.length === (b as unknown[]).length && a.every((value, i) => sameData(value, (b as unknown[])[i]));
-  const plain = (value: object) => [Object.prototype, null].includes(Object.getPrototypeOf(value));
-  if (!plain(a) || !plain(b)) return false;
-  const keys = Object.keys(a);
-  return (
-    keys.length === Object.keys(b).length &&
-    keys.every((key) => Object.hasOwn(b, key) && sameData((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]))
-  );
-};
 
 /** The page's `data` by default: its route's view, from the match and the store's state, else nothing. */
 export const routeData =
   (routes: readonly Route[], state: () => StoreState = () => NO_STATE) =>
   (match: RouteMatch): unknown =>
-    routes.find((route) => route.composant === match.composant && matchPath(route.path, match.path))?.data?.(match, state()) ?? {};
-
-/** The page's Emplacements by default: its route's `slots`, from the match and the store's state, else none. */
-export const routeSlots =
-  (routes: readonly Route[], state: () => StoreState = () => NO_STATE) =>
-  (match: RouteMatch): RouteSlots =>
-    routes.find((route) => route.composant === match.composant && matchPath(route.path, match.path))?.slots?.(match, state()) ?? {};
-
-/** The data last given to each element the router placed in an Emplacement. */
-const placed = new WeakMap<Element, unknown>();
-
-/**
- * Fills `page`'s Emplacements: an element of each Composant, `slot` set to
- * its name, its `data` given again only when its values changed; the
- * element is kept while the same Composant fills it, removed once nothing
- * does. Only the elements it placed are touched.
- */
-const fillSlots = (page: Element, slots: RouteSlots) => {
-  const children = [...page.children].filter((child) => placed.has(child));
-  for (const child of children) {
-    const content = slots[child.slot];
-    if (!content || content.composant.tag !== child.localName) {
-      placed.delete(child);
-      child.remove();
-    }
-  }
-  for (const [name, content] of Object.entries(slots)) {
-    if (!content) continue;
-    let el = [...page.children].find((child) => placed.has(child) && child.slot === name);
-    if (!el) {
-      el = document.createElement(content.composant.tag);
-      el.slot = name;
-      page.append(el);
-    } else if (sameData(placed.get(el), content.data)) continue;
-    (el as Element & { data: unknown }).data = content.data;
-    placed.set(el, content.data);
-  }
-};
+    routeOf(routes, match)?.data?.(match, state()) ?? {};
 
 export interface Router {
   readonly current: RouteMatch;
@@ -143,10 +87,11 @@ export interface Router {
   navigate(url: string, options?: { replace?: boolean }): void;
   /**
    * Renders the current page again for a new state (the store's, a page's
-   * own): the guard asked again, the page's `data` read again; `onRoute`
-   * only when the guard moved the page. Data with the same values as the
-   * last given is not given again, so a page that does not read what changed
-   * is left as is (what was typed, an open Dialog).
+   * own): the guard asked again, the page's `data` and Emplacements read
+   * again, the same elements kept; `onRoute` only when the guard moved the
+   * page. Data with the same values as the last given is not given again, so
+   * a page or a Composant placed that does not read what changed is left as
+   * is (what was typed, an open Dialog).
    */
   refresh(): void;
   stop(): void;
@@ -158,9 +103,7 @@ export interface RouterOptions {
   readonly outlet: HTMLElement;
   /** The `data` of the page; CORE-6's view functions give it from the store. By default, its route's `data`, from the match and `state`. */
   readonly data?: (match: RouteMatch) => unknown;
-  /** What fills the page's Emplacements: by default, its route's `slots`, from the match and `state`. */
-  readonly slots?: (match: RouteMatch) => RouteSlots;
-  /** The store's state the routes' views read, for the default `data` and `slots`: nothing received by default. */
+  /** The store's state the routes' views (`data`, `slots`) read: nothing received by default. */
   readonly state?: () => StoreState;
   /** Called after each render, with the match. */
   readonly onRoute?: (match: RouteMatch) => void;
@@ -189,16 +132,7 @@ const linkOf = (event: MouseEvent): URL | null => {
  * `outlet`, then follows `navigate()`, the same-origin links (shadow roots
  * included) and the browser's back and forward.
  */
-export const startRouter = ({
-  routes,
-  outlet,
-  state,
-  data = routeData(routes, state),
-  slots = routeSlots(routes, state),
-  onRoute,
-  redirects = REDIRECTS,
-  guard,
-}: RouterOptions): Router => {
+export const startRouter = ({ routes, outlet, state, data = routeData(routes, state), onRoute, redirects = REDIRECTS, guard }: RouterOptions): Router => {
   let current: RouteMatch;
   let given: unknown;
 
@@ -221,7 +155,8 @@ export const startRouter = ({
     const next = data(current);
     if (page !== existing || !sameData(given, next)) (page as Element & { data: unknown }).data = next;
     given = next;
-    fillSlots(page, slots(current));
+    const slots = routeOf(routes, current)?.slots;
+    if (slots) fillPlaced(page, slots(current, (state ?? (() => NO_STATE))()));
     if (page !== existing || outlet.childElementCount !== 1) outlet.replaceChildren(page);
     if (navigated || location.href !== before) onRoute?.(current);
   };

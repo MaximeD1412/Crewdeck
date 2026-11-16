@@ -147,40 +147,6 @@ describe('startRouter', () => {
     expect(page.data).toBe(shown);
   });
 
-  it('fills a route’s Emplacements with their Composants, kept while their kind stays, gone once nothing fills them', () => {
-    history.replaceState(null, '', '/a-toi');
-    outlet = document.createElement('main');
-    document.body.append(outlet);
-    const Card = page('Card', 'cd-card-test');
-    const Other = page('Other', 'cd-other-test');
-    let filled: { composant: typeof Card; data: unknown } | null = { composant: Card, data: { n: 1 } };
-    const withSlots: Route[] = [{ path: '/a-toi', composant: PageAToi, slots: () => ({ aside: filled }) }];
-    router = startRouter({ routes: withSlots, outlet });
-    const host = outlet.firstElementChild as HTMLElement;
-    const placed = () => [...host.children] as (HTMLElement & { data: unknown })[];
-    const [card] = placed();
-    expect(card?.localName).toBe('cd-card-test');
-    expect(card?.slot).toBe('aside');
-    expect(card?.data).toEqual({ n: 1 });
-
-    filled = { composant: Card, data: { n: 2 } };
-    router.refresh();
-    expect(placed()).toEqual([card]);
-    expect(card?.data).toEqual({ n: 2 });
-    const shown = card?.data;
-    filled = { composant: Card, data: { n: 2 } };
-    router.refresh();
-    expect(card?.data).toBe(shown);
-
-    filled = { composant: Other, data: {} };
-    router.refresh();
-    expect(placed().map((el) => el.localName)).toEqual(['cd-other-test']);
-
-    filled = null;
-    router.refresh();
-    expect(placed()).toEqual([]);
-  });
-
   it('sameData compares plain objects and arrays by their values, anything else by identity', () => {
     expect(sameData({ a: [1, { b: 'x' }], c: null }, { a: [1, { b: 'x' }], c: null })).toBe(true);
     expect(sameData({ a: [1] }, { a: [2] })).toBe(false);
@@ -188,6 +154,73 @@ describe('startRouter', () => {
     expect(sameData([1], { 0: 1 })).toBe(false);
     expect(sameData(new Date(0), new Date(0))).toBe(false);
     expect(sameData(Number.NaN, Number.NaN)).toBe(true);
+  });
+
+  it('fills the page’s Emplacements from its route and the state, the same elements kept on refresh()', () => {
+    let zone = 'Europe/Paris';
+    history.replaceState(null, '', '/parametres');
+    outlet = document.createElement('main');
+    document.body.append(outlet);
+    const PageParametres = page('PageParametres', 'cd-page-parametres');
+    router = startRouter({
+      routes: [
+        {
+          path: '/parametres',
+          composant: PageParametres,
+          slots: (_match, state) => [
+            {
+              tag: 'cd-card',
+              slot: 'account',
+              data: { title: 'Compte' },
+              children: [{ tag: 'cd-select', data: { value: (state as unknown as { zone: string }).zone } }],
+            },
+            { tag: 'cd-list-row', slot: 'modders', text: 'Bibliothèque' },
+          ],
+        },
+      ],
+      outlet,
+      state: () => ({ zone }) as unknown as StoreState,
+    });
+    const pageElement = outlet.firstElementChild as HTMLElement;
+    const card = pageElement.querySelector(':scope > cd-card[slot=account]') as HTMLElement & { data: unknown };
+    const select = card.querySelector(':scope > cd-select') as HTMLElement & { data: unknown };
+    expect(card.data).toEqual({ title: 'Compte' });
+    expect(select.data).toEqual({ value: 'Europe/Paris' });
+    expect(pageElement.querySelector(':scope > cd-list-row[slot=modders]')?.textContent).toBe('Bibliothèque');
+
+    zone = 'Asia/Tokyo';
+    router.refresh();
+    expect(outlet.firstElementChild).toBe(pageElement);
+    expect(pageElement.querySelector(':scope > cd-card')).toBe(card);
+    expect(card.querySelector(':scope > cd-select')).toBe(select);
+    expect(select.data).toEqual({ value: 'Asia/Tokyo' });
+
+    const given = select.data;
+    router.refresh();
+    expect(select.data).toBe(given);
+  });
+
+  it('empties an Emplacement its route no longer fills', () => {
+    let filled = true;
+    history.replaceState(null, '', '/parametres');
+    outlet = document.createElement('main');
+    document.body.append(outlet);
+    router = startRouter({
+      routes: [
+        {
+          path: '/parametres',
+          composant: page('PageParametres', 'cd-page-parametres'),
+          slots: () => [...(filled ? [{ tag: 'cd-card' as const, slot: 'account' }] : []), { tag: 'cd-list-row' as const, slot: 'modders' }],
+        },
+      ],
+      outlet,
+    });
+    const pageElement = outlet.firstElementChild as HTMLElement;
+    const row = pageElement.querySelector('cd-list-row');
+    filled = false;
+    router.refresh();
+    expect([...pageElement.children].map((child) => child.localName)).toEqual(['cd-list-row']);
+    expect(pageElement.firstElementChild).toBe(row);
   });
 
   it('sends / to « À toi »', () => {

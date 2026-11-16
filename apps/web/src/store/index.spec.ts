@@ -1,4 +1,4 @@
-import { type CodeChange, type Me, type Milestone, PROCESS_CREWDECK, PROCESS_CREWDECK_NAME, type ProjectProcess, type State, type Ticket } from '@crewdeck/contracts';
+import { type CodeChange, DEFAULT_ACCOUNT_SETTINGS, type Me, type Milestone, PROCESS_CREWDECK, PROCESS_CREWDECK_NAME, type ProjectProcess, type State, type Ticket } from '@crewdeck/contracts';
 import { store } from './index.js';
 
 const PROJECT = '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a80';
@@ -89,6 +89,7 @@ const SNAPSHOT: State = {
   tickets: [TICKET],
   milestones: [MILESTONE],
   codeChanges: [CHANGE],
+  settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' },
   usage: [],
 };
 

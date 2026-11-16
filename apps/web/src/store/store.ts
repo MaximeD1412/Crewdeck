@@ -1,4 +1,5 @@
 import type {
+  AccountSettings,
   AiAccount,
   CodeChange,
   Decision,
@@ -60,6 +61,7 @@ export interface Slices {
   readonly milestone: ReadonlyMap<string, Milestone>;
   /** Their changes of code, by id, from the snapshot's `codeChanges`. */
   readonly 'code-change': ReadonlyMap<string, CodeChange>;
+  readonly settings: AccountSettings | null;
   /** The usage of the Comptes IA (RUNNER-13), by the Compte IA's id, from the snapshot's `usage`. */
   readonly usage: ReadonlyMap<string, UsageAccount>;
 }

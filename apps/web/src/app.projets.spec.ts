@@ -1,4 +1,4 @@
-import type { Me, Project, Repository } from '@crewdeck/contracts';
+import { DEFAULT_ACCOUNT_SETTINGS, type Me, type Project, type Repository } from '@crewdeck/contracts';
 import { emitAction, PageProjets, RepositoryPicker } from '@crewdeck/sdk';
 import type { z } from 'zod';
 import { createDispatcher } from './actions/dispatcher.js';
@@ -69,7 +69,7 @@ describe('« Projets » in the page', () => {
   });
 
   it('follows the store: a Projet followed appears in real time', () => {
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], repositories: [REPOSITORY], decisions: [], tickets: [], milestones: [], codeChanges: [], usage: [] });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], repositories: [REPOSITORY], decisions: [], tickets: [], milestones: [], codeChanges: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, usage: [] });
     store.applyEvent({ seq: 2, type: 'project.upserted', payload: PROJECT, at: AT });
 
     expect(page('cd-page-projets')?.data).toEqual({ projects: [{ id: PROJECT.id, displayName: 'Site de la mairie', fullName: 'octocat/site-mairie' }] });

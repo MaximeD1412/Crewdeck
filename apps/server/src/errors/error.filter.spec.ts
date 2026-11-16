@@ -9,6 +9,7 @@ import { AppError, conflict, notFound, unprocessable } from './app-error.js';
 
 class ProbeInputDto extends createZodDto(z.object({ name: z.string().min(1), items: z.array(z.object({ id: zId })) })) {}
 class ProbeRecordDto extends createZodDto(z.record(z.string(), z.string().min(3).regex(/^[a-z]+$/))) {}
+class ProbeStrictDto extends createZodDto(z.strictObject({ name: z.string(), nested: z.strictObject({ on: z.boolean() }).optional() })) {}
 class ProbeOutputDto extends createZodDto(z.object({ ok: z.literal(true) })) {}
 
 class DenyGuard implements CanActivate {
@@ -34,6 +35,11 @@ class ProbeController {
   @Get('forbidden')
   forbidden(): never {
     throw new ForbiddenException();
+  }
+
+  @Post('strict')
+  strict(@Body() input: ProbeStrictDto): ProbeStrictDto {
+    return input;
   }
 
   @Post('validate')
@@ -112,6 +118,13 @@ describe('the error envelope', () => {
     const res = await post('/api/probe/validate', JSON.stringify([]));
 
     await expectFields(res, ['']);
+  });
+
+  it('names each unknown key of a strict object by its own path, at any depth', async () => {
+    const res = await post('/api/probe/strict', JSON.stringify({ name: 'a', theme: 'dark', nested: { on: true, off: false } }));
+
+    const fields = await expectFields(res, ['theme', 'nested.off']);
+    expect(fields['nested.off']).toMatch(/off/);
   });
 
   it('names the paths of keys Object.prototype has, the first message of a path kept', async () => {

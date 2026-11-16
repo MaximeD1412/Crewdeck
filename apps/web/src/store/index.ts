@@ -23,6 +23,7 @@ store.registerSlice('repository', { shape: 'collection', snapshotKey: 'repositor
 store.registerSlice('ticket', { shape: 'collection', snapshotKey: 'tickets' });
 store.registerSlice('milestone', { shape: 'collection', snapshotKey: 'milestones' });
 store.registerSlice('code-change', { shape: 'collection', snapshotKey: 'codeChanges' });
+store.registerSlice('settings', { shape: 'single' });
 store.registerSlice('usage', { shape: 'collection' });
 
 export const client = createClient({

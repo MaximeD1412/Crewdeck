@@ -1,4 +1,4 @@
-import type { AiAccount, McpServer, Me, Runner, UsageAccount } from '@crewdeck/contracts';
+import { DEFAULT_ACCOUNT_SETTINGS, type AiAccount, type McpServer, type Me, type Runner, type UsageAccount } from '@crewdeck/contracts';
 import { createDispatcher } from './actions/dispatcher.js';
 import { boot, type App } from './app.js';
 import { createStore } from './store/store.js';
@@ -85,7 +85,7 @@ describe('« Runner et Comptes IA » in the page', () => {
   });
 
   it('follows the store: the Runner and the Comptes IA it reports, in real time', () => {
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: RUNNER, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], usage: [] });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: RUNNER, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, usage: [] });
     expect(page()?.data).toMatchObject({ runner: { machine: 'atelier-pc', state: 'online' } });
 
     store.applyEvent({ seq: 2, type: 'ai-account.upserted', payload: CLAUDE, at: AT });

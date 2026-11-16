@@ -8,6 +8,7 @@ import { zProjectProcess } from './process.js';
 import { REPOSITORIES_MAX, zProject, zRepository } from './projects.js';
 import { zRunner } from './runner.js';
 import { zRunnerLink } from './runner-link.js';
+import { zAccountSettings } from './settings.js';
 import { zCodeChange, zMilestone, zTicket } from './tickets.js';
 import { zUsageAccount } from './usage.js';
 import { zSeq } from '../values.js';
@@ -43,6 +44,8 @@ export const STATE_SLICES = {
   milestones: z.array(zMilestone),
   /** The open and draft changes of code, and those merged or closed in the last 30 days. */
   codeChanges: z.array(zCodeChange),
+  /** The Paramètres of the account. */
+  settings: zAccountSettings,
   /** The usage of the Pilote's Comptes IA that have one (RUNNER-13). */
   usage: z.array(zUsageAccount),
 } as const;

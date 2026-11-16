@@ -4,7 +4,7 @@ import { canvasOf, type CanvasContext } from './canvas.js';
 const CONTEXT: CanvasContext = { zoom: 90, pan: { x: 0, y: 0 }, roleNames: {}, focus: null };
 const GITHUB = { ticket: 'github', code: 'github' } as const;
 
-const crewdeck = (edit: (draft: ProcessDefinition) => void = () => {}): ProcessDefinition => {
+const crewdeck = (edit: (draft: ProcessDefinition) => void = () => undefined): ProcessDefinition => {
   const draft = structuredClone(PROCESS_CREWDECK);
   edit(draft);
   return draft;

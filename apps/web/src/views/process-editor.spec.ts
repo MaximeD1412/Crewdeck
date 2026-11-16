@@ -200,12 +200,12 @@ describe('processEditorView', () => {
     const dev = view(stateOf(), { phase: 'ph-dev' });
     expect(dev.tab).toBe('selection');
     expect(dev.step).toBeNull();
-    expect(dev.phase).toEqual({ name: 'Développement', count: '5 Étapes · 2 Retours', repeat: 'Répéter : pour chaque Ticket prêt' });
+    expect(dev.phase).toEqual({ name: 'Développement', count: '5 Étapes · 2 Retours', repeat: 'pour chaque Ticket prêt' });
     expect(dev.canvas.phases.map((phase) => phase.selected)).toEqual([false, false, true]);
 
     const definition = structuredClone(PROCESS_CREWDECK);
     definition.phases.find((phase) => phase.id === 'ph-dev')!.forEach = null;
-    expect(view(stateOf({ ...PROCESS, draft: draftOf(definition) }), { phase: 'ph-dev' }).phase?.repeat).toBe('Répéter : une fois');
+    expect(view(stateOf({ ...PROCESS, draft: draftOf(definition) }), { phase: 'ph-dev' }).phase?.repeat).toBe('une fois');
   });
 
   it('forgets a selection the definition does not have', () => {

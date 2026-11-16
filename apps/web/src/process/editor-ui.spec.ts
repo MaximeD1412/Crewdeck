@@ -65,6 +65,17 @@ describe('createEditorUi', () => {
     expect(ui.view('p1', { etape: 'st-merge' }).focus).toEqual({ id: 'st-merge', at: 2 });
   });
 
+  it('centres a block once: back on the page after a move, the canvas keeps the view it was left at', () => {
+    const ui = createEditorUi();
+    expect(ui.view('p1', { etape: 'st-review' }).focus).toEqual({ id: 'st-review', at: 0 });
+    ui.setView('p1', { zoom: 90, pan: { x: 300, y: 120 } }); // the canvas, once Review centred
+    ui.setView('p1', { zoom: 90, pan: { x: 500, y: 40 } }); // the Pilote's move
+
+    expect(ui.view('p1', { etape: 'st-review' })).toMatchObject({ pan: { x: 500, y: 40 }, focus: null });
+    ui.centre('p1', 'st-review');
+    expect(ui.view('p1', { etape: 'st-review' }).focus).toEqual({ id: 'st-review', at: 1 });
+  });
+
   it('tells its listeners when the view changes', () => {
     const ui = createEditorUi();
     const listener = vi.fn();

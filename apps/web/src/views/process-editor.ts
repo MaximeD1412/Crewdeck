@@ -154,7 +154,7 @@ const phasePanel = (phaseId: string, definition: ProcessDefinition): NonNullable
   return {
     name: phase.name,
     count: t('process.phase.count', { steps: plural(steps.size, 'process.phase.steps'), loopBacks: plural(loopBacks, 'process.phase.loopBacks') }),
-    repeat: t('process.phase.repeat', { repeat }),
+    repeat,
   };
 };
 

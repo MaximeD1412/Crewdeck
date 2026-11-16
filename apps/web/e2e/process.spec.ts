@@ -90,6 +90,32 @@ test.describe('« Gestion du process » (US-92, US-94, US-88)', () => {
     await expectAccessible(page);
   });
 
+  test('a block centred once: the canvas moved, the page left and come back to, it stays where the Pilote left it', async ({ page, scenario }) => {
+    await scenario('process-etape');
+    const viewport = canvas(page).locator('.canvas');
+    await expect.poll(() => offCentre(card(page, 'st-review'), viewport)).toBeLessThan(4);
+
+    await viewport.focus();
+    for (const key of ['ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowUp', 'ArrowUp']) await viewport.press(key);
+    const moved = await offCentre(card(page, 'st-review'), viewport);
+    expect(moved).toBeGreaterThan(100);
+
+    await editor(page).locator('cd-page-header a.back').click();
+    await expect(editor(page)).toHaveCount(0);
+    await page.goBack();
+    await expect(page).toHaveURL(/\?etape=st-review$/);
+    await expect(card(page, 'st-review')).toBeVisible();
+    await page.waitForTimeout(300);
+    expect(Math.abs((await offCentre(card(page, 'st-review'), viewport)) - moved)).toBeLessThan(4);
+  });
+
+  test('a Phase chosen: its Étapes and Retours counted, « Répéter : » once', async ({ page, scenario }) => {
+    await scenario('process');
+    await page.goto(`${new URL(page.url()).pathname}?phase=ph-dev`);
+
+    await expect(panel(page).locator('section.repeat p')).toHaveText('Répéter : pour chaque Ticket prêt');
+  });
+
   test('« Sources »: the Tickets Local on the Runner’s machine, the code and documents on GitHub, the Idée in Crewdeck, no Select', async ({
     page,
     scenario,

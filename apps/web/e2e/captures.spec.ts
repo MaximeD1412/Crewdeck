@@ -8,6 +8,12 @@ import { openConfirm } from './confirm.js';
 import { expect, test } from './fixtures.js';
 import { routeSocket } from './socket.js';
 
+/** The nav's « Notifications » opened, then back at the top: the full-page shot keeps its sticky columns in place at 1280 px. */
+const openNotifications = async (page: Page) => {
+  await page.getByRole('navigation', { name: 'Paramètres / Sections' }).getByRole('link', { name: 'Notifications' }).click();
+  await page.evaluate(() => window.scrollTo(0, 0));
+};
+
 /** What a scenario's capture shows beyond its page: a sheet or a dialog opened, by width. */
 const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<void>>> = {
   // The socket cut once live, at the mockup's time of the loss.
@@ -54,18 +60,18 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   parametres: async (page) => {
     await expect(page.getByRole('combobox', { name: 'Moteur et modèle du Rôle Idée' }).filter({ visible: true })).toHaveValue('claude-code:claude-sonnet-5-5');
   },
-  // « Notifications » (ATOI-4): on the phone its section opened, as a link of the nav does.
-  'parametres-notifications': async (page, width) => {
-    if (width < 1280) await page.getByRole('navigation', { name: 'Paramètres / Sections' }).getByRole('link', { name: 'Notifications' }).click();
+  // « Notifications » (ATOI-4): its section opened, as a link of the nav does (on the phone, the section alone).
+  'parametres-notifications': async (page) => {
+    await openNotifications(page);
     await expect(page.getByRole('button', { name: 'Activer sur cet appareil' })).toBeVisible();
   },
   // A browser without PushManager, an iPhone outside the home-screen app: the help instead of the button.
-  'parametres-notifications-iphone': async (page, width) => {
+  'parametres-notifications-iphone': async (page) => {
     await page.addInitScript(() => {
       Reflect.deleteProperty(window, 'PushManager');
     });
     await page.reload();
-    if (width < 1280) await page.getByRole('navigation', { name: 'Paramètres / Sections' }).getByRole('link', { name: 'Notifications' }).click();
+    await openNotifications(page);
     await expect(page.getByText('Sur iPhone, ajoute Crewdeck à l’écran d’accueil', { exact: false })).toBeVisible();
   },
   runner: async (page) => {

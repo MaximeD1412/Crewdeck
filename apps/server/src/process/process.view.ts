@@ -1,4 +1,4 @@
-import { type ProcessDraft, type ProcessVersion, type ProjectProcess, type SealedItem, zProcessDefinition, zSealedItem } from '@crewdeck/contracts';
+import { type ProcessDraft, type ProcessVersion, type ProjectProcess, type ProjectProcessSources, type SealedItem, zProcessDefinition, zSealedItem } from '@crewdeck/contracts';
 import type { ProcessActivation } from '../generated/prisma/client.js';
 
 /** What of a `process_versions` row the view reads. */
@@ -63,11 +63,17 @@ export const toProcessDraft = (row: ProcessDraftRow): ProcessDraft => ({
 
 /**
  * A Projet's whole Process (`GET /api/projects/:id/process`, the `processes`
- * slice, `process.upserted`): its active version, the highest number, and
- * its draft; keyed by the Projet's id.
+ * slice, `process.upserted`): its active version, the highest number, its
+ * draft, and the Sources of its groups; keyed by the Projet's id.
  */
-export const toProjectProcess = (projectId: string, version: ProcessVersionRow | null, draft: ProcessDraftRow | null): ProjectProcess => ({
+export const toProjectProcess = (
+  projectId: string,
+  version: ProcessVersionRow | null,
+  draft: ProcessDraftRow | null,
+  sources: ProjectProcessSources,
+): ProjectProcess => ({
   id: projectId,
   active: version ? toProcessVersion(version) : null,
   draft: draft ? toProcessDraft(draft) : null,
+  sources,
 });

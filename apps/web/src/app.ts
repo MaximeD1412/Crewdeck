@@ -5,11 +5,14 @@ import {
   PageComposants,
   PageConnexion,
   PageDemarrage,
+  PageIntrouvable,
   PageParametres,
+  PageParametresProjet,
   PageProjets,
   PageRunner,
   RepositoryPicker,
   RoleSettings,
+  SettingRow,
   type Skin,
 } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
@@ -21,10 +24,11 @@ import { updateSettings } from './api/settings.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
 import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
 import { createPageKeys, type PageKeys } from './keys/index.js';
+import { createProjectSettings } from './project-settings.js';
 import { createProjects } from './projects.js';
 import { bootSkin } from './registry.js';
 import { createRoleSettings } from './role-settings.js';
-import { routeData, routeSlots, startRouter, type Route, type Router } from './router.js';
+import { matchRoute, routeData, routeSlots, startRouter, type Route, type RouteMatch, type Router } from './router.js';
 import { aToiHref, composantsHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
 import { signInGuard, signInHref } from './sign-in.js';
@@ -36,6 +40,7 @@ import { decisionViews } from './views/decisions/registry.js';
 import './views/decisions/runner-offline.js';
 import { systemOfBrowser } from './views/demarrage.js';
 import { parametresView, timeZones } from './views/parametres.js';
+import { parametresProjetView, type ParametresProjetView } from './views/parametres-projet.js';
 import { projetsView } from './views/projets.js';
 import { runnerView } from './views/runner.js';
 
@@ -64,8 +69,8 @@ export interface BootOptions {
   readonly client?: Pick<Client, 'command' | 'query'>;
   /** The latency the page measures on its store's live events (CORE-8): started with the socket. */
   readonly latency?: LatencyMeter;
-  /** This browser's Appareil and the vault (E2E-2): IndexedDB and WebCrypto by default. */
-  readonly keys?: Pick<PageKeys, 'linkKeys' | 'nameDevice' | 'unlockVault'>;
+  /** This browser's Appareil and the vault (E2E-2): IndexedDB and WebCrypto by default; without `vault`, what it seals stays locked. */
+  readonly keys?: Pick<PageKeys, 'linkKeys' | 'nameDevice' | 'unlockVault'> & Partial<Pick<PageKeys, 'vault'>>;
 }
 
 export interface App {
@@ -127,7 +132,30 @@ export const boot = async ({
   });
   const projects = createProjects({ store, client });
   const roleSettings = createRoleSettings({ client });
+  const projectSettings = createProjectSettings({ client, ...(keys.vault ? { vault: keys.vault } : {}) });
+  /** A Projet's Paramètres from the store and the page's own state; `null` until the store has the Projet and the settings. */
+  const projetParametres = (match: RouteMatch): ParametresProjetView | null => {
+    const { slices, vaultState } = store.getState();
+    const project = slices.project?.get(match.params['id'] ?? '');
+    if (!project || !slices.settings) return null;
+    const own = slices.settings.projects.find((candidate) => candidate.projectId === project.id);
+    // The Gestion du process once a route draws it (PROCESS-7).
+    const processHref = `/projets/${encodeURIComponent(project.id)}/process`;
+    return parametresProjetView({
+      project,
+      settings: slices.settings,
+      accounts: [...(slices['ai-account']?.values() ?? [])],
+      local: projectSettings.view(project.id, own?.worktreeCommands ?? null, vaultState),
+      processHref: matchRoute(routes, processHref).composant === PageIntrouvable ? null : processHref,
+    });
+  };
   const signIn = signInGuard(pilot);
+  // A Projet the store does not have once the snapshot is there (removed, another Pilote's): the Projets.
+  const projectGuard = (match: RouteMatch): string | null => {
+    if (match.composant !== PageParametresProjet) return null;
+    const { seq, slices } = store.getState();
+    return seq !== null && slices.project && !slices.project.has(match.params['id'] ?? '') ? '/projets' : null;
+  };
   const started = gettingStartedGuard(gettingStarted.pilot);
   const pageData = routeData(routes, () => store.getState());
   const pageSlots = routeSlots(routes, () => store.getState());
@@ -136,13 +164,22 @@ export const boot = async ({
     outlet: shell.outlet,
     onRoute: shell.update,
     state: store.getState,
-    guard: (match) => started(match) ?? signIn(match),
+    guard: (match) => started(match) ?? signIn(match) ?? projectGuard(match),
     slots: (match) => {
+      if (match.composant === PageParametresProjet) return projetParametres(match)?.slots ?? [];
       if (match.composant !== PageParametres) return pageSlots(match);
       const { slices } = store.getState();
-      return parametresView(slices.settings, timeZones(), { accounts: [...(slices['ai-account']?.values() ?? [])], local: roleSettings.view() });
+      return parametresView(slices.settings, timeZones(), {
+        accounts: [...(slices['ai-account']?.values() ?? [])],
+        local: roleSettings.view(),
+        projects: [...(slices.project?.values() ?? [])],
+      });
     },
     data: (match) => {
+      if (match.composant === PageParametresProjet) {
+        const project = store.getState().slices.project?.get(match.params['id'] ?? '');
+        return projetParametres(match)?.data ?? { project: project?.displayName ?? '', changedCount: 0, counts: {} };
+      }
       if (match.composant === PageDemarrage) return { ...gettingStarted.view(), picker: projects.picker('demarrage') };
       if (match.composant === RepositoryPicker) return projects.picker('projets');
       const { slices } = store.getState();
@@ -165,6 +202,7 @@ export const boot = async ({
     gettingStarted.subscribe(() => router.refresh()),
     projects.subscribe(() => router.refresh()),
     roleSettings.subscribe(() => router.refresh()),
+    projectSettings.subscribe(() => router.refresh()),
   ];
   if (pilot) {
     // The Appareil named before the snapshot, which says which one is `current`.
@@ -187,6 +225,19 @@ export const boot = async ({
   dispatcher.registerAction(RoleSettings, 'add', { run: () => roleSettings.open() });
   dispatcher.registerAction(RoleSettings, 'create', { run: (body) => roleSettings.create(body) });
   dispatcher.registerAction(RoleSettings, 'cancel', { run: () => roleSettings.cancel() });
+  const currentProject = (): string | null => (router.current.composant === PageParametresProjet ? (router.current.params['id'] ?? null) : null);
+  dispatcher.registerAction(PageParametresProjet, 'change', {
+    run: ({ name, value }) => {
+      const projectId = currentProject();
+      return projectId ? projectSettings.change(projectId, name, value) : undefined;
+    },
+  });
+  dispatcher.registerAction(SettingRow, 'revert', {
+    run: ({ name }) => {
+      const projectId = currentProject();
+      return projectId ? projectSettings.revert(projectId, name) : undefined;
+    },
+  });
   dispatcher.registerAction(Cadre, 'openPilot', { run: () => router.navigate('/parametres') });
   const openDecision = (id: string) => store.getState().slices.decision?.get(id);
   dispatcher.registerAction(PageAToi, 'filter', { run: ({ projectId }) => router.navigate(aToiHref(projectId)) });

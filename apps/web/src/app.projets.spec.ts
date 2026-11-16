@@ -69,7 +69,7 @@ describe('« Projets » in the page', () => {
   });
 
   it('follows the store: a Projet followed appears in real time', () => {
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [REPOSITORY], decisions: [], tickets: [], milestones: [], codeChanges: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [REPOSITORY], decisions: [], tickets: [], milestones: [], codeChanges: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] } });
     store.applyEvent({ seq: 2, type: 'project.upserted', payload: PROJECT, at: AT });
 
     expect(page('cd-page-projets')?.data).toEqual({ projects: [{ id: PROJECT.id, displayName: 'Site de la mairie', fullName: 'octocat/site-mairie' }] });

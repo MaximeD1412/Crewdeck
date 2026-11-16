@@ -1,5 +1,4 @@
 import type {
-  AccountSettings,
   AiAccount,
   CodeChange,
   Decision,
@@ -15,6 +14,7 @@ import type {
   Resource,
   Runner,
   RunnerLink,
+  SettingsState,
   State,
   StepRun,
   Ticket,
@@ -66,7 +66,8 @@ export interface Slices {
   readonly milestone: ReadonlyMap<string, Milestone>;
   /** Their changes of code, by id, from the snapshot's `codeChanges`. */
   readonly 'code-change': ReadonlyMap<string, CodeChange>;
-  readonly settings: AccountSettings | null;
+  /** The account's Paramètres and each Projet's (PARAM-3): an event gives the account's, or one Projet's (`applySettingsEvent`). */
+  readonly settings: SettingsState | null;
 }
 
 export interface StoreState {
@@ -90,6 +91,9 @@ export type SliceShape = 'collection' | 'single';
  */
 export type SliceHolds = (item: unknown, slices: Partial<Slices>) => boolean;
 
+/** How an `upserted` event's payload changes a single slice, given its value before; by default the payload replaces it. */
+export type SliceApply = (current: unknown, payload: unknown) => unknown;
+
 /** What `applyEvent` did: `gap` when a `seq` was skipped, the store then in `resync`. */
 export type EventOutcome = 'applied' | 'ignored' | 'gap';
 
@@ -97,8 +101,12 @@ export interface Store {
   getState(): StoreState;
   /** Calls `fn` after each change; returns the function that stops. */
   subscribe(fn: (state: StoreState) => void): () => void;
-  /** Declares the slice of `resource`, fed by its events and by the snapshot's key of the same name, or `snapshotKey`; a collection keeps only what `holds` holds. */
-  registerSlice(resource: Resource, options: { shape: SliceShape; snapshotKey?: string; holds?: SliceHolds }): void;
+  /**
+   * Declares the slice of `resource`, fed by its events and by the snapshot's
+   * key of the same name, or `snapshotKey`; a collection keeps only what
+   * `holds` holds; a single's `upserted` goes through `apply`, when given.
+   */
+  registerSlice(resource: Resource, options: { shape: SliceShape; snapshotKey?: string; holds?: SliceHolds; apply?: SliceApply }): void;
   /** Replaces every registered slice and the `seq` with `GET /api/state`'s. */
   applySnapshot(state: State): void;
   /** Applies the event that follows the `seq`; ignores one already applied; a later one is a gap. */
@@ -125,7 +133,7 @@ type Identified = { readonly id: string };
  * Each change gives a new state; a slice that did not change keeps its value.
  */
 export const createStore = (): Store => {
-  const shapes = new Map<string, { shape: SliceShape; snapshotKey: string; holds?: SliceHolds }>();
+  const shapes = new Map<string, { shape: SliceShape; snapshotKey: string; holds?: SliceHolds; apply?: SliceApply }>();
   const listeners = new Set<(state: StoreState) => void>();
   const eventListeners = new Set<(event: Event, live: boolean) => void>();
   let state: StoreState = { seq: null, connection: 'connecting', lostAt: null, slices: {}, vaultState: 'locked' };
@@ -139,11 +147,12 @@ export const createStore = (): Store => {
 
   const applyChange = (event: Event): Partial<Slices> => {
     const [resource, verb] = event.type.split('.') as [string, 'upserted' | 'removed'];
-    const shape = shapes.get(resource)?.shape;
-    if (!shape) return state.slices;
+    const registered = shapes.get(resource);
+    if (!registered) return state.slices;
+    const { shape, apply } = registered;
     const next = slices();
     if (shape === 'single') {
-      next[resource] = verb === 'upserted' ? event.payload : null;
+      next[resource] = verb === 'upserted' ? (apply ? apply(next[resource] ?? null, event.payload) : event.payload) : null;
     } else {
       const map = new Map(next[resource] as ReadonlyMap<string, unknown> | undefined);
       const { id } = event.payload as Identified;
@@ -180,9 +189,9 @@ export const createStore = (): Store => {
         eventListeners.delete(fn);
       };
     },
-    registerSlice(resource, { shape, snapshotKey = resource, holds }) {
+    registerSlice(resource, { shape, snapshotKey = resource, holds, apply }) {
       if (shapes.has(resource)) throw new Error(`La tranche ${resource} est déjà enregistrée`);
-      shapes.set(resource, { shape, snapshotKey, ...(holds ? { holds } : {}) });
+      shapes.set(resource, { shape, snapshotKey, ...(holds ? { holds } : {}), ...(apply ? { apply } : {}) });
     },
     applySnapshot(snapshot) {
       const next = slices();

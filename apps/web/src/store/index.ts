@@ -1,6 +1,7 @@
 import { type PhaseRun, type StepRun, UNFINISHED_PHASE_RUN_STATES, zState } from '@crewdeck/contracts';
 import { createClient } from '../api/client.js';
 import { createConnection } from './connection.js';
+import { applySettingsEvent } from './settings.js';
 import { createStore } from './store.js';
 
 /**
@@ -26,7 +27,7 @@ store.registerSlice('repository', { shape: 'collection', snapshotKey: 'repositor
 store.registerSlice('ticket', { shape: 'collection', snapshotKey: 'tickets' });
 store.registerSlice('milestone', { shape: 'collection', snapshotKey: 'milestones' });
 store.registerSlice('code-change', { shape: 'collection', snapshotKey: 'codeChanges' });
-store.registerSlice('settings', { shape: 'single' });
+store.registerSlice('settings', { shape: 'single', apply: applySettingsEvent });
 
 export const client = createClient({
   seq: () => store.getState().seq,

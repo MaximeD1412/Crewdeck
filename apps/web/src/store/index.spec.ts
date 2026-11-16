@@ -4,6 +4,7 @@ import {
   type Me,
   type Milestone,
   type PhaseRun,
+  type ProjectSettings,
   PROCESS_CREWDECK,
   PROCESS_CREWDECK_NAME,
   type ProjectProcess,
@@ -135,7 +136,7 @@ const SNAPSHOT: State = {
   tickets: [TICKET],
   milestones: [MILESTONE],
   codeChanges: [CHANGE],
-  settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' },
+  settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] },
 };
 
 describe('the page’s store', () => {
@@ -150,6 +151,27 @@ describe('the page’s store', () => {
 
     expect(store.getState().slices['code-change']?.get(CHANGE.id)).toMatchObject({ checks: 'passed' });
     expect(store.getState().slices.ticket?.size).toBe(0);
+  });
+
+  it('holds the account’s Paramètres and each Projet’s: an account event keeps the Projets’, a Projet’s replaces only its own or joins them', () => {
+    const account = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' };
+    const of = (projectId: string, changedCount: number): ProjectSettings => ({
+      projectId,
+      effective: account,
+      origins: { roles: {}, notifications: { push: 'compte' } },
+      changedCount,
+      branches: { integration: 'develop', release: 'main' },
+      worktreeCommands: null,
+    });
+    const other = '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a81';
+    store.applySnapshot({ ...SNAPSHOT, settings: { ...account, projects: [of(PROJECT, 0)] } });
+
+    store.applyEvent({ seq: 2, type: 'settings.upserted', payload: { projectSettings: of(PROJECT, 2) }, at: AT });
+    store.applyEvent({ seq: 3, type: 'settings.upserted', payload: { projectSettings: of(other, 1) }, at: AT });
+    expect(store.getState().slices.settings?.projects).toEqual([of(PROJECT, 2), of(other, 1)]);
+
+    store.applyEvent({ seq: 4, type: 'settings.upserted', payload: { ...account, timeZone: 'Asia/Tokyo' }, at: AT });
+    expect(store.getState().slices.settings).toEqual({ ...account, timeZone: 'Asia/Tokyo', projects: [of(PROJECT, 2), of(other, 1)] });
   });
 
   it('holds each Projet’s Process by the Projet’s id, from the snapshot, replaced whole by process.upserted', () => {

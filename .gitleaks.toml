@@ -52,3 +52,16 @@ regexTarget = "secret"
 regexes = [
   '''^Yfery35HM-eYbPAm7LdhTYCeN5erL97LmNKhUPk930U$''',
 ]
+
+[[allowlists]]
+description = "Made-up keys of a push subscription in the tests of the push notifications (ATOI-4)"
+# The page's and the contracts' tests use the sample VAPID public key of the
+# web-push documentation, and a browser's subscription keys made up for the
+# tests: p256dh is a public key, auth a fake 16-byte secret no push service
+# ever saw. Only these exact values are excepted, not the files.
+regexTarget = "secret"
+regexes = [
+  '''^BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U$''',
+  '''^BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM$''',
+  '''^tBHItJI5svbpez7KI4CCXg$''',
+]

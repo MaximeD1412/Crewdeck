@@ -254,8 +254,11 @@ export class Engine {
    * « Encore un passage » (the Décision `loop-back.exhausted`): the Retour
    * leaving the Étape of `stepRunId`, whose « changements » raised it, is
    * allowed one more pass and taken at once; the Décision resolved
-   * `one-more-pass`, the PhaseRun `running`. `null`, nothing written, when
-   * the PhaseRun does not wait on that Décision or no Retour leaves the Étape.
+   * `one-more-pass`, the PhaseRun `running`. A « changements » recorded
+   * while it waited, of an Étape that Retour does not undo, then goes the
+   * way it would have gone (`takeRecordedChanges`). `null`, nothing written,
+   * when the PhaseRun does not wait on that Décision or no Retour leaves
+   * the Étape.
    */
   async oneMorePass(tx: Tx, phaseRunId: string, stepRunId: string): Promise<PhaseRun | null> {
     const loaded = await this.lockAndLoad(tx, phaseRunId);
@@ -265,7 +268,29 @@ export class Engine {
     if (!loopBack) return null;
     await this.takeLoopBack(tx, loaded, loopBack, withExtraPass(loaded.phaseRun.loopBacks, loopBack));
     await this.decisions.resolve(tx, 'loop-back.exhausted', phaseRunId, 'one-more-pass');
+    await this.takeRecordedChanges(tx, phaseRunId);
     return (await this.advanceLoaded(tx, await this.load(tx, phaseRunId))).phaseRun;
+  }
+
+  /**
+   * The « changements » `signal` only recorded while the PhaseRun waited on
+   * its Décision, once it runs again: each current `done` StepRun of Verdict
+   * `changes` goes through `afterChanges` as if it had just come, its Retour
+   * taken or the Décision raised again. A Retour's target leads to the Étape
+   * it leaves (`validateDefinition`), so the StepRun taken is superseded and
+   * the next turn finds another one, or none.
+   */
+  private async takeRecordedChanges(tx: Tx, phaseRunId: string): Promise<void> {
+    for (;;) {
+      const loaded = await this.load(tx, phaseRunId);
+      if (loaded.row.state !== 'running') return;
+      const judged = currentStepRuns(loaded.live).find((run) => run.state === 'done' && run.verdict === 'changes');
+      if (!judged) return;
+      const changes = afterChanges(loaded.definition, loaded.phaseRun.loopBacks, judged.stepId);
+      // A gate without a Retour never recorded one: `signal` refused it.
+      if (changes.move === 'refused') return;
+      await this.onChanges(tx, loaded, judged.id, changes);
+    }
   }
 
   /**

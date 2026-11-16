@@ -43,7 +43,9 @@ const PROJECTS = [
  * page's title and its Projet chips (« Tous les Projets », `id: null`, then
  * one per Projet, each with its count). `total` counts every open Décision,
  * the list only the selected Projet's. A row's buttons emit `act`, a click on
- * the row elsewhere `open`; a chip `filter`; « Noter une Idée », shown with
+ * the row elsewhere `open`; where a Skin hides a row's buttons (the phone), a
+ * tap on a row with buttons other than `open` shows them, to emit `act`; a
+ * chip `filter`; « Noter une Idée », shown with
  * `canNoteIdea`, `note-idea`. Its Emplacements `loops` (« Boucles en cours »)
  * and `ai-accounts` (« Comptes IA ») stand beside the list from 1280 px,
  * below it on a phone; an empty one shows nothing.

@@ -4,8 +4,10 @@ import { createZodDto, ZodResponse } from 'nestjs-zod';
 import { DecisionsService } from '../../decisions/decisions.service.js';
 import { notFound, unprocessable } from '../../errors/app-error.js';
 import { MESSAGES } from '../../errors/messages.js';
+import { EventsWriter } from '../../realtime/events.writer.js';
 import { assertFresh } from '../../realtime/freshness.js';
 import { type Tx, Transactions } from '../../realtime/transactions.js';
+import { currentPilotId } from '../../scope/scope.context.js';
 import { Engine } from './engine.js';
 import { PHASE_ITEMS, type PhaseItemHandlers } from './items.js';
 
@@ -33,6 +35,7 @@ export class PhaseRunsController {
   constructor(
     private readonly transactions: Transactions,
     private readonly decisions: DecisionsService,
+    private readonly events: EventsWriter,
     private readonly engine: Engine,
     @Inject(PHASE_ITEMS) private readonly items: PhaseItemHandlers,
   ) {}
@@ -64,8 +67,14 @@ export class PhaseRunsController {
     });
   }
 
-  /** The open Décision `loop-back.exhausted` of the Pilote's PhaseRun `id`, unchanged since `seq`. */
+  /**
+   * The open Décision `loop-back.exhausted` of the Pilote's PhaseRun `id`,
+   * unchanged since `seq`. Read under the Pilote's lock, the one the engine
+   * takes: of two answers at once, the second reads the Décision once the
+   * first committed, answered (409).
+   */
   private async openDecision(tx: Tx, id: string, decisionId: string, seq: bigint): Promise<Decision> {
+    await this.events.lock(tx, currentPilotId());
     const phaseRun = await tx.phaseRun.findUnique({ where: { id }, select: { lastSeq: true } });
     if (!phaseRun) throw phaseRunNotFound();
     const decision = await this.decisions.assertOpen(tx, decisionId);

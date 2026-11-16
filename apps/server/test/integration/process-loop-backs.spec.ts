@@ -204,13 +204,13 @@ describe('the Retours against PostgreSQL', () => {
   };
 
   /** The PhaseRun of Ticket #57 whose Review asked changes three times, the fourth raising « Maximum de Retours atteint ». */
-  const exhausted = async () => {
-    const run = await admit();
+  const exhausted = async (ticket = '57') => {
+    const run = await admit(ticket);
     for (let pass = 0; pass < 4; pass += 1) {
       await upToReview(run.id);
       await signal(run.id, 'st-review', CHANGES);
     }
-    const [decision] = await openDecisions();
+    const decision = (await openDecisions()).find((open) => open.subject_id === run.id);
     if (!decision) throw new Error('No Décision');
     return { run, decision };
   };
@@ -325,6 +325,69 @@ describe('the Retours against PostgreSQL', () => {
     expect(await phaseRun(run.id)).toMatchObject({ state: 'waiting', waiting_on: 'decision' });
   });
 
+  it('« Encore un passage » then takes the Retour of a « changements » recorded while it waited: two Retours of distinct targets, none left feeding the Merge', async () => {
+    // The Review's Retour goes back to the Checks only: it undoes neither the Code nor the Revue visuelle.
+    await writeVersion({
+      ...PROCESS_CREWDECK,
+      loopBacks: PROCESS_CREWDECK.loopBacks.map((loopBack) => (loopBack.from === 'st-review' ? { ...loopBack, to: 'st-checks' } : loopBack)),
+    });
+    const run = await admit();
+    await signal(run.id, 'st-code', done([CHANGE]));
+    for (let pass = 0; pass < 4; pass += 1) {
+      await signal(run.id, 'st-checks', done([verdict('v-checks')], 'passed'));
+      await signal(run.id, 'st-review', CHANGES);
+    }
+    const [decision] = await openDecisions();
+    if (!decision) throw new Error('No Décision');
+    await signal(run.id, 'st-rv', done([verdict('v-rv')], 'changes'));
+    expect(await stepRun(run.id, 'st-rv')).toMatchObject({ state: 'done', iteration: 1 });
+
+    const response = await call('POST', `/api/phase-runs/${run.id}/one-more-pass`, { decisionId: decision.id, seq: String(await lastSeq()) });
+
+    expect(response.status).toBe(200);
+    expect(zPhaseRun.parse(await response.json())).toMatchObject({
+      state: 'running',
+      loopBacks: [
+        { from: 'st-review', to: 'st-checks', taken: 4, extra: 1 },
+        { from: 'st-rv', to: 'st-code', taken: 1, extra: 0 },
+      ],
+    });
+    expect(await stepRun(run.id, 'st-rv')).toMatchObject({ state: 'superseded', iteration: 1 });
+    expect(await stepRun(run.id, 'st-code')).toMatchObject({ state: 'running', iteration: 2, reason: 'loop-back' });
+    expect((await stepRuns(run.id)).filter((candidate) => candidate.step_id === 'st-merge')).toEqual([]);
+    expect(await openDecisions()).toEqual([]);
+  });
+
+  it('« Encore un passage » raises the Décision again for a « changements » recorded while it waited whose Retour is at its maximum', async () => {
+    await writeVersion({
+      ...PROCESS_CREWDECK,
+      loopBacks: PROCESS_CREWDECK.loopBacks.map((loopBack) =>
+        loopBack.from === 'st-review' ? { ...loopBack, to: 'st-checks' } : loopBack.from === 'st-rv' ? { ...loopBack, max: 1 } : loopBack,
+      ),
+    });
+    const run = await admit();
+    // The Revue visuelle's one Retour, taken while the PhaseRun runs.
+    await signal(run.id, 'st-code', done([CHANGE]));
+    await signal(run.id, 'st-rv', done([verdict('v-rv')], 'changes'));
+    await signal(run.id, 'st-code', done([CHANGE]));
+    for (let pass = 0; pass < 4; pass += 1) {
+      await signal(run.id, 'st-checks', done([verdict('v-checks')], 'passed'));
+      await signal(run.id, 'st-review', CHANGES);
+    }
+    const [decision] = await openDecisions();
+    if (!decision) throw new Error('No Décision');
+    const rv = await stepRun(run.id, 'st-rv');
+    await signal(run.id, 'st-rv', done([verdict('v-rv')], 'changes'));
+
+    const response = await call('POST', `/api/phase-runs/${run.id}/one-more-pass`, { decisionId: decision.id, seq: String(await lastSeq()) });
+
+    expect(response.status).toBe(200);
+    expect(zPhaseRun.parse(await response.json())).toMatchObject({ state: 'waiting', waitingOn: 'decision' });
+    const [again] = await openDecisions();
+    expect(again).toMatchObject({ kind: 'loop-back.exhausted', subject_id: run.id, params: { stepRunId: rv.id, stepName: 'Revue visuelle', taken: 1, max: 1, canContinue: true } });
+    expect(again?.id).not.toBe(decision.id);
+  });
+
   it('« Arrêter » stops the PhaseRun, its running StepRuns and the item, and resolves the Décision', async () => {
     const { run, decision } = await exhausted();
     stops.length = 0;
@@ -351,6 +414,24 @@ describe('the Retours against PostgreSQL', () => {
     for (const answer of ['stop', 'one-more-pass']) {
       const response = await call('POST', `/api/phase-runs/${run.id}/${answer}`, { decisionId: decision.id, seq: String(await lastSeq()) });
       await expectEnvelope(response, 409, 'decision.already-answered');
+    }
+  });
+
+  it('answers once even when two answers arrive at once: one succeeds, the other gets 409 decision.already-answered', async () => {
+    const pairs = [['one-more-pass', 'stop'], ['stop', 'stop'], ['one-more-pass', 'one-more-pass']];
+    for (const [index, answers] of pairs.entries()) {
+      const { run, decision } = await exhausted(String(60 + index));
+      const seq = String(await lastSeq());
+      const stoppedBefore = stoppedItems.length;
+
+      const responses = await Promise.all(answers.map((answer) => call('POST', `/api/phase-runs/${run.id}/${answer}`, { decisionId: decision.id, seq })));
+
+      const statuses = responses.map((response) => response.status).sort();
+      expect(statuses, answers.join(' + ')).toEqual([200, 409]);
+      const refused = responses.find((response) => response.status === 409);
+      if (refused) await expectEnvelope(refused, 409, 'decision.already-answered');
+      expect(stoppedItems.length - stoppedBefore, answers.join(' + ')).toBeLessThanOrEqual(1);
+      expect(await sql('SELECT count(*)::int AS answered FROM decisions WHERE id = $1 AND state = $2', [decision.id, 'resolved'])).toEqual([{ answered: 1 }]);
     }
   });
 

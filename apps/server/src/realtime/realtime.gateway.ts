@@ -4,7 +4,9 @@ import { Inject } from '@nestjs/common';
 import { type OnGatewayConnection, WebSocketGateway } from '@nestjs/websockets';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import type { RawData, WebSocket } from 'ws';
+import { newId } from '../ids.js';
 import type { Principal } from '../scope/principal.js';
+import { withPilotScope } from '../scope/scope.context.js';
 import { EventsBus } from './events.bus.js';
 import { EventsReplay } from './events.replay.js';
 import { RealtimeTiming } from './realtime.timing.js';
@@ -12,6 +14,7 @@ import { TabPresence } from './tab-presence.js';
 import { WS_AUTHENTICATORS, type WsAuthenticators, type WsCredential, type WsIdentity } from './ws-authenticators.js';
 import { WS_CLIENTS, type WsClientHandlers, wsClientOf } from './ws-clients.js';
 import { WsRevocations } from './ws-revocations.js';
+import { type TabMessage, type TabSocket, WS_TABS, type WsTabHandlers } from './ws-tabs.js';
 
 /** The close code of a server fault (RFC 6455). */
 const INTERNAL_ERROR = 1011;
@@ -48,6 +51,9 @@ const loggedType = (message: ClientMessage | undefined): string => message?.type
  *   after `live`.
  * - `ping` → `pong`; a socket silent for `RealtimeTiming.silenceMs` is closed (4408).
  * - `visibility`: kept by `TabPresence`.
+ * - Another module's messages (`session.open`, SESSION-1) go to the
+ *   `WS_TABS` handler that takes their type, with the tab's `tabId`; it
+ *   hears of the socket's close.
  * - Anything else closes the socket with 4400. A message is logged by its
  *   type and size only, never its content.
  * - The credential the socket was opened with keeps it open: revoked (a
@@ -62,6 +68,7 @@ export class RealtimeGateway implements OnGatewayConnection {
   constructor(
     @Inject(WS_AUTHENTICATORS) private readonly authenticators: WsAuthenticators,
     @Inject(WS_CLIENTS) private readonly clients: WsClientHandlers,
+    @Inject(WS_TABS) private readonly tabs: WsTabHandlers,
     private readonly replay: EventsReplay,
     private readonly bus: EventsBus,
     private readonly presence: TabPresence,
@@ -78,7 +85,7 @@ export class RealtimeGateway implements OnGatewayConnection {
       if (handler) return handler.handleConnection(socket, request);
       return socket.close(WS_CLOSE.invalidMessage, 'unknown client');
     }
-    new Connection(socket, this.replay, this.bus, this.presence, this.timing, this.revocations, this.logger).start(this.authenticate(request));
+    new Connection(socket, this.tabs, this.replay, this.bus, this.presence, this.timing, this.revocations, this.logger).start(this.authenticate(request));
   }
 
   private async authenticate(request: IncomingMessage): Promise<WsIdentity | null> {
@@ -93,6 +100,8 @@ export class RealtimeGateway implements OnGatewayConnection {
 /** One socket of `/api/ws`, from its upgrade to its close. */
 class Connection {
   private principal: Principal | undefined;
+  /** The socket as the `WS_TABS` handlers see it, once its Pilote is known. */
+  private tab: TabSocket | undefined;
   private readonly waiting: RawData[] = [];
   private silence: NodeJS.Timeout | undefined;
   private expiry: NodeJS.Timeout | undefined;
@@ -104,6 +113,7 @@ class Connection {
 
   constructor(
     private readonly socket: WebSocket,
+    private readonly tabs: WsTabHandlers,
     private readonly replay: EventsReplay,
     private readonly bus: EventsBus,
     private readonly presence: TabPresence,
@@ -126,7 +136,10 @@ class Connection {
         // socket was authenticated found nothing to close. Messages wait meanwhile.
         if (!(await this.checkCredential(credential))) return;
         this.principal = principal;
-        if (principal.kind === 'pilot') this.presence.open(principal.pilotId, this.socket);
+        if (principal.kind === 'pilot') {
+          this.presence.open(principal.pilotId, this.socket);
+          this.tab = { tabId: newId(), pilotId: principal.pilotId, send: (message) => this.send(message) };
+        }
         for (const data of this.waiting.splice(0)) this.handle(data);
       },
       (error: unknown) => {
@@ -159,7 +172,18 @@ class Connection {
           this.logger.error({ err: error }, 'ws replay failed');
           this.close(INTERNAL_ERROR, 'internal error');
         });
+        return;
+      default:
+        return this.toHandler(message);
     }
+  }
+
+  /** A message of another module, to the handler that takes its type; none closes the socket with 4400. */
+  private toHandler(message: TabMessage): void {
+    const tab = this.tab;
+    const handler = this.tabs.all().find((candidate) => candidate.types.includes(message.type));
+    if (!tab || !handler) return this.close(WS_CLOSE.invalidMessage, 'invalid message');
+    withPilotScope(tab.pilotId, () => handler.handle(tab, message));
   }
 
   private async hello(pilotId: string, lastSeq: number | null): Promise<void> {
@@ -248,5 +272,7 @@ class Connection {
     this.unsubscribe = undefined;
     this.waiting.length = 0;
     if (this.principal?.kind === 'pilot') this.presence.close(this.principal.pilotId, this.socket);
+    const tab = this.tab;
+    if (tab) for (const handler of this.tabs.all()) handler.closed(tab);
   }
 }

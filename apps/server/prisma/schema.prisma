@@ -565,6 +565,8 @@ model Project {
   codeChanges       CodeChange[]
   processVersions   ProcessVersion[]
   processDraft      ProcessDraft?
+  phaseRuns         PhaseRun[]
+  stepRuns          StepRun[]
   artifactSources   ArtifactSource[]
 
   @@unique([pilotId, githubRepoId])
@@ -842,8 +844,11 @@ model ProcessVersion {
   /// The Modèle it was copied from, `null` once the Pilote drew it.
   templateName String?           @map("template_name")
   project      Project           @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+  phaseRuns    PhaseRun[]
 
   @@unique([projectId, number])
+  /// The key the PhaseRuns pinned to it point at, with their Pilote.
+  @@unique([pilotId, id])
   @@index([pilotId, projectId])
   @@map("process_versions")
 }
@@ -865,6 +870,114 @@ model ProcessDraft {
   /// The one-to-one key of its Projet, with their Pilote.
   @@unique([pilotId, projectId])
   @@map("process_drafts")
+}
+
+/// Where a PhaseRun stands (`zPhaseRunState`).
+enum PhaseRunState {
+  running
+  waiting
+  done
+  stopped
+  failed
+
+  @@map("phase_run_state")
+}
+
+/// Where a StepRun stands (`zStepRunState`).
+enum StepRunState {
+  running
+  waiting
+  interrupted
+  blocked
+  done
+  failed
+  stopped
+  superseded
+
+  @@map("step_run_state")
+}
+
+/// What an Étape that judges concludes (`zStepRunVerdict`).
+enum StepVerdict {
+  passed
+  changes
+  failed
+
+  @@map("step_verdict")
+}
+
+/// One item through one Phase (ADR 0011, « The engine »), pinned to the
+/// version active when it started: activating another never touches it.
+/// One unfinished (`running` or `waiting`) per item and Phase, by the partial
+/// unique index of the migration.
+model PhaseRun {
+  id               String         @id @db.Uuid
+  pilotId          String         @map("pilot_id") @db.Uuid
+  projectId        String         @map("project_id") @db.Uuid
+  processVersionId String         @map("process_version_id") @db.Uuid
+  phaseId          String         @map("phase_id")
+  /// The type of its Phase's `forEach` (`zArtifactType`).
+  itemType         String         @map("item_type")
+  /// An Idée's or a Ticket's id, readable by the server.
+  itemId           String         @map("item_id")
+  state            PhaseRunState
+  /// What a `waiting` one waits for (`zPhaseRunWaitingOn`).
+  waitingOn        String?        @map("waiting_on")
+  startedAt        DateTime       @map("started_at") @db.Timestamptz
+  endedAt          DateTime?      @map("ended_at") @db.Timestamptz
+  /// The starts asked by `retry` or `rerunFrom` that the start guard holds,
+  /// by Étape: `{ iteration, reason, retryOf? }`, for `startQueued`. Codes
+  /// and ids only, never shown: not in the view.
+  pendingStarts    Json           @default("{}") @map("pending_starts")
+  lastSeq          BigInt         @default(0) @map("last_seq")
+  project          Project        @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+  processVersion   ProcessVersion @relation(fields: [pilotId, processVersionId], references: [pilotId, id], onDelete: Cascade)
+  stepRuns         StepRun[]
+
+  /// The key its StepRuns point at, with their Pilote.
+  @@unique([pilotId, id])
+  @@unique([projectId, phaseId, itemType, itemId], map: "phase_runs_project_id_phase_id_item_unfinished_key", where: raw("state IN ('running', 'waiting')"))
+  @@index([pilotId, projectId, state])
+  @@index([pilotId, itemType, itemId])
+  @@map("phase_runs")
+}
+
+/// One pass of an Étape in a PhaseRun (ADR 0011): what fed its Entrées and
+/// what it gave, as Artefact references (`zArtifactRef`), never content
+/// (ADR 0003). Its kind's handler does the work; the engine alone writes its
+/// state. An agent Étape's Session writes `sessionId` and `contratVerdict`
+/// (RUNNER-12).
+model StepRun {
+  id             String       @id @db.Uuid
+  pilotId        String       @map("pilot_id") @db.Uuid
+  projectId      String       @map("project_id") @db.Uuid
+  phaseRunId     String       @map("phase_run_id") @db.Uuid
+  stepId         String       @map("step_id")
+  /// Its Étape's kind (`zStepKind`).
+  kind           String
+  iteration      Int          @default(1)
+  state          StepRunState
+  /// `{ portId, artifacts: ArtifactRef[] }[]`.
+  inputs         Json
+  /// `ArtifactRef[]`.
+  outputs        Json         @default("[]")
+  verdict        StepVerdict?
+  /// A code (`no-handler`), never free text.
+  failure        String?
+  /// Why a rerun started it: `loop-back`, or the caller's (`fix-conflict`).
+  reason         String?
+  sessionId      String?      @map("session_id") @db.Uuid
+  /// The verdict of its Contrat, from the Runner's `step.verdict` (RUNNER-12).
+  contratVerdict Json?        @map("contrat_verdict")
+  startedAt      DateTime     @map("started_at") @db.Timestamptz
+  endedAt        DateTime?    @map("ended_at") @db.Timestamptz
+  lastSeq        BigInt       @default(0) @map("last_seq")
+  project        Project      @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+  phaseRun       PhaseRun     @relation(fields: [pilotId, phaseRunId], references: [pilotId, id], onDelete: Cascade)
+
+  @@index([pilotId, phaseRunId])
+  @@index([outputs(ops: JsonbPathOps)], type: Gin)
+  @@map("step_runs")
 }
 
 /// A group of a Projet's artifacts (ADR 0012, « Which Source for what »):

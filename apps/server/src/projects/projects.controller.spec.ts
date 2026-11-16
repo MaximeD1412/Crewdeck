@@ -2,7 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import { newId } from '../ids.js';
 import { expectEnvelope, startApp } from '../../test/route-baseline.js';
 import { appOrigin, parseEnv } from '../config/env.js';
-import { projectNamesOf } from './process-json.js';
+import { projectNamesOf } from './project-names.js';
 
 // Nothing listens on port 1: no session can be read. The nominal case, 400, 404, 409 and 422 are proven against PostgreSQL (test/integration/projects.spec.ts).
 const env = parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: 'postgresql://crewdeck:crewdeck@127.0.0.1:1/crewdeck', NODE_ENV: 'development' });
@@ -43,21 +43,7 @@ describe('/api/projects, without a database', () => {
 });
 
 describe('projectNamesOf', () => {
-  const repository = { name: 'site-mairie', defaultBranch: 'main' };
-
-  it('takes the name and the branches of .process.json', () => {
-    expect(projectNamesOf({ projectName: 'Site de la mairie', branches: { integration: 'dev', release: 'prod' } }, repository)).toEqual({
-      displayName: 'Site de la mairie',
-      integrationBranch: 'dev',
-      releaseBranch: 'prod',
-    });
-  });
-
-  it('falls back on the repository’s name, develop and the default branch without the file, or for what it lacks', () => {
-    const defaults = { displayName: 'site-mairie', integrationBranch: 'develop', releaseBranch: 'main' };
-    expect(projectNamesOf(null, repository)).toEqual(defaults);
-    expect(projectNamesOf([1, 2], repository)).toEqual(defaults);
-    expect(projectNamesOf({ projectName: '  ', branches: { integration: 3 } }, repository)).toEqual(defaults);
-    expect(projectNamesOf({ branches: { release: 'prod' } }, repository)).toEqual({ ...defaults, releaseBranch: 'prod' });
+  it('names the Projet after its repository, its integration branch develop and its release branch the default one', () => {
+    expect(projectNamesOf({ name: 'site-mairie', defaultBranch: 'main' })).toEqual({ displayName: 'site-mairie', integrationBranch: 'develop', releaseBranch: 'main' });
   });
 });

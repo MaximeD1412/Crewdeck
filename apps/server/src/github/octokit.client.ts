@@ -1,4 +1,5 @@
 import type {
+  AllowlistedPath,
   Branch,
   BranchMerge,
   CheckRun,
@@ -32,7 +33,7 @@ import type { PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
 import type { Env } from '../config/env.js';
 import { AppError } from '../errors/app-error.js';
-import { branchProtected, githubUnavailable, headMoved, installationGone, processJsonInvalid, userTokenRefused } from './github.errors.js';
+import { branchProtected, githubUnavailable, headMoved, installationGone, userTokenRefused } from './github.errors.js';
 import type { GitHubClient } from './github.client.js';
 import { repoOfUrl, toIssue, toMilestone, toPullRequest, zRawIssue, zRawMilestone, zRawPullRequest } from './github-shapes.js';
 import { GitHubReadForbiddenError, installReadGuard } from './read-guard.js';
@@ -57,7 +58,6 @@ const ClientOctokit = Octokit.plugin(retry, throttling);
 /** GitHub's own shapes of what only the REST API sends (the shared ones are in `github-shapes.ts`). */
 const zRawLabel = z.object({ name: z.string(), color: z.string(), description: z.string().nullable().default(null) });
 const zRawRepository = z.object({ id: z.int(), name: z.string(), owner: z.object({ login: z.string() }), private: z.boolean() });
-const zRawContent = z.object({ sha: z.string().optional(), content: z.string().optional(), encoding: z.string().optional() });
 const zRawTokens = z.object({
   access_token: z.string(),
   expires_in: z.number(),
@@ -341,20 +341,16 @@ export class OctokitGitHubClient implements GitHubClient {
 
   // --- The allowlist of contents
 
-  readProcessJson(repo: RepoRef, ref: string): Promise<unknown> {
+  pathExists(repo: RepoRef, ref: string, path: AllowlistedPath): Promise<boolean> {
     return this.onRepo(repo, async (request) => {
-      const file = await this.contents(request, repo, '.process.json', ref);
-      if (file === null) return null;
       try {
-        return JSON.parse(Buffer.from(file.content ?? '', 'base64').toString('utf8')) as unknown;
-      } catch {
-        throw processJsonInvalid();
+        await request('GET /repos/{owner}/{repo}/contents/{path}', { ...this.params(repo), path, ref });
+        return true;
+      } catch (error) {
+        if (isNotFound(error)) return false;
+        throw error;
       }
     });
-  }
-
-  pathExists(repo: RepoRef, ref: string, path: 'CONTEXT.md' | 'docs/adr'): Promise<boolean> {
-    return this.onRepo(repo, async (request) => (await this.contents(request, repo, path, ref)) !== null);
   }
 
   // --- Writes
@@ -380,21 +376,6 @@ export class OctokitGitHubClient implements GitHubClient {
   createBranch(repo: RepoRef, name: string, fromSha: string): Promise<void> {
     return this.onRepo(repo, async (request) => {
       await request('POST /repos/{owner}/{repo}/git/refs', { ...this.params(repo), ref: `refs/heads/${name}`, sha: fromSha });
-    });
-  }
-
-  commitProcessJson(repo: RepoRef, branch: string, content: string, message: string): Promise<CommitRef> {
-    return this.onRepo(repo, async (request) => {
-      const current = await this.contents(request, repo, '.process.json', branch);
-      const { data } = await request('PUT /repos/{owner}/{repo}/contents/{path}', {
-        ...this.params(repo),
-        path: '.process.json',
-        message,
-        content: Buffer.from(content, 'utf8').toString('base64'),
-        branch,
-        ...(current?.sha === undefined ? {} : { sha: current.sha }),
-      });
-      return { sha: z.object({ commit: z.object({ sha: z.string() }) }).parse(data).commit.sha };
     });
   }
 
@@ -536,17 +517,6 @@ export class OctokitGitHubClient implements GitHubClient {
 
   private params(repo: RepoRef): { owner: string; repo: string } {
     return { owner: repo.owner, repo: repo.name };
-  }
-
-  /** A file or a directory of the allowlist at `ref`, or null when it does not exist. */
-  private async contents(request: Request, repo: RepoRef, path: string, ref: string): Promise<z.infer<typeof zRawContent> | null> {
-    try {
-      const { data } = await request('GET /repos/{owner}/{repo}/contents/{path}', { ...this.params(repo), path, ref });
-      return Array.isArray(data) ? {} : zRawContent.parse(data);
-    } catch (error) {
-      if (isNotFound(error)) return null;
-      throw error;
-    }
   }
 
   /** Every page of a list, 100 at a time. */

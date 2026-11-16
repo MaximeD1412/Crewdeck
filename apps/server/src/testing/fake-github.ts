@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type {
+  AllowlistedPath,
   Branch,
   BranchMerge,
   CheckRun,
@@ -29,7 +30,7 @@ import type {
   UserTokens,
 } from '@crewdeck/contracts';
 import type { GitHubClient } from '../github/github.client.js';
-import { branchProtected, githubUnavailable, headMoved, installationGone, processJsonInvalid, userTokenRefused } from '../github/github.errors.js';
+import { branchProtected, githubUnavailable, headMoved, installationGone, userTokenRefused } from '../github/github.errors.js';
 import type { Fake } from './fakes.js';
 
 /** A file's content: text, or the bytes of an image (the captures). */
@@ -478,22 +479,7 @@ export class FakeGitHub implements GitHubClient, Fake {
 
   // --- GitHubClient: the allowlist of contents
 
-  readProcessJson(repo: RepoRef, ref: string): Promise<unknown> {
-    this.record('readProcessJson', repo, ref);
-    return this.run(() => {
-      const fake = this.repo(repo);
-      const sha = this.resolve(fake, ref);
-      const content = sha === undefined ? undefined : this.files(sha).get('.process.json');
-      if (content === undefined) return null;
-      try {
-        return JSON.parse(typeof content === 'string' ? content : Buffer.from(content).toString('utf8')) as unknown;
-      } catch {
-        throw processJsonInvalid();
-      }
-    });
-  }
-
-  pathExists(repo: RepoRef, ref: string, path: 'CONTEXT.md' | 'docs/adr'): Promise<boolean> {
+  pathExists(repo: RepoRef, ref: string, path: AllowlistedPath): Promise<boolean> {
     this.record('pathExists', repo, ref, path);
     return this.run(() => {
       const sha = this.resolve(this.repo(repo), ref);
@@ -519,17 +505,6 @@ export class FakeGitHub implements GitHubClient, Fake {
       const fake = this.repo(repo);
       if (fake.branches.has(name) || !this.commits.has(fromSha)) throw githubUnavailable();
       fake.branches.set(name, { sha: fromSha, protected: false });
-    });
-  }
-
-  commitProcessJson(repo: RepoRef, branch: string, content: string, message: string): Promise<CommitRef> {
-    this.record('commitProcessJson', repo, branch, content, message);
-    return this.run(() => {
-      const fake = this.repo(repo);
-      const current = this.writableBranch(fake, branch);
-      const sha = this.commit(new Map([...this.files(current.sha), ['.process.json', content]]), [current.sha]);
-      this.moveBranch(fake, branch, sha);
-      return { sha };
     });
   }
 

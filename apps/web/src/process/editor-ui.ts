@@ -1,0 +1,101 @@
+import type { Selection } from './canvas.js';
+
+/** The panel's tabs: the Manques, the selected Étape or Phase, the Sources. */
+export type EditorTab = 'gaps' | 'selection' | 'sources';
+
+/** What the URL holds of « Gestion du process »: so that a Manque, a Décision or a test opens the page on its block. */
+export interface EditorQuery {
+  readonly selection: Selection | null;
+  readonly tab: EditorTab;
+}
+
+export interface EditorView {
+  readonly zoom: number;
+  readonly pan: { readonly x: number; readonly y: number };
+}
+
+/** The page's own state for one Projet: its URL's, its view, the block the canvas is asked to centre. */
+export interface EditorUi extends EditorQuery, EditorView {
+  readonly focus: { readonly id: string; readonly at: number } | null;
+}
+
+/** The query's words for each tab (French, as the page URLs are). */
+const TAB_WORDS: Readonly<Record<EditorTab, string>> = { gaps: 'manques', selection: 'etape', sources: 'sources' };
+const tabOfWord = (word: string | undefined): EditorTab | null =>
+  (Object.keys(TAB_WORDS) as EditorTab[]).find((tab) => TAB_WORDS[tab] === word) ?? null;
+
+const defaultTab = (selection: Selection | null): EditorTab => (selection ? 'selection' : 'gaps');
+
+/** `?etape=<stepId>`, `?phase=<phaseId>`, `?onglet=manques|etape|sources`: the tab of the selection by default, else « Manques ». */
+export const editorQueryOf = (query: Readonly<Record<string, string>>): EditorQuery => {
+  const step = query['etape'];
+  const phase = query['phase'];
+  const selection: Selection | null = step ? { kind: 'step', id: step } : phase ? { kind: 'phase', id: phase } : null;
+  return { selection, tab: tabOfWord(query['onglet']) ?? defaultTab(selection) };
+};
+
+/** « Gestion du process »' URL for a Projet, its selection and its tab, as `editorQueryOf` reads it. */
+export const processHref = (projectId: string, { selection, tab }: EditorQuery): string => {
+  const params = new URLSearchParams();
+  if (selection?.kind === 'step' && selection.id) params.set('etape', selection.id);
+  if (selection?.kind === 'phase' && selection.id) params.set('phase', selection.id);
+  if (tab !== defaultTab(selection?.kind === 'sources' ? null : selection)) params.set('onglet', TAB_WORDS[tab]);
+  const query = params.toString();
+  return `/projets/${encodeURIComponent(projectId)}/process${query ? `?${query}` : ''}`;
+};
+
+/** The zoom a Projet's canvas opens at. */
+export const DEFAULT_ZOOM = 90;
+
+interface Kept {
+  view: EditorView;
+  focus: EditorUi['focus'];
+}
+
+export interface EditorUiState {
+  /** The page's state for a Projet: from its URL, and its view kept in memory, opened centred on the URL's block. */
+  view(projectId: string, query: Readonly<Record<string, string>>): EditorUi;
+  /** The canvas's view at the end of a gesture. */
+  setView(projectId: string, view: EditorView): void;
+  /** Asks the canvas to centre the block `id` (a Manque chosen). */
+  centre(projectId: string, id: string): void;
+  subscribe(listener: () => void): () => void;
+}
+
+/** « Gestion du process »' own state, per Projet, while the browser's tab lives. */
+export const createEditorUi = (): EditorUiState => {
+  const kept = new Map<string, Kept>();
+  const listeners = new Set<() => void>();
+  const notify = () => {
+    for (const listener of listeners) listener();
+  };
+  const keptOf = (projectId: string, query: EditorQuery | null): Kept => {
+    let entry = kept.get(projectId);
+    if (!entry) {
+      const id = query?.selection?.id ?? null;
+      entry = { view: { zoom: DEFAULT_ZOOM, pan: { x: 0, y: 0 } }, focus: id === null || query?.selection?.kind === 'sources' ? null : { id, at: 0 } };
+      kept.set(projectId, entry);
+    }
+    return entry;
+  };
+  return {
+    view: (projectId, query) => {
+      const parsed = editorQueryOf(query);
+      const { view, focus } = keptOf(projectId, parsed);
+      return { ...parsed, zoom: view.zoom, pan: { ...view.pan }, focus };
+    },
+    setView: (projectId, view) => {
+      keptOf(projectId, null).view = { zoom: view.zoom, pan: { x: view.pan.x, y: view.pan.y } };
+      notify();
+    },
+    centre: (projectId, id) => {
+      const entry = keptOf(projectId, null);
+      entry.focus = { id, at: (entry.focus?.at ?? 0) + 1 };
+      notify();
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+};

@@ -127,6 +127,11 @@ describe('cadreView', () => {
     expect(cadreView(open(9), at('/a-toi')).menu.filter((item) => item.count !== null).map((item) => item.id)).toEqual(['a-toi']);
   });
 
+  it('is compact on « Gestion du process », its entry « Projets »', () => {
+    expect(cadreView(empty, at('/projets/019a6f00-0000-7000-8000-000000000011/process')).cadre).toMatchObject({ variant: 'compact', current: 'projets' });
+    expect(cadreView(empty, at('/projets')).cadre).toMatchObject({ variant: 'default', current: 'projets' });
+  });
+
   it.each(['/connexion', '/demarrage'])('is bare on %s', (path) => {
     expect(cadreView(empty, at(path)).cadre).toMatchObject({ variant: 'bare', current: null });
   });

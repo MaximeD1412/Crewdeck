@@ -12,8 +12,8 @@ afterEach(async () => {
   await page.viewport(1280, 800);
 });
 
-const [four, chosen, emptyTab, none] = COMPOSANTS.PageIdees.examples;
-if (!four || !chosen || !emptyTab || !none) throw new Error('PageIdees lacks its examples');
+const [four, chosen, emptyTab, none, older] = COMPOSANTS.PageIdees.examples;
+if (!four || !chosen || !emptyTab || !none || !older) throw new Error('PageIdees lacks its examples');
 
 const rows = (el: Element) => [...(el.shadowRoot?.querySelectorAll('cd-idea-row') ?? [])];
 const chips = (el: Element) => [...(inside(el, 'cd-project-filter').shadowRoot?.querySelectorAll('cd-chip') ?? [])];
@@ -95,6 +95,24 @@ describe('PageIdees', () => {
       { composant: 'PageIdees', action: 'filter', payload: { projectId: null } },
     ]);
     expect(await actionsOf(() => tabs(el)[2]?.click())).toEqual([{ composant: 'PageIdees', action: 'tab', payload: { tab: 'fusionnees' } }]);
+  });
+
+  it('under the list, while older Idées remain, holds « Afficher les plus anciennes », which emits more, and waits while they come', async () => {
+    const el = await render(COMPOSANTS.PageIdees, older.data);
+    expect(rows(el).map((row) => textOf(inside(row, '.title')))).toEqual(['Envoyer le planning par e-mail']);
+    const more = inside(el, 'cd-button.more');
+    expect(more.getBoundingClientRect().top).toBeGreaterThan(inside(el, 'cd-card.list').getBoundingClientRect().bottom - 1);
+    expect(textOf(inside(more, 'button'))).toBe('Afficher les plus anciennes');
+    expect(await actionsOf(() => inside(el, 'cd-button.more', 'button').click())).toEqual([{ composant: 'PageIdees', action: 'more', payload: {} }]);
+
+    el.data = { ...older.data, older: 'loading' };
+    await settle(el);
+    expect(inside<HTMLButtonElement>(el, 'cd-button.more', 'button').disabled).toBe(true);
+
+    el.data = { ...older.data, older: 'none' };
+    await settle(el);
+    expect(el.shadowRoot?.querySelector('cd-button.more')).toBeNull();
+    expect((await render(COMPOSANTS.PageIdees, four.data)).shadowRoot?.querySelector('cd-button.more')).toBeNull();
   });
 
   it('sets its aside beside the list from 1280 px, below it on a phone, and drops an empty one', async () => {

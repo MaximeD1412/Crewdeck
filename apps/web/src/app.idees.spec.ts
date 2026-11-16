@@ -59,6 +59,7 @@ interface PageData {
   readonly toTriage: number;
   readonly empty: boolean;
   readonly ideas: readonly { readonly id: string; readonly title: string; readonly meta: string }[];
+  readonly older: string;
   readonly tabs: readonly { readonly id: string; readonly count: number; readonly selected: boolean }[];
 }
 interface DialogData {
@@ -74,9 +75,17 @@ store.registerSlice('decision', { shape: 'collection', snapshotKey: 'decisions' 
 store.registerSlice('project', { shape: 'collection', snapshotKey: 'projects' });
 store.registerSlice('idea', { shape: 'collection', snapshotKey: 'ideas', holds: (item) => holdsIdea(item as Idea) });
 const commands: { path: string; body: Record<string, unknown> }[] = [];
+const queries: string[] = [];
+/** Merged and rejected more than 90 days ago: beyond the snapshot, from `GET /api/ideas`, two pages. */
+const OLD = '2026-07-01T08:00:00.000Z';
 const client = {
-  query: (async () => {
-    throw new Error('no query in this spec');
+  query: (async (path: string, schema: z.ZodType) => {
+    queries.push(path);
+    if (!path.startsWith('/api/ideas?states=merged,rejected')) throw new Error(`no query ${path} in this spec`);
+    const page = path.includes('cursor=')
+      ? { items: [idea(39, 'Trier par couleur', { state: 'merged', createdAt: OLD, updatedAt: OLD })], nextCursor: null }
+      : { items: [idea(40, 'Imprimer les menus', { state: 'merged', createdAt: OLD, updatedAt: OLD }), idea(41, 'Un thème sombre', { state: 'rejected', createdAt: OLD, updatedAt: OLD })], nextCursor: 'page-2' };
+    return schema.parse(page);
   }) as Client['query'],
   command: (async (_method: string, path: string, body: object, schema?: z.ZodType) => {
     commands.push({ path, body: body as Record<string, unknown> });
@@ -126,8 +135,20 @@ beforeAll(async () => {
 afterAll(() => app.stop());
 
 describe('« Idées » follows the store', () => {
-  it('starts empty, then lists the snapshot’s Idées in clear, the Cadre counting those to triage', async () => {
-    expect(pageData()).toMatchObject({ empty: true, ideas: [] });
+  it('with only Idées merged or rejected more than 90 days ago, is not empty: « Fusionnées » shows them, and the next page on « Afficher les plus anciennes »', async () => {
+    await vi.waitFor(() => expect(pageData().tabs.map((tab) => tab.count)).toEqual([0, 0, 1, 1]));
+    expect(pageData()).toMatchObject({ empty: false, ideas: [] });
+    app.router.navigate('/idees?onglet=fusionnees');
+    await vi.waitFor(() => expect(pageData().ideas.map((row) => row.title)).toEqual(['Imprimer les menus']));
+    expect(pageData().older).toBe('available');
+    await act('PageIdees', 'more', {});
+    await vi.waitFor(() => expect(pageData().ideas.map((row) => row.title)).toEqual(['Imprimer les menus', 'Trier par couleur']));
+    expect(pageData().older).toBe('none');
+    expect(queries).toEqual(['/api/ideas?states=merged,rejected', '/api/ideas?states=merged,rejected&cursor=page-2']);
+    app.router.navigate('/idees');
+  });
+
+  it('then lists the snapshot’s Idées in clear, the Cadre counting those to triage', async () => {
     store.applySnapshot({ seq: 3, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [project], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [idea(63, 'Exporter le planning'), idea(50, 'Ancienne', { state: 'retained' })], tickets: [], milestones: [], codeChanges: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
     store.markLive();
     await vi.waitFor(() => expect(pageData().ideas.map((row) => row.title)).toEqual(['Exporter le planning']));

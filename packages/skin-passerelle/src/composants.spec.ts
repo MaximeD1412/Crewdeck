@@ -73,6 +73,11 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
   'PageIdees.open': (el) => inside(el, 'cd-idea-row', '.open').click(),
   'PageIdees.filter': (el) => inside(el, 'cd-project-filter', 'cd-chip:nth-of-type(2)', 'button').click(),
   'PageIdees.tab': (el) => inside(el, 'cd-tabs', 'button[role=tab]:nth-of-type(2)').click(),
+  'PageIdees.more': async (el) => {
+    el.data = COMPOSANTS.PageIdees.examples[4]?.data;
+    await settle(el);
+    inside(el, 'cd-button.more', 'button').click();
+  },
   'NoteIdeaDialog.submit': (el) => {
     const field = inside<HTMLTextAreaElement>(el, 'cd-text-field.text', 'textarea');
     field.value = 'Pouvoir dupliquer une recette';

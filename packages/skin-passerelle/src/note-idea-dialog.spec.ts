@@ -99,4 +99,12 @@ describe('NoteIdeaDialog', () => {
     expect(el.shadowRoot?.querySelector('cd-text-field')).toBeNull();
     expect(el.shadowRoot?.querySelector('cd-button.submit')).toBeNull();
   });
+
+  it('locked, closes as its link leads to « Paramètres »: the link emits cancel', async () => {
+    const el = await render(NoteIdeaDialog, locked);
+    const link = inside<HTMLAnchorElement>(el, '.locked a');
+    // The router takes the link's navigation; here it would leave the test's page.
+    link.addEventListener('click', (event) => event.preventDefault());
+    expect(await actionsOf(() => link.click())).toEqual([{ composant: 'NoteIdeaDialog', action: 'cancel', payload: {} }]);
+  });
 });

@@ -1,5 +1,6 @@
 import { IDEA_TO_TRIAGE_STATES, type Idea, type IdeaState, type Project } from '@crewdeck/contracts';
 import { formatRelative, IDEES_TABS, t, type ComposantData, type IdeaRow, type IdeesTab, type PageIdees } from '@crewdeck/sdk';
+import type { ClosedIdeasView } from '../closed-ideas.js';
 import type { IdeaText } from '../store/idea-plaintext.js';
 
 export type PageIdeesData = ComposantData<typeof PageIdees>;
@@ -53,6 +54,9 @@ export const ideesQuery = (query: Readonly<Record<string, string>>): IdeesQuery 
   return { projectFilter: query['projet'] ?? null, tab: (IDEES_TABS as readonly string[]).includes(tab ?? '') ? (tab as IdeesTab) : 'a-trier' };
 };
 
+/** No Idée beyond the slice: what a view without `closed` takes. */
+const NO_CLOSED: ClosedIdeasView = { ideas: [], known: true, older: 'none' };
+
 export interface IdeesSlices {
   readonly idea?: ReadonlyMap<string, Idea>;
   readonly project?: ReadonlyMap<string, Pick<Project, 'id' | 'displayName'>>;
@@ -66,14 +70,20 @@ export interface IdeesSlices {
  * tab's Idées it has (none at 0); the tabs with the count of the Projet's
  * Idées each holds; the header counting every Idée to triage. An Idée's
  * Projet is the one the Pilote chose, else the one its analysis proposes.
- * A filter on a Projet the Pilote does not have is no filter.
+ * A filter on a Projet the Pilote does not have is no filter. The Idées
+ * merged or rejected older than the slice's 90 days (`closed`) join them, the
+ * slice's copy winning; « Fusionnées » and « Rejetées » hold « Afficher les
+ * plus anciennes » while some remain, and the page is empty only once their
+ * first page says there is none.
  */
 export const ideesView = (
   slices: IdeesSlices,
   plaintext: (idea: Idea) => IdeaText,
-  { projectFilter, tab, now = new Date() }: IdeesQuery & { readonly now?: Date },
+  { projectFilter, tab, now = new Date(), closed = NO_CLOSED }: IdeesQuery & { readonly now?: Date; readonly closed?: ClosedIdeasView },
 ): PageIdeesData => {
-  const all = [...(slices.idea?.values() ?? [])].sort((a, b) => b.number - a.number);
+  const byId = new Map(closed.ideas.map((idea) => [idea.id, idea]));
+  for (const idea of slices.idea?.values() ?? []) byId.set(idea.id, idea);
+  const all = [...byId.values()].sort((a, b) => b.number - a.number);
   const projects = [...(slices.project?.values() ?? [])].sort((a, b) => a.displayName.localeCompare(b.displayName, 'fr'));
   const names = new Map(projects.map((project) => [project.id, project.displayName]));
   const selected = projectFilter !== null && names.has(projectFilter) ? projectFilter : null;
@@ -83,7 +93,8 @@ export const ideesView = (
   const count = (n: number) => (n > 0 ? { count: n } : {});
   return {
     toTriage: ideasToTriage(all),
-    empty: all.length === 0,
+    empty: all.length === 0 && closed.known,
+    older: tab === 'fusionnees' || tab === 'rejetees' ? closed.older : 'none',
     projects: [
       { projectId: null, label: t('aToi.allProjects'), ...count(ofTab.length), selected: selected === null },
       ...projects.map((project) => ({

@@ -43,7 +43,8 @@ test('« Idées » lists the Idées to triage newest first, in clear, the tabs a
   await expect(tab(page, 'À trier')).toContainText('4');
   await expect(tab(page, 'Retenues')).toContainText('2');
   await expect(tab(page, 'Fusionnées')).toContainText('1');
-  await expect(tab(page, 'Rejetées')).toContainText('1');
+  // #52, rejected 120 days ago, is beyond the snapshot: the page reads it from `GET /api/ideas`.
+  await expect(tab(page, 'Rejetées')).toContainText('2');
   await expect(chip(page, 'Tous les Projets')).toContainText('4');
   await expect(chip(page, 'Personal OS')).toContainText('2');
 
@@ -60,6 +61,11 @@ test('« Idées » lists the Idées to triage newest first, in clear, the tabs a
   await chip(page, 'Tous les Projets').click();
   await expect.poll(() => titles(page)).toEqual(['Classer les joueurs par niveau', 'Imprimer le planning de la semaine']);
   await expectAccessible(page);
+
+  await tab(page, 'Rejetées').click();
+  await expect.poll(() => titles(page)).toEqual(['Un thème sombre pour le site de la mairie', 'Un classement par âge des joueurs']);
+  // One page holds them all: nothing older remains.
+  await expect(page.locator('cd-page-idees cd-button.more')).toHaveCount(0);
 });
 
 /** US-1: noted from the page, sealed by it, at the top of « À trier » here and on another tab, the Décision counting it. */
@@ -123,4 +129,8 @@ test('on an Appareil not approved, the Dialog says to approve it, with a link to
   await expectAccessible(page);
   await dialog(page).getByRole('link', { name: 'Aller aux Paramètres' }).click();
   await expect(page).toHaveURL(/\/parametres$/);
+  // The Dialog closes as the link leads away: « Paramètres » is there to use, not behind a modal.
+  await expect(dialogBox(page)).toBeHidden();
+  await expect(page.locator('cd-page-parametres')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Paramètres' })).toBeVisible();
 });

@@ -14,7 +14,8 @@ const TEXT_MAX = NoteIdeaDialog.actions.submit.shape.text.maxLength;
  * on the analysis to come, « Annuler » and « Noter ». Ctrl or ⌘ + Enter in
  * the text notes too; Escape, a click beside or « Annuler » cancel, except
  * while `busy`. Its fields are new at each opening (rendered only while
- * open). `locked`: no field, the reason and a link to « Paramètres ». The
+ * open). `locked`: no field, the reason and a link to « Paramètres », which
+ * emits `cancel` as it leads there. The
  * text goes as typed: the core trims, refuses an empty one and seals it.
  */
 export class PasserelleNoteIdeaDialog extends PasserelleElement<typeof NoteIdeaDialog> {
@@ -95,7 +96,7 @@ export class PasserelleNoteIdeaDialog extends PasserelleElement<typeof NoteIdeaD
   }
 
   private locked() {
-    return html`<p class="locked">${t('idees.dialog.locked')} <a href="/parametres">${t('idees.dialog.lockedLink')}</a></p>`;
+    return html`<p class="locked">${t('idees.dialog.locked')} <a href="/parametres" @click=${this.cancel}>${t('idees.dialog.lockedLink')}</a></p>`;
   }
 
   protected override render() {

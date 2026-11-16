@@ -21,6 +21,7 @@ import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
 import { updateSettings } from './api/settings.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
+import { createClosedIdeas } from './closed-ideas.js';
 import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
 import { createPageKeys, type PageKeys } from './keys/index.js';
 import { createNoteIdea } from './note-idea.js';
@@ -131,6 +132,7 @@ export const boot = async ({
     unlockVault: () => keys.unlockVault(),
   });
   const projects = createProjects({ store, client });
+  const closedIdeas = createClosedIdeas({ client });
   // The boot's opening of the vault: until it settles, an Idée's text is « Déchiffrement… », not unreadable.
   let vaultTried: () => void = () => undefined;
   const plaintext = createIdeaPlaintext({
@@ -165,7 +167,11 @@ export const boot = async ({
       if (match.composant === RepositoryPicker) return projects.picker('projets');
       const { slices } = store.getState();
       if (match.composant === PageProjets) return projetsView(slices.project?.values() ?? []);
-      if (match.composant === PageIdees) return ideesView(slices, (idea) => plaintext.text(idea), ideesQuery(match.query));
+      if (match.composant === PageIdees) {
+        // The Idées merged or rejected beyond the slice's 90 days: their first page as the page first shows.
+        closedIdeas.ensure();
+        return ideesView(slices, (idea) => plaintext.text(idea), { ...ideesQuery(match.query), closed: closedIdeas.view() });
+      }
       if (match.composant !== PageRunner) return pageData(match);
       return runnerView({
         runner: slices.runner ?? null,
@@ -189,6 +195,7 @@ export const boot = async ({
     noteIdea.subscribe(refreshNoteDialog),
     gettingStarted.subscribe(() => router.refresh()),
     projects.subscribe(() => router.refresh()),
+    closedIdeas.subscribe(() => router.refresh()),
     roleSettings.subscribe(() => router.refresh()),
   ];
   if (pilot) {
@@ -236,6 +243,7 @@ export const boot = async ({
   const ideesFilter = () => ideesQuery(router.current.query);
   dispatcher.registerAction(PageIdees, 'note', { run: () => noteIdea.open(ideesFilter().projectFilter) });
   dispatcher.registerAction(PageIdees, 'filter', { run: ({ projectId }) => router.navigate(ideesHref(projectId, ideesFilter().tab)) });
+  dispatcher.registerAction(PageIdees, 'more', { run: () => closedIdeas.more() });
   dispatcher.registerAction(PageIdees, 'tab', { run: ({ tab }) => router.navigate(ideesHref(ideesFilter().projectFilter, tab)) });
   // The Idée's page (`/idees/:id`) and its analysis beside the list come with their tickets: a row leads nowhere yet.
   dispatcher.registerAction(PageIdees, 'open', { run: () => undefined });

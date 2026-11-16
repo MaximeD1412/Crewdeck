@@ -8,7 +8,8 @@ import { isFilled, PasserelleElement, sharedStyles } from './base.js';
  * the Projet chips and the tabs, then the tab's Idées in a Card titled by the
  * tab. With no Idée at all, only the header and a Card « Aucune Idée pour
  * l’instant » whose « Noter une Idée » emits `note` too
- * (`idees-vide.html`). From 1280 px the Emplacement `aside` stands beside the
+ * (`idees-vide.html`). Under the list, while older Idées remain (`older`),
+ * « Afficher les plus anciennes » emits `more`. From 1280 px the Emplacement `aside` stands beside the
  * list; `list` replaces it. The rows', chips' and tabs' own actions stop
  * here: the page emits `open`, `filter` and `tab` instead.
  */
@@ -35,6 +36,10 @@ export class PasserellePageIdees extends PasserelleElement<typeof PageIdees> {
       }
       .aside[hidden] {
         display: none;
+      }
+      .older {
+        display: flex;
+        justify-content: center;
       }
       @media (min-width: 1280px) {
         .layout.with-aside {
@@ -85,6 +90,18 @@ export class PasserellePageIdees extends PasserelleElement<typeof PageIdees> {
     </cd-card>`;
   }
 
+  private older() {
+    const { older } = this.data;
+    if (older === 'none') return nothing;
+    return html`<div class="older">
+      <cd-button
+        class="more"
+        .data=${{ label: t('idees.older'), variant: 'secondary', size: 'md', ...(older === 'loading' ? { state: 'loading' as const } : {}) }}
+        @click=${() => this.emit('more', {})}
+      ></cd-button>
+    </div>`;
+  }
+
   private list() {
     const { tabs, ideas } = this.data;
     const tab = tabs.find((candidate) => candidate.selected);
@@ -112,7 +129,7 @@ export class PasserellePageIdees extends PasserelleElement<typeof PageIdees> {
         : html`<cd-project-filter part="projects" .data=${{ chips: projects }} @cd-action=${this.relay}></cd-project-filter>
             <cd-tabs part="tabs" .data=${{ tabs }} @cd-action=${this.relay}></cd-tabs>
             <div class="layout ${withAside ? 'with-aside' : ''}">
-              <slot name="list" @slotchange=${this.slotChanged}>${this.list()}</slot>
+              <slot name="list" @slotchange=${this.slotChanged}>${this.list()}${this.older()}</slot>
               <div class="aside" ?hidden=${!withAside}>
                 <slot name="aside" @slotchange=${this.slotChanged}></slot>
               </div>

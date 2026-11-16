@@ -44,7 +44,7 @@ const chips = (selected: string | null) => [
   { projectId: PROJECTS.tennisManager, label: 'Tennis Manager', selected: selected === PROJECTS.tennisManager },
 ];
 
-const tabs = (counts: readonly [number, number, number, number]) =>
+const tabs = (counts: readonly [number, number, number, number], selected: IdeesTab = 'a-trier') =>
   (
     [
       ['a-trier', 'À trier'],
@@ -52,7 +52,7 @@ const tabs = (counts: readonly [number, number, number, number]) =>
       ['fusionnees', 'Fusionnées'],
       ['rejetees', 'Rejetées'],
     ] as const
-  ).map(([tab, label], index) => ({ id: tab, label, count: counts[index] ?? 0, selected: tab === 'a-trier' }));
+  ).map(([tab, label], index) => ({ id: tab, label, count: counts[index] ?? 0, selected: tab === selected }));
 
 /**
  * « Idées » (US-5, `/idees`): the page header with the count of Idées to
@@ -61,7 +61,10 @@ const tabs = (counts: readonly [number, number, number, number]) =>
  * Idées of its Projet; the tabs (`tab`), each with its count; then the tab's
  * Idées, newest first, in a Card titled by the tab (a row's click: `open`).
  * `empty` (no Idée at all) shows only its empty state, whose « Noter une
- * Idée » also emits `note`; an empty tab says so. Its Emplacement `aside`
+ * Idée » also emits `note`; an empty tab says so. `older`: on « Fusionnées »
+ * and « Rejetées », whether older Idées remain on the server, beyond the 90
+ * days the page holds: `available`, « Afficher les plus anciennes » under
+ * the list emits `more`; `loading`, it waits. Its Emplacement `aside`
  * stands beside the list from 1280 px (an Idée's analysis, later), `list`
  * replaces the list.
  */
@@ -79,18 +82,20 @@ export const PageIdees = defineComposant({
     ),
     tabs: z.array(z.object({ id: zIdeesTab, label: z.string().min(1), count: z.number().int().nonnegative(), selected: z.boolean() })),
     ideas: z.array(IdeaRow.data),
+    older: z.enum(['none', 'available', 'loading']),
   }),
   actions: {
     note: z.object({}),
     open: z.object({ id: zId }),
     filter: z.object({ projectId: zId.nullable() }),
     tab: z.object({ tab: zIdeesTab }),
+    more: z.object({}),
   },
   slots: ['list', 'aside'],
   examples: [
     {
       name: 'quatre Idées à trier',
-      data: { toTriage: 4, empty: false, projects: chips(null), tabs: tabs([4, 3, 1, 2]), ideas: MOCKUP },
+      data: { toTriage: 4, empty: false, projects: chips(null), tabs: tabs([4, 3, 1, 2]), ideas: MOCKUP, older: 'none' },
     },
     {
       name: 'un Projet choisi',
@@ -100,6 +105,7 @@ export const PageIdees = defineComposant({
         projects: chips(PROJECTS.personalOs),
         tabs: tabs([2, 1, 0, 1]),
         ideas: MOCKUP.filter((idea) => idea.meta.includes('Personal OS')),
+        older: 'none',
       },
     },
     {
@@ -110,11 +116,23 @@ export const PageIdees = defineComposant({
         projects: [{ projectId: null, label: 'Tous les Projets', selected: true }],
         tabs: tabs([0, 1, 0, 0]),
         ideas: [],
+        older: 'none',
       },
     },
     {
       name: 'aucune Idée',
-      data: { toTriage: 0, empty: true, projects: [{ projectId: null, label: 'Tous les Projets', selected: true }], tabs: tabs([0, 0, 0, 0]), ideas: [] },
+      data: { toTriage: 0, empty: true, projects: [{ projectId: null, label: 'Tous les Projets', selected: true }], tabs: tabs([0, 0, 0, 0]), ideas: [], older: 'none' },
+    },
+    {
+      name: 'des Idées plus anciennes',
+      data: {
+        toTriage: 4,
+        empty: false,
+        projects: [{ projectId: null, label: 'Tous les Projets', count: 1, selected: true }],
+        tabs: tabs([4, 3, 1, 2], 'fusionnees'),
+        ideas: [{ ...row(57, 'Envoyer le planning par e-mail', 'Personal OS · 7 nov.', 'analysee'), state: 'fusionnee' as const }],
+        older: 'available',
+      },
     },
   ],
 });

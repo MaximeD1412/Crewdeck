@@ -148,6 +148,31 @@ describe('ideesView', () => {
     expect(COMPOSANTS.PageIdees.data.parse(none)).toEqual(none);
     expect(view({}, slices([idea(50, 'retained')]))).toMatchObject({ empty: false, toTriage: 0, ideas: [] });
   });
+
+  it('joins the Idées merged or rejected older than the slice, the slice’s copy winning, « Afficher les plus anciennes » on their tabs', () => {
+    const old = [idea(40, 'merged', { createdAt: minutesAgo(120 * 24 * 60) }), idea(41, 'rejected'), idea(52, 'merged', { projectId: PERSONAL_OS })];
+    const closed = { ideas: old, known: true, older: 'available' as const };
+    const at = (query: Record<string, string>) => ideesView(slices(), plaintext, { ...ideesQuery(query), now: NOW, closed });
+    const merged = at({ onglet: 'fusionnees' });
+    expect(COMPOSANTS.PageIdees.data.parse(merged)).toEqual(merged);
+    expect(merged.ideas.map((row) => row.meta)).toEqual(['#52 · Crewdeck · il y a 48 min', '#40 · Crewdeck · 19 juil.']);
+    expect(merged.tabs.map((tab) => tab.count)).toEqual([4, 2, 2, 2]);
+    expect(merged.older).toBe('available');
+    expect(at({ onglet: 'rejetees' }).older).toBe('available');
+    expect(at({}).older).toBe('none');
+    expect(at({ onglet: 'retenues' }).older).toBe('none');
+    expect(view({ onglet: 'fusionnees' }).older).toBe('none');
+  });
+
+  it('with only Idées older than the slice, is not empty: they are on their tab', () => {
+    const only = (closed: { ideas: Idea[]; known: boolean; older: 'none' | 'available' | 'loading' }, query: Record<string, string> = {}) =>
+      ideesView(slices([]), plaintext, { ...ideesQuery(query), now: NOW, closed });
+    expect(only({ ideas: [], known: false, older: 'loading' })).toMatchObject({ empty: false, ideas: [] });
+    expect(only({ ideas: [], known: true, older: 'none' })).toMatchObject({ empty: true });
+    const old = only({ ideas: [idea(40, 'merged', { createdAt: minutesAgo(120 * 24 * 60) })], known: true, older: 'none' }, { onglet: 'fusionnees' });
+    expect(old).toMatchObject({ empty: false, toTriage: 0 });
+    expect(old.ideas.map((row) => row.title)).toEqual(['Idée 40']);
+  });
 });
 
 describe('ideesQuery', () => {

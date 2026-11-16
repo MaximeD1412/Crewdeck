@@ -40,9 +40,12 @@ interface SeededIdea {
 
 /**
  * The Idées of `design/screens/crewdeck/idees.html`: #61 to #64 to triage,
- * and some already triaged for the other tabs.
+ * and some already triaged for the other tabs; #52, rejected 120 days ago,
+ * is beyond the snapshot's 90 days, for « Rejetées » to read it from
+ * `GET /api/ideas`.
  */
 const MOCKUP: readonly SeededIdea[] = [
+  { number: 52, project: 'Tennis Manager', state: 'rejected', text: 'Un classement par âge des joueurs', age: 120 * 24 * 60 },
   { number: 55, project: 'Site mairie', state: 'rejected', text: 'Un thème sombre pour le site de la mairie', age: 12 * 24 * 60 },
   { number: 57, project: 'Personal OS', state: 'merged', text: 'Envoyer le planning par e-mail', age: 9 * 24 * 60 },
   { number: 58, project: 'Personal OS', state: 'retained', text: 'Imprimer le planning de la semaine', age: 7 * 24 * 60 },

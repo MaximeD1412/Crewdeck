@@ -511,7 +511,9 @@ its logs, not in memory once forwarded.
 
 - `nonce` is the 12 bytes of the [seal](#aes-256-gcm-items-and-session-frames),
   `ciphertext` the rest (ciphertext and tag), both base64url. A frame holds at
-  most 16 MiB, an input 256 KiB.
+  most 16 MiB, an input 256 KiB: the page refuses an input whose ciphertext
+  would exceed it, before sending it (the server closes a socket that sends
+  one).
 - A frame with a `tabId` is the replay of that tab only; without one, it is
   live, for every tab that opened the Session. The tab never sees a `tabId`.
 - The tab opens a frame under its own `seq`, checks the event against its
@@ -519,15 +521,19 @@ its logs, not in memory once forwarded.
   Session's or another `seq`'s, is dropped with a console warning, never
   shown. It drops a `seq` it has, and opens the Session again from the first
   missing one on a gap, once per missing `seq`, and on each socket opened
-  again.
+  again. A Session closed while its keys or a frame are being opened keeps
+  nothing of them.
 - The Runner opens an input under its `inputId`, checks it against its
   schema, and hands it to the Moteur once per `inputId` (the last 10 000 of
-  each Session): a tab sending it again, after a lost socket, is harmless.
+  each Session, kept in `sessions/<id>/inputs` across a restart of the
+  Runner): a tab sending it again, after a lost socket, is harmless.
 - The server checks a `session.open` and a `session.input` against the
   Pilote's Sessions (`session.not-found`, and nothing for the Runner), and
   answers `session.runner-offline` while the Runner is away; once its
   `hello` is accepted, each open Session is replayed from the first `seq` the
-  tab was not sent.
+  tab was not sent with every one before it: a live frame that came during a
+  replay does not skip the `seq` still missing below it (the tab drops the
+  duplicates).
 
 ### What the server sees of a Session
 

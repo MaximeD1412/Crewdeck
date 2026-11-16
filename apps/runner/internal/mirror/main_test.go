@@ -39,7 +39,7 @@ func (b *syncBuffer) String() string {
 }
 
 // TestMain checks, once every test ran, that the log holds no title nor body
-// of the fixtures (SEC-10), whichever tests ran.
+// of the fixtures (SEC-10) nor a token (SEC-6), whichever tests ran.
 func TestMain(m *testing.M) {
 	os.Setenv(logging.LevelEnv, "debug")
 	testLogger = logging.New(&logs)
@@ -47,6 +47,10 @@ func TestMain(m *testing.M) {
 	if code == 0 {
 		if err := leaks(logs.String()); err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			code = 1
+		}
+		if strings.Contains(logs.String(), "ghs_") {
+			fmt.Fprintln(os.Stderr, "the log holds an installation token")
 			code = 1
 		}
 	}

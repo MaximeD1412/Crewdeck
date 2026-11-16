@@ -1,0 +1,19 @@
+{
+  "operation": "MirrorLabels",
+  "variables": {
+    "owner": "acme",
+    "name": "outils",
+    "after": null
+  },
+  "data": {
+    "repository": {
+      "labels": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        },
+        "nodes": []
+      }
+    }
+  }
+}

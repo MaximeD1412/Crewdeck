@@ -382,3 +382,121 @@ func TestOnConnectedCanSendOnEachAcceptedConnection(t *testing.T) {
 	stop()
 	_ = awaitResult(t, result)
 }
+
+func TestEachHelloCarriesTheMiroirsCursorReadAtItsConnection(t *testing.T) {
+	s := newFakeServer(t, func(ctx context.Context, conn *websocket.Conn, n int) {
+		accept(ctx, conn)
+		if n == 1 {
+			conn.CloseNow()
+			return
+		}
+		holdOpen(ctx, conn)
+	})
+	cursors := []int64{3, 5}
+	calls := 0
+	stop, result := run(t, newClient(s.url, func(c *Config) {
+		c.Cursor = func() (*int64, error) {
+			cursor := cursors[min(calls, len(cursors)-1)]
+			calls++
+			return &cursor, nil
+		}
+	}))
+	first, second := awaitHello(t, s), awaitHello(t, s)
+	if first.MirrorAfter != float64(3) || second.MirrorAfter != float64(5) {
+		t.Fatalf("mirrorAfter %v then %v, want 3 then 5", first.MirrorAfter, second.MirrorAfter)
+	}
+	stop()
+	_ = awaitResult(t, result)
+}
+
+func TestAHelloWithoutACursorSaysNull(t *testing.T) {
+	data := mustJSON(t, NewHello(Machine{RunnerVersion: "0.1.0", Machine: "atelier", OS: contracts.RunnerHelloOsLinux, Arch: contracts.RunnerHelloArchAmd64}, nil))
+	var fields map[string]any
+	if err := json.Unmarshal(data, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if value, ok := fields["mirrorAfter"]; !ok || value != nil {
+		t.Fatalf("hello %s: want mirrorAfter null", data)
+	}
+	if err := decodeInto[contracts.RunnerHello](data); err != nil {
+		t.Fatalf("decode the hello: %v", err)
+	}
+}
+
+func TestAClientWithoutAMiroirLeavesMirrorAfterOut(t *testing.T) {
+	hellos := make(chan map[string]any, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.CloseNow()
+		var hello map[string]any
+		if err := readJSON(r.Context(), conn, &hello); err == nil {
+			hellos <- hello
+		}
+		holdOpen(r.Context(), conn)
+	}))
+	t.Cleanup(srv.Close)
+	stop, result := run(t, newClient(srv.URL, nil))
+	select {
+	case hello := <-hellos:
+		// Left out, the server sends nothing of the Miroir; null would ask it a resync.
+		if value, ok := hello["mirrorAfter"]; ok {
+			t.Errorf("mirrorAfter %v, want it left out", value)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no hello")
+	}
+	stop()
+	_ = awaitResult(t, result)
+}
+
+func TestOnAcceptedCanSendAndOnClosedFollowsEachAcceptedConnection(t *testing.T) {
+	tokens := make(chan contracts.RunnerMirrorToken, 4)
+	s := newFakeServer(t, func(ctx context.Context, conn *websocket.Conn, n int) {
+		accept(ctx, conn)
+		var message contracts.RunnerMirrorToken
+		if err := readJSON(ctx, conn, &message); err == nil && message.Type == TypeMirrorToken {
+			tokens <- message
+		}
+		if n == 1 {
+			conn.CloseNow()
+			return
+		}
+		holdOpen(ctx, conn)
+	})
+	events := make(chan string, 8)
+	var client *Client
+	client = newClient(s.url, func(c *Config) {
+		c.OnAccepted = func(contracts.RunnerHelloAccepted) {
+			events <- "accepted"
+			if err := client.Send(context.Background(), NewMirrorToken()); err != nil {
+				t.Errorf("Send from OnAccepted: %v", err)
+			}
+		}
+		c.OnClosed = func() { events <- "closed" }
+	})
+	stop, result := run(t, client)
+	for range 2 {
+		select {
+		case <-tokens:
+		case <-time.After(5 * time.Second):
+			t.Fatal("mirror.token not sent from OnAccepted")
+		}
+	}
+	var seen []string
+	for len(seen) < 3 {
+		select {
+		case e := <-events:
+			seen = append(seen, e)
+		case <-time.After(5 * time.Second):
+			t.Fatalf("events %v", seen)
+		}
+	}
+	if seen[0] != "accepted" || seen[1] != "closed" || seen[2] != "accepted" {
+		t.Fatalf("events %v, want accepted, closed, accepted", seen)
+	}
+	stop()
+	_ = awaitResult(t, result)
+}

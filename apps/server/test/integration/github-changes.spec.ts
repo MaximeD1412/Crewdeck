@@ -1,4 +1,4 @@
-import { type MirrorProject, type ServerToRunner, zProjectList, zState } from '@crewdeck/contracts';
+import { MIRROR_TOKEN_PERMISSIONS, type MirrorProject, type ServerToRunner, zProjectList, zState } from '@crewdeck/contracts';
 import type { INestApplication } from '@nestjs/common';
 import pg from 'pg';
 import { inject } from 'vitest';
@@ -41,6 +41,11 @@ const sql = async <T extends pg.QueryResultRow>(text: string, values: unknown[] 
 
 const SENDER_ID = 9100001;
 const INSTALLATION_ID = 51000001;
+const ORG_INSTALLATION_ID = 51000002;
+const ORG_REPO = { owner: 'octo-org', name: 'org-app', id: 71000003 };
+const OTHER_SENDER_ID = 9100002;
+const OTHER_INSTALLATION_ID = 51000003;
+const THEIR_REPO = { owner: 'octo-other', name: 'their-app', id: 71000004 };
 const APP_REPO = { owner: 'octo-fixture', name: 'fixture-app', id: 71000001 };
 const OTHER_REPO = { owner: 'octo-fixture', name: 'other-app', id: 71000002 };
 const FULL_NAME = `${APP_REPO.owner}/${APP_REPO.name}`;
@@ -81,9 +86,11 @@ describe('the envelopes of GitHub’s changes for the Runner’s Miroir, against
   let dispatcher: WebhookDispatcher;
   let relay: MirrorRelay;
   const runners: FakeRunnerClient[] = [];
+  /** The app's log lines. */
+  const logs: string[] = [];
 
   beforeAll(async () => {
-    ({ app, url } = await startApp(env));
+    ({ app, url } = await startApp(env, { logs: { write: (line: string) => logs.push(line) } }));
     prisma = app.get(PrismaService);
     fakes = app.get<Fakes>(FAKES);
     dispatcher = app.get(WebhookDispatcher);
@@ -147,9 +154,21 @@ describe('the envelopes of GitHub’s changes for the Runner’s Miroir, against
     return lines(mirrorOf(socket));
   };
 
+  /** `installation.created` of `installationId`, on `account`'s, by `senderId`, with `repo`. */
+  const installationCreated = (installationId: number, account: { login: string; id: number }, senderId: number, repo: { owner: string; name: string; id: number }) => {
+    const fixture = webhookFixture<{ installation: Record<string, unknown>; sender: Record<string, unknown> }>('installation.created');
+    return {
+      ...fixture,
+      installation: { ...fixture.installation, id: installationId, account: { ...account, type: 'User' } },
+      repositories: [{ id: repo.id, name: repo.name, full_name: `${repo.owner}/${repo.name}`, private: true }],
+      sender: { ...fixture.sender, login: account.login, id: senderId },
+    };
+  };
+
   beforeEach(async () => {
     await empty();
     fakes.github.reset();
+    logs.length = 0;
     pilotId = newId();
     token = undefined;
     await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, getting_started_step) VALUES ($1, $2, 'octo-fixture', 'Europe/Paris', 'projects')`, [
@@ -373,6 +392,107 @@ describe('the envelopes of GitHub’s changes for the Runner’s Miroir, against
       expect(await mirrorLines(socket, 4)).toEqual(['projects', 'live 0', 'projects', 'change 1']);
       const [project] = (await state()).projects;
       expect(project).toMatchObject({ id: projectId, name: 'renamed-app', fullName: `${APP_REPO.owner}/renamed-app` });
+    });
+  });
+
+  describe('the « Miroir » token', () => {
+    const answers = (socket: FakeRunnerClient) => socket.received().filter((message) => message.type === 'mirror.token.issued' || message.type === 'mirror.token.failed');
+
+    /** The Pilote's Runner asks its « Miroir » tokens; the answer. */
+    const ask = async (socket: FakeRunnerClient) => {
+      const before = answers(socket).length;
+      socket.send({ type: 'mirror.token' });
+      await vi.waitFor(() => expect(answers(socket).length).toBeGreaterThan(before));
+      return answers(socket)[before];
+    };
+
+    const tokenCalls = () => fakes.github.calls.filter((call) => call.method === 'installationToken').map((call) => call.args);
+
+    /** A second installation of the Pilote, an organization's, with its repository followed; its Projet's id. */
+    const followOnOrg = async (): Promise<string> => {
+      fakes.github.seedRepo({ ...ORG_REPO, installationId: ORG_INSTALLATION_ID, files: { 'README.md': '# Org' } });
+      await deliver('installation', installationCreated(ORG_INSTALLATION_ID, { login: ORG_REPO.owner, id: 9200001 }, SENDER_ID, ORG_REPO));
+      return follow(ORG_REPO.name);
+    };
+
+    it('gives one token per installation, each restricted to its repositories and the six read permissions', async () => {
+      await follow(OTHER_REPO.name);
+      await followOnOrg();
+      const socket = await runner(0);
+
+      const answer = await ask(socket);
+      expect(answer).toMatchObject({
+        type: 'mirror.token.issued',
+        tokens: [
+          { installationId: INSTALLATION_ID, token: expect.stringMatching(/^ghs_fake_/), repositories: [FULL_NAME, `${OTHER_REPO.owner}/${OTHER_REPO.name}`] },
+          { installationId: ORG_INSTALLATION_ID, token: expect.stringMatching(/^ghs_fake_/), repositories: [`${ORG_REPO.owner}/${ORG_REPO.name}`] },
+        ],
+      });
+      expect(tokenCalls()).toEqual([
+        [INSTALLATION_ID, { repositoryIds: [APP_REPO.id, OTHER_REPO.id], permissions: MIRROR_TOKEN_PERMISSIONS }],
+        [ORG_INSTALLATION_ID, { repositoryIds: [ORG_REPO.id], permissions: MIRROR_TOKEN_PERMISSIONS }],
+      ]);
+    });
+
+    it('leaves out a Projet whose access is lost, and gives tokens: [] to a Pilote with no Projet', async () => {
+      const otherId = await follow(OTHER_REPO.name);
+      await sql('UPDATE projects SET access_lost = true WHERE id = $1', [otherId]);
+      const socket = await runner(0);
+
+      expect(await ask(socket)).toMatchObject({ type: 'mirror.token.issued', tokens: [{ installationId: INSTALLATION_ID, repositories: [FULL_NAME] }] });
+      expect(tokenCalls()).toEqual([[INSTALLATION_ID, { repositoryIds: [APP_REPO.id], permissions: MIRROR_TOKEN_PERMISSIONS }]]);
+
+      await sql('UPDATE projects SET access_lost = true WHERE id = $1', [projectId]);
+      expect(await ask(socket)).toMatchObject({ type: 'mirror.token.issued', tokens: [] });
+      expect(tokenCalls()).toHaveLength(1);
+    });
+
+    it('answers mirror.token.failed with github.unavailable when GitHub refuses one installation', async () => {
+      await followOnOrg();
+      const socket = await runner(0);
+      fakes.github.uninstall(ORG_INSTALLATION_ID);
+
+      expect(await ask(socket)).toMatchObject({ type: 'mirror.token.failed', code: 'github.unavailable' });
+      expect(socket.received().some((message) => message.type === 'mirror.token.issued')).toBe(false);
+    });
+
+    it('never puts another Pilote’s Projets in the tokens', async () => {
+      const mine = { pilotId, cookie, token };
+      pilotId = newId();
+      token = undefined;
+      await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, getting_started_step) VALUES ($1, $2, 'octo-other', 'Europe/Paris', 'projects')`, [
+        pilotId,
+        OTHER_SENDER_ID,
+      ]);
+      cookie = `${SESSION_COOKIE}=${await runInPilotScope(pilotId, () => app.get(WebSessions).open(prisma.scoped, pilotId, undefined))}`;
+      fakes.github.seedRepo({ ...THEIR_REPO, installationId: OTHER_INSTALLATION_ID, files: { 'README.md': '# Theirs' } });
+      await deliver('installation', installationCreated(OTHER_INSTALLATION_ID, { login: THEIR_REPO.owner, id: OTHER_SENDER_ID }, OTHER_SENDER_ID, THEIR_REPO));
+      await follow(THEIR_REPO.name);
+      const theirs = await runner(0);
+      ({ pilotId, cookie, token } = mine);
+      const socket = await runner(0);
+
+      const [answer, their] = await Promise.all([ask(socket), ask(theirs)]);
+      expect(answer).toMatchObject({ type: 'mirror.token.issued', tokens: [{ installationId: INSTALLATION_ID, repositories: [FULL_NAME] }] });
+      expect(answer?.type === 'mirror.token.issued' && answer.tokens).toHaveLength(1);
+      expect(their).toMatchObject({ type: 'mirror.token.issued', tokens: [{ installationId: OTHER_INSTALLATION_ID, repositories: [`${THEIR_REPO.owner}/${THEIR_REPO.name}`] }] });
+      expect(their?.type === 'mirror.token.issued' && their.tokens).toHaveLength(1);
+    });
+
+    it('logs the exchange without a token', async () => {
+      await followOnOrg();
+      const socket = await runner(0);
+      const answer = await ask(socket);
+      fakes.github.uninstall(ORG_INSTALLATION_ID);
+      expect(await ask(socket)).toMatchObject({ type: 'mirror.token.failed' });
+      await vi.waitFor(() => expect(logs.join('')).toContain('mirror token refused'));
+
+      const tokens = answer?.type === 'mirror.token.issued' ? answer.tokens.map((issued) => issued.token) : [];
+      expect(tokens).toHaveLength(2);
+      const output = logs.join('');
+      expect(output).toContain('mirror tokens issued');
+      for (const issued of tokens) expect(output).not.toContain(issued);
+      expect(output).not.toContain('ghs_');
     });
   });
 

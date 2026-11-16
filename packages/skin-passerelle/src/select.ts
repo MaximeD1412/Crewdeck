@@ -5,8 +5,9 @@ import { fieldStyles, PasserelleFormElement } from './form.js';
 
 /**
  * `cd-select`: the native `<select>` (no custom dropdown: its accessibility,
- * the phones' pickers), labelled by its `label`, described by its help. It
- * submits the chosen option's value under `name`; disabled, nothing.
+ * the phones' pickers), labelled by its `label`, described by its help and
+ * its error. It submits the chosen option's value under `name`; disabled,
+ * nothing; with an `error` it is invalid to its form.
  */
 export class PasserelleSelect extends PasserelleFormElement<typeof Select> {
   static override styles = [
@@ -53,7 +54,10 @@ export class PasserelleSelect extends PasserelleFormElement<typeof Select> {
     // moves the selection (HTML: an option's dirtiness): the native value is set.
     const native = this.shadowRoot?.querySelector('select');
     if (native && native.value !== this.current) native.value = this.current;
-    this.submit(this.data.name, this.data.state === 'disabled' ? null : this.current);
+    const { name, error, state } = this.data;
+    this.submit(name, state === 'disabled' ? null : this.current);
+    if (error && state !== 'disabled') this.internals.setValidity({ customError: true }, error, native ?? undefined);
+    else this.internals.setValidity({});
   }
 
   private onInput(event: Event) {
@@ -62,9 +66,10 @@ export class PasserelleSelect extends PasserelleFormElement<typeof Select> {
   }
 
   protected override render() {
-    const { label, options, help, state } = this.data;
+    const { label, options, help, error, state } = this.data;
     const disabled = state === 'disabled';
-    return html`<div part="field" class="field ${disabled ? 'disabled' : ''}">
+    const describedBy = [help ? 'help' : '', error ? 'error' : ''].filter(Boolean).join(' ');
+    return html`<div part="field" class="field ${error ? 'invalid' : ''} ${disabled ? 'disabled' : ''}">
       <label for="control" part="label">${label}</label>
       <div class="wrap">
         <select
@@ -72,7 +77,8 @@ export class PasserelleSelect extends PasserelleFormElement<typeof Select> {
           part="control"
           class="control"
           ?disabled=${disabled}
-          aria-describedby=${help ? 'help' : nothing}
+          aria-describedby=${describedBy || nothing}
+          aria-invalid=${error ? 'true' : nothing}
           @input=${this.onInput}
           @change=${this.forwardChange}
         >
@@ -85,6 +91,7 @@ export class PasserelleSelect extends PasserelleFormElement<typeof Select> {
         </select>
         <cd-icon .data=${{ name: 'chevron-down', size: 'sm' }}></cd-icon>
       </div>
+      ${error ? html`<span id="error" class="error" part="error">${error}</span>` : nothing}
       ${help ? html`<span id="help" class="help" part="help">${help}</span>` : nothing}
     </div>`;
   }

@@ -26,6 +26,12 @@ export interface ProjectSettingsOptions {
    */
   readonly stored?: {
     projectSettings(projectId: string): Pick<ProjectSettings, 'worktreeCommands'> | null | undefined;
+    /**
+     * Whether the store is live (ADR 0007): back to it, every write made
+     * before its `hello` reached it, by its event (replayed) or within the
+     * snapshot, which may hold a later item instead.
+     */
+    live(): boolean;
     subscribe(fn: () => void): () => void;
   };
 }
@@ -106,6 +112,8 @@ interface Held {
  */
 interface Saving {
   readonly seen: (string | null)[];
+  /** The store came back live while it was on its way: whatever it stored, the store reached it. */
+  reached: boolean;
 }
 
 /** A save answered (what it stored), or one on its way. */
@@ -173,19 +181,27 @@ export const createProjectSettings = ({ client, vault, stored }: ProjectSettings
    */
   const answered = (projectId: string, saving: Saving, ciphertext: string | null | undefined) => {
     const { pending } = localOf(projectId);
-    const done = ciphertext === undefined || saving.seen.includes(ciphertext);
+    const done = ciphertext === undefined || saving.reached || saving.seen.includes(ciphertext);
     locals.set(projectId, { ...localOf(projectId), pending: pending.flatMap((entry) => (entry !== saving ? [entry] : done ? [] : [ciphertext])) });
   };
 
   /** Follows the store while a save waits for it: each item it holds settles the saves, the page shown or not. */
   let following: (() => void) | null = null;
+  let live = false;
   const onStored = () => {
     let settled = false;
+    // Back live: a snapshot may have replaced the events of the saves, an item written after them in it.
+    const back = !live && (stored?.live() ?? false);
+    live = stored?.live() ?? false;
     for (const [projectId, local] of locals) {
       const own = stored?.projectSettings(projectId);
       if (local.pending.length === 0 || own === undefined) continue;
       const { version, current } = heldOf(own);
       settle(projectId, current, version);
+      if (back) {
+        for (const entry of localOf(projectId).pending) if (isSaving(entry)) entry.reached = true;
+        locals.set(projectId, { ...localOf(projectId), pending: localOf(projectId).pending.filter(isSaving) });
+      }
       settled ||= localOf(projectId).pending.length !== local.pending.length;
     }
     follow();
@@ -194,7 +210,10 @@ export const createProjectSettings = ({ client, vault, stored }: ProjectSettings
   };
   function follow() {
     const waiting = [...locals.values()].some((local) => local.pending.length > 0);
-    if (waiting && stored && !following) following = stored.subscribe(onStored);
+    if (waiting && stored && !following) {
+      live = stored.live();
+      following = stored.subscribe(onStored);
+    }
     else if (!waiting && following) {
       following();
       following = null;
@@ -274,7 +293,7 @@ export const createProjectSettings = ({ client, vault, stored }: ProjectSettings
           worktreeCommands = { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
         }
         // Followed from the start: its event may reach the store before its answer.
-        const saving: Saving = { seen: [] };
+        const saving: Saving = { seen: [], reached: false };
         const own = stored?.projectSettings(projectId);
         const before = localOf(projectId);
         set(projectId, { pending: [...before.pending, saving], held: own === undefined ? before.held : heldOf(own) });

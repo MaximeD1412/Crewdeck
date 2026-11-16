@@ -140,6 +140,7 @@ export const boot = async ({
         const settings = store.getState().slices.settings;
         return settings ? (settings.projects.find((candidate) => candidate.projectId === projectId) ?? null) : undefined;
       },
+      live: () => store.getState().connection === 'live',
       subscribe: (fn) => store.subscribe(() => fn()),
     },
   });

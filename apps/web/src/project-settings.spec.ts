@@ -331,6 +331,7 @@ describe('createProjectSettings, the worktree Commandes', () => {
     };
     const store = {
       projectSettings: (projectId: string) => (projectId === PROJECT ? own : undefined),
+      live: () => true,
       subscribe: (fn: () => void) => {
         listeners.add(fn);
         return () => listeners.delete(fn);
@@ -365,6 +366,68 @@ describe('createProjectSettings, the worktree Commandes', () => {
     expect(listeners.size).toBe(0);
 
     // Back on the page: the other tab's item opened, and kept by a change of the other field.
+    const reopening = notified(settings);
+    expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'opening' });
+    await reopening;
+    expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm ci', clean: '' });
+    await settings.change(PROJECT, 'worktree:clean', 'rm -rf .cache');
+    const sent = calls.at(-1)?.body['worktreeCommands'] as SealedItem;
+    const opened = await vault.openItem({ key: fromBase64Url(sent.key), ciphertext: fromBase64Url(sent.ciphertext) }, AAD);
+    expect(JSON.parse(new TextDecoder().decode(opened))).toEqual({ prepare: 'pnpm ci', clean: 'rm -rf .cache' });
+  });
+
+  it.each([
+    ['before the outage', false],
+    ['during the outage', true],
+  ] as const)('settles a save answered %s once the store is live again, its event replaced by a snapshot holding another tab’s later item, the other field then keeping it', async (_, late) => {
+    const { client, calls, answer } = fakeClient();
+    const vault = await unlockedVault();
+    const seal = async (commands: object): Promise<SealedItem> => {
+      const item = await vault.sealItem(utf8(JSON.stringify(commands)), AAD);
+      return { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
+    };
+    // The store at the page's boundary: the Projet's Paramètres, its connection, its listeners told on each change.
+    let inStore: SealedItem | null = null;
+    let own = stored(inStore);
+    let live = true;
+    const listeners = new Set<() => void>();
+    const tell = () => {
+      for (const listener of [...listeners]) listener();
+    };
+    const store = {
+      projectSettings: (projectId: string) => (projectId === PROJECT ? own : undefined),
+      live: () => live,
+      subscribe: (fn: () => void) => {
+        listeners.add(fn);
+        return () => listeners.delete(fn);
+      },
+    };
+    const settings = createProjectSettings({ client, vault, stored: store });
+    settings.view(PROJECT, inStore, 'unlocked');
+    let release = () => undefined as void;
+    if (late) {
+      const gate = new Promise<void>((done) => (release = done));
+      answer(async (body) => {
+        await gate;
+        return stored(body['worktreeCommands'] as SealedItem | null);
+      });
+    }
+    const saving = settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
+    if (!late) await saving;
+    await new Promise((done) => setTimeout(done, 20));
+
+    // The socket lost: the save's event never comes; the snapshot holds another tab's later item, then the store is live.
+    live = false;
+    tell();
+    inStore = await seal({ prepare: 'pnpm ci', clean: null });
+    own = stored(inStore);
+    tell();
+    live = true;
+    tell();
+    release();
+    await saving;
+    expect(listeners.size).toBe(0);
+
     const reopening = notified(settings);
     expect(settings.view(PROJECT, inStore, 'unlocked').worktree).toEqual({ state: 'opening' });
     await reopening;

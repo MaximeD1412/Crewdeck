@@ -17,8 +17,8 @@ import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaiso
 import { appareilAApprouver, appareilAApprouverCode, appareils, appareilsAjouter } from './devices.js';
 import type { Scenario } from './define.js';
 import { menuPlus } from './menu-plus.js';
-import { parametres } from './parametres.js';
 import { demarrageProjets, projets, projetsVide } from './projets.js';
+import { parametres } from './parametres.js';
 import { resynchronisation } from './resynchronisation.js';
 import { runner, runnerServeursMcp } from './runner.js';
 import { aToiRunnerHorsLigne, runnerHorsLigne } from './runner-offline.js';

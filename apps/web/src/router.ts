@@ -1,6 +1,9 @@
 import { PageIntrouvable, type AnyComposant } from '@crewdeck/sdk';
 import { fillPlaced, type PlacedNode } from './placed.js';
+import { sameData } from './same-data.js';
 import type { StoreState } from './store/store.js';
+
+export { sameData };
 
 /**
  * A page URL (French, ADR 0008), `:name` for a parameter, its page Composant,
@@ -72,24 +75,6 @@ const routeOf = (routes: readonly Route[], match: RouteMatch): Route | undefined
 /** The state of a router without a store: nothing received yet. */
 export const NO_STATE: StoreState = { seq: null, connection: 'connecting', lostAt: null, slices: {}, vaultState: 'locked' };
 
-/**
- * Whether two `data` hold the same values: plain objects and arrays compared
- * field by field, anything else by identity (`Object.is`).
- */
-export const sameData = (a: unknown, b: unknown): boolean => {
-  if (Object.is(a, b)) return true;
-  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
-  if (Array.isArray(a) !== Array.isArray(b)) return false;
-  if (Array.isArray(a)) return a.length === (b as unknown[]).length && a.every((value, i) => sameData(value, (b as unknown[])[i]));
-  const plain = (value: object) => [Object.prototype, null].includes(Object.getPrototypeOf(value));
-  if (!plain(a) || !plain(b)) return false;
-  const keys = Object.keys(a);
-  return (
-    keys.length === Object.keys(b).length &&
-    keys.every((key) => Object.hasOwn(b, key) && sameData((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]))
-  );
-};
-
 /** The page's `data` by default: its route's view, from the match and the store's state, else nothing. */
 export const routeData =
   (routes: readonly Route[], state: () => StoreState = () => NO_STATE) =>
@@ -105,8 +90,8 @@ export interface Router {
    * own): the guard asked again, the page's `data` and Emplacements read
    * again, the same elements kept; `onRoute` only when the guard moved the
    * page. Data with the same values as the last given is not given again, so
-   * a page that does not read what changed is left as is (what was typed, an
-   * open Dialog).
+   * a page or a Composant placed that does not read what changed is left as
+   * is (what was typed, an open Dialog).
    */
   refresh(): void;
   stop(): void;
@@ -118,7 +103,7 @@ export interface RouterOptions {
   readonly outlet: HTMLElement;
   /** The `data` of the page; CORE-6's view functions give it from the store. By default, its route's `data`, from the match and `state`. */
   readonly data?: (match: RouteMatch) => unknown;
-  /** The store's state the routes' views read, for the default `data`: nothing received by default. */
+  /** The store's state the routes' views (`data`, `slots`) read: nothing received by default. */
   readonly state?: () => StoreState;
   /** Called after each render, with the match. */
   readonly onRoute?: (match: RouteMatch) => void;
@@ -147,15 +132,7 @@ const linkOf = (event: MouseEvent): URL | null => {
  * `outlet`, then follows `navigate()`, the same-origin links (shadow roots
  * included) and the browser's back and forward.
  */
-export const startRouter = ({
-  routes,
-  outlet,
-  state = () => NO_STATE,
-  data = routeData(routes, state),
-  onRoute,
-  redirects = REDIRECTS,
-  guard,
-}: RouterOptions): Router => {
+export const startRouter = ({ routes, outlet, state, data = routeData(routes, state), onRoute, redirects = REDIRECTS, guard }: RouterOptions): Router => {
   let current: RouteMatch;
   let given: unknown;
 
@@ -179,7 +156,7 @@ export const startRouter = ({
     if (page !== existing || !sameData(given, next)) (page as Element & { data: unknown }).data = next;
     given = next;
     const slots = routeOf(routes, current)?.slots;
-    if (slots) fillPlaced(page, slots(current, state()));
+    if (slots) fillPlaced(page, slots(current, (state ?? (() => NO_STATE))()));
     if (page !== existing || outlet.childElementCount !== 1) outlet.replaceChildren(page);
     if (navigated || location.href !== before) onRoute?.(current);
   };

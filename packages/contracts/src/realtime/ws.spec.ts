@@ -54,7 +54,6 @@ describe('zState', () => {
       'ai-account',
       'mcp-server',
       'devices',
-      'settings',
       'projects',
       'processes',
       'repositories',
@@ -62,6 +61,7 @@ describe('zState', () => {
       'tickets',
       'milestones',
       'codeChanges',
+      'settings',
     ]);
     const state = {
       seq: 3,
@@ -71,7 +71,6 @@ describe('zState', () => {
       'ai-account': [],
       'mcp-server': [],
       devices: [],
-      settings,
       projects: [],
       processes: [],
       repositories: [],
@@ -79,6 +78,7 @@ describe('zState', () => {
       tickets: [],
       milestones: [],
       codeChanges: [],
+      settings,
     };
     expect(zState.parse(state)).toEqual(state);
     expect(zState.safeParse({ seq: 3, pilot: PILOT }).success).toBe(false);

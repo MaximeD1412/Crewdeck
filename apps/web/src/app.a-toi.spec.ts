@@ -60,7 +60,7 @@ afterAll(() => app.stop());
 describe('« À toi » follows the store', () => {
   it('lists the snapshot’s open Décisions, the Cadre counting them', () => {
     expect(pageData()).toMatchObject({ total: 0, decisions: [] });
-    store.applySnapshot({ seq: 3, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, projects: [], processes: [], repositories: [], decisions: [decision(1)], tickets: [], milestones: [], codeChanges: [] });
+    store.applySnapshot({ seq: 3, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], repositories: [], decisions: [decision(1)], tickets: [], milestones: [], codeChanges: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
     store.markLive();
     expect(pageData().decisions.map((row) => row.title)).toEqual(['#1 Ticket']);
     expect(aToiCount()).toBe(1);

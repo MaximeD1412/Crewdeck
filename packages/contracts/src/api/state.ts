@@ -29,8 +29,6 @@ export const STATE_SLICES = {
   'mcp-server': z.array(zMcpServer),
   /** The Pilote's Appareils (E2E-2), newest first; `current` is `false`, each page sets its own. */
   devices: z.array(zDevice),
-  /** The Paramètres of the account. */
-  settings: zAccountSettings,
   /** The Pilote's Projets (PROJET-2), by name. */
   projects: z.array(zProject),
   /** The Process of each Projet (PROCESS-3): its active version and its draft, keyed by the Projet's id. */
@@ -45,6 +43,8 @@ export const STATE_SLICES = {
   milestones: z.array(zMilestone),
   /** The open and draft changes of code, and those merged or closed in the last 30 days. */
   codeChanges: z.array(zCodeChange),
+  /** The Paramètres of the account. */
+  settings: zAccountSettings,
 } as const;
 export type StateKey = keyof typeof STATE_SLICES;
 

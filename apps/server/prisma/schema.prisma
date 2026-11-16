@@ -56,7 +56,6 @@ model Pilot {
   mcpServers         McpServer[]
   devices            Device[]
   vaultKeyWraps      VaultKeyWrap[]
-  settings           AccountSettings?
   repositories       Repository[]
   projects           Project[]
   decisions          Decision[]
@@ -65,6 +64,7 @@ model Pilot {
   codeChanges        CodeChange[]
   codeChangeChecks   CodeChangeCheck[]
   githubChanges      GitHubChange[]
+  settings           AccountSettings?
 
   @@map("pilots")
 }

@@ -82,7 +82,6 @@ const SNAPSHOT: State = {
   'ai-account': [],
   'mcp-server': [],
   devices: [],
-  settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' },
   projects: [],
   processes: [PROCESS],
   repositories: [],
@@ -90,6 +89,7 @@ const SNAPSHOT: State = {
   tickets: [TICKET],
   milestones: [MILESTONE],
   codeChanges: [CHANGE],
+  settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' },
 };
 
 describe('the page’s store', () => {

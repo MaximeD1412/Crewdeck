@@ -13,12 +13,15 @@ export interface PlacedNode {
   readonly children?: readonly PlacedNode[];
 }
 
+import { sameData } from './same-data.js';
+
 type WithData = Element & { data?: unknown };
 
 /**
  * Makes the children of `host` the `nodes`, in their order: an element of the
  * same tag and Emplacement is kept from one call to the next (its state, its
- * focus), given its new data; the others are created or removed.
+ * focus), given its new data when its values changed (what was typed stays);
+ * the others are created or removed.
  */
 export const fillPlaced = (host: Element, nodes: readonly PlacedNode[]): void => {
   const free = [...host.children];
@@ -28,7 +31,7 @@ export const fillPlaced = (host: Element, nodes: readonly PlacedNode[]): void =>
     if (node.slot === undefined) element.removeAttribute('slot');
     else element.slot = node.slot;
     if (node.id !== undefined) element.id = node.id;
-    if (node.data !== undefined) element.data = node.data;
+    if (node.data !== undefined && (index < 0 || !sameData(element.data, node.data))) element.data = node.data;
     if (node.text !== undefined) {
       if (element.textContent !== node.text) element.textContent = node.text;
     } else fillPlaced(element, node.children ?? []);

@@ -47,8 +47,8 @@ export const forbiddenReason = (method: string, url: string, accept: string | un
   const contents = CONTENTS.exec(path);
   if (contents) {
     const file = contentsPath(contents[1] ?? '');
-    const allowed: readonly string[] = method === 'GET' ? ALLOWLISTED_PATHS : ['.process.json'];
-    if (file === undefined || !allowed.includes(file)) return method === 'GET' ? 'a file outside the allowlist' : 'a write of a file other than .process.json';
+    if (method !== 'GET') return 'a write of a file';
+    if (file === undefined || !(ALLOWLISTED_PATHS as readonly string[]).includes(file)) return 'a file outside the allowlist';
   }
   if (accept?.split(',').some((type) => CONTENT_MEDIA_TYPE.test(type.trim().split(';')[0] ?? ''))) return `the media type ${accept}`;
   return undefined;
@@ -57,7 +57,7 @@ export const forbiddenReason = (method: string, url: string, accept: string | un
 /**
  * The second fence of ADR 0002, after the interface of `GitHubClient`: a hook
  * run before every request of `octokit`, which throws `GitHubReadForbiddenError`
- * for a file outside `.process.json`, `CONTEXT.md` and `docs/adr`, a PR's files,
+ * for a file outside `CONTEXT.md` and `docs/adr`, any write of a file, a PR's files,
  * a comparison, a blob, a tree, a README, an archive, GraphQL, or an `accept`
  * asking for a diff, a patch or a raw content.
  */

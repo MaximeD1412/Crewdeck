@@ -30,9 +30,9 @@ export const GITHUB_CLIENT = Symbol('GITHUB_CLIENT');
 
 /**
  * Everything the server does on GitHub, as the « Crewdeck » GitHub App (ADR
- * 0002): metadata only. There is no method that reads an issue's or a PR's
- * body, a diff, or a file outside `.process.json`, `CONTEXT.md` and
- * `docs/adr`: what is not here cannot be called. The read guard of the real
+ * 0002, amended by ADR 0011): metadata only. There is no method that reads
+ * an issue's or a PR's body, a diff, or a file outside `CONTEXT.md` and
+ * `docs/adr`, and none that writes a file: what is not here cannot be called. The read guard of the real
  * client is the second fence. Every merge passes the SHA the gate judged.
  *
  * Errors are `AppError`s: `github.head-moved` (409), `github.branch-protected`
@@ -74,16 +74,12 @@ export interface GitHubClient {
   listIssueDependencies(repo: RepoRef, number: number): Promise<IssueRef[]>;
 
   // --- The allowlist of contents
-  /** `.process.json` at `ref`, parsed; null when the file does not exist. */
-  readProcessJson(repo: RepoRef, ref: string): Promise<unknown>;
-  pathExists(repo: RepoRef, ref: string, path: Exclude<AllowlistedPath, '.process.json'>): Promise<boolean>;
+  pathExists(repo: RepoRef, ref: string, path: AllowlistedPath): Promise<boolean>;
 
   // --- Writes
   /** Creates the label, or updates its color and description. */
   ensureLabel(repo: RepoRef, label: LabelInput): Promise<Label>;
   createBranch(repo: RepoRef, name: string, fromSha: string): Promise<void>;
-  /** One commit of `.process.json` on `branch`, the only file the server writes. */
-  commitProcessJson(repo: RepoRef, branch: string, content: string, message: string): Promise<CommitRef>;
   createPullRequest(repo: RepoRef, pullRequest: NewPullRequest): Promise<PullRequest>;
   mergePullRequest(repo: RepoRef, number: number, options: MergeOptions): Promise<CommitRef>;
   /** Merges `headSha` into `base` (the merges API), one merge commit. */

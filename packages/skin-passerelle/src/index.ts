@@ -48,6 +48,7 @@ import { PasserelleQuestion } from './question.js';
 import { PasserelleSession } from './session.js';
 import { PasserelleRadio } from './radio.js';
 import { PasserelleRepositoryPicker } from './repository-picker.js';
+import { PasserelleRoleSettings } from './role-settings.js';
 import { PasserelleSelect } from './select.js';
 import { PasserelleSettingRow } from './setting-row.js';
 import { PasserelleStat } from './stat.js';
@@ -86,6 +87,7 @@ export default defineSkin({
     PageProjets: PasserellePageProjets,
     PageRunner: PasserellePageRunner,
     RepositoryPicker: PasserelleRepositoryPicker,
+    RoleSettings: PasserelleRoleSettings,
     Card: PasserelleCard,
     CodeBlock: PasserelleCodeBlock,
     Dialog: PasserelleDialog,

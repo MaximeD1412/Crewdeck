@@ -3,6 +3,7 @@ import { isKnownTimeZone, patched, SettingsService } from './settings.service.js
 
 const SETTINGS: AccountSettings = {
   roles: { idea: null, design: { engine: 'codex', model: 'gpt-5' }, code: null, review: null },
+  customRoles: [],
   optionalSteps: { mockups: true, 'visual-review': true, 'cross-review': true },
   notifications: { push: false },
   timeZone: 'Europe/Paris',
@@ -38,5 +39,16 @@ describe('SettingsService.effective', () => {
   it('takes the Pilote and, optionally, a Projet: the one function a module reads its settings with', () => {
     expectTypeOf<SettingsService['effective']>().parameters.toEqualTypeOf<[pilotId: string, projectId?: string]>();
     expectTypeOf<SettingsService['effective']>().returns.toEqualTypeOf<Promise<EffectiveSettings>>();
+  });
+});
+
+describe('patched, with the Rôles the Pilote added', () => {
+  it('changes a Rôle of the Pilote’s by its id, and keeps the list of their Rôles', () => {
+    const custom = { id: 'r-a1b2c3d4', name: 'Revue Codex', createdAt: '2026-11-11T08:30:00.000Z' };
+    const settings: AccountSettings = { ...SETTINGS, roles: { ...SETTINGS.roles, 'r-a1b2c3d4': { engine: 'codex', model: 'gpt-5.5' } }, customRoles: [custom] };
+    expect(patched(settings, { roles: { 'r-a1b2c3d4': { engine: 'claude-code', model: 'claude-opus-5-5' } } })).toEqual({
+      ...settings,
+      roles: { ...settings.roles, 'r-a1b2c3d4': { engine: 'claude-code', model: 'claude-opus-5-5' } },
+    });
   });
 });

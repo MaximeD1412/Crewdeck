@@ -28,9 +28,10 @@ const usageSlot = (slot: string, data: UsageCardData | null): readonly PlacedNod
  * `PageRunner`, whose data `app.ts` gives from the store
  * (`views/runner.ts`); `/projets` → `PageProjets` and `/projets/ajouter` →
  * `RepositoryPicker`, whose data `app.ts` gives from the store
- * (`views/projets.ts`, `projects.ts`). The usage of the Comptes IA fills
- * `/runner`'s Emplacement `usage` and « À toi »'s `ai-accounts`
- * (`views/usage.ts`). The first route that matches wins.
+ * (`views/projets.ts`, `projects.ts`); `/parametres` → `PageParametres`,
+ * whose « Rôles et modèles » `app.ts` completes with the page's own state
+ * (`role-settings.ts`). The usage of the Comptes IA fills `/runner`'s
+ * Emplacement `usage` and « À toi »'s `ai-accounts` (`views/usage.ts`). The first route that matches wins.
  */
 export const ROUTES: readonly Route[] = [
   {
@@ -48,7 +49,7 @@ export const ROUTES: readonly Route[] = [
   {
     path: '/parametres',
     composant: PageParametres,
-    slots: (_match, state) => parametresView(state.slices.settings, timeZones()),
+    slots: (_match, state) => parametresView(state.slices.settings, timeZones(), { accounts: [...(state.slices['ai-account']?.values() ?? [])] }),
   },
   {
     path: '/parametres/composants',

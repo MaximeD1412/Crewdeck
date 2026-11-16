@@ -45,25 +45,53 @@ func (m *Mirror) logger() *slog.Logger {
 // deletes it from the copy when GitHub no longer has it (gone).
 func (m *Mirror) Refresh(ctx context.Context, repository string, number int) (gone bool, err error) {
 	started := m.now()
-	o, err := m.GitHub.FetchObject(ctx, repository, number)
-	kind := "issue"
-	switch {
-	case errors.Is(err, ErrGone):
-		gone, kind = true, "gone"
-		err = m.Store.Update(func(tx *sql.Tx) error { return DeleteObject(tx, repository, number) })
-	case err != nil:
-		return false, err
-	default:
-		if o.IsPull {
-			kind = "pull"
-		}
-		err = m.Store.Update(func(tx *sql.Tx) error { return PutObject(tx, o) })
-	}
+	f, err := m.fetchObject(ctx, repository, number)
 	if err != nil {
 		return false, err
 	}
-	m.logger().Debug("mirror object", "repository", repository, "number", number, "kind", kind, "duration_ms", m.now().Sub(started).Milliseconds())
-	return gone, nil
+	if err := m.Store.Update(f.put); err != nil {
+		return false, err
+	}
+	m.logger().Debug("mirror object", "repository", repository, "number", number, "kind", f.kind(), "duration_ms", m.now().Sub(started).Milliseconds())
+	return f.gone, nil
+}
+
+// fetchedObject is an issue or a PR as GitHub answered it, or gone from it.
+type fetchedObject struct {
+	repository string
+	number     int
+	object     Object
+	gone       bool
+}
+
+// fetchObject reads the issue or PR `number`; gone, not an error, when GitHub no longer has it.
+func (m *Mirror) fetchObject(ctx context.Context, repository string, number int) (fetchedObject, error) {
+	o, err := m.GitHub.FetchObject(ctx, repository, number)
+	if errors.Is(err, ErrGone) {
+		return fetchedObject{repository: repository, number: number, gone: true}, nil
+	}
+	if err != nil {
+		return fetchedObject{}, err
+	}
+	return fetchedObject{repository: repository, number: number, object: o}, nil
+}
+
+// put writes the object in tx, or deletes it when gone.
+func (f fetchedObject) put(tx *sql.Tx) error {
+	if f.gone {
+		return DeleteObject(tx, f.repository, f.number)
+	}
+	return PutObject(tx, f.object)
+}
+
+func (f fetchedObject) kind() string {
+	switch {
+	case f.gone:
+		return "gone"
+	case f.object.IsPull:
+		return "pull"
+	}
+	return "issue"
 }
 
 // refreshChecks fetches the checks of a PR's head and records, with them, the

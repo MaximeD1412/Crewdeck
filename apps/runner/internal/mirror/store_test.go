@@ -247,3 +247,23 @@ func TestPutProjectsDeletesTheCopyOfARepositoryNoLongerAProjet(t *testing.T) {
 		}
 	}
 }
+
+func TestCursorIsNullUntilAnEnvelopeMovesIt(t *testing.T) {
+	store, _ := openStore(t)
+	if cursor, err := store.Cursor(); err != nil || cursor != nil {
+		t.Fatalf("Cursor = %v, %v; want nil", cursor, err)
+	}
+	if err := store.Update(func(tx *sql.Tx) error { return SetMeta(tx, MetaMirrorAfter, "3") }); err != nil {
+		t.Fatal(err)
+	}
+	if cursor, err := store.Cursor(); err != nil || cursor == nil || *cursor != 3 {
+		t.Fatalf("Cursor = %v, %v; want 3", cursor, err)
+	}
+	// A rebuild drops it: the server resyncs the copy.
+	if err := store.Rebuild(); err != nil {
+		t.Fatal(err)
+	}
+	if cursor, err := store.Cursor(); err != nil || cursor != nil {
+		t.Fatalf("Cursor after a rebuild = %v, %v; want nil", cursor, err)
+	}
+}

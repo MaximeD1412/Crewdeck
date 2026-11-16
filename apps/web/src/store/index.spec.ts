@@ -72,6 +72,7 @@ const PROCESS: ProjectProcess = {
   id: PROJECT,
   active: { number: 1, definition: PROCESS_CREWDECK, sealed: null, activatedAt: AT, activatedBy: 'creation', templateName: PROCESS_CREWDECK_NAME },
   draft: null,
+  sources: { ticket: { source: 'github', since: AT }, code: { source: 'github', since: AT } },
 };
 
 const SNAPSHOT: State = {

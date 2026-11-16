@@ -1,0 +1,64 @@
+{
+  "operation": "MirrorObject",
+  "variables": {
+    "owner": "acme",
+    "name": "outils",
+    "number": 3
+  },
+  "data": {
+    "repository": {
+      "issueOrPullRequest": {
+        "__typename": "Issue",
+        "number": 3,
+        "title": "Un outil de mesure",
+        "body": "Corps confidentiel de l'outil trois",
+        "issueState": "OPEN",
+        "stateReason": null,
+        "url": "https://github.com/acme/outils/issues/3",
+        "createdAt": "2026-11-01T08:00:00Z",
+        "updatedAt": "2026-11-08T09:00:00Z",
+        "closedAt": null,
+        "author": {
+          "login": "pilote"
+        },
+        "milestone": null,
+        "labels": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "assignees": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "comments": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "parent": null,
+        "subIssues": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "blockedBy": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        }
+      }
+    }
+  }
+}

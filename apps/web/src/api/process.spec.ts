@@ -8,6 +8,7 @@ const VIEW: ProjectProcess = {
   id: PROJECT,
   active: { number: 1, definition: PROCESS_CREWDECK, sealed: null, activatedAt: '2026-11-15T08:00:00.000Z', activatedBy: 'creation', templateName: PROCESS_CREWDECK_NAME },
   draft: null,
+  sources: { ticket: { source: 'github', since: '2026-11-15T08:00:00.000Z' }, code: { source: 'github', since: '2026-11-15T08:00:00.000Z' } },
 };
 
 describe('getProcess', () => {

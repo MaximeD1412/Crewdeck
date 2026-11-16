@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { zSealedItem } from '../keys/sealed.js';
 import { zProcessDefinition } from '../process/definition.js';
+import { type ProcessSources, zSourceKind } from '../process/sources.js';
 import { zId, zInstant } from '../values.js';
 
 /**
@@ -41,8 +42,21 @@ export const zProcessDraft = z.object({
 export type ProcessDraft = z.infer<typeof zProcessDraft>;
 
 /**
+ * The Source of one group of a Projet's artifacts (ADR 0012, « Which Source
+ * for what »), and since when it holds it: its creation, or its last
+ * migration (SOURCE-7).
+ */
+export const zProjectSource = z.object({ source: zSourceKind, since: zInstant });
+export type ProjectSource = z.infer<typeof zProjectSource>;
+
+/** Both groups of a Projet: a Projet holds them from its creation. */
+export const zProjectProcessSources = z.object({ ticket: zProjectSource, code: zProjectSource });
+export type ProjectProcessSources = z.infer<typeof zProjectProcessSources>;
+
+/**
  * The whole Process of a Projet, keyed by the Projet's id: its active
- * version (`null` until a first one is activated) and its draft. The answer
+ * version (`null` until a first one is activated), its draft, and the
+ * Sources of its groups, which the canvas and its Manques read. The answer
  * of `GET /api/projects/:id/process` and `PUT …/process/draft`, the payload
  * of `process.upserted`, an item of the `processes` slice of `GET /api/state`.
  */
@@ -50,8 +64,15 @@ export const zProjectProcess = z.object({
   id: zId,
   active: zProcessVersion.nullable(),
   draft: zProcessDraft.nullable(),
+  sources: zProjectProcessSources,
 });
 export type ProjectProcess = z.infer<typeof zProjectProcess>;
+
+/** The Sources of a Projet's view as `findGaps` reads them: the kinds alone. */
+export const processSourcesOf = (view: Pick<ProjectProcess, 'sources'>): ProcessSources => ({
+  ticket: view.sources.ticket.source,
+  code: view.sources.code.source,
+});
 
 /**
  * `PUT /api/projects/:id/process/draft` (session): the whole draft, the

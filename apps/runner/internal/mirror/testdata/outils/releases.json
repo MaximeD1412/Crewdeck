@@ -1,0 +1,19 @@
+{
+  "operation": "MirrorReleases",
+  "variables": {
+    "owner": "acme",
+    "name": "outils",
+    "after": null
+  },
+  "data": {
+    "repository": {
+      "releases": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        },
+        "nodes": []
+      }
+    }
+  }
+}

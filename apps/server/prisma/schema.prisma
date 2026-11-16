@@ -523,27 +523,28 @@ enum InventoryState {
 /// deleted, its Projet marked `accessLost`, and `repositoryId` is given back
 /// to the repository when it comes back.
 model Project {
-  id                String         @id @db.Uuid
-  pilotId           String         @map("pilot_id") @db.Uuid
-  repositoryId      String         @unique @map("repository_id") @db.Uuid
-  githubRepoId      BigInt         @map("github_repo_id")
+  id                String           @id @db.Uuid
+  pilotId           String           @map("pilot_id") @db.Uuid
+  repositoryId      String           @unique @map("repository_id") @db.Uuid
+  githubRepoId      BigInt           @map("github_repo_id")
   owner             String
   name              String
-  fullName          String         @map("full_name")
-  displayName       String         @map("display_name")
-  releaseBranch     String         @map("release_branch")
-  integrationBranch String         @map("integration_branch")
-  hasCode           Boolean        @map("has_code")
-  inventoryState    InventoryState @map("inventory_state")
-  accessLost        Boolean        @default(false) @map("access_lost")
-  lastSeq           BigInt         @default(0) @map("last_seq")
-  followedAt        DateTime       @default(now()) @map("followed_at") @db.Timestamptz
-  pilot             Pilot          @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  fullName          String           @map("full_name")
+  displayName       String           @map("display_name")
+  releaseBranch     String           @map("release_branch")
+  integrationBranch String           @map("integration_branch")
+  hasCode           Boolean          @map("has_code")
+  inventoryState    InventoryState   @map("inventory_state")
+  accessLost        Boolean          @default(false) @map("access_lost")
+  lastSeq           BigInt           @default(0) @map("last_seq")
+  followedAt        DateTime         @default(now()) @map("followed_at") @db.Timestamptz
+  pilot             Pilot            @relation(fields: [pilotId], references: [id], onDelete: Cascade)
   tickets           Ticket[]
   milestones        Milestone[]
   codeChanges       CodeChange[]
   processVersions   ProcessVersion[]
   processDraft      ProcessDraft?
+  artifactSources   ArtifactSource[]
 
   @@unique([pilotId, githubRepoId])
   /// The key the Projet's Tickets, milestones, changes of code and Process point at, with their Pilote.
@@ -843,4 +844,38 @@ model ProcessDraft {
   /// The one-to-one key of its Projet, with their Pilote.
   @@unique([pilotId, projectId])
   @@map("process_drafts")
+}
+
+/// A group of a Projet's artifacts (ADR 0012, « Which Source for what »):
+/// `ticket`, its Tickets; `code`, its Changement de code and its documents.
+enum SourceGroup {
+  ticket
+  code
+
+  @@map("source_group")
+}
+
+/// Where a group lives: a folder of the Pilote's machine, or a Dépôt GitHub.
+enum SourceKind {
+  local
+  github
+
+  @@map("source_kind")
+}
+
+/// The Source of one group of a Projet (SOURCE-1): both rows written at its
+/// creation, `since` then; moving a group (SOURCE-7) updates `source` and
+/// `since`.
+model ArtifactSource {
+  id        String      @id @db.Uuid
+  pilotId   String      @map("pilot_id") @db.Uuid
+  projectId String      @map("project_id") @db.Uuid
+  group     SourceGroup
+  source    SourceKind
+  since     DateTime    @db.Timestamptz
+  project   Project     @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+
+  @@unique([projectId, group])
+  @@index([pilotId, projectId])
+  @@map("artifact_sources")
 }

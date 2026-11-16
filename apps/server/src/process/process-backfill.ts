@@ -4,7 +4,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Transactions } from '../realtime/transactions.js';
 import { runInPilotScope } from '../scope/scope.context.js';
-import { GITHUB_SOURCES, ProcessService } from './process.service.js';
+import { ProcessService } from './process.service.js';
 
 /** Another start wrote the Projet's version 1 first: the unique `(projectId, number)`, or the draft's `projectId`. */
 const isUniqueViolation = (error: unknown): boolean => error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
@@ -49,7 +49,7 @@ export class ProcessBackfill implements OnApplicationBootstrap {
         await runInPilotScope(pilotId, () =>
           this.transactions.run(async (tx) => {
             if ((await tx.processVersion.count({ where: { projectId: id } })) + (await tx.processDraft.count({ where: { projectId: id } })) > 0) return;
-            await this.process.createInitialVersion(tx, id, { template: 'process-crewdeck' }, GITHUB_SOURCES);
+            await this.process.createInitialVersion(tx, id, { template: 'process-crewdeck' });
             written += 1;
           }),
         );

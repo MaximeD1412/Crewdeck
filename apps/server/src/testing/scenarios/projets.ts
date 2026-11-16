@@ -54,7 +54,10 @@ export const seedRepositories = async (ctx: ScenarioContext, pilotId: string, re
         inventoryState: hasCode ? 'pending' : 'not_needed',
       },
     });
-    // Its version 1, « Process Crewdeck », as following it writes.
+    // Its Sources and its version 1, « Process Crewdeck », as following it writes.
+    await ctx.prisma.unscoped.artifactSource.createMany({
+      data: (['ticket', 'code'] as const).map((group) => ({ id: newId(), pilotId, projectId, group, source: 'github' as const, since: new Date() })),
+    });
     await ctx.prisma.unscoped.processVersion.create({
       data: {
         id: newId(),

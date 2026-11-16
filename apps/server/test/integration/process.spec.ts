@@ -6,6 +6,7 @@ import {
   type ProcessDefinition,
   type ProcessDraftInput,
   type ProjectProcess,
+  processSourcesOf,
   zProjectList,
   zProjectProcess,
   zState,
@@ -275,6 +276,43 @@ describe('the Process of a Projet against PostgreSQL', () => {
         { group: 'code', source: 'github', same: true, pilot: true },
       ]);
       expect((await saved(await getProcess(alice))).sources.ticket.source).toBe('github');
+    });
+    it('completes at the server’s start the Sources of a Projet a previous release followed after the migration, since it was followed, once', async () => {
+      // Followed by the previous release after the migration ran (a deploy, or its rollback): a Process, no Sources.
+      await sql('DELETE FROM artifact_sources WHERE project_id = $1', [projectId]);
+      await expectEnvelope(await call(alice, 'GET', '/api/state'), 500, 'server.internal');
+
+      expect(await app.get(ProcessBackfill).completeSources()).toBe(1);
+      expect(await app.get(ProcessBackfill).completeSources()).toBe(0);
+
+      expect(await sql(`SELECT s."group", s.source, s.since = p.followed_at AS same FROM artifact_sources s JOIN projects p ON p.id = s.project_id ORDER BY s."group"`)).toEqual([
+        { group: 'ticket', source: 'github', same: true },
+        { group: 'code', source: 'github', same: true },
+      ]);
+      expect((await state(alice)).processes.map((process) => process.sources.code.source)).toEqual(['github']);
+    });
+
+    it('completes a Projet holding one group only', async () => {
+      await sql(`DELETE FROM artifact_sources WHERE project_id = $1 AND "group" = 'code'`, [projectId]);
+
+      expect(await app.get(ProcessBackfill).completeSources()).toBe(1);
+
+      expect(await rows()).toEqual([
+        { group: 'ticket', source: 'github' },
+        { group: 'code', source: 'github' },
+      ]);
+    });
+
+    it('gives a Projet with neither Sources nor Process its Sources first at the start, then its version 1 on them', async () => {
+      await sql('DELETE FROM artifact_sources WHERE project_id = $1', [projectId]);
+      await sql('DELETE FROM process_versions WHERE project_id = $1', [projectId]);
+
+      expect(await app.get(ProcessBackfill).run()).toBe(1);
+
+      const view = await saved(await getProcess(alice));
+      expect(view.active?.number).toBe(1);
+      expect(view.draft).toBeNull();
+      expect(processSourcesOf(view)).toEqual({ ticket: 'github', code: 'github' });
     });
   });
 

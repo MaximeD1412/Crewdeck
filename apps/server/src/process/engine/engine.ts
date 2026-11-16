@@ -273,7 +273,8 @@ export class Engine {
    * its inputs, then its handler's `start`; a kind without a handler makes it
    * `failed`, `no-handler`), then says whether the PhaseRun is over: `done`
    * when no StepRun is open nor `failed` and nothing is ready (an Étape held
-   * by the guard is ready), `failed` when one is `failed` and none is open.
+   * by the guard is ready), `failed` when one is `failed`, none is open and
+   * no start `retry` or `rerunFrom` asked is held.
    */
   async advance(tx: Tx, phaseRun: Pick<PhaseRun, 'id'>): Promise<PhaseRun> {
     return (await this.advanceLoaded(tx, await this.lockAndLoad(tx, phaseRun.id))).phaseRun;
@@ -296,6 +297,8 @@ export class Engine {
     const after = await this.load(tx, loaded.row.id);
     const current = currentStepRuns(after.live);
     if (current.some((run) => OPEN.includes(run.state))) return after;
+    // A start `retry` or `rerunFrom` asked, held by the guard, keeps the PhaseRun `running`, for `startQueued`, whatever else failed.
+    if (Object.keys(after.pending).length > 0) return after;
     if (current.some((run) => run.state === 'failed')) {
       await this.setPhaseRunState(tx, after.row.id, 'failed');
       return this.load(tx, after.row.id);

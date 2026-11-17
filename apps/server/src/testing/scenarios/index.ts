@@ -17,6 +17,7 @@ import { connexion, connexionErreur, connexionLien, connexionLienEnvoye } from '
 import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
 import { appareilAApprouver, appareilAApprouverCode, appareils, appareilsAjouter } from './devices.js';
 import type { Scenario } from './define.js';
+import { idees, ideesNouvelle, ideesVide } from './idees.js';
 import { menuPlus } from './menu-plus.js';
 import { demarrageProjets, projets, projetsVide } from './projets.js';
 import { parametres } from './parametres.js';
@@ -49,6 +50,9 @@ const SCENARIOS: readonly Scenario[] = [
   demarrageComptesIa,
   demarrageComptesIaAucun,
   demarrageProjets,
+  idees,
+  ideesNouvelle,
+  ideesVide,
   menuPlus,
   parametres,
   projets,

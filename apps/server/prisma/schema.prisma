@@ -48,6 +48,8 @@ model Pilot {
   /// The version of the Pilote's vault key (ADR 0003, E2E-2): 0 before the
   /// first Appareil wrapped one, then 1; E2E-4 rotates it.
   vaultKeyVersion    Int                  @default(0) @map("vault_key_version")
+  /// The last `#<n>` of the Pilote's Idées (IDEE-1), raised in the transaction that notes one.
+  ideaSeq            Int                  @default(0) @map("idea_seq")
   createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz
   identities         PilotIdentity[]
   githubToken        GithubUserToken?
@@ -64,6 +66,7 @@ model Pilot {
   repositories       Repository[]
   projects           Project[]
   decisions          Decision[]
+  ideas              Idea[]
   tickets            Ticket[]
   milestones         Milestone[]
   codeChanges        CodeChange[]
@@ -633,6 +636,8 @@ model Project {
   phaseRuns         PhaseRun[]
   stepRuns          StepRun[]
   artifactSources   ArtifactSource[]
+  ideas             Idea[]           @relation("IdeaProject")
+  targetedIdeas     Idea[]           @relation("IdeaTarget")
   agentSessions     AgentSession[]
 
   @@unique([pilotId, githubRepoId])
@@ -1095,6 +1100,62 @@ model ArtifactSource {
   @@unique([projectId, group])
   @@index([pilotId, projectId])
   @@map("artifact_sources")
+}
+
+enum IdeaState {
+  analysing
+  to_triage @map("to-triage")
+  analysed
+  retained
+  merged
+  rejected
+
+  @@map("idea_state")
+}
+
+enum IdeaNotedFrom {
+  pc
+  telephone
+
+  @@map("idea_noted_from")
+}
+
+/// An Idée (IDEE-1, US-5): its text sealed in the Pilote's browser (ADR 0003),
+/// as its analysis and the reason of its triage: the server stores the
+/// ciphertexts (`{ key, ciphertext }`, JSON) and never reads them. `number`
+/// is its `#<n>`, from `pilots.idea_seq`. Its Projets are the same Pilote's
+/// (the foreign keys carry `pilot_id`); a Projet is never deleted yet.
+model Idea {
+  id              String        @id @db.Uuid
+  pilotId         String        @map("pilot_id") @db.Uuid
+  number          Int
+  projectId       String?       @map("project_id") @db.Uuid
+  targetProjectId String?       @map("target_project_id") @db.Uuid
+  targetIsNew     Boolean       @default(false) @map("target_is_new")
+  state           IdeaState
+  text            Json
+  analysis        Json?
+  impact          Int?
+  effort          Int?
+  duplicateIds    String[]      @default([]) @map("duplicate_ids") @db.Uuid
+  notedFrom       IdeaNotedFrom @map("noted_from")
+  dictated        Boolean       @default(false)
+  mergedIntoId    String?       @map("merged_into_id") @db.Uuid
+  reason          Json?
+  ticketNumber    Int?          @map("ticket_number")
+  createdAt       DateTime      @map("created_at") @db.Timestamptz
+  updatedAt       DateTime      @map("updated_at") @db.Timestamptz
+  analysedAt      DateTime?     @map("analysed_at") @db.Timestamptz
+  triagedAt       DateTime?     @map("triaged_at") @db.Timestamptz
+  /// The `seq` of its last `idea.upserted`: a command on it carries it (ADR 0007).
+  lastSeq         BigInt        @default(0) @map("last_seq")
+  pilot           Pilot         @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  project         Project?      @relation("IdeaProject", fields: [pilotId, projectId], references: [pilotId, id], onDelete: NoAction)
+  targetProject   Project?      @relation("IdeaTarget", fields: [pilotId, targetProjectId], references: [pilotId, id], onDelete: NoAction)
+
+  @@unique([pilotId, number])
+  @@index([pilotId, state, updatedAt])
+  @@map("ideas")
 }
 
 /// A Session's state (`SESSION_STATES`).

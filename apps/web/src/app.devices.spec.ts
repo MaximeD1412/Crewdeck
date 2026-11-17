@@ -4,6 +4,7 @@ import { createDispatcher } from './actions/dispatcher.js';
 import { boot } from './app.js';
 import { APPROVE_DEVICE_TAG, NEW_DEVICE_TAG } from './dialogs/device-approval.js';
 import type { DeviceApprovalKeys } from './keys/approval.js';
+import type { PageKeys } from './keys/index.js';
 import type { VaultState } from './keys/vault.js';
 import { createStore } from './store/store.js';
 import { ADD_DEVICE_ID } from './views/devices.js';
@@ -42,6 +43,7 @@ const started = async (vault: VaultState) => {
     client: { command: vi.fn(), query: vi.fn() },
     keys: {
       linkKeys: { browserPairing: vi.fn(), adoptDevice: vi.fn(), confirmPairing: vi.fn() },
+      vault: { sealItem: vi.fn(), openItem: vi.fn() } as unknown as PageKeys['vault'],
       nameDevice: async () => undefined,
       unlockVault: async () => {
         store.setVaultState(vault);
@@ -50,7 +52,7 @@ const started = async (vault: VaultState) => {
       approval,
     },
   });
-  store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [TRUSTED], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], sessions: [] });
+  store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [TRUSTED], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [] });
   await vi.waitFor(() => expect(store.getState().vaultState).toBe(vault));
   return { root, app, approval, store };
 };

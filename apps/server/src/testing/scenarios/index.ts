@@ -1,4 +1,5 @@
 import { aToi, aToiVide } from './a-toi.js';
+import { aToiProcess } from './a-toi-process.js';
 import { blank } from './blank.js';
 import {
   composants,
@@ -29,6 +30,7 @@ export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed 
 const SCENARIOS: readonly Scenario[] = [
   aToi,
   aToiVide,
+  aToiProcess,
   aToiRunnerHorsLigne,
   blank,
   composants,

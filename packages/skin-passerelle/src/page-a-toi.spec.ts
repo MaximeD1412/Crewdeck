@@ -2,7 +2,7 @@
 import './tokens.css';
 import './document.css';
 import { COMPOSANTS, t } from '@crewdeck/sdk';
-import { page } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
 import { actionsOf, defineSkin, inside, render, settle, textOf } from './testing/dom.js';
 
 beforeAll(defineSkin);
@@ -106,6 +106,80 @@ describe('PageAToi', () => {
     expect(await actionsOf(() => inside(el, 'cd-button.note-idea', 'button').click())).toEqual([
       { composant: 'PageAToi', action: 'note-idea', payload: {} },
     ]);
+  });
+
+  describe('a Décision with buttons of its own, narrower than 1280 px', () => {
+    const first = chosen.data.decisions[0];
+    if (!first) throw new Error('no Décision');
+    const answered = {
+      ...first,
+      context: 'Review a demandé des changements 4 fois.',
+      actions: [
+        { id: 'one-more-pass', label: 'Encore un passage', primary: true, disabledReason: null },
+        { id: 'stop', label: 'Arrêter', primary: false, disabledReason: null },
+      ],
+    };
+    const withAnswers = { ...chosen.data, decisions: [answered, ...chosen.data.decisions.slice(1)] };
+    const opened = (el: Element) => el.shadowRoot?.querySelector('cd-dialog.opened') ?? null;
+    const openedButtons = (el: Element) => [...(opened(el)?.querySelectorAll('cd-button') ?? [])];
+
+    it('opens in place on a tap: its kind, meta and context, and its buttons; one emits `act` and closes it', async () => {
+      await page.viewport(390, 800);
+      const el = await render(COMPOSANTS.PageAToi, withAnswers);
+      expect(opened(el)).toBeNull();
+
+      expect(await actionsOf(() => inside(rows(el)[0] as Element, '.open').click())).toEqual([]);
+      await settle(el);
+      const dialog = opened(el) as Element;
+      expect(inside<HTMLDialogElement>(dialog, 'dialog').open).toBe(true);
+      expect(textOf(inside(dialog, 'h2'))).toBe(answered.title);
+      expect([...dialog.querySelectorAll('p')].map((line) => textOf(line))).toEqual([answered.kind, answered.meta, answered.context]);
+      expect(openedButtons(el).map((button) => textOf(inside(button, 'button')))).toEqual(['Encore un passage', 'Arrêter']);
+      expect(inside(openedButtons(el)[0] as Element, 'button').getBoundingClientRect().width).toBeGreaterThan(0);
+
+      expect(await actionsOf(() => inside(openedButtons(el)[1] as Element, 'button').click())).toEqual([
+        { composant: 'PageAToi', action: 'act', payload: { id: answered.id, action: 'stop' } },
+      ]);
+      await settle(el);
+      expect(opened(el)).toBeNull();
+    });
+
+    it('closes on Escape without answering', async () => {
+      await page.viewport(390, 800);
+      const el = await render(COMPOSANTS.PageAToi, withAnswers);
+      inside(rows(el)[0] as Element, '.open').click();
+      await settle(el);
+      expect(await actionsOf(() => userEvent.keyboard('{Escape}'))).toEqual([]);
+      await settle(el);
+      expect(opened(el)).toBeNull();
+    });
+
+    it('keeps `open` for a Décision whose only button is « Ouvrir », and from 1280 px for every one', async () => {
+      await page.viewport(390, 800);
+      const el = await render(COMPOSANTS.PageAToi, withAnswers);
+      const second = chosen.data.decisions[1];
+      expect(await actionsOf(() => inside(rows(el)[1] as Element, '.open').click())).toEqual([
+        { composant: 'PageAToi', action: 'open', payload: { id: second?.id } },
+      ]);
+      await page.viewport(1280, 800);
+      await settle(el);
+      expect(await actionsOf(() => inside(rows(el)[0] as Element, '.open').click())).toEqual([
+        { composant: 'PageAToi', action: 'open', payload: { id: answered.id } },
+      ]);
+      await settle(el);
+      expect(opened(el)).toBeNull();
+    });
+
+    it('closes once the screen reaches 1280 px, where the row shows its buttons again', async () => {
+      await page.viewport(390, 800);
+      const el = await render(COMPOSANTS.PageAToi, withAnswers);
+      inside(rows(el)[0] as Element, '.open').click();
+      await settle(el);
+      expect(opened(el)).not.toBeNull();
+      await page.viewport(1280, 800);
+      // `change` of the media query comes after the resize.
+      await expect.poll(() => opened(el)).toBeNull();
+    });
   });
 
   it('sets its Emplacements beside the list from 1280 px, below it on a phone, and drops an empty aside', async () => {

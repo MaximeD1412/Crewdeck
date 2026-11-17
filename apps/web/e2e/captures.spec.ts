@@ -99,6 +99,10 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('Ton Runner ne répond plus');
     await expect(page.locator('cd-page-a-toi cd-decision-row')).toHaveCount(10);
   },
+  // « Maximum de Retours atteint » (PROCESS-6) among the nine Décisions of `a-toi`.
+  'a-toi-process': async (page) => {
+    await expect(page.locator('cd-page-a-toi cd-decision-row')).toHaveCount(10);
+  },
 };
 
 /** The scenarios whose capture is the screen, not the whole page: a modal over it. */

@@ -116,6 +116,7 @@ const PHASE_RUN: PhaseRun = {
   itemId: '42',
   state: 'running',
   waitingOn: null,
+  loopBacks: [],
   startedAt: AT,
   endedAt: null,
 };
@@ -134,6 +135,7 @@ const STEP_RUN: StepRun = {
   failure: null,
   reason: null,
   sessionId: null,
+  canAskChanges: false,
   startedAt: AT,
   endedAt: null,
 };

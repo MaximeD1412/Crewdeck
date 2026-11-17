@@ -1017,7 +1017,7 @@
       "gravite": "elevee",
       "titre": "Un Process mal composé tourne sans fin ou merge sans garde-fou",
       "statut": "solution choisie",
-      "statutDepuis": "2026-11-14",
+      "statutDepuis": "2026-11-16",
       "solutions": [
         {
           "texte": "Un Process avec un Manque ne s'active pas, vérifié par la même fonction dans la page et le serveur",
@@ -1032,7 +1032,7 @@
         {
           "texte": "Chaque Retour a son maximum ; la Review, les Checks et le Merge ne se retirent pas",
           "ref": "ADR 0011",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Un test par Manque et par refus du canevas",

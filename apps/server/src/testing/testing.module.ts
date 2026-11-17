@@ -1,5 +1,6 @@
 import { type DynamicModule, Global, Module } from '@nestjs/common';
 import { DecisionsModule } from '../decisions/decisions.module.js';
+import { MAILER } from '../auth/mail/mailer.js';
 import { RunnersModule } from '../runners/runners.module.js';
 import { GITHUB_CLIENT } from '../github/github.client.js';
 import { FakeGitHubController } from './fake-github.controller.js';
@@ -7,6 +8,7 @@ import { createFakes, FAKES, type Fakes } from './fakes.js';
 import { ScenariosService } from './scenarios.service.js';
 import { TestingController } from './testing.controller.js';
 import { TestingDecisionsController } from './testing-decisions.controller.js';
+import { TestingMailsController } from './testing-mails.controller.js';
 import { TestingPilotController } from './testing-pilot.controller.js';
 import { TestingRunnerController } from './testing-runner.controller.js';
 import { TestingSmokeController } from './testing-smoke.controller.js';
@@ -24,7 +26,7 @@ import { TestingWaitingWorkController } from './testing-waiting-work.controller.
  * a dynamic `import()` (`AppModule`): without it, nothing of `src/testing/` is
  * loaded, and `/api/testing/*` and `/fake-github/*` give 404.
  *
- * Global: `GITHUB_CLIENT` is the fake GitHub wherever a module injects it.
+ * Global: `GITHUB_CLIENT` is the fake GitHub, `MAILER` the fake mail, wherever a module injects them.
  */
 @Global()
 @Module({})
@@ -33,13 +35,14 @@ export class TestingModule {
     return {
       module: TestingModule,
       imports: [DecisionsModule, RunnersModule],
-      controllers: [TestingController, TestingPilotController, TestingDecisionsController, TestingRunnerController, TestingSmokeController, TestingWaitingWorkController, FakeGitHubController],
+      controllers: [TestingController, TestingPilotController, TestingDecisionsController, TestingRunnerController, TestingSmokeController, TestingWaitingWorkController, TestingMailsController, FakeGitHubController],
       providers: [
         ScenariosService,
         { provide: FAKES, useFactory: createFakes },
         { provide: GITHUB_CLIENT, inject: [FAKES], useFactory: (fakes: Fakes) => fakes.github },
+        { provide: MAILER, inject: [FAKES], useFactory: (fakes: Fakes) => fakes.mail },
       ],
-      exports: [FAKES, GITHUB_CLIENT],
+      exports: [FAKES, GITHUB_CLIENT, MAILER],
     };
   }
 }

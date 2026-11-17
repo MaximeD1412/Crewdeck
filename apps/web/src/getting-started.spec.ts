@@ -9,7 +9,7 @@ import { matchRoute } from './router.js';
 import { ROUTES } from './routes.js';
 import { createStore, type Store } from './store/store.js';
 
-const ME: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner' };
+const ME: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [] };
 const LINK_ID = '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a70';
 const AT = '2026-11-11T14:12:00.000Z';
 const SECRET = 'M2PXA7QK9VZ3T8W4R6N1B5C0DE';
@@ -393,8 +393,8 @@ describe('createGettingStarted', () => {
     expect(commands).toEqual([{ method: 'POST', path: '/api/me/getting-started/advance', body: { from: 'runner' } }]);
     expect(controller.view()).toMatchObject({ busy: false, step: 'ai-accounts' });
     expect(controller.pilot()?.gettingStartedStep).toBe('ai-accounts');
-    event('pilot.upserted', { ...ME, login: 'renamed', gettingStartedStep: 'ai-accounts' });
-    expect(controller.pilot()?.login).toBe('renamed');
+    event('pilot.upserted', { ...ME, displayName: 'renamed', gettingStartedStep: 'ai-accounts' });
+    expect(controller.pilot()?.displayName).toBe('renamed');
   });
 
   it('« Continuer » refused: not busy any more, the step unchanged, the error to the page', async () => {

@@ -1,4 +1,4 @@
-import { COMPOSANTS, PageAToi, PageComposants, PageConnexion, PageDemarrage, PageParametres, PageProjets, PageRunner, RepositoryPicker } from '@crewdeck/sdk';
+import { COMPOSANTS, PageAToi, PageComposants, PageConnexion, PageConnexionLien, PageDemarrage, PageParametres, PageProjets, PageRunner, RepositoryPicker } from '@crewdeck/sdk';
 import type { Route } from './router.js';
 import { aToiView } from './views/a-toi.js';
 import { composantsView } from './views/composants.js';
@@ -15,8 +15,10 @@ export const aToiHref = (projectId: string | null): string => (projectId ? `/a-t
  * The page URLs of ADR 0008 and their page Composant, filled by the page
  * tickets: `/a-toi` → `PageAToi`, `/idees` and `/idees/:id`, `/conceptions`,
  * `/boucle`, `/planning`, `/statistiques`, `/projets`, `/parametres`,
- * `/parametres/composants`; `/connexion` → `PageConnexion`, the only page
- * open signed out; `/demarrage` → `PageDemarrage`, whose data `app.ts` gives
+ * `/parametres/composants`; `/connexion` → `PageConnexion` and
+ * `/connexion/lien` → `PageConnexionLien`, the only pages open signed out,
+ * whose form and link `app.ts` keeps (`views/connexion.ts`,
+ * `views/connexion-lien.ts`); `/demarrage` → `PageDemarrage`, whose data `app.ts` gives
  * from « Premiers pas »' state (`getting-started.ts`); `/runner` →
  * `PageRunner`, whose data `app.ts` gives from the store
  * (`views/runner.ts`); `/projets` → `PageProjets` and `/projets/ajouter` →
@@ -33,6 +35,7 @@ export const ROUTES: readonly Route[] = [
       aToiView(state.slices.decision?.values() ?? [], match.query, { runnerOnline: state.slices.runner?.state === 'online' }),
   },
   { path: '/connexion', composant: PageConnexion, data: (match) => connexionView(match.query) },
+  { path: '/connexion/lien', composant: PageConnexionLien },
   { path: '/demarrage', composant: PageDemarrage },
   { path: '/runner', composant: PageRunner },
   { path: '/projets', composant: PageProjets },

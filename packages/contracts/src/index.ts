@@ -1,5 +1,6 @@
 export * from './values.js';
 export * from './api/ai-accounts.js';
+export * from './api/auth.js';
 export * from './api/commands.js';
 export * from './api/config.js';
 export * from './api/decisions.js';

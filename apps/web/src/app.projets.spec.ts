@@ -6,7 +6,7 @@ import type { Client } from './api/client.js';
 import { boot, type App } from './app.js';
 import { createStore } from './store/store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
 const AT = '2026-11-12T09:00:00.000Z';
 const REPOSITORY: Repository = {
   id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a81',

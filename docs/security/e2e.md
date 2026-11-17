@@ -555,6 +555,84 @@ Session key nor anything said in a Session.
 | No database write while frames are relayed, no ciphertext in the logs | `test/integration/session-relay.spec.ts`; `apps/server/src/logging/redact.spec.ts` |
 | The frames' fixtures valid in TypeScript and in Go | `packages/contracts/src/runner/relay.spec.ts`; `apps/runner/internal/protocol/fixtures_test.go` |
 
+## Commandes (RUNNER-18)
+
+A Commande's text runs on the Pilote's machine; a compromised server must
+not be able to make it run anything else (risk SEC-11, ADR 0013). Its output
+travels to the tabs as a Session's does.
+
+### What runs
+
+- `command.run { runId, projectId, commandId, sealed, origin, integrationBranch, ref }`
+  names a run; `sealed` is the version's sealed part as the page sealed it,
+  an [item under the vault key](#items-under-the-vault-key) with the
+  additional data `"process:<projectId>"`, whose plaintext is
+  `zSealedCommands` (`{ commands: { <commandId>: { run, where, healthUrl? } } }`).
+- The Runner opens it with its vault, under **the message's own**
+  `projectId`, and runs only the `run` of the message's `commandId`, in the
+  place its `where` says: a part sealed for another Projet does not open, a
+  `commandId` it does not hold opens nothing. Any failure ends the run
+  `sealed-invalid` and runs nothing. The message's `ref` (Étape, Ticket,
+  branch, sha) chooses which worktree or which commit, never what runs.
+- The run is `$SHELL -lc '<run>'` (`/bin/sh` when `SHELL` is unset) as the
+  Pilote, in its own process group, one at a time per Projet and Commande,
+  killed (SIGTERM, then SIGKILL 10 s later) after 30 minutes or on
+  `command.stop`. The verdict, `command.verdict { runId, passed, exitCode,
+  reason, durationMs }`, carries figures only.
+
+### The run's key and its output
+
+- A 32-byte AES-256-GCM key per run, drawn by the Runner when it starts,
+  kept in `commands/<runId>.key` of its folder (mode 600) for the replays,
+  and removed with the run's log after 30 days.
+- `command.keys` carries one [authenticated wrap](#authenticated-wraps) per
+  holder, as `session.keys` does: `info` `crewdeck/v1/session-key`, the
+  additional data `"command:<runId>:<holderId>"` (`commandWrapAad`), which a
+  Session's wraps never use.
+- Each chunk is the JSON of `zCommandOutputChunk` (`{ stream, text, at }`:
+  the whole lines one read gave, or 16 KiB cut at a character's start),
+  sealed under the run's key with the additional data
+  `"command:<runId>:<seq>"` (`commandOutputAad`). The Runner logs the
+  plaintext chunks in `commands/<runId>.log` (mode 600, its folder 700), and
+  replays from it.
+
+| Message | From → to | Sealed | Additional data |
+|---|---|---|---|
+| `command.open { runId, fromSeq }` | tab → server | | |
+| `command.replay { runId, tabId, fromSeq }` | server → Runner | | |
+| `command.keys { runId, tabId?, wraps }` | Runner → server → tab | each wrap | `"command:<runId>:<holderId>"` |
+| `command.output { runId, tabId?, seq, nonce, ciphertext }` | Runner → server → tab | the chunk at `seq` | `"command:<runId>:<seq>"` |
+| `command.close { runId }` | tab → server | | |
+| `command.error { runId, code }` | server → tab | | |
+
+The rules of [the Session's frames](#the-frames) hold to the letter: a
+frame with a `tabId` is that tab's replay, one without is live; the tab
+drops a chunk that does not open under its own run and `seq` with a console
+warning naming its ids, opens the run again from the first missing `seq` on
+a gap and on each socket opened again; the server refuses the open of a run
+that is not the Pilote's (`command.not-found`, `COMMAND_RUN_OWNERS`),
+answers `command.runner-offline` while the Runner is away and asks the
+replay once its `hello` is accepted.
+
+### What the server sees of a Commande
+
+The ids (`runId`, `projectId`, `commandId`, `tabId`, `holderId`), the
+Ticket's ref, `seq`, the verdict's figures, the lengths and the times; the
+sealed part and the frames' bytes it cannot open. It never sees a
+Commande's text nor its output, writes no frame, and logs one by its `type`
+and `runId` only.
+
+### What proves it
+
+| What | Test |
+|---|---|
+| A sealed part opens only for its Projet and its `commandId`; what fails to open runs nothing | `apps/runner/internal/command/command_test.go` (`TestASealedPartThatDoesNotOpenForThisRunRunsNothing`) |
+| The run gets its exit code, its place, its 30 min, its stop | `command_test.go`, `output_test.go` |
+| The output logged privately, sealed for the Appareils live and on replay | `output_test.go` (`TestTheOutputIsLoggedPrivatelyAndReplaysFromASeq`, `TestTheOutputIsRelayedSealedForTheAppareilsLiveAndOnReplay`) |
+| A chunk under another run or `seq`, keys under another context or Runner, dropped and never shown | `apps/web/src/commands/output.spec.ts` |
+| The server relays to the tab that opened the run only, refuses another Pilote's, replays at the hello; no write, no ciphertext in the logs | `apps/server/src/commands/relay/command-output-relay.spec.ts`; `apps/server/test/integration/command-runs.spec.ts` |
+| The messages' fixtures valid in TypeScript and in Go | `packages/contracts/src/runner/command.spec.ts`; `apps/runner/internal/protocol/fixtures_test.go` |
+
 ## Idées (IDEE-1)
 
 An Idée's free text is three [items under the vault key](#items-under-the-vault-key),

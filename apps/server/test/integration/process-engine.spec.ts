@@ -189,7 +189,7 @@ describe('the engine against PostgreSQL', () => {
     expect((await deliverWebhook(url, { event: 'installation', payload: created })).status).toBe(202);
     await app.get(WebhookDispatcher).settled();
     const { seq, repositories } = await state();
-    const followed = await call('POST', '/api/projects', { repositoryIds: repositories.map((repository) => repository.id), seq: String(seq) });
+    const followed = await call('POST', '/api/projects', { repositoryIds: repositories.map((repository) => repository.id), templateId: 'process-crewdeck', seq: String(seq) });
     expect(followed.status).toBe(201);
     projectId = zProjectList.parse(await followed.json()).items[0]?.id ?? '';
   });

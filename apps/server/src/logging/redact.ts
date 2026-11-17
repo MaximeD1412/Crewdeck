@@ -6,7 +6,7 @@
  * (CORE-9), or an Idée's sealed fields (its text, its analysis, the reason of
  * its triage), at the top of a log object or one level down.
  */
-const SECRET_KEYS = ['ciphertext', 'wrappedKey', 'wraps', 'enc', 'nonce', 'payload', 'token', 'accessToken', 'refreshToken', 'email', 'text', 'analysis', 'reason'];
+const SECRET_KEYS = ['ciphertext', 'sealed', 'nameSealed', 'folderSealed', 'wrappedKey', 'wraps', 'enc', 'nonce', 'payload', 'token', 'accessToken', 'refreshToken', 'email', 'text', 'analysis', 'reason'];
 
 export const REDACT_PATHS: readonly string[] = [
   'req.headers.authorization',

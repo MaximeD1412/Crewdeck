@@ -1,4 +1,4 @@
-import { type FollowProjects, type Project, type ProjectList, zId, zFollowProjects, zProject, zProjectList } from '@crewdeck/contracts';
+import { type FollowProjects, type ProcessTemplateId, type Project, type ProjectList, zId, zFollowProjects, zProject, zProjectList } from '@crewdeck/contracts';
 import { Body, Controller, Get, Inject, Injectable, type OnModuleInit, Param, Post } from '@nestjs/common';
 import { createZodDto, ZodResponse } from 'nestjs-zod';
 import { AppError, notFound, unprocessable } from '../errors/app-error.js';
@@ -38,8 +38,8 @@ const isUniqueViolation = (error: unknown): boolean => error instanceof Prisma.P
  * release branch the repository's default one (ADR 0011: no file of the
  * repository is read, the Pilote changes them in its Paramètres). One
  * transaction writes every Projet of the command, each with its Sources
- * (both groups on GitHub, SOURCE-1), its Process (version 1 of « Process
- * Crewdeck », PROCESS-3) and its `process.upserted`,
+ * (both groups on GitHub, SOURCE-1), its Process (from the Modèle de process the
+ * Pilote chose, PROCESS-3) and its `process.upserted`,
  * its `project.upserted` and its repository's `repository.upserted` (followed).
  */
 @Injectable()
@@ -60,14 +60,14 @@ export class Projects {
    * the transaction checks again; two commands at once on the same
    * repository: the unique index lets one through, the other is 422.
    */
-  async follow(pilotId: string, { repositoryIds, seq }: FollowProjects): Promise<Project[]> {
+  async follow(pilotId: string, { repositoryIds, templateId, seq }: FollowProjects): Promise<Project[]> {
     const ids = [...new Set(repositoryIds)];
     if ((await this.prisma.scoped.repository.count({ where: { id: { in: ids } } })) !== ids.length) throw repositoryNotFound();
     if ((await this.prisma.scoped.project.count({ where: { repositoryId: { in: ids } } })) > 0) {
       throw alreadyFollowed();
     }
     try {
-      const projects = await this.write(pilotId, ids, BigInt(seq));
+      const projects = await this.write(pilotId, ids, templateId, BigInt(seq));
       this.changes.changed(pilotId);
       return projects;
     } catch (error) {
@@ -76,7 +76,7 @@ export class Projects {
     }
   }
 
-  private write(pilotId: string, ids: readonly string[], seq: bigint): Promise<Project[]> {
+  private write(pilotId: string, ids: readonly string[], templateId: ProcessTemplateId, seq: bigint): Promise<Project[]> {
     return this.transactions.run(async (tx) => {
       const projects: Project[] = [];
       for (const id of ids) {
@@ -107,7 +107,7 @@ export class Projects {
         await tx.project.update({ where: { id: projectId }, data: { lastSeq: projectSeq } });
         // Its Sources first, so that its first process.upserted holds them: a Dépôt GitHub, both groups on GitHub.
         await this.sources.createDefaults(tx, projectId, 'github');
-        await this.process.createInitialVersion(tx, projectId, { template: 'process-crewdeck' });
+        await this.process.createInitialVersion(tx, projectId, { template: templateId });
         const view = { id, owner: repository.owner, name: repository.name, fullName: repository.fullName, private: repository.private, defaultBranch: repository.defaultBranch, hasCode: repository.hasCode };
         const repositorySeq = await this.events.write(tx, pilotId, 'repository.upserted', { ...view, followed: true });
         await tx.repository.update({ where: { id }, data: { lastSeq: repositorySeq } });

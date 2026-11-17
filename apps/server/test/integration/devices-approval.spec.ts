@@ -5,6 +5,7 @@ import {
   zDevice,
   zDeviceApproval,
   zDeviceCreated,
+  zDeviceHolders,
   zPendingDevice,
   zRunnerLinkStatus,
   zVaultKeyWrap,
@@ -18,6 +19,7 @@ import { appOrigin, parseEnv } from '../../src/config/env.js';
 import { DeviceClock } from '../../src/devices/device-clock.js';
 import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
+import { RunnerLinkLimiter } from '../../src/runners/link/link-limiter.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
 import { approvalProof, newDeviceSide, pairingSides, shapedWrap } from '../fakes/pairing.js';
 import { expectEnvelope, expectFields, startApp } from '../route-baseline.js';
@@ -42,6 +44,7 @@ const sql = async <T extends pg.QueryResultRow>(text: string, values: unknown[] 
   }
 };
 
+const b64url = (length: number): string => Buffer.from(crypto.getRandomValues(new Uint8Array(length))).toString('base64url');
 const MACHINE = { machine: 'atelier', os: 'linux', arch: 'amd64', wsl: true, runnerVersion: '0.1.0', engines: ['claude'] } as const;
 
 interface Tab {
@@ -68,6 +71,8 @@ describe('a new Appareil approved by its code, against PostgreSQL', () => {
 
   beforeEach(async () => {
     await sql('TRUNCATE pilots CASCADE');
+    // Each test links its Runners: the limiter of `POST /api/runner/link` counts per test.
+    app.get(RunnerLinkLimiter).reset();
   });
 
   afterEach(() => {
@@ -360,6 +365,58 @@ describe('a new Appareil approved by its code, against PostgreSQL', () => {
       await expectEnvelope(await binary(`/api/runner/devices/${created.id}/approve`, { body: { ...body, approver: { type: 'device', id: first.deviceId } }, token: first.token }), 422, 'devices.not-trusted');
       await expectEnvelope(await binary(`/api/runner/devices/pending/${bobs.created.shortId}`, { token: first.token }), 404, 'devices.code-unknown');
       await expectEnvelope(await binary(`/api/runner/devices/${bobs.created.id}/approve`, { body, token: first.token }), 404, 'devices.not-found');
+    });
+  });
+
+  describe('for the Sessions: the Runner’s key handed on, the holders the Runner reads', () => {
+    it('keeps the Runner’s key a trusted Appareil handed on for the new page, and its holder wrap for the Runner', async () => {
+      const alice = await pilot();
+      const first = await linked(alice);
+      const { side, created } = await register(alice);
+      const runner = { publicKey: first.sides.runnerPublicKey, proof: b64url(32) };
+      const holder = shapedWrap();
+      const body = { ...approval(side, { type: 'device', id: first.deviceId, publicKey: first.sides.devicePublicKey }), runner, holder };
+
+      expect((await page(alice, `/api/devices/${created.id}/approve`, { body, deviceId: first.deviceId })).status).toBe(200);
+
+      const approved = zDeviceApproval.parse(await (await page(alice, `/api/devices/${created.id}/approval`, { deviceId: created.id })).json());
+      expect(approved.runner).toEqual(runner);
+      const holders = zDeviceHolders.parse(await (await binary('/api/runner/devices/holders', { token: first.token })).json());
+      expect(holders.holders).toEqual([{ deviceId: created.id, publicKey: side.publicKey, approverPublicKey: first.sides.devicePublicKey, wrap: holder }]);
+    });
+
+    it('lists the holder wrap of an Appareil the Runner approved, from the Runner’s key; none for an approval without one, nor another Pilote’s', async () => {
+      const alice = await pilot('alice');
+      const bob = await pilot('bob');
+      const first = await linked(alice);
+      const bobFirst = await linked(bob);
+      const byRunner = await register(alice);
+      const holder = shapedWrap();
+      const body = { ...approval(byRunner.side, { type: 'runner', id: first.runnerId, publicKey: first.sides.runnerPublicKey }), holder };
+      expect((await binary(`/api/runner/devices/${byRunner.created.id}/approve`, { body, token: first.token })).status).toBe(200);
+      const without = await register(alice);
+      const plain = approval(without.side, { type: 'device', id: first.deviceId, publicKey: first.sides.devicePublicKey });
+      expect((await page(alice, `/api/devices/${without.created.id}/approve`, { body: plain, deviceId: first.deviceId })).status).toBe(200);
+      const bobs = await register(bob);
+      const bobBody = { ...approval(bobs.side, { type: 'runner', id: bobFirst.runnerId, publicKey: bobFirst.sides.runnerPublicKey }), holder: shapedWrap() };
+      expect((await binary(`/api/runner/devices/${bobs.created.id}/approve`, { body: bobBody, token: bobFirst.token })).status).toBe(200);
+
+      const holders = zDeviceHolders.parse(await (await binary('/api/runner/devices/holders', { token: first.token })).json());
+      expect(holders.holders).toEqual([{ deviceId: byRunner.created.id, publicKey: byRunner.side.publicKey, approverPublicKey: first.sides.runnerPublicKey, wrap: holder }]);
+      await expectEnvelope(await binary('/api/runner/devices/holders'), 401, 'runner.token-invalid');
+    });
+
+    it('answers 422 devices.approval-invalid to a Runner’s key from the Runner, or from an Appareil without its holder wrap', async () => {
+      const alice = await pilot();
+      const first = await linked(alice);
+      const { side, created } = await register(alice);
+      const runner = { publicKey: first.sides.runnerPublicKey, proof: b64url(32) };
+      const byRunner = { ...approval(side, { type: 'runner', id: first.runnerId, publicKey: first.sides.runnerPublicKey }), runner, holder: shapedWrap() };
+      await expectEnvelope(await binary(`/api/runner/devices/${created.id}/approve`, { body: byRunner, token: first.token }), 422, 'devices.approval-invalid');
+      const byDevice = { ...approval(side, { type: 'device', id: first.deviceId, publicKey: first.sides.devicePublicKey }), runner };
+      await expectEnvelope(await page(alice, `/api/devices/${created.id}/approve`, { body: byDevice, deviceId: first.deviceId }), 422, 'devices.approval-invalid');
+      const holderOnly = { ...approval(side, { type: 'device', id: first.deviceId, publicKey: first.sides.devicePublicKey }), holder: shapedWrap() };
+      await expectEnvelope(await page(alice, `/api/devices/${created.id}/approve`, { body: holderOnly, deviceId: first.deviceId }), 422, 'devices.approval-invalid');
     });
   });
 });

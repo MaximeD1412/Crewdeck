@@ -155,6 +155,14 @@ func TestTheRunnerApprovesANewAppareilByItsCode(t *testing.T) {
 	if want := b64.EncodeToString(keys.ApproveDeviceProof(s.secret, keys.PublicKeyBytes(s.phone), keys.PublicKeyBytes(s.runner))); body.Proof != want {
 		t.Fatalf("proof_A %s, want %s", body.Proof, want)
 	}
+	// For the Sessions: the Runner vouches for the new key to itself, and hands on no key of its own.
+	if body.Runner != nil || body.Holder == nil {
+		t.Fatalf("runner %+v, holder %+v", body.Runner, body.Holder)
+	}
+	held, err := keys.OpenWrap(s.runner, keys.PublicKeyBytes(s.runner), keys.Wrap{Enc: mustDecode(t, body.Holder.Enc), Ciphertext: mustDecode(t, body.Holder.Ciphertext), Tag: mustDecode(t, body.Holder.Tag)}, []byte(keys.InfoDeviceHolder), []byte(newDeviceID))
+	if err != nil || !bytes.Equal(held, keys.PublicKeyBytes(s.phone)) {
+		t.Fatalf("the holder wrap opens to %x (%v)", held, err)
+	}
 	for _, token := range fake.tokens {
 		if token != "Bearer "+deviceToken {
 			t.Fatalf("authorization %q", token)

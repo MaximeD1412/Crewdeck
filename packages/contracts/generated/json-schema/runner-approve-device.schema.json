@@ -24,9 +24,50 @@
       ],
       "type": "object"
     },
+    "holder": {
+      "additionalProperties": false,
+      "properties": {
+        "ciphertext": {
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "enc": {
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "tag": {
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ciphertext",
+        "enc",
+        "tag"
+      ],
+      "type": "object"
+    },
     "proof": {
       "pattern": "^[A-Za-z0-9_-]*$",
       "type": "string"
+    },
+    "runner": {
+      "additionalProperties": false,
+      "properties": {
+        "proof": {
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "publicKey": {
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "proof",
+        "publicKey"
+      ],
+      "type": "object"
     },
     "vaultKeyVersion": {
       "exclusiveMinimum": 0,

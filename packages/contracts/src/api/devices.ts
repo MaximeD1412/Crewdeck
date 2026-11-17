@@ -46,7 +46,16 @@ export type DeviceList = z.infer<typeof zDeviceList>;
  * key with `proof_N`; the approver checks it, wraps the vault key for that key
  * and sends `proof_A`, which the new page checks before it opens the wrap.
  */
-export const DEVICE_PROOF_LABELS = { new: 'crewdeck/v1/device/new', approve: 'crewdeck/v1/device/approve' } as const;
+export const DEVICE_PROOF_LABELS = { new: 'crewdeck/v1/device/new', approve: 'crewdeck/v1/device/approve', runner: 'crewdeck/v1/device/runner' } as const;
+
+/**
+ * The Runner's public key a trusted Appareil authenticated, handed on to the
+ * one it approves: `proof = HMAC-SHA256(secret, "crewdeck/v1/device/runner" ‖
+ * newPublicKey ‖ runnerPublicKey)`, which the new page checks before it opens
+ * a Session's keys with it.
+ */
+export const zApprovalRunner = z.object({ publicKey: zBytes32, proof: zBytes32 });
+export type ApprovalRunner = z.infer<typeof zApprovalRunner>;
 
 /** What the QR code of a new Appareil holds before its code: `crewdeck:appareil:<shortId>-<secret>`. */
 export const DEVICE_CODE_PREFIX = 'crewdeck:appareil:';
@@ -89,12 +98,22 @@ export type ApproverType = z.infer<typeof zApproverType>;
  * `POST /api/runner/devices/:id/approve` (Runner): the vault key wrapped by
  * the approver for the new Appareil (additional data `"<id>:<vaultKeyVersion>"`)
  * and `HMAC-SHA256(secret, "crewdeck/v1/device/approve" ‖ newPublicKey ‖ approverPublicKey)`.
+ *
+ * For the Sessions (SESSION-1), when the approver knows the Runner's key:
+ * - `runner`, from a trusted Appareil only: that key and its proof, for the new page;
+ * - `holder`, for the Runner: the new public key in an authenticated wrap
+ *   from the approver to the Runner (`info` `crewdeck/v1/device-holder`,
+ *   additional data the new Appareil's id); the Runner wraps a Session's
+ *   key for it once the wrap opens with the key of an Appareil it holds.
+ * A trusted Appareil sends both or neither.
  */
 export const zApproveDevice = z.object({
   approver: z.object({ type: zApproverType, id: zId }),
   vaultKeyVersion: zVaultKeyVersion,
   wrap: zWrap,
   proof: zBytes32,
+  runner: zApprovalRunner.optional(),
+  holder: zWrap.optional(),
 });
 export type ApproveDevice = z.infer<typeof zApproveDevice>;
 
@@ -102,5 +121,19 @@ export type ApproveDevice = z.infer<typeof zApproveDevice>;
 export const zDeviceApproval = z.object({
   approver: z.object({ type: zApproverType, id: zId, publicKey: zBytes32 }),
   proof: zBytes32,
+  /** The Runner's key the approving Appareil handed on, when it had one. */
+  runner: zApprovalRunner.optional(),
 });
 export type DeviceApproval = z.infer<typeof zDeviceApproval>;
+
+/**
+ * `GET /api/runner/devices/holders` (Runner): the Pilote's trusted Appareils
+ * an approval sent a holder wrap for, each with its approver's public key.
+ * The Runner takes one only when its wrap opens from a key it already holds
+ * (the first Appareil's, its own, or one taken before): the server can hide
+ * one, never add one.
+ */
+export const zDeviceHolders = z.object({
+  holders: z.array(z.object({ deviceId: zId, publicKey: zBytes32, approverPublicKey: zBytes32, wrap: zWrap })),
+});
+export type DeviceHolders = z.infer<typeof zDeviceHolders>;

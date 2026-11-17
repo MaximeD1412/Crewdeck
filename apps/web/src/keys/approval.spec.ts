@@ -1,8 +1,9 @@
-import type { ApproveDevice, Device, DeviceApproval, NewDeviceRequest, PendingDevice, VaultKeyWrap } from '@crewdeck/contracts';
+import type { ApproveDevice, Device, DeviceApproval, EngineEvent, NewDeviceRequest, PendingDevice, TabRelayServerMessage, VaultKeyWrap } from '@crewdeck/contracts';
 import { server } from 'vitest/browser';
 import { type ApprovalApi, approveDeviceProof, createDeviceApproval, deviceCodeText, deviceCodeUri, newDeviceProof, parseDeviceCode } from './approval.js';
-import { fromBase64Url, toBase64Url, utf8 } from './bytes.js';
-import { generateKeyPair, publicKeyOf } from './crypto.js';
+import { type Bytes, fromBase64Url, toBase64Url, utf8 } from './bytes.js';
+import { createSessionRelay } from '../sessions/relay.js';
+import { INFO, aesGcmSeal, generateKeyPair, importAesKey, openWrap, publicKeyOf, sealWrap } from './crypto.js';
 import { memoryDeviceStore, x25519FromPrivateKey } from './testing.js';
 import { createVault } from './vault.js';
 
@@ -40,7 +41,7 @@ const fakeServer = () => {
     async approve(id, body: ApproveDevice) {
       sent.push(body);
       const trusted: Device = { id, name: pending?.name ?? '', state: 'trusted', approvedAt: '2026-11-11T10:01:00.000Z', revokedAt: null, lastSeenAt: null, current: false };
-      approval = { approver: { type: body.approver.type, id: body.approver.id, publicKey: approverKey }, proof: body.proof };
+      approval = { approver: { type: body.approver.type, id: body.approver.id, publicKey: approverKey }, proof: body.proof, ...(body.runner ? { runner: body.runner } : {}) };
       wrap = { ...body.wrap, vaultKeyVersion: body.vaultKeyVersion };
       return trusted;
     },
@@ -62,10 +63,10 @@ const fakeServer = () => {
 };
 
 /** The trusted Appareil: the Runner's vault of the fixtures, unlocked. */
-const trustedSide = async (api: ApprovalApi) => {
+const trustedSide = async (api: ApprovalApi, runnerPublicKey?: Bytes) => {
   const { vault: vectors } = JSON.parse(await server.commands.readFile(fixtures + 'item.json')) as ItemVectors;
   const { privateKey, publicKey } = await x25519FromPrivateKey(fromBase64Url(vectors.devicePrivateKey));
-  const devices = memoryDeviceStore({ deviceId: vectors.deviceId, privateKey, publicKey });
+  const devices = memoryDeviceStore({ deviceId: vectors.deviceId, privateKey, publicKey, ...(runnerPublicKey ? { runnerPublicKey } : {}) });
   const vault = createVault({ devices, fetchWrap: async () => ({ ...vectors.wrap, vaultKeyVersion: vectors.vaultKeyVersion }) });
   await vault.unlockVault();
   return { devices, vault, keys: createDeviceApproval({ devices, vault, api, userAgent: UA }), publicKey: toBase64Url(publicKey), deviceId: vectors.deviceId };
@@ -86,12 +87,23 @@ const newSide = (api: ApprovalApi, wrap: () => VaultKeyWrap | null) => {
   return { devices, vault, named, keys: createDeviceApproval({ devices, vault, api, userAgent: UA, onDevice: (id) => named.push(id) }) };
 };
 
-const setUp = async () => {
+const setUp = async ({ runnerPublicKey }: { runnerPublicKey?: Bytes } = {}) => {
   const fake = fakeServer();
-  const trusted = await trustedSide(fake.api);
+  const trusted = await trustedSide(fake.api, runnerPublicKey);
   fake.knowApprover(trusted.publicKey);
   const fresh = newSide(fake.api, fake.wrap);
   return { fake, trusted, fresh };
+};
+
+/** The new page registers, the trusted one checks and approves its code. */
+const approveFresh = async (trusted: Awaited<ReturnType<typeof trustedSide>>, fresh: ReturnType<typeof newSide>) => {
+  const code = await fresh.keys.register();
+  const typed = parseDeviceCode(deviceCodeUri(code));
+  if (!typed) throw new Error('the code does not parse');
+  const checked = await trusted.keys.check(typed);
+  if (checked === 'mismatch') throw new Error('mismatch');
+  await trusted.keys.approve(checked);
+  return code;
 };
 
 describe('a new Appareil approved by its code', () => {
@@ -120,29 +132,82 @@ describe('a new Appareil approved by its code', () => {
     for (const body of fake.sent) expect(JSON.stringify(body)).not.toContain(code.secret);
   });
 
-  it('keeps the Runner’s key for the Sessions when the Runner approved it, none when an Appareil did', async () => {
+  it('keeps the Runner’s key for the Sessions when the Runner approved it', async () => {
     const { fake, trusted, fresh } = await setUp();
-    const code = await fresh.keys.register();
-    const typed = parseDeviceCode(deviceCodeUri(code));
-    if (!typed) throw new Error('the code does not parse');
-    const checked = await trusted.keys.check(typed);
-    if (checked === 'mismatch') throw new Error('mismatch');
-    await trusted.keys.approve(checked);
+    const code = await approveFresh(trusted, fresh);
     fake.tamper.approval = (approval) => ({ ...approval, approver: { ...approval.approver, type: 'runner' } });
 
     expect(await fresh.keys.adopt(code)).toBe('approved');
     expect(fresh.devices.current()?.runnerPublicKey).toEqual(fromBase64Url(trusted.publicKey));
     expect(fresh.devices.current()?.senderPublicKey).toEqual(fromBase64Url(trusted.publicKey));
+  });
 
-    const other = await setUp();
-    const otherCode = await other.fresh.keys.register();
-    const otherTyped = parseDeviceCode(deviceCodeUri(otherCode));
-    if (!otherTyped) throw new Error('the code does not parse');
-    const otherChecked = await other.trusted.keys.check(otherTyped);
-    if (otherChecked === 'mismatch') throw new Error('mismatch');
-    await other.trusted.keys.approve(otherChecked);
-    expect(await other.fresh.keys.adopt(otherCode)).toBe('approved');
-    expect(other.fresh.devices.current()?.runnerPublicKey).toBeUndefined();
+  it('hands the new Appareil the Runner’s key the trusted one authenticated: it opens a Session’s keys and frames', async () => {
+    const runner = await generateKeyPair();
+    const runnerPublicKey = await publicKeyOf(runner.privateKey);
+    const { fake, trusted, fresh } = await setUp({ runnerPublicKey });
+    const code = await approveFresh(trusted, fresh);
+    expect(await fresh.keys.adopt(code)).toBe('approved');
+    const device = fresh.devices.current();
+    expect(device?.runnerPublicKey).toEqual(runnerPublicKey);
+
+    // The Runner, holding the new Appareil's key, wraps a Session's key for it.
+    const sessionId = '01933b6e-8f3a-7c4d-9e2f-0a1b2c3d4e60';
+    const holderId = toBase64Url(device?.publicKey ?? new Uint8Array());
+    const raw = crypto.getRandomValues(new Uint8Array(32));
+    const wrap = await sealWrap(runner.privateKey, device?.publicKey ?? new Uint8Array(), raw, INFO.sessionKey, utf8(`${sessionId}:${holderId}`));
+    const event: EngineEvent = { kind: 'message', seq: 1, at: '2026-11-16T09:00:05.000Z', from: 'agent', text: 'Bonjour', final: false };
+    const sealed = await aesGcmSeal(await importAesKey(raw), utf8(JSON.stringify(event)), utf8(`${sessionId}:1`));
+    const listeners = new Set<(message: TabRelayServerMessage) => void>();
+    const relay = createSessionRelay({
+      socket: { sendRelay: () => true, onRelay: (listener) => (listeners.add(listener), () => listeners.delete(listener)), onOpen: () => () => undefined },
+      devices: fresh.devices,
+      warn: (message) => {
+        throw new Error(message);
+      },
+    });
+    const followed = relay.openSession(sessionId);
+    const receive = (message: TabRelayServerMessage) => {
+      for (const listener of listeners) listener(message);
+    };
+    receive({ type: 'session.keys', sessionId, wraps: [{ holderId, enc: toBase64Url(wrap.enc), wrappedKey: toBase64Url(wrap.ciphertext), tag: toBase64Url(wrap.tag) }] });
+    receive({ type: 'relay', sessionId, seq: 1, nonce: toBase64Url(sealed.subarray(0, 12)), ciphertext: toBase64Url(sealed.subarray(12)) });
+    await vi.waitFor(() => expect(followed.events()).toEqual([event]));
+
+    // The Runner learns the new Appareil from the trusted one: a wrap of its key only the Runner opens.
+    const body = fake.sent.find((sent): sent is ApproveDevice => typeof sent === 'object' && sent !== null && 'wrap' in sent);
+    if (!body?.holder) throw new Error('no holder wrap for the Runner');
+    const opened = await openWrap(
+      runner.privateKey,
+      fromBase64Url(trusted.publicKey),
+      { enc: fromBase64Url(body.holder.enc), ciphertext: fromBase64Url(body.holder.ciphertext), tag: fromBase64Url(body.holder.tag) },
+      INFO.deviceHolder,
+      utf8(NEW_ID),
+    );
+    expect(opened).toEqual(device?.publicKey);
+  });
+
+  it('refuses a Runner’s key the server swapped, and keeps nothing', async () => {
+    const runner = await generateKeyPair();
+    const other = await generateKeyPair();
+    const { fake, trusted, fresh } = await setUp({ runnerPublicKey: await publicKeyOf(runner.privateKey) });
+    const code = await approveFresh(trusted, fresh);
+    const swapped = toBase64Url(await publicKeyOf(other.privateKey));
+    fake.tamper.approval = (approval) => ({ ...approval, ...(approval.runner ? { runner: { ...approval.runner, publicKey: swapped } } : {}) });
+
+    expect(await fresh.keys.adopt(code)).toBe('invalid');
+    expect(fresh.devices.current()?.deviceId).toBeNull();
+    expect(fresh.devices.current()?.runnerPublicKey).toBeUndefined();
+  });
+
+  it('sends no Runner’s key nor holder wrap from an Appareil that has none', async () => {
+    const { fake, trusted, fresh } = await setUp();
+    const code = await approveFresh(trusted, fresh);
+    expect(await fresh.keys.adopt(code)).toBe('approved');
+    const body = fake.sent.find((sent): sent is ApproveDevice => typeof sent === 'object' && sent !== null && 'wrap' in sent);
+    expect(body).not.toHaveProperty('runner');
+    expect(body).not.toHaveProperty('holder');
+    expect(fresh.devices.current()?.runnerPublicKey).toBeUndefined();
   });
 
   it('keeps the key pair of a code not approved yet for the next code', async () => {

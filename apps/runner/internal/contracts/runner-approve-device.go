@@ -11,8 +11,14 @@ type RunnerApproveDevice struct {
 	// Approver corresponds to the JSON schema field "approver".
 	Approver RunnerApproveDeviceApprover `json:"approver"`
 
+	// Holder corresponds to the JSON schema field "holder".
+	Holder *RunnerApproveDeviceHolder `json:"holder,omitempty,omitzero"`
+
 	// Proof corresponds to the JSON schema field "proof".
 	Proof string `json:"proof"`
+
+	// Runner corresponds to the JSON schema field "runner".
+	Runner *RunnerApproveDeviceRunner `json:"runner,omitempty,omitzero"`
 
 	// VaultKeyVersion corresponds to the JSON schema field "vaultKeyVersion".
 	VaultKeyVersion int `json:"vaultKeyVersion"`
@@ -80,6 +86,85 @@ func (j *RunnerApproveDeviceApprover) UnmarshalJSON(value []byte) error {
 		return fmt.Errorf("field %s pattern match: must match %s", "Id", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
 	}
 	*j = RunnerApproveDeviceApprover(plain)
+	return nil
+}
+
+type RunnerApproveDeviceHolder struct {
+	// Ciphertext corresponds to the JSON schema field "ciphertext".
+	Ciphertext string `json:"ciphertext"`
+
+	// Enc corresponds to the JSON schema field "enc".
+	Enc string `json:"enc"`
+
+	// Tag corresponds to the JSON schema field "tag".
+	Tag string `json:"tag"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerApproveDeviceHolder) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["ciphertext"]; raw != nil && !ok {
+		return fmt.Errorf("field ciphertext in RunnerApproveDeviceHolder: required")
+	}
+	if _, ok := raw["enc"]; raw != nil && !ok {
+		return fmt.Errorf("field enc in RunnerApproveDeviceHolder: required")
+	}
+	if _, ok := raw["tag"]; raw != nil && !ok {
+		return fmt.Errorf("field tag in RunnerApproveDeviceHolder: required")
+	}
+	type Plain RunnerApproveDeviceHolder
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Ciphertext)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Ciphertext", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Enc)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Enc", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Tag)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Tag", `^[A-Za-z0-9_-]*$`)
+	}
+	*j = RunnerApproveDeviceHolder(plain)
+	return nil
+}
+
+type RunnerApproveDeviceRunner struct {
+	// Proof corresponds to the JSON schema field "proof".
+	Proof string `json:"proof"`
+
+	// PublicKey corresponds to the JSON schema field "publicKey".
+	PublicKey string `json:"publicKey"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerApproveDeviceRunner) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["proof"]; raw != nil && !ok {
+		return fmt.Errorf("field proof in RunnerApproveDeviceRunner: required")
+	}
+	if _, ok := raw["publicKey"]; raw != nil && !ok {
+		return fmt.Errorf("field publicKey in RunnerApproveDeviceRunner: required")
+	}
+	type Plain RunnerApproveDeviceRunner
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Proof)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Proof", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.PublicKey)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "PublicKey", `^[A-Za-z0-9_-]*$`)
+	}
+	*j = RunnerApproveDeviceRunner(plain)
 	return nil
 }
 

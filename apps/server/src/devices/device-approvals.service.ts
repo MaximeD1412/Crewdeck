@@ -5,6 +5,7 @@ import {
   type Device,
   type DeviceApproval,
   type DeviceCreated,
+  type DeviceHolders,
   type NewDeviceRequest,
   PENDING_DEVICES_MAX,
   type PendingDevice,
@@ -20,7 +21,7 @@ import { drawShortId, newId } from '../ids.js';
 import { EventsWriter } from '../realtime/events.writer.js';
 import { Transactions, type Tx } from '../realtime/transactions.js';
 import { DeviceClock } from './device-clock.js';
-import { bytesOf, DEVICE_VIEW, textOf, toDevice, wrapColumns } from './device.view.js';
+import { bytesOf, DEVICE_VIEW, textOf, toDevice, wrapColumns, wrapOf } from './device.view.js';
 import { deviceNotTrusted, deviceUnknown } from './devices.service.js';
 
 const SHORT_ID_TRIES = 5;
@@ -121,6 +122,9 @@ export class DeviceApprovals {
       if (device.state !== 'pending' || !device.shortId || !device.expiresAt || device.expiresAt <= now) throw notPending();
       const approverPublicKey = await this.approverKey(tx, approving, body.approver);
       if (!approverPublicKey) throw deviceNotTrusted();
+      // The Runner's key is handed on by a trusted Appareil only, with the holder wrap that tells the Runner.
+      if (body.runner && (body.approver.type === 'runner' || !body.holder)) throw approvalInvalid();
+      if (body.approver.type === 'device' && body.holder && !body.runner) throw approvalInvalid();
       const { vaultKeyVersion } = await tx.pilot.findUniqueOrThrow({ where: { id: pilotId }, select: { vaultKeyVersion: true } });
       if (vaultKeyVersion === 0 || body.vaultKeyVersion !== vaultKeyVersion) throw approvalInvalid();
 
@@ -135,6 +139,8 @@ export class DeviceApprovals {
           approverId: body.approver.id,
           approverPublicKey,
           approvalProof: bytesOf(body.proof),
+          ...(body.runner ? { runnerPublicKey: bytesOf(body.runner.publicKey), runnerProof: bytesOf(body.runner.proof) } : {}),
+          ...(body.holder ? { holderEnc: bytesOf(body.holder.enc), holderCiphertext: bytesOf(body.holder.ciphertext), holderTag: bytesOf(body.holder.tag) } : {}),
         },
       });
       if (count === 0) throw notPending();
@@ -155,12 +161,31 @@ export class DeviceApprovals {
     return this.transactions.run(async (tx) => {
       const row = await tx.device.findUnique({
         where: { id: parsed.data },
-        select: { state: true, approverType: true, approverId: true, approverPublicKey: true, approvalProof: true },
+        select: { state: true, approverType: true, approverId: true, approverPublicKey: true, approvalProof: true, runnerPublicKey: true, runnerProof: true },
       });
       if (!row || row.state !== 'trusted' || !row.approverType || !row.approverId || !row.approverPublicKey || !row.approvalProof) throw deviceUnknown();
       return {
         approver: { type: row.approverType, id: row.approverId, publicKey: textOf(row.approverPublicKey) },
         proof: textOf(row.approvalProof),
+        ...(row.runnerPublicKey && row.runnerProof ? { runner: { publicKey: textOf(row.runnerPublicKey), proof: textOf(row.runnerProof) } } : {}),
+      };
+    });
+  }
+
+  /** The current Pilote's trusted Appareils with a holder wrap, oldest approval first, for the Runner to authenticate. */
+  holders(): Promise<DeviceHolders> {
+    return this.transactions.run(async (tx) => {
+      const rows = await tx.device.findMany({
+        where: { state: 'trusted', approverPublicKey: { not: null }, holderEnc: { not: null }, holderCiphertext: { not: null }, holderTag: { not: null } },
+        orderBy: [{ approvedAt: 'asc' }, { id: 'asc' }],
+        select: { id: true, publicKey: true, approverPublicKey: true, holderEnc: true, holderCiphertext: true, holderTag: true },
+      });
+      return {
+        holders: rows.flatMap(({ id, publicKey, approverPublicKey, holderEnc, holderCiphertext, holderTag }) =>
+          approverPublicKey && holderEnc && holderCiphertext && holderTag
+            ? [{ deviceId: id, publicKey: textOf(publicKey), approverPublicKey: textOf(approverPublicKey), wrap: wrapOf({ enc: holderEnc, ciphertext: holderCiphertext, tag: holderTag }) }]
+            : [],
+        ),
       };
     });
   }

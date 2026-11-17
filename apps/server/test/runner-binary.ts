@@ -47,6 +47,7 @@ export interface StoredDevice {
   readonly privateKey: webcrypto.CryptoKey;
   readonly publicKey: Uint8Array;
   readonly senderPublicKey?: Uint8Array;
+  readonly runnerPublicKey?: Uint8Array;
 }
 export interface DeviceStore {
   getDevice(): Promise<StoredDevice | null>;
@@ -87,6 +88,8 @@ export interface ApprovalApi {
 export interface DeviceApprovalKeys {
   register(): Promise<NewDeviceCode>;
   adopt(code: NewDeviceCode): Promise<'approved' | 'invalid'>;
+  check(code: DeviceCode): Promise<{ code: DeviceCode; device: PendingDevice } | 'mismatch'>;
+  approve(checked: { code: DeviceCode; device: PendingDevice }): Promise<Device>;
 }
 export interface WebKeys {
   createVault(options: { devices: DeviceStore; fetchWrap: (deviceId: string) => Promise<VaultKeyWrap> }): Vault;

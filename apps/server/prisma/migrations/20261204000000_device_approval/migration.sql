@@ -4,7 +4,12 @@ ADD COLUMN     "approver_id" UUID,
 ADD COLUMN     "approver_public_key" BYTEA,
 ADD COLUMN     "approver_type" "vault_key_holder_type",
 ADD COLUMN     "expires_at" TIMESTAMPTZ,
+ADD COLUMN     "holder_ciphertext" BYTEA,
+ADD COLUMN     "holder_enc" BYTEA,
+ADD COLUMN     "holder_tag" BYTEA,
 ADD COLUMN     "proof" BYTEA,
+ADD COLUMN     "runner_proof" BYTEA,
+ADD COLUMN     "runner_public_key" BYTEA,
 ADD COLUMN     "short_id" TEXT;
 
 -- CreateIndex

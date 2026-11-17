@@ -150,11 +150,17 @@ func (a *approver) approve(ctx context.Context, raw string) error {
 	if err != nil {
 		return err
 	}
+	// For the Sessions: the Runner vouches for the new key to itself, read again at each wrap.
+	holder, err := keys.SealWrap(runnerKey, keys.PublicKeyBytes(runnerKey), newKey, []byte(keys.InfoDeviceHolder), []byte(device.Id))
+	if err != nil {
+		return err
+	}
 	body := contracts.RunnerApproveDevice{
 		Approver:        contracts.RunnerApproveDeviceApprover{Type: contracts.RunnerApproveDeviceApproverTypeRunner, Id: linked.RunnerID},
 		VaultKeyVersion: vault.Version,
 		Wrap:            contracts.RunnerApproveDeviceWrap{Enc: b64.EncodeToString(wrap.Enc), Ciphertext: b64.EncodeToString(wrap.Ciphertext), Tag: b64.EncodeToString(wrap.Tag)},
 		Proof:           b64.EncodeToString(keys.ApproveDeviceProof(secret, newKey, keys.PublicKeyBytes(runnerKey))),
+		Holder:          &contracts.RunnerApproveDeviceHolder{Enc: b64.EncodeToString(holder.Enc), Ciphertext: b64.EncodeToString(holder.Ciphertext), Tag: b64.EncodeToString(holder.Tag)},
 	}
 	if err := a.call(ctx, server, linked.Token, http.MethodPost, "/api/runner/devices/"+url.PathEscape(device.Id)+"/approve", body, nil); err != nil {
 		return err
@@ -166,6 +172,24 @@ func (a *approver) approve(ctx context.Context, raw string) error {
 // call sends one request with the Runner's token and decodes its answer, or
 // says the server's message.
 func (a *approver) call(ctx context.Context, server, token, method, path string, body, into any) error {
+	return callServer(ctx, a.http, server, token, method, path, body, into)
+}
+
+// serverHolders lists, with the Runner's token, the Appareils an approval
+// vouched for (GET /api/runner/devices/holders).
+func serverHolders(client *http.Client, server, token string) listHolders {
+	return func(ctx context.Context) ([]contracts.RunnerDeviceHoldersHoldersElem, error) {
+		var answer contracts.RunnerDeviceHolders
+		if err := callServer(ctx, client, strings.TrimRight(server, "/"), token, http.MethodGet, "/api/runner/devices/holders", nil, &answer); err != nil {
+			return nil, err
+		}
+		return answer.Holders, nil
+	}
+}
+
+// callServer sends one request with the Runner's token and decodes its
+// answer, or says the server's message.
+func callServer(ctx context.Context, client *http.Client, server, token, method, path string, body, into any) error {
 	var payload io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -183,7 +207,7 @@ func (a *approver) call(ctx context.Context, server, token, method, path string,
 	}
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("User-Agent", "crewdeck-runner/"+version)
-	response, err := a.http.Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return fmt.Errorf("Le serveur %s ne répond pas : vérifie ta connexion, puis relance la commande.", server)
 	}

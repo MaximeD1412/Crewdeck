@@ -29,7 +29,11 @@ import type { Vault } from './vault.js';
  *   the approver the key the server relayed is the new page's;
  * - `proof_A = HMAC(secret, "crewdeck/v1/device/approve" ‖ newPublicKey ‖
  *   approverPublicKey)` tells the new page the key its wrap was sealed with
- *   is the approver's.
+ *   is the approver's;
+ * - `proof_R = HMAC(secret, "crewdeck/v1/device/runner" ‖ newPublicKey ‖
+ *   runnerPublicKey)`, from a trusted Appareil that knows the Runner's key,
+ *   hands that key on for the Sessions; the Runner learns the new key from
+ *   a wrap the approver seals to it (`holder`).
  *
  * A server that swaps either key cannot forge the proof: nothing is approved,
  * nothing is opened.
@@ -70,6 +74,23 @@ export const newDeviceProof = (secret: Uint8Array, newPublicKey: Uint8Array): Pr
 /** `proof_A`, the approver's. */
 export const approveDeviceProof = (secret: Uint8Array, newPublicKey: Uint8Array, approverPublicKey: Uint8Array): Promise<Bytes> =>
   hmacSha256(secret, concat(utf8(DEVICE_PROOF_LABELS.approve), newPublicKey, approverPublicKey));
+
+/** `proof_R`, the trusted approver's: the Runner's key it hands on to the new page. */
+export const runnerKeyProof = (secret: Uint8Array, newPublicKey: Uint8Array, runnerPublicKey: Uint8Array): Promise<Bytes> =>
+  hmacSha256(secret, concat(utf8(DEVICE_PROOF_LABELS.runner), newPublicKey, runnerPublicKey));
+
+/**
+ * What a trusted Appareil that knows the Runner's key adds for the Sessions:
+ * that key with `proof_R` for the new page, and the new key in a wrap to the
+ * Runner, from this Appareil, which the Runner holds already.
+ */
+const forSessions = async (self: CryptoKey, runnerPublicKey: Bytes, secret: Uint8Array, newPublicKey: Bytes, id: string): Promise<Pick<ApproveDevice, 'runner' | 'holder'>> => {
+  const holder = await sealWrap(self, runnerPublicKey, newPublicKey, INFO.deviceHolder, utf8(id));
+  return {
+    runner: { publicKey: toBase64Url(runnerPublicKey), proof: toBase64Url(await runnerKeyProof(secret, newPublicKey, runnerPublicKey)) },
+    holder: { enc: toBase64Url(holder.enc), ciphertext: toBase64Url(holder.ciphertext), tag: toBase64Url(holder.tag) },
+  };
+};
 
 /** The calls the approval makes, `client`'s in the page, a fake server in the tests. */
 export interface ApprovalApi {
@@ -147,13 +168,21 @@ export const createDeviceApproval = ({ devices, vault, api, userAgent, onDevice 
       const approval = await api.approval(code.id);
       const approverPublicKey = fromBase64Url(approval.approver.publicKey);
       const secret = decodeBase32(code.secret);
+      // The Runner's key for the Sessions: the approver's own when the Runner
+      // approved, else the one the trusted Appareil handed on with its proof.
+      let runnerPublicKey: Bytes | undefined = approval.approver.type === 'runner' ? approverPublicKey : undefined;
       try {
         const expected = await approveDeviceProof(secret, stored.publicKey, approverPublicKey);
         if (!constantTimeEqual(expected, fromBase64Url(approval.proof))) return 'invalid';
+        if (approval.approver.type === 'device' && approval.runner) {
+          runnerPublicKey = fromBase64Url(approval.runner.publicKey);
+          const runnerExpected = await runnerKeyProof(secret, stored.publicKey, runnerPublicKey);
+          if (!constantTimeEqual(runnerExpected, fromBase64Url(approval.runner.proof))) return 'invalid';
+        }
       } finally {
         secret.fill(0);
       }
-      await devices.saveDevice({ ...stored, deviceId: code.id, senderPublicKey: approverPublicKey, ...(approval.approver.type === 'runner' ? { runnerPublicKey: approverPublicKey } : {}) });
+      await devices.saveDevice({ ...stored, deviceId: code.id, senderPublicKey: approverPublicKey, ...(runnerPublicKey ? { runnerPublicKey } : {}) });
       onDevice?.(code.id);
       return 'approved';
     },
@@ -184,6 +213,7 @@ export const createDeviceApproval = ({ devices, vault, api, userAgent, onDevice 
           vaultKeyVersion: version,
           wrap: { enc: toBase64Url(wrap.enc), ciphertext: toBase64Url(wrap.ciphertext), tag: toBase64Url(wrap.tag) },
           proof: toBase64Url(proof),
+          ...(self.runnerPublicKey ? await forSessions(self.privateKey, self.runnerPublicKey, secret, newPublicKey, device.id) : {}),
         });
       } finally {
         vaultKey.fill(0);

@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +7,7 @@ import {
   zDevice,
   zDeviceApproval,
   zDeviceCreated,
+  zDeviceHolders,
   zPendingDevice,
   zRunnerLinkCodeCreated,
   zState,
@@ -156,6 +157,28 @@ describe('a new Appareil approved by the Go Runner (E2E-3)', () => {
     const devices = (await state()).devices.map(({ id, state: deviceState }) => ({ id, state: deviceState }));
     expect(devices).toEqual(expect.arrayContaining([{ id: link.deviceId, state: 'trusted' }, { id: code.id, state: 'trusted' }]));
     expect(await sql('SELECT approver_type, approver_id FROM devices WHERE id = $1', [code.id])).toEqual([{ approver_type: 'runner', approver_id: pending.runnerId }]);
+
+    // For the Sessions: the phone keeps the Runner's key, and hands it on to a
+    // third browser it approves; the Runner lists both among the Appareils it
+    // wraps a Session's keys for, from the wraps their approvers sealed to it.
+    const runnerPublicKey = (await first.devices.getDevice())?.runnerPublicKey;
+    expect(runnerPublicKey).toBeDefined();
+    expect((await phone.devices.getDevice())?.runnerPublicKey).toEqual(runnerPublicKey);
+    const tablet = await browser(pilotId, CHROME);
+    const tabletCode = await tablet.approval.register();
+    const checked = await phone.approval.check(tabletCode);
+    if (checked === 'mismatch') throw new Error('the tablet’s code did not prove its key');
+    await phone.approval.approve(checked);
+    expect(await tablet.approval.adopt(tabletCode)).toBe('approved');
+    expect((await tablet.devices.getDevice())?.runnerPublicKey).toEqual(runnerPublicKey);
+    const { token } = JSON.parse(await readFile(join(home, 'runner.json'), 'utf8')) as { token: string };
+    const listed = await fetch(`${url}/api/runner/devices/holders`, { headers: { authorization: `Bearer ${token}` } });
+    expect(listed.status).toBe(200);
+    const { holders } = zDeviceHolders.parse(await listed.json());
+    expect(holders.map(({ deviceId, approverPublicKey }) => ({ deviceId, approverPublicKey }))).toEqual([
+      { deviceId: code.id, approverPublicKey: keys.toBase64Url(runnerPublicKey ?? new Uint8Array()) },
+      { deviceId: tabletCode.id, approverPublicKey: keys.toBase64Url((await phone.devices.getDevice())?.publicKey ?? new Uint8Array()) },
+    ]);
 
     // The code's secret in no request, nor in the binary's ones.
     expect(sent.some((request) => request.startsWith('POST /api/runner/devices/') && request.includes('authorization'))).toBe(true);

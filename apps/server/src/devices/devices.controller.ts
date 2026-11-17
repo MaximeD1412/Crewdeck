@@ -3,6 +3,7 @@ import {
   type Device,
   type DeviceApproval,
   type DeviceCreated,
+  type DeviceHolders,
   type DeviceList,
   type PendingDevice,
   type VaultKeyWrap,
@@ -10,6 +11,7 @@ import {
   zDevice,
   zDeviceApproval,
   zDeviceCreated,
+  zDeviceHolders,
   zDeviceList,
   zNewDeviceRequest,
   zPendingDevice,
@@ -50,6 +52,7 @@ export class PendingDeviceDto extends createZodDto(zPendingDevice) {}
 export class ApproveDeviceDto extends createZodDto(zApproveDevice) {}
 export class DeviceDto extends createZodDto(zDevice) {}
 export class DeviceApprovalDto extends createZodDto(zDeviceApproval) {}
+export class DeviceHoldersDto extends createZodDto(zDeviceHolders) {}
 
 /** The Appareil the page named in `X-Crewdeck-Device`. */
 export const namedDevice = (request: AuthRequest): string | undefined => deviceIdOf(headerOf(request, DEVICE_HEADER.toLowerCase()));
@@ -115,6 +118,13 @@ export class RunnerDevicesController {
   @ZodResponse({ status: 200, description: 'The Appareil whose code is live with this short id.', type: PendingDeviceDto })
   pending(@Param('shortId') shortId: string): Promise<PendingDevice> {
     return this.approvals.pending(shortId);
+  }
+
+  /** The Appareils an approval sent a holder wrap for: the Runner wraps a Session's key for each one it authenticates. */
+  @Get('holders')
+  @ZodResponse({ status: 200, description: 'The trusted Appareils with a holder wrap, and their approver’s public key.', type: DeviceHoldersDto })
+  holders(): Promise<DeviceHolders> {
+    return this.approvals.holders();
   }
 
   @Post(':id/approve')

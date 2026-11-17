@@ -9,6 +9,7 @@ afterEach(() => document.body.replaceChildren());
 type Data = ComposantData<typeof PageDemarrage>;
 type WithData = HTMLElement & { data: Record<string, unknown> };
 
+const TEMPLATE = { id: 'process-crewdeck', label: 'Process Crewdeck' };
 const COMMAND = 'curl -fsSL https://crewdeck.example/runner/install.sh | sh -s -- --link 7KQ4-M2PXA7QK9VZ3T8W4R6N1B5C0DE';
 const WAITING: Data = {
   step: 'runner',
@@ -21,7 +22,19 @@ const WAITING: Data = {
   busy: false,
   engines: [],
   usable: false,
-  picker: { context: 'demarrage', repositories: [], installUrl: null, busy: false },
+  picker: { context: 'demarrage', repositories: [], installUrl: null, busy: false, templates: [TEMPLATE], templateId: TEMPLATE.id },
+  projectsTab: 'github',
+  folder: {
+    context: 'demarrage',
+    path: '',
+    check: { state: 'idle', hasCode: false },
+    name: '',
+    templates: [TEMPLATE],
+    templateId: TEMPLATE.id,
+    busy: false,
+    vaultLocked: false,
+    machine: 'atelier-pc',
+  },
 };
 const RUNNER = {
   machine: 'atelier-pc',
@@ -157,18 +170,48 @@ describe('PageDemarrage', () => {
       repositories: [...EXAMPLE_REPOSITORIES],
       installUrl: 'https://github.com/apps/crewdeck/installations/new?state=demarrage',
       busy: false,
+      templates: [TEMPLATE],
+      templateId: TEMPLATE.id,
     };
     const el = await page({ ...WAITING, step: 'projects', runner: RUNNER, picker });
     expect(steps(el)).toEqual(['Runner:done', 'Comptes IA:done', 'Projets:current']);
     expect(child(el, 'cd-page-header').data).toEqual({ title: 'Choisis tes Projets' });
-    expect(textOf(inside(el, 'p[part=lead]'))).toBe(t('demarrage.projects.lead'));
+    expect(textOf(inside(el, 'p[part=lead]'))).toBe('Un dossier de ta machine ou un dépôt GitHub : chacun devient un Projet, préparé pour son Process.');
     expect(child(el, 'cd-repository-picker').data).toEqual(picker);
-    expect(el.shadowRoot?.querySelector('cd-tabs')).toBeNull();
     inside<HTMLInputElement>(el, 'cd-repository-picker', `cd-checkbox[data-repository="${EXAMPLE_REPOSITORIES[0].id}"]`, 'input').click();
     await settle(el);
     expect(await actionsOf(() => inside(el, 'cd-repository-picker', 'cd-button.follow', 'button').click())).toEqual([
-      { composant: 'RepositoryPicker', action: 'follow', payload: { repositoryIds: [EXAMPLE_REPOSITORIES[0].id] } },
+      { composant: 'RepositoryPicker', action: 'follow', payload: { repositoryIds: [EXAMPLE_REPOSITORIES[0].id], templateId: TEMPLATE.id } },
     ]);
+  });
+
+  it('the projects step: Tabs « Dossier sur ta machine » and « Dépôt GitHub », whose select is selectProjectsTab', async () => {
+    const el = await page({ ...WAITING, step: 'projects', runner: RUNNER });
+    expect(child(el, 'cd-tabs.projects-tabs').data).toEqual({
+      tabs: [
+        { id: 'dossier', label: 'Dossier sur ta machine', selected: false },
+        { id: 'github', label: 'Dépôt GitHub', selected: true },
+      ],
+    });
+    expect(el.shadowRoot?.querySelector('cd-folder-project-form')).toBeNull();
+    expect(await actionsOf(() => inside(el, 'cd-tabs.projects-tabs', 'button[role=tab]').click())).toEqual([
+      { composant: 'PageDemarrage', action: 'selectProjectsTab', payload: { id: 'dossier' } },
+    ]);
+  });
+
+  it('the projects step, the folder tab: the FolderProjectForm of « folder »; its create goes up, its « Plus tard » is the page’s continue', async () => {
+    const folder: Data['folder'] = { ...WAITING.folder, path: '~/projets/recettes', check: { state: 'ready', hasCode: true }, name: 'recettes' };
+    const el = await page({ ...WAITING, step: 'projects', runner: RUNNER, projectsTab: 'dossier', folder });
+    expect(el.shadowRoot?.querySelector('cd-repository-picker')).toBeNull();
+    expect(child(el, 'cd-folder-project-form').data).toEqual(folder);
+    expect(await actionsOf(() => inside(el, 'cd-folder-project-form', 'cd-button.create', 'button').click())).toEqual([
+      { composant: 'FolderProjectForm', action: 'create', payload: { path: '~/projets/recettes', name: 'recettes', templateId: TEMPLATE.id } },
+    ]);
+    expect(await actionsOf(() => inside(el, 'cd-folder-project-form', 'cd-button.later', 'button').click())).toEqual([
+      { composant: 'PageDemarrage', action: 'continue', payload: {} },
+    ]);
+    const busy = await page({ ...WAITING, step: 'projects', runner: RUNNER, projectsTab: 'dossier', folder, busy: true });
+    expect(child(busy, 'cd-folder-project-form').data['busy']).toBe(true);
   });
 
   it('the projects step: « Plus tard » is the page’s continue; busy, the picker waits', async () => {

@@ -2,6 +2,9 @@ import { z } from 'zod';
 import { FOLDER_CHECK_STATES, FOLDER_PATH_MAX, PROJECT_NAME_MAX } from '../keys/folder.js';
 import { defineComposant } from './define.js';
 
+/** The longest path and name, for a Skin to bound its fields (it imports no `keys/`). */
+export { FOLDER_PATH_MAX, PROJECT_NAME_MAX };
+
 /**
  * Where the check of the typed path stands: `idle` before any, `checking`
  * while the Runner answers, one of the Runner's states, `runner-offline` when

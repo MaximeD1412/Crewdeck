@@ -1,10 +1,18 @@
-import { formatDay, formatEuros, formatHour, formatNumber, formatPercent, formatRelative } from './format.js';
+import { formatDate, formatDay, formatEuros, formatHour, formatNumber, formatPercent, formatRelative } from './format.js';
 
 const NNBSP = ' ';
 const NBSP = ' ';
 
 /** A local date, so that the cases hold in any time zone. */
 const local = (day: number, hour: number, minute = 0, second = 0) => new Date(2026, 10, day, hour, minute, second);
+
+describe('formatDate', () => {
+  it('gives the day of this year, and the year of an older one', () => {
+    expect(formatDate(local(10, 9), local(20, 12))).toBe('10 nov.');
+    expect(formatDate(local(10, 9).toISOString(), local(20, 12))).toBe('10 nov.');
+    expect(formatDate(new Date(2025, 10, 10, 9), local(20, 12))).toBe('10 nov. 2025');
+  });
+});
 
 describe('formatRelative', () => {
   const now = local(20, 12);

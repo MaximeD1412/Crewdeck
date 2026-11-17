@@ -21,7 +21,8 @@ export const EXAMPLE_REPOSITORIES = [
 
 /**
  * The choice of the Dépôts GitHub to follow (US-3): on `/projets/ajouter`
- * (`context: 'projets'`, under its own PageHeader and its explanation) and as
+ * (`context: 'projets'`, the « Dépôt GitHub » tab of PageAjouterProjet, under
+ * its explanation) and as
  * the Projets' step of « Premiers pas » (`context: 'demarrage'`, under the
  * page's title, with « Plus tard », `later`). A search field filtering the
  * list in the page, a Checkbox per Dépôt GitHub not followed yet (« déjà du

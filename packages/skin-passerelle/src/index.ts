@@ -19,6 +19,7 @@ import { PasserelleComposer } from './composer.js';
 import { PasserelleDecisionRow } from './decision-row.js';
 import { PasserelleDialog } from './dialog.js';
 import { PasserelleEmpty } from './empty.js';
+import { PasserelleFolderProjectForm } from './folder-project-form.js';
 import { PasserelleIdeaRow } from './idea-row.js';
 import { PasserelleNoteIdeaDialog } from './note-idea-dialog.js';
 import { PasserelleIconButton } from './icon-button.js';
@@ -30,6 +31,7 @@ import { PasserelleMenu } from './menu.js';
 import { PasserelleMenuItem } from './menu-item.js';
 import { PasserelleMessage } from './message.js';
 import { PasserellePageAToi } from './page-a-toi.js';
+import { PasserellePageAjouterProjet } from './page-ajouter-projet.js';
 import { PasserellePageIdees } from './page-idees.js';
 import { PasserellePageComposants } from './page-composants.js';
 import { PasserellePageConnexion } from './page-connexion.js';
@@ -38,6 +40,7 @@ import { PasserellePageDemarrage } from './page-demarrage.js';
 import { PasserellePageParametres } from './page-parametres.js';
 import { PasserellePageHeader } from './page-header.js';
 import { PasserellePageIntrouvable } from './page-introuvable.js';
+import { PasserellePageProjet } from './page-projet.js';
 import { PasserellePageProjets } from './page-projets.js';
 import { PasserellePageRunner } from './page-runner.js';
 import { PasserellePermissionRequest } from './permission-request.js';
@@ -81,6 +84,7 @@ export default defineSkin({
     PageHeader: PasserellePageHeader,
     ProjectFilter: PasserelleProjectFilter,
     PageAToi: PasserellePageAToi,
+    PageAjouterProjet: PasserellePageAjouterProjet,
     PageIdees: PasserellePageIdees,
     PageComposants: PasserellePageComposants,
     PageConnexion: PasserellePageConnexion,
@@ -88,9 +92,11 @@ export default defineSkin({
     PageDemarrage: PasserellePageDemarrage,
     PageParametres: PasserellePageParametres,
     PageIntrouvable: PasserellePageIntrouvable,
+    PageProjet: PasserellePageProjet,
     PageProjets: PasserellePageProjets,
     PageRunner: PasserellePageRunner,
     RepositoryPicker: PasserelleRepositoryPicker,
+    FolderProjectForm: PasserelleFolderProjectForm,
     RoleSettings: PasserelleRoleSettings,
     Card: PasserelleCard,
     CodeBlock: PasserelleCodeBlock,

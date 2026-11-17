@@ -86,7 +86,7 @@ export class SessionRelay implements OnModuleInit, OnModuleDestroy {
   }
 
   private async fromTab(tab: TabSocket, message: TabMessage): Promise<void> {
-    if (this.closedTabs.has(tab)) return;
+    if (this.closedTabs.has(tab) || message.type === 'folder.check') return;
     this.logger.debug({ direction: 'in', type: message.type, sessionId: message.sessionId }, 'session relay');
     switch (message.type) {
       case 'session.open':

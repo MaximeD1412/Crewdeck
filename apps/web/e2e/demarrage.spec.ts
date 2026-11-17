@@ -329,7 +329,8 @@ test.describe('« Premiers pas », the Projets (US-3)', () => {
   test('« Plus tard » ends the getting started without a Projet', async ({ page, scenario }) => {
     await scenario('demarrage-projets');
 
-    await page.locator('cd-page-demarrage').getByRole('button', { name: 'Plus tard' }).click();
+    // The repositories there, the GitHub tab: its « Plus tard », not the hidden folder form's, kept mounted.
+    await page.locator('cd-page-demarrage cd-repository-picker').getByRole('button', { name: 'Plus tard' }).click();
 
     await expect(page).toHaveURL('/a-toi');
     expect(((await (await page.request.get('/api/projects')).json()) as { items: unknown[] }).items).toEqual([]);

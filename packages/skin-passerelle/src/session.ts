@@ -19,7 +19,7 @@ const BOTTOM_SLACK = 24;
  * `cd-session`: its head (the back arrow on a phone, its state, « Arrêter »
  * or « Reprendre » (or its `resumeLabel` and `resumeIcon`, « Relancer » for a
  * failed Commande), « Agrandir » (when `expandable`) and « Fermer » at 1280
- * px), its messages in a polite log that keeps to the bottom while the Pilote
+ * px), a strip that says it is end-to-end encrypted, its messages in a polite log that keeps to the bottom while the Pilote
  * has not scrolled up, its status line under them, then its Composer. Given a height, the log scrolls; without one, it grows.
  */
 export class PasserelleSession extends PasserelleElement<typeof Session> {
@@ -45,9 +45,9 @@ export class PasserelleSession extends PasserelleElement<typeof Session> {
         background: var(--cd-panel);
         flex: none;
       }
-      /* The meta wraps rather than cut the Projet and the Moteur, as the title does on a phone; there, the actions go under them when they lack room. */
+      /* The meta wraps rather than cut the Projet and the Moteur, as the title does on a phone, the actions kept beside them; they go under them only when even that lacks room. */
       .titles {
-        flex: 1 1 12rem;
+        flex: 1 1 8rem;
         min-width: 0;
       }
       h2 {
@@ -90,6 +90,22 @@ export class PasserelleSession extends PasserelleElement<typeof Session> {
         .wide {
           display: block;
         }
+      }
+      /* Every state says it: the conversation is the Runner's and this browser's alone. */
+      .encrypted {
+        display: flex;
+        align-items: center;
+        gap: var(--cd-space-2);
+        padding: var(--cd-space-2) var(--cd-space-4);
+        font: var(--cd-font-caption-weight) var(--cd-font-caption-size) / var(--cd-font-caption-line-height)
+          var(--cd-font-caption-family), sans-serif;
+        color: var(--cd-muted);
+        border-bottom: thin solid var(--cd-line);
+        background: var(--cd-side);
+        flex: none;
+      }
+      .encrypted cd-icon {
+        color: var(--cd-go);
       }
       [role='log'] {
         flex: 1;
@@ -223,6 +239,7 @@ export class PasserelleSession extends PasserelleElement<typeof Session> {
           ></cd-icon-button>
         </div>
       </header>
+      <p class="encrypted"><cd-icon .data=${{ name: 'lock', size: 'sm' }}></cd-icon>${t('session.encrypted')}</p>
       <div
         part="log"
         role="log"

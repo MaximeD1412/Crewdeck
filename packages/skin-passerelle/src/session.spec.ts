@@ -88,6 +88,15 @@ describe('Session', () => {
     expect(textOf(inside(el, 'h2'))).toBe(SESSION.title);
   });
 
+  it('says, between its head and its log, that it is end-to-end encrypted, a lock beside it', async () => {
+    const el = await render(COMPOSANTS.Session, SESSION);
+    const strip = inside(el, 'header + .encrypted');
+    expect(textOf(strip)).toBe(t('session.encrypted'));
+    expect(t('session.encrypted')).toBe('Chiffrée de bout en bout entre ton Runner et ce navigateur');
+    expect((inside(strip, 'cd-icon') as HTMLElement & { data: unknown }).data).toMatchObject({ name: 'lock' });
+    expect(strip.nextElementSibling?.getAttribute('role')).toBe('log');
+  });
+
   it('puts its messages in a polite log, then its Composer', async () => {
     const composer = `<cd-composer data='{"placeholder":"Écrire","hint":null,"state":"idle","value":"","dictation":false}'></cd-composer>`;
     const el = await render(COMPOSANTS.Session, SESSION, { default: message('Bonjour'), composer });
@@ -125,6 +134,15 @@ describe('Session', () => {
       expect(isShown(inside(el, 'cd-icon-button.expand'))).toBe(false);
       const details = await actionsOf(() => inside(back, 'button').click());
       expect(details).toEqual([{ composant: 'Session', action: 'close', payload: {} }]);
+    });
+
+    it('keep « Reprendre » beside the title on a phone, the title wrapping', async () => {
+      await page.viewport(390, 844);
+      const el = await render(COMPOSANTS.Session, { ...SESSION, state: 'stopped', expandable: false });
+      const titles = inside(el, '.titles').getBoundingClientRect();
+      const resume = inside(el, 'cd-button.resume').getBoundingClientRect();
+      expect(resume.top).toBeLessThan(titles.bottom);
+      expect(resume.left).toBeGreaterThanOrEqual(titles.right);
     });
 
     it('are « Agrandir » and « Fermer » at 1280 px', async () => {

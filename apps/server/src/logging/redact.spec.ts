@@ -19,6 +19,9 @@ const SECRETS = {
   enc: 'secret-enc-31b8',
   nonce: 'secret-nonce-e4c2',
   token: 'secret-token-55f2',
+  ideaText: 'secret-idea-text-1e7b',
+  ideaAnalysis: 'secret-idea-analysis-4d2c',
+  ideaReason: 'secret-idea-reason-90fa',
   code: 'secret-oauth-code-81c4',
   state: 'secret-oauth-state-d9e3',
   issueBody: 'secret-issue-body-6f0b',
@@ -47,6 +50,8 @@ class ProbeController {
     this.logger.info({ message: { type: 'session.output', payload: body.payload }, runner: { token: SECRETS.token } }, 'relayed');
     // A Runner protocol message of the relay (RUNNER-2, SESSION-1), as a handler might log it.
     this.logger.info({ direction: 'in', message: { type: 'relay', id: 'relay-id', payload: body.payload } }, 'runner message');
+    // An Idée as a careless module might log it (IDEE-1): its sealed fields, top level and one level down.
+    this.logger.info({ text: SECRETS.ideaText, idea: { text: SECRETS.ideaText, analysis: SECRETS.ideaAnalysis, reason: SECRETS.ideaReason } }, 'idea noted');
     // A frame of a Session's relay (SESSION-1): its nonce and ciphertext, its keys' wraps.
     this.logger.info({ frame: { type: 'relay', sessionId: 's-1', nonce: SECRETS.nonce, ciphertext: body.ciphertext }, enc: SECRETS.enc }, 'relay frame');
     this.logger.info({ keys: { type: 'session.keys', sessionId: 's-1', wraps: [{ enc: SECRETS.enc, wrappedKey: SECRETS.wrappedKey }] } }, 'relay keys');
@@ -100,7 +105,8 @@ describe('the logs (SEC-7)', () => {
     expect(res.status).toBe(500);
     await vi.waitFor(() => expect(output()).toContain('request errored'));
 
-    for (const secret of [SECRETS.authorization, 'secret-bearer', 'secret-session', SECRETS.ciphertext, SECRETS.payload, SECRETS.wrappedKey, SECRETS.token]) {
+    const ideas = [SECRETS.ideaText, SECRETS.ideaAnalysis, SECRETS.ideaReason];
+    for (const secret of [SECRETS.authorization, 'secret-bearer', 'secret-session', SECRETS.ciphertext, SECRETS.payload, SECRETS.wrappedKey, SECRETS.token, ...ideas]) {
       expect(output()).not.toContain(secret);
     }
     expect(output()).toContain(REDACT_CENSOR);
@@ -177,6 +183,9 @@ describe('the logs (SEC-7)', () => {
         '*.token',
         '*.accessToken',
         '*.refreshToken',
+        '*.text',
+        '*.analysis',
+        '*.reason',
         'email',
         '*.email',
         'req.query.code',

@@ -127,6 +127,13 @@ describe('cadreView', () => {
     expect(cadreView(open(9), at('/a-toi')).menu.filter((item) => item.count !== null).map((item) => item.id)).toEqual(['a-toi']);
   });
 
+  it('counts the Idées to triage on « Idées », not those already triaged, no count when none waits', () => {
+    const ideas = (...states: ('to-triage' | 'retained' | 'merged')[]): CadreState => ({ slices: { idea: new Map(states.map((state, i) => [String(i), { state }])) } });
+    const countOf = (state: CadreState) => cadreView(state, at('/a-toi')).menu.find((item) => item.id === 'idees')?.count;
+    expect(countOf(ideas('to-triage', 'retained', 'to-triage', 'merged'))).toBe(2);
+    expect(countOf(ideas('retained'))).toBeNull();
+  });
+
   it.each(['/connexion', '/connexion/lien', '/demarrage'])('is bare on %s', (path) => {
     expect(cadreView(empty, at(path)).cadre).toMatchObject({ variant: 'bare', current: null });
   });

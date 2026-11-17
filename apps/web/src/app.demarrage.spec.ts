@@ -4,6 +4,7 @@ import type { z } from 'zod';
 import { createDispatcher } from './actions/dispatcher.js';
 import type { Client } from './api/client.js';
 import { boot, type App } from './app.js';
+import type { PageKeys } from './keys/index.js';
 import { createStore } from './store/store.js';
 
 const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [] };
@@ -51,6 +52,7 @@ describe('« Premiers pas » in the page', () => {
       },
       confirmPairing: async () => null,
     },
+    vault: {} as PageKeys['vault'],
     nameDevice: async () => {
       boots.push('nameDevice');
     },
@@ -81,7 +83,7 @@ describe('« Premiers pas » in the page', () => {
   });
 
   it('draws its code once the snapshot is there and shows its command', async () => {
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
     await vi.waitFor(() => expect(page()?.data).toMatchObject({ shortId: '7KQ4' }));
     expect(page()?.data['command']).toMatch(/--link 7KQ4-[0-9A-HJKMNP-TV-Z]{26}$/);
     expect(paths).toEqual(['/api/runner/link-codes']);

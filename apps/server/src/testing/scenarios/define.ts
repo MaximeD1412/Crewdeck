@@ -1,4 +1,4 @@
-import type { ScenarioRunnerLink } from '@crewdeck/contracts';
+import type { ScenarioDevice, ScenarioRunnerLink } from '@crewdeck/contracts';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { RunnerMachine } from '../fake-runner.js';
 import type { Fakes } from '../fakes.js';
@@ -22,6 +22,8 @@ export interface ScenarioSeed {
   readonly path?: string;
   /** The link code it drew as the page would, for a real Runner (the scenario `smoke`). */
   readonly runnerLink?: ScenarioRunnerLink;
+  /** The trusted Appareil it seeds (`seedTrustedDevice`), which the browser installs as its own. */
+  readonly device?: ScenarioDevice;
 }
 
 /**

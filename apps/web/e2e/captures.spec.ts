@@ -84,6 +84,19 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await openNotifications(page);
     await expect(page.getByText('Sur iPhone, ajoute Crewdeck à l’écran d’accueil', { exact: false })).toBeVisible();
   },
+  // The Idées opened by the trusted Appareil the scenario installs.
+  idees: async (page) => {
+    await expect(page.locator('cd-page-idees cd-idea-row').first()).toContainText('Prévenir quand une Planification');
+  },
+  // « Noter une Idée » opened over the list, as the mockup.
+  'idees-nouvelle': async (page) => {
+    await expect(page.locator('cd-page-idees cd-idea-row').first()).toContainText('Prévenir quand une Planification');
+    await page.locator('cd-page-idees cd-page-header').getByRole('button', { name: 'Noter une Idée' }).click();
+    await expect(page.getByRole('dialog', { name: 'Noter une Idée' })).toBeVisible();
+  },
+  'idees-vide': async (page) => {
+    await expect(page.locator('cd-page-idees cd-empty')).toContainText('Aucune Idée pour l’instant');
+  },
   runner: async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('en ligne');
   },
@@ -106,7 +119,7 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
 };
 
 /** The scenarios whose capture is the screen, not the whole page: a modal over it. */
-const SCREEN_ONLY: ReadonlySet<string> = new Set(['confirm-dialog']);
+const SCREEN_ONLY: ReadonlySet<string> = new Set(['confirm-dialog', 'idees-nouvelle']);
 
 const names = (process.env['CAPTURES_SCENARIOS'] ?? '')
   .split(',')

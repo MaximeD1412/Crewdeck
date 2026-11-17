@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { zAiAccount } from './ai-accounts.js';
 import { zDecision } from './decisions.js';
 import { zDevice } from './devices.js';
+import { zIdea } from './ideas.js';
 import { zMcpServer } from './mcp-servers.js';
 import { zMe } from './me.js';
 import { zPhaseRun, zStepRun } from './phase-runs.js';
@@ -46,6 +47,8 @@ export const STATE_SLICES = {
   repositories: z.array(zRepository).max(REPOSITORIES_MAX),
   /** The open Décisions, every one (« À toi »). */
   decisions: z.array(zDecision),
+  /** Every Idée not merged nor rejected, and those merged or rejected in the last 90 days (IDEE-1). */
+  ideas: z.array(zIdea),
   /** Every open Ticket of every Projet, and those closed in the last 30 days (BOUCLE-1). */
   tickets: z.array(zTicket),
   /** The open milestones, and those closed in the last 30 days. */

@@ -15,7 +15,7 @@ describe('COMPOSANTS', () => {
 
   it.each([
     ['cadre', ['PageHeader', 'ProjectFilter']],
-    ['page', ['PageComposants', 'PageConnexion', 'PageConnexionLien', 'PageDemarrage', 'PageIntrouvable', 'PageProjets', 'PageRunner']],
+    ['page', ['PageComposants', 'PageConnexion', 'PageConnexionLien', 'PageDemarrage', 'PageIdees', 'PageIntrouvable', 'PageProjets', 'PageRunner']],
     [
       'partie',
       [
@@ -33,6 +33,7 @@ describe('COMPOSANTS', () => {
         'LoopBack',
         'Menu',
         'Message',
+        'NoteIdeaDialog',
         'PermissionRequest',
         'Phase',
         'PhaseGroup',

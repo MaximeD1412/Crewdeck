@@ -52,3 +52,13 @@ regexTarget = "secret"
 regexes = [
   '''^Yfery35HM-eYbPAm7LdhTYCeN5erL97LmNKhUPk930U$''',
 ]
+
+[[allowlists]]
+description = "Fake access token of Google's token endpoint in the tests of its client (CORE-10)"
+# apps/server/src/auth/google/google.client.spec.ts answers it from msw's
+# fake token endpoint: made up, never a real token (the client never keeps
+# it). Only this exact value is excepted, not the file.
+regexTarget = "secret"
+regexes = [
+  '''^ya29\.never-kept$''',
+]

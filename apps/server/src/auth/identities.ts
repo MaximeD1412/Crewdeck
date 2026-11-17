@@ -27,6 +27,14 @@ export interface SignUp {
 /** Whether `error` is Prisma's unique violation (P2002): two first sign-ins of one Identité at once, the loser rolled back. */
 export const isUniqueViolation = (error: unknown): boolean => (error as { code?: unknown } | null)?.code === 'P2002';
 
+/** An Identité that carries a verified address: by a link (`subject` is the address) or Google (`subject` is its `sub`). */
+export interface AddressIdentity {
+  readonly provider: 'email' | 'google';
+  readonly subject: string;
+  /** Verified, lower-cased. */
+  readonly email: string;
+}
+
 /** The `displayName` of a Pilote signed up by `email`: its local part, at most 39 characters. */
 export const displayNameOf = (email: string): string => email.slice(0, email.lastIndexOf('@')).slice(0, DISPLAY_NAME_MAX);
 
@@ -43,6 +51,30 @@ export class PilotIdentities {
   async pilotOf(provider: IdentityProvider, subject: string, tx: Pick<Prisma.TransactionClient, 'pilotIdentity'> = this.prisma.unscoped): Promise<string | null> {
     const identity = await tx.pilotIdentity.findUnique({ where: { provider_subject: { provider, subject } }, select: { pilotId: true } });
     return identity?.pilotId ?? null;
+  }
+
+  /**
+   * The Pilote of `identity` (ADR 0014): theirs when it is known (a Google
+   * account's address refreshed), else the Pilote whose `email` or `google`
+   * Identité has the same verified address, the oldest, the Identité added to
+   * them; else a new Pilote. A GitHub account is never joined by its address.
+   */
+  async signInByAddress(tx: IdentitiesTx, identity: AddressIdentity, timeZone: string): Promise<string> {
+    const { provider, subject, email } = identity;
+    const known = await this.pilotOf(provider, subject, tx);
+    if (known) {
+      if (provider === 'google') await tx.pilotIdentity.updateMany({ where: { provider, subject }, data: { email } });
+      return known;
+    }
+    const sameAddress = await tx.pilotIdentity.findFirst({
+      where: { provider: { in: ['email', 'google'] }, email },
+      orderBy: { createdAt: 'asc' },
+      select: { pilotId: true },
+    });
+    if (!sameAddress) return this.signUp(tx, { provider, subject, email, login: null, displayName: displayNameOf(email), timeZone });
+    // A Pilote has at most one Identité of each kind: one they have already wins, and they are signed in.
+    await tx.pilotIdentity.createMany({ data: [{ id: newId(), pilotId: sameAddress.pilotId, provider, subject, email, login: null }], skipDuplicates: true });
+    return sameAddress.pilotId;
   }
 
   /** Creates the Pilote and their first Identité with `tx`; their id. */

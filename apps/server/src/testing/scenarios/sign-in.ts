@@ -20,6 +20,19 @@ export const seedGitHubUser = ({ fakes }: ScenarioContext): ScenarioSeed => {
 };
 
 /**
+ * The Google account of the scenarios: the fake Google signs it in at once
+ * (`/fake-google/authorize`), on the address of the scenarios' sign-in links.
+ */
+export const GOOGLE_ACCOUNT = { sub: '110248495921238986420', email: 'pilote@example.com', emailVerified: true } as const;
+
+/** Seeds the accounts that sign in from `/connexion`, the fake GitHub user and the fake Google account, nobody signed in yet. */
+export const seedSignIn = (ctx: ScenarioContext, { emailVerified = true }: { emailVerified?: boolean } = {}): ScenarioSeed => {
+  seedGitHubUser(ctx);
+  ctx.fakes.google.seedAccount({ ...GOOGLE_ACCOUNT, emailVerified });
+  return {};
+};
+
+/**
  * The Pilote of a scenario, signed in as the callback would leave them (their
  * `github` Identité and `WebSession`, without their GitHub tokens): the session cookie the browser
  * carries, and their id. The fake GitHub knows them too. Past the getting

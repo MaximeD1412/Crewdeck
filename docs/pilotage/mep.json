@@ -310,6 +310,20 @@
       "ajouteLe": "2026-11-14"
     },
     {
+      "id": "env-google-client",
+      "phase": "env",
+      "source": "#197",
+      "titre": "GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET dans le .env de la prod et du staging",
+      "pourquoi": "La connexion avec Google (CORE-10) passe par le client OAuth de chaque environnement ; le serveur refuse de démarrer sans GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET en production et en staging. Tant qu'ils manquent, le déploiement de develop au staging qui suit le merge de CORE-10 ne démarre pas. Les deux clients (écran de consentement, champs d'application openid et email, URI de redirection https://<hôte>/api/auth/google/callback) viennent d'INFRA-15 (#200).",
+      "etapes": [
+        "Dans /opt/crewdeck/prod/.env : GOOGLE_CLIENT_ID=<id du client crewdeck-prod-server>.apps.googleusercontent.com et GOOGLE_CLIENT_SECRET=<son secret>.",
+        "Dans /opt/crewdeck/staging/.env : la même chose avec le client du staging.",
+        "Vérifier après le déploiement suivant : le serveur est healthy, et « Continuer avec Google » sur https://staging.<domaine>/connexion revient connecté sur Crewdeck."
+      ],
+      "commande": "sudo grep -c '^\\(GOOGLE_CLIENT_ID\\|GOOGLE_CLIENT_SECRET\\)=.\\+' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
+      "ajouteLe": "2026-11-17"
+    },
+    {
       "id": "migration-identites",
       "phase": "db",
       "source": "#196",

@@ -32,7 +32,7 @@ import { createRoleSettings } from './role-settings.js';
 import { routeData, routeSlots, startRouter, type Route, type Router } from './router.js';
 import { aToiHref, composantsHref, ideesHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
-import { githubSignInHref, HOME_PATH, signInGuard } from './sign-in.js';
+import { HOME_PATH, providerSignInHref, signInGuard } from './sign-in.js';
 import { client as pageClient, connection as pageConnection, store as pageStore } from './store/index.js';
 import type { Connection } from './store/connection.js';
 import { createIdeaPlaintext } from './store/idea-plaintext.js';
@@ -231,7 +231,7 @@ export const boot = async ({
   }
   if (!pilot) vaultTried();
   dispatcher.registerAction(PageConnexion, 'signInWith', {
-    run: () => leave(githubSignInHref(router.current.query['next'], timeZone)),
+    run: ({ provider }) => leave(providerSignInHref(provider, router.current.query['next'], timeZone)),
   });
   dispatcher.registerAction(PageConnexion, 'requestLink', {
     run: ({ email }) => connexion.requestLink(email, router.current.query['next'] ?? HOME_PATH),

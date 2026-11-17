@@ -294,6 +294,24 @@
           ]
         },
         {
+          "id": "google",
+          "zone": "externes",
+          "x": 1180,
+          "y": 344,
+          "w": 330,
+          "h": 56,
+          "titre": "Google",
+          "sous": "connexion OpenID Connect",
+          "desc": "Une des façons de se connecter : Google dit seulement qui se connecte (une adresse vérifiée). Crewdeck ne garde aucun jeton Google.",
+          "tickets": [
+            "CORE-10",
+            "INFRA-15"
+          ],
+          "adr": [
+            "0014"
+          ]
+        },
+        {
           "id": "stockage",
           "zone": "externes",
           "x": 1180,
@@ -636,6 +654,21 @@
             ]
           ],
           "label": "notifications"
+        },
+        {
+          "de": "serveur",
+          "vers": "google",
+          "points": [
+            [
+              540,
+              372
+            ],
+            [
+              1180,
+              372
+            ]
+          ],
+          "label": "connexion"
         },
         {
           "de": "runner",

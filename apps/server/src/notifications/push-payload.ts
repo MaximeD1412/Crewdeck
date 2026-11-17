@@ -12,6 +12,7 @@ export const KIND_LABELS: Record<DecisionKind, string> = {
   'ideas-to-triage': 'Idées à trier',
   'inventory-review': 'Inventaire à approuver',
   'limit-reached': 'Limite atteinte',
+  'loop-back.exhausted': 'Maximum de Retours atteint',
   'permission-requested': 'Permission demandée',
   'runner-offline': 'Runner hors ligne',
   'step-failed': 'Étape échouée',

@@ -38,7 +38,7 @@ describe('pushPayloadOf', () => {
   });
 
   it('gives a payload of the contracts, a label to every kind', () => {
-    for (const kind of DECISION_KINDS) expect(KIND_LABELS[kind]).not.toBe('');
+    for (const kind of DECISION_KINDS) expect(KIND_LABELS[kind]).toMatch(/\S/);
     expect(zPushPayload.safeParse(pushPayloadOf([A])).success).toBe(true);
   });
 });

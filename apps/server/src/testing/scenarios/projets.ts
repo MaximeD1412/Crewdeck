@@ -199,3 +199,10 @@ export const demarrageProjets = defineScenario({
     return { ...seed, ...runner };
   },
 });
+
+/**
+ * `demarrage-projets` on its folder tab, for the visual review: the form of
+ * a folder of the Runner's machine (no mockup yet, `demarrage-projets` being
+ * GitHub only). The capture opens the tab and types `RECETTES_FOLDER`.
+ */
+export const demarrageProjetsDossier = defineScenario({ ...demarrageProjets, name: 'demarrage-projets-dossier' });

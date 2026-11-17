@@ -18,7 +18,7 @@ import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaiso
 import type { Scenario } from './define.js';
 import { idees, ideesNouvelle, ideesVide } from './idees.js';
 import { menuPlus } from './menu-plus.js';
-import { demarrageProjets, projetLocal, projets, projetsVide } from './projets.js';
+import { demarrageProjets, demarrageProjetsDossier, projetLocal, projets, projetsVide } from './projets.js';
 import { parametres } from './parametres.js';
 import { resynchronisation } from './resynchronisation.js';
 import { runner, runnerServeursMcp } from './runner.js';
@@ -45,6 +45,7 @@ const SCENARIOS: readonly Scenario[] = [
   demarrageComptesIa,
   demarrageComptesIaAucun,
   demarrageProjets,
+  demarrageProjetsDossier,
   idees,
   ideesNouvelle,
   ideesVide,

@@ -57,6 +57,14 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await picker.getByRole('checkbox', { name: /^octocat\/site-mairie\b/ }).check();
     await expect(picker.getByRole('button', { name: 'Suivre 2 Projets' })).toBeEnabled();
   },
+  // The folder tab, a git folder with code checked by the Runner, its name proposed.
+  'demarrage-projets-dossier': async (page) => {
+    await page.locator('cd-page-demarrage').getByRole('tab', { name: 'Dossier sur ta machine' }).click();
+    const form = page.locator('cd-page-demarrage cd-folder-project-form');
+    await form.getByRole('textbox', { name: 'Chemin du dossier' }).fill('~/projets/recettes');
+    await expect(form).toContainText('Dépôt git · déjà du code : un inventaire sera proposé.');
+    await expect(form.getByRole('button', { name: 'Créer le Projet' })).toBeEnabled();
+  },
   // The Local Projet's name opened by the trusted Appareil, its folder kept by the Runner.
   'projet-local': async (page) => {
     await expect(page.locator('cd-page-projet').getByRole('heading', { level: 1, name: 'Recettes' })).toBeVisible();

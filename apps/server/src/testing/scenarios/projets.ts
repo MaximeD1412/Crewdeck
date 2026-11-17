@@ -1,8 +1,12 @@
-import { PROCESS_CREWDECK, PROCESS_CREWDECK_NAME } from '@crewdeck/contracts';
+import { PROCESS_CREWDECK, PROCESS_CREWDECK_NAME, projectNameAad } from '@crewdeck/contracts';
 import { Prisma } from '../../generated/prisma/client.js';
 import { newId } from '../../ids.js';
-import type { ScenarioContext } from './define.js';
+import { createLinkedRunner } from '../runners.js';
+import { sealItem } from '../vault.js';
+import type { ScenarioContext, ScenarioSeed } from './define.js';
 import { defineScenario } from './define.js';
+import { seedTrustedDevice } from './idees.js';
+import { RUNNER_MACHINE } from './runner.js';
 import { OCTOCAT, signInPilot } from './sign-in.js';
 
 /** The installation of the App the scenarios' Pilote made, on their own account. */
@@ -75,6 +79,26 @@ export const seedRepositories = async (ctx: ScenarioContext, pilotId: string, re
   }
 };
 
+/** The folder of `projet-local`'s mockup, a git repository with code. */
+export const RECETTES_FOLDER = '~/projets/recettes';
+/** A folder without git, for « Pas encore un dépôt git… ». */
+export const CARNET_FOLDER = '~/projets/carnet';
+
+/**
+ * The Pilote's Appareil, trusted, and their Runner `atelier-pc`, online, with
+ * the same vault key: the fake Runner checks the folders the page types
+ * (PROJET-6), `~/projets/recettes` a git repository with code on `main`,
+ * `~/projets/carnet` a folder without git; any other is missing.
+ */
+export const withRunnerFolders = async (ctx: ScenarioContext, pilotId: string): Promise<{ runner: Pick<ScenarioSeed, 'device' | 'runnerToken' | 'runnerMachine'>; vaultKey: Buffer }> => {
+  const { device, vaultKey } = await seedTrustedDevice(ctx, pilotId);
+  const { token } = await createLinkedRunner(ctx.prisma, pilotId, RUNNER_MACHINE);
+  ctx.fakes.runner.useVault(vaultKey);
+  ctx.fakes.runner.seedFolder(RECETTES_FOLDER, { state: 'ready', hasCode: true, branch: 'main' });
+  ctx.fakes.runner.seedFolder(CARNET_FOLDER, { state: 'not-git', hasCode: false, branch: null });
+  return { runner: { device, runnerToken: token, runnerMachine: RUNNER_MACHINE }, vaultKey };
+};
+
 /** The repositories of « Premiers pas »' mockup: three with code, one empty. */
 const PICKER_REPOSITORIES: readonly SeededRepository[] = [
   { name: 'personal-os', hasCode: true },
@@ -103,21 +127,67 @@ export const projets = defineScenario({
   },
 });
 
-/** No Projet yet (`projets`, state `vide`); the installation has the mockup's repositories to follow. */
+/**
+ * No Projet yet (`projets`, state `vide`); the installation has the mockup's
+ * repositories to follow, the Runner the folders of `withRunnerFolders`.
+ */
 export const projetsVide = defineScenario({
   name: 'projets-vide',
   path: '/projets',
   seed: async (ctx) => {
     const seed = await signInPilot(ctx);
     await seedRepositories(ctx, seed.pilotId, PICKER_REPOSITORIES);
-    return seed;
+    const { runner } = await withRunnerFolders(ctx, seed.pilotId);
+    return { ...seed, ...runner };
+  },
+});
+
+/** The Local Projet of `projet-local`'s mockup, followed on 10 November. */
+export const RECETTES = { id: '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6b01', name: 'Recettes', followedAt: new Date('2026-11-10T09:00:00.000Z') } as const;
+
+/**
+ * A Local Projet's page (`projet-local`): « Recettes », from the folder
+ * `~/projets/recettes` the Runner `atelier-pc` keeps, every group Local; its
+ * Process a draft of « Process Crewdeck » (« Checks » needs a Commande), as
+ * its creation leaves it.
+ */
+export const projetLocal = defineScenario({
+  name: 'projet-local',
+  path: `/projets/${RECETTES.id}`,
+  seed: async (ctx) => {
+    const seed = await signInPilot(ctx);
+    const { runner, vaultKey } = await withRunnerFolders(ctx, seed.pilotId);
+    const { pilotId } = seed;
+    const projectId = RECETTES.id;
+    await ctx.prisma.unscoped.project.create({
+      data: {
+        id: projectId,
+        pilotId,
+        nameSealed: sealItem(vaultKey, RECETTES.name, projectNameAad(projectId)) as unknown as Prisma.InputJsonValue,
+        folderState: 'present',
+        releaseBranch: 'main',
+        integrationBranch: 'develop',
+        hasCode: true,
+        inventoryState: 'pending',
+        followedAt: RECETTES.followedAt,
+      },
+    });
+    await ctx.prisma.unscoped.artifactSource.createMany({
+      data: (['ticket', 'code'] as const).map((group) => ({ id: newId(), pilotId, projectId, group, source: 'local' as const, since: RECETTES.followedAt })),
+    });
+    await ctx.prisma.unscoped.processDraft.create({
+      data: { id: newId(), pilotId, projectId, definition: PROCESS_CREWDECK as unknown as Prisma.InputJsonValue, sealed: Prisma.DbNull, revision: 1, baseVersion: 0, updatedAt: RECETTES.followedAt },
+    });
+    ctx.fakes.runner.keepFolder(projectId, RECETTES_FOLDER);
+    return { ...seed, ...runner };
   },
 });
 
 /**
  * « Premiers pas »' last step (`demarrage`, state `projets`): the Pilote's
  * installation reaches four repositories, three with code; they choose which
- * become Projets, or « Plus tard ».
+ * become Projets, or « Plus tard ». The folder tab checks the folders of
+ * `withRunnerFolders`.
  */
 export const demarrageProjets = defineScenario({
   name: 'demarrage-projets',
@@ -125,6 +195,7 @@ export const demarrageProjets = defineScenario({
   seed: async (ctx) => {
     const seed = await signInPilot(ctx, { gettingStartedStep: 'projects' });
     await seedRepositories(ctx, seed.pilotId, PICKER_REPOSITORIES);
-    return seed;
+    const { runner } = await withRunnerFolders(ctx, seed.pilotId);
+    return { ...seed, ...runner };
   },
 });

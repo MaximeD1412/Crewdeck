@@ -1,17 +1,24 @@
 import {
   type EngineCapabilities,
+  folderCheckAad,
+  folderCheckedAad,
+  type FolderCheckResult,
   HEARTBEAT_SECONDS,
   type McpServers,
+  projectFolderAad,
   PROTOCOL_VERSION,
   type Runner,
   type RunnerToServer,
   type ServerToRunner,
+  type SealedItem,
   type SessionOutcome,
+  zFolderCheck,
   zServerToRunner,
 } from '@crewdeck/contracts';
 import WebSocket from 'ws';
 import { newId } from '../ids.js';
 import type { Fake } from './fakes.js';
+import { openItem, sealItem } from './vault.js';
 
 /** How long `connect` waits for `hello.accepted`. */
 const ACCEPT_MS = 5_000;
@@ -23,6 +30,14 @@ const OWN_MACHINE: RunnerMachine = { runnerVersion: 'fake', machine: 'atelier', 
 
 type WithoutEnvelope<T> = T extends unknown ? Omit<T, 'id' | 'at'> : never;
 
+/** A folder a scenario seeds on the fake Runner's machine: how it checks, its `name` its path's last part unless given. */
+export type SeededFolder = Omit<FolderCheckResult, 'name'> & { readonly name?: string };
+
+/** A folder a Projet may keep: a git repository's root, or a folder without git. */
+const ATTACHABLE: ReadonlySet<FolderCheckResult['state']> = new Set(['ready', 'not-git']);
+
+const baseName = (path: string): string => path.replace(/\/+$/, '').split('/').pop() ?? '';
+
 /**
  * The Runner of the scenario's Pilote, for `pnpm dev` and the end-to-end
  * run (`CREWDECK_FAKES=1`): it connects to this server's own `/api/ws` with
@@ -33,7 +48,12 @@ type WithoutEnvelope<T> = T extends unknown ? Omit<T, 'id' | 'at'> : never;
  * `session.start` and `session.resume` answer `active` on the Session's own
  * Moteur id, then `ended` with the outcome `endSessionsWith` set (none: they
  * stay `active`); `session.stop` answers `stopped`; its `hello` tells the
- * Sessions it knows, none alive, as a relaunched Runner.
+ * Sessions it knows, none alive, as a relaunched Runner. Its folders
+ * (PROJET-6): with the vault key a scenario gives it (`useVault`), it answers
+ * `folder.check` from the folders seeded (`seedFolder`; any other path is
+ * `missing`, a relative one `not-absolute`, another Projet's `taken`), keeps
+ * the folder `project.folder.attach` sends when it may, and tells
+ * `projects.folders` on connecting and after each change, as the Runner.
  */
 export class FakeRunner implements Fake {
   private socket: WebSocket | undefined;
@@ -43,6 +63,11 @@ export class FakeRunner implements Fake {
   /** The Sessions it was asked to run, by id: their Moteur's id. */
   private readonly sessions = new Map<string, string>();
   private sessionsEnd: SessionOutcome | undefined;
+  private vaultKey: Uint8Array | undefined;
+  /** The folders of its machine, by path. */
+  private readonly folders = new Map<string, SeededFolder>();
+  /** The Local Projets' folders it keeps, by Projet id: their path. */
+  private readonly projects = new Map<string, string>();
 
   /** Whether its `hello` was accepted and its socket is still open. */
   get connected(): boolean {
@@ -87,6 +112,7 @@ export class FakeRunner implements Fake {
         socket.on('error', () => undefined);
         this.heartbeats = setInterval(() => this.send(socket, { type: 'heartbeat' }), HEARTBEAT_SECONDS * 1000);
         this.heartbeats.unref();
+        this.reportFolders(socket);
         resolve();
       });
     });
@@ -111,6 +137,29 @@ export class FakeRunner implements Fake {
     this.sessionsEnd = outcome;
   }
 
+  /** The vault key it opens and seals the folders' texts with, as the Runner's own wrap would give it. */
+  useVault(vaultKey: Uint8Array): void {
+    this.vaultKey = vaultKey;
+  }
+
+  /** A folder at `path` on its machine, checked as `folder`. */
+  seedFolder(path: string, folder: SeededFolder): void {
+    this.folders.set(path, folder);
+  }
+
+  /** The Local Projet `projectId` keeps the folder at `path`, as a Projet created before the scenario starts. */
+  keepFolder(projectId: string, path: string): void {
+    this.projects.set(projectId, path);
+  }
+
+  /** The folder at `path` deleted from its machine: `projects.folders` tells it at once; `false` while not connected. */
+  removeFolder(path: string): boolean {
+    this.folders.delete(path);
+    if (!this.socket || !this.connected) return false;
+    this.reportFolders(this.socket);
+    return true;
+  }
+
   /** Connects again as its last `connect`, the Runner relaunched; `false` when it never connected since its reset. */
   async reconnect(): Promise<boolean> {
     if (!this.last) return false;
@@ -131,6 +180,9 @@ export class FakeRunner implements Fake {
     this.last = undefined;
     this.sessions.clear();
     this.sessionsEnd = undefined;
+    this.vaultKey = undefined;
+    this.folders.clear();
+    this.projects.clear();
   }
 
   private answer(socket: WebSocket, message: ServerToRunner): void {
@@ -148,9 +200,49 @@ export class FakeRunner implements Fake {
       case 'session.stop':
         if (this.sessions.has(message.sessionId)) this.send(socket, { type: 'session.state', sessionId: message.sessionId, state: 'stopped' });
         return;
+      case 'folder.check': {
+        const path = this.open(message.sealed, folderCheckAad(message.requestId));
+        if (path === undefined || !this.vaultKey) return;
+        const sealed = sealItem(this.vaultKey, JSON.stringify(this.check(path)), folderCheckedAad(message.requestId));
+        this.send(socket, { type: 'folder.checked', requestId: message.requestId, tabId: message.tabId, sealed });
+        return;
+      }
+      case 'project.folder.attach': {
+        const path = this.open(message.sealed, projectFolderAad(message.projectId));
+        if (path === undefined) return;
+        this.projects.delete(message.projectId);
+        if (ATTACHABLE.has(this.check(path).state)) this.projects.set(message.projectId, path);
+        this.reportFolders(socket);
+        return;
+      }
       default:
         return;
     }
+  }
+
+  /** The path sealed in `sealed`, trimmed as the Runner reads it; `undefined` without the vault key or for what does not open. */
+  private open(sealed: SealedItem, aad: string): string | undefined {
+    if (!this.vaultKey) return undefined;
+    try {
+      return zFolderCheck.parse(JSON.parse(openItem(this.vaultKey, sealed, aad).toString('utf8'))).path.trim();
+    } catch {
+      return undefined;
+    }
+  }
+
+  private check(path: string): FolderCheckResult {
+    const name = baseName(path);
+    if (!path.startsWith('/') && !path.startsWith('~')) return { state: 'not-absolute', hasCode: false, branch: null, name };
+    const folder = this.folders.get(path);
+    if (!folder) return { state: 'missing', hasCode: false, branch: null, name };
+    if ([...this.projects.values()].includes(path) && ATTACHABLE.has(folder.state)) return { state: 'taken', hasCode: folder.hasCode, branch: folder.branch, name: folder.name ?? name };
+    return { ...folder, name: folder.name ?? name };
+  }
+
+  /** The Projets whose folder is still on its machine. */
+  private reportFolders(socket: WebSocket): void {
+    const present = [...this.projects].filter(([, path]) => this.folders.has(path)).map(([projectId]) => projectId);
+    this.send(socket, { type: 'projects.folders', present });
   }
 
   private send(socket: WebSocket, message: WithoutEnvelope<RunnerToServer>): void {

@@ -1,4 +1,6 @@
-import { eventPayloadSchema, STATE_SLICES, zFollowProjects, zProject, zProjectList, zRepository } from '../index.js';
+import { eventPayloadSchema, STATE_SLICES, zAttachProjectFolder, zCreateLocalProject, zFollowProjects, zProcessTemplateId, zProject, zProjectList, zRepository } from '../index.js';
+
+const SEALED = { key: 'A'.repeat(80), ciphertext: 'B'.repeat(43) };
 
 const REPOSITORY = {
   id: '019a6f00-0000-7000-8000-000000000001',
@@ -23,7 +25,22 @@ const PROJECT = {
   hasCode: true,
   inventoryState: 'pending',
   accessLost: false,
+  nameSealed: null,
+  folder: null,
   followedAt: '2026-11-12T08:30:00.000Z',
+};
+
+/** A Local Projet: no repository, its name sealed, its folder on the Runner. */
+const LOCAL_PROJECT = {
+  ...PROJECT,
+  id: '019a6f00-0000-7000-8000-000000000021',
+  repositoryId: null,
+  owner: null,
+  name: null,
+  fullName: null,
+  displayName: null,
+  nameSealed: SEALED,
+  folder: 'pending',
 };
 
 describe('zRepository and zProject', () => {
@@ -36,6 +53,12 @@ describe('zRepository and zProject', () => {
     expect(zProjectList.parse({ items: [PROJECT] })).toEqual({ items: [PROJECT] });
   });
 
+  it('holds a Local Projet: no repository nor name in clear, its name sealed, its folder pending, present or missing', () => {
+    expect(eventPayloadSchema('project.upserted')?.parse(LOCAL_PROJECT)).toEqual(LOCAL_PROJECT);
+    expect(zProject.safeParse({ ...LOCAL_PROJECT, folder: 'gone' }).success).toBe(false);
+    expect(zProject.safeParse({ ...LOCAL_PROJECT, nameSealed: { key: 'x', ciphertext: 'y' } }).success).toBe(false);
+  });
+
   it('keeps an Inventaire in one of its states', () => {
     expect(zProject.safeParse({ ...PROJECT, inventoryState: 'done' }).success).toBe(false);
     expect(zRepository.safeParse({ ...REPOSITORY, hasCode: undefined }).success).toBe(false);
@@ -44,9 +67,35 @@ describe('zRepository and zProject', () => {
 
 describe('zFollowProjects', () => {
   it('follows 1 to 20 Dépôts GitHub, with the seq of the page', () => {
-    expect(zFollowProjects.parse({ repositoryIds: [REPOSITORY.id], seq: '12' })).toEqual({ repositoryIds: [REPOSITORY.id], seq: 12 });
+    expect(zFollowProjects.parse({ repositoryIds: [REPOSITORY.id], templateId: 'process-crewdeck', seq: '12' })).toEqual({
+      repositoryIds: [REPOSITORY.id],
+      templateId: 'process-crewdeck',
+      seq: 12,
+    });
     expect(zFollowProjects.safeParse({ repositoryIds: [], seq: 1 }).success).toBe(false);
     expect(zFollowProjects.safeParse({ repositoryIds: Array.from({ length: 21 }, () => REPOSITORY.id), seq: 1 }).success).toBe(false);
     expect(zFollowProjects.safeParse({ repositoryIds: ['personal-os'], seq: 1 }).success).toBe(false);
+  });
+
+  it('starts from a Modèle de process: « Process Crewdeck » only, until PROCESS-14', () => {
+    expect(zProcessTemplateId.options).toEqual(['process-crewdeck']);
+    expect(zFollowProjects.safeParse({ repositoryIds: [REPOSITORY.id], templateId: 'mon-process', seq: 1 }).success).toBe(false);
+  });
+});
+
+describe('zCreateLocalProject and zAttachProjectFolder', () => {
+  const CREATE = { id: LOCAL_PROJECT.id, nameSealed: SEALED, folderSealed: SEALED, hasCode: true, releaseBranch: 'main', templateId: 'process-crewdeck' };
+
+  it('creates a Local Projet of an id the page drew, its name and its folder sealed', () => {
+    expect(zCreateLocalProject.parse(CREATE)).toEqual(CREATE);
+    expect(zCreateLocalProject.parse({ ...CREATE, releaseBranch: null }).releaseBranch).toBeNull();
+    expect(zCreateLocalProject.safeParse({ ...CREATE, id: 'recettes' }).success).toBe(false);
+    expect(zCreateLocalProject.safeParse({ ...CREATE, folderSealed: '~/projets/recettes' }).success).toBe(false);
+    expect(zCreateLocalProject.safeParse({ ...CREATE, templateId: undefined }).success).toBe(false);
+  });
+
+  it('attaches a folder again, with the seq of the page', () => {
+    expect(zAttachProjectFolder.parse({ folderSealed: SEALED, seq: '3' })).toEqual({ folderSealed: SEALED, seq: 3 });
+    expect(zAttachProjectFolder.safeParse({ folderSealed: SEALED }).success).toBe(false);
   });
 });

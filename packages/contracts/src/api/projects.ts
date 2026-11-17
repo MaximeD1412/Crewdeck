@@ -1,5 +1,7 @@
 import { z } from 'zod';
+import { zSealedItem } from '../keys/sealed.js';
 import { withSeq } from './commands.js';
+import { zBuiltinTemplateId } from './phase-runs.js';
 import { zId, zInstant } from '../values.js';
 
 /**
@@ -37,8 +39,20 @@ export const zRepository = z.object({
 export type Repository = z.infer<typeof zRepository>;
 
 /**
- * A Projet (US-3): a Dépôt GitHub the Pilote follows, prepared for the
- * Process. Its name is its repository's; its integration branch is `develop`
+ * Where a Local Projet's folder stands (PROJET-6): `pending` until the Runner
+ * kept it, `present` while the Runner lists it, `missing` once it does not
+ * (the folder gone, another Runner linked).
+ */
+export const PROJECT_FOLDER_STATES = ['pending', 'present', 'missing'] as const;
+export const zProjectFolderState = z.enum(PROJECT_FOLDER_STATES);
+export type ProjectFolderState = z.infer<typeof zProjectFolderState>;
+
+/**
+ * A Projet (US-3): a Dépôt GitHub the Pilote follows, or a folder of the
+ * Runner's machine (a Local Projet, PROJET-6: no repository, its name sealed
+ * under the vault key in `nameSealed`, `project:<id>:name`, its folder's path
+ * on the Runner only, `folder` where it stands), prepared for the
+ * Process. A GitHub Projet's name is its repository's; its integration branch is `develop`
  * and its release branch the repository's default branch until the Pilote
  * changes them in its Paramètres (ADR 0011). `accessLost` once the App can no longer reach its
  * repository (removed from the installation, the installation deleted). The
@@ -47,11 +61,13 @@ export type Repository = z.infer<typeof zRepository>;
  */
 export const zProject = z.object({
   id: zId,
-  repositoryId: zId,
-  owner: z.string().min(1),
-  name: z.string().min(1),
-  fullName: z.string().min(1),
-  displayName: z.string().min(1),
+  repositoryId: zId.nullable(),
+  owner: z.string().min(1).nullable(),
+  name: z.string().min(1).nullable(),
+  fullName: z.string().min(1).nullable(),
+  displayName: z.string().min(1).nullable(),
+  nameSealed: zSealedItem.nullable(),
+  folder: zProjectFolderState.nullable(),
   releaseBranch: z.string().min(1),
   integrationBranch: z.string().min(1),
   hasCode: z.boolean(),
@@ -65,9 +81,34 @@ export type Project = z.infer<typeof zProject>;
 export const zProjectList = z.object({ items: z.array(zProject) });
 export type ProjectList = z.infer<typeof zProjectList>;
 
-/** `POST /api/projects` (session): the Dépôts GitHub to follow, each becoming a Projet. */
-export const zFollowProjects = withSeq(z.object({ repositoryIds: z.array(zId).min(1).max(FOLLOW_PROJECTS_MAX) }));
+/** The Modèle de process a new Projet starts from (US-97): « Process Crewdeck » only, until the Pilote's own (PROCESS-14). */
+export const zProcessTemplateId = zBuiltinTemplateId;
+export type ProcessTemplateId = z.infer<typeof zProcessTemplateId>;
+
+/** `POST /api/projects` (session): the Dépôts GitHub to follow, each becoming a Projet started from `templateId`. */
+export const zFollowProjects = withSeq(z.object({ repositoryIds: z.array(zId).min(1).max(FOLLOW_PROJECTS_MAX), templateId: zProcessTemplateId }));
 export type FollowProjects = z.infer<typeof zFollowProjects>;
+
+/**
+ * `POST /api/projects/local` (session): a Projet from a folder the Runner
+ * checked (PROJET-6). `id` is drawn by the page (a UUIDv7), so that the name
+ * is sealed for it (`project:<id>:name`) and the path for the Runner
+ * (`project:<id>:folder`) before the server sees them; `hasCode` and
+ * `releaseBranch` (the folder's branch, `null` without git) are the check's.
+ */
+export const zCreateLocalProject = z.object({
+  id: zId,
+  nameSealed: zSealedItem,
+  folderSealed: zSealedItem,
+  hasCode: z.boolean(),
+  releaseBranch: z.string().min(1).max(255).nullable(),
+  templateId: zProcessTemplateId,
+});
+export type CreateLocalProject = z.infer<typeof zCreateLocalProject>;
+
+/** `POST /api/projects/:id/folder` (session): choose a Local Projet's folder again, sealed for the Runner. */
+export const zAttachProjectFolder = withSeq(z.object({ folderSealed: zSealedItem }));
+export type AttachProjectFolder = z.infer<typeof zAttachProjectFolder>;
 
 /** Where `GET /api/github/setup` sends the Pilote back from GitHub's installation page: its `state`. */
 export const INSTALL_RETURNS = ['demarrage', 'projets'] as const;

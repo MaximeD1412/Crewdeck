@@ -153,7 +153,7 @@ export const createDeviceApproval = ({ devices, vault, api, userAgent, onDevice 
       } finally {
         secret.fill(0);
       }
-      await devices.saveDevice({ ...stored, deviceId: code.id, senderPublicKey: approverPublicKey });
+      await devices.saveDevice({ ...stored, deviceId: code.id, senderPublicKey: approverPublicKey, ...(approval.approver.type === 'runner' ? { runnerPublicKey: approverPublicKey } : {}) });
       onDevice?.(code.id);
       return 'approved';
     },

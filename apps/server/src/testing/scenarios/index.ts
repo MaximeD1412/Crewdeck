@@ -1,4 +1,5 @@
 import { aToi, aToiVide } from './a-toi.js';
+import { aToiProcess } from './a-toi-process.js';
 import { blank } from './blank.js';
 import {
   composants,
@@ -12,7 +13,7 @@ import {
   composantsTextField,
   confirmDialog,
 } from './composants.js';
-import { connexion, connexionErreur } from './connexion.js';
+import { connexion, connexionErreur, connexionLien, connexionLienEnvoye } from './connexion.js';
 import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
 import { appareilAApprouver, appareilAApprouverCode, appareils, appareilsAjouter } from './devices.js';
 import type { Scenario } from './define.js';
@@ -22,6 +23,7 @@ import { parametres } from './parametres.js';
 import { resynchronisation } from './resynchronisation.js';
 import { runner, runnerServeursMcp } from './runner.js';
 import { aToiRunnerHorsLigne, runnerHorsLigne } from './runner-offline.js';
+import { smoke } from './smoke.js';
 
 export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed } from './define.js';
 
@@ -33,11 +35,14 @@ const SCENARIOS: readonly Scenario[] = [
   appareilsAjouter,
   aToi,
   aToiVide,
+  aToiProcess,
   aToiRunnerHorsLigne,
   blank,
   composants,
   connexion,
   connexionErreur,
+  connexionLien,
+  connexionLienEnvoye,
   demarrage,
   demarrageLiaisonEchouee,
   demarrageRunnerRelie,
@@ -52,6 +57,7 @@ const SCENARIOS: readonly Scenario[] = [
   runner,
   runnerHorsLigne,
   runnerServeursMcp,
+  smoke,
   ...composantsRows,
   composantsTextField,
   composantsSettingRow,

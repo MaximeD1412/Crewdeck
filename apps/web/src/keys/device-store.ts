@@ -3,7 +3,9 @@ import type { Bytes } from './bytes.js';
 /**
  * This browser's Appareil (ADR 0003): its X25519 key pair, the private key a
  * non-extractable `CryptoKey` that IndexedDB keeps as is (structured clone),
- * and the id the server gave it once a link code named it (`null` before).
+ * the id the server gave it once a link code named it (`null` before), and
+ * the Runner's public key once a pairing proof authenticated it: the sender
+ * of the Session keys' wraps (SESSION-1), never a key the server hands over.
  */
 export interface StoredDevice {
   readonly deviceId: string | null;
@@ -15,6 +17,7 @@ export interface StoredDevice {
    * trusted Appareil or the Runner approved it by its code (E2E-3).
    */
   readonly senderPublicKey?: Bytes;
+  readonly runnerPublicKey?: Bytes;
 }
 
 export interface DeviceStore {
@@ -59,8 +62,10 @@ export const createDeviceStore = (factory?: IDBFactory): DeviceStore => {
       return stored ?? null;
     },
     async saveDevice(device) {
-      const { deviceId, privateKey, publicKey, senderPublicKey } = device;
-      await run('readwrite', (store) => store.put({ deviceId, privateKey, publicKey, ...(senderPublicKey ? { senderPublicKey } : {}) }, KEY));
+      const { deviceId, privateKey, publicKey, senderPublicKey, runnerPublicKey } = device;
+      await run('readwrite', (store) =>
+        store.put({ deviceId, privateKey, publicKey, ...(senderPublicKey ? { senderPublicKey } : {}), ...(runnerPublicKey ? { runnerPublicKey } : {}) }, KEY),
+      );
     },
     async clearDevice() {
       await run('readwrite', (store) => store.delete(KEY));

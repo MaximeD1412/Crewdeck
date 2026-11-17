@@ -120,6 +120,31 @@ describe('a new Appareil approved by its code', () => {
     for (const body of fake.sent) expect(JSON.stringify(body)).not.toContain(code.secret);
   });
 
+  it('keeps the Runner’s key for the Sessions when the Runner approved it, none when an Appareil did', async () => {
+    const { fake, trusted, fresh } = await setUp();
+    const code = await fresh.keys.register();
+    const typed = parseDeviceCode(deviceCodeUri(code));
+    if (!typed) throw new Error('the code does not parse');
+    const checked = await trusted.keys.check(typed);
+    if (checked === 'mismatch') throw new Error('mismatch');
+    await trusted.keys.approve(checked);
+    fake.tamper.approval = (approval) => ({ ...approval, approver: { ...approval.approver, type: 'runner' } });
+
+    expect(await fresh.keys.adopt(code)).toBe('approved');
+    expect(fresh.devices.current()?.runnerPublicKey).toEqual(fromBase64Url(trusted.publicKey));
+    expect(fresh.devices.current()?.senderPublicKey).toEqual(fromBase64Url(trusted.publicKey));
+
+    const other = await setUp();
+    const otherCode = await other.fresh.keys.register();
+    const otherTyped = parseDeviceCode(deviceCodeUri(otherCode));
+    if (!otherTyped) throw new Error('the code does not parse');
+    const otherChecked = await other.trusted.keys.check(otherTyped);
+    if (otherChecked === 'mismatch') throw new Error('mismatch');
+    await other.trusted.keys.approve(otherChecked);
+    expect(await other.fresh.keys.adopt(otherCode)).toBe('approved');
+    expect(other.fresh.devices.current()?.runnerPublicKey).toBeUndefined();
+  });
+
   it('keeps the key pair of a code not approved yet for the next code', async () => {
     const { fresh } = await setUp();
     await fresh.keys.register();

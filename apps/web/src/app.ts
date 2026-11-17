@@ -1,9 +1,10 @@
-import type { Me } from '@crewdeck/contracts';
+import type { EmailLinkVerified, Me } from '@crewdeck/contracts';
 import {
   Cadre,
   PageAToi,
   PageComposants,
   PageConnexion,
+  PageConnexionLien,
   PageDemarrage,
   PageParametres,
   PageProjets,
@@ -14,7 +15,7 @@ import {
 } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
-import { me as readMe } from './api/auth.js';
+import { me as readMe, requestLink as postLinkRequest, verifyLink as postLinkVerify } from './api/auth.js';
 import type { Client } from './api/client.js';
 import { ApiError, currentDeviceId } from './api/request.js';
 import { updateSettings } from './api/settings.js';
@@ -28,12 +29,15 @@ import { createRoleSettings } from './role-settings.js';
 import { routeData, routeSlots, startRouter, type Route, type Router } from './router.js';
 import { aToiHref, composantsHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
-import { signInGuard, signInHref } from './sign-in.js';
+import { githubSignInHref, HOME_PATH, signInGuard } from './sign-in.js';
 import { client as pageClient, connection as pageConnection, store as pageStore } from './store/index.js';
 import type { Connection } from './store/connection.js';
 import { createLatencyMeter, type LatencyMeter } from './store/latency.js';
 import type { Store } from './store/store.js';
-import { decisionViews } from './views/decisions/registry.js';
+import { createConnexion } from './views/connexion.js';
+import { createConnexionLien, takeLinkToken } from './views/connexion-lien.js';
+import { actionsOf, decisionViews } from './views/decisions/registry.js';
+import './views/decisions/loop-back-exhausted.js';
 import './views/decisions/runner-offline.js';
 import { systemOfBrowser } from './views/demarrage.js';
 import { ADD_DEVICE_ID } from './views/devices.js';
@@ -57,8 +61,11 @@ export interface BootOptions {
   readonly dispatcher?: Dispatcher;
   /** The Pilote signed in, `null` without a session: `GET /api/me` by default. */
   readonly me?: () => Promise<Me | null>;
-  /** Leaves the page for another document (the GitHub sign-in): `location.assign` by default. */
+  /** Leaves the page for another document (the GitHub sign-in, the page signed in): `location.assign` by default. */
   readonly leave?: (url: string) => void;
+  /** The sign-in by email (`api/auth.ts`): `POST /api/auth/email` and `/api/auth/email/verify` by default. */
+  readonly requestLink?: (email: string, next: string) => Promise<void>;
+  readonly verifyLink?: (token: string, timeZone: string) => Promise<EmailLinkVerified>;
   /** The page's store and its socket (`store/index.ts`) by default. */
   readonly store?: Store;
   readonly connection?: Pick<Connection, 'start' | 'stop'>;
@@ -93,12 +100,17 @@ export const boot = async ({
   dispatcher = pageDispatcher,
   me = readMe,
   leave = (url) => location.assign(url),
+  requestLink = postLinkRequest,
+  verifyLink = postLinkVerify,
   store = pageStore,
   connection = pageConnection,
   client = pageClient,
   latency = createLatencyMeter({ store }),
   keys = createPageKeys({ store, client, userAgent: navigator.userAgent }),
 }: BootOptions): Promise<App> => {
+  // A sign-in link's token leaves the address bar before anything else (ADR 0014).
+  const linkToken = takeLinkToken();
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [pilot] = await Promise.all([me().catch(() => null), bootSkin(skin, resolveSkin)]);
   dispatcher.listen(document);
   const bridge = createInPageBridge({ dispatch: dispatcher.dispatch });
@@ -138,6 +150,14 @@ export const boot = async ({
     keys: keys.linkKeys,
     unlockVault,
   });
+  const connexion = createConnexion({ requestLink });
+  const connexionLien = createConnexionLien({
+    token: linkToken,
+    timeZone,
+    verifyLink,
+    leave: (url) => leave(url),
+    navigate: (url) => router.navigate(url),
+  });
   const projects = createProjects({ store, client });
   const roleSettings = createRoleSettings({ client });
   const signIn = signInGuard(pilot);
@@ -162,6 +182,8 @@ export const boot = async ({
     },
     data: (match) => {
       if (match.composant === PageDemarrage) return { ...gettingStarted.view(), picker: projects.picker('demarrage') };
+      if (match.composant === PageConnexion) return connexion.view(match.query);
+      if (match.composant === PageConnexionLien) return connexionLien.view();
       if (match.composant === RepositoryPicker) return projects.picker('projets');
       const { slices } = store.getState();
       if (match.composant === PageProjets) return projetsView(slices.project?.values() ?? []);
@@ -181,6 +203,8 @@ export const boot = async ({
       shell.refresh();
     }),
     gettingStarted.subscribe(() => router.refresh()),
+    connexion.subscribe(() => router.refresh()),
+    connexionLien.subscribe(() => router.refresh()),
     projects.subscribe(() => router.refresh()),
     roleSettings.subscribe(() => router.refresh()),
   ];
@@ -191,9 +215,15 @@ export const boot = async ({
     latency.start();
     connection.start();
   }
-  dispatcher.registerAction(PageConnexion, 'signIn', {
-    run: () => leave(signInHref(router.current.query['next'], Intl.DateTimeFormat().resolvedOptions().timeZone)),
+  dispatcher.registerAction(PageConnexion, 'signInWith', {
+    run: () => leave(githubSignInHref(router.current.query['next'], timeZone)),
   });
+  dispatcher.registerAction(PageConnexion, 'requestLink', {
+    run: ({ email }) => connexion.requestLink(email, router.current.query['next'] ?? HOME_PATH),
+  });
+  dispatcher.registerAction(PageConnexion, 'changeEmail', { run: () => connexion.changeEmail() });
+  dispatcher.registerAction(PageConnexionLien, 'confirm', { run: () => connexionLien.confirm() });
+  dispatcher.registerAction(PageConnexionLien, 'restart', { run: () => connexionLien.restart() });
   dispatcher.registerAction(PageComposants, 'select', { run: ({ name }) => router.navigate(composantsHref(name)) });
   dispatcher.registerAction(PageParametres, 'change', {
     run: async ({ name, value }) => {
@@ -218,10 +248,10 @@ export const boot = async ({
   dispatcher.registerAction(PageAToi, 'act', {
     run: ({ id, action }) => {
       const decision = openDecision(id);
-      const button = decision && decisionViews.viewOf(decision.kind).actions.find((candidate) => candidate.id === action);
+      const button = decision && actionsOf(decisionViews.viewOf(decision.kind), decision).find((candidate) => candidate.id === action);
       if (!decision || !button) return;
       if (button.needsRunner && store.getState().slices.runner?.state !== 'online') return;
-      return button.run(decision, { navigate: (url) => router.navigate(url) });
+      return button.run(decision, { navigate: (url) => router.navigate(url), client });
     },
   });
   dispatcher.registerAction(PageAToi, 'note-idea', { run: () => router.navigate('/idees') });

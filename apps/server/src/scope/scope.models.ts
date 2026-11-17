@@ -5,7 +5,7 @@
  * points at another scoped model by a foreign key without `pilotId`.
  * Later: `FxRate`.
  */
-export const GLOBAL_MODELS: ReadonlySet<string> = new Set(['Pilot', 'GitHubDelivery', 'GitHubInstallation']);
+export const GLOBAL_MODELS: ReadonlySet<string> = new Set(['Pilot', 'GitHubDelivery', 'GitHubInstallation', 'EmailLoginToken']);
 
 export const PILOT_ID = 'pilotId';
 

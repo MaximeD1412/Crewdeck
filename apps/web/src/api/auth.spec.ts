@@ -1,7 +1,7 @@
 import { ApiError } from './request.js';
-import { logout, me } from './auth.js';
+import { logout, me, requestLink, verifyLink } from './auth.js';
 
-const ME = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
+const ME = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
@@ -35,6 +35,28 @@ describe('the auth client', () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     await logout();
     expect(fetchMock).toHaveBeenCalledWith('/api/auth/logout', expect.objectContaining({ method: 'POST' }));
+  });
+
+  it('asks for a sign-in link with the address and the page to come back to', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await requestLink('pilote@example.com', '/idees');
+    expect(fetchMock).toHaveBeenCalledWith('/api/auth/email', expect.objectContaining({ method: 'POST' }));
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ email: 'pilote@example.com', next: '/idees' });
+  });
+
+  it('throws the refusal of a link’s request, its fields included', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json(400, { status: 400, code: 'validation.invalid', message: 'Requête invalide.', fields: { email: 'Adresse e-mail invalide.' } }),
+    );
+    await expect(requestLink('pilote@', '/a-toi')).rejects.toMatchObject({ status: 400, fields: { email: 'Adresse e-mail invalide.' } });
+  });
+
+  it('signs in with a link’s token and the browser’s time zone, giving the page to go to', async () => {
+    const token = 'a'.repeat(43);
+    fetchMock.mockResolvedValueOnce(json(200, { next: '/demarrage' }));
+    await expect(verifyLink(token, 'Europe/Paris')).resolves.toEqual({ next: '/demarrage' });
+    expect(fetchMock).toHaveBeenCalledWith('/api/auth/email/verify', expect.objectContaining({ method: 'POST', credentials: 'same-origin' }));
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ token, timeZone: 'Europe/Paris' });
   });
 });
 

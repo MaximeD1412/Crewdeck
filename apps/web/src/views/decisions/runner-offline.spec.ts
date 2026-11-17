@@ -60,7 +60,7 @@ describe('the « Runner hors ligne » Décision in « À toi »', () => {
 
   it('« Voir le Runner » leads to /runner, even with the Runner offline', () => {
     const navigate = vi.fn();
-    void runnerOfflineView.actions[0]?.run(offline(), { navigate });
+    void runnerOfflineView.actions[0]?.run(offline(), { navigate, client: { command: vi.fn() } });
     expect(navigate).toHaveBeenCalledWith('/runner');
     expect(runnerOfflineView.actions[0]?.needsRunner).toBeUndefined();
   });

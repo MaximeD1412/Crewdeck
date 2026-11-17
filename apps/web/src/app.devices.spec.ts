@@ -1,4 +1,4 @@
-import { DEFAULT_ACCOUNT_SETTINGS, type Device } from '@crewdeck/contracts';
+import { DEFAULT_ACCOUNT_SETTINGS, type Device, type Me } from '@crewdeck/contracts';
 import { Banner, t } from '@crewdeck/sdk';
 import { createDispatcher } from './actions/dispatcher.js';
 import { boot } from './app.js';
@@ -8,7 +8,7 @@ import type { VaultState } from './keys/vault.js';
 import { createStore } from './store/store.js';
 import { ADD_DEVICE_ID } from './views/devices.js';
 
-const PILOT = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' } as const;
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
 const TRUSTED: Device = {
   id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a74',
   name: 'Firefox sur Linux',
@@ -50,7 +50,7 @@ const started = async (vault: VaultState) => {
       approval,
     },
   });
-  store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [TRUSTED], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, projects: [], processes: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [] });
+  store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [TRUSTED], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], sessions: [] });
   await vi.waitFor(() => expect(store.getState().vaultState).toBe(vault));
   return { root, app, approval, store };
 };

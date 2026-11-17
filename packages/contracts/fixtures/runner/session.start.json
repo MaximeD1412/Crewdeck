@@ -1,0 +1,16 @@
+{
+  "type": "session.start",
+  "id": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a90",
+  "at": "2026-11-11T09:00:00.000Z",
+  "sessionId": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a91",
+  "projectId": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a92",
+  "origin": { "kind": "github", "owner": "acme", "name": "shop" },
+  "branch": "feat/12-sessions",
+  "base": "develop",
+  "engine": "claude-code",
+  "model": "claude-opus-5-5",
+  "role": "code",
+  "permissionMode": "bypass",
+  "step": { "stepRunId": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a93", "stepKind": "code" },
+  "title": "Le panier garde les articles"
+}

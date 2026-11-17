@@ -33,6 +33,16 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   'a-toi-menu-plus': async (page, width) => {
     if (width < 1280) await page.getByRole('button', { name: 'Plus' }).click();
   },
+  // The form sent: its go Banner in place of the field (CORE-9).
+  'connexion-lien-envoye': async (page) => {
+    const connexion = page.locator('cd-page-connexion');
+    await connexion.getByRole('textbox', { name: 'Ton adresse e-mail' }).fill('pilote@example.com');
+    await connexion.getByRole('button', { name: 'Recevoir un lien' }).click();
+    await expect(connexion.getByText('Lien envoyé à pilote@example.com')).toBeVisible();
+  },
+  'connexion-lien': async (page) => {
+    await expect(page.locator('cd-page-connexion-lien').getByRole('button', { name: 'Se connecter' })).toBeVisible();
+  },
   // The page draws its code once the snapshot is there: its command shown.
   demarrage: async (page) => {
     await expect(page.locator('cd-page-demarrage cd-code-block')).toContainText('--link');
@@ -91,6 +101,10 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   // « Runner hors ligne » (ATOI-3): its row among the Décisions, and its banner.
   'a-toi-runner-hors-ligne': async (page) => {
     await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('Ton Runner ne répond plus');
+    await expect(page.locator('cd-page-a-toi cd-decision-row')).toHaveCount(10);
+  },
+  // « Maximum de Retours atteint » (PROCESS-6) among the nine Décisions of `a-toi`.
+  'a-toi-process': async (page) => {
     await expect(page.locator('cd-page-a-toi cd-decision-row')).toHaveCount(10);
   },
 };

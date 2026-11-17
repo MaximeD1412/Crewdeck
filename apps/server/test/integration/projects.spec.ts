@@ -90,7 +90,8 @@ describe('the Dépôts GitHub and the Projets against PostgreSQL', () => {
 
   const pilot = async (githubUserId: number, login: string): Promise<Tab> => {
     const id = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, getting_started_step) VALUES ($1, $2, $3, 'Europe/Paris', 'projects')`, [id, githubUserId, login]);
+    await sql(`INSERT INTO pilots (id, display_name, time_zone, getting_started_step) VALUES ($1, $2, 'Europe/Paris', 'projects')`, [id, login]);
+    await sql(`INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) VALUES ($1, $2, 'github', $3, $4)`, [newId(), id, String(githubUserId), login]);
     const token = await runInPilotScope(id, () => app.get(WebSessions).open(prisma.scoped, id, undefined));
     return { id, cookie: `${SESSION_COOKIE}=${token}` };
   };
@@ -99,7 +100,7 @@ describe('the Dépôts GitHub and the Projets against PostgreSQL', () => {
     await empty();
     fakes.github.reset();
     alice = await pilot(SENDER_ID, 'octo-fixture');
-    // One repository with code (three commits), one with its initial commit alone.
+    // One repository with code (three commits) and a `.process.json` of the Pilote's own tooling, one with its initial commit alone.
     fakes.github.seedRepo({
       ...APP_REPO,
       installationId: INSTALLATION_ID,
@@ -304,16 +305,17 @@ describe('the Dépôts GitHub and the Projets against PostgreSQL', () => {
   });
 
   describe('POST /api/projects', () => {
-    it('follows two repositories: 201, named and branched after .process.json when present, pending for the one with code, with its events in one transaction', async () => {
+    it('follows two repositories: 201, named after the repository, develop and its default branch even with a .process.json, pending for the one with code, with its events in one transaction', async () => {
       const repositories = await install();
       const before = (await eventsOf(alice)).length;
+      const callsBefore = fakes.github.calls.length;
 
       const res = await follow(alice, repositories.map((repository) => repository.id));
 
       expect(res.status).toBe(201);
       const { items } = zProjectList.parse(await res.json());
       expect(items.map(({ displayName, fullName, integrationBranch, releaseBranch, hasCode, inventoryState, accessLost }) => ({ displayName, fullName, integrationBranch, releaseBranch, hasCode, inventoryState, accessLost }))).toEqual([
-        { displayName: 'Fixture App', fullName: 'octo-fixture/fixture-app', integrationBranch: 'dev', releaseBranch: 'prod', hasCode: true, inventoryState: 'pending', accessLost: false },
+        { displayName: 'fixture-app', fullName: 'octo-fixture/fixture-app', integrationBranch: 'develop', releaseBranch: 'main', hasCode: true, inventoryState: 'pending', accessLost: false },
         { displayName: 'new-idea', fullName: 'octo-fixture/new-idea', integrationBranch: 'develop', releaseBranch: 'main', hasCode: false, inventoryState: 'not-needed', accessLost: false },
       ]);
       const events = (await eventsOf(alice)).slice(before);
@@ -323,7 +325,10 @@ describe('the Dépôts GitHub and the Projets against PostgreSQL', () => {
 
       const after = await state(alice);
       expect(after.repositories).toEqual([]);
-      expect(after.projects.map((project) => project.displayName)).toEqual(['Fixture App', 'new-idea']);
+      expect(after.projects.map((project) => project.displayName)).toEqual(['fixture-app', 'new-idea']);
+      // The file ignored: no call of the fake GitHub names it, and it is still there.
+      expect(fakes.github.calls.slice(callsBefore).filter((call) => JSON.stringify(call.args).includes('.process.json'))).toEqual([]);
+      expect(fakes.github.fileAt(APP_REPO.owner, APP_REPO.name, 'main', '.process.json')).toBeDefined();
       expect(zProjectList.parse(await (await call(alice, '/api/projects')).json()).items).toEqual(after.projects);
       expect(zProject.parse(await (await call(alice, `/api/projects/${items[0]?.id}`)).json())).toEqual(items[0]);
     });

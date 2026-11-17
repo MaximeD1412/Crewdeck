@@ -131,7 +131,7 @@ exact layout of each use is fixed by the ticket that introduces it:
 |---|---|---|
 | The vault key for a holder | `"<holderId>:<vaultKeyVersion>"` (`dev_…:1`, `run_…:1`) | E2E-2 |
 | An item | the item's id and field | E2E-2, IDEE-1 |
-| A Session key for a holder | the Session id and the holder's id | SESSION-1 |
+| A Session key for a holder | `"<sessionId>:<holderId>"`, `holderId` the base64url of the holder's public key | SESSION-1 |
 
 ## Authenticated wraps
 
@@ -173,7 +173,7 @@ tag     = HMAC-SHA256(authKey, u16(len(info)) ‖ info ‖ u16(len(aad)) ‖ aad
 | The vault key, at the first pairing | the first Appareil | the Runner, and the Appareil itself | E2E-2: the Runner opens it with the `devicePublicKey` the device proof authenticated; the Appareil, at each boot, with its own key |
 | The vault key, for a new Appareil | the approving holder | the new Appareil | E2E-3: the new Appareil opens it with the approver's key the approval proof authenticated |
 | The vault key of a new version | the rotating holder | each holder kept | E2E-4: only from a holder that was not revoked |
-| A Session key | the Runner | each holder opening the Session | SESSION-1: opened with the Runner's key authenticated at pairing |
+| A Session key | the Runner | each Appareil the Runner authenticated | SESSION-1: opened with the Runner's key the page kept once the Runner's pairing proof verified |
 
 ## AES-256-GCM: items and Session frames
 
@@ -298,6 +298,8 @@ mode, Chromium), `pairing.spec.ts` and `vault.spec.ts`, and
 | `link-pairing.json` | link pairings: both key pairs, the secret, the short id, both proofs, the vault key and its two wraps of version 1 | the Runner |
 | `item.json` | an Appareil's vault wrap and items sealed under the vault key (item key, ciphertext) | the Runner |
 | `web-pairing.json` | the page's side of a first link (its proof, its two vault wraps) and an item it sealed, opened by the Runner | the browser, at each run of `pairing.spec.ts` |
+| `relay.json` | a Session's keys and frames as the tab receives them (the Runner's and the Appareil's keys, the Session key, the events) and an input sealed for it | the Runner |
+| `web-relay.json` | an input the page sealed under `relay.json`'s Session key, handed to the Moteur by the Runner | the browser, at each run of `sessions/relay.spec.ts` |
 
 RFC 9180 Appendix A.1.1 is the AES-128-GCM suite (AEAD 0x0001); the vector
 for AES-256-GCM comes from the RFC's `test-vectors.json` at the commit named
@@ -306,8 +308,8 @@ in the fixture's `source`.
 The Runner's files are regenerated with `cd apps/runner && go test
 ./internal/keys -run TestGenerateVectors -update`; without `-update`, that
 test fails if regenerating would change one byte. The browser's files are
-rewritten by each run of `crypto.spec.ts` and `pairing.spec.ts` and stay
-byte-stable.
+rewritten by each run of `crypto.spec.ts`, `pairing.spec.ts` and
+`sessions/relay.spec.ts` and stay byte-stable.
 
 ### The deterministic stream
 
@@ -560,12 +562,90 @@ a holder refuses one whose sender it knows as revoked.
 
 ## Sessions (SESSION-1)
 
-To be written by SESSION-1: the frames, the Session keys' wraps, the
-additional data, what the server relays. A Session key's wrap is an
-[authenticated wrap](#authenticated-wraps) from the Runner, opened with the
-Runner's public key the Appareil authenticated at pairing, never one the
-server sends with the wrap: otherwise the server could hand a tab a Session
-key it knows and read what the Pilote types.
+What the agent and the Pilote say in a Session travels between the Runner
+and the tabs sealed under the Session's key. The server forwards the frames
+by their ids and `seq`, and keeps none of them: not in the database, not in
+its logs, not in memory once forwarded.
+
+### The Session key and its holders
+
+- A 32-byte AES-256-GCM key, drawn by the Runner when the Session first
+  runs, kept in its memory and in `sessions/<id>/key` of its folder (mode
+  600), the same after a restart.
+- Its holders are the Appareils the Runner authenticated: the Appareil of
+  `vault.wrap` (the one the link's device proof authenticated, E2E-2), read
+  again at each wrap, so an Appareil approved later (E2E-3) gets its wrap at
+  its next open.
+- `session.keys` carries one [authenticated wrap](#authenticated-wraps) per
+  holder, from the Runner: `{ holderId, enc, wrappedKey, tag }`, with
+  `holderId` the base64url of the holder's X25519 public key, `info`
+  `crewdeck/v1/session-key` and the additional data
+  `"<sessionId>:<holderId>"`. At most 64 wraps.
+- The Appareil finds its own wrap by its public key and opens it with the
+  **Runner's public key it authenticated at pairing**: the page keeps it in
+  its Appareil's IndexedDB record once the Runner's proof verifies
+  (`confirmPairing`), never a key the server sends. An Appareil without one
+  (paired before SESSION-1) drops the keys with a console warning: E2E-3
+  vouches for the Runner's key then. The page keeps the Session key as a
+  non-extractable `CryptoKey`, in memory only.
+
+### The frames
+
+| Message | From → to | Sealed | Additional data |
+|---|---|---|---|
+| `session.open { sessionId, fromSeq }` | tab → server | | |
+| `session.replay { sessionId, tabId, fromSeq }` | server → Runner | | |
+| `session.keys { sessionId, tabId?, wraps }` | Runner → server → tab | each wrap | `"<sessionId>:<holderId>"` |
+| `relay { sessionId, tabId?, seq, nonce, ciphertext }` | Runner → server → tab | the event of the log at `seq`, its JSON without `raw` | `"<sessionId>:<seq>"` |
+| `session.input { sessionId, inputId, nonce, ciphertext }` | tab → server → Runner (with the tab's `tabId`) | the Pilote's input (`zSessionInputPayload`) | `"<sessionId>:input:<inputId>"` |
+| `session.close { sessionId }` | tab → server | | |
+| `session.error { sessionId, code }` | server → tab | | |
+
+- `nonce` is the 12 bytes of the [seal](#aes-256-gcm-items-and-session-frames),
+  `ciphertext` the rest (ciphertext and tag), both base64url. A frame holds at
+  most 16 MiB, an input 256 KiB: the page refuses an input whose ciphertext
+  would exceed it, before sending it (the server closes a socket that sends
+  one).
+- A frame with a `tabId` is the replay of that tab only; without one, it is
+  live, for every tab that opened the Session. The tab never sees a `tabId`.
+- The tab opens a frame under its own `seq`, checks the event against its
+  schema and that it holds that `seq`; one that does not open, another
+  Session's or another `seq`'s, is dropped with a console warning, never
+  shown. It drops a `seq` it has, and opens the Session again from the first
+  missing one on a gap, once per missing `seq`, and on each socket opened
+  again. A Session closed while its keys or a frame are being opened keeps
+  nothing of them.
+- The Runner opens an input under its `inputId`, checks it against its
+  schema, and hands it to the Moteur once per `inputId` (the last 10 000 of
+  each Session, kept in `sessions/<id>/inputs` across a restart of the
+  Runner): a tab sending it again, after a lost socket, is harmless.
+- The server checks a `session.open` and a `session.input` against the
+  Pilote's Sessions (`session.not-found`, and nothing for the Runner), and
+  answers `session.runner-offline` while the Runner is away; once its
+  `hello` is accepted, each open Session is replayed from the first `seq` the
+  tab was not sent with every one before it: a live frame that came during a
+  replay does not skip the `seq` still missing below it (the tab drops the
+  duplicates).
+
+### What the server sees of a Session
+
+The ids (`sessionId`, `tabId`, `inputId`, `holderId`), `seq`, `fromSeq`,
+the lengths, the times, and the wraps' and frames' bytes it cannot open. It
+logs a frame by its `type` and `sessionId` only; `ciphertext`, `wrappedKey`, `wraps`,
+`enc` and `nonce` are redacted from every log line. It never sees the
+Session key nor anything said in a Session.
+
+### What proves it
+
+| What | Test |
+|---|---|
+| The Runner seals the keys and every event, replays from `fromSeq`, hands an input to the Moteur once | `apps/runner/internal/session/relay_test.go` (`TestRelay…`) |
+| A vector sealed in Go opens in the browser, one sealed in the browser opens in Go | `relay.json` (written by `TestGenerateVectors`) read by `apps/web/src/sessions/relay.spec.ts`; `web-relay.json` written by it, opened by `TestRelayHandsTheMoteurAnInputTheBrowserSealed` |
+| A frame under another `seq` or Session dropped, never shown; keys that do not open dropped | `apps/web/src/sessions/relay.spec.ts` |
+| The page keeps the Runner's key its proof authenticated, none of a refused pairing | `apps/web/src/keys/pairing.spec.ts` |
+| The server relays to the tab that opened the Session only, refuses another Pilote's, replays at the Runner's hello | `apps/server/src/sessions/relay/session-relay.spec.ts`; `test/integration/session-relay.spec.ts` |
+| No database write while frames are relayed, no ciphertext in the logs | `test/integration/session-relay.spec.ts`; `apps/server/src/logging/redact.spec.ts` |
+| The frames' fixtures valid in TypeScript and in Go | `packages/contracts/src/runner/relay.spec.ts`; `apps/runner/internal/protocol/fixtures_test.go` |
 
 ## Idées (IDEE-1)
 

@@ -4,7 +4,7 @@ import { createDispatcher } from './actions/dispatcher.js';
 import { boot, type App } from './app.js';
 import { createStore } from './store/store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
 const CREWDECK = '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a01';
 const AT = '2026-11-11T08:00:00.000Z';
 
@@ -60,7 +60,7 @@ afterAll(() => app.stop());
 describe('« À toi » follows the store', () => {
   it('lists the snapshot’s open Décisions, the Cadre counting them', () => {
     expect(pageData()).toMatchObject({ total: 0, decisions: [] });
-    store.applySnapshot({ seq: 3, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [decision(1)], tickets: [], milestones: [], codeChanges: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
+    store.applySnapshot({ seq: 3, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [decision(1)], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
     store.markLive();
     expect(pageData().decisions.map((row) => row.title)).toEqual(['#1 Ticket']);
     expect(aToiCount()).toBe(1);

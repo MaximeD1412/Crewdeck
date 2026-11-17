@@ -5,7 +5,7 @@ import { MESSAGES } from '../errors/messages.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { newId } from '../ids.js';
 import { EventsWriter } from '../realtime/events.writer.js';
-import { onCommit, type Tx } from '../realtime/transactions.js';
+import { afterCommit, type Tx } from '../realtime/transactions.js';
 import { currentPilotId } from '../scope/scope.context.js';
 import { DECISION_VIEW, toDecision } from './decision.view.js';
 
@@ -67,7 +67,7 @@ export class DecisionsService {
     const pilotId = currentPilotId();
     await this.events.write(tx, pilotId, 'decision.upserted', decision);
     if (!updated) {
-      onCommit(tx, () => {
+      afterCommit(tx, () => {
         for (const listener of this.createdListeners) listener(pilotId, decision);
       });
     }

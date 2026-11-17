@@ -17,6 +17,8 @@ const PHASE_RUN: PhaseRun = {
   id: '019a6f00-0000-7000-8000-000000000021',
   projectId: PROJECT,
   processVersion: 1,
+  builtinTemplate: null,
+  parentPhaseRunId: '019a6f00-0000-7000-8000-000000000022',
   phaseId: 'ph-dev',
   itemType: 'ticket',
   itemId: '42',
@@ -35,8 +37,8 @@ const STEP_RUN: StepRun = {
   iteration: 1,
   state: 'done',
   inputs: [
-    { portId: 'changement', artifacts: [{ portId: 'changement', type: 'code-change', id: '57', sha: 'a'.repeat(40) }] },
-    { portId: 'v-review', artifacts: [{ portId: 'verdict', type: 'verdict', id: '019a6f00-0000-7000-8000-000000000032' }] },
+    { portId: 'changement', artifacts: [{ portId: 'changement', type: 'code-change', id: '57', sha: 'a'.repeat(40) }], absent: false },
+    { portId: 'v-review', artifacts: [{ portId: 'verdict', type: 'verdict', id: '019a6f00-0000-7000-8000-000000000032' }], absent: false },
   ],
   outputs: [{ portId: 'changement', type: 'code-change', id: '57', sha: 'b'.repeat(40) }],
   verdict: 'passed',
@@ -47,7 +49,7 @@ const STEP_RUN: StepRun = {
   endedAt: AT,
 };
 
-const phaseRun = (processVersion: number, state: PhaseRun['state']): PhaseRun => ({ ...PHASE_RUN, processVersion, state });
+const phaseRun = (processVersion: number | null, state: PhaseRun['state']): PhaseRun => ({ ...PHASE_RUN, processVersion, state });
 
 describe('zPhaseRun and zStepRun', () => {
   it('are the payloads of phase-run.upserted and step-run.upserted, and the items of the phaseRuns and stepRuns slices', () => {
@@ -64,6 +66,22 @@ describe('zPhaseRun and zStepRun', () => {
     expect(zPhaseRun.safeParse({ ...PHASE_RUN, state: 'waiting', waitingOn: 'decision' }).success).toBe(true);
     expect(zStepRun.safeParse({ ...STEP_RUN, iteration: 0 }).success).toBe(false);
     expect(zStepRun.safeParse({ ...STEP_RUN, verdict: 'maybe' }).success).toBe(false);
+  });
+
+  it('takes a PhaseRun without a Projet only on a builtin definition, with no version; and a builtin one only without a Projet', () => {
+    const noted = { ...PHASE_RUN, projectId: null, processVersion: null, builtinTemplate: 'process-crewdeck', parentPhaseRunId: null, phaseId: 'ph-idee', itemType: 'idea' };
+    expect(zPhaseRun.parse(noted)).toEqual(noted);
+    expect(zStepRun.safeParse({ ...STEP_RUN, projectId: null }).success).toBe(true);
+
+    expect(zPhaseRun.safeParse({ ...noted, builtinTemplate: null }).success).toBe(false);
+    expect(zPhaseRun.safeParse({ ...noted, processVersion: 1 }).success).toBe(false);
+    expect(zPhaseRun.safeParse({ ...PHASE_RUN, builtinTemplate: 'process-crewdeck' }).success).toBe(false);
+    expect(zPhaseRun.safeParse({ ...noted, builtinTemplate: 'preparation' }).success).toBe(false);
+  });
+
+  it('says of each Entrée whether it is absent', () => {
+    expect(zStepRun.safeParse({ ...STEP_RUN, inputs: [{ portId: 'maquettes', artifacts: [], absent: true }] }).success).toBe(true);
+    expect(zStepRun.safeParse({ ...STEP_RUN, inputs: [{ portId: 'maquettes', artifacts: [] }] }).success).toBe(false);
   });
 });
 
@@ -90,5 +108,9 @@ describe('runningWorkByVersion', () => {
   it('is empty when nothing runs', () => {
     expect(runningWorkByVersion([])).toEqual([]);
     expect(runningWorkByVersion([phaseRun(1, 'done')])).toEqual([]);
+  });
+
+  it('counts no version for a PhaseRun without one: an Idée without a Projet', () => {
+    expect(runningWorkByVersion([{ processVersion: null, state: 'running' }, phaseRun(1, 'running')])).toEqual([{ version: 1, count: 1 }]);
   });
 });

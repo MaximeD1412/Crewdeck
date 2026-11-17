@@ -1,10 +1,10 @@
-import { type AiAccount, DEFAULT_ACCOUNT_SETTINGS } from '@crewdeck/contracts';
+import { type AiAccount, DEFAULT_ACCOUNT_SETTINGS, type Me } from '@crewdeck/contracts';
 import { emitAction, PageParametres, PushSettings, RoleSettings } from '@crewdeck/sdk';
 import { createDispatcher } from './actions/dispatcher.js';
 import { boot } from './app.js';
 import { createStore } from './store/store.js';
 
-const PILOT = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' } as const;
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
 
 const VAPID = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
 const ENDPOINT = 'https://fcm.googleapis.com/fcm/send/abc';
@@ -58,7 +58,7 @@ describe('the page’s Paramètres', () => {
       models: [{ id: 'gpt-5.5', label: 'GPT-5.5', usable: true }],
       reportedAt: '2026-11-11T08:30:00.000Z',
     };
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [codex], 'mcp-server': [], devices: [], 'push-subscriptions': [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], settings });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [codex], 'mcp-server': [], devices: [], 'push-subscriptions': [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings });
     expect(slotsOf()).toEqual(['roles', 'notifications', 'account', 'modders']);
     const select = page.querySelector('cd-card[slot=account] cd-select') as HTMLElement & { data: { value: string } };
     expect(select.data.value).toBe('Europe/Paris');

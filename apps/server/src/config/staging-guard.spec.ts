@@ -1,4 +1,4 @@
-import { authKeysEnv, githubAppEnv, vapidEnv } from '../../test/github-app.js';
+import { authKeysEnv, githubAppEnv, mailEnv, vapidEnv } from '../../test/github-app.js';
 import { parseEnv } from './env.js';
 import { enforceStagingGuard, findProductionKey } from './staging-guard.js';
 
@@ -9,7 +9,7 @@ const staging = {
   PROD_GITHUB_APP_ID: '1001',
   ...githubAppEnv(),
   ...authKeysEnv(),
-  ...vapidEnv(),
+  ...vapidEnv(), ...mailEnv(),
   GITHUB_APP_ID: '2002',
   DATABASE_URL: 'postgresql://crewdeck:secret@db:5432/crewdeck',
 };
@@ -38,7 +38,7 @@ describe('findProductionKey', () => {
           DATABASE_URL: 'postgresql://crewdeck:secret@crewdeck-prod-db:5432/crewdeck',
           ...githubAppEnv(),
           ...authKeysEnv(),
-          ...vapidEnv(),
+          ...vapidEnv(), ...mailEnv(),
         }),
       ),
     ).toBeUndefined();

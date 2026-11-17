@@ -37,3 +37,8 @@ export const vapidEnv = (): Record<string, string> => {
   const { publicKey, privateKey: vapidPrivateKey } = webpush.generateVAPIDKeys();
   return { VAPID_PUBLIC_KEY: publicKey, VAPID_PRIVATE_KEY: vapidPrivateKey, VAPID_SUBJECT: 'https://crewdeck.invalid' };
 };
+/** The mail of the sign-in by email (CORE-9), made up for the tests: a relay nobody answers. */
+export const mailEnv = (): Record<string, string> => ({
+  SMTP_URL: 'smtps://crewdeck:test-password@smtp.mail.invalid:465',
+  MAIL_FROM: 'Crewdeck <connexion@crewdeck.example>',
+});

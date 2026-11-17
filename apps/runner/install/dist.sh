@@ -4,6 +4,9 @@
 # to <out>/install.sh: the layout the server serves from RUNNER_DIST_DIR.
 #
 #   CREWDECK_VERSION=<version> sh install/dist.sh [<out>]   (from apps/runner)
+#
+# DIST_TARGETS narrows the systems (`<os>/<arch>`, space-separated): the
+# smoke test builds its host's only (smoke/smoke_test.go).
 set -eu
 
 out=${1:-../../dist/runner}
@@ -17,7 +20,7 @@ esac
 
 dir="$out/$version"
 mkdir -p "$dir"
-for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+for target in ${DIST_TARGETS:-linux/amd64 linux/arm64 darwin/amd64 darwin/arm64}; do
 	os=${target%/*}
 	arch=${target#*/}
 	CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath \

@@ -90,9 +90,8 @@ describe('the Comptes IA against PostgreSQL', () => {
 
   const pilot = async (login = 'octocat', step = 'ai-accounts'): Promise<Tab> => {
     const id = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, getting_started_step) VALUES ($1, $2, $3, 'Europe/Paris', $4)`, [
+    await sql(`INSERT INTO pilots (id, display_name, time_zone, getting_started_step) VALUES ($1, $2, 'Europe/Paris', $3)`, [
       id,
-      Math.floor(Math.random() * 1e9),
       login,
       step,
     ]);

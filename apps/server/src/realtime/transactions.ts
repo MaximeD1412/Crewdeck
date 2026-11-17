@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { PrismaService, type ScopedPrisma } from '../prisma/prisma.service.js';
 import { EventsBus } from './events.bus.js';
 import { type Place, PublicationOrder } from './publication-order.js';
@@ -30,14 +31,22 @@ export class TransactionEvents {
     return place;
   }
 
-  /** Calls `hook` once the transaction has committed, after its events are handed to the order of publication; never on a rollback. */
-  onCommit(hook: () => void): void {
+  /** Runs `hook` once the transaction committed, after its events are handed to the publication. */
+  afterCommit(hook: () => void): void {
     this.committedHooks.push(hook);
   }
 
-  settle(committed: boolean): void {
+  /** Settles the places; once committed, runs the `afterCommit` hooks, each one's failure logged by `onHookError`, never thrown. */
+  settle(committed: boolean, onHookError: (error: unknown) => void = () => undefined): void {
     for (const [pilotId, place] of this.places) this.order.settle(pilotId, place, committed);
-    if (committed) for (const hook of this.committedHooks.splice(0)) hook();
+    if (!committed) return;
+    for (const hook of this.committedHooks.splice(0)) {
+      try {
+        hook();
+      } catch (error) {
+        onHookError(error);
+      }
+    }
   }
 }
 
@@ -60,14 +69,12 @@ export const pendingEventsOf = (tx: object): TransactionEvents => {
 };
 
 /**
- * Calls `hook` once `tx` (a transaction of `Transactions.run`) has committed:
- * for what must not happen before the change is there for everyone (a push
- * of a new Décision, ATOI-4), nor at all on a rollback. A hook must not
- * throw: it runs after the transaction, whose caller would get its error.
+ * Runs `hook` once `tx` (of `Transactions.run`) committed, after its events
+ * are published: what is sent outside (a message to the Runner) never says
+ * what a rollback undid. Nothing runs on a rollback; a hook that throws is
+ * logged, the others still run.
  */
-export const onCommit = (tx: object, hook: () => void): void => {
-  pendingEventsOf(tx).onCommit(hook);
-};
+export const afterCommit = (tx: object, hook: () => void): void => pendingEventsOf(tx).afterCommit(hook);
 
 /**
  * Every change of the Process goes through `run` (ADR 0007): its function
@@ -83,6 +90,7 @@ export class Transactions {
   constructor(
     private readonly prisma: PrismaService,
     bus: EventsBus,
+    @InjectPinoLogger(Transactions.name) private readonly logger: PinoLogger,
   ) {
     this.order = new PublicationOrder((pilotId, event) => bus.publish(pilotId, event));
   }
@@ -102,7 +110,7 @@ export class Transactions {
       committed = true;
       return result;
     } finally {
-      events.settle(committed);
+      events.settle(committed, (error) => this.logger.error({ err: error }, 'an after-commit hook failed'));
     }
   }
 }

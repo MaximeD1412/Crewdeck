@@ -115,8 +115,8 @@ describe('cadreView', () => {
   });
 
   it('takes the Pilote from the pilot slice', () => {
-    const state: CadreState = { slices: { pilot: { login: 'maximed1412', avatarUrl: 'https://avatars.example/u/1' } } };
-    expect(cadreView(state, at('/a-toi')).cadre.pilot).toEqual({ login: 'maximed1412', avatarUrl: 'https://avatars.example/u/1' });
+    const state: CadreState = { slices: { pilot: { displayName: 'maximed1412', avatarUrl: 'https://avatars.example/u/1' } } };
+    expect(cadreView(state, at('/a-toi')).cadre.pilot).toEqual({ displayName: 'maximed1412', avatarUrl: 'https://avatars.example/u/1' });
   });
 
   it('counts the open Décisions on « À toi », no count when none waits', () => {
@@ -127,7 +127,7 @@ describe('cadreView', () => {
     expect(cadreView(open(9), at('/a-toi')).menu.filter((item) => item.count !== null).map((item) => item.id)).toEqual(['a-toi']);
   });
 
-  it.each(['/connexion', '/demarrage'])('is bare on %s', (path) => {
+  it.each(['/connexion', '/connexion/lien', '/demarrage'])('is bare on %s', (path) => {
     expect(cadreView(empty, at(path)).cadre).toMatchObject({ variant: 'bare', current: null });
   });
 });

@@ -26,6 +26,8 @@ github_app=(
   -e GITHUB_WEBHOOK_SECRET=smoke
   -e GITHUB_APP_PRIVATE_KEY="$(openssl genrsa 2048 2>/dev/null | base64 -w0)"
   -e GITHUB_TOKEN_KEY="$(openssl rand -base64 32)" -e SESSION_SECRET="$(openssl rand -base64 48)"
+  # The mail of the sign-in links: a relay that does not exist, the server only connects to it to send a link.
+  -e SMTP_URL=smtp://smoke:smoke@smtp.crewdeck.invalid:587 -e "MAIL_FROM=Crewdeck <connexion@crewdeck.invalid>"
 )
 # The VAPID key pair of Web Push (ATOI-4), drawn here as `web-push generate-vapid-keys` would: in the SEC1 DER
 # of a P-256 key, the private scalar is the 32 bytes after the first 7, the public point the last 65.

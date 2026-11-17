@@ -1,5 +1,5 @@
-import { type ArtifactRef, PROCESS_CREWDECK, type StepRunState } from '@crewdeck/contracts';
-import { currentStepRuns, type FeedingStepRun, reachedFrom, readySteps } from './feeding.js';
+import { type ArtifactRef, PROCESS_CREWDECK, type ProcessDefinition, type StepRunState } from '@crewdeck/contracts';
+import { type Ancestor, currentStepRuns, type FeedingStepRun, reachedFrom, readySteps } from './feeding.js';
 
 /** A Ticket through « Développement » of « Process Crewdeck ». */
 const RUN = { phaseId: 'ph-dev', itemType: 'ticket', itemId: '42' } as const;
@@ -22,23 +22,23 @@ const readyIds = (stepRuns: FeedingStepRun[]) => ready(stepRuns).map((step) => s
 
 describe('readySteps on « Développement » of « Process Crewdeck »', () => {
   it('feeds st-code with the item: its Entrée comes from another Phase, of the Phase’s forEach type', () => {
-    expect(ready([])).toEqual([{ stepId: 'st-code', inputs: [{ portId: 'ticket', artifacts: [TICKET] }] }]);
+    expect(ready([])).toEqual([{ stepId: 'st-code', inputs: [{ portId: 'ticket', artifacts: [TICKET], absent: false }] }]);
   });
 
   it('starts nothing again while st-code runs', () => {
     expect(readyIds([run('st-code', 'running')])).toEqual([]);
   });
 
-  it('starts st-checks and st-rv once st-code is done with a change; st-rv’s Maquettes from another Phase resolve with no Artefact', () => {
+  it('starts st-checks and st-rv once st-code is done with a change; with no ancestor, st-rv’s Maquettes from another Phase are absent and it starts', () => {
     const steps = ready([run('st-code', 'done', [CHANGE])]);
 
     expect(steps).toEqual([
-      { stepId: 'st-checks', inputs: [{ portId: 'changement', artifacts: [CHANGE] }] },
+      { stepId: 'st-checks', inputs: [{ portId: 'changement', artifacts: [CHANGE], absent: false }] },
       {
         stepId: 'st-rv',
         inputs: [
-          { portId: 'changement', artifacts: [CHANGE] },
-          { portId: 'maquettes', artifacts: [] },
+          { portId: 'changement', artifacts: [CHANGE], absent: false },
+          { portId: 'maquettes', artifacts: [], absent: true },
         ],
       },
     ]);
@@ -51,8 +51,8 @@ describe('readySteps on « Développement » of « Process Crewdeck »', () => {
       {
         stepId: 'st-review',
         inputs: [
-          { portId: 'changement', artifacts: [CHANGE] },
-          { portId: 'verdict', artifacts: [verdict('v-checks')] },
+          { portId: 'changement', artifacts: [CHANGE], absent: false },
+          { portId: 'verdict', artifacts: [verdict('v-checks')], absent: false },
         ],
       },
     ]);
@@ -66,9 +66,9 @@ describe('readySteps on « Développement » of « Process Crewdeck »', () => {
       {
         stepId: 'st-merge',
         inputs: [
-          { portId: 'changement', artifacts: [CHANGE] },
-          { portId: 'v-review', artifacts: [verdict('v-review')] },
-          { portId: 'v-rv', artifacts: [verdict('v-rv')] },
+          { portId: 'changement', artifacts: [CHANGE], absent: false },
+          { portId: 'v-review', artifacts: [verdict('v-review')], absent: false },
+          { portId: 'v-rv', artifacts: [verdict('v-rv')], absent: false },
         ],
       },
     ]);
@@ -89,8 +89,8 @@ describe('readySteps on « Développement » of « Process Crewdeck »', () => {
     expect(readyIds(superseded)).toEqual(['st-code']);
 
     expect(ready([...superseded, run('st-code', 'done', [NEW_CHANGE], 2)]).map((step) => step.inputs[0])).toEqual([
-      { portId: 'changement', artifacts: [NEW_CHANGE] },
-      { portId: 'changement', artifacts: [NEW_CHANGE] },
+      { portId: 'changement', artifacts: [NEW_CHANGE], absent: false },
+      { portId: 'changement', artifacts: [NEW_CHANGE], absent: false },
     ]);
   });
 });
@@ -115,5 +115,66 @@ describe('currentStepRuns', () => {
 
     expect(currentStepRuns([failed, superseded, retried])).toEqual([retried]);
     expect(currentStepRuns([failed])).toEqual([failed]);
+  });
+});
+
+describe('readySteps across Phases of « Process Crewdeck »: lineage', () => {
+  const MOCKUPS = (sha: string): ArtifactRef => ({ portId: 'document', type: 'mockups', id: 'design/screens', sha: sha.repeat(40) });
+  /** A Conception that approved `mockups`, the Ticket's parent. */
+  const conception = (id: string, mockups: ArtifactRef): Ancestor => ({
+    id,
+    stepRuns: [run('st-maquettes', 'done', [{ ...mockups, portId: 'maquettes', sha: 'f'.repeat(40) }]), run('st-ap-maquettes', 'done', [mockups])],
+  });
+  const rv = (ancestors: Ancestor[]) => readySteps(PROCESS_CREWDECK, RUN, [run('st-code', 'done', [CHANGE])], ancestors).find((step) => step.stepId === 'st-rv');
+
+  it('feeds st-rv.maquettes with the Maquettes its parent Conception approved, with their SHA', () => {
+    expect(rv([conception('c-1', MOCKUPS('c'))])?.inputs).toEqual([
+      { portId: 'changement', artifacts: [CHANGE], absent: false },
+      { portId: 'maquettes', artifacts: [MOCKUPS('c')], absent: false },
+    ]);
+  });
+
+  it('gives each Ticket its own Conception’s Maquettes, never another’s', () => {
+    expect(rv([conception('c-1', MOCKUPS('1'))])?.inputs[1]?.artifacts).toEqual([MOCKUPS('1')]);
+    expect(rv([conception('c-2', MOCKUPS('2'))])?.inputs[1]?.artifacts).toEqual([MOCKUPS('2')]);
+  });
+
+  it('reads the nearest ancestor that ran the Étape: past a parent that did not, the latest done StepRun not superseded', () => {
+    const idea: Ancestor = { id: 'i-1', stepRuns: [run('st-tri', 'done', [{ portId: 'idee', type: 'idea', id: 'idee-1' }])] };
+    const reapproved: Ancestor = {
+      id: 'c-1',
+      stepRuns: [run('st-ap-maquettes', 'done', [MOCKUPS('1')]), run('st-ap-maquettes', 'done', [MOCKUPS('2')], 2), run('st-ap-maquettes', 'superseded', [MOCKUPS('3')], 3)],
+    };
+    const ticketOfTicket: Ancestor = { id: 't-1', stepRuns: [run('st-code', 'done', [CHANGE])] };
+
+    expect(rv([ticketOfTicket, reapproved, idea])?.inputs[1]).toEqual({ portId: 'maquettes', artifacts: [MOCKUPS('2')], absent: false });
+  });
+
+  it('makes st-rv.maquettes absent when no ancestor approved Maquettes, and st-rv starts all the same', () => {
+    const noMockups: Ancestor = { id: 'c-1', stepRuns: [run('st-ap-maquettes', 'running')] };
+
+    expect(rv([noMockups])?.inputs[1]).toEqual({ portId: 'maquettes', artifacts: [], absent: true });
+    expect(rv([])?.inputs[1]).toEqual({ portId: 'maquettes', artifacts: [], absent: true });
+  });
+});
+
+describe('readySteps of a Phase without forEach', () => {
+  const MERGED: ArtifactRef = { ...CHANGE, sha: 'd'.repeat(40) };
+  const LIVRAISON: ProcessDefinition = {
+    ...PROCESS_CREWDECK,
+    phases: [...PROCESS_CREWDECK.phases, { id: 'ph-livraison', name: 'Livraison', col: 1, row: 4, forEach: null }],
+    steps: [
+      ...PROCESS_CREWDECK.steps,
+      { id: 'st-lancer', phaseId: 'ph-livraison', kind: 'command', name: 'Lancer', col: 1, row: 1, inputs: [{ id: 'changement', type: 'code-change' }], outputs: [], tools: [] },
+    ],
+    arrows: [...PROCESS_CREWDECK.arrows, { from: { stepId: 'st-merge', portId: 'changement' }, to: { stepId: 'st-lancer', portId: 'changement' } }],
+  };
+
+  it('feeds its first Entrée with its item from its parent: the merged change, with its SHA, not the other changes that Sortie gave', () => {
+    const merge: Ancestor = { id: 'd-1', stepRuns: [run('st-merge', 'done', [MERGED, { ...MERGED, id: '58' }])] };
+
+    expect(readySteps(LIVRAISON, { phaseId: 'ph-livraison', itemType: 'code-change', itemId: '57' }, [], [merge])).toEqual([
+      { stepId: 'st-lancer', inputs: [{ portId: 'changement', artifacts: [MERGED], absent: false }] },
+    ]);
   });
 });

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { authKeysEnv, githubAppEnv, testPrivateKey, vapidEnv } from '../../test/github-app.js';
+import { authKeysEnv, githubAppEnv, mailEnv, testPrivateKey, vapidEnv } from '../../test/github-app.js';
 import { appOrigin, loadEnv, parseEnv, usesFakes } from './env.js';
 
 const DATABASE_URL = 'postgresql://crewdeck:crewdeck@localhost:5432/crewdeck';
@@ -33,6 +33,7 @@ describe('parseEnv', () => {
         ...githubAppEnv(),
         ...keys,
         ...vapid,
+        ...mailEnv(),
         GITHUB_API_URL: 'https://ghe.example/api/v3',
         GITHUB_WEB_URL: 'https://ghe.example',
       }),
@@ -49,6 +50,7 @@ describe('parseEnv', () => {
       GITHUB_TOKEN_KEY: Buffer.from(keys.GITHUB_TOKEN_KEY, 'base64'),
       SESSION_SECRET: Buffer.from(keys.SESSION_SECRET, 'base64'),
       ...vapid,
+      ...mailEnv(),
       GITHUB_API_URL: 'https://ghe.example/api/v3',
       GITHUB_WEB_URL: 'https://ghe.example',
     });
@@ -66,7 +68,7 @@ describe('parseEnv', () => {
 
   it.each(['production', 'staging'])('requires PUBLIC_URL in %s', (CREWDECK_ENV) => {
     expect(() =>
-      parseEnv({ CREWDECK_ENV, DATABASE_URL, PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1', ...githubAppEnv(), ...authKeysEnv(), ...vapidEnv() }),
+      parseEnv({ CREWDECK_ENV, DATABASE_URL, PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1', ...githubAppEnv(), ...authKeysEnv(), ...vapidEnv(), ...mailEnv() }),
     ).toThrow(expect.objectContaining({ keys: ['PUBLIC_URL'] }));
   });
 
@@ -76,7 +78,7 @@ describe('parseEnv', () => {
 
   it('requires the production values in staging', () => {
     expect(() =>
-      parseEnv({ CREWDECK_ENV: 'staging', PUBLIC_URL: 'https://staging.crewdeck.example', DATABASE_URL, ...githubAppEnv(), ...authKeysEnv(), ...vapidEnv() }),
+      parseEnv({ CREWDECK_ENV: 'staging', PUBLIC_URL: 'https://staging.crewdeck.example', DATABASE_URL, ...githubAppEnv(), ...authKeysEnv(), ...vapidEnv(), ...mailEnv() }),
     ).toThrow(expect.objectContaining({ keys: ['PROD_PUBLIC_URL', 'PROD_GITHUB_APP_ID'] }));
   });
 
@@ -89,14 +91,14 @@ describe('parseEnv', () => {
         PROD_GITHUB_APP_ID: '1',
         DATABASE_URL,
         ...githubAppEnv(),
-        ...authKeysEnv(), ...vapidEnv(),
+        ...authKeysEnv(), ...vapidEnv(), ...mailEnv(),
       }),
     ).toMatchObject({ PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1' });
   });
 });
 
 describe('the GitHub App', () => {
-  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...authKeysEnv(), ...vapidEnv() };
+  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...authKeysEnv(), ...vapidEnv(), ...mailEnv() };
 
   it.each(['production', 'staging'])('is required in %s', (CREWDECK_ENV) => {
     expect(() =>
@@ -148,7 +150,7 @@ describe('CREWDECK_FAKES', () => {
 
   it.each(['production', 'staging'])('is refused on the %s server', (CREWDECK_ENV) => {
     const values = { CREWDECK_ENV, PUBLIC_URL: 'https://x.crewdeck.example', PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1', DATABASE_URL };
-    expect(() => parseEnv({ ...values, ...githubAppEnv(), ...authKeysEnv(), ...vapidEnv(), NODE_ENV: 'development', CREWDECK_FAKES: '1' })).toThrow(
+    expect(() => parseEnv({ ...values, ...githubAppEnv(), ...authKeysEnv(), ...vapidEnv(), ...mailEnv(), NODE_ENV: 'development', CREWDECK_FAKES: '1' })).toThrow(
       expect.objectContaining({ keys: ['CREWDECK_FAKES'] }),
     );
   });
@@ -177,7 +179,7 @@ describe('loadEnv', () => {
 });
 
 describe('the sign-in keys', () => {
-  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...githubAppEnv(), ...vapidEnv() };
+  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...githubAppEnv(), ...vapidEnv(), ...mailEnv() };
 
   it.each(['production', 'staging'])('are required in %s', (CREWDECK_ENV) => {
     expect(() => parseEnv({ ...production, CREWDECK_ENV, PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1' })).toThrow(
@@ -205,12 +207,40 @@ describe('the sign-in keys', () => {
     ['GITHUB_TOKEN_KEY', 'not base64!'],
     ['SESSION_SECRET', randomBytes(16).toString('base64')],
   ])('refuses %s=%s', (key, value) => {
-    expect(() => parseEnv({ ...production, ...authKeysEnv(), [key]: value })).toThrow(expect.objectContaining({ keys: [key] }));
+    expect(() => parseEnv({ ...production, ...authKeysEnv(), ...mailEnv(), [key]: value })).toThrow(expect.objectContaining({ keys: [key] }));
+  });
+});
+
+describe('the mail', () => {
+  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...githubAppEnv(), ...authKeysEnv(), ...vapidEnv() };
+
+  it.each(['production', 'staging'])('is required in %s', (CREWDECK_ENV) => {
+    expect(() => parseEnv({ ...production, CREWDECK_ENV, PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1' })).toThrow(
+      expect.objectContaining({ keys: ['SMTP_URL', 'MAIL_FROM'] }),
+    );
+  });
+
+  it.each(['development', 'test'])('is optional in %s', (CREWDECK_ENV) => {
+    expect(parseEnv({ CREWDECK_ENV, DATABASE_URL })).not.toHaveProperty('SMTP_URL');
+  });
+
+  it.each(['smtp://relay.example:587', 'smtps://user:pass@relay.example:465'])('reads SMTP_URL=%s', (SMTP_URL) => {
+    expect(parseEnv({ ...production, ...mailEnv(), SMTP_URL }).SMTP_URL).toBe(SMTP_URL);
+  });
+
+  it('requires MAIL_FROM with SMTP_URL', () => {
+    expect(() => parseEnv({ CREWDECK_ENV: 'development', DATABASE_URL, SMTP_URL: 'smtp://localhost:1025' })).toThrow(
+      expect.objectContaining({ keys: ['MAIL_FROM'] }),
+    );
+  });
+
+  it.each(['https://relay.example', 'relay.example:587'])('refuses SMTP_URL=%s', (SMTP_URL) => {
+    expect(() => parseEnv({ ...production, ...mailEnv(), SMTP_URL })).toThrow(expect.objectContaining({ keys: ['SMTP_URL'] }));
   });
 });
 
 describe('the VAPID keys', () => {
-  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...githubAppEnv(), ...authKeysEnv() };
+  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...githubAppEnv(), ...authKeysEnv(), ...mailEnv() };
 
   it.each(['production', 'staging'])('are required in %s', (CREWDECK_ENV) => {
     expect(() => parseEnv({ ...production, CREWDECK_ENV, PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1' })).toThrow(

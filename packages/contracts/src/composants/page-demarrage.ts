@@ -49,13 +49,13 @@ const NO_PICKER: z.input<typeof RepositoryPicker.data> = { context: 'demarrage',
  */
 export const PageDemarrage = defineComposant({
   name: 'PageDemarrage',
-  version: 3,
+  version: 4,
   tag: 'cd-page-demarrage',
   category: 'page',
   description: 'Les Premiers pas : le Runner, les Comptes IA, les Projets.',
   data: z.object({
     step: zGettingStartedStep.exclude(['done']),
-    login: z.string(),
+    displayName: z.string(),
     system: zDemarrageSystem,
     command: z.string().nullable(),
     shortId: z.string().nullable(),
@@ -71,13 +71,13 @@ export const PageDemarrage = defineComposant({
   examples: [
     {
       name: 'en attente du Runner',
-      data: { step: 'runner', login: 'octocat', system: 'linux', command: COMMAND, shortId: '7KQ4', failure: null, runner: null, busy: false, engines: [], usable: false, picker: NO_PICKER },
+      data: { step: 'runner', displayName: 'octocat', system: 'linux', command: COMMAND, shortId: '7KQ4', failure: null, runner: null, busy: false, engines: [], usable: false, picker: NO_PICKER },
     },
     {
       name: 'liaison échouée',
       data: {
         step: 'runner',
-        login: 'octocat',
+        displayName: 'octocat',
         system: 'linux',
         command: COMMAND,
         shortId: '7KQ4',
@@ -91,13 +91,13 @@ export const PageDemarrage = defineComposant({
     },
     {
       name: 'Runner relié',
-      data: { step: 'runner', login: 'octocat', system: 'wsl', command: null, shortId: null, failure: null, runner: RUNNER, busy: false, engines: [], usable: false, picker: NO_PICKER },
+      data: { step: 'runner', displayName: 'octocat', system: 'wsl', command: null, shortId: null, failure: null, runner: RUNNER, busy: false, engines: [], usable: false, picker: NO_PICKER },
     },
     {
       name: 'Comptes IA',
       data: {
         step: 'ai-accounts',
-        login: 'octocat',
+        displayName: 'octocat',
         system: 'linux',
         command: null,
         shortId: null,
@@ -113,7 +113,7 @@ export const PageDemarrage = defineComposant({
       name: 'aucun Moteur utilisable',
       data: {
         step: 'ai-accounts',
-        login: 'octocat',
+        displayName: 'octocat',
         system: 'linux',
         command: null,
         shortId: null,
@@ -129,7 +129,7 @@ export const PageDemarrage = defineComposant({
       name: 'Projets',
       data: {
         step: 'projects',
-        login: 'octocat',
+        displayName: 'octocat',
         system: 'linux',
         command: null,
         shortId: null,

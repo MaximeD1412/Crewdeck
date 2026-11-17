@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { zVaultKeyWrap } from '../keys/pairing.js';
 import { zId, zSeq } from '../values.js';
 import { runnerMessage } from './envelope.js';
+import { HELLO_SESSIONS_MAX, zHelloSession } from './session.js';
 
 /** The systems the Runner is built for (ADR 0004): Windows through WSL, which `wsl` says. */
 export const RUNNER_OS = ['linux', 'darwin'] as const;
@@ -14,7 +15,9 @@ export const zRunnerArch = z.enum(RUNNER_ARCH);
  * speaks, its own version and the machine it runs on. A Runner with a Miroir
  * says `mirrorAfter`, the last `github.changed` seq it applied (null for
  * none): the server replays the envelopes after it (ADR 0010); without it,
- * the server sends it none of the Miroir's messages.
+ * the server sends it none of the Miroir's messages. A Runner with Sessions
+ * says them in `sessions` (RUNNER-9): the server interrupts those it thought
+ * live, and starts those it was told to start while the Runner was away.
  */
 export const zHello = runnerMessage('hello', {
   protocolVersion: z.int().positive(),
@@ -24,6 +27,7 @@ export const zHello = runnerMessage('hello', {
   arch: zRunnerArch,
   wsl: z.boolean(),
   mirrorAfter: zSeq.nullable().optional(),
+  sessions: z.array(zHelloSession).max(HELLO_SESSIONS_MAX).optional(),
 });
 export type Hello = z.infer<typeof zHello>;
 

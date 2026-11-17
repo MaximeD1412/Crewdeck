@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/keys"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/session"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
 )
 
@@ -40,4 +41,25 @@ func openVault(store state.Store) (*keys.Vault, error) {
 		return nil, errVaultClosed
 	}
 	return vault, nil
+}
+
+// relayKeys are what the relay of the Sessions seals with (SESSION-1): the
+// Runner's key, and as holders the Appareil of vault.wrap, the one the link
+// authenticated, read again at each wrap.
+func relayKeys(store state.Store) (*session.RelayKeys, error) {
+	raw, err := store.LoadRunnerKey()
+	if err != nil {
+		return nil, err
+	}
+	runner, err := ecdh.X25519().NewPrivateKey(raw)
+	if err != nil {
+		return nil, errVaultClosed
+	}
+	return &session.RelayKeys{Runner: runner, Holders: func() ([][]byte, error) {
+		w, err := store.LoadVaultWrap()
+		if err != nil {
+			return nil, err
+		}
+		return [][]byte{w.DevicePublicKey}, nil
+	}}, nil
 }

@@ -1,4 +1,4 @@
-import { type PhaseRun, type StepRun, zArtifactRef, zArtifactType, zPhaseRunWaitingOn, zStepKind, zStepRunInput } from '@crewdeck/contracts';
+import { type PhaseRun, type StepRun, zArtifactRef, zBuiltinTemplateId, zArtifactType, zPhaseRunWaitingOn, zStepKind, zStepRunInput } from '@crewdeck/contracts';
 import { z } from 'zod';
 import type { PhaseRunState, StepRunState, StepVerdict } from '../../generated/prisma/client.js';
 
@@ -7,6 +7,8 @@ export const PHASE_RUN_VIEW = {
   id: true,
   projectId: true,
   processVersionId: true,
+  builtinTemplate: true,
+  parentPhaseRunId: true,
   phaseId: true,
   itemType: true,
   itemId: true,
@@ -39,8 +41,10 @@ export const STEP_RUN_VIEW = {
 
 export interface PhaseRunRow {
   readonly id: string;
-  readonly projectId: string;
-  readonly processVersionId: string;
+  readonly projectId: string | null;
+  readonly processVersionId: string | null;
+  readonly builtinTemplate: string | null;
+  readonly parentPhaseRunId: string | null;
   readonly phaseId: string;
   readonly itemType: string;
   readonly itemId: string;
@@ -50,12 +54,12 @@ export interface PhaseRunRow {
   readonly endedAt: Date | null;
   /** Not in the view: the engine's own (`Engine`'s pending starts). */
   readonly pendingStarts: unknown;
-  readonly processVersion: { readonly number: number };
+  readonly processVersion: { readonly number: number } | null;
 }
 
 export interface StepRunRow {
   readonly id: string;
-  readonly projectId: string;
+  readonly projectId: string | null;
   readonly phaseRunId: string;
   readonly stepId: string;
   readonly kind: string;
@@ -74,7 +78,9 @@ export interface StepRunRow {
 export const toPhaseRun = (row: PhaseRunRow): PhaseRun => ({
   id: row.id,
   projectId: row.projectId,
-  processVersion: row.processVersion.number,
+  processVersion: row.processVersion?.number ?? null,
+  builtinTemplate: row.builtinTemplate === null ? null : zBuiltinTemplateId.parse(row.builtinTemplate),
+  parentPhaseRunId: row.parentPhaseRunId,
   phaseId: row.phaseId,
   itemType: zArtifactType.parse(row.itemType),
   itemId: row.itemId,

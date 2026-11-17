@@ -65,6 +65,7 @@ export interface LinkKeys {
    * not match the keys the server relayed (the page then rejects the code).
    * The first time, a new vault key wrapped for the Runner and for this
    * Appareil; from an unlocked vault, the same key for the Runner only.
+   * The Runner's public key its proof authenticated is kept with the Appareil.
    */
   confirmPairing(link: PendingLink): Promise<ConfirmPairing | null>;
 }
@@ -100,12 +101,15 @@ export const createLinkKeys = ({ devices, vault, userAgent, onDevice }: LinkKeys
       onDevice?.(deviceId);
     },
     async confirmPairing({ secret: encoded, shortId, runnerId, runnerPairing }) {
-      const { deviceId, privateKey, publicKey } = await device();
+      const stored = await device();
+      const { deviceId, privateKey, publicKey } = stored;
       if (!deviceId) throw new Error('keys: the Appareil has no id yet');
       const secret = decodeBase32(encoded);
       const runnerPublicKey = fromBase64Url(runnerPairing.runnerPublicKey);
       const expected = await pairingProof(PAIRING_PROOF_LABELS.runner, secret, shortId, runnerPublicKey, publicKey);
       if (!constantTimeEqual(expected, fromBase64Url(runnerPairing.proof))) return null;
+      // Authenticated by its proof: the sender of the Session keys' wraps (SESSION-1).
+      await devices.saveDevice({ ...stored, runnerPublicKey });
 
       const held = vault.state() === 'unlocked' ? vault.version() : null;
       const version = held ?? 1;

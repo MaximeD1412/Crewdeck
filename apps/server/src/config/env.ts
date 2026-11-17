@@ -55,6 +55,8 @@ const AUTH_KEYS = ['GITHUB_TOKEN_KEY', 'SESSION_SECRET'] as const;
 
 /** The VAPID keys of Web Push (ATOI-4), required where pushes reach real browsers. */
 const VAPID_KEYS = ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'] as const;
+/** The mail of the sign-in by email (CORE-9), required where the links go to real addresses. */
+const MAIL_KEYS = ['SMTP_URL', 'MAIL_FROM'] as const;
 
 /** Where the page is served without `PUBLIC_URL`: Vite's dev server (`apps/web/vite.config.ts`). */
 const DEV_APP_URL = 'http://localhost:4200';
@@ -115,6 +117,14 @@ export const zEnv = z
       .regex(/^(mailto:.+|https:\/\/.+)$/, 'A mailto: or an https: URL')
       .optional(),
     /**
+     * The SMTP relay the sign-in links leave by (`smtps://user:password@host:465`,
+     * INFRA-14). Required outside development and test; unset there, the links
+     * stay in the server's memory (`GET /api/testing/mails` with the fakes).
+     */
+    SMTP_URL: z.url({ protocol: /^smtps?$/ }).optional(),
+    /** The sender of those mails (`Crewdeck <connexion@crewdeck.example>`). Same rule as SMTP_URL. */
+    MAIL_FROM: z.string().min(1).optional(),
+    /**
      * `1`: the fake GitHub (and the fake Runner) in place of the real ones,
      * with the test scenarios (`pnpm dev`, the end-to-end tests). Refused in
      * production.
@@ -136,7 +146,9 @@ export const zEnv = z
       for (const key of GITHUB_APP_KEYS) require(key, 'outside development and test');
       for (const key of AUTH_KEYS) require(key, 'outside development and test');
       for (const key of VAPID_KEYS) require(key, 'outside development and test');
+      for (const key of MAIL_KEYS) require(key, 'outside development and test');
     }
+    if (env.SMTP_URL !== undefined) require('MAIL_FROM', 'with SMTP_URL');
     if (env.CREWDECK_FAKES !== undefined && (deployed || env.NODE_ENV === 'production')) {
       context.addIssue({ code: 'custom', path: ['CREWDECK_FAKES'], message: 'Refused in production: the fakes never replace GitHub there' });
     }

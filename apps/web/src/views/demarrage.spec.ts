@@ -1,6 +1,7 @@
 import type { AiAccount, Runner } from '@crewdeck/contracts';
 import { COMPOSANTS } from '@crewdeck/sdk';
 import { demarrageView, installCommand, systemOfBrowser, type DemarrageState } from './demarrage.js';
+import { folderFormView, pickerView } from './projets.js';
 
 const CODE = { shortId: '7KQ4', secret: 'M2PXA7QK9VZ3T8W4R6N1B5C0DE' };
 const RUNNER: Runner = {
@@ -49,11 +50,12 @@ const NOT_CONNECTED = (engine: 'claude-code' | 'codex', command: string) => ({
   command,
 });
 
-/** The view with the picker `projects.ts` adds, valid for the Composant. */
-const PICKER = { context: 'demarrage', repositories: [], installUrl: null, busy: false } as const;
+/** The view with the Projets' step `app.ts` adds (its tab, its folder's form, its picker), valid for the Composant. */
+const PICKER = pickerView({ context: 'demarrage', repositories: [], installUrl: null, busy: false });
+const FOLDER = folderFormView({ context: 'demarrage', path: '', check: { state: 'idle', hasCode: false }, name: '', busy: false, vaultLocked: false, machine: null });
 const valid = (state: DemarrageState) => {
   const view = demarrageView(state);
-  COMPOSANTS.PageDemarrage.data.parse({ ...view, picker: PICKER });
+  COMPOSANTS.PageDemarrage.data.parse({ ...view, projectsTab: 'dossier', folder: FOLDER, picker: PICKER });
   return view;
 };
 

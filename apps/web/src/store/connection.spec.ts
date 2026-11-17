@@ -385,6 +385,29 @@ describe('what the page tells the server', () => {
     expect(MockSocket.last().sent[0]?.type).toBe('hello');
   });
 
+  it('carries the folders’ checks: the check on the open socket, the server’s answers to their listeners only', async () => {
+    const REQUEST = '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a92';
+    const { connection, socket } = await liveAt(7);
+    const folders = vi.fn();
+    const relayed = vi.fn();
+    const stop = connection.onFolder(folders);
+    connection.onRelay(relayed);
+    const sealed = { key: 'A'.repeat(80), ciphertext: 'B'.repeat(40) };
+
+    expect(connection.sendFolder({ type: 'folder.check', requestId: REQUEST, sealed })).toBe(true);
+    expect(socket.sent).toEqual([{ type: 'folder.check', requestId: REQUEST, sealed }]);
+    socket.receive({ type: 'folder.checked', requestId: REQUEST, sealed });
+    socket.receive({ type: 'folder.error', requestId: REQUEST, code: 'runner.offline' });
+    expect(folders.mock.calls.map(([message]) => (message as ServerMessage).type)).toEqual(['folder.checked', 'folder.error']);
+    expect(relayed).not.toHaveBeenCalled();
+
+    stop();
+    socket.receive({ type: 'folder.error', requestId: REQUEST, code: 'runner.offline' });
+    expect(folders).toHaveBeenCalledTimes(2);
+    socket.drop();
+    expect(connection.sendFolder({ type: 'folder.check', requestId: REQUEST, sealed })).toBe(false);
+  });
+
   it('stop closes the socket, and nothing reconnects nor listens', async () => {
     const { connection, socket } = await liveAt(7);
     connection.stop();

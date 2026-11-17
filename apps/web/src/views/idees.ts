@@ -59,8 +59,11 @@ const NO_CLOSED: ClosedIdeasView = { ideas: [], known: true, older: 'none' };
 
 export interface IdeesSlices {
   readonly idea?: ReadonlyMap<string, Idea>;
-  readonly project?: ReadonlyMap<string, Pick<Project, 'id' | 'displayName'>>;
+  readonly project?: ReadonlyMap<string, Pick<Project, 'id' | 'displayName' | 'nameSealed'>>;
 }
+
+/** A Projet's name without the vault: its `displayName`, else « Projet local ». */
+export const plainProjectName = (project: Pick<Project, 'displayName'>): string => project.displayName ?? t('projets.local.fallbackName');
 
 /**
  * « Idées »'s data (pure, IDEE-1): the Idées of the tab and of the Projet
@@ -79,13 +82,26 @@ export interface IdeesSlices {
 export const ideesView = (
   slices: IdeesSlices,
   plaintext: (idea: Idea) => IdeaText,
-  { projectFilter, tab, now = new Date(), closed = NO_CLOSED }: IdeesQuery & { readonly now?: Date; readonly closed?: ClosedIdeasView },
+  {
+    projectFilter,
+    tab,
+    now = new Date(),
+    closed = NO_CLOSED,
+    projectName = plainProjectName,
+  }: IdeesQuery & {
+    readonly now?: Date;
+    readonly closed?: ClosedIdeasView;
+    /** A Projet's name (`projects.ts`, `projectName`, for a Local Projet's sealed one). */
+    readonly projectName?: (project: Pick<Project, 'id' | 'displayName' | 'nameSealed'>) => string;
+  },
 ): PageIdeesData => {
   const byId = new Map(closed.ideas.map((idea) => [idea.id, idea]));
   for (const idea of slices.idea?.values() ?? []) byId.set(idea.id, idea);
   const all = [...byId.values()].sort((a, b) => b.number - a.number);
-  const projects = [...(slices.project?.values() ?? [])].sort((a, b) => a.displayName.localeCompare(b.displayName, 'fr'));
-  const names = new Map(projects.map((project) => [project.id, project.displayName]));
+  const projects = [...(slices.project?.values() ?? [])]
+    .map((project) => ({ id: project.id, name: projectName(project) }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  const names = new Map(projects.map((project) => [project.id, project.name]));
   const selected = projectFilter !== null && names.has(projectFilter) ? projectFilter : null;
   const ofProject = selected === null ? all : all.filter((idea) => projectOf(idea) === selected);
   const ofTab = all.filter((idea) => TAB_OF[idea.state] === tab);
@@ -99,7 +115,7 @@ export const ideesView = (
       { projectId: null, label: t('aToi.allProjects'), ...count(ofTab.length), selected: selected === null },
       ...projects.map((project) => ({
         projectId: project.id,
-        label: project.displayName,
+        label: project.name,
         ...count(ofTab.filter((idea) => projectOf(idea) === project.id).length),
         selected: project.id === selected,
       })),

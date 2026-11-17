@@ -3,6 +3,8 @@ import {
   zServerMessage,
   type ServerMessage,
   type State,
+  type TabFolderClientMessage,
+  type TabFolderServerMessage,
   type TabRelayClientMessage,
   type TabRelayServerMessage,
   type zClientMessage,
@@ -46,6 +48,10 @@ export interface Connection {
   onRelay(listener: (message: TabRelayServerMessage) => void): () => void;
   /** Each socket opened, after its `hello`: the relay opens its Sessions again on it. */
   onOpen(listener: () => void): () => void;
+  /** A folder's check (PROJET-6) on the open socket; false when none is open. */
+  sendFolder(message: TabFolderClientMessage): boolean;
+  /** The server's answers to the folders' checks: `folder.checked`, `folder.error`. */
+  onFolder(listener: (message: TabFolderServerMessage) => void): () => void;
 }
 
 /** The waits before each reconnection after a loss, the last one repeated. */
@@ -105,6 +111,7 @@ export const createConnection = ({
 
   const relayListeners = new Set<(message: TabRelayServerMessage) => void>();
   const openListeners = new Set<() => void>();
+  const folderListeners = new Set<(message: TabFolderServerMessage) => void>();
 
   const send = (message: Outgoing): boolean => {
     if (socket?.readyState !== OPEN) return false;
@@ -188,6 +195,10 @@ export const createConnection = ({
       case 'session.error':
         for (const listener of relayListeners) listener(message);
         return;
+      case 'folder.checked':
+      case 'folder.error':
+        for (const listener of [...folderListeners]) listener(message);
+        return;
     }
   };
 
@@ -250,6 +261,11 @@ export const createConnection = ({
     onOpen(listener) {
       openListeners.add(listener);
       return () => openListeners.delete(listener);
+    },
+    sendFolder: (message) => send(message),
+    onFolder(listener) {
+      folderListeners.add(listener);
+      return () => folderListeners.delete(listener);
     },
   };
 };

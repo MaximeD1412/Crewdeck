@@ -1,4 +1,18 @@
-import { type IdeesTab, COMPOSANTS, PageAToi, PageComposants, PageConnexion, PageConnexionLien, PageDemarrage, PageIdees, PageParametres, PageProjets, PageRunner, RepositoryPicker } from '@crewdeck/sdk';
+import {
+  type IdeesTab,
+  COMPOSANTS,
+  PageAjouterProjet,
+  PageAToi,
+  PageComposants,
+  PageConnexion,
+  PageConnexionLien,
+  PageDemarrage,
+  PageIdees,
+  PageParametres,
+  PageProjet,
+  PageProjets,
+  PageRunner,
+} from '@crewdeck/sdk';
 import type { Route } from './router.js';
 import { aToiView } from './views/a-toi.js';
 import { composantsView } from './views/composants.js';
@@ -10,6 +24,13 @@ export const composantsHref = (name: string): string => `/parametres/composants?
 
 /** « À toi », every Projet's Décisions, or one Projet's (`?projet=`). */
 export const aToiHref = (projectId: string | null): string => (projectId ? `/a-toi?projet=${encodeURIComponent(projectId)}` : '/a-toi');
+
+/** A Projet's page. */
+export const projetHref = (projectId: string): string => `/projets/${encodeURIComponent(projectId)}`;
+
+/** « Ajouter un Projet », or the choice of a Local Projet's folder again (`?projet=`). */
+export const ajouterHref = (projectId: string | null = null): string =>
+  projectId ? `/projets/ajouter?projet=${encodeURIComponent(projectId)}` : '/projets/ajouter';
 
 /** « Idées », every Projet's or one Projet's (`?projet=`), on a tab (`?onglet=`, « À trier » by default). */
 export const ideesHref = (projectId: string | null, tab: IdeesTab): string => {
@@ -32,9 +53,11 @@ export const ideesHref = (projectId: string | null, tab: IdeesTab): string => {
  * whose data `app.ts` gives from the store and the texts in clear
  * (`views/idees.ts`); `/runner` →
  * `PageRunner`, whose data `app.ts` gives from the store
- * (`views/runner.ts`); `/projets` → `PageProjets` and `/projets/ajouter` →
- * `RepositoryPicker`, whose data `app.ts` gives from the store
- * (`views/projets.ts`, `projects.ts`); `/parametres` → `PageParametres`,
+ * (`views/runner.ts`); `/projets` → `PageProjets`, `/projets/ajouter` →
+ * `PageAjouterProjet` (its folder's form and its RepositoryPicker;
+ * `?projet=<id>` to choose a Local Projet's folder again) and `/projets/:id`
+ * → `PageProjet`, whose data `app.ts` gives from the store and the page's own
+ * state (`views/projets.ts`, `projects.ts`, `projects/`); `/parametres` → `PageParametres`,
  * whose « Rôles et modèles » `app.ts` completes with the page's own state
  * (`role-settings.ts`). The first route that matches wins.
  */
@@ -51,7 +74,8 @@ export const ROUTES: readonly Route[] = [
   { path: '/demarrage', composant: PageDemarrage },
   { path: '/runner', composant: PageRunner },
   { path: '/projets', composant: PageProjets },
-  { path: '/projets/ajouter', composant: RepositoryPicker },
+  { path: '/projets/ajouter', composant: PageAjouterProjet },
+  { path: '/projets/:id', composant: PageProjet },
   {
     path: '/parametres',
     composant: PageParametres,

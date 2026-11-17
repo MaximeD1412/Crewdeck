@@ -1,6 +1,8 @@
-import type { EmailLinkVerified, Me } from '@crewdeck/contracts';
+import { zProcessTemplateId, type EmailLinkVerified, type Me, type Project } from '@crewdeck/contracts';
 import {
   Cadre,
+  FolderProjectForm,
+  PageAjouterProjet,
   PageAToi,
   PageComposants,
   NoteIdeaDialog,
@@ -9,10 +11,12 @@ import {
   PageDemarrage,
   PageIdees,
   PageParametres,
+  PageProjet,
   PageProjets,
   PageRunner,
   RepositoryPicker,
   RoleSettings,
+  type ProjectOrigin,
   type Skin,
 } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
@@ -26,11 +30,14 @@ import { createClosedIdeas } from './closed-ideas.js';
 import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
 import { createPageKeys, type PageKeys } from './keys/index.js';
 import { createNoteIdea } from './note-idea.js';
-import { createProjects } from './projects.js';
+import { createProjectNames, createProjects } from './projects.js';
+import { createFolderCheck, createFolderChecker, type FolderSocket } from './projects/folder-check.js';
+import { createFolderForm } from './projects/folder-form.js';
+import { attachFolder, createLocalProject } from './projects/local.js';
 import { bootSkin } from './registry.js';
 import { createRoleSettings } from './role-settings.js';
 import { routeData, routeSlots, startRouter, type Route, type Router } from './router.js';
-import { aToiHref, composantsHref, ideesHref, ROUTES } from './routes.js';
+import { ajouterHref, aToiHref, composantsHref, ideesHref, projetHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
 import { githubSignInHref, HOME_PATH, signInGuard } from './sign-in.js';
 import { client as pageClient, connection as pageConnection, store as pageStore } from './store/index.js';
@@ -40,13 +47,14 @@ import { createLatencyMeter, type LatencyMeter } from './store/latency.js';
 import type { Store } from './store/store.js';
 import { createConnexion } from './views/connexion.js';
 import { createConnexionLien, takeLinkToken } from './views/connexion-lien.js';
+import { aToiView } from './views/a-toi.js';
 import { actionsOf, decisionViews } from './views/decisions/registry.js';
 import './views/decisions/loop-back-exhausted.js';
 import './views/decisions/runner-offline.js';
 import { systemOfBrowser } from './views/demarrage.js';
 import { ideesQuery, ideesView } from './views/idees.js';
 import { parametresView, timeZones } from './views/parametres.js';
-import { projetsView } from './views/projets.js';
+import { firstTab, projetsView, projetView } from './views/projets.js';
 import { runnerView } from './views/runner.js';
 
 /** The Skins the page knows, by id: at the MVP, the default one. */
@@ -73,6 +81,8 @@ export interface BootOptions {
   /** The page's store and its socket (`store/index.ts`) by default. */
   readonly store?: Store;
   readonly connection?: Pick<Connection, 'start' | 'stop'>;
+  /** The socket the folders' checks go through (PROJET-6): the page's (`store/index.ts`) by default. */
+  readonly folders?: FolderSocket;
   /** The page's queries and commands (`store/index.ts`) by default. */
   readonly client?: Pick<Client, 'command' | 'query'>;
   /** The latency the page measures on its store's live events (CORE-8): started with the socket. */
@@ -108,6 +118,7 @@ export const boot = async ({
   verifyLink = postLinkVerify,
   store = pageStore,
   connection = pageConnection,
+  folders = pageConnection,
   client = pageClient,
   latency = createLatencyMeter({ store }),
   keys = createPageKeys({ store, client, userAgent: navigator.userAgent }),
@@ -162,7 +173,34 @@ export const boot = async ({
       vaultTried = resolve;
     }),
   });
-  const noteIdea = createNoteIdea({ client, vault: keys.vault, store });
+  const names = createProjectNames({ vault: keys.vault, vaultState: () => store.getState().vaultState });
+  const projectName = (project: Pick<Project, 'id' | 'displayName' | 'nameSealed'>) => names.projectName(project);
+  const folderForm = createFolderForm({
+    checker: createFolderChecker({ check: createFolderCheck({ socket: folders, vault: keys.vault }) }),
+    createProject: ({ templateId, ...input }) => createLocalProject({ client, vault: keys.vault }, { ...input, templateId: zProcessTemplateId.parse(templateId) }),
+    attachFolder: (projectId, path) => attachFolder({ client, vault: keys.vault }, projectId, path),
+  });
+  // The Projet just created, shown on its page until its `project.upserted` arrives.
+  let created: Project | null = null;
+  const projectOf = (id: string | undefined): Project | undefined =>
+    id === undefined ? undefined : (store.getState().slices.project?.get(id) ?? (created?.id === id ? created : undefined));
+  /** The Local Projet of `?projet=` on « Ajouter un Projet », whose folder is chosen again. */
+  const repickOf = (query: Readonly<Record<string, string>>) => {
+    const project = projectOf(query['projet']);
+    return project && project.folder !== null ? { projectId: project.id, name: projectName(project) } : null;
+  };
+  // The tab each page opened on, once the Pilote chose one: « Dépôt GitHub » first when they have one.
+  const tabs: { ajouter: ProjectOrigin | null; demarrage: ProjectOrigin | null } = { ajouter: null, demarrage: null };
+  const tabOf = (page: keyof typeof tabs) => tabs[page] ?? firstTab(store.getState().slices.repository?.values() ?? []);
+  // The form forgets its path on another page or for another Projet (after the render that noticed it).
+  let formKey: string | null = null;
+  const folderView = (key: string, context: 'demarrage' | 'projets' | 'repick', name?: string) => {
+    if (formKey !== null && formKey !== key) queueMicrotask(() => folderForm.reset());
+    formKey = key;
+    const { slices, vaultState } = store.getState();
+    return folderForm.view({ context, vaultLocked: vaultState !== 'unlocked', machine: slices.runner?.machine ?? null, ...(name === undefined ? {} : { name }) });
+  };
+  const noteIdea = createNoteIdea({ client, vault: keys.vault, store, projectName });
   const noteDialog = document.createElement(NoteIdeaDialog.tag) as HTMLElement & { data: unknown };
   noteDialog.data = noteIdea.view();
   shell.append(noteDialog);
@@ -176,23 +214,53 @@ export const boot = async ({
     outlet: shell.outlet,
     onRoute: shell.update,
     state: store.getState,
-    guard: (match) => started(match) ?? signIn(match),
+    guard: (match) => {
+      const elsewhere = started(match) ?? signIn(match);
+      if (elsewhere) return elsewhere;
+      // A Projet the Pilote does not have (removed, another's): the list, once the store knows them.
+      if (match.composant === PageProjet && store.getState().slices.project !== undefined && !projectOf(match.params['id'])) return '/projets';
+      return null;
+    },
     slots: (match) => {
       if (match.composant !== PageParametres) return pageSlots(match);
       const { slices } = store.getState();
       return parametresView(slices.settings, timeZones(), { accounts: [...(slices['ai-account']?.values() ?? [])], local: roleSettings.view() });
     },
     data: (match) => {
-      if (match.composant === PageDemarrage) return { ...gettingStarted.view(), picker: projects.picker('demarrage') };
+      if (match.composant === PageDemarrage) {
+        return { ...gettingStarted.view(), projectsTab: tabOf('demarrage'), folder: folderView('demarrage', 'demarrage'), picker: projects.picker('demarrage') };
+      }
       if (match.composant === PageConnexion) return connexion.view(match.query);
       if (match.composant === PageConnexionLien) return connexionLien.view();
-      if (match.composant === RepositoryPicker) return projects.picker('projets');
       const { slices } = store.getState();
-      if (match.composant === PageProjets) return projetsView(slices.project?.values() ?? []);
+      const machine = slices.runner?.machine ?? null;
+      if (match.composant === PageAjouterProjet) {
+        const repick = repickOf(match.query);
+        return {
+          tab: repick ? 'dossier' : tabOf('ajouter'),
+          folder: repick ? folderView(`repick:${repick.projectId}`, 'repick', repick.name) : folderView('projets', 'projets'),
+          picker: projects.picker('projets'),
+          repick,
+        };
+      }
+      if (match.composant === PageProjets) return projetsView(slices.project?.values() ?? [], { name: projectName, machine });
+      if (match.composant === PageProjet) {
+        const project = projectOf(match.params['id']);
+        return project ? projetView(project, { name: projectName, machine, process: slices.process?.get(project.id) }) : undefined;
+      }
+      if (match.composant === PageAToi) {
+        return aToiView(slices.decision?.values() ?? [], match.query, {
+          runnerOnline: slices.runner?.state === 'online',
+          projectName: (id) => {
+            const project = projectOf(id);
+            return project ? projectName(project) : null;
+          },
+        });
+      }
       if (match.composant === PageIdees) {
         // The Idées merged or rejected beyond the slice's 90 days: their first page as the page first shows.
         closedIdeas.ensure();
-        return ideesView(slices, (idea) => plaintext.text(idea), { ...ideesQuery(match.query), closed: closedIdeas.view() });
+        return ideesView(slices, (idea) => plaintext.text(idea), { ...ideesQuery(match.query), closed: closedIdeas.view(), projectName });
       }
       if (match.composant !== PageRunner) return pageData(match);
       return runnerView({
@@ -214,6 +282,11 @@ export const boot = async ({
       refreshNoteDialog();
     }),
     plaintext.subscribe(() => router.refresh()),
+    names.subscribe(() => {
+      router.refresh();
+      refreshNoteDialog();
+    }),
+    folderForm.subscribe(() => router.refresh()),
     noteIdea.subscribe(refreshNoteDialog),
     gettingStarted.subscribe(() => router.refresh()),
     connexion.subscribe(() => router.refresh()),
@@ -282,11 +355,41 @@ export const boot = async ({
   dispatcher.registerAction(PageDemarrage, 'selectSystem', { run: ({ system }) => gettingStarted.selectSystem(system) });
   dispatcher.registerAction(PageDemarrage, 'retry', { run: () => gettingStarted.retry() });
   dispatcher.registerAction(PageDemarrage, 'continue', { run: () => gettingStarted.advance() });
-  dispatcher.registerAction(PageProjets, 'add', { run: () => router.navigate('/projets/ajouter') });
+  dispatcher.registerAction(PageDemarrage, 'selectProjectsTab', {
+    run: ({ id }) => {
+      tabs.demarrage = id;
+      router.refresh();
+    },
+  });
+  dispatcher.registerAction(PageProjets, 'add', { run: () => router.navigate(ajouterHref()) });
+  dispatcher.registerAction(PageAjouterProjet, 'selectTab', {
+    run: ({ id }) => {
+      tabs.ajouter = id;
+      router.refresh();
+    },
+  });
+  dispatcher.registerAction(PageProjet, 'openProcess', {
+    run: () => {
+      const id = router.current.params['id'];
+      if (id) router.navigate(`${projetHref(id)}/process`);
+    },
+  });
+  dispatcher.registerAction(FolderProjectForm, 'checkPath', { run: ({ path }) => folderForm.checkPath(path) });
+  // A Local Projet created ends « Premiers pas » as a Dépôt GitHub followed does; elsewhere its page shows it.
+  dispatcher.registerAction(FolderProjectForm, 'create', {
+    run: async ({ path, name, templateId }) => {
+      const repick = router.current.composant === PageAjouterProjet ? repickOf(router.current.query) : null;
+      const project = repick ? await folderForm.attach(repick.projectId, path) : await folderForm.create({ path, name, templateId });
+      if (!project) return;
+      if (!repick) created = project;
+      if (router.current.composant === PageDemarrage) await gettingStarted.advance();
+      else router.navigate(projetHref(project.id));
+    },
+  });
   // In « Premiers pas » the Projets followed end it; on `/projets/ajouter` the list shows them.
   dispatcher.registerAction(RepositoryPicker, 'follow', {
-    run: async ({ repositoryIds }) => {
-      await projects.follow(repositoryIds);
+    run: async ({ repositoryIds, templateId }) => {
+      await projects.follow(repositoryIds, templateId);
       if (router.current.composant === PageDemarrage) await gettingStarted.advance();
       else router.navigate('/projets');
     },

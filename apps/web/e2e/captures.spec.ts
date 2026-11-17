@@ -24,6 +24,16 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   'a-toi-menu-plus': async (page, width) => {
     if (width < 1280) await page.getByRole('button', { name: 'Plus' }).click();
   },
+  // The form sent: its go Banner in place of the field (CORE-9).
+  'connexion-lien-envoye': async (page) => {
+    const connexion = page.locator('cd-page-connexion');
+    await connexion.getByRole('textbox', { name: 'Ton adresse e-mail' }).fill('pilote@example.com');
+    await connexion.getByRole('button', { name: 'Recevoir un lien' }).click();
+    await expect(connexion.getByText('Lien envoyé à pilote@example.com')).toBeVisible();
+  },
+  'connexion-lien': async (page) => {
+    await expect(page.locator('cd-page-connexion-lien').getByRole('button', { name: 'Se connecter' })).toBeVisible();
+  },
   // The page draws its code once the snapshot is there: its command shown.
   demarrage: async (page) => {
     await expect(page.locator('cd-page-demarrage cd-code-block')).toContainText('--link');

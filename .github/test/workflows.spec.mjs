@@ -34,6 +34,31 @@ describe('nightly.yml', () => {
   test('a second run waits for the first instead of cancelling it', () => {
     assert.match(block(nightly, 'concurrency'), /^ {2}cancel-in-progress: false$/m);
   });
+
+  describe('runner-smoke (RUNNER-14)', () => {
+    const smoke = /^ {2}runner-smoke:\n((?: {4,}.*\n|\n)*)/m.exec(jobs)?.[1] ?? '';
+
+    test('is its own job, not limited to develop, on linux and on darwin, darwin under 5 minutes', () => {
+      assert.ok(smoke, 'no job « runner-smoke »');
+      assert.doesNotMatch(smoke, /^ {4}if:/m);
+      assert.match(smoke, /- system: linux\n {12}os: ubuntu-latest\n/);
+      assert.match(smoke, /- system: darwin\n {12}os: macos-latest\n {12}timeout: 5\n/);
+      assert.match(smoke, /^ {4}timeout-minutes: \$\{\{ matrix\.timeout \}\}$/m);
+    });
+
+    test('builds the binary with -tags smoke and runs smoke.sh on both systems', () => {
+      assert.match(smoke, /go build -tags smoke -o "\$RUNNER_TEMP\/smoke\/crewdeck-runner" \.\/cmd\/crewdeck-runner/);
+      const step = /- name: Smoke test\n((?: {8}.*\n)*)/.exec(smoke)?.[1] ?? '';
+      assert.match(step, /sh apps\/runner\/smoke\/smoke\.sh/);
+      assert.doesNotMatch(step, /^ {8}if:/m);
+    });
+
+    test('has the release binary of runner:dist refuse --engine-fake', () => {
+      assert.match(smoke, /pnpm exec nx run runner:dist/);
+      assert.match(smoke, /dist\/runner\/smoke\/linux-amd64 run --engine-fake x/);
+      assert.match(smoke, /unknown flag: --engine-fake/);
+    });
+  });
 });
 
 describe('actions-minutes.yml', () => {

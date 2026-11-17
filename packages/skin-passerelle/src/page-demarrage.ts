@@ -146,10 +146,10 @@ export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarr
   }
 
   private runnerStep(): TemplateResult {
-    const { failure, shortId, runner, login } = this.data;
+    const { failure, shortId, runner, displayName } = this.data;
     if (runner) {
       const online = runner.state === 'online';
-      return html`${this.head(t('demarrage.runner.linked.title'), t(online ? 'demarrage.runner.linked.lead' : 'demarrage.runner.linked.leadOffline', { login }))}
+      return html`${this.head(t('demarrage.runner.linked.title'), t(online ? 'demarrage.runner.linked.lead' : 'demarrage.runner.linked.leadOffline', { name: displayName }))}
         <section aria-label=${t('demarrage.step.runner')}>
           <cd-banner .data=${online ? { tone: 'go', icon: 'check', title: t('demarrage.runner.online.title') } : { tone: 'caution', icon: 'wifi', title: t('demarrage.runner.offline.title') }}
             >${online ? t('demarrage.runner.online.text', { ago: formatRelative(runner.lastSeenAt) }) : t('demarrage.runner.offline.text')}</cd-banner

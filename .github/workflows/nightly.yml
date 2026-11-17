@@ -10,7 +10,9 @@ name: Nightly
 # reports it, no other channel, and AGENTS.md has it fixed before anything
 # else. docs/ci.md, « The workflow nightly ».
 #
-# The compiled Runner's smoke test is added here by RUNNER-14, as its own job.
+# The compiled Runner's smoke test (RUNNER-14, apps/runner/smoke/) is its own
+# job, `runner-smoke`: on linux against the real server, on darwin against
+# the fake server.
 on:
   schedule:
     # 03:30 UTC: the agents' machine sleeps, and the campaign ends before the
@@ -40,3 +42,128 @@ jobs:
     uses: ./.github/workflows/verify.yml
     with:
       scope: full
+
+  # The compiled Runner, as the Pilote downloads it, on the two systems it is
+  # built for (ADR 0004): linked through the scenario `smoke`, a Session on
+  # the fake Moteur, the example Contrat checked with its embedded rules
+  # (apps/runner/smoke/smoke.sh). The binary is built with `-tags smoke`,
+  # which adds the hidden `--engine-fake`; the release binary must refuse it.
+  # Unlike `verify`, a dispatch from another branch runs it: the way to try a
+  # change of the smoke test before its merge.
+  runner-smoke:
+    name: runner-smoke (${{ matrix.system }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: linux
+            os: ubuntu-latest
+            timeout: 20
+          # The fake server (apps/runner/smoke/fakeserver) in place of the
+          # real one: no PostgreSQL nor Node, under 5 minutes of macOS.
+          - system: darwin
+            os: macos-latest
+            timeout: 5
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.timeout }}
+    permissions:
+      contents: read
+      actions: read
+
+    env:
+      DATABASE_URL: postgresql://crewdeck:crewdeck@localhost:5432/crewdeck
+      NX_NO_CLOUD: true
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup
+        if: matrix.system == 'linux'
+        with:
+          scope: full
+          base: origin/develop
+
+      # Go alone, at the version of .mise.toml.
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        if: matrix.system == 'darwin'
+        env:
+          MISE_ENABLE_TOOLS: go
+        with:
+          cache_key_prefix: mise-v0-go
+
+      - name: Build the Runner with -tags smoke
+        working-directory: apps/runner
+        env:
+          CGO_ENABLED: 0
+        run: |
+          mkdir -p "$RUNNER_TEMP/smoke"
+          go build -tags smoke -o "$RUNNER_TEMP/smoke/crewdeck-runner" ./cmd/crewdeck-runner
+          go build -o "$RUNNER_TEMP/smoke/fakeserver" ./smoke/fakeserver
+
+      # A job's services are for linux runners only: the database is started
+      # by hand, on linux alone.
+      - name: Start PostgreSQL
+        if: matrix.system == 'linux'
+        run: |
+          docker run -d --name postgres -p 5432:5432 -e POSTGRES_USER=crewdeck -e POSTGRES_PASSWORD=crewdeck -e POSTGRES_DB=crewdeck postgres:18
+          for _ in $(seq 1 60); do
+            docker exec postgres pg_isready -U crewdeck -d crewdeck >/dev/null 2>&1 && exit 0
+            sleep 1
+          done
+          echo "::error::PostgreSQL n'a pas démarré."
+          docker logs postgres
+          exit 1
+
+      # The real server, its fakes on (the scenarios, the fake GitHub): the
+      # database migrated, built and started in the background.
+      - name: Start the server
+        if: matrix.system == 'linux'
+        run: |
+          pnpm exec nx run server:migrate
+          pnpm exec nx run server:build
+          cd apps/server
+          CREWDECK_ENV=development CREWDECK_FAKES=1 PORT=3000 node --enable-source-maps dist/main.js >"$RUNNER_TEMP/smoke/server.log" 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:3000/api/health >/dev/null 2>&1 && exit 0
+            sleep 1
+          done
+          echo "::error::Le serveur n'a pas démarré."
+          cat "$RUNNER_TEMP/smoke/server.log"
+          exit 1
+
+      - name: Start the fake server
+        if: matrix.system == 'darwin'
+        run: |
+          "$RUNNER_TEMP/smoke/fakeserver" -addr 127.0.0.1:3000 -fixtures packages/contracts/fixtures/runner >"$RUNNER_TEMP/smoke/fakeserver.url" 2>"$RUNNER_TEMP/smoke/server.log" &
+          for _ in $(seq 1 30); do
+            [ -s "$RUNNER_TEMP/smoke/fakeserver.url" ] && exit 0
+            sleep 1
+          done
+          echo "::error::Le faux serveur n'a pas démarré."
+          cat "$RUNNER_TEMP/smoke/server.log"
+          exit 1
+
+      - name: Smoke test
+        env:
+          SERVER_URL: http://127.0.0.1:3000
+        run: RUNNER="$RUNNER_TEMP/smoke/crewdeck-runner" sh apps/runner/smoke/smoke.sh
+
+      # The release binary, as runner:dist builds it for the image: without
+      # the tag, the smoke flags do not exist.
+      - name: Check that the release binary refuses --engine-fake
+        if: matrix.system == 'linux'
+        env:
+          CREWDECK_VERSION: smoke
+        run: |
+          pnpm exec nx run runner:dist --skip-nx-cache
+          code=0
+          output=$(dist/runner/smoke/linux-amd64 run --engine-fake x 2>&1) || code=$?
+          echo "$output"
+          if [ "$code" -eq 0 ] || ! printf '%s' "$output" | grep -q 'unknown flag: --engine-fake'; then
+            echo "::error::Le binaire de release accepte --engine-fake."
+            exit 1
+          fi
+
+      - name: Show the server's logs
+        if: failure()
+        run: cat "$RUNNER_TEMP/smoke/server.log" 2>/dev/null || true

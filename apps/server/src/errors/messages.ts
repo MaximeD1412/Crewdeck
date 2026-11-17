@@ -5,8 +5,11 @@
  */
 export const MESSAGES = {
   'auth.github-expired': 'Ta connexion GitHub a expiré, reconnecte-toi.',
+  'auth.link-invalid': 'Ce lien de connexion n’est plus valable : demande-en un nouveau.',
+  'auth.mail-unavailable': 'L’e-mail n’a pas pu partir, réessaie dans un instant.',
   'auth.origin': 'Cette requête ne vient pas de la page de Crewdeck.',
   'auth.required': 'Connecte-toi pour continuer.',
+  'auth.too-many-requests': 'Trop de liens demandés : réessaie dans une heure.',
   'decision.already-answered': 'Cette Décision a déjà été prise.',
   'decision.cursor-invalid': 'Ce curseur ne vient pas de la liste des Décisions.',
   'decision.not-found': 'Cette Décision n’existe pas.',
@@ -57,6 +60,9 @@ export const MESSAGES = {
   'settings.engine-unusable': 'Ce modèle n’est pas utilisable sur ton Runner.',
   'settings.role-choice-required': 'Un Rôle que tu as ajouté a toujours son modèle.',
   'step-run.no-loop-back': 'Cette Étape n’a pas de Retour : elle ne peut pas demander de changements.',
+  'testing.smoke-not-pending': 'Le Runner n’a pas encore envoyé sa preuve de liaison.',
+  'testing.smoke-proof-invalid': 'La preuve du Runner ne correspond pas au code du smoke test.',
+  'testing.smoke-unknown': 'Aucun scénario smoke avec ce jeton : lance d’abord le scénario smoke.',
   'testing.no-runner': 'Aucun Runner de test connecté : lance d’abord un scénario qui en relie un.',
   'testing.unknown-scenario': 'Scénario de test inconnu.',
   'ticket.cursor-invalid': 'Ce curseur ne vient pas de la liste des Tickets.',

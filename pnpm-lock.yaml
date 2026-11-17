@@ -123,6 +123,9 @@ catalogs:
     nestjs-zod:
       specifier: 5.6.0
       version: 5.6.0
+    nodemailer:
+      specifier: 10.5.0
+      version: 10.5.0
     nx:
       specifier: 23.3.1
       version: 23.3.1
@@ -287,6 +290,9 @@ importers:
       nestjs-zod:
         specifier: 'catalog:'
         version: 5.6.0(@nestjs/common@11.2.9(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/swagger@11.4.8(@nestjs/common@11.2.9(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.2.9)(reflect-metadata@0.2.2))(rxjs@7.8.2)(zod@4.6.7)
+      nodemailer:
+        specifier: 'catalog:'
+        version: 10.5.0
       pg:
         specifier: 'catalog:'
         version: 8.23.1
@@ -3437,6 +3443,10 @@ packages:
   node-releases@2.0.63:
     resolution: {integrity: sha512-6li2QanLsAXpIH2R6j77MzRyvOyrvdTqlKtO4CgBdHGNvN99ZZfyxszHc5o5+IZBWD5u6Hzwg83JoGXmqZNG9Q==}
     engines: {node: '>=18'}
+
+  nodemailer@10.5.0:
+    resolution: {integrity: sha512-L/w/HH5MqpzMDuZD7fQdt/+KqymuvrpaApaIjAH2XA3ILePwlcvXCVVvP75xVrXCEt2ggK2marrrHHFB5Qu0kA==}
+    engines: {node: '>=20.0.0'}
 
   npm-run-path@4.0.1:
     resolution: {integrity: sha512-S48WzZW777zhNIrn7gxOlISNAqi9ZC/uQFnRdbeIHhZhCA6UqpkOT8T1G7BvfdgP4Er8gF4sUbaS0i7QvIfCWw==}
@@ -7619,6 +7629,8 @@ snapshots:
       '@nestjs/swagger': 11.4.8(@nestjs/common@11.2.9(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.2.9)(reflect-metadata@0.2.2)
 
   node-releases@2.0.63: {}
+
+  nodemailer@10.5.0: {}
 
   npm-run-path@4.0.1:
     dependencies:

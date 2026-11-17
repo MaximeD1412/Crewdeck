@@ -24,6 +24,7 @@ import { Message } from './message.js';
 import { PageAToi } from './page-a-toi.js';
 import { PageComposants } from './page-composants.js';
 import { PageConnexion } from './page-connexion.js';
+import { PageConnexionLien } from './page-connexion-lien.js';
 import { PageDemarrage } from './page-demarrage.js';
 import { PageParametres } from './page-parametres.js';
 import { PageHeader } from './page-header.js';
@@ -90,6 +91,7 @@ export * from './message.js';
 export * from './page-a-toi.js';
 export * from './page-composants.js';
 export * from './page-connexion.js';
+export * from './page-connexion-lien.js';
 export * from './page-demarrage.js';
 export * from './page-parametres.js';
 export * from './page-header.js';
@@ -142,6 +144,7 @@ export const COMPOSANTS = {
   PageAToi,
   PageComposants,
   PageConnexion,
+  PageConnexionLien,
   PageDemarrage,
   PageParametres,
   PageIntrouvable,

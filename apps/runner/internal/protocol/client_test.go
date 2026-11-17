@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -527,4 +528,33 @@ func TestOnAcceptedCanSendAndOnClosedFollowsEachAcceptedConnection(t *testing.T)
 	}
 	stop()
 	_ = awaitResult(t, result)
+}
+
+// A Pilote's input of the relay (SESSION-1) is up to 256 KiB sealed: more than
+// the socket's default read limit of 32 KiB.
+func TestTheClientReadsAMessageAsLongAsTheLongestInput(t *testing.T) {
+	s := newFakeServer(t, func(ctx context.Context, conn *websocket.Conn, _ int) {
+		accept(ctx, conn)
+		sendJSON(ctx, conn, stamped("custom", map[string]any{"code": strings.Repeat("A", 360<<10)}))
+		holdOpen(ctx, conn)
+	})
+	client := newClient(s.url, nil)
+	type custom struct {
+		Code string `json:"code"`
+	}
+	got := make(chan int, 1)
+	On(client, "custom", func(_ context.Context, message custom) error {
+		got <- len(message.Code)
+		return nil
+	})
+	_, _ = run(t, client)
+	awaitHello(t, s)
+	select {
+	case n := <-got:
+		if n != 360<<10 {
+			t.Fatalf("the handler got %d bytes", n)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the long message never reached its handler")
+	}
 }

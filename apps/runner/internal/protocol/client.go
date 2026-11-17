@@ -189,6 +189,10 @@ func (c *Client) socketURL() (string, error) {
 	return u.String(), nil
 }
 
+// readLimit is the longest message the Runner reads: a Pilote's input of the
+// relay (256 KiB sealed, in base64url) with room to spare.
+const readLimit = 1 << 20
+
 // session is one connection, from its dial to its end; accepted says whether its hello was.
 func (c *Client) session(ctx context.Context) (accepted bool, err error) {
 	target, err := c.socketURL()
@@ -202,6 +206,7 @@ func (c *Client) session(ctx context.Context) (accepted bool, err error) {
 		return false, fmt.Errorf("protocol: dial: %w", err)
 	}
 	defer conn.CloseNow()
+	conn.SetReadLimit(readLimit)
 
 	// The connection ends with ctx: closed cleanly, which ends its reads.
 	done := make(chan struct{})

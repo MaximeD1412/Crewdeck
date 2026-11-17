@@ -90,7 +90,8 @@ describe('the Dépôts GitHub and the Projets against PostgreSQL', () => {
 
   const pilot = async (githubUserId: number, login: string): Promise<Tab> => {
     const id = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, getting_started_step) VALUES ($1, $2, $3, 'Europe/Paris', 'projects')`, [id, githubUserId, login]);
+    await sql(`INSERT INTO pilots (id, display_name, time_zone, getting_started_step) VALUES ($1, $2, 'Europe/Paris', 'projects')`, [id, login]);
+    await sql(`INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) VALUES ($1, $2, 'github', $3, $4)`, [newId(), id, String(githubUserId), login]);
     const token = await runInPilotScope(id, () => app.get(WebSessions).open(prisma.scoped, id, undefined));
     return { id, cookie: `${SESSION_COOKIE}=${token}` };
   };

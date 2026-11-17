@@ -13,7 +13,7 @@ import {
   composantsTextField,
   confirmDialog,
 } from './composants.js';
-import { connexion, connexionErreur } from './connexion.js';
+import { connexion, connexionErreur, connexionLien, connexionLienEnvoye } from './connexion.js';
 import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
 import type { Scenario } from './define.js';
 import { menuPlus } from './menu-plus.js';
@@ -22,6 +22,7 @@ import { parametres } from './parametres.js';
 import { resynchronisation } from './resynchronisation.js';
 import { runner, runnerServeursMcp } from './runner.js';
 import { aToiRunnerHorsLigne, runnerHorsLigne } from './runner-offline.js';
+import { smoke } from './smoke.js';
 
 export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed } from './define.js';
 
@@ -35,6 +36,8 @@ const SCENARIOS: readonly Scenario[] = [
   composants,
   connexion,
   connexionErreur,
+  connexionLien,
+  connexionLienEnvoye,
   demarrage,
   demarrageLiaisonEchouee,
   demarrageRunnerRelie,
@@ -49,6 +52,7 @@ const SCENARIOS: readonly Scenario[] = [
   runner,
   runnerHorsLigne,
   runnerServeursMcp,
+  smoke,
   ...composantsRows,
   composantsTextField,
   composantsSettingRow,

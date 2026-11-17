@@ -24,6 +24,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// sessionsGitHubURL is where the Sessions clone the GitHub repositories
+// from; empty, GitHub. Only the smoke build changes it (smoke.go).
+var sessionsGitHubURL = ""
+
 const notLinked = "Ce Runner n’est relié à aucun compte : relie-le avec la commande que donne Crewdeck, crewdeck-runner link <code>."
 
 // run stays connected to the server until SIGINT, SIGTERM, or a refusal of
@@ -44,6 +48,10 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	}
 	// The vault opens at start: a Runner that cannot open it does not run.
 	vault, err := openVault(store)
+	if err != nil {
+		return err
+	}
+	relay, err := relayKeys(store)
 	if err != nil {
 		return err
 	}
@@ -100,9 +108,11 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	// The Sessions the server asks for, those kept under ~/.crewdeck/sessions
 	// said in each hello: none alive after a restart.
 	sessions, err := session.New(session.Config{
-		Home:    store.Dir,
-		Engines: reporter.Engines,
-		Logger:  logger,
+		Home:      store.Dir,
+		Engines:   reporter.Engines,
+		GitHubURL: sessionsGitHubURL,
+		Logger:    logger,
+		Keys:      relay,
 		Send: func(ctx context.Context, m any) error {
 			client := current.Load()
 			if client == nil {

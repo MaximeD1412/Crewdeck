@@ -16,6 +16,8 @@ const SECRETS = {
   ciphertext: 'secret-ciphertext-c3d0',
   payload: 'secret-payload-7e55',
   wrappedKey: 'secret-wrapped-key-0aa1',
+  enc: 'secret-enc-31b8',
+  nonce: 'secret-nonce-e4c2',
   token: 'secret-token-55f2',
   code: 'secret-oauth-code-81c4',
   state: 'secret-oauth-state-d9e3',
@@ -45,6 +47,9 @@ class ProbeController {
     this.logger.info({ message: { type: 'session.output', payload: body.payload }, runner: { token: SECRETS.token } }, 'relayed');
     // A Runner protocol message of the relay (RUNNER-2, SESSION-1), as a handler might log it.
     this.logger.info({ direction: 'in', message: { type: 'relay', id: 'relay-id', payload: body.payload } }, 'runner message');
+    // A frame of a Session's relay (SESSION-1): its nonce and ciphertext, its keys' wraps.
+    this.logger.info({ frame: { type: 'relay', sessionId: 's-1', nonce: SECRETS.nonce, ciphertext: body.ciphertext }, enc: SECRETS.enc }, 'relay frame');
+    this.logger.info({ keys: { type: 'session.keys', sessionId: 's-1', wraps: [{ enc: SECRETS.enc, wrappedKey: SECRETS.wrappedKey }] } }, 'relay keys');
     throw new Error('a fault after reading the body');
   }
 
@@ -114,6 +119,23 @@ describe('the logs (SEC-7)', () => {
     expect(output()).not.toContain(SECRETS.payload);
   });
 
+  it('never show the nonce, the ciphertext, the enc nor the wraps of a frame of the relay, only its type and sessionId', async () => {
+    await fetch(`${url}/api/probe/sealed`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ciphertext: SECRETS.ciphertext, payload: SECRETS.payload }),
+    });
+    await vi.waitFor(() => expect(output()).toContain('relay keys'));
+    const logged = lines.map((line) => JSON.parse(line) as { msg: string; frame?: unknown; keys?: unknown; enc?: unknown });
+
+    expect(logged.find((line) => line.msg === 'relay frame')).toMatchObject({
+      frame: { type: 'relay', sessionId: 's-1', nonce: REDACT_CENSOR, ciphertext: REDACT_CENSOR },
+      enc: REDACT_CENSOR,
+    });
+    expect(logged.find((line) => line.msg === 'relay keys')?.keys).toEqual({ type: 'session.keys', sessionId: 's-1', wraps: REDACT_CENSOR });
+    for (const secret of [SECRETS.nonce, SECRETS.enc, SECRETS.ciphertext, SECRETS.wrappedKey]) expect(output()).not.toContain(secret);
+  });
+
   it('logs an unexpected error with its stack', () => {
     const error = lines.map((line) => JSON.parse(line) as { msg: string; err?: { message: string; stack: string } }).find((line) => line.msg === 'unexpected error');
 
@@ -148,10 +170,15 @@ describe('the logs (SEC-7)', () => {
         'req.body',
         '*.ciphertext',
         '*.wrappedKey',
+        '*.wraps',
+        '*.enc',
+        '*.nonce',
         '*.payload',
         '*.token',
         '*.accessToken',
         '*.refreshToken',
+        'email',
+        '*.email',
         'req.query.code',
         'req.query.state',
       ]),

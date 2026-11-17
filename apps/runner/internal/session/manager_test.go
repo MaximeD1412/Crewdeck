@@ -78,16 +78,25 @@ func (r *remote) commit(t *testing.T, file, content string) string {
 
 func (r *remote) url() string { return "file://" + r.root }
 
-// reports records the session.state messages the manager sends.
+// reports records the session.state messages the manager sends, and the
+// relay's frames apart (relay_test.go).
 type reports struct {
-	mu   sync.Mutex
-	all  []contracts.RunnerSessionState
-	next chan contracts.RunnerSessionState
+	mu     sync.Mutex
+	all    []contracts.RunnerSessionState
+	next   chan contracts.RunnerSessionState
+	frames chan any
 }
 
-func newReports() *reports { return &reports{next: make(chan contracts.RunnerSessionState, 100)} }
+func newReports() *reports {
+	return &reports{next: make(chan contracts.RunnerSessionState, 100), frames: make(chan any, 1000)}
+}
 
 func (r *reports) send(_ context.Context, message any) error {
+	switch message.(type) {
+	case contracts.RunnerSessionKeys, contracts.RunnerRelay:
+		r.frames <- message
+		return nil
+	}
 	state, ok := message.(contracts.RunnerSessionState)
 	if !ok {
 		return errors.New("not a session.state")
@@ -136,6 +145,8 @@ type setup struct {
 	hooks   session.Hooks
 	// adapter, when set, is the Moteur registered instead of engine.
 	adapter engine.Engine
+	// keys, when set, seal the relay of the Sessions.
+	keys *session.RelayKeys
 }
 
 func newSetup(t *testing.T, events ...contracts.EngineEvent) *setup {
@@ -156,7 +167,7 @@ func (s *setup) manager(t *testing.T) *session.Manager {
 	} else {
 		engines.Register(s.engine)
 	}
-	m, err := session.New(session.Config{Home: s.home, Engines: &engines, GitHubURL: s.remote.url(), Hooks: s.hooks, Send: s.reports.send})
+	m, err := session.New(session.Config{Home: s.home, Engines: &engines, GitHubURL: s.remote.url(), Hooks: s.hooks, Send: s.reports.send, Keys: s.keys})
 	if err != nil {
 		t.Fatal(err)
 	}

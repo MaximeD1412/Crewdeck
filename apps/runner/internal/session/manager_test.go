@@ -729,6 +729,92 @@ func TestAResumeAfterAHalfWrittenLastLineRepairsTheLogAndItsSeqContinues(t *test
 	}
 }
 
+func TestAResumeAfterARunnerKilledMidMessageEndsItsTurnInterruptedFirst(t *testing.T) {
+	s := newSetup(t, result("eng-1"), question("q1"))
+	m := s.manager(t)
+	m.Start(start(firstID, "feat/12-panier"))
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	waitForSeq(t, s.home, firstID, 2)
+	m.Stop(firstID)
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateStopped)
+	waitForSeq(t, s.home, firstID, 3)
+	// A Runner killed while the agent's message streamed: a delta, no end of its turn.
+	logPath := filepath.Join(s.home, "sessions", firstID, "log.jsonl")
+	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.WriteString(`{"kind":"message","seq":4,"at":"2026-11-17T14:02:00Z","from":"agent","text":"Les nuages flottent","final":false}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	file.Close()
+
+	m.Resume(firstID)
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	waitForSeq(t, s.home, firstID, 7)
+
+	var events []contracts.EngineEvent
+	for event, err := range session.Replay(s.home, firstID, 0) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		events = append(events, event)
+	}
+	if len(events) != 7 {
+		t.Fatalf("%d events in the log, want 7", len(events))
+	}
+	// The cut turn ends interrupted before the resumed run's first event, its seq following.
+	cut := events[4].Result
+	if cut == nil || cut.Seq != 5 || cut.Status != contracts.EngineEventResultStatusInterrupted || cut.At.IsZero() {
+		t.Fatalf("event 5 %+v, want the interrupted result of the cut turn", events[4])
+	}
+	if got := []int{seqOf(events[5]), seqOf(events[6])}; !equal(got, []int{6, 7}) || events[5].Result == nil || events[6].Question == nil {
+		t.Fatalf("the resumed run's events %v, want its result and question at 6 and 7", got)
+	}
+}
+
+func TestAResumeAfterATurnThatEndedAddsNothingToTheLog(t *testing.T) {
+	s := newSetup(t, result("eng-1"), question("q1"))
+	m := s.manager(t)
+	m.Start(start(firstID, "feat/12-panier"))
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	waitForSeq(t, s.home, firstID, 2)
+	m.Stop(firstID)
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateStopped)
+	waitForSeq(t, s.home, firstID, 3)
+	// A whole message last: its turn was not cut mid-stream.
+	logPath := filepath.Join(s.home, "sessions", firstID, "log.jsonl")
+	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.WriteString(`{"kind":"message","seq":4,"at":"2026-11-17T14:02:00Z","from":"agent","text":"Les nuages flottent.","final":true}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	file.Close()
+
+	m.Resume(firstID)
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	waitForSeq(t, s.home, firstID, 6)
+	var kinds []string
+	for event, err := range session.Replay(s.home, firstID, 3) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch {
+		case event.Message != nil:
+			kinds = append(kinds, "message")
+		case event.Result != nil:
+			kinds = append(kinds, string(event.Result.Status))
+		case event.Question != nil:
+			kinds = append(kinds, "question")
+		}
+	}
+	if want := []string{"message", "ok", "question"}; len(kinds) != 3 || kinds[0] != want[0] || kinds[1] != want[1] || kinds[2] != want[2] {
+		t.Fatalf("the log after seq 3: %v, want %v", kinds, want)
+	}
+}
+
 // staticToken is a TokenSource that always gives the same token.
 type staticToken string
 

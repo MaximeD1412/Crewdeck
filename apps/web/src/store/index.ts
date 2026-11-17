@@ -1,4 +1,4 @@
-import { zState } from '@crewdeck/contracts';
+import { type PhaseRun, type StepRun, UNFINISHED_PHASE_RUN_STATES, zState } from '@crewdeck/contracts';
 import { createClient } from '../api/client.js';
 import { createConnection } from './connection.js';
 import { createStore } from './store.js';
@@ -19,10 +19,14 @@ store.registerSlice('mcp-server', { shape: 'collection' });
 store.registerSlice('device', { shape: 'collection', snapshotKey: 'devices' });
 store.registerSlice('project', { shape: 'collection', snapshotKey: 'projects' });
 store.registerSlice('process', { shape: 'collection', snapshotKey: 'processes' });
+// As `GET /api/state`: the unfinished PhaseRuns and their StepRuns, a finished one dropped with its StepRuns (PROCESS-4).
+store.registerSlice('phase-run', { shape: 'collection', snapshotKey: 'phaseRuns', holds: (run) => (UNFINISHED_PHASE_RUN_STATES as readonly string[]).includes((run as PhaseRun).state) });
+store.registerSlice('step-run', { shape: 'collection', snapshotKey: 'stepRuns', holds: (run, slices) => slices['phase-run']?.has((run as StepRun).phaseRunId) ?? false });
 store.registerSlice('repository', { shape: 'collection', snapshotKey: 'repositories' });
 store.registerSlice('ticket', { shape: 'collection', snapshotKey: 'tickets' });
 store.registerSlice('milestone', { shape: 'collection', snapshotKey: 'milestones' });
 store.registerSlice('code-change', { shape: 'collection', snapshotKey: 'codeChanges' });
+store.registerSlice('agent-session', { shape: 'collection', snapshotKey: 'sessions' });
 store.registerSlice('settings', { shape: 'single' });
 store.registerSlice('usage', { shape: 'collection' });
 

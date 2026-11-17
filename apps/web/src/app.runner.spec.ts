@@ -3,7 +3,7 @@ import { createDispatcher } from './actions/dispatcher.js';
 import { boot, type App } from './app.js';
 import { createStore } from './store/store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
 const AT = '2026-11-11T14:12:00.000Z';
 const RUNNER: Runner = {
   id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a71',
@@ -85,7 +85,7 @@ describe('« Runner et Comptes IA » in the page', () => {
   });
 
   it('follows the store: the Runner and the Comptes IA it reports, in real time', () => {
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: RUNNER, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, usage: [] });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: RUNNER, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, usage: [] });
     expect(page()?.data).toMatchObject({ runner: { machine: 'atelier-pc', state: 'online' } });
 
     store.applyEvent({ seq: 2, type: 'ai-account.upserted', payload: CLAUDE, at: AT });

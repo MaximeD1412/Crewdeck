@@ -16,6 +16,7 @@
       "inputs": [
         "go",
         "{projectRoot}/install/*.sh",
+        "{projectRoot}/smoke/**/*",
         "^production"
       ],
       "options": {

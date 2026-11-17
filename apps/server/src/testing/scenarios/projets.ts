@@ -13,12 +13,13 @@ interface SeededRepository {
   readonly hasCode: boolean;
   /** The Projet following it, by its name; none when the repository is only a Dépôt GitHub. */
   readonly project?: string;
+  /** That Projet's id, when a scenario names it elsewhere (a Décision, a PhaseRun); else a new one. */
+  readonly projectId?: string;
 }
 
 /**
  * The Pilote's installation with `repositories`, as the webhooks would leave
- * it: in the fake GitHub (where following reads `.process.json`, and those
- * with code have two commits) and in `repositories`, with a Projet for those
+ * it: in the fake GitHub (those with code have two commits) and in `repositories`, with a Projet for those
  * that name one: a reconciliation finds them as they are.
  */
 export const seedRepositories = async (ctx: ScenarioContext, pilotId: string, repositories: readonly SeededRepository[]): Promise<void> => {
@@ -26,7 +27,7 @@ export const seedRepositories = async (ctx: ScenarioContext, pilotId: string, re
   await ctx.prisma.unscoped.gitHubInstallation.create({
     data: { installationId: BigInt(SCENARIO_INSTALLATION_ID), accountLogin: owner, accountId: BigInt(OCTOCAT.id), senderId: BigInt(OCTOCAT.id), pilotId },
   });
-  for (const [index, { name, hasCode, project }] of repositories.entries()) {
+  for (const [index, { name, hasCode, project, projectId: knownProjectId }] of repositories.entries()) {
     const githubId = 72000001 + index;
     const ref = ctx.fakes.github.seedRepo({ owner, name, id: githubId, installationId: SCENARIO_INSTALLATION_ID });
     // « Has code » as GitHub would count it: a commit past the initial one, which the reconciliation counts again.
@@ -37,7 +38,7 @@ export const seedRepositories = async (ctx: ScenarioContext, pilotId: string, re
       data: { id, pilotId, installationId: BigInt(SCENARIO_INSTALLATION_ID), githubId: BigInt(githubId), owner, name, fullName, private: true, defaultBranch: 'main', hasCode },
     });
     if (project === undefined) continue;
-    const projectId = newId();
+    const projectId = knownProjectId ?? newId();
     await ctx.prisma.unscoped.project.create({
       data: {
         id: projectId,

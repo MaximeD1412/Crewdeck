@@ -224,6 +224,6 @@ export type BranchMerge = z.infer<typeof zBranchMerge>;
 export const zCommitRef = z.object({ sha: zSha });
 export type CommitRef = z.infer<typeof zCommitRef>;
 
-/** The only files and directories the server may read in a repository (ADR 0002). */
-export const ALLOWLISTED_PATHS = ['.process.json', 'CONTEXT.md', 'docs/adr'] as const;
+/** The only files and directories the server may read in a repository (ADR 0002, amended by ADR 0011); it writes none. */
+export const ALLOWLISTED_PATHS = ['CONTEXT.md', 'docs/adr'] as const;
 export type AllowlistedPath = (typeof ALLOWLISTED_PATHS)[number];

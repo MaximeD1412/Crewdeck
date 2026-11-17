@@ -4,7 +4,7 @@
  * of `scope.models.spec.ts` fails when one lacks a `pilotId` led index, or
  * points at another scoped model by a foreign key without `pilotId`.
  */
-export const GLOBAL_MODELS: ReadonlySet<string> = new Set(['Pilot', 'GitHubDelivery', 'GitHubInstallation', 'FxRate']);
+export const GLOBAL_MODELS: ReadonlySet<string> = new Set(['Pilot', 'GitHubDelivery', 'GitHubInstallation', 'EmailLoginToken', 'FxRate']);
 
 export const PILOT_ID = 'pilotId';
 

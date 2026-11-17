@@ -19,10 +19,15 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/mirror"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/service"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/session"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/update"
 	"github.com/spf13/cobra"
 )
+
+// sessionsGitHubURL is where the Sessions clone the GitHub repositories
+// from; empty, GitHub. Only the smoke build changes it (smoke.go).
+var sessionsGitHubURL = ""
 
 const notLinked = "Ce Runner n’est relié à aucun compte : relie-le avec la commande que donne Crewdeck, crewdeck-runner link <code>."
 
@@ -44,6 +49,10 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	}
 	// The vault opens at start: a Runner that cannot open it does not run.
 	vault, err := openVault(store)
+	if err != nil {
+		return err
+	}
+	relay, err := relayKeys(store)
 	if err != nil {
 		return err
 	}
@@ -103,6 +112,26 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	// The adapters, their Sessions watched: a limit or a sign-in they meet
 	// reaches the capabilities, the usage they report reaches the server. The Sessions (RUNNER-9) start from this registry.
 	reporter.Engines = reporter.Watch(runnerEngines(keys))
+	// The Sessions the server asks for, those kept under ~/.crewdeck/sessions
+	// said in each hello: none alive after a restart.
+	sessions, err := session.New(session.Config{
+		Home:      store.Dir,
+		Engines:   reporter.Engines,
+		GitHubURL: sessionsGitHubURL,
+		Logger:    logger,
+		Keys:      relay,
+		Send: func(ctx context.Context, m any) error {
+			client := current.Load()
+			if client == nil {
+				return protocol.ErrNotConnected
+			}
+			return client.Send(ctx, m)
+		},
+	})
+	if err != nil {
+		return err
+	}
+	defer sessions.Close()
 	// The Serveurs MCP declared here, as their last `add` or `test` left
 	// them: the Runner starts none of them to report them (US-73).
 	reportMCP := func(ctx context.Context) {
@@ -157,12 +186,14 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 				report(ctx)
 				reporter.FlushUsage(ctx)
 			},
+			Sessions: sessions.Hello,
 		})
 		// A spend is forgotten once stored (usage.ack), not once written.
 		protocol.On(client, protocol.TypeUsageAck, func(_ context.Context, ack contracts.RunnerUsageAck) error {
 			reporter.UsageAcked(ack.UsageId)
 			return nil
 		})
+		sessions.Register(client)
 		current.Store(client)
 		err := client.Run(ctx)
 		var required *protocol.UpdateRequiredError
@@ -178,6 +209,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			continue
 		}
 		logger.Info("update.restart", "binary", binary)
+		sessions.Close() // their Moteurs end with this build; the next one reports them
 		return m.restart(ctx, binary)
 	}
 }

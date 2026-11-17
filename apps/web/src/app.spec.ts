@@ -4,7 +4,7 @@ import { createDispatcher } from './actions/dispatcher.js';
 import { boot } from './app.js';
 import { createStore } from './store/store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
 
 type WithData = HTMLElement & { data: unknown; updateComplete: Promise<unknown> };
 
@@ -40,7 +40,7 @@ describe('the page', () => {
 
     const cadre = root.firstElementChild as WithData;
     expect(cadre.localName).toBe('cd-cadre');
-    expect(cadre.data).toMatchObject({ variant: 'default', current: null, pilot: { login: 'octocat', avatarUrl: null } });
+    expect(cadre.data).toMatchObject({ variant: 'default', current: null, pilot: { displayName: 'octocat', avatarUrl: null } });
     expect(cadre.querySelectorAll(':scope > cd-menu-item[slot=menu]')).toHaveLength(9);
     const page = cadre.querySelector('cd-page-introuvable') as WithData;
     expect(customElements.get('cd-page-introuvable')).toBeDefined();

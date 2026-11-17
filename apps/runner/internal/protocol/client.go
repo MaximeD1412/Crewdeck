@@ -63,6 +63,9 @@ type Config struct {
 	// github.changed seq it applied, nil for none (null: the server resyncs
 	// the copy). Without a Cursor, the hello leaves mirrorAfter out: no Miroir.
 	Cursor func() (*int64, error)
+	// Sessions, read for each hello, are the Sessions the Runner knows and
+	// has not ended (RUNNER-9); nil leaves them out.
+	Sessions func() []contracts.RunnerHelloSessionsElem
 	// OnAccepted is called on each accepted hello, once the connection can
 	// Send and before any other message of the server is handled.
 	OnAccepted func(contracts.RunnerHelloAccepted)
@@ -186,6 +189,10 @@ func (c *Client) socketURL() (string, error) {
 	return u.String(), nil
 }
 
+// readLimit is the longest message the Runner reads: a Pilote's input of the
+// relay (256 KiB sealed, in base64url) with room to spare.
+const readLimit = 1 << 20
+
 // session is one connection, from its dial to its end; accepted says whether its hello was.
 func (c *Client) session(ctx context.Context) (accepted bool, err error) {
 	target, err := c.socketURL()
@@ -199,6 +206,7 @@ func (c *Client) session(ctx context.Context) (accepted bool, err error) {
 		return false, fmt.Errorf("protocol: dial: %w", err)
 	}
 	defer conn.CloseNow()
+	conn.SetReadLimit(readLimit)
 
 	// The connection ends with ctx: closed cleanly, which ends its reads.
 	done := make(chan struct{})
@@ -220,6 +228,9 @@ func (c *Client) session(ctx context.Context) (accepted bool, err error) {
 			return false, err
 		}
 		hello.MirrorAfter = cursor
+	}
+	if c.cfg.Sessions != nil {
+		hello.Sessions = c.cfg.Sessions()
 	}
 	if err := write(ctx, conn, hello); err != nil {
 		return false, closeError(err)

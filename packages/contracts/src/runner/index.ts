@@ -7,4 +7,7 @@ export * from './capabilities.js';
 export * from './events.js';
 export * from './engines.js';
 export * from './mcp.js';
+export * from './session.js';
+export * from './relay.js';
+export * from './inputs.js';
 export * from './usage.js';

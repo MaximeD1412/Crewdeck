@@ -1,0 +1,15 @@
+{
+  "type": "session.keys",
+  "id": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6aa5",
+  "at": "2026-11-11T09:20:01.000Z",
+  "sessionId": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a91",
+  "wraps": [
+    {
+      "holderId": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      "enc": "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI",
+      "wrappedKey": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMD",
+      "tag": "BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ"
+    }
+  ],
+  "tabId": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6aa1"
+}

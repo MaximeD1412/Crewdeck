@@ -42,7 +42,8 @@ export class PasserellePageParametres extends PasserelleElement<typeof PageParam
         min-width: 0;
       }
       .settings,
-      .body {
+      .body,
+      section {
         display: flex;
         flex-direction: column;
         gap: var(--cd-space-4);
@@ -101,11 +102,13 @@ export class PasserellePageParametres extends PasserelleElement<typeof PageParam
         nav a[aria-current] {
           box-shadow: inset var(--cd-stroke) 0 0 var(--cd-accent);
         }
-        .body {
+        .body,
+        section {
           gap: var(--cd-space-6);
         }
+        /* A section holds one Card or several (« Compte »: « Connexion », then the time zone), spaced as the sections. */
         section:not(.current) {
-          display: block;
+          display: flex;
         }
       }
     `,

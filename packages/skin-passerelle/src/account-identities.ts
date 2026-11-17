@@ -4,6 +4,9 @@ import { PasserelleElement, sharedStyles } from './base.js';
 
 type Identity = ComposantData<typeof AccountIdentities>['identities'][number];
 
+/** The icon of an Identité's row, aligned with GitHub's: the set has no mark for an address nor Google. */
+const PROVIDER_ICONS = { email: 'inbox', google: 'user', github: 'github' } as const satisfies Record<Identity['provider'], string>;
+
 /**
  * `cd-account-identities`: the Card « Connexion » of the Paramètres
  * (CORE-11), one `cd-list-row` per Identité (« E-mail », « Google »,
@@ -37,7 +40,7 @@ export class PasserelleAccountIdentities extends PasserelleElement<typeof Accoun
 
   private row(identity: Identity) {
     const title = t(`parametres.identities.provider.${identity.provider}`);
-    if (identity.provider !== 'github') return html`<cd-list-row .data=${{ title, meta: identity.label }}></cd-list-row>`;
+    if (identity.provider !== 'github') return html`<cd-list-row .data=${{ title, meta: identity.label, icon: PROVIDER_ICONS[identity.provider] }}></cd-list-row>`;
     if (!identity.reconnect) return html`<cd-list-row .data=${{ title, meta: identity.label, icon: 'github' }}></cd-list-row>`;
     return html`<cd-list-row .data=${{ title, meta: t('parametres.identities.github.reconnect.meta'), icon: 'github', tone: 'caution' }}
       >${this.link(t('parametres.identities.github.reconnect'))}</cd-list-row

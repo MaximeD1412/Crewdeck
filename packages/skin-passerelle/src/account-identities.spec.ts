@@ -26,6 +26,9 @@ describe('AccountIdentities', () => {
       { title: 'GitHub', meta: 'pas relié · pour suivre tes Dépôts GitHub', button: expect.objectContaining({ label: 'Relier GitHub', variant: 'secondary' }) },
     ]);
     expect(el.shadowRoot?.querySelector('cd-banner')).toBeNull();
+    // Every row has its icon, so their titles line up.
+    const icons = [...(el.shadowRoot?.querySelectorAll('cd-list-row') ?? [])].map((row) => (row as HTMLElement & { data: { icon?: string } }).data.icon);
+    expect(icons).toEqual(['inbox', 'github']);
   });
 
   it('shows a linked GitHub by its login, with nothing to do', async () => {

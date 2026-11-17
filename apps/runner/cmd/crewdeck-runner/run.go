@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/accounts"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/command"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/logging"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/mcp"
@@ -107,24 +108,39 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	reporter.Engines = reporter.Watch(runnerEngines(keys))
 	// The Sessions the server asks for, those kept under ~/.crewdeck/sessions
 	// said in each hello: none alive after a restart.
+	send := func(ctx context.Context, m any) error {
+		client := current.Load()
+		if client == nil {
+			return protocol.ErrNotConnected
+		}
+		return client.Send(ctx, m)
+	}
 	sessions, err := session.New(session.Config{
 		Home:      store.Dir,
 		Engines:   reporter.Engines,
 		GitHubURL: sessionsGitHubURL,
 		Logger:    logger,
 		Keys:      relay,
-		Send: func(ctx context.Context, m any) error {
-			client := current.Load()
-			if client == nil {
-				return protocol.ErrNotConnected
-			}
-			return client.Send(ctx, m)
-		},
+		Send:      send,
 	})
 	if err != nil {
 		return err
 	}
 	defer sessions.Close()
+	// The Commandes the server asks for (RUNNER-18): opened with the vault,
+	// run in the places the Sessions' manager gives, ended before it closes.
+	commands, err := command.New(command.Config{
+		Home:   store.Dir,
+		Vault:  vault,
+		Places: sessions,
+		Keys:   relay,
+		Send:   send,
+		Logger: logger,
+	})
+	if err != nil {
+		return err
+	}
+	defer commands.Close()
 	// The Serveurs MCP declared here, as their last `add` or `test` left
 	// them: the Runner starts none of them to report them (US-73).
 	reportMCP := func(ctx context.Context) {
@@ -176,6 +192,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			Sessions:    sessions.Hello,
 		})
 		sessions.Register(client)
+		commands.Register(client)
 		current.Store(client)
 		err := client.Run(ctx)
 		var required *protocol.UpdateRequiredError
@@ -191,6 +208,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			continue
 		}
 		logger.Info("update.restart", "binary", binary)
+		commands.Close() // a run ends with this build: its verdict says stopped
 		sessions.Close() // their Moteurs end with this build; the next one reports them
 		return m.restart(ctx, binary)
 	}

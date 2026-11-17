@@ -9,7 +9,8 @@
 // The Runner's folder (~/.crewdeck):
 //
 //	repos/github/<owner>/<name>              the clones, one per repository
-//	worktrees/<projectId>/<branch, / as __>  one worktree per live Session
+//	worktrees/<projectId>/<branch, / as __>  one worktree per live Session or Commande's run
+//	worktrees/<projectId>/integration        the integration checkout of the Commandes `project`
 //	sessions/<id>/                           session.json, log.jsonl, key (the relay's), the Moteur's socket
 package session
 
@@ -65,6 +66,8 @@ type Manager struct {
 	mu       sync.Mutex
 	closed   bool
 	sessions map[string]*live
+	// held are the folders a Commande's run holds (place.go).
+	held map[string]bool
 
 	relayMu sync.Mutex
 	relay   relayState
@@ -222,8 +225,11 @@ func (m *Manager) Start(message contracts.RunnerSessionStart) {
 }
 
 // busy: another Session not ended holds the worktree (a stopped one keeps
-// it for its resume). Called with m.mu held.
+// it for its resume), or a Commande's run does. Called with m.mu held.
 func (m *Manager) busy(s *live) bool {
+	if m.held[s.rec.Worktree] {
+		return true
+	}
 	for id, other := range m.sessions {
 		if id == s.rec.SessionID {
 			continue

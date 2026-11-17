@@ -118,3 +118,19 @@ export const openItem = (vaultKey: Uint8Array, item: SealedItem, aad: string): B
   const itemKey = aesOpen(vaultKey, Buffer.from(item.key, 'base64url'), concat(utf8(ITEM_KEY_AAD), utf8(aad)));
   return aesOpen(itemKey, Buffer.from(item.ciphertext, 'base64url'), utf8(aad));
 };
+
+/** A frame or an input of a Session's relay, its fields base64url: its 12-byte nonce, its AES-256-GCM ciphertext and tag. */
+export interface SealedFrame {
+  readonly nonce: string;
+  readonly ciphertext: string;
+}
+
+/** Seals `plaintext` under a Session's key, bound to `aad` (a frame's `"<sessionId>:<seq>"`), as the Runner's relay. */
+export const sealFrame = (sessionKey: Uint8Array, plaintext: string, aad: string): SealedFrame => {
+  const nonce = randomBytes(12);
+  return { nonce: nonce.toString('base64url'), ciphertext: gcmSeal(sessionKey, nonce, utf8(plaintext), utf8(aad)).toString('base64url') };
+};
+
+/** Opens what `sealFrame` (or the page's input, `"<sessionId>:input:<inputId>"`) sealed; throws on any mismatch. */
+export const openFrame = (sessionKey: Uint8Array, frame: SealedFrame, aad: string): Buffer =>
+  gcmOpen(sessionKey, Buffer.from(frame.nonce, 'base64url'), Buffer.from(frame.ciphertext, 'base64url'), utf8(aad));

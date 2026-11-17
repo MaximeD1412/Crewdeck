@@ -92,6 +92,18 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('Ton Runner ne répond plus');
     await expect(page.locator('cd-page-a-toi cd-decision-row')).toHaveCount(10);
   },
+  // The Session panel over « À toi » (SESSION-2): the conversation the fake Runner relays, opened by the scenario's Appareil.
+  session: async (page) => {
+    await expect(page.locator('#app > cd-cadre > cd-session[slot=panel]')).toContainText('96 lignes');
+  },
+  'session-arretee': async (page) => {
+    await expect(page.locator('#app > cd-cadre > cd-session[slot=panel]')).toContainText('96 lignes');
+    await expect(page.locator('#app > cd-cadre > cd-session[slot=panel]')).toContainText('Session arrêtée par toi à 15:12');
+  },
+  'session-runner-hors-ligne': async (page) => {
+    await expect(page.locator('#app > cd-cadre > cd-session[slot=panel]')).toContainText('Conversation sur ton Runner');
+    await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('Les sessions reprendront');
+  },
   // « Maximum de Retours atteint » (PROCESS-6) among the nine Décisions of `a-toi`.
   'a-toi-process': async (page) => {
     await expect(page.locator('cd-page-a-toi cd-decision-row')).toHaveCount(10);

@@ -115,6 +115,20 @@ describe('sessionView', () => {
     expect(texts.at(-1)).toBe('Ma réponse reprend.');
   });
 
+  it('replays a log a killed Runner cut after a usage report, its turn ended by the Runner on resume: both messages kept', () => {
+    const { children } = view({
+      events: [
+        agent(1, 'Les nuages ', false),
+        agent(2, 'flottent', false),
+        { kind: 'usage', seq: 3, at: secondsAgo(97), outputTokens: 12 },
+        { kind: 'result', seq: 4, at: secondsAgo(96), status: 'interrupted' },
+        agent(5, 'Ma réponse ', false),
+        agent(6, 'Ma réponse reprend.'),
+      ],
+    });
+    expect(stream(children).map((node) => (node.data as { text: string }).text)).toEqual(['Les nuages flottent', 'Ma réponse reprend.']);
+  });
+
   it('a usage report while it streams does not cut the message', () => {
     const { children } = view({ events: [agent(1, 'Noté. ', false), { kind: 'usage', seq: 2, at: secondsAgo(98), outputTokens: 12 }, agent(3, 'Noté. L’agenda.')] });
     expect(stream(children).map((node) => (node.data as { text: string }).text)).toEqual(['Noté. L’agenda.']);

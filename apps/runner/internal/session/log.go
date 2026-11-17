@@ -27,8 +27,9 @@ const maxLogLine = 16 << 20
 type sessionLog struct {
 	file    *os.File
 	lastSeq int
-	// cut: its last event is an agent's message still streaming (a delta),
-	// what a Runner killed in the middle of a turn leaves.
+	// cut: an agent's message still streams at its end (a delta, maybe
+	// usage reports after it), what a Runner killed in the middle of a turn
+	// leaves.
 	cut bool
 }
 
@@ -78,7 +79,7 @@ func scanLog(path string) (last int, whole int64, cut bool, err error) {
 			return last, whole, cut, nil
 		}
 		last, whole = seqOf(event), whole+int64(len(line))
-		cut = event.Message != nil && !event.Message.Final
+		cut = stillCut(cut, event)
 	}
 }
 
@@ -94,8 +95,21 @@ func (l *sessionLog) append(event contracts.EngineEvent, offset int) (contracts.
 		return stamped, err
 	}
 	l.lastSeq = seqOf(stamped)
-	l.cut = stamped.Message != nil && !stamped.Message.Final
+	l.cut = stillCut(l.cut, stamped)
 	return stamped, nil
+}
+
+// stillCut says whether a message still streams after the event: a delta
+// opens it, a usage report keeps it as it was, anything else ends it (the
+// page joins the deltas by the same rule).
+func stillCut(cut bool, event contracts.EngineEvent) bool {
+	switch {
+	case event.Message != nil:
+		return !event.Message.Final
+	case event.Usage != nil:
+		return cut
+	}
+	return false
 }
 
 // endCut ends the turn a killed Runner cut, a `result` `interrupted` after

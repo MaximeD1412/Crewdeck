@@ -730,6 +730,18 @@ func TestAResumeAfterAHalfWrittenLastLineRepairsTheLogAndItsSeqContinues(t *test
 }
 
 func TestAResumeAfterARunnerKilledMidMessageEndsItsTurnInterruptedFirst(t *testing.T) {
+	for name, tail := range map[string]string{
+		"its last event a delta":              "",
+		"a usage report after its last delta": `{"kind":"usage","seq":5,"at":"2026-11-17T14:02:01Z","outputTokens":12}` + "\n",
+	} {
+		t.Run(name, func(t *testing.T) { resumeAfterACutMessage(t, tail) })
+	}
+}
+
+// resumeAfterACutMessage: a delta then tail (usage reports) left at the end
+// of the log by a killed Runner, then a resume.
+func resumeAfterACutMessage(t *testing.T, tail string) {
+	t.Helper()
 	s := newSetup(t, result("eng-1"), question("q1"))
 	m := s.manager(t)
 	m.Start(start(firstID, "feat/12-panier"))
@@ -744,14 +756,15 @@ func TestAResumeAfterARunnerKilledMidMessageEndsItsTurnInterruptedFirst(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := file.WriteString(`{"kind":"message","seq":4,"at":"2026-11-17T14:02:00Z","from":"agent","text":"Les nuages flottent","final":false}` + "\n"); err != nil {
+	if _, err := file.WriteString(`{"kind":"message","seq":4,"at":"2026-11-17T14:02:00Z","from":"agent","text":"Les nuages flottent","final":false}` + "\n" + tail); err != nil {
 		t.Fatal(err)
 	}
 	file.Close()
 
+	before := 4 + strings.Count(tail, "\n")
 	m.Resume(firstID)
 	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
-	waitForSeq(t, s.home, firstID, 7)
+	waitForSeq(t, s.home, firstID, before+3)
 
 	var events []contracts.EngineEvent
 	for event, err := range session.Replay(s.home, firstID, 0) {
@@ -760,16 +773,17 @@ func TestAResumeAfterARunnerKilledMidMessageEndsItsTurnInterruptedFirst(t *testi
 		}
 		events = append(events, event)
 	}
-	if len(events) != 7 {
-		t.Fatalf("%d events in the log, want 7", len(events))
+	if len(events) != before+3 {
+		t.Fatalf("%d events in the log, want %d", len(events), before+3)
 	}
 	// The cut turn ends interrupted before the resumed run's first event, its seq following.
-	cut := events[4].Result
-	if cut == nil || cut.Seq != 5 || cut.Status != contracts.EngineEventResultStatusInterrupted || cut.At.IsZero() {
-		t.Fatalf("event 5 %+v, want the interrupted result of the cut turn", events[4])
+	cut := events[before].Result
+	if cut == nil || cut.Seq != before+1 || cut.Status != contracts.EngineEventResultStatusInterrupted || cut.At.IsZero() {
+		t.Fatalf("event %d %+v, want the interrupted result of the cut turn", before+1, events[before])
 	}
-	if got := []int{seqOf(events[5]), seqOf(events[6])}; !equal(got, []int{6, 7}) || events[5].Result == nil || events[6].Question == nil {
-		t.Fatalf("the resumed run's events %v, want its result and question at 6 and 7", got)
+	resumed := events[before+1:]
+	if resumed[0].Result == nil || resumed[0].Result.Seq != before+2 || resumed[1].Question == nil || resumed[1].Question.Seq != before+3 {
+		t.Fatalf("the resumed run's events %+v, want its result and question after the cut's end", resumed)
 	}
 }
 

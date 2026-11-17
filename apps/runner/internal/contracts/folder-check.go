@@ -4,11 +4,15 @@ package contracts
 
 import "encoding/json"
 import "fmt"
+import "regexp"
 import "unicode/utf8"
 
 type FolderCheck struct {
 	// Path corresponds to the JSON schema field "path".
 	Path string `json:"path"`
+
+	// ProjectId corresponds to the JSON schema field "projectId".
+	ProjectId *string `json:"projectId,omitempty,omitzero"`
 }
 
 // UnmarshalJSON implements json.Unmarshaler.
@@ -30,6 +34,11 @@ func (j *FolderCheck) UnmarshalJSON(value []byte) error {
 	}
 	if utf8.RuneCountInString(string(plain.Path)) > 4096 {
 		return fmt.Errorf("field %s length: must be <= %d", "path", 4096)
+	}
+	if plain.ProjectId != nil {
+		if matched, _ := regexp.MatchString(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`, string(*plain.ProjectId)); !matched {
+			return fmt.Errorf("field %s pattern match: must match %s", "ProjectId", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
+		}
 	}
 	*j = FolderCheck(plain)
 	return nil

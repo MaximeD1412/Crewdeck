@@ -54,6 +54,10 @@ describe('the plaintexts of a folder', () => {
   it('checks a path of 1 to 4096 characters', () => {
     expect(zFolderCheck.parse({ path: '~/projets/recettes' })).toEqual({ path: '~/projets/recettes' });
     expect(zFolderCheck.safeParse({ path: '' }).success).toBe(false);
+    // Choosing a Projet's folder again: the check names the Projet, whose own folder is not taken.
+    const projectId = '019a6f00-0000-7000-8000-0000000000a1';
+    expect(zFolderCheck.parse({ path: '~/projets/recettes', projectId })).toEqual({ path: '~/projets/recettes', projectId });
+    expect(zFolderCheck.safeParse({ path: '~/projets/recettes', projectId: 'recettes' }).success).toBe(false);
     expect(zFolderCheck.safeParse({ path: 'a'.repeat(4097) }).success).toBe(false);
   });
 

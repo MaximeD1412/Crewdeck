@@ -61,8 +61,9 @@ func (h *Handler) Register(client *protocol.Client) {
 }
 
 // HandleCheck opens the tab's path, checks it, and answers that tab with the
-// result sealed (`folder.checked:<requestId>`). A path that does not open is
-// dropped: the tab says the Runner does not answer.
+// result sealed (`folder.checked:<requestId>`). A check naming a Projet (its
+// folder chosen again) does not count that Projet's own folder as taken. A
+// path that does not open is dropped: the tab says the Runner does not answer.
 func (h *Handler) HandleCheck(ctx context.Context, message contracts.RunnerFolderCheck) error {
 	input, ok := h.open(message.Sealed.Key, message.Sealed.Ciphertext, "folder.check:"+message.RequestId)
 	if !ok {
@@ -75,7 +76,11 @@ func (h *Handler) HandleCheck(ctx context.Context, message contracts.RunnerFolde
 	if err != nil {
 		return err
 	}
-	result := h.cfg.Checker.Check(input, projects, "")
+	projectID := ""
+	if input.ProjectId != nil {
+		projectID = *input.ProjectId
+	}
+	result := h.cfg.Checker.Check(input.Path, projects, projectID)
 	plaintext, err := json.Marshal(result)
 	if err != nil {
 		return fmt.Errorf("folders: encode a check: %w", err)
@@ -103,7 +108,7 @@ func (h *Handler) HandleAttach(ctx context.Context, message contracts.RunnerProj
 	if err != nil {
 		return err
 	}
-	result := h.cfg.Checker.Check(input, linked.Projects, message.ProjectId)
+	result := h.cfg.Checker.Check(input.Path, linked.Projects, message.ProjectId)
 	_, had := linked.Projects[message.ProjectId]
 	switch {
 	case result.Attachable():
@@ -198,25 +203,25 @@ func (h *Handler) present(projects map[string]string) []string {
 	return present
 }
 
-// open opens a sealed FolderCheck, its path; false when it does not open or parse.
-func (h *Handler) open(key, ciphertext, aad string) (string, bool) {
+// open opens a sealed FolderCheck; false when it does not open or parse.
+func (h *Handler) open(key, ciphertext, aad string) (contracts.FolderCheck, bool) {
 	rawKey, err := base64.RawURLEncoding.DecodeString(key)
 	if err != nil {
-		return "", false
+		return contracts.FolderCheck{}, false
 	}
 	rawCiphertext, err := base64.RawURLEncoding.DecodeString(ciphertext)
 	if err != nil {
-		return "", false
+		return contracts.FolderCheck{}, false
 	}
 	plaintext, err := h.cfg.Vault.OpenItem(keys.SealedItem{Key: rawKey, Ciphertext: rawCiphertext}, []byte(aad))
 	if err != nil {
-		return "", false
+		return contracts.FolderCheck{}, false
 	}
 	var check contracts.FolderCheck
 	if err := json.Unmarshal(plaintext, &check); err != nil {
-		return "", false
+		return contracts.FolderCheck{}, false
 	}
-	return check.Path, true
+	return check, true
 }
 
 func b64(b []byte) string {

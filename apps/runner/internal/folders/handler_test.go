@@ -107,6 +107,14 @@ func (f *fixture) check(t *testing.T, path string) contracts.RunnerFolderCheck {
 	return contracts.RunnerFolderCheck{Type: protocol.TypeFolderCheck, Id: requestID, RequestId: requestID, TabId: tabID, Sealed: contracts.RunnerFolderCheckSealed{Key: key, Ciphertext: ciphertext}}
 }
 
+// checkFor is the check of `path` while choosing projectID's folder again.
+func (f *fixture) checkFor(t *testing.T, path, projectID string) contracts.RunnerFolderCheck {
+	t.Helper()
+	data, _ := json.Marshal(contracts.FolderCheck{Path: path, ProjectId: &projectID})
+	key, ciphertext := f.seal(t, string(data), "folder.check:"+requestID)
+	return contracts.RunnerFolderCheck{Type: protocol.TypeFolderCheck, Id: requestID, RequestId: requestID, TabId: tabID, Sealed: contracts.RunnerFolderCheckSealed{Key: key, Ciphertext: ciphertext}}
+}
+
 func (f *fixture) attach(t *testing.T, projectID, path string) contracts.RunnerProjectFolderAttach {
 	t.Helper()
 	data, _ := json.Marshal(contracts.FolderCheck{Path: path})
@@ -204,6 +212,30 @@ func TestACheckSaysAnotherProjetsFolderIsTaken(t *testing.T) {
 	checked := f.sender.take()[0].(contracts.RunnerFolderChecked)
 	if got := f.opened(t, checked); got.State != contracts.FolderCheckResultStateTaken {
 		t.Fatalf("opened %+v, want taken", got)
+	}
+}
+
+func TestARepickCheckOfTheProjetsOwnFolderIsNotTakenButAnothersIs(t *testing.T) {
+	f := newFixture(t)
+	folder := filepath.Join(f.home, "recettes")
+	repository(t, folder, 2)
+	// Its folder deleted then made again at the same path: runner.json still names it.
+	if err := f.handler.HandleAttach(context.Background(), f.attach(t, thisProject, folder)); err != nil {
+		t.Fatal(err)
+	}
+	f.sender.take()
+
+	if err := f.handler.HandleCheck(context.Background(), f.checkFor(t, folder, thisProject)); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.opened(t, f.sender.take()[0].(contracts.RunnerFolderChecked)); got.State != contracts.FolderCheckResultStateReady {
+		t.Fatalf("its own folder: opened %+v, want ready", got)
+	}
+	if err := f.handler.HandleCheck(context.Background(), f.checkFor(t, folder, otherProject)); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.opened(t, f.sender.take()[0].(contracts.RunnerFolderChecked)); got.State != contracts.FolderCheckResultStateTaken {
+		t.Fatalf("another Projet's folder: opened %+v, want taken", got)
 	}
 }
 

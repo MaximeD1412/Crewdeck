@@ -193,7 +193,8 @@ describe('PageDemarrage', () => {
         { id: 'github', label: 'Dépôt GitHub', selected: true },
       ],
     });
-    expect(el.shadowRoot?.querySelector('cd-folder-project-form')).toBeNull();
+    expect(child(el, 'cd-folder-project-form').hidden).toBe(true);
+    expect(child(el, 'cd-repository-picker').hidden).toBe(false);
     expect(await actionsOf(() => inside(el, 'cd-tabs.projects-tabs', 'button[role=tab]').click())).toEqual([
       { composant: 'PageDemarrage', action: 'selectProjectsTab', payload: { id: 'dossier' } },
     ]);
@@ -202,7 +203,7 @@ describe('PageDemarrage', () => {
   it('the projects step, the folder tab: the FolderProjectForm of « folder »; its create goes up, its « Plus tard » is the page’s continue', async () => {
     const folder: Data['folder'] = { ...WAITING.folder, path: '~/projets/recettes', check: { state: 'ready', hasCode: true }, name: 'recettes' };
     const el = await page({ ...WAITING, step: 'projects', runner: RUNNER, projectsTab: 'dossier', folder });
-    expect(el.shadowRoot?.querySelector('cd-repository-picker')).toBeNull();
+    expect(child(el, 'cd-repository-picker').hidden).toBe(true);
     expect(child(el, 'cd-folder-project-form').data).toEqual(folder);
     expect(await actionsOf(() => inside(el, 'cd-folder-project-form', 'cd-button.create', 'button').click())).toEqual([
       { composant: 'FolderProjectForm', action: 'create', payload: { path: '~/projets/recettes', name: 'recettes', templateId: TEMPLATE.id } },
@@ -212,6 +213,22 @@ describe('PageDemarrage', () => {
     ]);
     const busy = await page({ ...WAITING, step: 'projects', runner: RUNNER, projectsTab: 'dossier', folder, busy: true });
     expect(child(busy, 'cd-folder-project-form').data['busy']).toBe(true);
+  });
+
+  it('the projects step keeps the name typed in the folder tab across a visit to « Dépôt GitHub »', async () => {
+    const folder: Data['folder'] = { ...WAITING.folder, path: '~/projets/recettes', check: { state: 'ready', hasCode: true }, name: 'recettes' };
+    const el = await page({ ...WAITING, step: 'projects', runner: RUNNER, projectsTab: 'dossier', folder });
+    const name = inside<HTMLInputElement>(el, 'cd-folder-project-form', 'cd-text-field.name', 'input');
+    name.value = 'Mes recettes';
+    name.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    await settle(el);
+    el.data = { ...WAITING, step: 'projects', runner: RUNNER, projectsTab: 'github', folder };
+    await settle(el);
+    el.data = { ...WAITING, step: 'projects', runner: RUNNER, projectsTab: 'dossier', folder };
+    await settle(el);
+    expect(await actionsOf(() => inside(el, 'cd-folder-project-form', 'cd-button.create', 'button').click())).toMatchObject([
+      { composant: 'FolderProjectForm', action: 'create', payload: { name: 'Mes recettes' } },
+    ]);
   });
 
   it('the projects step: « Plus tard » is the page’s continue; busy, the picker waits', async () => {

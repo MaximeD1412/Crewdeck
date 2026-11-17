@@ -262,7 +262,11 @@ export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarr
     if (!this.data.busy) this.emit('continue', {});
   }
 
-  /** The Projets: the Tabs, then the FolderProjectForm of `folder` or the RepositoryPicker of `picker`, under the step's title and its explanation. */
+  /**
+   * The Projets: the Tabs, then the FolderProjectForm of `folder` or the
+   * RepositoryPicker of `picker`, under the step's title and its explanation;
+   * both stay mounted, the other tab's hidden, keeping what the Pilote typed.
+   */
   private projectsStep(): TemplateResult {
     const { projectsTab, folder, picker, busy } = this.data;
     return html`${this.head(t('demarrage.projects.title'), t('demarrage.projects.lead'))}
@@ -271,9 +275,16 @@ export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarr
         .data=${{ tabs: PROJECT_ORIGINS.map((id) => ({ id, label: t(`projets.ajouter.tab.${id}`), selected: id === projectsTab })) }}
         @cd-action=${this.selectProjectsTab}
       ></cd-tabs>
-      ${projectsTab === 'dossier'
-        ? html`<cd-folder-project-form .data=${{ ...folder, busy: folder.busy || busy }} @cd-action=${this.onProjects}></cd-folder-project-form>`
-        : html`<cd-repository-picker .data=${{ ...picker, busy: picker.busy || busy }} @cd-action=${this.onProjects}></cd-repository-picker>`}`;
+      <cd-folder-project-form
+        ?hidden=${projectsTab !== 'dossier'}
+        .data=${{ ...folder, busy: folder.busy || busy }}
+        @cd-action=${this.onProjects}
+      ></cd-folder-project-form>
+      <cd-repository-picker
+        ?hidden=${projectsTab !== 'github'}
+        .data=${{ ...picker, busy: picker.busy || busy }}
+        @cd-action=${this.onProjects}
+      ></cd-repository-picker>`;
   }
 
   protected override render() {

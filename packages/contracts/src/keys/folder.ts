@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { zId } from '../values.js';
 
 /**
  * The plaintexts of a Local Projet's folder (PROJET-6, ADR 0012, ADR 0003):
@@ -13,8 +14,12 @@ export const FOLDER_PATH_MAX = 4096;
 /** The longest name of a Local Projet (sealed, `project:<id>:name`). */
 export const PROJECT_NAME_MAX = 100;
 
-/** What the tab seals for `folder.check`, and the page for a folder to attach (`project:<id>:folder`). */
-export const zFolderCheck = z.strictObject({ path: z.string().min(1).max(FOLDER_PATH_MAX) });
+/**
+ * What the tab seals for `folder.check`, and the page for a folder to attach
+ * (`project:<id>:folder`). `projectId`, on a check only: the Projet whose
+ * folder is chosen again, whose own folder is then not `taken`.
+ */
+export const zFolderCheck = z.strictObject({ path: z.string().min(1).max(FOLDER_PATH_MAX), projectId: zId.optional() });
 export type FolderCheck = z.infer<typeof zFolderCheck>;
 
 /**

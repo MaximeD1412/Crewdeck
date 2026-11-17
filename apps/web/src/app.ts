@@ -276,6 +276,8 @@ export const boot = async ({
   };
   const unsubscribe = [
     store.subscribe(() => {
+      // The path's check follows the Runner: gone, nothing to create from; back, checked again.
+      folderForm.runner(store.getState().slices.runner?.state === 'online');
       gettingStarted.sync();
       router.refresh();
       shell.refresh();
@@ -374,7 +376,10 @@ export const boot = async ({
       if (id) router.navigate(`${projetHref(id)}/process`);
     },
   });
-  dispatcher.registerAction(FolderProjectForm, 'checkPath', { run: ({ path }) => folderForm.checkPath(path) });
+  // Choosing a Projet's folder again, the check names it: its own folder is not another Projet's.
+  dispatcher.registerAction(FolderProjectForm, 'checkPath', {
+    run: ({ path }) => folderForm.checkPath(path, router.current.composant === PageAjouterProjet ? repickOf(router.current.query)?.projectId : undefined),
+  });
   // A Local Projet created ends « Premiers pas » as a Dépôt GitHub followed does; elsewhere its page shows it.
   dispatcher.registerAction(FolderProjectForm, 'create', {
     run: async ({ path, name, templateId }) => {

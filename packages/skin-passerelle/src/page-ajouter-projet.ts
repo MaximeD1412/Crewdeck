@@ -8,8 +8,9 @@ import { PasserelleElement, sharedStyles } from './base.js';
  * « Dossier sur ta machine » and « Dépôt GitHub » (their `select` becoming
  * `selectTab`), then the FolderProjectForm of `folder` or the
  * RepositoryPicker of `picker`, whose actions go on up to the page's
- * dispatcher. With `repick`, « Choisir le dossier de <name> » over the
- * `repick` form only.
+ * dispatcher. Both stay mounted, the other tab's hidden: what the Pilote
+ * typed or checked in one survives a visit to the other. With `repick`,
+ * « Choisir le dossier de <name> » over the `repick` form only.
  */
 export class PasserellePageAjouterProjet extends PasserelleElement<typeof PageAjouterProjet> {
   static override styles = [
@@ -47,8 +48,7 @@ export class PasserellePageAjouterProjet extends PasserelleElement<typeof PageAj
         .data=${{ tabs: PROJECT_ORIGINS.map((id) => ({ id, label: t(`projets.ajouter.tab.${id}`), selected: id === tab })) }}
         @cd-action=${this.onTabs}
       ></cd-tabs>
-      ${tab === 'dossier'
-        ? html`<cd-folder-project-form .data=${folder}></cd-folder-project-form>`
-        : html`<cd-repository-picker .data=${picker}></cd-repository-picker>`}`;
+      <cd-folder-project-form ?hidden=${tab !== 'dossier'} .data=${folder}></cd-folder-project-form>
+      <cd-repository-picker ?hidden=${tab !== 'github'} .data=${picker}></cd-repository-picker>`;
   }
 }

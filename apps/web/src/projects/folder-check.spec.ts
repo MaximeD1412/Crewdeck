@@ -11,6 +11,7 @@ import { fakeFolderSocket, fakeSealed, fakeVault } from './testing.js';
 
 const REQUEST = '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a92';
 const READY: FolderCheckResult = { state: 'ready', hasCode: true, branch: 'main', name: 'recettes' };
+const PROJECT = '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6b01';
 
 const flush = async () => {
   for (let i = 0; i < 10; i++) await Promise.resolve();
@@ -46,6 +47,17 @@ describe('checkFolder', () => {
     socket.receive({ type: 'folder.checked', requestId: frame?.requestId ?? '', sealed: await fakeSealed(JSON.stringify(READY), folderCheckedAad(frame?.requestId ?? '')) });
     await expect(checking).resolves.toEqual(READY);
     expect(socket.listening()).toBe(0);
+  });
+
+  it('names the Projet whose folder is chosen again in what it seals, never in clear', async () => {
+    const { socket, checkFolder } = setup();
+    void checkFolder('~/projets/recettes', PROJECT);
+    await flush();
+
+    const [frame] = socket.sent;
+    const plaintext = new TextDecoder().decode(fromBase64Url(frame?.sealed.ciphertext ?? ''));
+    expect(plaintext).toBe(`folder.check:${frame?.requestId}{"path":"~/projets/recettes","projectId":"${PROJECT}"}`);
+    expect(JSON.stringify(frame)).not.toContain(PROJECT);
   });
 
   it('ignores the answers of other checks, and one that does not open, until its own', async () => {
@@ -99,7 +111,7 @@ describe('createFolderChecker', () => {
   const setup = () => {
     const pending: { path: string; resolve: (outcome: FolderCheckOutcome) => void }[] = [];
     const check = vi.fn(
-      (path: string) =>
+      (path: string, _projectId?: string) =>
         new Promise<FolderCheckOutcome>((resolve) => {
           pending.push({ path, resolve });
         }),
@@ -162,6 +174,59 @@ describe('createFolderChecker', () => {
     await flush();
 
     expect(checker.state()).toEqual({ path: '/srv/site', check: { state: 'runner-offline', hasCode: false }, result: null });
+  });
+
+  it('choosing a Projet’s folder again, asks the Runner with the Projet', async () => {
+    const { checker, check } = setup();
+    checker.type('~/projets/recettes', PROJECT);
+    await vi.advanceTimersByTimeAsync(FOLDER_CHECK_DEBOUNCE_MS);
+    expect(check.mock.calls).toEqual([['~/projets/recettes', PROJECT]]);
+  });
+
+  it('the Runner gone: its line at once, the result dropped (nothing to create from), an answer on its way too', async () => {
+    const { checker, pending } = setup();
+    checker.runner(true);
+    checker.type('~/projets/recettes');
+    await vi.advanceTimersByTimeAsync(FOLDER_CHECK_DEBOUNCE_MS);
+    pending[0]?.resolve(READY);
+    await flush();
+
+    checker.runner(false);
+    expect(checker.state()).toEqual({ path: '~/projets/recettes', check: { state: 'runner-offline', hasCode: false }, result: null });
+
+    checker.type('~/projets/carnet');
+    await vi.advanceTimersByTimeAsync(FOLDER_CHECK_DEBOUNCE_MS);
+    checker.runner(true);
+    checker.runner(false);
+    pending[1]?.resolve(READY);
+    await flush();
+    expect(checker.state()).toMatchObject({ path: '~/projets/carnet', check: { state: 'runner-offline' }, result: null });
+  });
+
+  it('the Runner back: the path checked again at once, with its Projet; nothing without a path or when nothing changed', async () => {
+    const { checker, check, pending } = setup();
+    checker.runner(false);
+    checker.runner(true);
+    expect(check).not.toHaveBeenCalled();
+
+    checker.type('~/projets/recettes', PROJECT);
+    await vi.advanceTimersByTimeAsync(FOLDER_CHECK_DEBOUNCE_MS);
+    pending[0]?.resolve({ state: 'runner-offline' });
+    await flush();
+    checker.runner(true);
+    expect(check).toHaveBeenCalledTimes(1);
+
+    checker.runner(false);
+    checker.runner(true);
+    expect(checker.state()).toMatchObject({ path: '~/projets/recettes', check: { state: 'checking' } });
+    await flush();
+    expect(check.mock.calls).toEqual([
+      ['~/projets/recettes', PROJECT],
+      ['~/projets/recettes', PROJECT],
+    ]);
+    pending[1]?.resolve(READY);
+    await flush();
+    expect(checker.state()).toEqual({ path: '~/projets/recettes', check: { state: 'ready', hasCode: true }, result: READY });
   });
 
   it('a check that throws (the vault locked) leaves it idle; `reset` forgets the path', async () => {

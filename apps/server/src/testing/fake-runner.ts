@@ -2,6 +2,7 @@ import {
   type EngineCapabilities,
   folderCheckAad,
   folderCheckedAad,
+  type FolderCheck,
   type FolderCheckResult,
   HEARTBEAT_SECONDS,
   type McpServers,
@@ -201,14 +202,14 @@ export class FakeRunner implements Fake {
         if (this.sessions.has(message.sessionId)) this.send(socket, { type: 'session.state', sessionId: message.sessionId, state: 'stopped' });
         return;
       case 'folder.check': {
-        const path = this.open(message.sealed, folderCheckAad(message.requestId));
-        if (path === undefined || !this.vaultKey) return;
-        const sealed = sealItem(this.vaultKey, JSON.stringify(this.check(path)), folderCheckedAad(message.requestId));
+        const input = this.open(message.sealed, folderCheckAad(message.requestId));
+        if (input === undefined || !this.vaultKey) return;
+        const sealed = sealItem(this.vaultKey, JSON.stringify(this.check(input.path, input.projectId)), folderCheckedAad(message.requestId));
         this.send(socket, { type: 'folder.checked', requestId: message.requestId, tabId: message.tabId, sealed });
         return;
       }
       case 'project.folder.attach': {
-        const path = this.open(message.sealed, projectFolderAad(message.projectId));
+        const path = this.open(message.sealed, projectFolderAad(message.projectId))?.path;
         if (path === undefined) return;
         this.projects.delete(message.projectId);
         if (ATTACHABLE.has(this.check(path).state)) this.projects.set(message.projectId, path);
@@ -220,22 +221,25 @@ export class FakeRunner implements Fake {
     }
   }
 
-  /** The path sealed in `sealed`, trimmed as the Runner reads it; `undefined` without the vault key or for what does not open. */
-  private open(sealed: SealedItem, aad: string): string | undefined {
+  /** What `sealed` holds, its path trimmed as the Runner reads it; `undefined` without the vault key or for what does not open. */
+  private open(sealed: SealedItem, aad: string): FolderCheck | undefined {
     if (!this.vaultKey) return undefined;
     try {
-      return zFolderCheck.parse(JSON.parse(openItem(this.vaultKey, sealed, aad).toString('utf8'))).path.trim();
+      const input = zFolderCheck.parse(JSON.parse(openItem(this.vaultKey, sealed, aad).toString('utf8')));
+      return { ...input, path: input.path.trim() };
     } catch {
       return undefined;
     }
   }
 
-  private check(path: string): FolderCheckResult {
+  /** `projectId`, a Projet whose folder is chosen again: its own folder is not `taken`. */
+  private check(path: string, projectId?: string): FolderCheckResult {
     const name = baseName(path);
     if (!path.startsWith('/') && !path.startsWith('~')) return { state: 'not-absolute', hasCode: false, branch: null, name };
     const folder = this.folders.get(path);
     if (!folder) return { state: 'missing', hasCode: false, branch: null, name };
-    if ([...this.projects.values()].includes(path) && ATTACHABLE.has(folder.state)) return { state: 'taken', hasCode: folder.hasCode, branch: folder.branch, name: folder.name ?? name };
+    const takenBy = [...this.projects].filter(([id, kept]) => kept === path && id !== projectId);
+    if (takenBy.length > 0 && ATTACHABLE.has(folder.state)) return { state: 'taken', hasCode: folder.hasCode, branch: folder.branch, name: folder.name ?? name };
     return { ...folder, name: folder.name ?? name };
   }
 

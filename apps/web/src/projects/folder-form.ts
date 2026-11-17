@@ -31,8 +31,10 @@ export interface FolderFormContext {
 
 export interface FolderForm {
   view(context: FolderFormContext): FolderFormView;
-  /** A keystroke in « Chemin du dossier ». */
-  checkPath(path: string): void;
+  /** A keystroke in « Chemin du dossier »; `projectId` while choosing that Projet's folder again. */
+  checkPath(path: string, projectId?: string): void;
+  /** Whether the Runner is online (`FolderChecker.runner`). */
+  runner(online: boolean): void;
   /** Creates the Projet from `path`, when it is the path the Runner checked last and a Projet can be made of it; `null` otherwise. */
   create(input: { readonly path: string; readonly name: string; readonly templateId: string }): Promise<Project | null>;
   /** Chooses `projectId`'s folder again, on the same condition. */
@@ -74,7 +76,8 @@ export const createFolderForm = ({ checker, createProject, attachFolder }: Folde
       const { path, check, result } = checker.state();
       return folderFormView({ context, path, check, name: context === 'repick' ? name : (result?.name ?? name), busy, vaultLocked, machine });
     },
-    checkPath: (path) => checker.type(path),
+    checkPath: (path, projectId) => checker.type(path, projectId),
+    runner: (online) => checker.runner(online),
     async create({ path, name, templateId }) {
       const check = checked(path);
       if (busy || !check) return null;

@@ -2,6 +2,7 @@ import {
   folderCheckAad,
   folderCheckedAad,
   zFolderCheckResult,
+  type FolderCheck,
   type FolderCheckResult,
   type FolderFormCheckState,
   type SealedItem as WireSealedItem,
@@ -54,7 +55,8 @@ export interface FolderCheckOptions {
 }
 
 /**
- * `checkFolder(path)`: seals `{ path }`, sends `folder.check`, and waits
+ * `checkFolder(path, projectId?)`: seals `{ path }` (and `projectId`, the
+ * Projet whose folder is chosen again: its own folder is not `taken`), sends `folder.check`, and waits
  * for its own `folder.checked` (opened, then read with `zFolderCheckResult`;
  * one that does not open or read is dropped with a warning, never shown) or
  * `folder.error` (`runner-offline`), `timeout` after 10 s or without a socket.
@@ -62,9 +64,10 @@ export interface FolderCheckOptions {
  */
 export const createFolderCheck =
   ({ socket, vault, newId = () => uuidv7(), timeoutMs = FOLDER_CHECK_TIMEOUT_MS }: FolderCheckOptions) =>
-  async (path: string): Promise<FolderCheckOutcome> => {
+  async (path: string, projectId?: string): Promise<FolderCheckOutcome> => {
     const requestId = newId();
-    const sealed = toWire(await vault.sealItem(utf8(JSON.stringify({ path })), utf8(folderCheckAad(requestId))));
+    const plaintext: FolderCheck = projectId === undefined ? { path } : { path, projectId };
+    const sealed = toWire(await vault.sealItem(utf8(JSON.stringify(plaintext)), utf8(folderCheckAad(requestId))));
 
     const open = async (item: WireSealedItem): Promise<FolderCheckResult | null> => {
       try {
@@ -107,8 +110,18 @@ export interface FolderCheckerState {
 }
 
 export interface FolderChecker {
-  /** A keystroke: `checking` at once, the check sent 400 ms after the last one; an empty path is `idle`. */
-  type(path: string): void;
+  /**
+   * A keystroke: `checking` at once, the check sent 400 ms after the last
+   * one; an empty path is `idle`. `projectId`: the Projet whose folder is
+   * chosen again.
+   */
+  type(path: string, projectId?: string): void;
+  /**
+   * Whether the Pilote's Runner is online, as the store says: gone, the path
+   * shows `runner-offline` at once and its result is dropped; back, the
+   * path is checked again at once.
+   */
+  runner(online: boolean): void;
   state(): FolderCheckerState;
   /** Forgets the path and any check on its way. */
   reset(): void;
@@ -122,11 +135,13 @@ export const createFolderChecker = ({
   check,
   debounceMs = FOLDER_CHECK_DEBOUNCE_MS,
 }: {
-  readonly check: (path: string) => Promise<FolderCheckOutcome>;
+  readonly check: (path: string, projectId?: string) => Promise<FolderCheckOutcome>;
   readonly debounceMs?: number;
 }): FolderChecker => {
   let state = IDLE;
   let generation = 0;
+  let projectId: string | undefined;
+  let online: boolean | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const listeners = new Set<() => void>();
   const set = (next: FolderCheckerState) => {
@@ -135,7 +150,7 @@ export const createFolderChecker = ({
   };
 
   const run = async (path: string, asked: number) => {
-    const outcome = await check(path).catch(() => null);
+    const outcome = await (projectId === undefined ? check(path) : check(path, projectId)).catch(() => null);
     if (asked !== generation) return;
     if (outcome === null) return set({ path, check: IDLE.check, result: null });
     const result = outcome.state === 'runner-offline' || outcome.state === 'timeout' ? null : (outcome as FolderCheckResult);
@@ -143,18 +158,31 @@ export const createFolderChecker = ({
   };
 
   return {
-    type(path) {
+    type(path, project) {
       generation += 1;
       clearTimeout(timer);
+      projectId = project;
       if (path.trim() === '') return set({ ...IDLE, path });
       const asked = generation;
       set({ path, check: { state: 'checking', hasCode: false }, result: null });
       timer = setTimeout(() => void run(path, asked), debounceMs);
     },
+    runner(now) {
+      const was = online;
+      online = now;
+      if (was === undefined || was === now || state.path.trim() === '') return;
+      generation += 1;
+      clearTimeout(timer);
+      const { path } = state;
+      if (!now) return set({ path, check: { state: 'runner-offline', hasCode: false }, result: null });
+      set({ path, check: { state: 'checking', hasCode: false }, result: null });
+      void run(path, generation);
+    },
     state: () => state,
     reset() {
       generation += 1;
       clearTimeout(timer);
+      projectId = undefined;
       set(IDLE);
     },
     subscribe(fn) {

@@ -203,6 +203,9 @@ describe('« Projets » in the page', () => {
     expect(folder()).toMatchObject({ context: 'repick', path: '', name: 'Atelier' });
 
     await checked('/srv/atelier', { state: 'not-git', hasCode: true, branch: null, name: 'atelier' });
+    // The check names the Projet, sealed: its own folder is not another Projet's.
+    const sealed = socket.sent.at(-1)?.sealed.ciphertext ?? '';
+    expect(new TextDecoder().decode(fromBase64Url(sealed))).toContain(`{"path":"/srv/atelier","projectId":"${LOCAL_ID}"}`);
     expect(folder()['name']).toBe('Atelier');
     answer = async () => localProject(LOCAL_ID, 'Atelier', 'pending');
     await act('FolderProjectForm', 'create', { path: '/srv/atelier', name: 'Atelier', templateId: 'process-crewdeck' });
@@ -210,6 +213,27 @@ describe('« Projets » in the page', () => {
     await vi.waitFor(() => expect(location.pathname).toBe(`/projets/${LOCAL_ID}`));
     expect(commands.at(-1)?.path).toBe(`/api/projects/${LOCAL_ID}/folder`);
     expect(JSON.stringify(commands.at(-1)?.body)).not.toContain('/srv/atelier');
+  });
+
+  it('the check follows the Runner: gone, « Créer le Projet » has nothing to create from; back, the path is checked again', async () => {
+    app.router.navigate('/projets/ajouter');
+    await act('PageAjouterProjet', 'selectTab', { id: 'dossier' });
+    await checked('~/projets/recettes', { state: 'ready', hasCode: true, branch: 'main', name: 'recettes' });
+
+    store.applyEvent({ seq: 6, type: 'runner.upserted', payload: { ...RUNNER, state: 'offline' }, at: AT });
+    await vi.waitFor(() => expect(folder()['check']).toEqual({ state: 'runner-offline', hasCode: false }));
+    const before = commands.length;
+    await act('FolderProjectForm', 'create', { path: '~/projets/recettes', name: 'recettes', templateId: 'process-crewdeck' });
+    expect(commands).toHaveLength(before);
+
+    const sent = socket.sent.length;
+    store.applyEvent({ seq: 7, type: 'runner.upserted', payload: RUNNER, at: AT });
+    await vi.waitFor(() => expect(socket.sent).toHaveLength(sent + 1));
+    expect(folder()['check']).toEqual({ state: 'checking', hasCode: false });
+    const { requestId } = socket.sent[sent] ?? { requestId: '' };
+    const ready = { state: 'ready', hasCode: true, branch: 'main', name: 'recettes' };
+    socket.receive({ type: 'folder.checked', requestId, sealed: await fakeSealed(JSON.stringify(ready), folderCheckedAad(requestId)) });
+    await vi.waitFor(() => expect(folder()['check']).toEqual({ state: 'ready', hasCode: true }));
   });
 
   it('following posts the repositories with the Modèle, the picker busy meanwhile, then shows the list', async () => {

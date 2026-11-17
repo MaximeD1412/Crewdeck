@@ -24,17 +24,47 @@ describe('PageAjouterProjet', () => {
       ],
     });
     expect(child(el, 'cd-folder-project-form').data).toEqual(DOSSIER?.folder);
-    expect(el.shadowRoot?.querySelector('cd-repository-picker')).toBeNull();
+    expect(child(el, 'cd-folder-project-form').hidden).toBe(false);
+    expect(child(el, 'cd-repository-picker').hidden).toBe(true);
   });
 
   it('the « Dépôt GitHub » tab shows the RepositoryPicker, whose actions go on up', async () => {
     const el = await page(GITHUB as Data);
     expect(child(el, 'cd-repository-picker').data).toEqual(GITHUB?.picker);
-    expect(el.shadowRoot?.querySelector('cd-folder-project-form')).toBeNull();
+    expect(child(el, 'cd-repository-picker').hidden).toBe(false);
+    expect(child(el, 'cd-folder-project-form').hidden).toBe(true);
     inside<HTMLInputElement>(el, 'cd-repository-picker', 'cd-checkbox', 'input').click();
     await settle(el);
     const details = await actionsOf(() => inside(el, 'cd-repository-picker', 'cd-button.follow', 'button').click());
     expect(details).toMatchObject([{ composant: 'RepositoryPicker', action: 'follow' }]);
+  });
+
+  it('keeps what the Pilote typed or checked in one tab across a visit to the other', async () => {
+    const checked: Data = {
+      ...(DOSSIER as Data),
+      folder: { ...(DOSSIER as Data).folder, path: '~/projets/recettes', check: { state: 'ready', hasCode: true }, name: 'recettes' },
+    };
+    const el = await page(checked);
+    const form = child(el, 'cd-folder-project-form');
+    const name = inside<HTMLInputElement>(form, 'cd-text-field.name', 'input');
+    name.value = 'Mes recettes';
+    name.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    await settle(el);
+
+    el.data = { ...checked, tab: 'github' };
+    await settle(el);
+    inside<HTMLInputElement>(el, 'cd-repository-picker', 'cd-checkbox', 'input').click();
+    await settle(el);
+    el.data = { ...checked, tab: 'dossier' };
+    await settle(el);
+
+    expect(child(el, 'cd-folder-project-form')).toBe(form);
+    expect(await actionsOf(() => inside(el, 'cd-folder-project-form', 'cd-button.create', 'button').click())).toMatchObject([
+      { composant: 'FolderProjectForm', action: 'create', payload: { name: 'Mes recettes' } },
+    ]);
+    el.data = { ...checked, tab: 'github' };
+    await settle(el);
+    expect(inside<HTMLInputElement>(el, 'cd-repository-picker', 'cd-checkbox', 'input').checked).toBe(true);
   });
 
   it('a tab emits selectTab, not the Tabs’ select', async () => {

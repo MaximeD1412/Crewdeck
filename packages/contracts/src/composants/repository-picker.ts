@@ -2,9 +2,12 @@ import { z } from 'zod';
 import { FOLLOW_PROJECTS_MAX, zInstallReturn } from '../api/projects.js';
 import { zId } from '../values.js';
 import { defineComposant } from './define.js';
+import { EXAMPLE_TEMPLATES } from './folder-project-form.js';
 
 /** How many the picker follows at once, for a Skin to say it (it imports no `api/`). */
 export { FOLLOW_PROJECTS_MAX };
+
+const TEMPLATES = { templates: [...EXAMPLE_TEMPLATES], templateId: 'process-crewdeck' };
 
 const INSTALL_URL = 'https://github.com/apps/crewdeck/installations/new?state=projets';
 
@@ -25,12 +28,14 @@ export const EXAMPLE_REPOSITORIES = [
  * code · un inventaire sera proposé » or « vide »), « Suivre <n> Projets »
  * (`follow`, disabled at none), the Inventaire's footnote and the link to
  * GitHub's installation page that chooses other repositories (`installUrl`,
- * `null` until the page knows it). Without any Dépôt GitHub, an Empty whose
- * action is that link. `busy` while the command is on its way.
+ * `null` until the page knows it), and the Select « Modèle de process » of
+ * `templates` the Projets start from (`templateId`, US-97). Without any Dépôt
+ * GitHub, an Empty whose action is that link. `busy` while the command is on
+ * its way.
  */
 export const RepositoryPicker = defineComposant({
   name: 'RepositoryPicker',
-  version: 1,
+  version: 2,
   tag: 'cd-repository-picker',
   category: 'partie',
   description: 'Le choix des Dépôts GitHub à suivre, chacun devenant un Projet.',
@@ -39,15 +44,17 @@ export const RepositoryPicker = defineComposant({
     repositories: z.array(z.object({ id: zId, fullName: z.string().min(1), hasCode: z.boolean() })),
     installUrl: z.url().nullable(),
     busy: z.boolean(),
+    templates: z.array(z.object({ id: z.string().min(1), label: z.string().min(1) })),
+    templateId: z.string(),
   }),
-  actions: { follow: z.object({ repositoryIds: z.array(zId).min(1).max(FOLLOW_PROJECTS_MAX) }), later: z.object({}) },
+  actions: { follow: z.object({ repositoryIds: z.array(zId).min(1).max(FOLLOW_PROJECTS_MAX), templateId: z.string().min(1) }), later: z.object({}) },
   slots: [],
   examples: [
-    { name: 'tes dépôts', data: { context: 'projets', repositories: [...EXAMPLE_REPOSITORIES], installUrl: INSTALL_URL, busy: false } },
-    { name: 'aucun dépôt', data: { context: 'projets', repositories: [], installUrl: INSTALL_URL, busy: false } },
+    { name: 'tes dépôts', data: { context: 'projets', repositories: [...EXAMPLE_REPOSITORIES], installUrl: INSTALL_URL, busy: false, ...TEMPLATES } },
+    { name: 'aucun dépôt', data: { context: 'projets', repositories: [], installUrl: INSTALL_URL, busy: false, ...TEMPLATES } },
     {
       name: 'Premiers pas',
-      data: { context: 'demarrage', repositories: [...EXAMPLE_REPOSITORIES], installUrl: 'https://github.com/apps/crewdeck/installations/new?state=demarrage', busy: false },
+      data: { context: 'demarrage', repositories: [...EXAMPLE_REPOSITORIES], installUrl: 'https://github.com/apps/crewdeck/installations/new?state=demarrage', busy: false, ...TEMPLATES },
     },
   ],
 });

@@ -1,5 +1,6 @@
-import type { AiAccount, Runner } from '@crewdeck/contracts';
+import type { AiAccount, Idea, Runner } from '@crewdeck/contracts';
 import type { Connection } from '../store/store.js';
+import { ideasToTriage } from './idees.js';
 import { formatHour, NAV_IDS, t, type Cadre, type ComposantData, type IconName, type MenuItem, type NavId } from '@crewdeck/sdk';
 
 export type CadreData = ComposantData<typeof Cadre>;
@@ -28,6 +29,8 @@ export interface CadreState {
     readonly 'ai-account'?: { values(): Iterable<Pick<AiAccount, 'engine' | 'installed' | 'kind' | 'state'>> };
     /** The open Décisions: « À toi » counts them. */
     readonly decision?: ReadonlyMap<string, unknown>;
+    /** The Idées (IDEE-1): « Idées » counts those to triage. */
+    readonly idea?: { values(): Iterable<Pick<Idea, 'state'>> };
   };
 }
 
@@ -86,12 +89,18 @@ const runnerStatus = ({ runner, 'ai-account': accounts }: CadreState['slices']):
   return { status: 'online', statusDetail: connected.length > 0 ? connected.join(', ') : null };
 };
 
+/** An entry's count: the open Décisions for « À toi », the Idées to triage for « Idées », none at 0. */
+const countOf = (id: NavId, slices: CadreState['slices']): number | null => {
+  const count = id === 'a-toi' ? (slices.decision?.size ?? 0) : id === 'idees' ? ideasToTriage(slices.idea?.values() ?? []) : 0;
+  return count > 0 ? count : null;
+};
+
 /**
  * The Cadre's data and its menu's for the page at `route` (pure): the current
  * entry from the URL, the Pilote from the `pilot` slice, the status `resync`
  * while the connection is not `live` (ADR 0007), else the Runner's presence,
- * « En direct » while it is online; the count of « À toi » the open Décisions
- * (none at 0). Until their slices exist, the status is `offline` with no
+ * « En direct » while it is online; the count of « À toi » the open Décisions,
+ * of « Idées » the Idées to triage (none at 0). Until their slices exist, the status is `offline` with no
  * detail and no entry has a count.
  */
 export const cadreView = (state: CadreState, route: { readonly path: string }): CadreView => {
@@ -118,7 +127,7 @@ export const cadreView = (state: CadreState, route: { readonly path: string }): 
       icon: ICONS[id],
       href: `/${id}`,
       current: id === current,
-      count: id === 'a-toi' && state.slices.decision?.size ? state.slices.decision.size : null,
+      count: countOf(id, state.slices),
       meta: STATIC_META[id]?.() ?? null,
       primary: PRIMARY.has(id),
     })),

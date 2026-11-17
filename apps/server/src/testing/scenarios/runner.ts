@@ -9,8 +9,8 @@ export const RUNNER_MACHINE = { machine: 'atelier-pc', os: 'linux', arch: 'amd64
 export const LAST_SEEN_AT = new Date('2026-11-11T13:02:00.000Z');
 
 /** A Pilote past the getting started, both Comptes IA connected (Claude by subscription, Codex by API key). */
-export const withAccounts = async (ctx: ScenarioContext, lastSeenAt?: Date) => {
-  const seed = await signInPilot(ctx);
+export const withAccounts = async (ctx: ScenarioContext, lastSeenAt?: Date, signIn?: Parameters<typeof signInPilot>[1]) => {
+  const seed = await signInPilot(ctx, signIn);
   const { token } = await createLinkedRunner(ctx.prisma, seed.pilotId, { ...RUNNER_MACHINE, ...(lastSeenAt ? { lastSeenAt } : {}) });
   await createAiAccounts(ctx.prisma, seed.pilotId, [CLAUDE_SUBSCRIPTION, CODEX_API_KEY], lastSeenAt);
   return { ...seed, token };

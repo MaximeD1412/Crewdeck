@@ -55,7 +55,12 @@ export const ROUTES: readonly Route[] = [
   {
     path: '/parametres',
     composant: PageParametres,
-    slots: (_match, state) => parametresView(state.slices.settings, timeZones(), { accounts: [...(state.slices['ai-account']?.values() ?? [])] }),
+    slots: (match, state) =>
+      parametresView(state.slices.settings, timeZones(), {
+        accounts: [...(state.slices['ai-account']?.values() ?? [])],
+        pilot: state.slices.pilot,
+        erreur: match.query['erreur'],
+      }),
   },
   {
     path: '/parametres/composants',

@@ -1,5 +1,5 @@
 import { DEFAULT_ACCOUNT_SETTINGS, type AccountSettings, type AiAccount } from '@crewdeck/contracts';
-import { t, type ComposantData, type RoleSettings } from '@crewdeck/sdk';
+import { COMPOSANTS, t, type ComposantData, type RoleSettings } from '@crewdeck/sdk';
 import type { PlacedNode } from '../placed.js';
 import { NO_ROLES_LOCAL, parametresView } from './parametres.js';
 
@@ -56,6 +56,24 @@ describe('parametresView', () => {
     const select = account?.children?.[0]?.children?.[0]?.data as { value: string; options: { value: string }[] };
     expect(select.value).toBe('Europe/Kiev');
     expect(select.options.map((option) => option.value)).toEqual(['America/Montreal', 'Asia/Tokyo', 'Europe/Kiev', 'Europe/Paris']);
+  });
+
+  it('puts « Connexion » with the Pilote’s Identités in « account », before « Compte »', () => {
+    const identities = [{ provider: 'email', label: 'pilote@example.com', reconnect: false }] as const;
+    const nodes = parametresView(SETTINGS, ZONES, { pilot: { identities: [...identities] } }).filter((node) => node.slot === 'account');
+    expect(nodes.map((node) => node.tag)).toEqual(['cd-account-identities', 'cd-card']);
+    expect(nodes[0]).toEqual({ tag: 'cd-account-identities', slot: 'account', data: { identities, error: null } });
+    COMPOSANTS.AccountIdentities.data.parse(nodes[0]?.data);
+  });
+
+  it('gives « Connexion » the case of a failed link from ?erreur=, nothing for an unknown one', () => {
+    const pilot = { identities: [{ provider: 'email', label: 'pilote@example.com', reconnect: false }] } as const;
+    const identitiesOf = (erreur: string | undefined) =>
+      parametresView(undefined, ZONES, { pilot: { identities: [...pilot.identities] }, erreur }).find((node) => node.tag === 'cd-account-identities');
+    expect(identitiesOf('github-already-linked')?.data).toMatchObject({ error: 'github-already-linked' });
+    expect(identitiesOf('github-other-account')?.data).toMatchObject({ error: 'github-other-account' });
+    expect(identitiesOf('nimporte')?.data).toMatchObject({ error: null });
+    expect(identitiesOf(undefined)?.data).toMatchObject({ error: null });
   });
 
   it('shows only « Pour les Moddeurs » until the snapshot gives the settings', () => {

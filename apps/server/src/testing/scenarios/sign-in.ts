@@ -1,6 +1,6 @@
 import { SESSION_COOKIE } from '../../auth/cookies.js';
 import { WebSessions } from '../../auth/web-sessions.js';
-import type { GettingStartedStep, GitHubUser } from '@crewdeck/contracts';
+import type { GettingStartedStep, GitHubUser, IdentityProvider } from '@crewdeck/contracts';
 import { newId } from '../../ids.js';
 import { WsRevocations } from '../../realtime/ws-revocations.js';
 import { runInPilotScope } from '../../scope/scope.context.js';
@@ -19,24 +19,41 @@ export const seedGitHubUser = ({ fakes }: ScenarioContext): ScenarioSeed => {
   return {};
 };
 
+/** The address of a scenario's Pilote signed in by email. */
+export const PILOTE_ADDRESS = 'pilote@example.com';
+
 /**
- * The Pilote of a scenario, signed in as the callback would leave them (their
- * `github` Identité and `WebSession`, without their GitHub tokens): the session cookie the browser
- * carries, and their id. The fake GitHub knows them too. Past the getting
- * started (« Premiers pas ») unless the scenario shows it.
+ * The Pilote of a scenario, signed in as the callback would leave them: their
+ * Identités (`github` by default, its tokens stored as the fake GitHub gave
+ * them: GitHub linked; `email` with `pilote@example.com`) and their
+ * `WebSession`: the session cookie the browser carries, and their id. The fake
+ * GitHub knows them too. Past the getting started (« Premiers pas ») unless
+ * the scenario shows it.
  */
 export const signInPilot = async (
   ctx: ScenarioContext,
-  { gettingStartedStep = 'done' }: { gettingStartedStep?: GettingStartedStep } = {},
+  { gettingStartedStep = 'done', identities = ['github'] }: { gettingStartedStep?: GettingStartedStep; identities?: readonly IdentityProvider[] } = {},
 ): Promise<ScenarioSeed & { pilotId: string }> => {
   seedGitHubUser(ctx);
+  const github = identities.includes('github');
   const pilot = await ctx.prisma.unscoped.pilot.create({
     // No avatar: the Cadre of the captures shows the initials, not an image that never loads.
-    data: { id: newId(), displayName: OCTOCAT.login, avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: gettingStartedStep === 'ai-accounts' ? 'ai_accounts' : gettingStartedStep },
+    data: {
+      id: newId(),
+      displayName: github ? OCTOCAT.login : PILOTE_ADDRESS.split('@')[0] ?? PILOTE_ADDRESS,
+      avatarUrl: null,
+      timeZone: 'Europe/Paris',
+      gettingStartedStep: gettingStartedStep === 'ai-accounts' ? 'ai_accounts' : gettingStartedStep,
+    },
   });
-  await ctx.prisma.unscoped.pilotIdentity.create({
-    data: { id: newId(), pilotId: pilot.id, provider: 'github', subject: String(OCTOCAT.id), email: null, login: OCTOCAT.login },
-  });
+  for (const provider of identities) {
+    const identity =
+      provider === 'github'
+        ? { subject: String(OCTOCAT.id), email: null, login: OCTOCAT.login }
+        : { subject: PILOTE_ADDRESS, email: PILOTE_ADDRESS, login: null };
+    await ctx.prisma.unscoped.pilotIdentity.create({ data: { id: newId(), pilotId: pilot.id, provider, ...identity } });
+  }
+  if (github) await ctx.storeGithubTokens(pilot.id, ctx.fakes.github.tokensOf(OCTOCAT));
   const token = await runInPilotScope(pilot.id, () => new WebSessions(ctx.prisma, new WsRevocations()).open(ctx.prisma.scoped, pilot.id, undefined));
   return { sessionCookie: `${SESSION_COOKIE}=${token}`, pilotId: pilot.id };
 };

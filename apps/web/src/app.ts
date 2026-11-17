@@ -1,5 +1,6 @@
 import type { EmailLinkVerified, Me } from '@crewdeck/contracts';
 import {
+  AccountIdentities,
   Cadre,
   PageAToi,
   PageComposants,
@@ -32,7 +33,7 @@ import { createRoleSettings } from './role-settings.js';
 import { routeData, routeSlots, startRouter, type Route, type Router } from './router.js';
 import { aToiHref, composantsHref, ideesHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
-import { githubSignInHref, HOME_PATH, signInGuard } from './sign-in.js';
+import { githubLinkHref, githubSignInHref, HOME_PATH, signInGuard } from './sign-in.js';
 import { client as pageClient, connection as pageConnection, store as pageStore } from './store/index.js';
 import type { Connection } from './store/connection.js';
 import { createIdeaPlaintext } from './store/idea-plaintext.js';
@@ -180,7 +181,12 @@ export const boot = async ({
     slots: (match) => {
       if (match.composant !== PageParametres) return pageSlots(match);
       const { slices } = store.getState();
-      return parametresView(slices.settings, timeZones(), { accounts: [...(slices['ai-account']?.values() ?? [])], local: roleSettings.view() });
+      return parametresView(slices.settings, timeZones(), {
+        accounts: [...(slices['ai-account']?.values() ?? [])],
+        local: roleSettings.view(),
+        pilot: slices.pilot,
+        erreur: match.query['erreur'],
+      });
     },
     data: (match) => {
       if (match.composant === PageDemarrage) return { ...gettingStarted.view(), picker: projects.picker('demarrage') };
@@ -250,6 +256,7 @@ export const boot = async ({
   dispatcher.registerAction(RoleSettings, 'add', { run: () => roleSettings.open() });
   dispatcher.registerAction(RoleSettings, 'create', { run: (body) => roleSettings.create(body) });
   dispatcher.registerAction(RoleSettings, 'cancel', { run: () => roleSettings.cancel() });
+  dispatcher.registerAction(AccountIdentities, 'linkGitHub', { run: () => leave(githubLinkHref('/parametres')) });
   dispatcher.registerAction(Cadre, 'openPilot', { run: () => router.navigate('/parametres') });
   const openDecision = (id: string) => store.getState().slices.decision?.get(id);
   dispatcher.registerAction(PageAToi, 'filter', { run: ({ projectId }) => router.navigate(aToiHref(projectId)) });
@@ -282,6 +289,7 @@ export const boot = async ({
   dispatcher.registerAction(PageDemarrage, 'selectSystem', { run: ({ system }) => gettingStarted.selectSystem(system) });
   dispatcher.registerAction(PageDemarrage, 'retry', { run: () => gettingStarted.retry() });
   dispatcher.registerAction(PageDemarrage, 'continue', { run: () => gettingStarted.advance() });
+  dispatcher.registerAction(PageDemarrage, 'linkGitHub', { run: () => leave(githubLinkHref('/demarrage')) });
   dispatcher.registerAction(PageProjets, 'add', { run: () => router.navigate('/projets/ajouter') });
   // In « Premiers pas » the Projets followed end it; on `/projets/ajouter` the list shows them.
   dispatcher.registerAction(RepositoryPicker, 'follow', {

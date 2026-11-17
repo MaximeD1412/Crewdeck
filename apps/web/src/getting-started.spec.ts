@@ -9,7 +9,7 @@ import { matchRoute } from './router.js';
 import { ROUTES } from './routes.js';
 import { createStore, type Store } from './store/store.js';
 
-const ME: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [] };
+const ME: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [], githubLinked: false };
 const LINK_ID = '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a70';
 const AT = '2026-11-11T14:12:00.000Z';
 const SECRET = 'M2PXA7QK9VZ3T8W4R6N1B5C0DE';

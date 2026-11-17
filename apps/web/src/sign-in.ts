@@ -29,3 +29,6 @@ export const signInGuard =
 /** The start of the GitHub sign-in (`GET /api/auth/github/start`), which comes back to `next`. */
 export const githubSignInHref = (next: string | undefined, timeZone: string): string =>
   `/api/auth/github/start?${new URLSearchParams({ timeZone, next: next ?? HOME_PATH }).toString()}`;
+
+/** The start of « Relier GitHub » for the signed-in Pilote (`GET /api/auth/github/link`, CORE-11), which comes back to `next`. */
+export const githubLinkHref = (next: string): string => `/api/auth/github/link?${new URLSearchParams({ next }).toString()}`;

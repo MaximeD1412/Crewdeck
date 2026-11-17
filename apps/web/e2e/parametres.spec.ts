@@ -122,3 +122,27 @@ test('« Rôles et modèles »: the usable models only, a choice and a Rôle add
   await expect(chosen(other, 'Code')).toHaveText('Codex · GPT-5.5');
   await other.close();
 });
+
+/**
+ * CORE-11, US-1: « Connexion » lists the Identités of a Pilote signed in by
+ * email; « Relier GitHub » goes through GitHub, comes back to the
+ * Paramètres and lists GitHub, the page still signed in.
+ */
+test('« Connexion »: the Identités, « Relier GitHub » through GitHub and back on the Paramètres, GitHub listed', async ({ page, scenario, expectAccessible, viewport }) => {
+  await scenario('parametres');
+  await show(page, 'Compte', viewport);
+  const connexion = page.locator('cd-account-identities');
+  await expect(connexion.getByText('pilote@example.com')).toBeVisible();
+  await expect(connexion.getByText('pas relié · pour suivre tes Dépôts GitHub')).toBeVisible();
+  await expectAccessible(page);
+
+  await connexion.getByRole('button', { name: 'Relier GitHub' }).click();
+
+  await expect(page).toHaveURL('/parametres');
+  await show(page, 'Compte', viewport);
+  await expect(connexion.getByText('octocat')).toBeVisible();
+  await expect(connexion.getByRole('button', { name: 'Relier GitHub' })).toHaveCount(0);
+  const me = (await (await page.request.get('/api/me')).json()) as { githubLinked: boolean; identities: { provider: string }[] };
+  expect(me.githubLinked).toBe(true);
+  expect(me.identities.map((identity) => identity.provider).sort()).toEqual(['email', 'github']);
+});

@@ -4,11 +4,11 @@ import { createDispatcher } from './actions/dispatcher.js';
 import { boot } from './app.js';
 import { matchRoute, NO_STATE } from './router.js';
 import { ROUTES } from './routes.js';
-import { githubSignInHref, signInGuard } from './sign-in.js';
+import { githubLinkHref, githubSignInHref, signInGuard } from './sign-in.js';
 
 type WithData = HTMLElement & { data: unknown; updateComplete: Promise<unknown> };
 
-const ME: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
+const ME: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [], githubLinked: false };
 
 /** The guard's answer for the page at `url`, where the browser is. */
 const guarded = (pilot: Me | null, url: string) => {
@@ -47,6 +47,13 @@ describe('githubSignInHref', () => {
     };
     expect(query(githubSignInHref('/idees?session=s1', 'Europe/Paris'))).toEqual({ timeZone: 'Europe/Paris', next: '/idees?session=s1' });
     expect(query(githubSignInHref(undefined, 'America/Montreal'))).toEqual({ timeZone: 'America/Montreal', next: '/a-toi' });
+  });
+});
+
+describe('githubLinkHref', () => {
+  it('starts « Relier GitHub », which comes back to the page it left', () => {
+    expect(githubLinkHref('/parametres')).toBe('/api/auth/github/link?next=%2Fparametres');
+    expect(githubLinkHref('/demarrage')).toBe('/api/auth/github/link?next=%2Fdemarrage');
   });
 });
 

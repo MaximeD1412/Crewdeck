@@ -6,9 +6,10 @@ import {
   type AccountSettings,
   type AiAccount,
   type EngineId,
+  type Me,
   type RoleChoice,
 } from '@crewdeck/contracts';
-import { t, type Card, type ComposantData, type Icon, type ListRow, type RoleSettings, type Select, type SettingRow } from '@crewdeck/sdk';
+import { zLinkError, t, type AccountIdentities, type Card, type ComposantData, type Icon, type ListRow, type RoleSettings, type Select, type SettingRow } from '@crewdeck/sdk';
 import type { PlacedNode } from '../placed.js';
 
 /** The time zones the Pilote may pick: the IANA zones the browser knows. */
@@ -116,8 +117,22 @@ export interface RolesInput {
   readonly local?: RolesLocal;
 }
 
+/** What « Connexion » reads (CORE-11): the Pilote's Identités, and the URL's `?erreur=` after a failed « Relier GitHub ». */
+export interface IdentitiesInput {
+  readonly pilot?: Pick<Me, 'identities'> | null | undefined;
+  readonly erreur?: string | undefined;
+}
+
+/** « Connexion », placed in `account` before « Compte »: one row per Identité, an unknown `erreur` ignored. */
+const identities = (pilot: Pick<Me, 'identities'>, erreur: string | undefined): PlacedNode => {
+  const error = zLinkError.safeParse(erreur);
+  const data: ComposantData<typeof AccountIdentities> = { identities: pilot.identities, error: error.success ? error.data : null };
+  return { tag: 'cd-account-identities', slot: 'account', data };
+};
+
 /**
- * The Emplacements of the Paramètres (pure, US-82): once the snapshot gave
+ * The Emplacements of the Paramètres (pure, US-82): once the Pilote is known,
+ * « Connexion » with their Identités (CORE-11); once the snapshot gave
  * the settings, « Rôles et modèles » (PARAM-2) and « Compte » with the time
  * zone (a zone the list lacks, an alias, kept among the options), then « Pour
  * les Moddeurs ». The other sections are their tickets'.
@@ -125,5 +140,10 @@ export interface RolesInput {
 export const parametresView = (
   settings: AccountSettings | null | undefined,
   zones: readonly string[],
-  { accounts = [], local = NO_ROLES_LOCAL }: RolesInput = {},
-): readonly PlacedNode[] => [...(settings ? [roles(settings, accounts, local), account(settings, zones)] : []), modders()];
+  { accounts = [], local = NO_ROLES_LOCAL, pilot, erreur }: RolesInput & IdentitiesInput = {},
+): readonly PlacedNode[] => [
+  ...(settings ? [roles(settings, accounts, local)] : []),
+  ...(pilot ? [identities(pilot, erreur)] : []),
+  ...(settings ? [account(settings, zones)] : []),
+  modders(),
+];

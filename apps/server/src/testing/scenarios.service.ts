@@ -2,6 +2,7 @@ import type { ScenarioRun } from '@crewdeck/contracts';
 import type { AddressInfo } from 'node:net';
 import { Inject, Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { HttpAdapterHost, ModuleRef } from '@nestjs/core';
+import { EmailLinkLimiter } from '../auth/email/email-link-limiter.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RunnerLinkLimiter } from '../runners/link/link-limiter.js';
 import { RunnerOffline } from '../runners/runner-offline.service.js';
@@ -41,15 +42,16 @@ export class ScenariosService implements OnModuleInit, OnModuleDestroy {
     this.unregister?.();
   }
 
-  /** Empties the data tables, resets the fakes and the link attempts' count, then seeds the scenario, its Runner connected when it links one. */
+  /** Empties the data tables, resets the fakes and the counts of the link attempts and of the sign-in links, then seeds the scenario, its Runner connected when it links one. */
   async run(scenario: Scenario): Promise<ScenarioRun> {
     await resetFakes(this.fakes);
     this.moduleRef.get(RunnerLinkLimiter, { strict: false }).reset();
+    this.moduleRef.get(EmailLinkLimiter, { strict: false }).reset();
     await this.emptyDatabase();
     const runnerOffline = this.moduleRef.get(RunnerOffline, { strict: false });
     const seeded = await scenario.seed({ prisma: this.prisma, fakes: this.fakes, refreshRunnerOffline: (pilotId) => runnerOffline.refresh(pilotId) });
     if (seeded.runnerToken) await this.fakes.runner.connect(this.ownUrl(), seeded.runnerToken, seeded.runnerMachine);
-    return { name: scenario.name, path: scenario.path, sessionCookie: seeded.sessionCookie ?? null, device: seeded.device ?? null };
+    return { name: scenario.name, path: seeded.path ?? scenario.path, sessionCookie: seeded.sessionCookie ?? null, runnerLink: seeded.runnerLink ?? null, device: seeded.device ?? null };
   }
 
   /**

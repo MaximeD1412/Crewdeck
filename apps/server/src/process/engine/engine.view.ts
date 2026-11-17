@@ -1,4 +1,16 @@
-import { type PhaseRun, type StepRun, zArtifactRef, zArtifactType, zPhaseRunWaitingOn, zStepKind, zStepRunInput } from '@crewdeck/contracts';
+import {
+  canAskChanges,
+  type PhaseRun,
+  type ProcessDefinition,
+  type StepRun,
+  zArtifactRef,
+  zArtifactType,
+  zBuiltinTemplateId,
+  zPhaseRunLoopBack,
+  zPhaseRunWaitingOn,
+  zStepKind,
+  zStepRunInput,
+} from '@crewdeck/contracts';
 import { z } from 'zod';
 import type { PhaseRunState, StepRunState, StepVerdict } from '../../generated/prisma/client.js';
 
@@ -7,11 +19,14 @@ export const PHASE_RUN_VIEW = {
   id: true,
   projectId: true,
   processVersionId: true,
+  builtinTemplate: true,
+  parentPhaseRunId: true,
   phaseId: true,
   itemType: true,
   itemId: true,
   state: true,
   waitingOn: true,
+  loopBacks: true,
   startedAt: true,
   endedAt: true,
   pendingStarts: true,
@@ -39,23 +54,26 @@ export const STEP_RUN_VIEW = {
 
 export interface PhaseRunRow {
   readonly id: string;
-  readonly projectId: string;
-  readonly processVersionId: string;
+  readonly projectId: string | null;
+  readonly processVersionId: string | null;
+  readonly builtinTemplate: string | null;
+  readonly parentPhaseRunId: string | null;
   readonly phaseId: string;
   readonly itemType: string;
   readonly itemId: string;
   readonly state: PhaseRunState;
   readonly waitingOn: string | null;
+  readonly loopBacks: unknown;
   readonly startedAt: Date;
   readonly endedAt: Date | null;
   /** Not in the view: the engine's own (`Engine`'s pending starts). */
   readonly pendingStarts: unknown;
-  readonly processVersion: { readonly number: number };
+  readonly processVersion: { readonly number: number } | null;
 }
 
 export interface StepRunRow {
   readonly id: string;
-  readonly projectId: string;
+  readonly projectId: string | null;
   readonly phaseRunId: string;
   readonly stepId: string;
   readonly kind: string;
@@ -74,17 +92,21 @@ export interface StepRunRow {
 export const toPhaseRun = (row: PhaseRunRow): PhaseRun => ({
   id: row.id,
   projectId: row.projectId,
-  processVersion: row.processVersion.number,
+  processVersion: row.processVersion?.number ?? null,
+  builtinTemplate: row.builtinTemplate === null ? null : zBuiltinTemplateId.parse(row.builtinTemplate),
+  parentPhaseRunId: row.parentPhaseRunId,
   phaseId: row.phaseId,
   itemType: zArtifactType.parse(row.itemType),
   itemId: row.itemId,
   state: row.state,
   waitingOn: row.waitingOn === null ? null : zPhaseRunWaitingOn.parse(row.waitingOn),
+  loopBacks: z.array(zPhaseRunLoopBack).parse(row.loopBacks),
   startedAt: row.startedAt.toISOString(),
   endedAt: row.endedAt?.toISOString() ?? null,
 });
 
-export const toStepRun = (row: StepRunRow): StepRun => ({
+/** The StepRun as the contracts have it; `definition`, its PhaseRun's pinned one, says whether it may ask for changes. */
+export const toStepRun = (row: StepRunRow, definition: ProcessDefinition): StepRun => ({
   id: row.id,
   projectId: row.projectId,
   phaseRunId: row.phaseRunId,
@@ -98,6 +120,7 @@ export const toStepRun = (row: StepRunRow): StepRun => ({
   failure: row.failure,
   reason: row.reason,
   sessionId: row.sessionId,
+  canAskChanges: canAskChanges(definition, row.stepId),
   startedAt: row.startedAt.toISOString(),
   endedAt: row.endedAt?.toISOString() ?? null,
 });

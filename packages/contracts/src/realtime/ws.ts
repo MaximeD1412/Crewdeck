@@ -1,11 +1,13 @@
 import { z } from 'zod';
 import { zEvent } from '../events/index.js';
+import { zTabRelay, zTabSessionClose, zTabSessionError, zTabSessionInput, zTabSessionKeys, zTabSessionOpen } from '../runner/relay.js';
 import { zSeq } from '../values.js';
 
 /**
  * The messages of `/api/ws` (ADR 0007), JSON, each with its `type`. The
  * socket never carries a command that changes the state: those are REST.
- * SESSION-1 adds `relay` both ways, RUNNER-2 the Runner's protocol.
+ * RUNNER-2 adds the Runner's protocol; SESSION-1 the relay of a Session
+ * (`runner/relay.ts`), `session.*` and `relay` both ways.
  */
 
 /**
@@ -17,6 +19,9 @@ export const zClientMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('hello'), lastSeq: zSeq.nullable() }),
   z.object({ type: z.literal('ping') }),
   z.object({ type: z.literal('visibility'), visible: z.boolean() }),
+  zTabSessionOpen,
+  zTabSessionClose,
+  zTabSessionInput,
 ]);
 export type ClientMessage = z.infer<typeof zClientMessage>;
 
@@ -31,6 +36,9 @@ export const zServerMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('snapshot-required') }),
   z.object({ type: z.literal('live') }),
   z.object({ type: z.literal('pong') }),
+  zTabSessionKeys,
+  zTabRelay,
+  zTabSessionError,
 ]);
 export type ServerMessage = z.infer<typeof zServerMessage>;
 

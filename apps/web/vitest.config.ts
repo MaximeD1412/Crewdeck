@@ -20,18 +20,19 @@ export default defineConfig({
           environment: 'happy-dom',
           setupFiles: ['vitest.happy-dom.ts'],
           include: ['src/**/*.spec.ts'],
-          exclude: ['src/keys/**', 'src/dialogs/**'],
+          exclude: ['src/keys/**', 'src/sessions/**', 'src/dialogs/**'],
         },
       },
       {
-        // The end-to-end primitives run in a real Chromium: its WebCrypto is
-        // what the Appareils run (ADR 0003), not Node's. The product's dialogs
+        // The end-to-end primitives, and the relay of a Session that uses
+        // them, run in a real Chromium: its WebCrypto is what the Appareils
+        // run (ADR 0003), not Node's. The product's dialogs
         // too: a modal <dialog>, its focus and Escape as the browser has them.
         ...shared,
         test: {
           name: 'web-browser',
           globals: true,
-          include: ['src/keys/**/*.spec.ts', 'src/dialogs/**/*.spec.ts'],
+          include: ['src/keys/**/*.spec.ts', 'src/sessions/**/*.spec.ts', 'src/dialogs/**/*.spec.ts'],
           browser: {
             enabled: true,
             headless: true,

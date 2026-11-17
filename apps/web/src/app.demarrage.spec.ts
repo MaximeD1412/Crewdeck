@@ -7,7 +7,7 @@ import { boot, type App } from './app.js';
 import type { PageKeys } from './keys/index.js';
 import { createStore } from './store/store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner' };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [] };
 const LINK_ID = '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a70';
 const AT = '2026-11-11T14:12:00.000Z';
 const DEVICE_ID = '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a74';
@@ -79,11 +79,11 @@ describe('« Premiers pas » in the page', () => {
   it('a Pilote at the Runner’s step opening /a-toi lands on /demarrage, in the bare Cadre', () => {
     expect(location.pathname).toBe('/demarrage');
     expect((root.firstElementChild as WithData).data).toMatchObject({ variant: 'bare' });
-    expect(page()?.data).toMatchObject({ step: 'runner', login: 'octocat', command: null });
+    expect(page()?.data).toMatchObject({ step: 'runner', displayName: 'octocat', command: null });
   });
 
   it('draws its code once the snapshot is there and shows its command', async () => {
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
     await vi.waitFor(() => expect(page()?.data).toMatchObject({ shortId: '7KQ4' }));
     expect(page()?.data['command']).toMatch(/--link 7KQ4-[0-9A-HJKMNP-TV-Z]{26}$/);
     expect(paths).toEqual(['/api/runner/link-codes']);

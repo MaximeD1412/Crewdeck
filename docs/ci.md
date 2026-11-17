@@ -108,19 +108,42 @@ pnpm exec nx e2e web -- a-toi.spec.ts
 
 `.github/workflows/nightly.yml`, every night at 03:30 UTC (a schedule runs on
 the default branch, `develop`) and from a manual dispatch (Actions > Nightly
-> Run workflow, on `develop`). One job, `verify`, calls `verify.yml` with
-`scope: full`: every project, what the PRs' `affected` scope skipped
-included. A dispatch from another branch is skipped: the nightly checks
-`develop` only. A second run waits for the first rather than cancel it, so
-that a red night never ends as « cancelled ».
+> Run workflow, on `develop`). Two jobs:
+
+- `verify` calls `verify.yml` with `scope: full`: every project, what the
+  PRs' `affected` scope skipped included. A dispatch from another branch
+  skips it: the nightly checks `develop` only.
+- `runner-smoke` (RUNNER-14) is the compiled Runner's smoke test,
+  `apps/runner/smoke/smoke.sh`, on the two systems the Runner is built for.
+  A binary built with `-tags smoke` (its hidden `--engine-fake` replays
+  `apps/runner/smoke/testdata/session.jsonl`) is linked through the scenario
+  `smoke` and its helpers `POST /api/testing/smoke/confirm|sessions`, runs a
+  Session on the fake Moteur against a local bare repository, then checks
+  the example Contrat with the rules embedded in it. On linux (20 minutes)
+  against the real server, its fakes on (`CREWDECK_FAKES=1`), with its
+  PostgreSQL started by `docker run`, and then the release binary of
+  `runner:dist` must refuse `--engine-fake`; on darwin (5 minutes, macOS
+  minutes count tenfold) against the fake server
+  `apps/runner/smoke/fakeserver`, Go alone. A dispatch from another branch
+  runs it: the way to try a change of the smoke test before its merge.
+
+A second run waits for the first rather than cancel it, so that a red night
+never ends as « cancelled ».
 
 A red nightly is reported by GitHub's email of the failed workflow, no other
 channel, and is fixed before anything else (AGENTS.md « Checking »). Not a
-check of the PRs. The compiled Runner's smoke test joins it as its own job
-(RUNNER-14).
+check of the PRs; but `go test ./...` of `runner:test` runs
+`apps/runner/smoke/smoke_test.go`, the same script against the fake server,
+a broken embedded Contrat and the release binary, on every PR that reaches
+the Runner.
 
 ```bash
 gh workflow run nightly.yml --ref develop
+# the smoke test, locally: against the fake server…
+cd apps/runner && go test -count=1 ./smoke/...
+# …or against a server of your own, its fakes on
+go build -tags smoke -o /tmp/crewdeck-runner ./cmd/crewdeck-runner && cd ../..
+SERVER_URL=http://127.0.0.1:3000 RUNNER=/tmp/crewdeck-runner sh apps/runner/smoke/smoke.sh
 ```
 
 ## The workflow `actions-minutes`

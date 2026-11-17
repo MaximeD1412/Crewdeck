@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { PrismaService, type ScopedPrisma } from '../prisma/prisma.service.js';
 import { EventsBus } from './events.bus.js';
 import { type Place, PublicationOrder } from './publication-order.js';
@@ -13,6 +14,7 @@ export interface TransactionOptions {
 /** What a transaction of `Transactions.run` has written so far: its place, per Pilote, in the order of publication. */
 export class TransactionEvents {
   private readonly places = new Map<string, Place>();
+  private readonly committedHooks: (() => void)[] = [];
 
   constructor(private readonly order: PublicationOrder) {}
 
@@ -29,8 +31,22 @@ export class TransactionEvents {
     return place;
   }
 
-  settle(committed: boolean): void {
+  /** Runs `hook` once the transaction committed, after its events are handed to the publication. */
+  afterCommit(hook: () => void): void {
+    this.committedHooks.push(hook);
+  }
+
+  /** Settles the places; once committed, runs the `afterCommit` hooks, each one's failure logged by `onHookError`, never thrown. */
+  settle(committed: boolean, onHookError: (error: unknown) => void = () => undefined): void {
     for (const [pilotId, place] of this.places) this.order.settle(pilotId, place, committed);
+    if (!committed) return;
+    for (const hook of this.committedHooks.splice(0)) {
+      try {
+        hook();
+      } catch (error) {
+        onHookError(error);
+      }
+    }
   }
 }
 
@@ -53,6 +69,14 @@ export const pendingEventsOf = (tx: object): TransactionEvents => {
 };
 
 /**
+ * Runs `hook` once `tx` (of `Transactions.run`) committed, after its events
+ * are published: what is sent outside (a message to the Runner) never says
+ * what a rollback undid. Nothing runs on a rollback; a hook that throws is
+ * logged, the others still run.
+ */
+export const afterCommit = (tx: object, hook: () => void): void => pendingEventsOf(tx).afterCommit(hook);
+
+/**
  * Every change of the Process goes through `run` (ADR 0007): its function
  * writes the change and its events (`EventsWriter.write`) with the same `tx`;
  * once the transaction commits, the events are published to the bus, in the
@@ -66,6 +90,7 @@ export class Transactions {
   constructor(
     private readonly prisma: PrismaService,
     bus: EventsBus,
+    @InjectPinoLogger(Transactions.name) private readonly logger: PinoLogger,
   ) {
     this.order = new PublicationOrder((pilotId, event) => bus.publish(pilotId, event));
   }
@@ -85,7 +110,7 @@ export class Transactions {
       committed = true;
       return result;
     } finally {
-      events.settle(committed);
+      events.settle(committed, (error) => this.logger.error({ err: error }, 'an after-commit hook failed'));
     }
   }
 }

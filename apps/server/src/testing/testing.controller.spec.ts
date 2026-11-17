@@ -63,7 +63,7 @@ describe('POST /api/testing/scenarios/:name', () => {
       const response = await post(app, 'blank');
 
       expect(response.status).toBe(200);
-      expect(zScenarioRun.parse(await response.json())).toEqual({ name: 'blank', path: '/', sessionCookie: null, device: null });
+      expect(zScenarioRun.parse(await response.json())).toEqual({ name: 'blank', path: '/', sessionCookie: null, runnerLink: null, device: null });
     });
 
     it('first empties every data table', async () => {

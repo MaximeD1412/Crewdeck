@@ -9,6 +9,9 @@ import { zHeartbeat, zHeartbeatAck } from './runner/heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './runner/hello.js';
 import { zMcpServers } from './runner/mcp.js';
 import { zGitHubChanged, zMirrorLive, zMirrorProjects, zMirrorResync, zMirrorToken, zMirrorTokenFailed, zMirrorTokenIssued } from './runner/mirror.js';
+import { zSessionResume, zSessionStart, zSessionStateMessage, zSessionStop } from './runner/session.js';
+import { zSessionInputPayload } from './runner/inputs.js';
+import { zRelay, zSessionInput, zSessionKeys, zSessionReplay } from './runner/relay.js';
 import { zStepVerdict } from './runner/step.js';
 import { zProcessSealedPayload } from './process/definition.js';
 import { HEARTBEAT_SECONDS, OFFLINE_AFTER_SECONDS, PROTOCOL_VERSION, RUNNER_WS_CLOSE, zProtocolError, zRunnerEnvelope } from './runner/protocol.js';
@@ -44,6 +47,14 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-mirror-token', schema: zMirrorToken },
   { name: 'runner-mirror-token-issued', schema: zMirrorTokenIssued },
   { name: 'runner-mirror-token-failed', schema: zMirrorTokenFailed },
+  { name: 'runner-session-start', schema: zSessionStart },
+  { name: 'runner-session-stop', schema: zSessionStop },
+  { name: 'runner-session-resume', schema: zSessionResume },
+  { name: 'runner-session-state', schema: zSessionStateMessage },
+  { name: 'runner-session-replay', schema: zSessionReplay },
+  { name: 'runner-session-input', schema: zSessionInput },
+  { name: 'runner-session-keys', schema: zSessionKeys },
+  { name: 'runner-relay', schema: zRelay },
   // The plaintext of a Process version's sealed part, once the Runner opened it (RUNNER-18).
   { name: 'process-sealed', schema: zProcessSealedPayload },
 ];
@@ -71,7 +82,7 @@ const goUnion = <D extends string>(
   options: union.options.map((schema) => ({ value: schema.shape[discriminator].value, schema })),
 });
 
-export const goUnions: readonly GoUnion[] = [goUnion('engine-event', 'kind', zEngineEvent)];
+export const goUnions: readonly GoUnion[] = [goUnion('engine-event', 'kind', zEngineEvent), goUnion('session-input', 'kind', zSessionInputPayload)];
 
 /** Every schema written as JSON Schema and Go: the registry, then each option of the unions. */
 export const generatedEntries: readonly { name: string; schema: z.ZodType }[] = [

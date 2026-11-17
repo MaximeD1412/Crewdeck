@@ -1,6 +1,6 @@
 import type { Decision, DecisionKind } from '@crewdeck/contracts';
 import { formatRelative, t, type ComposantData, type IconName, type PageAToi } from '@crewdeck/sdk';
-import { decisionViews, kindLabel, type DecisionViews } from './decisions/registry.js';
+import { actionsOf, decisionViews, kindLabel, type DecisionViews } from './decisions/registry.js';
 
 export type PageAToiData = ComposantData<typeof PageAToi>;
 
@@ -11,6 +11,7 @@ const ICONS: Readonly<Record<DecisionKind, IconName>> = {
   'permission-requested': 'shield',
   'agent-question': 'info',
   'limit-reached': 'gauge',
+  'loop-back.exhausted': 'undo',
   'ai-account-disconnected': 'key',
   'visual-review': 'eye',
   'document-review': 'doc',
@@ -77,7 +78,7 @@ export const aToiView = (
         context: view.context?.(decision) ?? null,
         tone: decision.tone,
         icon: ICONS[decision.kind],
-        actions: view.actions.map((action) => {
+        actions: actionsOf(view, decision).map((action) => {
           const label = t(action.label);
           return {
             id: action.id,

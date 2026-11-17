@@ -3,6 +3,7 @@ import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod';
 import { AuthModule } from './auth/auth.module.js';
+import { MailModule } from './auth/mail/mail.module.js';
 import { type Env, usesFakes } from './config/env.js';
 import { EnvModule } from './config/env.module.js';
 import { DecisionsModule } from './decisions/decisions.module.js';
@@ -25,6 +26,7 @@ import { ProjectsModule } from './projects/projects.module.js';
 import { RunnersModule } from './runners/runners.module.js';
 import { EngineModule } from './process/engine/engine.module.js';
 import { ScopeModule } from './scope/scope.module.js';
+import { SessionsModule } from './sessions/sessions.module.js';
 import { TicketsModule } from './tickets/tickets.module.js';
 import { SensitiveActionsModule } from './sensitive-actions/sensitive-actions.module.js';
 import { SettingsModule } from './settings/settings.module.js';
@@ -65,6 +67,7 @@ export class AppModule {
         HealthModule,
         PublicConfigModule,
         GitHubModule.forRoot(env),
+        MailModule.forRoot(env),
         WebhooksModule,
         ReconciliationModule,
         ...fakes(env),
@@ -72,6 +75,7 @@ export class AppModule {
         PilotsModule,
         DevicesModule,
         RunnersModule,
+        SessionsModule,
         RepositoriesModule,
         GitHubChangesModule,
         ProjectsModule,

@@ -28,6 +28,7 @@ store.registerSlice('idea', { shape: 'collection', snapshotKey: 'ideas', holds: 
 store.registerSlice('ticket', { shape: 'collection', snapshotKey: 'tickets' });
 store.registerSlice('milestone', { shape: 'collection', snapshotKey: 'milestones' });
 store.registerSlice('code-change', { shape: 'collection', snapshotKey: 'codeChanges' });
+store.registerSlice('agent-session', { shape: 'collection', snapshotKey: 'sessions' });
 store.registerSlice('settings', { shape: 'single' });
 
 export const client = createClient({

@@ -180,12 +180,13 @@ export class PasserelleCadre extends PasserelleElement<typeof Cadre> {
         background: var(--cd-accent);
       }
 
-      /* 390: the panel covers the screen */
+      /* 390: the panel covers the screen, no more: what it holds scrolls inside (a Session, its log), its head and Composer kept in sight */
       .with-panel aside {
         display: flex;
         flex-direction: column;
-        flex: 1;
-        min-height: 100dvh;
+        flex: none;
+        height: 100dvh;
+        overflow: auto;
         background: var(--cd-panel);
       }
       .with-panel aside ::slotted(*) {

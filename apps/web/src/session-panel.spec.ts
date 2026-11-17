@@ -204,6 +204,18 @@ describe('the Session panel', () => {
     expect(relay.relay.openSession).toHaveBeenCalledTimes(2);
   });
 
+  it('the Runner offline: a fresh Composer in place of the one typed in, so no draft stays in the page', () => {
+    const { panel, shown, store } = setup();
+    panel.show(SESSION.id);
+    const typedIn = (shown() as Element).querySelector('cd-composer');
+    expect(typedIn).not.toBeNull();
+    store.set({ runner: OFFLINE });
+    const offline = (shown() as Element).querySelector('cd-composer');
+    expect(offline).not.toBeNull();
+    expect(offline).not.toBe(typedIn);
+    expect(typedIn?.isConnected).toBe(false);
+  });
+
   it('« Arrêter » and « Reprendre » post to the Session’s routes', async () => {
     const command = vi.fn(async () => SESSION) as unknown as Client['command'];
     const { panel } = setup({ command });

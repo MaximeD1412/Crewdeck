@@ -1,5 +1,5 @@
 import type { AgentSession } from '@crewdeck/contracts';
-import { Button, Empty, Session, t } from '@crewdeck/sdk';
+import { Button, Composer, Empty, Session, t } from '@crewdeck/sdk';
 import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
 import { getSession, resumeSession, stopSession } from './api/sessions.js';
@@ -134,7 +134,11 @@ export const createSessionPanel = ({
     }
     const { slices } = store.getState();
     if (slices.runner?.state === 'online') follow(id);
-    else unfollow();
+    else if (subscription) {
+      unfollow();
+      // What the Pilote typed and did not send goes too: the disabled Composer is a new one.
+      element?.querySelector(`:scope > ${Composer.tag}`)?.remove();
+    }
     if (subscription?.value.error() === 'session.not-found') {
       tick(false);
       mount(sessionNotFoundView(), close);

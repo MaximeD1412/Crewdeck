@@ -105,6 +105,21 @@ describe('sessionView', () => {
     expect(stream(whole.children)).toEqual([{ tag: 'cd-message', data: { from: 'agent', text: 'Noté. L’agenda a déjà les récurrents.', at: secondsAgo(99) } }]);
   });
 
+  it.each([
+    ['an error of the Moteur', { kind: 'error', seq: 3, at: secondsAgo(97), code: 'exit', message: 'Moteur arrêté' }],
+    ['an interrupted turn', { kind: 'result', seq: 3, at: secondsAgo(97), status: 'interrupted' }],
+  ] as const)('keeps a message cut by %s apart from the next one, once resumed', (_, end) => {
+    const { children } = view({ events: [agent(1, 'Les nuages ', false), agent(2, 'flottent', false), end, agent(4, 'Ma réponse ', false), agent(5, 'Ma réponse reprend.')] });
+    const texts = stream(children).map((node) => (node.data as { text: string }).text);
+    expect(texts[0]).toBe('Les nuages flottent');
+    expect(texts.at(-1)).toBe('Ma réponse reprend.');
+  });
+
+  it('a usage report while it streams does not cut the message', () => {
+    const { children } = view({ events: [agent(1, 'Noté. ', false), { kind: 'usage', seq: 2, at: secondsAgo(98), outputTokens: 12 }, agent(3, 'Noté. L’agenda.')] });
+    expect(stream(children).map((node) => (node.data as { text: string }).text)).toEqual(['Noté. L’agenda.']);
+  });
+
   it('shows a question and a permission request as the agent’s message until SESSION-3', () => {
     const { children } = view({
       events: [

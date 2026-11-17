@@ -81,7 +81,7 @@ test.describe('the Session panel (US-9, US-60)', () => {
     await expect(panel(page)).toContainText('Noté : « Continue avec les questions. ».');
   });
 
-  test('the Runner offline: only its title and state, the Banner, « Reprendre » and the Composer disabled', async ({ page, scenario, expectAccessible, capture }) => {
+  test('the Runner offline: only its title and state, the Banner, « Reprendre » and the Composer disabled', async ({ page, scenario, expectAccessible, capture }, testInfo) => {
     await scenario('session-runner-hors-ligne');
 
     await expect(panel(page)).toContainText('Concevoir · Agenda partagé');
@@ -91,6 +91,9 @@ test.describe('the Session panel (US-9, US-60)', () => {
     await expect(panel(page).getByRole('button', { name: 'Reprendre' })).toBeDisabled();
     await expect(composer(page, 'Disponible quand ton Runner est en ligne')).toBeDisabled();
     await expect(banner(page)).toContainText('Ton Runner ne répond plus depuis 14:02. Les sessions reprendront quand il sera de nouveau en ligne.');
+    // Beside the panel at 1280 px; on a phone the panel covers the page and its Banner, as in the mockup: its meta says « Runner hors ligne ».
+    if (testInfo.project.name === 'desktop') await expect(banner(page)).toBeVisible();
+    await expect(panel(page).getByText('Runner hors ligne ·', { exact: false })).toBeVisible();
     await expectAccessible(page);
     await capture(page, 'session-runner-hors-ligne');
 
@@ -101,11 +104,14 @@ test.describe('the Session panel (US-9, US-60)', () => {
   test('live: the conversation gone while the Runner is away, back once it is, the Session interrupted', async ({ page, scenario }) => {
     await scenario('session');
     await expectConversation(page);
+    await composer(page, 'Écrire à l’agent, ou dicter').fill('Un brouillon pas encore envoyé.');
 
     await post(page, '/api/testing/runner/disconnect');
     await expect(panel(page)).toContainText('Conversation sur ton Runner');
     await expect(panel(page)).not.toContainText('L’Idée demande un agenda');
     await expect(panel(page).getByRole('button', { name: 'Reprendre' })).toBeDisabled();
+    // Nothing of the content stays in the page, the Pilote's draft neither.
+    await expect(composer(page, 'Disponible quand ton Runner est en ligne')).toHaveValue('');
 
     await post(page, '/api/testing/runner/reconnect');
     await expectConversation(page);

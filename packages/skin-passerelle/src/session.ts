@@ -107,7 +107,9 @@ export class PasserelleSession extends PasserelleElement<typeof Session> {
       .encrypted cd-icon {
         color: var(--cd-go);
       }
+      /* Positioned: what its messages hold apart for screen readers scrolls with them, never past it. */
       [role='log'] {
+        position: relative;
         flex: 1;
         min-height: 0;
         overflow-y: auto;

@@ -81,7 +81,8 @@ const message = (from: 'agent' | 'pilote', text: string, at: string): PlacedNode
 
 /**
  * The conversation from the events: the agent's messages (its deltas joined
- * while it streams, then the whole message in their place), its tool calls
+ * while it streams, then the whole message in their place, a turn cut
+ * before it ending it), its tool calls
  * (the result's detail on its call), its questions and permission requests
  * as its messages until SESSION-3, and the Pilote's messages after the event
  * they followed. Usage, results and the rest show nothing.
@@ -97,6 +98,8 @@ const conversation = (events: readonly EngineEvent[], sent: readonly PilotMessag
   };
   for (const event of events) {
     flushSent(event.seq);
+    // A turn cut (an error, an interrupted result) or anything shown ends the message being streamed: the next one, once resumed, is apart.
+    if (event.kind !== 'message' && event.kind !== 'usage') streaming = null;
     switch (event.kind) {
       case 'message': {
         // The loop sets it: the flow analysis alone would see it always null.

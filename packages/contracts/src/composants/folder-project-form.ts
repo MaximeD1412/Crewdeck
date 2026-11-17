@@ -17,7 +17,19 @@ export const FOLDER_FORM_CONTEXTS = ['demarrage', 'projets', 'repick'] as const;
 /** The Modèles de process of the examples: « Process Crewdeck » only, until PROCESS-14. */
 export const EXAMPLE_TEMPLATES = [{ id: 'process-crewdeck', label: 'Process Crewdeck' }] as const;
 
-const EXAMPLE = {
+const folderProjectFormData = z.object({
+  context: z.enum(FOLDER_FORM_CONTEXTS),
+  path: z.string().max(FOLDER_PATH_MAX),
+  check: z.object({ state: zFolderFormCheckState, hasCode: z.boolean() }),
+  name: z.string().max(PROJECT_NAME_MAX),
+  templates: z.array(z.object({ id: z.string().min(1), label: z.string().min(1) })),
+  templateId: z.string(),
+  busy: z.boolean(),
+  vaultLocked: z.boolean(),
+  machine: z.string().nullable(),
+});
+
+const EXAMPLE: z.input<typeof folderProjectFormData> = {
   context: 'projets',
   path: '~/projets/recettes',
   check: { state: 'ready', hasCode: true },
@@ -27,7 +39,7 @@ const EXAMPLE = {
   busy: false,
   vaultLocked: false,
   machine: 'atelier-pc',
-} as const;
+};
 
 /**
  * A Projet from a folder of the Runner's machine (US-3, US-99, PROJET-6): a
@@ -47,17 +59,7 @@ export const FolderProjectForm = defineComposant({
   tag: 'cd-folder-project-form',
   category: 'partie',
   description: 'Un Projet depuis un dossier de la machine du Runner : son chemin vérifié, son nom, son Modèle de process.',
-  data: z.object({
-    context: z.enum(FOLDER_FORM_CONTEXTS),
-    path: z.string().max(FOLDER_PATH_MAX),
-    check: z.object({ state: zFolderFormCheckState, hasCode: z.boolean() }),
-    name: z.string().max(PROJECT_NAME_MAX),
-    templates: z.array(z.object({ id: z.string().min(1), label: z.string().min(1) })),
-    templateId: z.string(),
-    busy: z.boolean(),
-    vaultLocked: z.boolean(),
-    machine: z.string().nullable(),
-  }),
+  data: folderProjectFormData,
   actions: {
     checkPath: z.object({ path: z.string().max(FOLDER_PATH_MAX) }),
     create: z.object({ path: z.string().min(1).max(FOLDER_PATH_MAX), name: z.string().trim().min(1).max(PROJECT_NAME_MAX), templateId: z.string().min(1) }),

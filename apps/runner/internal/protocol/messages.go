@@ -40,6 +40,13 @@ const (
 	TypeSessionInput  = "session.input"
 	TypeSessionKeys   = "session.keys"
 	TypeRelay         = "relay"
+	// A Local Projet's folder (PROJET-6, ADR 0012): the server relays a tab's
+	// check and asks to attach a folder, both sealed under the vault key; the
+	// Runner answers the check sealed and says which Projets' folders exist.
+	TypeFolderCheck         = "folder.check"
+	TypeFolderChecked       = "folder.checked"
+	TypeProjectFolderAttach = "project.folder.attach"
+	TypeProjectsFolders     = "projects.folders"
 )
 
 // Machine is what the Runner says of itself in its hello.
@@ -151,4 +158,23 @@ func NewRelay(sessionID, tabID string, seq int, nonce, ciphertext string) contra
 		message.TabId = &tabID
 	}
 	return message
+}
+
+// NewFolderChecked answers the tab tabID's folder.check requestID with its
+// result sealed under the vault key (key and ciphertext base64url).
+func NewFolderChecked(requestID, tabID, key, ciphertext string) contracts.RunnerFolderChecked {
+	at := now()
+	return contracts.RunnerFolderChecked{
+		Type: TypeFolderChecked, Id: newID(at), At: at, RequestId: requestID, TabId: tabID,
+		Sealed: contracts.RunnerFolderCheckedSealed{Key: key, Ciphertext: ciphertext},
+	}
+}
+
+// NewProjectsFolders says the Projets whose folder exists on this machine.
+func NewProjectsFolders(present []string) contracts.RunnerProjectsFolders {
+	at := now()
+	if present == nil {
+		present = []string{}
+	}
+	return contracts.RunnerProjectsFolders{Type: TypeProjectsFolders, Id: newID(at), At: at, Present: present}
 }

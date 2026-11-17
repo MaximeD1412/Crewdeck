@@ -349,6 +349,8 @@ func generateItemVectors() itemVectors {
 	for _, c := range []struct{ name, aad, plaintext string }{
 		{"idea-text", "idea_01J9ZQ4C:text", "Une Idée : noter à la voix depuis le téléphone."},
 		{"empty-plaintext", "idea_01J9ZQ4C:reason", ""},
+		// A folder's check as the Runner answers it (PROJET-6, internal/folders).
+		{"folder-checked", "folder.checked:019a6f00-0000-7000-8000-0000000000f1", `{"state":"ready","hasCode":true,"branch":"main","name":"recettes"}`},
 	} {
 		item := itemCase{Name: c.name, Seed: b64("crewdeck-item/" + c.name), AAD: b64(c.aad), Plaintext: b64(c.plaintext)}
 		drawFrom(string(item.Seed), func() {

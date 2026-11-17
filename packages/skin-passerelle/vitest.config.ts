@@ -6,6 +6,7 @@ import { defineConfig } from 'vitest/config';
 const BROWSER_SPECS = [
   'src/composants.spec.ts',
   'src/cadre.spec.ts',
+  'src/account-identities.spec.ts',
   'src/*-row.spec.ts',
   'src/capture.spec.ts',
   'src/process-track.spec.ts',

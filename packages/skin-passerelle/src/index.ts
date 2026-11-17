@@ -34,6 +34,7 @@ import { PasserellePageIdees } from './page-idees.js';
 import { PasserellePageComposants } from './page-composants.js';
 import { PasserellePageConnexion } from './page-connexion.js';
 import { PasserellePageConnexionLien } from './page-connexion-lien.js';
+import { PasserelleAccountIdentities } from './account-identities.js';
 import { PasserellePageDemarrage } from './page-demarrage.js';
 import { PasserellePageParametres } from './page-parametres.js';
 import { PasserellePageHeader } from './page-header.js';
@@ -92,6 +93,7 @@ export default defineSkin({
     PageRunner: PasserellePageRunner,
     RepositoryPicker: PasserelleRepositoryPicker,
     RoleSettings: PasserelleRoleSettings,
+    AccountIdentities: PasserelleAccountIdentities,
     Card: PasserelleCard,
     CodeBlock: PasserelleCodeBlock,
     Dialog: PasserelleDialog,

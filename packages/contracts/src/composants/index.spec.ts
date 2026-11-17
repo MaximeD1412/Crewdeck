@@ -19,6 +19,7 @@ describe('COMPOSANTS', () => {
     [
       'partie',
       [
+        'AccountIdentities',
         'AgentRow',
         'Capture',
         'Card',

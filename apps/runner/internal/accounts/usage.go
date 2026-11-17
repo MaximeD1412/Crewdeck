@@ -31,10 +31,13 @@ type usageOf struct {
 // its own and at its result's instant, what it adds to the cost counted so
 // far. A Moteur reports the cost of its Session up to that turn, its runs
 // before a `--resume` included (Claude's `total_cost_usd`): what is counted
-// is the Session's (spent.go), else `spent`, the run's. Nothing for a Moteur
-// without a Compte IA or before the first capabilities told which: its
-// windows wait for the next tick.
-func (r *Reporter) observeUsage(engineID contracts.EngineId, event contracts.EngineEvent, spent *int) *contracts.RunnerUsage {
+// is the Session's (spent.go), else `spent`, the run's. A spend names
+// `sessionID`, Crewdeck's Session of the run ("" for none). Nothing for a
+// Moteur without a Compte IA; before the first capabilities told which, its
+// windows wait for the next tick, its spend is kept until they do
+// (priceSpends), in SpentPath too: a Session the server sends at once on a
+// reconnection may end its turn while the Moteurs are still asked.
+func (r *Reporter) observeUsage(engineID contracts.EngineId, sessionID string, event contracts.EngineEvent, spent *int) *contracts.RunnerUsage {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.usage == nil {
@@ -80,10 +83,16 @@ func (r *Reporter) observeUsage(engineID contracts.EngineId, event contracts.Eng
 		}
 		*spent = cost
 		var message *contracts.RunnerUsage
+		var unpriced *unpricedSpend
 		if added != 0 {
-			message = r.spendMessage(engineID, added, r.instant(event.Result.At))
+			at := r.instant(event.Result.At)
+			if _, known := r.kinds[engineID]; known {
+				message = r.spendMessage(engineID, sessionID, added, at)
+			} else {
+				unpriced = &unpricedSpend{ID: unpricedID(), Engine: engineID, SessionID: sessionID, CostUsdMicros: added, At: at}
+			}
 		}
-		r.keepSpent(key, cost, message)
+		r.keepSpent(key, cost, message, unpriced)
 		return message
 	default:
 		return nil
@@ -112,15 +121,19 @@ func (r *Reporter) usageMessage(engineID contracts.EngineId, u *usageOf, spend *
 	return &message
 }
 
-// spendMessage is the spend of `engineID`, without its windows: they keep
-// the instant they were measured at. Nil when its Compte IA has no usage.
-// Under r.mu.
-func (r *Reporter) spendMessage(engineID contracts.EngineId, costUsdMicros int, at time.Time) *contracts.RunnerUsage {
+// spendMessage is the spend of `engineID` for the Session `sessionID` (""
+// for none), without its windows: they keep the instant they were measured
+// at. Nil when its Compte IA has no usage. Under r.mu.
+func (r *Reporter) spendMessage(engineID contracts.EngineId, sessionID string, costUsdMicros int, at time.Time) *contracts.RunnerUsage {
 	kind, ok := usageKind(r.kinds[engineID])
 	if !ok {
 		return nil
 	}
-	message := protocol.NewUsage(contracts.RunnerUsageEngine(engineID), kind, nil, &contracts.RunnerUsageSpend{CostUsdMicros: costUsdMicros}, at)
+	spend := &contracts.RunnerUsageSpend{CostUsdMicros: costUsdMicros}
+	if sessionID != "" {
+		spend.SessionId = &sessionID
+	}
+	message := protocol.NewUsage(contracts.RunnerUsageEngine(engineID), kind, nil, spend, at)
 	return &message
 }
 

@@ -71,18 +71,21 @@ export class UsageService implements OnModuleInit {
         const { timeZone } = await tx.pilot.findUniqueOrThrow({ where: { id: pilotId }, select: { timeZone: true } });
         const day = dayIn(measuredAt, timeZone);
         const costEurCents = toEurCents(spend.costUsdMicros, day, await ratesUpTo(tx, day));
+        // The Session the Runner names, if it is the Pilote's: its Projet and
+        // its StepRun with it. Another one, or none known, ties the spend to
+        // nothing: it counts in the month only.
+        const session = spend.sessionId
+          ? await tx.agentSession.findFirst({ where: { id: spend.sessionId, pilotId }, select: { id: true, projectId: true, stepRunId: true } })
+          : null;
         const { count } = await tx.spend.createMany({
           skipDuplicates: true,
           data: {
             id: usage.id,
             pilotId,
             engine,
-            // The Session the Runner names; its Projet and its StepRun come
-            // from it once Sessions are stored (RUNNER-9, #47): until then a
-            // spend counts in the month only.
-            projectId: null,
-            sessionId: spend.sessionId ?? null,
-            stepRunId: null,
+            projectId: session?.projectId ?? null,
+            sessionId: session?.id ?? null,
+            stepRunId: session?.stepRunId ?? null,
             day: dateOf(day),
             costUsdMicros: BigInt(spend.costUsdMicros),
             costEurCents: costEurCents === null ? null : BigInt(costEurCents),

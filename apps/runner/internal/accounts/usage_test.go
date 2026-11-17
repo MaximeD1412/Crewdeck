@@ -621,3 +621,145 @@ func TestAUsageTheServerCouldNotGetIsSentAtTheNextTick(t *testing.T) {
 		t.Fatalf("usages %+v", got)
 	}
 }
+
+const crewdeckSession = "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a91"
+
+// runSession starts a run of the Session `sessionID` on `adapter` and reads it to its end.
+func runSession(t *testing.T, registry *engine.Registry, engineID contracts.EngineId, sessionID string) {
+	t.Helper()
+	adapter, _ := registry.Get(engineID)
+	run, err := adapter.Start(context.Background(), engine.StartOptions{Model: "opus", InitialPrompt: "go", SessionID: sessionID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range run.Events() {
+	}
+	if err := run.Wait(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A spend names the Session its run is of (RUNNER-9), for the server to
+// tie it to its Projet and its StepRun; a run outside one names none.
+func TestASpendNamesTheSessionItsRunIsOf(t *testing.T) {
+	claude := claudeWithKey(t)
+	claude.Events = []contracts.EngineEvent{costOf(1_000)}
+	reporter, out := usageReporter(t, claude)
+
+	runSession(t, reporter.Engines, contracts.EngineIdClaudeCode, crewdeckSession)
+	runSession(t, reporter.Engines, contracts.EngineIdClaudeCode, "")
+
+	got := out.await(t, 2)
+	named := 0
+	for _, u := range got {
+		if u.Spend != nil && u.Spend.SessionId != nil {
+			if *u.Spend.SessionId != crewdeckSession {
+				t.Fatalf("spend of %q", *u.Spend.SessionId)
+			}
+			named++
+		}
+	}
+	if named != 1 {
+		t.Fatalf("usages %+v, want one spend of %s and one of no Session", got, crewdeckSession)
+	}
+}
+
+// unreported is a Reporter watching `adapter` before its first capabilities:
+// a Session the server sends at once on a reconnection may end its turn
+// while the Moteurs are still asked.
+func unreported(adapter engine.Engine, path string) (*Reporter, *sentUsage) {
+	var registry engine.Registry
+	registry.Register(adapter)
+	out := &sentUsage{}
+	reporter := &Reporter{Send: (&sent{}).send, SendUsage: out.send, SpentPath: path}
+	out.ack = reporter.UsageAcked
+	reporter.Engines = reporter.Watch(&registry)
+	return reporter, out
+}
+
+// A result before the first capabilities keeps its spend until they tell
+// the Compte IA, then sends it at its result's instant: its cost counted
+// so far is not lost, and a resume still sends only what it adds.
+func TestASpendReportedBeforeTheCapabilitiesIsSentOnceTheyAre(t *testing.T) {
+	claude := claudeWithKey(t)
+	claude.Now = func() time.Time { return usageAt }
+	claude.Events = recordedResults(t, "04-interrupt")
+	reporter, out := unreported(claude, "")
+
+	runSession(t, reporter.Engines, contracts.EngineIdClaudeCode, crewdeckSession)
+	reporter.FlushUsage(context.Background())
+	if got := out.all(); len(got) != 0 {
+		t.Fatalf("sent before the capabilities %+v", got)
+	}
+
+	if _, err := reporter.Report(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	reporter.FlushUsage(context.Background())
+	got := out.await(t, 2)
+	if costs := spends(got); sum(costs) != 1480 {
+		t.Fatalf("spends %v, want 1 480 in all", costs)
+	}
+	for _, u := range got {
+		if u.AccountKind != contracts.RunnerUsageAccountKindApiKey || u.Spend.SessionId == nil || *u.Spend.SessionId != crewdeckSession || !u.MeasuredAt.Equal(usageAt) {
+			t.Fatalf("usage %+v", u)
+		}
+	}
+
+	claude.Events = recordedResults(t, "04-resume")
+	resumeAndDrain(t, reporter.Engines, recordedSession)
+	if costs := spends(out.await(t, 3)); len(costs) != 3 || costs[2] != 304 {
+		t.Fatalf("spends %v, want 304 for the resumed run", costs)
+	}
+}
+
+// A spend kept for the capabilities outlives the Runner: the next one sends
+// it once its own capabilities are known, and only once.
+func TestASpendReportedBeforeTheCapabilitiesOutlivesTheRunner(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "spent.json")
+	claude := claudeWithKey(t)
+	claude.Events = []contracts.EngineEvent{costOf(2_500)}
+	before, out := unreported(claude, path)
+	runSession(t, before.Engines, contracts.EngineIdClaudeCode, crewdeckSession)
+	if got := out.all(); len(got) != 0 {
+		t.Fatalf("sent before the capabilities %+v", got)
+	}
+
+	after, out := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
+	after.FlushUsage(context.Background())
+	if costs := spends(out.await(t, 1)); len(costs) != 1 || costs[0] != 2_500 {
+		t.Fatalf("spends %v, want 2 500", costs)
+	}
+	settled(t, after)
+
+	again, out := usageReporter(t, claude, func(r *Reporter) { r.SpentPath = path })
+	again.FlushUsage(context.Background())
+	if got := out.all(); len(got) != 0 {
+		t.Fatalf("sent again %+v", got)
+	}
+}
+
+// A spend kept for the capabilities of a Moteur they say has no Compte IA
+// is dropped, as any usage of such a Moteur.
+func TestASpendKeptForTheCapabilitiesOfAMoteurWithoutACompteIAIsDropped(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "spent.json")
+	cost := 1_000
+	codex := codexWithKey(Store{Keyring: memoryKeyring{}, Dir: t.TempDir()}) // no key: `none`
+	codex.Events = []contracts.EngineEvent{{Result: &contracts.EngineEventResult{Status: contracts.EngineEventResultStatusOk, CostUsdMicros: &cost}}}
+	reporter, out := unreported(codex, path)
+	runSession(t, reporter.Engines, contracts.EngineIdCodex, crewdeckSession)
+	if _, err := reporter.Report(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	reporter.FlushUsage(context.Background())
+
+	again, againOut := unreported(codex, path)
+	againOut.ack = again.UsageAcked
+	if _, err := again.Report(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	again.FlushUsage(context.Background())
+	if got := append(out.all(), againOut.all()...); len(got) != 0 {
+		t.Fatalf("usages %+v", got)
+	}
+}

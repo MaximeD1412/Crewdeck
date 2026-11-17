@@ -44,10 +44,12 @@ type Reporter struct {
 	usage map[contracts.EngineId]*usageOf
 	// The windows the server could not get, for the next tick.
 	usageRetry []contracts.RunnerUsage
-	// The cost each Session reported so far, the spends not sent yet, and
-	// the lines of SpentPath (spent.go).
+	// The cost each Session reported so far, the spends not sent yet, those
+	// reported before the capabilities told their Compte IA, and the lines of
+	// SpentPath (spent.go).
 	spent      map[string]sessionCost
 	pending    []contracts.RunnerUsage
+	unpriced   []unpricedSpend
 	spentLines int
 	// sendMu: one sending of usages at a time, so a spend is sent once.
 	sendMu sync.Mutex
@@ -88,6 +90,9 @@ func (r *Reporter) Capabilities(ctx context.Context) []contracts.EngineCapabilit
 	for _, c := range caps {
 		r.kinds[c.Engine] = c.Account.Kind
 	}
+	// The spends reported before: sent at the next FlushUsage, the one after
+	// this report on a connection.
+	r.priceSpends()
 	r.mu.Unlock()
 	return caps
 }

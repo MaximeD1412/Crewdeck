@@ -3,6 +3,8 @@ package accounts
 import (
 	"bufio"
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,14 +33,53 @@ type sessionCost struct {
 }
 
 // spentLine is a line of SpentPath, appended as it happens: what a Session
-// reported of its cost so far and the spend it sends for it, written
-// together before the spend is sent; or the spend the server acked.
+// reported of its cost so far and the spend it sends for it (or keeps
+// unpriced), written together before the spend is sent; a spend priced, with
+// the id it was kept under; or the spend the server acked.
 type spentLine struct {
 	Session       string                 `json:"session,omitempty"`
 	CostUsdMicros int                    `json:"costUsdMicros,omitempty"`
 	At            time.Time              `json:"at,omitzero"`
 	Spend         *contracts.RunnerUsage `json:"spend,omitempty"`
+	Unpriced      *unpricedSpend         `json:"unpriced,omitempty"`
+	Priced        string                 `json:"priced,omitempty"`
 	Acked         string                 `json:"acked,omitempty"`
+}
+
+// unpricedSpend is a spend reported before the capabilities told the
+// Compte IA of its Moteur, which its usage message says: kept until they do.
+type unpricedSpend struct {
+	ID            string             `json:"id"`
+	Engine        contracts.EngineId `json:"engine"`
+	SessionID     string             `json:"sessionId,omitempty"`
+	CostUsdMicros int                `json:"costUsdMicros"`
+	At            time.Time          `json:"at"`
+}
+
+func unpricedID() string {
+	var b [16]byte
+	_, _ = rand.Read(b[:])
+	return hex.EncodeToString(b[:])
+}
+
+// priceSpends turns each spend kept unpriced into its usage message, waiting
+// to be sent, once the capabilities told its Moteur's Compte IA; one of a
+// Moteur without any is dropped. Under r.mu.
+func (r *Reporter) priceSpends() {
+	r.loadSpent()
+	for _, u := range slices.Clone(r.unpriced) {
+		if _, known := r.kinds[u.Engine]; !known {
+			continue
+		}
+		// The record as it is once the line is written: a compaction before
+		// it writes the same.
+		line := spentLine{Spend: r.spendMessage(u.Engine, u.SessionID, u.CostUsdMicros, u.At), Priced: u.ID}
+		r.unpriced = slices.DeleteFunc(r.unpriced, func(kept unpricedSpend) bool { return kept.ID == u.ID })
+		if line.Spend != nil {
+			r.pending = append(r.pending, *line.Spend)
+		}
+		r.appendSpent(line)
+	}
 }
 
 func sessionKey(engineID contracts.EngineId, engineSessionID string) string {
@@ -54,12 +95,13 @@ func (r *Reporter) sessionSpent(key string) (int, bool) {
 }
 
 // keepSpent records what the Session `key` ("" for none named) reported of
-// its cost so far, and `spend`, when not nil, as waiting to be sent: in
-// SpentPath too, in one line, so that a restart neither counts the cost
-// again nor loses the spend. Under r.mu.
-func (r *Reporter) keepSpent(key string, costUsdMicros int, spend *contracts.RunnerUsage) {
+// its cost so far, and `spend`, when not nil, as waiting to be sent, or
+// `unpriced` as waiting for the capabilities: in SpentPath too, in one line,
+// so that a restart neither counts the cost again nor loses the spend.
+// Under r.mu.
+func (r *Reporter) keepSpent(key string, costUsdMicros int, spend *contracts.RunnerUsage, unpriced *unpricedSpend) {
 	r.loadSpent()
-	line := spentLine{Spend: spend}
+	line := spentLine{Spend: spend, Unpriced: unpriced}
 	if key != "" {
 		if known, ok := r.spent[key]; !ok || known.CostUsdMicros != costUsdMicros {
 			line.Session, line.CostUsdMicros, line.At = key, costUsdMicros, r.now()
@@ -69,7 +111,10 @@ func (r *Reporter) keepSpent(key string, costUsdMicros int, spend *contracts.Run
 	if spend != nil {
 		r.pending = append(r.pending, *spend)
 	}
-	if line.Session != "" || line.Spend != nil {
+	if unpriced != nil {
+		r.unpriced = append(r.unpriced, *unpriced)
+	}
+	if line.Session != "" || line.Spend != nil || line.Unpriced != nil {
 		r.appendSpent(line)
 	}
 }
@@ -118,6 +163,12 @@ func (r *Reporter) loadSpent() {
 		if line.Spend != nil {
 			r.pending = append(r.pending, *line.Spend)
 		}
+		if line.Unpriced != nil {
+			r.unpriced = append(r.unpriced, *line.Unpriced)
+		}
+		if line.Priced != "" {
+			r.unpriced = slices.DeleteFunc(r.unpriced, func(u unpricedSpend) bool { return u.ID == line.Priced })
+		}
 		if line.Acked != "" {
 			r.pending = slices.DeleteFunc(r.pending, func(m contracts.RunnerUsage) bool { return m.Id == line.Acked })
 		}
@@ -137,7 +188,7 @@ func (r *Reporter) appendSpent(line spentLine) {
 	if r.SpentPath == "" {
 		return
 	}
-	if r.spentLines >= len(r.spent)+len(r.pending)+spentCompactAfter {
+	if r.spentLines >= len(r.spent)+len(r.pending)+len(r.unpriced)+spentCompactAfter {
 		r.compactSpent()
 	}
 	err := func() error {
@@ -166,14 +217,17 @@ func (r *Reporter) appendSpent(line spentLine) {
 }
 
 // compactSpent replaces SpentPath at once (mode 600) with one line a
-// Session and one a spend waiting. Under r.mu.
+// Session and one a spend waiting, priced or not. Under r.mu.
 func (r *Reporter) compactSpent() {
-	lines := make([]spentLine, 0, len(r.spent)+len(r.pending))
+	lines := make([]spentLine, 0, len(r.spent)+len(r.pending)+len(r.unpriced))
 	for key, c := range r.spent {
 		lines = append(lines, spentLine{Session: key, CostUsdMicros: c.CostUsdMicros, At: c.At})
 	}
 	for i := range r.pending {
 		lines = append(lines, spentLine{Spend: &r.pending[i]})
+	}
+	for i := range r.unpriced {
+		lines = append(lines, spentLine{Unpriced: &r.unpriced[i]})
 	}
 	if err := r.writeSpent(lines); err != nil {
 		r.logger().Warn("usage", "error", err)

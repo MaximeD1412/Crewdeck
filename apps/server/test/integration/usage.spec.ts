@@ -187,14 +187,52 @@ describe('the usage of the Comptes IA against PostgreSQL', () => {
       expect(rows).toEqual([{ day: '2026-11-11', cost_usd_micros: '23418720', cost_eur_cents: '2160', project_id: null }]);
     });
 
-    it('keeps the Session a spend is of', async () => {
+    /**
+     * A Session of the Pilote's Projet, its StepRun's id set as the engine
+     * sets it: their ids. Past (`interrupted`): the Runner's hello and its
+     * disconnection write on a live one.
+     */
+    const session = async (pilotId: string) => {
+      const projectId = newId();
+      await sql(
+        `INSERT INTO projects (id, pilot_id, repository_id, github_repo_id, owner, name, full_name, display_name, release_branch, integration_branch, has_code, inventory_state)
+         VALUES ($1, $2, $3, $4, 'acme', 'shop', 'acme/shop', 'shop', 'main', 'develop', true, 'not-needed')`,
+        [projectId, pilotId, newId(), Math.floor(Math.random() * 1e9)],
+      );
+      const [sessionId, stepRunId] = [newId(), newId()];
+      await sql(
+        `INSERT INTO agent_sessions (id, pilot_id, project_id, role, engine, model, title, branch, base, permission_mode, state, interrupted_reason, step_run_id, started_at, last_seq)
+         VALUES ($1, $2, $3, 'code', 'codex', 'gpt-5.5', 'Le panier', 'feat/12-panier', 'develop', 'bypass', 'interrupted', 'runner-restarted', $4, now(), 0)`,
+        [sessionId, pilotId, projectId, stepRunId],
+      );
+      return { sessionId, projectId, stepRunId };
+    };
+
+    it('ties a spend to the Session the Runner names, its Projet and its StepRun', async () => {
       const alice = await pilot();
       const socket = await online(alice);
-      const sessionId = newId();
+      const { sessionId, projectId, stepRunId } = await session(alice.id);
 
       await send(alice, socket, { ...codex('2026-11-11T14:09:00.000Z', 1_000), spend: { sessionId, costUsdMicros: 1_000 } });
 
-      expect(await sql('SELECT session_id FROM spends WHERE pilot_id = $1', [alice.id])).toEqual([{ session_id: sessionId }]);
+      expect(await sql('SELECT session_id, project_id, step_run_id FROM spends WHERE pilot_id = $1', [alice.id])).toEqual([
+        { session_id: sessionId, project_id: projectId, step_run_id: stepRunId },
+      ]);
+    });
+
+    it('ties a spend to nothing when its Session is not the Pilote’s: it counts in the month only', async () => {
+      const alice = await pilot();
+      const bob = await pilot('bob');
+      const socket = await online(alice);
+      const { sessionId: bobs } = await session(bob.id);
+
+      await send(alice, socket, { ...codex('2026-11-11T14:09:00.000Z', 1_000), spend: { sessionId: bobs, costUsdMicros: 1_000 } });
+      await send(alice, socket, { ...codex('2026-11-11T14:09:30.000Z', 2_000), spend: { sessionId: newId(), costUsdMicros: 2_000 } });
+
+      expect(await sql('SELECT session_id, project_id, step_run_id, cost_usd_micros FROM spends WHERE pilot_id = $1 ORDER BY measured_at', [alice.id])).toEqual([
+        { session_id: null, project_id: null, step_run_id: null, cost_usd_micros: '1000' },
+        { session_id: null, project_id: null, step_run_id: null, cost_usd_micros: '2000' },
+      ]);
     });
 
     it('stores once a spend the Runner sends again, without usage.upserted the second time', async () => {

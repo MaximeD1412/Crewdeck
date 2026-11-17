@@ -57,6 +57,14 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await picker.getByRole('checkbox', { name: /^octocat\/site-mairie\b/ }).check();
     await expect(picker.getByRole('button', { name: 'Suivre 2 Projets' })).toBeEnabled();
   },
+  // The Local Projet's name opened by the trusted Appareil, its folder kept by the Runner.
+  'projet-local': async (page) => {
+    await expect(page.locator('cd-page-projet').getByRole('heading', { level: 1, name: 'Recettes' })).toBeVisible();
+    await expect(page.locator('cd-page-projet')).toContainText('sur atelier-pc');
+  },
+  'projets-vide': async (page) => {
+    await expect(page.locator('cd-page-projets')).toContainText('Aucun Projet suivi');
+  },
   projets: async (page) => {
     await expect(page.locator('cd-page-projets cd-list-row')).toHaveCount(4);
   },

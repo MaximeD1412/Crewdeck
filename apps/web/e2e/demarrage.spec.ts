@@ -275,7 +275,8 @@ test.describe('« Premiers pas », the Comptes IA (US-38)', () => {
 
     await next.click();
     await expect(demarrage.getByRole('heading', { level: 1, name: 'Choisis tes Projets' })).toBeVisible();
-    // No repository yet: the App to install, or « Plus tard ».
+    // No repository yet: the folder's tab first; on GitHub's, the App to install, or « Plus tard ».
+    await demarrage.getByRole('tab', { name: 'Dépôt GitHub' }).click();
     await expect(demarrage.getByRole('link', { name: 'Installer Crewdeck sur GitHub' })).toHaveAttribute('href', /installations\/new\?state=demarrage$/);
     await demarrage.getByRole('button', { name: 'Plus tard' }).click();
     await expect(page).toHaveURL('/a-toi');
@@ -306,6 +307,23 @@ test.describe('« Premiers pas », the Projets (US-3)', () => {
       { fullName: 'octocat/personal-os', inventoryState: 'pending' },
       { fullName: 'octocat/site-mairie', inventoryState: 'pending' },
     ]);
+  });
+
+  test('the folder tab: a folder of the Runner’s machine becomes a Local Projet and ends the getting started on « À toi »', async ({ page, scenario, expectAccessible }) => {
+    await scenario('demarrage-projets');
+
+    const demarrage = page.locator('cd-page-demarrage');
+    await demarrage.getByRole('tab', { name: 'Dossier sur ta machine' }).click();
+    const form = demarrage.locator('cd-folder-project-form');
+    await form.getByRole('textbox', { name: 'Chemin du dossier' }).fill('~/projets/recettes');
+    await expect(form).toContainText('Dépôt git · déjà du code : un inventaire sera proposé.');
+    await form.getByRole('textbox', { name: 'Nom du Projet' }).fill('Recettes');
+    await expectAccessible(page);
+    await form.getByRole('button', { name: 'Créer le Projet' }).click();
+
+    await expect(page).toHaveURL('/a-toi');
+    const projects = ((await (await page.request.get('/api/projects')).json()) as { items: { repositoryId: string | null; hasCode: boolean }[] }).items;
+    expect(projects.map(({ repositoryId, hasCode }) => ({ repositoryId, hasCode }))).toEqual([{ repositoryId: null, hasCode: true }]);
   });
 
   test('« Plus tard » ends the getting started without a Projet', async ({ page, scenario }) => {

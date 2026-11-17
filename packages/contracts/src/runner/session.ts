@@ -3,6 +3,7 @@ import { zStepId } from '../contrats/define.js';
 import { AGENT_ROLES, zId } from '../values.js';
 import { ENGINE_IDS } from './engines.js';
 import { runnerMessage } from './envelope.js';
+import { zOrigin } from './origin.js';
 
 /**
  * A git branch the Runner checks out: what `git check-ref-format --branch`
@@ -25,24 +26,6 @@ export const isGitBranch = (branch: string): boolean =>
   !branch.includes('__') &&
   !branch.startsWith('.');
 export const zGitBranch = z.string().min(1).max(200).regex(GIT_BRANCH_CHARS).refine(isGitBranch);
-
-/** A GitHub owner (a user or an organisation), as GitHub allows it. */
-export const zGitHubOwner = z.string().regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/);
-
-/** A GitHub repository's name, as GitHub allows it, never `.` nor `..`. */
-export const zGitHubRepoName = z
-  .string()
-  .regex(/^[A-Za-z0-9._-]{1,100}$/)
-  .refine((name) => name !== '.' && name !== '..');
-
-/**
- * Where a Session's code comes from (ADR 0012): a GitHub repository, which
- * the Runner clones under `~/.crewdeck/repos/github/<owner>/<name>`.
- * SOURCE-2 adds the kind `local`.
- */
-export const SESSION_ORIGIN_KINDS = ['github'] as const;
-export const zSessionOrigin = z.object({ kind: z.enum(SESSION_ORIGIN_KINDS), owner: zGitHubOwner, name: zGitHubRepoName });
-export type SessionOrigin = z.infer<typeof zSessionOrigin>;
 
 /** A Rôle's id as the Runner receives it, one string (one of the four defaults, or `r-` and 8 characters, PARAM-2). */
 export const zSessionRole = z.string().regex(new RegExp(`^(?:${AGENT_ROLES.join('|')}|r-[a-z0-9]{8})$`));
@@ -72,7 +55,7 @@ export const zSessionTitle = z.string().min(1).max(300);
 export const zSessionStart = runnerMessage('session.start', {
   sessionId: zId,
   projectId: zId,
-  origin: zSessionOrigin,
+  origin: zOrigin,
   branch: zGitBranch,
   base: zGitBranch,
   // `ENGINE_IDS` without `zEngineId`'s `meta` id, which the Go types of `capabilities` already declare.

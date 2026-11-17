@@ -13,6 +13,8 @@ import {
   PageRunner,
   RepositoryPicker,
   RoleSettings,
+  Composer,
+  Session,
   type Skin,
 } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
@@ -28,7 +30,10 @@ import { createPageKeys, type PageKeys } from './keys/index.js';
 import { createNoteIdea } from './note-idea.js';
 import { createProjects } from './projects.js';
 import { bootSkin } from './registry.js';
+import { createDeviceStore } from './keys/device-store.js';
 import { createRoleSettings } from './role-settings.js';
+import { createSessionPanel } from './session-panel.js';
+import { createSessionRelay, type SessionRelay } from './sessions/relay.js';
 import { routeData, routeSlots, startRouter, type Route, type Router } from './router.js';
 import { aToiHref, composantsHref, ideesHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
@@ -79,6 +84,8 @@ export interface BootOptions {
   readonly latency?: LatencyMeter;
   /** This browser's Appareil and the vault (E2E-2): IndexedDB and WebCrypto by default. */
   readonly keys?: Pick<PageKeys, 'linkKeys' | 'vault' | 'nameDevice' | 'unlockVault'>;
+  /** The relay of the Sessions (SESSION-1): through the page's socket, with this browser's Appareil, by default. */
+  readonly relay?: Pick<SessionRelay, 'openSession' | 'sendInput' | 'closeSession'>;
 }
 
 export interface App {
@@ -111,6 +118,7 @@ export const boot = async ({
   client = pageClient,
   latency = createLatencyMeter({ store }),
   keys = createPageKeys({ store, client, userAgent: navigator.userAgent }),
+  relay = createSessionRelay({ socket: pageConnection, devices: createDeviceStore() }),
 }: BootOptions): Promise<App> => {
   // A sign-in link's token leaves the address bar before anything else (ADR 0014).
   const linkToken = takeLinkToken();
@@ -167,6 +175,13 @@ export const boot = async ({
   noteDialog.data = noteIdea.view();
   shell.append(noteDialog);
   const roleSettings = createRoleSettings({ client });
+  /** The page without its `?session=`: the panel closed. */
+  const closePanel = () => {
+    const url = new URL(location.href);
+    url.searchParams.delete('session');
+    router.navigate(url.pathname + url.search + url.hash);
+  };
+  const sessionPanel = createSessionPanel({ store, client, relay, shell, navigate: (url) => router.navigate(url), close: closePanel });
   const signIn = signInGuard(pilot);
   const started = gettingStartedGuard(gettingStarted.pilot);
   const pageData = routeData(routes, () => store.getState());
@@ -174,7 +189,10 @@ export const boot = async ({
   const router = startRouter({
     routes,
     outlet: shell.outlet,
-    onRoute: shell.update,
+    onRoute: (match) => {
+      shell.update(match);
+      sessionPanel.show(match.panel.session);
+    },
     state: store.getState,
     guard: (match) => started(match) ?? signIn(match),
     slots: (match) => {
@@ -291,7 +309,14 @@ export const boot = async ({
       else router.navigate('/projets');
     },
   });
+  dispatcher.registerAction(Session, 'stop', { run: () => sessionPanel.stop() });
+  dispatcher.registerAction(Session, 'resume', { run: () => sessionPanel.resume() });
+  dispatcher.registerAction(Session, 'close', { run: closePanel });
+  // « Agrandir » is not at the MVP: the panel does not offer it.
+  dispatcher.registerAction(Session, 'expand', { run: () => undefined });
+  dispatcher.registerAction(Composer, 'send', { run: ({ text }) => sessionPanel.send(text) });
   const stop = () => {
+    sessionPanel.dispose();
     router.stop();
     connection.stop();
     latency.stop();

@@ -112,6 +112,25 @@ describe('mountShell', () => {
     expect(banners(root)).toEqual([]);
   });
 
+  it('holds the Session panel in its panel Emplacement, before the aria-live region, one at a time', () => {
+    const root = document.createElement('div');
+    const announcer = createAnnouncer();
+    const shell = mountShell({ root, announcer });
+    const cadre = root.firstElementChild as WithData;
+    const first = document.createElement('cd-session');
+    const second = document.createElement('cd-session');
+
+    shell.setPanel(first);
+    expect(first.parentElement).toBe(cadre);
+    expect(first.slot).toBe('panel');
+    expect(first.nextElementSibling).toBe(announcer.element);
+    shell.setPanel(second);
+    expect(first.isConnected).toBe(false);
+    expect([...cadre.querySelectorAll('[slot=panel]')]).toEqual([second]);
+    shell.setPanel(null);
+    expect(cadre.querySelectorAll('[slot=panel]')).toHaveLength(0);
+  });
+
   describe('« Runner hors ligne »', () => {
     const OFFLINE = {
       id: '0193a4f2-7c1e-7a10-8b2c-000000000001',
@@ -142,6 +161,17 @@ describe('mountShell', () => {
       decisions = new Map();
       shell.refresh();
       expect(banners(root)).toEqual([]);
+    });
+
+    it('while a Session panel is open, on any page: since when the Runner is silent, and « Voir le Runner »', () => {
+      const root = document.createElement('div');
+      const shell = mountShell({ root, state: () => ({ connection: 'live', lostAt: null, slices: { runner: { state: 'offline', lastSeenAt: '2026-11-11T13:02:00.000Z' }, decision: new Map([[OFFLINE.id, OFFLINE]]) } }) });
+      shell.update(at('/a-toi?session=0193a4f2-7c1e-7a10-8b2c-000000000009'));
+
+      expect(banners(root)).toEqual([
+        { data: { tone: 'halt', title: 'Runner hors ligne', icon: 'server' }, text: expect.stringContaining('Les sessions reprendront quand il sera de nouveau en ligne.') },
+      ]);
+      expect(actionsOf(root)[0]?.data).toMatchObject({ label: 'Voir le Runner' });
     });
 
     it('on /runner while offline: the restart command in its actions Emplacement, in place of the button', () => {

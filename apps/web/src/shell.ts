@@ -18,6 +18,8 @@ export interface Shell {
   readonly showError: (message: string) => void;
   /** Adds an element of the core the pages share (« Noter une Idée »'s Dialog) to the Cadre, after the page, laid out as its own children. */
   readonly append: (element: HTMLElement) => void;
+  /** The panel over the page (the Session panel) in the Cadre's `panel` Emplacement, in place of the one before; `null` closes it. */
+  readonly setPanel: (element: HTMLElement | null) => void;
 }
 
 /** What the Cadre and its Banners read of the store. */
@@ -68,6 +70,7 @@ export const mountShell = ({ root, state = () => EMPTY, announcer = pageAnnounce
   const banners = new Map<BannerView['key'], MountedBanner>();
   let route: RouteMatch | null = null;
   let error: string | null = null;
+  let panel: HTMLElement | null = null;
 
   const mountBanner = (): MountedBanner => {
     const element = document.createElement(Banner.tag) as WithData;
@@ -105,6 +108,7 @@ export const mountShell = ({ root, state = () => EMPTY, announcer = pageAnnounce
         connection: current.connection ?? 'live',
         lostAt: current.lostAt ?? null,
         path: route?.path ?? null,
+        session: route?.panel.session != null,
         runner: current.slices.runner ?? null,
         decisions: current.slices.decision?.values() ?? [],
       },
@@ -165,6 +169,13 @@ export const mountShell = ({ root, state = () => EMPTY, announcer = pageAnnounce
     append(element) {
       element.style.display = 'contents';
       cadre.insertBefore(element, announcer.element);
+    },
+    setPanel(element) {
+      if (panel && panel !== element) panel.remove();
+      panel = element;
+      if (!element) return;
+      element.slot = 'panel';
+      if (element.parentElement !== cadre) cadre.insertBefore(element, announcer.element);
     },
   };
 };

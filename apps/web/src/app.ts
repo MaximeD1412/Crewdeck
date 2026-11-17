@@ -35,7 +35,8 @@ import { createLatencyMeter, type LatencyMeter } from './store/latency.js';
 import type { Store } from './store/store.js';
 import { createConnexion } from './views/connexion.js';
 import { createConnexionLien, takeLinkToken } from './views/connexion-lien.js';
-import { decisionViews } from './views/decisions/registry.js';
+import { actionsOf, decisionViews } from './views/decisions/registry.js';
+import './views/decisions/loop-back-exhausted.js';
 import './views/decisions/runner-offline.js';
 import { systemOfBrowser } from './views/demarrage.js';
 import { parametresView, timeZones } from './views/parametres.js';
@@ -229,10 +230,10 @@ export const boot = async ({
   dispatcher.registerAction(PageAToi, 'act', {
     run: ({ id, action }) => {
       const decision = openDecision(id);
-      const button = decision && decisionViews.viewOf(decision.kind).actions.find((candidate) => candidate.id === action);
+      const button = decision && actionsOf(decisionViews.viewOf(decision.kind), decision).find((candidate) => candidate.id === action);
       if (!decision || !button) return;
       if (button.needsRunner && store.getState().slices.runner?.state !== 'online') return;
-      return button.run(decision, { navigate: (url) => router.navigate(url) });
+      return button.run(decision, { navigate: (url) => router.navigate(url), client });
     },
   });
   dispatcher.registerAction(PageAToi, 'note-idea', { run: () => router.navigate('/idees') });

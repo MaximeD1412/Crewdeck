@@ -177,6 +177,65 @@ describe('sign in with Google against PostgreSQL', () => {
       expect(await sql('SELECT id FROM pilots')).toEqual([{ id: pilot?.id }]);
     });
 
+    it('signs a second Google account on the same address up as another Pilote, never into the first one', async () => {
+      const first = sessionOf(await signIn());
+      const [pilot] = await sql<{ id: string }>('SELECT id FROM pilots');
+      fakes.google.seedAccount({ ...ACCOUNT, sub: '209381726354091827364' });
+
+      const res = await signIn();
+
+      expect(res.status).toBe(302);
+      const pilots = await sql<{ id: string }>('SELECT id FROM pilots');
+      expect(pilots).toHaveLength(2);
+      const other = pilots.find(({ id }) => id !== pilot?.id)?.id;
+      expect(await sql('SELECT pilot_id, subject FROM pilot_identities ORDER BY created_at')).toEqual([
+        { pilot_id: pilot?.id, subject: ACCOUNT.sub },
+        { pilot_id: other, subject: '209381726354091827364' },
+      ]);
+      const me = async (cookie: string): Promise<string> => zMe.parse(await (await fetch(`${url}/api/me`, { headers: { cookie } })).json()).id;
+      expect([await me(first), await me(sessionOf(res))]).toEqual([pilot?.id, other]);
+    });
+
+    it('signs a second Google account up as another Pilote even when the address is that of a link, the first having its own', async () => {
+      expect((await signInByLink()).status).toBe(200);
+      await signIn();
+      const [pilot] = await sql<{ id: string }>('SELECT id FROM pilots');
+      fakes.google.seedAccount({ ...ACCOUNT, sub: '209381726354091827364' });
+
+      await signIn();
+
+      const [other] = await sql<{ pilot_id: string }>('SELECT pilot_id FROM pilot_identities WHERE subject = $1', ['209381726354091827364']);
+      expect(other?.pilot_id).toEqual(expect.any(String));
+      expect(other?.pilot_id).not.toBe(pilot?.id);
+      expect(await sql('SELECT id FROM pilots')).toHaveLength(2);
+      expect(await sql('SELECT provider FROM pilot_identities WHERE pilot_id = $1 ORDER BY provider', [pilot?.id])).toEqual([{ provider: 'email' }, { provider: 'google' }]);
+    });
+
+    it('makes one Pilote of a first sign-in by Google and a first link on the same address at once, with both Identités', async () => {
+      const headers = { origin: APP_URL, 'content-type': 'application/json' };
+      // Several rounds, each on its own address: the race of the two first sign-ins is narrow.
+      for (const round of [1, 2, 3, 4, 5, 6, 7, 8]) {
+        const email = `pilote-${round}@example.com`;
+        fakes.google.seedAccount({ sub: `30000000000000000000${round}`, email, emailVerified: true });
+        const started = await start();
+        const query = await authorize(started);
+        const requested = await fetch(`${url}/api/auth/email`, { method: 'POST', headers, body: JSON.stringify({ email, next: '/a-toi' }) });
+        expect(requested.status).toBe(204);
+        const token = /#([\w-]{43})/.exec(fakes.mail.sentTo(email)[0]?.text ?? '')?.[1] ?? '';
+
+        const [byGoogle, byLink] = await Promise.all([
+          callback(query, setCookies(started).get('crewdeck_oauth')),
+          fetch(`${url}/api/auth/email/verify`, { method: 'POST', headers, body: JSON.stringify({ token, timeZone: 'Europe/Paris' }) }),
+        ]);
+
+        expect([byGoogle.headers.get('location'), byLink.status]).toEqual(['/idees', 200]);
+        const identities = await sql<{ pilot_id: string; provider: string }>('SELECT pilot_id, provider FROM pilot_identities WHERE email = $1 ORDER BY provider', [email]);
+        expect(identities.map(({ provider }) => provider)).toEqual(['email', 'google']);
+        expect(new Set(identities.map(({ pilot_id }) => pilot_id)).size).toBe(1);
+      }
+      expect(await sql('SELECT id FROM pilots')).toHaveLength(8);
+    });
+
     it('never joins a GitHub Identité by its address', async () => {
       const github = '00000000-0000-4000-8000-000000000001';
       await sql(`INSERT INTO pilots (id, display_name, time_zone) VALUES ($1, 'octocat', 'UTC')`, [github]);

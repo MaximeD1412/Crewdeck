@@ -151,14 +151,14 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
     for (const { id } of live) await this.change(tx, pilotId, id, { state: 'interrupted', interruptedReason: 'runner_offline' });
   }
 
-  /** `POST /api/sessions/:id/stop`: the Session `stopped`, its Moteur stopped by the Runner, its worktree and Moteur's id kept. */
+  /** `POST /api/sessions/:id/stop`: the Session `stopped` at `endedAt`, its Moteur stopped by the Runner, its worktree and Moteur's id kept. */
   async stop(id: string, seq: bigint): Promise<AgentSession> {
     const pilotId = currentPilotId();
     return this.serial(pilotId, () =>
       this.transactions.run(async (tx) => {
         const row = await this.fresh(tx, id, seq);
         if (!LIVE.includes(row.state)) throw unprocessable('sessions.not-running', MESSAGES['sessions.not-running']);
-        const stopped = await this.change(tx, pilotId, id, { state: 'stopped', interruptedReason: null });
+        const stopped = await this.change(tx, pilotId, id, { state: 'stopped', interruptedReason: null, endedAt: this.clock.now() });
         afterCommit(tx, () => this.trySend(pilotId, { type: 'session.stop', sessionId: id }));
         return toAgentSession(stopped);
       }),
@@ -178,7 +178,7 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
         const row = await this.fresh(tx, id, seq);
         if (!RESUMABLE.includes(row.state)) throw unprocessable('sessions.not-resumable', MESSAGES['sessions.not-resumable']);
         if (!this.presence.isOnline(pilotId)) throw unprocessable('runner.offline', MESSAGES['runner.offline']);
-        const resumed = await this.change(tx, pilotId, id, { state: 'starting', interruptedReason: null });
+        const resumed = await this.change(tx, pilotId, id, { state: 'starting', interruptedReason: null, endedAt: null });
         const message: OutgoingRunnerMessage = resumed.engineSessionId === null ? startMessageOf(resumed) : { type: 'session.resume', sessionId: id };
         afterCommit(tx, () => this.trySend(pilotId, message));
         return toAgentSession(resumed);

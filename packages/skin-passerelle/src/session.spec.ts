@@ -17,6 +17,8 @@ const SESSION = {
   resumeDisabledReason: null,
   resumeLabel: null,
   resumeIcon: null,
+  status: null,
+  expandable: true,
 } as const;
 
 const message = (text: string) =>
@@ -98,6 +100,18 @@ describe('Session', () => {
     expect(el.shadowRoot?.querySelector<HTMLSlotElement>('slot[name=composer]')?.assignedElements()).toHaveLength(1);
   });
 
+  it('says what the agent is doing under its log, a pulsing dot beside it', async () => {
+    const el = await render(COMPOSANTS.Session, { ...SESSION, status: 'Claude Code travaille · 42 s' }, { default: message('Bonjour') });
+    const status = inside(el, '[role=log] .status');
+    expect(textOf(status)).toBe('Claude Code travaille · 42 s');
+    expect((inside(status, 'cd-status-dot') as HTMLElement & { data: unknown }).data).toMatchObject({ tone: 'accent', pulse: true });
+  });
+
+  it('shows no status line without a status', async () => {
+    const el = await render(COMPOSANTS.Session, SESSION);
+    expect(el.shadowRoot?.querySelector('.status')).toBeNull();
+  });
+
   describe('its close buttons', () => {
     afterEach(() => page.viewport(414, 896));
 
@@ -127,6 +141,13 @@ describe('Session', () => {
         inside(close, 'button').click();
       });
       expect(details.map((detail) => detail.action)).toEqual(['expand', 'close']);
+    });
+
+    it('leaves out « Agrandir » when not expandable, « Fermer » kept', async () => {
+      await page.viewport(1280, 800);
+      const el = await render(COMPOSANTS.Session, { ...SESSION, expandable: false });
+      expect(el.shadowRoot?.querySelector('cd-icon-button.expand')).toBeNull();
+      expect(isShown(inside(el, 'cd-icon-button.close'))).toBe(true);
     });
   });
 

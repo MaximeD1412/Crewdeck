@@ -188,6 +188,15 @@ describe('the Cadre at 1280 px', () => {
     expect(shadow(el, 'main').getBoundingClientRect().right).toBeLessThanOrEqual(rect.left + 1);
   });
 
+  it('fills the panel with what it holds, edge to edge, its own scroll inside', async () => {
+    const el = await cadre(withCounts, { slots: { panel: PANEL } });
+    const aside = shadow(el, 'aside').getBoundingClientRect();
+    const held = (el.querySelector('[slot=panel]') as HTMLElement).getBoundingClientRect();
+    // Inside its thin left border.
+    expect([held.right, held.top, held.height]).toEqual([aside.right, aside.top, aside.height]);
+    expect(held.width).toBeGreaterThan(aside.width - 2);
+  });
+
   it('hides the panel without one', async () => {
     const el = await cadre();
     expect(isShown(shadow(el, 'aside'))).toBe(false);
@@ -348,6 +357,8 @@ describe('the Cadre at 390 px', () => {
     expect(rect.height).toBeGreaterThanOrEqual(844);
     expect(isShown(shadow(el, 'header'))).toBe(false);
     expect(shownEntries(el)).toEqual([]);
+    const held = (el.querySelector('[slot=panel]') as HTMLElement).getBoundingClientRect();
+    expect([held.width, held.height]).toEqual([rect.width, rect.height]);
   });
 
   it('bare: only the brand above the page, centred', async () => {

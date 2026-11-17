@@ -188,6 +188,12 @@ export class PasserelleCadre extends PasserelleElement<typeof Cadre> {
         min-height: 100dvh;
         background: var(--cd-panel);
       }
+      .with-panel aside ::slotted(*) {
+        flex: 1;
+        min-height: 0;
+        border: none;
+        border-radius: 0;
+      }
       .with-panel .top,
       .with-panel .body,
       .with-panel .tabs {

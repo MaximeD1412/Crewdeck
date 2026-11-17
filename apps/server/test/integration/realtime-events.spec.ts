@@ -33,7 +33,7 @@ describe('the events writer against PostgreSQL', () => {
   let pilotId: string;
   let unsubscribe: () => void;
 
-  const me = () => ({ id: pilotId, displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' as const, identities: [] });
+  const me = () => ({ id: pilotId, displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' as const, identities: [], githubLinked: false });
 
   beforeAll(async () => {
     ({ app } = await startApp(parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: databaseUrl })));

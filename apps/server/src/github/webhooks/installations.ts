@@ -78,10 +78,10 @@ export class GitHubInstallations {
     return count;
   }
 
-  /** The installations linked to a Pilote and not suspended, oldest first. */
-  async linked(): Promise<LinkedInstallation[]> {
+  /** The installations linked to a Pilote (to `pilotId`, when given) and not suspended, oldest first. */
+  async linked(pilotId?: string): Promise<LinkedInstallation[]> {
     const rows = await this.prisma.unscoped.gitHubInstallation.findMany({
-      where: { pilotId: { not: null }, suspended: false },
+      where: { pilotId: pilotId ?? { not: null }, suspended: false },
       select: { installationId: true, pilotId: true },
       orderBy: { createdAt: 'asc' },
     });

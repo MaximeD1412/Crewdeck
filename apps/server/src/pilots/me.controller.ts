@@ -18,12 +18,18 @@ export class GettingStartedAdvanceDto extends createZodDto(zGettingStartedAdvanc
 /** What of the Pilote's row the page sees: `GET /api/me`, the `pilot` slice of `GET /api/state`, the payload of `pilot.upserted`. */
 export const ME = { id: true, displayName: true, avatarUrl: true, timeZone: true, gettingStartedStep: true } as const;
 
-type MeRow = Omit<Me, 'gettingStartedStep' | 'identities'> & { gettingStartedStep: GettingStartedStepRow };
+type MeRow = Omit<Me, 'gettingStartedStep' | 'identities' | 'githubLinked'> & { gettingStartedStep: GettingStartedStepRow };
 
 /** What of an Identité the page sees: its provider and what names it, the address or GitHub's login. */
 const IDENTITY = { provider: true, subject: true, email: true, login: true } as const;
 
 type IdentityRow = { provider: MeIdentity['provider']; subject: string; email: string | null; login: string | null };
+
+/** How the Pilote signs in, and whether GitHub's tokens are there (they go when GitHub refuses their refresh). */
+export interface Links {
+  readonly identities: readonly IdentityRow[];
+  readonly githubTokens: boolean;
+}
 
 const labelOf = (identity: IdentityRow): string => identity.email ?? identity.login ?? identity.subject;
 
@@ -31,25 +37,48 @@ const labelOf = (identity: IdentityRow): string => identity.email ?? identity.lo
 const stepOf = (row: GettingStartedStepRow): GettingStartedStep => (row === 'ai_accounts' ? 'ai-accounts' : row);
 const rowOf = (step: GettingStartedStep): GettingStartedStepRow => (step === 'ai-accounts' ? 'ai_accounts' : step);
 
-/** The Pilote's row and Identités, as the page reads them. */
-export const toMe = (row: MeRow, identities: readonly IdentityRow[]): Me => ({
+/** The Pilote's row, Identités and GitHub tokens, as the page reads them. */
+export const toMe = (row: MeRow, { identities, githubTokens }: Links): Me => ({
   ...row,
   gettingStartedStep: stepOf(row.gettingStartedStep),
-  identities: identities.map((identity) => ({ provider: identity.provider, label: labelOf(identity) })),
+  identities: identities.map((identity) => ({
+    provider: identity.provider,
+    label: labelOf(identity),
+    reconnect: identity.provider === 'github' && !githubTokens,
+  })),
+  githubLinked: githubTokens && identities.some((identity) => identity.provider === 'github'),
 });
 
+/** What reads the Pilote's links: their Identités and their GitHub tokens, both scoped. */
+export type LinksReader = Pick<Tx, 'pilotIdentity' | 'githubUserToken'>;
+
 /**
- * The Identités of the scope's Pilote, oldest first. Queried on their own:
- * `Pilot` is global, and a global model never selects a scoped relation.
+ * The Identités of the scope's Pilote, oldest first, and whether their
+ * GitHub tokens are there. Queried on their own: `Pilot` is global, and a
+ * global model never selects a scoped relation.
  */
-export const identitiesOf = (db: Pick<Tx, 'pilotIdentity'>): Promise<IdentityRow[]> =>
-  db.pilotIdentity.findMany({ select: IDENTITY, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+export const linksOf = async (db: LinksReader): Promise<Links> => ({
+  identities: await db.pilotIdentity.findMany({ select: IDENTITY, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
+  githubTokens: (await db.githubUserToken.count()) > 0,
+});
 
 /** The Pilote `pilotId`, the scope's, as the page reads them; 401 once their row is gone. */
-export const readMe = async (db: Pick<Tx, 'pilot' | 'pilotIdentity'>, pilotId: string): Promise<Me> => {
+export const readMe = async (db: Pick<Tx, 'pilot'> & LinksReader, pilotId: string): Promise<Me> => {
   const pilot = await db.pilot.findUnique({ where: { id: pilotId }, select: ME });
   if (!pilot) throw new AppError(401, 'auth.required', MESSAGES['auth.required']);
-  return toMe(pilot, await identitiesOf(db));
+  return toMe(pilot, await linksOf(db));
+};
+
+/**
+ * Writes the Pilote as `tx` leaves them in `pilot.upserted` (their row's
+ * `lastSeq` with it): a change of their Identités or of their GitHub tokens
+ * shows in every tab.
+ */
+export const publishMe = async (tx: Tx, events: EventsWriter, pilotId: string): Promise<Me> => {
+  const pilot = await readMe(tx, pilotId);
+  const written = await events.write(tx, pilotId, 'pilot.upserted', pilot);
+  await tx.pilot.update({ where: { id: pilotId }, data: { lastSeq: written } });
+  return pilot;
 };
 
 /**
@@ -93,7 +122,7 @@ export class MeController {
         throw unprocessable('getting-started.no-usable-engine', MESSAGES['getting-started.no-usable-engine']);
       }
       const updated = await tx.pilot.update({ where: { id: pilotId }, data: { gettingStartedStep: rowOf(nextGettingStartedStep(from)) }, select: ME });
-      const pilot = toMe(updated, await identitiesOf(tx));
+      const pilot = toMe(updated, await linksOf(tx));
       const written = await this.events.write(tx, pilotId, 'pilot.upserted', pilot);
       await tx.pilot.update({ where: { id: pilotId }, data: { lastSeq: written } });
       return pilot;

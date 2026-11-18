@@ -6,6 +6,7 @@ import { SESSION_COOKIE } from '../../src/auth/cookies.js';
 import { WebSessions } from '../../src/auth/web-sessions.js';
 import { parseEnv } from '../../src/config/env.js';
 import { WebhookDispatcher } from '../../src/github/webhooks/dispatcher.js';
+import { GitHubInstallations } from '../../src/github/webhooks/installations.js';
 import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
@@ -244,6 +245,32 @@ describe('« Relier GitHub » against PostgreSQL', () => {
     expect(res.headers.get('location')).toBe(`/parametres?erreur=${error}`);
     expect(await sql(`SELECT id FROM pilot_identities WHERE provider = 'github'`)).toEqual([]);
     expect((await call(pilote, '/api/me')).status).toBe(200);
+  });
+
+  it('catches up an installation GitHub delivers while the link commits: it becomes the Pilote’s, and its repositories are reconciled', async () => {
+    fakes.github.seedRepo({ owner: 'octo-fixture', name: 'fixture-app', id: 71000001, installationId: INSTALLATION_ID });
+    const installations = app.get(GitHubInstallations);
+    const attach = installations.linkPendingTo.bind(installations);
+    // The webhook lands after the link's transaction attached nothing, before it commits: it sees no Pilote yet.
+    const spy = vi.spyOn(installations, 'linkPendingTo').mockImplementationOnce(async (...args) => {
+      const count = await attach(...args);
+      expect((await deliverWebhook(url, { event: 'installation', payload: webhookFixture('installation.created') })).status).toBe(202);
+      await app.get(WebhookDispatcher).settled();
+      expect(await sql('SELECT pilot_id FROM github_installations')).toEqual([{ pilot_id: null }]);
+      return count;
+    });
+    const pilote = await emailPilot();
+
+    try {
+      expect((await link(pilote)).headers.get('location')).toBe('/parametres');
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(await sql('SELECT pilot_id FROM github_installations')).toEqual([{ pilot_id: pilote.id }]);
+    await expect
+      .poll(async () => zState.parse(await (await call(pilote, '/api/state')).json()).repositories.map((repository) => repository.fullName), { timeout: 5_000 })
+      .toEqual(['octo-fixture/fixture-app']);
   });
 
   it('links nothing when the installations cannot become the Pilote’s: the Identité, the tokens and pilot.upserted roll back with them', async () => {

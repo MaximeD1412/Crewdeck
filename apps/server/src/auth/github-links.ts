@@ -41,8 +41,9 @@ export class GithubLinks {
   /**
    * Links the GitHub user of `code` to `pilotId`: the Identité (or its login
    * refreshed), the tokens, the installations that user made before and
-   * `pilot.upserted` in one transaction; once committed, their Dépôts GitHub
-   * are reconciled at once, not awaited. `null` once linked.
+   * `pilot.upserted` in one transaction; once committed, the ones delivered
+   * meanwhile are attached too, and their Dépôts GitHub reconciled at once,
+   * not awaited. `null` once linked.
    */
   async link(pilotId: string, code: string, callbackUrl: string): Promise<LinkError | null> {
     let tokens: UserTokens;
@@ -62,6 +63,8 @@ export class GithubLinks {
       return this.store(pilotId, user, tokens);
     });
     if (outcome) return outcome;
+    // An installation GitHub delivered while the link committed found no Pilote yet: attached now, before the reconciliation reads them.
+    await this.installations.linkPendingTo(pilotId, user.id);
     void this.reconciliation.runFor(pilotId);
     return null;
   }

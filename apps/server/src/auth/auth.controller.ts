@@ -80,9 +80,9 @@ export class AuthController {
   /**
    * `GET /api/auth/github/callback?code&state` (or `?error`): GitHub sends the
    * browser back here, after a sign-in or a « Relier GitHub » (the sealed
-   * `intent`). A link needs the very session that started it, else
-   * `state-mismatch`, as a state that is not the cookie's; its other failures
-   * come back to its page, `<next>?erreur=<case>`.
+   * `intent`). A link needs its state and the very session that started it,
+   * else `state-mismatch`, GitHub's error included; then its failures come
+   * back to its page, `<next>?erreur=<case>`.
    */
   @Get('github/callback')
   @Redirect()
@@ -97,8 +97,10 @@ export class AuthController {
     response.appendHeader('Set-Cookie', clearCookie(OAUTH_COOKIE, { path: OAUTH_COOKIE_PATH, secure: this.secure }));
     const refused = error === undefined ? undefined : error === 'access_denied' ? 'denied' : 'github-unavailable';
     if (sealed?.intent === 'link') {
+      // The state and the very session first: GitHub's error too comes back to the page only for the link that started it.
+      if (!state || !sameState(state, sealed.state) || request.webSession?.pilotId !== sealed.pilotId) return failed('state-mismatch');
       if (refused) return to(withError(sealed.next, refused));
-      if (!code || !state || !sameState(state, sealed.state) || request.webSession?.pilotId !== sealed.pilotId) return failed('state-mismatch');
+      if (!code) return failed('state-mismatch');
       const linkError = await this.links.link(sealed.pilotId, code, this.callbackUrl);
       return to(linkError ? withError(sealed.next, linkError) : sealed.next);
     }

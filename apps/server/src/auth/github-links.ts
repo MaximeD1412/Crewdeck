@@ -40,9 +40,9 @@ export class GithubLinks {
 
   /**
    * Links the GitHub user of `code` to `pilotId`: the Identité (or its login
-   * refreshed), the tokens and `pilot.upserted` in one transaction; then the
-   * installations that user made before become the Pilote's, and their
-   * Dépôts GitHub are reconciled at once, not awaited. `null` once linked.
+   * refreshed), the tokens, the installations that user made before and
+   * `pilot.upserted` in one transaction; once committed, their Dépôts GitHub
+   * are reconciled at once, not awaited. `null` once linked.
    */
   async link(pilotId: string, code: string, callbackUrl: string): Promise<LinkError | null> {
     let tokens: UserTokens;
@@ -62,7 +62,6 @@ export class GithubLinks {
       return this.store(pilotId, user, tokens);
     });
     if (outcome) return outcome;
-    await this.installations.linkPendingTo(pilotId, user.id);
     void this.reconciliation.runFor(pilotId);
     return null;
   }
@@ -78,6 +77,7 @@ export class GithubLinks {
         if (mine) await tx.pilotIdentity.updateMany({ where: { provider: 'github' }, data: { login: user.login } });
         else await tx.pilotIdentity.create({ data: { id: newId(), pilotId, provider: 'github', subject, email: null, login: user.login } });
         await this.tokens.store(tx, pilotId, tokens);
+        await this.installations.linkPendingTo(pilotId, user.id, tx);
         await publishMe(tx, this.events, pilotId);
         return null;
       }),

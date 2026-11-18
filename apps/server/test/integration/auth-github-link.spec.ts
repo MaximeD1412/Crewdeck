@@ -103,8 +103,13 @@ describe('« Relier GitHub » against PostgreSQL', () => {
   };
 
   /** The link of `tab`, GitHub coming back with `code` (or `error`) to the callback, the browser's cookies `cookie`. */
-  const link = async (tab: Tab, { code = 'fake-code', error, next, cookie }: { code?: string; error?: string; next?: string; cookie?: string } = {}): Promise<Response> => {
-    const { state, oauth } = await startLink(tab, next);
+  const link = async (
+    tab: Tab,
+    { code = 'fake-code', error, next, cookie, state: given }: { code?: string; error?: string; next?: string; cookie?: string; state?: string } = {},
+  ): Promise<Response> => {
+    const started = await startLink(tab, next);
+    const state = given ?? started.state;
+    const { oauth } = started;
     const query: Record<string, string> = error === undefined ? { code, state } : { error, state };
     return fetch(`${url}/api/auth/github/callback?${new URLSearchParams(query)}`, {
       redirect: 'manual',
@@ -207,13 +212,18 @@ describe('« Relier GitHub » against PostgreSQL', () => {
   });
 
   it.each([
-    ['another session’s cookie', 'other'],
-    ['no session cookie', 'none'],
-  ])('is state-mismatch with %s, and links nothing', async (_, which) => {
+    ['another session’s cookie', 'other', undefined],
+    ['no session cookie', 'none', undefined],
+    ['another state', 'own', undefined],
+    ['GitHub’s error and another session’s cookie', 'other', 'access_denied'],
+    ['GitHub’s error and no session cookie', 'none', 'access_denied'],
+    ['GitHub’s error and another state', 'own', 'access_denied'],
+  ])('is state-mismatch with %s, and links nothing', async (_, which, error) => {
     const pilote = await emailPilot();
     const other = await emailPilot('autre@example.com');
+    const cookie = { other: other.cookie, none: '', own: undefined }[which];
 
-    const res = await link(pilote, { cookie: which === 'other' ? other.cookie : '' });
+    const res = await link(pilote, { cookie, error, ...(which === 'own' ? { state: 'not-the-state' } : {}) });
 
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toBe('/connexion?erreur=state-mismatch');
@@ -234,6 +244,28 @@ describe('« Relier GitHub » against PostgreSQL', () => {
     expect(res.headers.get('location')).toBe(`/parametres?erreur=${error}`);
     expect(await sql(`SELECT id FROM pilot_identities WHERE provider = 'github'`)).toEqual([]);
     expect((await call(pilote, '/api/me')).status).toBe(200);
+  });
+
+  it('links nothing when the installations cannot become the Pilote’s: the Identité, the tokens and pilot.upserted roll back with them', async () => {
+    const delivered = await deliverWebhook(url, { event: 'installation', payload: webhookFixture('installation.created') });
+    expect(delivered.status).toBe(202);
+    await app.get(WebhookDispatcher).settled();
+    const pilote = await emailPilot();
+    await sql(`CREATE FUNCTION test_refuse_attach() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'attach refused'; END $$`);
+    await sql(`CREATE TRIGGER test_refuse_attach BEFORE UPDATE OF pilot_id ON github_installations FOR EACH ROW EXECUTE FUNCTION test_refuse_attach()`);
+    try {
+      const res = await link(pilote);
+      expect(res.status).toBe(500);
+    } finally {
+      await sql('DROP TRIGGER test_refuse_attach ON github_installations');
+      await sql('DROP FUNCTION test_refuse_attach()');
+    }
+
+    expect(await sql(`SELECT id FROM pilot_identities WHERE provider = 'github'`)).toEqual([]);
+    expect(await sql('SELECT pilot_id FROM github_user_tokens')).toEqual([]);
+    expect(await sql(`SELECT seq FROM events WHERE type = 'pilot.upserted'`)).toEqual([]);
+    expect(await sql('SELECT pilot_id FROM github_installations')).toEqual([{ pilot_id: null }]);
+    expect(await me(pilote)).toMatchObject({ githubLinked: false });
   });
 
   it('answers 401 auth.required to a link without a session', async () => {

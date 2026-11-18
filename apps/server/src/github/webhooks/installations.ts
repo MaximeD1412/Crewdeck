@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import type { Tx } from '../../realtime/transactions.js';
 import type { InstallationFacts } from './payload.js';
 
 /** An installation linked to its Pilote and not suspended: what the reconciliation reads. */
@@ -69,9 +70,13 @@ export class GitHubInstallations {
     return row?.pilotId ?? null;
   }
 
-  /** At a sign-in: the installations the GitHub user `githubUserId` made before being a Pilote become theirs. */
-  async linkPendingTo(pilotId: string, githubUserId: number): Promise<number> {
-    const { count } = await this.prisma.unscoped.gitHubInstallation.updateMany({
+  /**
+   * At a sign-in or a « Relier GitHub »: the installations the GitHub user
+   * `githubUserId` made before being a Pilote become theirs, written with
+   * `db` (the transaction of a link: they are attached with its Identité, or not at all).
+   */
+  async linkPendingTo(pilotId: string, githubUserId: number, db: Pick<Tx | PrismaService['unscoped'], 'gitHubInstallation'> = this.prisma.unscoped): Promise<number> {
+    const { count } = await db.gitHubInstallation.updateMany({
       where: { pilotId: null, senderId: BigInt(githubUserId) },
       data: { pilotId },
     });

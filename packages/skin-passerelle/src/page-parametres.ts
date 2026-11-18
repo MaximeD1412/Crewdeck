@@ -6,6 +6,7 @@ import { PasserelleElement, sharedStyles } from './base.js';
 const ANCHORS: Readonly<Record<SettingsSection, string>> = {
   roles: 'roles',
   notifications: 'notifications',
+  devices: 'appareils',
   schedules: 'planifications',
   'optional-steps': 'etapes',
   projects: 'projets',

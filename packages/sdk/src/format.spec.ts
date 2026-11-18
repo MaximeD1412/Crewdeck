@@ -12,6 +12,11 @@ describe('formatDate', () => {
     expect(formatDate(local(10, 9).toISOString(), local(20, 12))).toBe('10 nov.');
     expect(formatDate(new Date(2025, 10, 10, 9), local(20, 12))).toBe('10 nov. 2025');
   });
+
+  it('gives the local day and the short month of an instant', () => {
+    expect(formatDate(local(3, 0, 30), local(20, 12))).toBe('3 nov.');
+    expect(formatDate(local(3, 23, 59).toISOString(), local(20, 12))).toBe('3 nov.');
+  });
 });
 
 describe('formatRelative', () => {

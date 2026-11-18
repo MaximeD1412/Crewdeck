@@ -107,6 +107,7 @@ const keys = {
     store.setVaultState('unlocked');
     return 'unlocked' as const;
   },
+  approval: {} as PageKeys['approval'],
 };
 let app: App;
 let root: HTMLElement;

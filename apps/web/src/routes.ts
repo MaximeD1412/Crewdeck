@@ -13,6 +13,7 @@ import {
   PageProjets,
   PageRunner,
 } from '@crewdeck/sdk';
+import { currentDeviceId } from './api/request.js';
 import type { Route } from './router.js';
 import { aToiView } from './views/a-toi.js';
 import { composantsView } from './views/composants.js';
@@ -79,7 +80,14 @@ export const ROUTES: readonly Route[] = [
   {
     path: '/parametres',
     composant: PageParametres,
-    slots: (_match, state) => parametresView(state.slices.settings, timeZones(), { accounts: [...(state.slices['ai-account']?.values() ?? [])] }),
+    slots: (_match, state) => {
+      const { slices } = state;
+      return parametresView(slices.settings, timeZones(), {
+        accounts: [...(slices['ai-account']?.values() ?? [])],
+        devices: slices.device,
+        currentDeviceId: currentDeviceId(),
+      });
+    },
   },
   {
     path: '/parametres/composants',

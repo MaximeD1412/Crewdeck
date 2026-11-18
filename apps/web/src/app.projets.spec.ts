@@ -94,6 +94,7 @@ describe('« Projets » in the page', () => {
       store.setVaultState('unlocked');
       return 'unlocked' as const;
     },
+    approval: { register: vi.fn(), adopt: vi.fn(), check: vi.fn(), approve: vi.fn() },
   };
   const page = (tag: string) => root.querySelector<WithData>(tag);
   const act = (composant: string, action: string, payload: unknown) => app.dispatcher.dispatch({ composant, action, payload });

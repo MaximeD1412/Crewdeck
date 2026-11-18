@@ -7,13 +7,15 @@
     "@crewdeck/contracts": "workspace:*",
     "@crewdeck/sdk": "workspace:*",
     "@crewdeck/skin-passerelle": "workspace:*",
-    "lit": "catalog:"
+    "lit": "catalog:",
+    "qrcode": "catalog:"
   },
   "devDependencies": {
     "@axe-core/playwright": "catalog:",
     "@playwright/test": "catalog:",
     "@resvg/resvg-js": "catalog:",
     "@types/node": "catalog:",
+    "@types/qrcode": "catalog:",
     "@vitest/browser-playwright": "catalog:",
     "happy-dom": "catalog:",
     "playwright": "catalog:",

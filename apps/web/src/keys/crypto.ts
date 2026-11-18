@@ -14,6 +14,7 @@ export const INFO = {
   vaultWrap: 'crewdeck/v1/vault-wrap',
   itemKey: 'crewdeck/v1/item-key',
   sessionKey: 'crewdeck/v1/session-key',
+  deviceHolder: 'crewdeck/v1/device-holder',
 } as const;
 export type WrapInfo = (typeof INFO)[keyof typeof INFO];
 

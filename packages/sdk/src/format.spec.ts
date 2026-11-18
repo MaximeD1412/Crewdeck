@@ -51,6 +51,13 @@ describe('formatDay', () => {
   });
 });
 
+describe('formatDate', () => {
+  it('gives the local day and the short month of an instant', () => {
+    expect(formatDate(local(3, 0, 30))).toBe('3 nov.');
+    expect(formatDate(local(3, 23, 59).toISOString())).toBe('3 nov.');
+  });
+});
+
 describe('formatNumber', () => {
   it('separates thousands with a narrow no-break space and decimals with a comma', () => {
     expect(formatNumber(12345)).toBe(`12${NNBSP}345`);

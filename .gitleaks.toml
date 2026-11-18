@@ -65,3 +65,15 @@ regexes = [
   '''^BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM$''',
   '''^tBHItJI5svbpez7KI4CCXg$''',
 ]
+
+[[allowlists]]
+description = "Fake secret of a new Appareil's code in the tests of its approval (E2E-3)"
+# The tests of the page's approval (keys, the dialogs, the e2e of the
+# Appareils) share this made-up secret of 26 Crockford characters, the
+# alphabet in order: never a real code (a real one is drawn by the new
+# Appareil and never written anywhere). Only this exact value is excepted,
+# not the files.
+regexTarget = "secret"
+regexes = [
+  '''^ABCDEFGHJKMNPQRSTVWXYZ0120$''',
+]

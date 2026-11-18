@@ -5,10 +5,10 @@ import { placed } from './placed.js';
 /**
  * The sections of the Paramètres, in their order: each an Emplacement the
  * core fills with its Card, the ticket of each section its own (PARAM-2
- * `roles`, ATOI-4 `notifications`, BOUCLE-8 `schedules`, PARAM-4
+ * `roles`, ATOI-4 `notifications`, E2E-3 `devices`, BOUCLE-8 `schedules`, PARAM-4
  * `optional-steps`, PARAM-3 `projects`).
  */
-export const SETTINGS_SECTIONS = ['roles', 'notifications', 'schedules', 'optional-steps', 'projects', 'account', 'modders'] as const;
+export const SETTINGS_SECTIONS = ['roles', 'notifications', 'devices', 'schedules', 'optional-steps', 'projects', 'account', 'modders'] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 const TIME_ZONE = placed(

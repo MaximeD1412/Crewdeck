@@ -20,9 +20,10 @@ import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
 import { me as readMe, requestLink as postLinkRequest, verifyLink as postLinkVerify } from './api/auth.js';
 import type { Client } from './api/client.js';
-import { ApiError } from './api/request.js';
+import { ApiError, currentDeviceId } from './api/request.js';
 import { updateSettings } from './api/settings.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
+import { browserScanner, openApproveDevice, openNewDevice } from './dialogs/device-approval.js';
 import { createClosedIdeas } from './closed-ideas.js';
 import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
 import { createPageKeys, type PageKeys } from './keys/index.js';
@@ -47,6 +48,7 @@ import { actionsOf, decisionViews } from './views/decisions/registry.js';
 import './views/decisions/loop-back-exhausted.js';
 import './views/decisions/runner-offline.js';
 import { systemOfBrowser } from './views/demarrage.js';
+import { ADD_DEVICE_ID } from './views/devices.js';
 import { ideesQuery, ideesView } from './views/idees.js';
 import { parametresView, timeZones } from './views/parametres.js';
 import { projetsView } from './views/projets.js';
@@ -80,8 +82,8 @@ export interface BootOptions {
   readonly client?: Pick<Client, 'command' | 'query'>;
   /** The latency the page measures on its store's live events (CORE-8): started with the socket. */
   readonly latency?: LatencyMeter;
-  /** This browser's Appareil and the vault (E2E-2): IndexedDB and WebCrypto by default. */
-  readonly keys?: Pick<PageKeys, 'linkKeys' | 'vault' | 'nameDevice' | 'unlockVault'>;
+  /** This browser's Appareil, the vault (E2E-2) and a new Appareil's approval (E2E-3): IndexedDB and WebCrypto by default. */
+  readonly keys?: Pick<PageKeys, 'linkKeys' | 'vault' | 'nameDevice' | 'unlockVault' | 'approval'>;
   /** This browser's push (ATOI-4): its service worker's `PushManager` by default. */
   readonly push?: PushDevice;
 }
@@ -125,6 +127,7 @@ export const boot = async ({
   dispatcher.listen(document);
   const bridge = createInPageBridge({ dispatch: dispatcher.dispatch });
   // The Pilote of `/api/me` until the snapshot gives the store's.
+  const unlockVault = () => keys.unlockVault();
   const shell = mountShell({
     root,
     // The router is started below, before any Banner can be clicked.
@@ -133,7 +136,17 @@ export const boot = async ({
       const state = store.getState();
       return { ...state, slices: { ...state.slices, pilot: state.slices.pilot !== undefined ? state.slices.pilot : pilot } };
     },
+    // « Approuver cet Appareil »: this browser's code, until a trusted Appareil or the Runner approves it.
+    onBannerAction: (key) => {
+      if (key === 'device') openNewDevice({ approval: keys.approval, store, unlockVault });
+    },
   });
+  // « Ajouter un Appareil », the core's button in the Appareils' Card: the approval of another one.
+  const onOutletClick = (event: MouseEvent) => {
+    if (!event.composedPath().some((target) => target instanceof HTMLElement && target.id === ADD_DEVICE_ID)) return;
+    openApproveDevice({ approval: keys.approval, vaultState: () => store.getState().vaultState, scanner: browserScanner() });
+  };
+  shell.outlet.addEventListener('click', onOutletClick);
   const onUnhandled = (event: PromiseRejectionEvent) => {
     if (!(event.reason instanceof ApiError)) return;
     event.preventDefault();
@@ -147,7 +160,7 @@ export const boot = async ({
     origin: location.origin,
     system: systemOfBrowser(navigator.userAgent),
     keys: keys.linkKeys,
-    unlockVault: () => keys.unlockVault(),
+    unlockVault,
   });
   const connexion = createConnexion({ requestLink });
   const connexionLien = createConnexionLien({
@@ -196,6 +209,8 @@ export const boot = async ({
         accounts: [...(slices['ai-account']?.values() ?? [])],
         local: roleSettings.view(),
         push: { subscriptions: [...(slices['push-subscription']?.values() ?? [])], local: pushSettings.view() },
+        devices: slices.device,
+        currentDeviceId: currentDeviceId(),
       });
     },
     data: (match) => {
@@ -319,6 +334,7 @@ export const boot = async ({
     latency.stop();
     for (const stopListening of unsubscribe) stopListening();
     window.removeEventListener('unhandledrejection', onUnhandled);
+    shell.outlet.removeEventListener('click', onOutletClick);
   };
   return { router, bridge, dispatcher, stop };
 };

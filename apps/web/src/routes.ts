@@ -1,4 +1,5 @@
 import { type IdeesTab, COMPOSANTS, PageAToi, PageComposants, PageConnexion, PageConnexionLien, PageDemarrage, PageIdees, PageParametres, PageProjets, PageRunner, RepositoryPicker } from '@crewdeck/sdk';
+import { currentDeviceId } from './api/request.js';
 import type { Route } from './router.js';
 import { aToiView } from './views/a-toi.js';
 import { composantsView } from './views/composants.js';
@@ -55,12 +56,16 @@ export const ROUTES: readonly Route[] = [
   {
     path: '/parametres',
     composant: PageParametres,
-    slots: (match, state) =>
-      parametresView(state.slices.settings, timeZones(), {
-        accounts: [...(state.slices['ai-account']?.values() ?? [])],
-        pilot: state.slices.pilot,
+    slots: (match, state) => {
+      const { slices } = state;
+      return parametresView(slices.settings, timeZones(), {
+        accounts: [...(slices['ai-account']?.values() ?? [])],
+        pilot: slices.pilot,
         erreur: match.query['erreur'],
-      }),
+        devices: slices.device,
+        currentDeviceId: currentDeviceId(),
+      });
+    },
   },
   {
     path: '/parametres/composants',

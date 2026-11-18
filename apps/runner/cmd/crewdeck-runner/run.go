@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
@@ -51,10 +52,6 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	if err != nil {
 		return err
 	}
-	relay, err := relayKeys(store)
-	if err != nil {
-		return err
-	}
 	if server != "" {
 		linked.Server = server
 	}
@@ -69,6 +66,13 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	}
 	logger := logging.New(cmd.ErrOrStderr())
 	logger.Info("vault.opened", "vaultKeyVersion", vault.Version)
+	// The holders of the Sessions' keys, read again from the server at each wrap.
+	relay, err := relayKeys(store, serverHolders(&http.Client{Timeout: holdersTimeout}, linked.Server, linked.Token), func(err error) {
+		logger.Warn("session.holders", "error", err)
+	})
+	if err != nil {
+		return err
+	}
 	keys, err := accounts.Default()
 	if err != nil {
 		return err

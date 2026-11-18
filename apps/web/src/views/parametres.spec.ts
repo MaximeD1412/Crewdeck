@@ -1,6 +1,7 @@
 import { DEFAULT_ACCOUNT_SETTINGS, type AccountSettings, type AiAccount } from '@crewdeck/contracts';
 import { COMPOSANTS, t, type ComposantData, type RoleSettings } from '@crewdeck/sdk';
 import type { PlacedNode } from '../placed.js';
+import { devicesCard } from './devices.js';
 import { NO_ROLES_LOCAL, parametresView } from './parametres.js';
 
 const SETTINGS = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Asia/Tokyo' };
@@ -79,6 +80,16 @@ describe('parametresView', () => {
   it('shows only « Pour les Moddeurs » until the snapshot gives the settings', () => {
     expect(parametresView(undefined, ZONES)).toEqual([MODDERS]);
     expect(parametresView(null, ZONES)).toEqual([MODDERS]);
+  });
+
+  it('puts « Appareils » first once the snapshot gave the Appareils', () => {
+    const devices = new Map([
+      ['dev_1', { id: 'dev_1', name: 'Firefox sur Linux', state: 'trusted', approvedAt: '2026-11-03T09:00:00.000Z', revokedAt: null, lastSeenAt: null, current: true }],
+    ] as const);
+    const nodes = parametresView(SETTINGS, ZONES, { devices });
+    expect(nodes.map((node) => node.slot)).toEqual(['devices', 'roles', 'account', 'modders']);
+    expect(nodes[0]).toEqual(devicesCard(devices));
+    expect(parametresView(SETTINGS, ZONES).map((node) => node.slot)).toEqual(['roles', 'account', 'modders']);
   });
 });
 

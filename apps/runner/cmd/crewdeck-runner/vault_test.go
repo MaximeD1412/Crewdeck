@@ -248,7 +248,7 @@ func TestTheRelaysKeysAreTheRunnersAndItsHoldersTheLinkedAppareil(t *testing.T) 
 		t.Fatalf("link: %v", err)
 	}
 
-	relay, err := relayKeys(state.Store{Dir: h.home})
+	relay, err := relayKeys(state.Store{Dir: h.home}, nil, nil)
 	if err != nil {
 		t.Fatalf("relayKeys: %v", err)
 	}

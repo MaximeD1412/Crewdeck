@@ -60,6 +60,7 @@ describe('« Premiers pas » in the page', () => {
       boots.push('unlockVault');
       return 'no-device' as const;
     },
+    approval: { register: vi.fn(), adopt: vi.fn(), check: vi.fn(), approve: vi.fn() },
   };
   const page = () => root.querySelector<WithData>('cd-page-demarrage');
   const leave = vi.fn<(url: string) => void>();

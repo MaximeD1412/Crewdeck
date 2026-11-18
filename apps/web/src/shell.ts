@@ -16,6 +16,8 @@ export interface Shell {
   readonly refresh: () => void;
   /** An API error no caller handled: its `message` in a halt Banner, until the next navigation. */
   readonly showError: (message: string) => void;
+  /** Adds an element of the core the pages share (« Noter une Idée »'s Dialog) to the Cadre, after the page, laid out as its own children. */
+  readonly append: (element: HTMLElement) => void;
 }
 
 /** What the Cadre and its Banners read of the store. */
@@ -159,6 +161,10 @@ export const mountShell = ({ root, state = () => EMPTY, announcer = pageAnnounce
     showError(message) {
       error = message;
       render();
+    },
+    append(element) {
+      element.style.display = 'contents';
+      cadre.insertBefore(element, announcer.element);
     },
   };
 };

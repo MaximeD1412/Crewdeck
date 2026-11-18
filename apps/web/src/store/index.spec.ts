@@ -10,6 +10,7 @@ import {
   type ProjectProcess,
   type State,
   type StepRun,
+  type Idea,
   type Ticket,
 } from '@crewdeck/contracts';
 import { store } from './index.js';
@@ -154,6 +155,7 @@ const SNAPSHOT: State = {
   stepRuns: [STEP_RUN],
   repositories: [],
   decisions: [],
+  ideas: [],
   tickets: [TICKET],
   milestones: [MILESTONE],
   codeChanges: [CHANGE],
@@ -224,6 +226,37 @@ describe('the page’s store', () => {
 
     expect([...(store.getState().slices['phase-run']?.keys() ?? [])].sort()).toEqual([PHASE_RUN.id, OTHER.id]);
     expect([...(store.getState().slices['step-run']?.values() ?? [])]).toEqual([failed, retried]);
+  });
+
+  it('holds the Idées by id, dropping one merged or rejected more than 90 days ago, as the snapshot would', () => {
+    const idea: Idea = {
+      id: '0193a4f2-7c1e-7a10-8c2c-000000000064',
+      number: 64,
+      projectId: PROJECT,
+      targetProjectId: null,
+      targetIsNew: false,
+      state: 'to-triage',
+      text: { key: 'a'.repeat(80), ciphertext: 'b'.repeat(40) },
+      analysis: null,
+      impact: null,
+      effort: null,
+      duplicateIds: [],
+      notedFrom: 'telephone',
+      dictated: false,
+      mergedIntoId: null,
+      reason: null,
+      ticketNumber: null,
+      createdAt: AT,
+      updatedAt: new Date().toISOString(),
+      analysedAt: null,
+      triagedAt: null,
+    };
+    store.applySnapshot({ ...SNAPSHOT, ideas: [idea] });
+    expect(store.getState().slices.idea?.get(idea.id)).toEqual(idea);
+
+    const old = new Date(Date.now() - 91 * 24 * 60 * 60 * 1000).toISOString();
+    store.applyEvent({ seq: 2, type: 'idea.upserted', payload: { ...idea, state: 'rejected', updatedAt: old }, at: AT });
+    expect(store.getState().slices.idea?.size).toBe(0);
   });
 
   it('holds the Sessions by id, from the snapshot then their events', () => {

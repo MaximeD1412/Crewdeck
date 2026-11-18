@@ -1,4 +1,4 @@
-import { COMPOSANTS, PageAToi, PageComposants, PageConnexion, PageConnexionLien, PageDemarrage, PageParametres, PageProjets, PageRunner, RepositoryPicker, UsageCard } from '@crewdeck/sdk';
+import { type IdeesTab, COMPOSANTS, PageAToi, PageComposants, PageConnexion, PageConnexionLien, PageDemarrage, PageIdees, PageParametres, PageProjets, PageRunner, RepositoryPicker, UsageCard } from '@crewdeck/sdk';
 import type { PlacedNode } from './placed.js';
 import type { Route } from './router.js';
 import type { StoreState } from './store/store.js';
@@ -14,6 +14,15 @@ export const composantsHref = (name: string): string => `/parametres/composants?
 /** « À toi », every Projet's Décisions, or one Projet's (`?projet=`). */
 export const aToiHref = (projectId: string | null): string => (projectId ? `/a-toi?projet=${encodeURIComponent(projectId)}` : '/a-toi');
 
+/** « Idées », every Projet's or one Projet's (`?projet=`), on a tab (`?onglet=`, « À trier » by default). */
+export const ideesHref = (projectId: string | null, tab: IdeesTab): string => {
+  const query = new URLSearchParams();
+  if (projectId) query.set('projet', projectId);
+  if (tab !== 'a-trier') query.set('onglet', tab);
+  const search = query.toString();
+  return search ? `/idees?${search}` : '/idees';
+};
+
 const usageOf = (state: StoreState): UsageState => ({ usage: state.slices.usage?.values() ?? [], runner: state.slices.runner ?? null });
 /** The usage card in the Emplacement `slot`, or nothing when there is no usage to show. */
 const usageSlot = (slot: string, data: UsageCardData | null): readonly PlacedNode[] => (data ? [{ tag: UsageCard.tag, slot, data }] : []);
@@ -26,7 +35,9 @@ const usageSlot = (slot: string, data: UsageCardData | null): readonly PlacedNod
  * `/connexion/lien` → `PageConnexionLien`, the only pages open signed out,
  * whose form and link `app.ts` keeps (`views/connexion.ts`,
  * `views/connexion-lien.ts`); `/demarrage` → `PageDemarrage`, whose data `app.ts` gives
- * from « Premiers pas »' state (`getting-started.ts`); `/runner` →
+ * from « Premiers pas »' state (`getting-started.ts`); `/idees` → `PageIdees`,
+ * whose data `app.ts` gives from the store and the texts in clear
+ * (`views/idees.ts`); `/runner` →
  * `PageRunner`, whose data `app.ts` gives from the store
  * (`views/runner.ts`); `/projets` → `PageProjets` and `/projets/ajouter` →
  * `RepositoryPicker`, whose data `app.ts` gives from the store
@@ -43,6 +54,7 @@ export const ROUTES: readonly Route[] = [
       aToiView(state.slices.decision?.values() ?? [], match.query, { runnerOnline: state.slices.runner?.state === 'online' }),
     slots: (_match, state) => usageSlot('ai-accounts', usageCardCompact(usageOf(state))),
   },
+  { path: '/idees', composant: PageIdees },
   { path: '/connexion', composant: PageConnexion, data: (match) => connexionView(match.query) },
   { path: '/connexion/lien', composant: PageConnexionLien },
   { path: '/demarrage', composant: PageDemarrage },

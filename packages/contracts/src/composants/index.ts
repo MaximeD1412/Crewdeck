@@ -21,7 +21,9 @@ import { ListRow } from './list-row.js';
 import { LoopBack } from './loop-back.js';
 import { Menu } from './menu.js';
 import { Message } from './message.js';
+import { NoteIdeaDialog } from './note-idea-dialog.js';
 import { PageAToi } from './page-a-toi.js';
+import { PageIdees } from './page-idees.js';
 import { PageComposants } from './page-composants.js';
 import { PageConnexion } from './page-connexion.js';
 import { PageConnexionLien } from './page-connexion-lien.js';
@@ -89,7 +91,9 @@ export * from './list-row.js';
 export * from './loop-back.js';
 export * from './menu.js';
 export * from './message.js';
+export * from './note-idea-dialog.js';
 export * from './page-a-toi.js';
+export * from './page-idees.js';
 export * from './page-composants.js';
 export * from './page-connexion.js';
 export * from './page-connexion-lien.js';
@@ -144,6 +148,7 @@ export const COMPOSANTS = {
   PageHeader,
   ProjectFilter,
   PageAToi,
+  PageIdees,
   PageComposants,
   PageConnexion,
   PageConnexionLien,
@@ -168,6 +173,7 @@ export const COMPOSANTS = {
   SettingRow,
   DecisionRow,
   IdeaRow,
+  NoteIdeaDialog,
   TicketRow,
   AgentRow,
   ProcessTrack,

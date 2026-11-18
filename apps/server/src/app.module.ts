@@ -16,6 +16,7 @@ import { GitHubChangesModule } from './github/changes/changes.module.js';
 import { RepositoriesModule } from './github/repositories/repositories.module.js';
 import { WebhooksModule } from './github/webhooks/webhooks.module.js';
 import { HealthModule } from './health/health.module.js';
+import { IdeasModule } from './ideas/ideas.module.js';
 import { type LogDestination, loggerParams } from './logging/logger.js';
 import { MetricsModule } from './metrics/metrics.module.js';
 import { PilotsModule } from './pilots/me.controller.js';
@@ -82,6 +83,7 @@ export class AppModule {
         EngineModule,
         TicketsModule,
         DecisionsModule,
+        IdeasModule,
         UsageModule.forRoot(env),
         MetricsModule,
         SettingsModule,

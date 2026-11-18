@@ -14,9 +14,10 @@ import (
 
 // The info strings of the HPKE wraps, one per use.
 const (
-	InfoVaultWrap  = "crewdeck/v1/vault-wrap"
-	InfoItemKey    = "crewdeck/v1/item-key"
-	InfoSessionKey = "crewdeck/v1/session-key"
+	InfoVaultWrap    = "crewdeck/v1/vault-wrap"
+	InfoItemKey      = "crewdeck/v1/item-key"
+	InfoSessionKey   = "crewdeck/v1/session-key"
+	InfoDeviceHolder = "crewdeck/v1/device-holder"
 )
 
 // ErrOpen is the only error a failed open returns: a wrong key, a tampered

@@ -1,8 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { LINK_CODE_TTL_SECONDS, PROCESS_CREWDECK, PROCESS_CREWDECK_NAME } from '@crewdeck/contracts';
 import { Prisma } from '../../generated/prisma/client.js';
-import { newId } from '../../ids.js';
-import { drawShortId } from '../../runners/link/runner-links.service.js';
+import { drawShortId, newId } from '../../ids.js';
 import { base32, generatePrivateKey, publicKeyOf } from '../smoke-keys.js';
 import { defineScenario } from './define.js';
 import { signInPilot } from './sign-in.js';

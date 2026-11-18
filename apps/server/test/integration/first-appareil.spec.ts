@@ -1,22 +1,8 @@
-import { execFile } from 'node:child_process';
-import type { webcrypto } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
-import { createServer, type Server } from 'node:http';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { promisify } from 'node:util';
-import {
-  DEVICE_HEADER,
-  zRunnerLinkCodeCreated,
-  zRunnerLinkConfirmed,
-  zState,
-  zVaultKeyWrap,
-  type BrowserPairing,
-  type ConfirmPairing,
-  type RunnerPairing,
-  type VaultKeyWrap,
-} from '@crewdeck/contracts';
+import { join } from 'node:path';
+import { DEVICE_HEADER, zRunnerLinkCodeCreated, zRunnerLinkConfirmed, zState, zVaultKeyWrap } from '@crewdeck/contracts';
 import type { INestApplication } from '@nestjs/common';
 import pg from 'pg';
 import { inject } from 'vitest';
@@ -27,6 +13,7 @@ import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
 import { startApp } from '../route-baseline.js';
+import { RUNNER_DIR, buildRunner, memoryDevices, recordingProxy, run, webKeys, type WebKeys } from '../runner-binary.js';
 
 /**
  * The first Appareil end to end (E2E-2): the real `crewdeck-runner link`,
@@ -40,10 +27,6 @@ import { startApp } from '../route-baseline.js';
 const databaseUrl = inject('databaseUrl');
 const env = parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: databaseUrl, CREWDECK_COMMIT: 'abc1234' });
 const ORIGIN = appOrigin(env);
-const run = promisify(execFile);
-
-const ROOT = resolve(import.meta.dirname, '../../../..');
-const RUNNER_DIR = join(ROOT, 'apps/runner');
 
 const sql = async <T extends pg.QueryResultRow>(text: string, values: unknown[] = []): Promise<T[]> => {
   const client = new pg.Client({ connectionString: databaseUrl });
@@ -55,92 +38,8 @@ const sql = async <T extends pg.QueryResultRow>(text: string, values: unknown[] 
   }
 };
 
-// The web's keys, as its page runs them. Imported by a computed path: the
-// server's code never depends on the web's (the module boundaries), only this
-// test does.
-interface StoredDevice {
-  readonly deviceId: string | null;
-  readonly privateKey: webcrypto.CryptoKey;
-  readonly publicKey: Uint8Array;
-}
-interface DeviceStore {
-  getDevice(): Promise<StoredDevice | null>;
-  saveDevice(device: StoredDevice): Promise<void>;
-  clearDevice(): Promise<void>;
-}
-interface SealedItem {
-  readonly key: Uint8Array;
-  readonly ciphertext: Uint8Array;
-}
-interface Vault {
-  version(): number | null;
-  unlockVault(): Promise<string>;
-  sealItem(plaintext: Uint8Array, aad: Uint8Array): Promise<SealedItem>;
-  openItem(item: SealedItem, aad: Uint8Array): Promise<Uint8Array>;
-  rawVaultKeyForWrap(): Promise<Uint8Array>;
-}
-interface LinkKeys {
-  browserPairing(): Promise<BrowserPairing>;
-  adoptDevice(deviceId: string): Promise<void>;
-  confirmPairing(link: { secret: string; shortId: string; runnerId: string; runnerPairing: RunnerPairing }): Promise<ConfirmPairing | null>;
-}
-interface WebKeys {
-  createVault(options: { devices: DeviceStore; fetchWrap: (deviceId: string) => Promise<VaultKeyWrap> }): Vault;
-  createLinkKeys(options: { devices: DeviceStore; vault: Vault; userAgent: string }): LinkKeys;
-  encodeBase32(bytes: Uint8Array): string;
-  toBase64Url(bytes: Uint8Array): string;
-  fromBase64Url(text: string): Uint8Array;
-}
-const webKeys = async (): Promise<WebKeys> => {
-  const module = (file: string) => import(pathToFileURL(join(ROOT, 'apps/web/src/keys', file)).href);
-  const [vault, pairing, base32, bytes] = await Promise.all([module('vault.ts'), module('pairing.ts'), module('base32.ts'), module('bytes.ts')]);
-  return { ...vault, ...pairing, ...base32, ...bytes } as WebKeys;
-};
-
-/** The Appareil of a browser profile, in memory where the page has IndexedDB. */
-const memoryDevices = (): DeviceStore => {
-  let stored: StoredDevice | null = null;
-  return {
-    getDevice: async () => stored,
-    saveDevice: async (device) => {
-      stored = device;
-    },
-    clearDevice: async () => {
-      stored = null;
-    },
-  };
-};
-
 /** Every request the page and the binary send, as text: none may carry the secret nor the vault key. */
 const sent: string[] = [];
-
-/** In front of the server, what the binary sends goes through here and is kept. */
-const recordingProxy = async (target: string): Promise<{ server: Server; url: string }> => {
-  const server = createServer((req, res) => {
-    const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => {
-      const body = Buffer.concat(chunks).toString('utf8');
-      sent.push(`${req.method} ${req.url} ${JSON.stringify(req.headers)} ${body}`);
-      const headers = Object.fromEntries(Object.entries(req.headers).filter(([name]) => name !== 'host' && name !== 'content-length')) as Record<string, string>;
-      fetch(`${target}${req.url}`, { method: req.method, headers, ...(body ? { body } : {}) })
-        .then(async (answer) => {
-          const text = await answer.text();
-          sent.push(`answer ${req.url} ${answer.status}`);
-          res.writeHead(answer.status, { 'content-type': answer.headers.get('content-type') ?? 'application/json' });
-          res.end(text);
-        })
-        .catch(() => {
-          res.writeHead(502);
-          res.end();
-        });
-    });
-  });
-  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
-  const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('proxy without a port');
-  return { server, url: `http://127.0.0.1:${address.port}` };
-};
 
 describe('the first Appareil, the Go Runner against the server (E2E-2)', () => {
   let app: INestApplication;
@@ -153,16 +52,12 @@ describe('the first Appareil, the Go Runner against the server (E2E-2)', () => {
 
   beforeAll(async () => {
     ({ app, url } = await startApp(env));
-    proxy = await recordingProxy(url);
+    proxy = await recordingProxy(url, sent);
     keys = await webKeys();
     work = await mkdtemp(join(tmpdir(), 'crewdeck-first-appareil-'));
-    binaryPath = join(work, 'crewdeck-runner');
+    binaryPath = await buildRunner(work);
     probePath = join(work, 'probe.test');
-    await run('go', ['build', '-o', binaryPath, './cmd/crewdeck-runner'], { cwd: RUNNER_DIR });
     await run('go', ['test', '-c', '-o', probePath, './cmd/crewdeck-runner'], { cwd: RUNNER_DIR });
-    // The fake Moteur the link finds on the PATH.
-    await writeFile(join(work, 'claude'), '#!/bin/sh\necho "claude (fake)"\n');
-    await chmod(join(work, 'claude'), 0o755);
   }, 180_000);
 
   afterAll(async () => {

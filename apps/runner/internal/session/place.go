@@ -69,15 +69,24 @@ func (m *Manager) hold(dir string) (byStopped bool, ok bool) {
 	return byStopped, true
 }
 
-// unhold gives dir back, and resumes the Sessions whose resume waited for it.
+// unhold gives dir back, and resumes the Sessions whose resume waited for
+// it: armed in the same hold of m.mu that gives dir back, so that a Stop
+// that comes after finds them alive and stops them.
 func (m *Manager) unhold(dir string) {
 	m.mu.Lock()
 	delete(m.held, dir)
-	waiting := m.waiting[dir]
+	var resumes []func()
+	for _, s := range m.waiting[dir] {
+		resumes = append(resumes, m.reviveLocked(s))
+	}
 	delete(m.waiting, dir)
+	gap := m.afterUnhold
 	m.mu.Unlock()
-	for _, s := range waiting {
-		m.revive(s)
+	if gap != nil {
+		gap()
+	}
+	for _, resume := range resumes {
+		resume()
 	}
 }
 

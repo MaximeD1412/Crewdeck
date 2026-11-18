@@ -72,6 +72,9 @@ type Manager struct {
 	// waiting are the stopped Sessions whose resume waits for a run to
 	// release their worktree, by folder.
 	waiting map[string][]*live
+	// afterUnhold, for the tests, runs as unhold releases m.mu, before the
+	// resumes it took start.
+	afterUnhold func()
 
 	relayMu sync.Mutex
 	relay   relayState
@@ -274,23 +277,24 @@ func (m *Manager) Resume(id string) {
 // arming it happen under m.mu, as the run's hold does: never both at once.
 func (m *Manager) revive(s *live) {
 	m.mu.Lock()
+	then := m.reviveLocked(s)
+	m.mu.Unlock()
+	then()
+}
+
+// reviveLocked decides revive's step and arms the resume, with m.mu held;
+// what it gives is called once m.mu is released.
+func (m *Manager) reviveLocked(s *live) func() {
 	s.mu.Lock()
-	if s.alive && s.stopping {
+	defer s.mu.Unlock()
+	switch {
+	case s.alive && s.stopping:
 		s.resume = true
-		s.mu.Unlock()
-		m.mu.Unlock()
-		return
-	}
-	if s.alive || s.rec.State == contracts.RunnerSessionStateStateEnded {
-		s.mu.Unlock()
-		m.mu.Unlock()
-		m.report(s)
-		return
-	}
-	if m.closed {
-		s.mu.Unlock()
-		m.mu.Unlock()
-		return
+		return func() {}
+	case s.alive || s.rec.State == contracts.RunnerSessionStateStateEnded:
+		return func() { m.report(s) }
+	case m.closed:
+		return func() {}
 	}
 	if dir := s.rec.Worktree; dir != "" && m.held[dir] {
 		if !slices.Contains(m.waiting[dir], s) {
@@ -299,14 +303,9 @@ func (m *Manager) revive(s *live) {
 			}
 			m.waiting[dir] = append(m.waiting[dir], s)
 		}
-		s.mu.Unlock()
-		m.mu.Unlock()
-		return
+		return func() {}
 	}
-	run := m.arm(s, false)
-	s.mu.Unlock()
-	m.mu.Unlock()
-	run()
+	return m.arm(s, false)
 }
 
 // Stop stops the Session's Moteur: interrupted, then killed once its turn

@@ -794,3 +794,42 @@ func TestTheWorktreeOfAPrivateRepositoryFetchesItsFilesWithTheToken(t *testing.T
 		t.Fatal("the token is in the clone's configuration")
 	}
 }
+
+func TestAStopAsARunGivesItsWorktreeBackCancelsTheResumeThatWaitedForIt(t *testing.T) {
+	s := newSetup(t, result("eng-1"), question("q1"))
+	m := s.manager(t)
+	m.Start(start(firstID, "feat/12-panier"))
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	waitForSeq(t, s.home, firstID, 2)
+	m.Stop(firstID)
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateStopped)
+
+	// A Commande's run holds the stopped Session's worktree, as it is.
+	dir := s.worktree("feat/12-panier")
+	place, err := m.TicketWorktree(context.Background(), projectID, "acme", "shop", "feat/12-panier", git(t, dir, "rev-parse", "HEAD"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.Resume(firstID)
+	// The Pilote's stop comes while the run gives the worktree back.
+	session.SetAfterUnhold(m, func() { m.Stop(firstID) })
+	before := len(s.reports.states(firstID))
+	place.Release()
+
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		states := s.reports.states(firstID)
+		last := states[len(states)-1]
+		if last == contracts.RunnerSessionStateStateStopped && len(states) > before {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("states %v, want the Session stopped after the stop", states)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if states := s.reports.states(firstID); states[len(states)-1] != contracts.RunnerSessionStateStateStopped {
+		t.Fatalf("states %v, want the Session stopped after the stop", states)
+	}
+}

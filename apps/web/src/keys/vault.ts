@@ -83,7 +83,7 @@ export const createVault = ({ devices, fetchWrap, onState }: VaultOptions): Vaul
     async unlockVault() {
       const device = await devices.getDevice();
       if (!device?.deviceId) return set('no-device');
-      const { deviceId, privateKey, publicKey } = device;
+      const { deviceId, privateKey, publicKey, senderPublicKey } = device;
       let wrap: VaultKeyWrap;
       try {
         wrap = await fetchWrap(deviceId);
@@ -91,11 +91,11 @@ export const createVault = ({ devices, fetchWrap, onState }: VaultOptions): Vaul
         const code = codeOf(error);
         return set(code === 'devices.not-found' || code === 'devices.revoked' ? 'no-device' : 'locked');
       }
-      // The Appareil wrapped the key for itself: its own public key is the sender.
+      // The first Appareil wrapped the key for itself; an approved one keeps its approver's key (E2E-3).
       const open = () =>
         openWrap(
           privateKey,
-          publicKey,
+          senderPublicKey ?? publicKey,
           { enc: fromBase64Url(wrap.enc), ciphertext: fromBase64Url(wrap.ciphertext), tag: fromBase64Url(wrap.tag) },
           INFO.vaultWrap,
           utf8(vaultWrapAad(deviceId, wrap.vaultKeyVersion)),

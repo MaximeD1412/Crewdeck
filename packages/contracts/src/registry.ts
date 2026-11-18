@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import { zApproveDevice, zDeviceHolders, zPendingDevice } from './api/devices.js';
 import { zErrorEnvelope } from './api/errors.js';
 import { zHealth } from './api/health.js';
 import { zRunnerLatest } from './api/runner.js';
@@ -31,6 +32,9 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-link-pairing', schema: zRunnerLinkPairing },
   { name: 'runner-link-status', schema: zRunnerLinkStatus },
   { name: 'runner-latest', schema: zRunnerLatest },
+  { name: 'runner-pending-device', schema: zPendingDevice },
+  { name: 'runner-approve-device', schema: zApproveDevice },
+  { name: 'runner-device-holders', schema: zDeviceHolders },
   { name: 'runner-envelope', schema: zRunnerEnvelope },
   { name: 'runner-hello', schema: zHello },
   { name: 'runner-hello-accepted', schema: zHelloAccepted },

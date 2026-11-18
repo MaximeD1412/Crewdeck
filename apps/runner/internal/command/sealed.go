@@ -5,10 +5,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"net/url"
+	"net"
 	"regexp"
 	"slices"
+	"strconv"
+	"strings"
+	"unicode"
 	"unicode/utf16"
+	"unicode/utf8"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/keys"
@@ -140,7 +144,88 @@ func utf16Len(s string) int {
 	return n
 }
 
+// httpURL says whether s is a `healthUrl` of zSealedCommands, where zod's
+// `z.url({ protocol: /^https?$/ })` wants `http://` or `https://` and an
+// address the WHATWG parser accepts. The Runner accepts a part of what zod
+// accepts, never more: no space, control nor backslash anywhere, no user
+// nor password, an ASCII host of non-empty labels (no `xn--` one) or an IP
+// (a host ending in a number is a dotted quad), a port of 0 to 65535. The
+// cases both sides read: packages/contracts/fixtures/process-sealed.
 func httpURL(s string) bool {
-	u, err := url.Parse(s)
-	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+	var rest string
+	switch lower := strings.ToLower(s); {
+	case strings.HasPrefix(lower, "http://"):
+		rest = s[len("http://"):]
+	case strings.HasPrefix(lower, "https://"):
+		rest = s[len("https://"):]
+	default:
+		return false
+	}
+	for _, r := range rest {
+		if r <= ' ' || r == '\\' || unicode.IsControl(r) || r == utf8.RuneError {
+			return false
+		}
+	}
+	authority := rest
+	if i := strings.IndexAny(rest, "/?#"); i >= 0 {
+		authority = rest[:i]
+	}
+	if strings.Contains(authority, "@") {
+		return false
+	}
+	host, port := authority, ""
+	if strings.HasPrefix(authority, "[") {
+		end := strings.IndexByte(authority, ']')
+		if end < 0 {
+			return false
+		}
+		host, port = authority[1:end], authority[end+1:]
+		if ip := net.ParseIP(host); ip == nil || !strings.Contains(host, ":") {
+			return false
+		}
+		if port != "" && !strings.HasPrefix(port, ":") {
+			return false
+		}
+		port = strings.TrimPrefix(port, ":")
+	} else {
+		if i := strings.LastIndexByte(authority, ':'); i >= 0 {
+			host, port = authority[:i], authority[i+1:]
+		}
+		if !hostName(host) {
+			return false
+		}
+	}
+	return validPort(port)
+}
+
+var hostLabel = regexp.MustCompile(`^[A-Za-z0-9_~-]+$`)
+
+// hostName is an ASCII host of non-empty labels, none `xn--`; one whose last
+// label is a number (WHATWG then reads it as IPv4) only as a dotted quad.
+func hostName(host string) bool {
+	labels := strings.Split(host, ".")
+	for _, label := range labels {
+		if !hostLabel.MatchString(label) || strings.HasPrefix(strings.ToLower(label), "xn--") {
+			return false
+		}
+	}
+	last := strings.ToLower(labels[len(labels)-1])
+	if strings.Trim(last, "0123456789") == "" || strings.HasPrefix(last, "0x") {
+		ip := net.ParseIP(host)
+		return ip != nil && ip.To4() != nil && !strings.Contains(host, ":")
+	}
+	return true
+}
+
+// validPort is an empty port or digits of 0 to 65535.
+func validPort(port string) bool {
+	if strings.Trim(port, "0123456789") != "" {
+		return false
+	}
+	port = strings.TrimLeft(port, "0")
+	if port == "" {
+		return true
+	}
+	n, err := strconv.Atoi(port)
+	return err == nil && len(port) <= 5 && n <= 65535
 }

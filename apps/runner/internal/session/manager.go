@@ -310,11 +310,20 @@ func (m *Manager) revive(s *live) {
 }
 
 // Stop stops the Session's Moteur: interrupted, then killed once its turn
-// ended or after StopGrace. The Session keeps its worktree and its Moteur's
-// id.
+// ended or after StopGrace; a resume of it still waiting for a run is
+// cancelled. The Session keeps its worktree and its Moteur's id.
 func (m *Manager) Stop(id string) {
 	m.mu.Lock()
 	s, known := m.sessions[id]
+	if known {
+		// The stop came after a resume still waiting for a run to release
+		// the worktree: that resume is cancelled.
+		for dir, waiting := range m.waiting {
+			if i := slices.Index(waiting, s); i >= 0 {
+				m.waiting[dir] = slices.Delete(waiting, i, i+1)
+			}
+		}
+	}
 	m.mu.Unlock()
 	if !known {
 		return

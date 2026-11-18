@@ -574,7 +574,10 @@ travels to the tabs as a Session's does.
   `commandId` it does not hold opens nothing. The whole plaintext is checked
   against `zSealedCommands`, every Commande of it (a `run` of 1 to 10 000
   characters, a `where` of the two, an http(s) `healthUrl`, no other
-  property), not only the one asked. Any failure ends the run
+  property), not only the one asked. The Runner accepts no `healthUrl` zod
+  refuses, and refuses a few odd ones zod accepts (a user in it, a host
+  that is not ASCII); `fixtures/process-sealed/health-urls.json` of
+  `packages/contracts` holds the cases both sides test. Any failure ends the run
   `sealed-invalid` and runs nothing. The message's `ref` (Étape, Ticket,
   branch, sha) chooses which worktree or which commit, never what runs.
 - The run is `$SHELL -lc '<run>'` (`/bin/sh` when `SHELL` is unset) as the

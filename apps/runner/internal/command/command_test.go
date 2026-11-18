@@ -597,6 +597,42 @@ func TestTheResumeOfAStoppedSessionWaitsForTheRunThatHoldsItsWorktree(t *testing
 	}
 }
 
+func TestAStopOfAResumeThatWaitsForARunCancelsIt(t *testing.T) {
+	h := newHarness(t)
+	sha := h.remote.ticket(t)
+	h.engine.Events = []contracts.EngineEvent{{Question: &contracts.EngineEventQuestion{RequestId: "q1", Title: "Quelle couleur ?", Options: []contracts.EngineEventQuestionOptionsElem{{Label: "Bleu"}}}}}
+	h.start(t)
+	h.startSession(t)
+	h.manager.Stop(sessionID)
+	h.sent.await(t, "the Session stopped", func(m any) bool {
+		s, ok := m.(contracts.RunnerSessionState)
+		return ok && s.SessionId == sessionID && s.State == contracts.RunnerSessionStateStateStopped
+	})
+	h.commands.Run(h.run(t, runID, "sleep 300", "worktree", sha))
+	h.sent.started(t, runID)
+
+	// The Pilote resumes it while the Commande holds its worktree, then stops it.
+	h.manager.Resume(sessionID)
+	h.manager.Stop(sessionID)
+	h.commands.Stop(runID)
+	if v := h.sent.verdict(t, runID); v.Reason != contracts.RunnerCommandVerdictReasonStopped {
+		t.Fatalf("verdict %+v", v)
+	}
+	time.Sleep(500 * time.Millisecond)
+	if runs := len(h.engine.Runs()); runs != 1 {
+		t.Fatalf("%d Moteur runs, want none after the stop", runs)
+	}
+	// A later resume still resumes it.
+	h.manager.Resume(sessionID)
+	deadline := time.Now().Add(10 * time.Second)
+	for len(h.engine.Runs()) < 2 {
+		if time.Now().After(deadline) {
+			t.Fatal("the Session was not resumed by a resume after the stop")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
 func TestARunOnABranchNamedIntegrationLeavesTheIntegrationCheckout(t *testing.T) {
 	h := newHarness(t)
 	develop := git(t, h.remote.work, "rev-parse", "develop")

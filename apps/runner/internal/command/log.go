@@ -109,9 +109,10 @@ func (o *output) emit(name contracts.CommandOutputChunkStream, text []byte) {
 	}
 }
 
-// stream cuts what one stream writes into chunks of whole lines, of at most
-// ChunkMax bytes (a longer line is cut at a character's start): a chunk
-// never holds the end of one line and the start of another stream's.
+// stream cuts what one stream writes into chunks as it comes, a line ended
+// or not (a progress written with `\r` shows at once): each chunk at most
+// ChunkMax bytes, cut at a character's start, a character a read cut in two
+// held until its end comes. A chunk holds one stream only.
 type stream struct {
 	out  *output
 	name contracts.CommandOutputChunkStream
@@ -140,27 +141,34 @@ func (s *stream) flush() {
 	}
 }
 
-// next is the length of b's next chunk: up to its last newline within
-// ChunkMax, else ChunkMax at a character's start; 0 when b is a line not
-// ended yet, shorter than ChunkMax, unless the stream ended.
+// next is the length of b's next chunk: all of it up to ChunkMax, cut at a
+// character's start; 0 when b is only the start of a character, unless the
+// stream ended (bytes that are no UTF-8 go as they are).
 func next(b []byte, ended bool) int {
 	if len(b) == 0 {
 		return 0
 	}
-	if i := bytes.LastIndexByte(b[:min(len(b), ChunkMax)], '\n'); i >= 0 {
-		return i + 1
-	}
-	if len(b) <= ChunkMax {
-		if ended {
-			return len(b)
+	if len(b) > ChunkMax {
+		for n := ChunkMax; n > ChunkMax-utf8.UTFMax; n-- {
+			if utf8.RuneStart(b[n]) {
+				return n
+			}
 		}
-		return 0
+		return ChunkMax
 	}
-	n := ChunkMax
-	for n > ChunkMax-utf8.UTFMax && !utf8.RuneStart(b[n]) {
-		n--
+	if ended {
+		return len(b)
 	}
-	return n
+	// A character the read cut in two waits for its end.
+	for start := len(b) - 1; start >= 0 && start >= len(b)-utf8.UTFMax; start-- {
+		if utf8.RuneStart(b[start]) {
+			if !utf8.FullRune(b[start:]) {
+				return start
+			}
+			break
+		}
+	}
+	return len(b)
 }
 
 // Replay is the run's logged chunks from fromSeq (included), in order. A

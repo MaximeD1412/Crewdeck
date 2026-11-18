@@ -15,14 +15,18 @@ import (
 // worktree, or the Projet's integration checkout. The manager gives them, so
 // that a worktree is held by one Session or one run at a time: a Session
 // started on a worktree a run holds gets `branch-busy`, a run asked on a
-// worktree a live Session or another run holds gets ErrPlaceUnavailable.
+// worktree a live Session or another run holds gets ErrPlaceUnavailable,
+// and the resume of a stopped Session whose worktree a run holds waits for
+// the run to release it.
 
 // ErrPlaceUnavailable: the place is held, at another commit, or cannot be made.
 var ErrPlaceUnavailable = errors.New("session: place unavailable")
 
 // integrationDir is the integration checkout's folder name under
-// `worktrees/<projectId>/`.
-const integrationDir = "integration"
+// `worktrees/<projectId>/`: a name no branch's worktree has (validBranch
+// refuses a leading dot), so that a run on a branch named `integration`
+// never removes the checkout.
+const integrationDir = ".integration"
 
 var gitSha = regexp.MustCompile(`^[0-9a-f]{40}(?:[0-9a-f]{24})?$`)
 
@@ -65,10 +69,16 @@ func (m *Manager) hold(dir string) (byStopped bool, ok bool) {
 	return byStopped, true
 }
 
+// unhold gives dir back, and resumes the Sessions whose resume waited for it.
 func (m *Manager) unhold(dir string) {
 	m.mu.Lock()
 	delete(m.held, dir)
+	waiting := m.waiting[dir]
+	delete(m.waiting, dir)
 	m.mu.Unlock()
+	for _, s := range waiting {
+		m.revive(s)
+	}
 }
 
 func (m *Manager) origin(owner, name string) *GitHubOrigin {
@@ -141,7 +151,7 @@ func (m *Manager) TicketWorktree(ctx context.Context, projectID, owner, name, br
 }
 
 // IntegrationCheckout is the Projet's checkout of its integration branch,
-// `worktrees/<projectId>/integration`, made detached once and kept: before
+// `worktrees/<projectId>/.integration`, made detached once and kept: before
 // each run it is fetched, moved to sha (else to the head of
 // origin/<integrationBranch>) and cleaned of its untracked files, its
 // ignored ones (the dependencies) kept.
@@ -151,11 +161,7 @@ func (m *Manager) IntegrationCheckout(ctx context.Context, projectID, owner, nam
 	}
 	dir := filepath.Join(m.cfg.Home, "worktrees", projectID, integrationDir)
 	m.mu.Lock()
-	byStopped, ok := m.hold(dir)
-	if ok && byStopped {
-		delete(m.held, dir) // a Session of a branch named `integration`
-		ok = false
-	}
+	_, ok := m.hold(dir)
 	m.mu.Unlock()
 	if !ok {
 		return nil, ErrPlaceUnavailable

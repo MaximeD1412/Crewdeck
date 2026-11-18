@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sync"
 	"time"
 
@@ -68,6 +69,9 @@ type Manager struct {
 	sessions map[string]*live
 	// held are the folders a Commande's run holds (place.go).
 	held map[string]bool
+	// waiting are the stopped Sessions whose resume waits for a run to
+	// release their worktree, by folder.
+	waiting map[string][]*live
 
 	relayMu sync.Mutex
 	relay   relayState
@@ -265,21 +269,43 @@ func (m *Manager) Resume(id string) {
 
 // revive reports an alive or ended Session again, and resumes the others;
 // one still stopping is resumed once its Moteur stopped (the server took the
-// stop at once, then the Pilote's resume).
+// stop at once, then the Pilote's resume); one whose worktree a Commande's
+// run holds, once the run released it (unhold). Deciding the resume and
+// arming it happen under m.mu, as the run's hold does: never both at once.
 func (m *Manager) revive(s *live) {
+	m.mu.Lock()
 	s.mu.Lock()
 	if s.alive && s.stopping {
 		s.resume = true
 		s.mu.Unlock()
+		m.mu.Unlock()
 		return
 	}
 	if s.alive || s.rec.State == contracts.RunnerSessionStateStateEnded {
 		s.mu.Unlock()
+		m.mu.Unlock()
 		m.report(s)
+		return
+	}
+	if m.closed {
+		s.mu.Unlock()
+		m.mu.Unlock()
+		return
+	}
+	if dir := s.rec.Worktree; dir != "" && m.held[dir] {
+		if !slices.Contains(m.waiting[dir], s) {
+			if m.waiting == nil {
+				m.waiting = map[string][]*live{}
+			}
+			m.waiting[dir] = append(m.waiting[dir], s)
+		}
+		s.mu.Unlock()
+		m.mu.Unlock()
 		return
 	}
 	run := m.arm(s, false)
 	s.mu.Unlock()
+	m.mu.Unlock()
 	run()
 }
 

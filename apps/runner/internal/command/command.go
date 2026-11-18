@@ -8,8 +8,11 @@
 // A run is `$SHELL -lc '<run>'` as the Pilote, in its own process group, one
 // per Projet and Commande, killed after 30 min or on `command.stop`. Its
 // output is logged in `~/.crewdeck/commands/<runId>.log` for 30 days and
-// relayed sealed for the Appareils as a Session's; its verdict carries
-// figures only.
+// relayed sealed for the Appareils as a Session's, chunk by chunk as it is
+// read; its verdict carries figures only. It runs in the Ticket's worktree,
+// or in the Projet's integration checkout
+// `~/.crewdeck/worktrees/<projectId>/.integration`, a name no branch's
+// worktree takes.
 //
 // The Runner's folder (~/.crewdeck):
 //
@@ -174,7 +177,8 @@ func (r *Runner) Close() {
 }
 
 // Run runs the Commande in the background; its verdict ends it, even when
-// it never started.
+// it never started. The run is known before Run returns: a command.stop
+// that follows it, even while its sealed part is being opened, stops it.
 func (r *Runner) Run(message contracts.RunnerCommandRun) {
 	if !uuid.MatchString(message.RunId) {
 		return // nothing to name it by
@@ -184,12 +188,28 @@ func (r *Runner) Run(message contracts.RunnerCommandRun) {
 		r.mu.Unlock()
 		return
 	}
+	var l *live
+	if r.runs[message.RunId] == nil {
+		ctx, cancel := context.WithCancel(r.ctx)
+		l = &live{ctx: ctx, stop: make(chan struct{}), cancel: cancel}
+		r.runs[message.RunId] = l
+	}
 	r.wg.Add(1)
 	r.mu.Unlock()
 	go func() {
 		defer r.wg.Done()
-		r.execute(message)
+		r.execute(message, l)
 	}()
+}
+
+// forget ends the run l: Stop no longer finds it.
+func (r *Runner) forget(runID string, l *live) {
+	r.mu.Lock()
+	if r.runs[runID] == l {
+		delete(r.runs, runID)
+	}
+	r.mu.Unlock()
+	l.cancel()
 }
 
 // Stop stops the run: its group gets SIGTERM, then SIGKILL after KillGrace.
@@ -202,25 +222,20 @@ func (r *Runner) Stop(runID string) {
 	}
 }
 
-// claim makes the run the one of its Commande, false when that Commande, or
-// this run, is already under way.
-func (r *Runner) claim(message contracts.RunnerCommandRun) (*live, func(), bool) {
+// claim makes the run the one of its Commande, false when that Commande is
+// already under way.
+func (r *Runner) claim(message contracts.RunnerCommandRun) (func(), bool) {
 	busyKey := message.ProjectId + "/" + message.CommandId
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.busy[busyKey] || r.runs[message.RunId] != nil {
-		return nil, nil, false
+	if r.busy[busyKey] {
+		return nil, false
 	}
-	ctx, cancel := context.WithCancel(r.ctx)
-	l := &live{ctx: ctx, stop: make(chan struct{}), cancel: cancel}
 	r.busy[busyKey] = true
-	r.runs[message.RunId] = l
-	return l, func() {
+	return func() {
 		r.mu.Lock()
 		delete(r.busy, busyKey)
-		delete(r.runs, message.RunId)
 		r.mu.Unlock()
-		cancel()
 	}, true
 }
 

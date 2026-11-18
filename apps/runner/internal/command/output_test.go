@@ -99,6 +99,29 @@ func TestAStoppedRunEndsStoppedAndASecondRunOfTheSameCommandeIsBusy(t *testing.T
 	}
 }
 
+func TestAStopThatFollowsTheRunWhileItsSealedPartOpensStopsItBeforeAnythingRuns(t *testing.T) {
+	h := newHarness(t)
+	sha := h.remote.ticket(t)
+	h.gate = make(chan struct{})
+	h.start(t)
+
+	h.commands.Run(h.run(t, runID, "touch "+h.mark("ran"), "project", sha))
+	h.commands.Stop(runID)
+	close(h.gate)
+
+	if v := h.sent.verdict(t, runID); v.Reason != contracts.RunnerCommandVerdictReasonStopped || v.Passed || v.ExitCode != nil {
+		t.Fatalf("verdict %+v, want stopped", v)
+	}
+	if h.sent.startedAny(runID) || exists(h.mark("ran")) {
+		t.Fatal("a run stopped before it started ran")
+	}
+	// Its Commande is free again.
+	h.commands.Run(h.run(t, secondRun, "exit 0", "project", sha))
+	if v := h.sent.verdict(t, secondRun); v.Reason != contracts.RunnerCommandVerdictReasonExited {
+		t.Fatalf("verdict %+v, want exited", v)
+	}
+}
+
 func TestTheOutputIsLoggedPrivatelyAndReplaysFromASeq(t *testing.T) {
 	h := newHarness(t)
 	sha := h.remote.ticket(t)
@@ -123,16 +146,16 @@ func TestTheOutputIsLoggedPrivatelyAndReplaysFromASeq(t *testing.T) {
 		}
 		all = append(all, chunk)
 	}
+	// Chunks follow the reads: each stream's text, in order, is the run's.
 	got := map[string]string{}
 	for i, chunk := range all {
 		if chunk.Seq != i+1 {
 			t.Fatalf("chunk %d numbered %d", i, chunk.Seq)
 		}
-		got[chunk.Text] = string(chunk.Stream)
+		got[string(chunk.Stream)] += chunk.Text
 	}
-	want := map[string]string{"un\n": "stdout", "deux\n": "stderr", "trois": "stdout"}
-	if len(all) != 3 || len(got) != 3 || got["un\n"] != want["un\n"] || got["deux\n"] != want["deux\n"] || got["trois"] != want["trois"] {
-		t.Fatalf("logged %+v, want %v", all, want)
+	if len(got) != 2 || got["stdout"] != "un\ntrois" || got["stderr"] != "deux\n" {
+		t.Fatalf("logged %+v, want un, trois on stdout and deux on stderr", all)
 	}
 	var later []int
 	for chunk, err := range command.Replay(h.home, runID, 2) {
@@ -141,8 +164,8 @@ func TestTheOutputIsLoggedPrivatelyAndReplaysFromASeq(t *testing.T) {
 		}
 		later = append(later, chunk.Seq)
 	}
-	if len(later) != 2 || later[0] != 2 || later[1] != 3 {
-		t.Fatalf("replay from 2 gave %v", later)
+	if len(later) != len(all)-1 || later[0] != 2 || later[len(later)-1] != len(all) {
+		t.Fatalf("replay from 2 gave %v of %d chunks", later, len(all))
 	}
 	for range command.Replay(h.home, "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6cff", 1) {
 		t.Fatal("a run never logged replays something")
@@ -153,8 +176,8 @@ func TestALongLineIsCutIntoChunksAtACharactersStart(t *testing.T) {
 	h := newHarness(t)
 	sha := h.remote.ticket(t)
 	h.start(t)
-	// 10 000 « é » (20 000 bytes) on one line, then a short one.
-	h.commands.Run(h.run(t, runID, `i=0; while [ $i -lt 10000 ]; do printf 'é'; i=$((i+1)); done; echo; echo fin`, "worktree", sha))
+	// 10 000 « é » (20 000 bytes) on one line, in one write, then a short one.
+	h.commands.Run(h.run(t, runID, `s=é; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13; do s=$s$s; done; printf '%s%s' "$s" "$(printf '%s' "$s" | head -c 3616)"; echo; echo fin`, "worktree", sha))
 	if v := h.sent.verdict(t, runID); !v.Passed {
 		t.Fatalf("verdict %+v", v)
 	}
@@ -177,6 +200,34 @@ func TestALongLineIsCutIntoChunksAtACharactersStart(t *testing.T) {
 	}
 	if len(texts) < 2 {
 		t.Fatalf("%d chunk(s), want the line cut", len(texts))
+	}
+}
+
+func TestAnOutputWithNoNewlineIsLoggedWhileTheRunGoesOn(t *testing.T) {
+	h := newHarness(t)
+	sha := h.remote.ticket(t)
+	h.start(t)
+	h.commands.Run(h.run(t, runID, `printf 'progress 1\r'; sleep 300`, "worktree", sha))
+	t.Cleanup(func() { h.commands.Stop(runID) })
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		var texts []string
+		for chunk, err := range command.Replay(h.home, runID, 1) {
+			if err == nil {
+				texts = append(texts, chunk.Text)
+			}
+		}
+		if strings.Join(texts, "") == "progress 1\r" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("logged %q while the run goes on, want its progress", texts)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	h.commands.Stop(runID)
+	if v := h.sent.verdict(t, runID); v.Reason != contracts.RunnerCommandVerdictReasonStopped {
+		t.Fatalf("verdict %+v, want stopped", v)
 	}
 }
 

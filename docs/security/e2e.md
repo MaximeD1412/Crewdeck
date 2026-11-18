@@ -571,7 +571,10 @@ travels to the tabs as a Session's does.
 - The Runner opens it with its vault, under **the message's own**
   `projectId`, and runs only the `run` of the message's `commandId`, in the
   place its `where` says: a part sealed for another Projet does not open, a
-  `commandId` it does not hold opens nothing. Any failure ends the run
+  `commandId` it does not hold opens nothing. The whole plaintext is checked
+  against `zSealedCommands`, every Commande of it (a `run` of 1 to 10 000
+  characters, a `where` of the two, an http(s) `healthUrl`, no other
+  property), not only the one asked. Any failure ends the run
   `sealed-invalid` and runs nothing. The message's `ref` (Étape, Ticket,
   branch, sha) chooses which worktree or which commit, never what runs.
 - The run is `$SHELL -lc '<run>'` (`/bin/sh` when `SHELL` is unset) as the
@@ -590,7 +593,8 @@ travels to the tabs as a Session's does.
   additional data `"command:<runId>:<holderId>"` (`commandWrapAad`), which a
   Session's wraps never use.
 - Each chunk is the JSON of `zCommandOutputChunk` (`{ stream, text, at }`:
-  the whole lines one read gave, or 16 KiB cut at a character's start),
+  what one read gave, a line ended or not, at most 16 KiB cut at a
+  character's start, a character a read cut in two held for the next),
   sealed under the run's key with the additional data
   `"command:<runId>:<seq>"` (`commandOutputAad`). The Runner logs the
   plaintext chunks in `commands/<runId>.log` (mode 600, its folder 700), and

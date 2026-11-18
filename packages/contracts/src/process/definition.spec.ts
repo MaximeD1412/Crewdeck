@@ -239,11 +239,11 @@ describe('the sealed part', () => {
     expect(refusedAt({ commands: {} }, zProcessSealedPayload)).toEqual([]);
   });
 
-  it('refuses a Commande with an empty text or one of 4001 characters, another place, a non-http address, an id that is not one', () => {
+  it('refuses a Commande with an empty text or one of 10001 characters, another place, a non-http address, an id that is not one', () => {
     const one = (command: object, id = 'cmd-tests') => ({ commands: { [id]: { run: 'pnpm test', where: 'worktree', ...command } } });
     expect(refusedAt(one({ run: '' }), zProcessSealedPayload)).toEqual([['commands', 'cmd-tests', 'run']]);
-    expect(refusedAt(one({ run: 'a'.repeat(4001) }), zProcessSealedPayload)).toEqual([['commands', 'cmd-tests', 'run']]);
-    expect(refusedAt(one({ run: 'a'.repeat(4000) }), zProcessSealedPayload)).toEqual([]);
+    expect(refusedAt(one({ run: 'a'.repeat(10001) }), zProcessSealedPayload)).toEqual([['commands', 'cmd-tests', 'run']]);
+    expect(refusedAt(one({ run: 'a'.repeat(10000) }), zProcessSealedPayload)).toEqual([]);
     expect(refusedAt(one({ where: 'home' }), zProcessSealedPayload)).toEqual([['commands', 'cmd-tests', 'where']]);
     expect(refusedAt(one({ healthUrl: 'ftp://localhost/health' }), zProcessSealedPayload)).toEqual([['commands', 'cmd-tests', 'healthUrl']]);
     expect(refusedAt(one({ healthUrl: 'https://localhost:5173' }), zProcessSealedPayload)).toEqual([]);

@@ -20,21 +20,29 @@ const waitDelay = 2 * time.Second
 // execute runs the Commande and sends its verdict, whatever ends it: once
 // its place and its claim are released, so that the run the verdict lets the
 // server ask for next finds them free.
-func (r *Runner) execute(message contracts.RunnerCommandRun) {
+func (r *Runner) execute(message contracts.RunnerCommandRun, l *live) {
 	began := time.Now()
-	reason, exitCode := r.attempt(message)
+	reason, exitCode := contracts.RunnerCommandVerdictReasonBusy, (*int)(nil)
+	// l nil: a run of the same runId is under way.
+	if l != nil {
+		reason, exitCode = r.attempt(message, l)
+		r.forget(message.RunId, l)
+	}
 	duration := time.Since(began)
 	r.cfg.Logger.Info("command.verdict", "runId", message.RunId, "reason", string(reason), "durationMs", duration.Milliseconds())
 	r.send(message.RunId, "verdict", protocol.NewCommandVerdict(message.RunId, reason, exitCode, duration))
 }
 
 // attempt runs the Commande, and gives why it ended.
-func (r *Runner) attempt(message contracts.RunnerCommandRun) (contracts.RunnerCommandVerdictReason, *int) {
+func (r *Runner) attempt(message contracts.RunnerCommandRun, l *live) (contracts.RunnerCommandVerdictReason, *int) {
 	command, err := openSealed(r.cfg.Vault, message)
 	if err != nil {
 		return contracts.RunnerCommandVerdictReasonSealedInvalid, nil
 	}
-	l, done, ok := r.claim(message)
+	if l.ctx.Err() != nil {
+		return contracts.RunnerCommandVerdictReasonStopped, nil
+	}
+	done, ok := r.claim(message)
 	if !ok {
 		return contracts.RunnerCommandVerdictReasonBusy, nil
 	}

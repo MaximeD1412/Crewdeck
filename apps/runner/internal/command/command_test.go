@@ -5,6 +5,7 @@ import (
 	"crypto/ecdh"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/command"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
@@ -215,6 +217,8 @@ type harness struct {
 	engine  *fake.Engine
 	hooks   session.Hooks
 	relayed bool
+	// gate, when set, holds each opening of a sealed part until it closes.
+	gate chan struct{}
 	// marks is a folder outside the places, for what the runs write.
 	marks string
 
@@ -260,7 +264,11 @@ func (h *harness) start(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	t.Cleanup(m.Close)
-	cfg := command.Config{Home: h.home, Vault: h.vault, Places: m, Send: h.sent.send, After: h.clock.After}
+	var vault command.Vault = h.vault
+	if h.gate != nil {
+		vault = gatedVault{inner: h.vault, gate: h.gate}
+	}
+	cfg := command.Config{Home: h.home, Vault: vault, Places: m, Send: h.sent.send, After: h.clock.After}
 	if h.relayed {
 		cfg.Keys = &relay.Keys{Runner: h.runner, Holders: func() ([][]byte, error) { return [][]byte{keys.PublicKeyBytes(h.device)}, nil }}
 	}
@@ -273,6 +281,17 @@ func (h *harness) start(t *testing.T) *harness {
 	return h
 }
 
+// gatedVault opens a sealed part once its gate is closed: a vault slow to open.
+type gatedVault struct {
+	inner command.Vault
+	gate  chan struct{}
+}
+
+func (v gatedVault) OpenItem(item keys.SealedItem, aad []byte) ([]byte, error) {
+	<-v.gate
+	return v.inner.OpenItem(item, aad)
+}
+
 // commande is one entry of a sealed part.
 type commande struct {
 	Run   string `json:"run"`
@@ -282,7 +301,13 @@ type commande struct {
 // seal is the sealed part of a version of the Projet project, as the page seals it.
 func (h *harness) seal(t *testing.T, project string, commands map[string]commande) contracts.RunnerCommandRunSealed {
 	t.Helper()
-	plain, err := json.Marshal(map[string]any{"commands": commands})
+	return h.sealPayload(t, project, map[string]any{"commands": commands})
+}
+
+// sealPayload seals payload as it is, the schema's or not.
+func (h *harness) sealPayload(t *testing.T, project string, payload any) contracts.RunnerCommandRunSealed {
+	t.Helper()
+	plain, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -377,7 +402,26 @@ func TestASealedPartThatDoesNotOpenForThisRunRunsNothing(t *testing.T) {
 	outside := h.run(t, "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6c14", text, "worktree", sha)
 	outside.Sealed = h.seal(t, projectID, map[string]commande{"cmd-tests": {Run: text, Where: "home"}})
 
-	for _, message := range []contracts.RunnerCommandRun{otherProjet, tampered, notHeld, outside} {
+	// The whole sealed part is checked, not only its Commande cmd-tests.
+	tests := map[string]any{"run": text, "where": "worktree"}
+	payloads := []any{
+		map[string]any{"commands": map[string]any{"cmd-tests": tests, "cmd-lint": map[string]any{"run": "", "where": "project"}}},
+		map[string]any{"commands": map[string]any{"cmd-tests": map[string]any{"run": text, "where": "worktree", "shell": "bash"}}},
+		map[string]any{"commands": map[string]any{"cmd-tests": tests}, "env": map[string]any{}},
+		map[string]any{"commands": map[string]any{"cmd-tests": map[string]any{"run": text, "where": "worktree", "healthUrl": "ftp://localhost/"}}},
+		map[string]any{"commands": map[string]any{"cmd-tests": map[string]any{"run": text, "where": "worktree", "healthUrl": nil}}},
+		map[string]any{"commands": map[string]any{"cmd-tests": tests, "Cmd_Lint": tests}},
+		map[string]any{"commands": nil},
+		// 10 001 UTF-16 code units, 10 000 characters: zod counts the former.
+		map[string]any{"commands": map[string]any{"cmd-tests": map[string]any{"run": text + " #😀" + strings.Repeat("x", 10000-utf8.RuneCountInString(text)-3), "where": "worktree"}}},
+	}
+	invalid := []contracts.RunnerCommandRun{otherProjet, tampered, notHeld, outside}
+	for i, payload := range payloads {
+		message := h.run(t, fmt.Sprintf("019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6c%d", 20+i), text, "worktree", sha)
+		message.Sealed = h.sealPayload(t, projectID, payload)
+		invalid = append(invalid, message)
+	}
+	for _, message := range invalid {
 		h.commands.Run(message)
 		v := h.sent.verdict(t, message.RunId)
 		if v.Passed || v.Reason != contracts.RunnerCommandVerdictReasonSealedInvalid || v.ExitCode != nil {
@@ -392,6 +436,22 @@ func TestASealedPartThatDoesNotOpenForThisRunRunsNothing(t *testing.T) {
 	}
 	if exists(h.worktree()) {
 		t.Fatal("a worktree was made for a run that never ran")
+	}
+}
+
+func TestACommandeOfTenThousandCharactersRuns(t *testing.T) {
+	h := newHarness(t)
+	sha := h.remote.ticket(t)
+	h.start(t)
+	text := "touch " + h.mark("ran") + " #"
+	text += strings.Repeat("x", 10000-len(text))
+	message := h.run(t, runID, text, "worktree", sha)
+	message.Sealed = h.sealPayload(t, projectID, map[string]any{"commands": map[string]any{
+		"cmd-tests": map[string]any{"run": text, "where": "worktree", "healthUrl": "http://localhost:4173/sante"},
+	}})
+	h.commands.Run(message)
+	if v := h.sent.verdict(t, runID); !v.Passed || !exists(h.mark("ran")) {
+		t.Fatalf("verdict %+v, want the Commande run", v)
 	}
 }
 
@@ -479,6 +539,93 @@ func TestAWorktreeALiveSessionHoldsIsUnavailableAndOneARunHoldsIsBusyForASession
 	}
 }
 
+// startSession starts the Session of the Ticket's branch, and waits for its question.
+func (h *harness) startSession(t *testing.T) {
+	t.Helper()
+	h.manager.Start(contracts.RunnerSessionStart{
+		Type: "session.start", Id: "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6c20", At: time.Now().UTC(),
+		SessionId: sessionID, ProjectId: projectID,
+		Origin: contracts.RunnerSessionStartOrigin{Kind: contracts.RunnerSessionStartOriginKindGithub, Owner: "acme", Name: "shop"},
+		Branch: branch, Base: "develop", Engine: contracts.RunnerSessionStartEngineClaudeCode, Model: "claude-opus-5-5", Role: "code",
+		PermissionMode: contracts.RunnerSessionStartPermissionModeBypass, Title: "Le panier",
+	})
+	h.sent.await(t, "the Session waiting", func(m any) bool {
+		s, ok := m.(contracts.RunnerSessionState)
+		return ok && s.SessionId == sessionID && s.State == contracts.RunnerSessionStateStateWaiting
+	})
+}
+
+func TestTheResumeOfAStoppedSessionWaitsForTheRunThatHoldsItsWorktree(t *testing.T) {
+	h := newHarness(t)
+	sha := h.remote.ticket(t)
+	h.engine.Events = []contracts.EngineEvent{{Question: &contracts.EngineEventQuestion{RequestId: "q1", Title: "Quelle couleur ?", Options: []contracts.EngineEventQuestionOptionsElem{{Label: "Bleu"}}}}}
+	h.start(t)
+	h.startSession(t)
+	h.manager.Stop(sessionID)
+	h.sent.await(t, "the Session stopped", func(m any) bool {
+		s, ok := m.(contracts.RunnerSessionState)
+		return ok && s.SessionId == sessionID && s.State == contracts.RunnerSessionStateStateStopped
+	})
+	h.commands.Run(h.run(t, runID, "sleep 300", "worktree", sha))
+	h.sent.started(t, runID)
+
+	// By its resume, and by a session.start of its id.
+	h.manager.Resume(sessionID)
+	h.manager.Start(contracts.RunnerSessionStart{Type: "session.start", Id: "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6c21", At: time.Now().UTC(), SessionId: sessionID})
+	time.Sleep(300 * time.Millisecond)
+	if runs := len(h.engine.Runs()); runs != 1 {
+		t.Fatalf("%d Moteur runs while the Commande holds the worktree, want the first one only", runs)
+	}
+
+	h.commands.Stop(runID)
+	if v := h.sent.verdict(t, runID); v.Reason != contracts.RunnerCommandVerdictReasonStopped {
+		t.Fatalf("verdict %+v", v)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for len(h.engine.Runs()) < 2 {
+		if time.Now().After(deadline) {
+			t.Fatal("the Session was not resumed once the run released its worktree")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	time.Sleep(200 * time.Millisecond)
+	if runs := len(h.engine.Runs()); runs != 2 {
+		t.Fatalf("%d Moteur runs, want the Session resumed once", runs)
+	}
+	if !exists(h.worktree()) {
+		t.Fatal("the run removed the Session's worktree")
+	}
+}
+
+func TestARunOnABranchNamedIntegrationLeavesTheIntegrationCheckout(t *testing.T) {
+	h := newHarness(t)
+	develop := git(t, h.remote.work, "rev-parse", "develop")
+	git(t, h.remote.work, "checkout", "-B", "integration", "develop")
+	other := h.remote.commit(t, "cart.txt", "integration\n")
+	git(t, h.remote.work, "push", "origin", "integration")
+	git(t, h.remote.work, "checkout", "develop")
+	h.start(t)
+
+	h.commands.Run(h.run(t, runID, "mkdir -p deps; echo kept > deps/kept; pwd -P > "+h.mark("checkout"), "project", develop))
+	if v := h.sent.verdict(t, runID); !v.Passed {
+		t.Fatalf("verdict %+v", v)
+	}
+	onBranch := h.run(t, secondRun, "pwd -P > "+h.mark("worktree"), "worktree", other)
+	onBranch.Ref.Branch = "integration"
+	h.commands.Run(onBranch)
+	if v := h.sent.verdict(t, secondRun); !v.Passed {
+		t.Fatalf("verdict %+v", v)
+	}
+	if read(t, h.mark("checkout")) == read(t, h.mark("worktree")) {
+		t.Fatal("the branch integration's worktree is the integration checkout")
+	}
+	again := h.run(t, "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6c03", "test -f deps/kept", "project", develop)
+	h.commands.Run(again)
+	if v := h.sent.verdict(t, again.RunId); !v.Passed {
+		t.Fatalf("verdict %+v: the integration checkout lost its ignored file", v)
+	}
+}
+
 func TestARunHoldsItsWorktreeAgainstANewSession(t *testing.T) {
 	h := newHarness(t)
 	sha := h.remote.ticket(t)
@@ -526,8 +673,8 @@ func TestAProjectCommandeRunsInTheIntegrationCheckoutMovedToTheShaKeepingIgnored
 	if read(t, h.mark("first")) != first || read(t, h.mark("second")) != second {
 		t.Fatalf("ran at %s then %s, want %s then %s", read(t, h.mark("first")), read(t, h.mark("second")), first, second)
 	}
-	if got := read(t, h.mark("pwd")); filepath.Base(got) != "integration" || filepath.Base(filepath.Dir(got)) != projectID {
-		t.Fatalf("ran in %s, want worktrees/<projectId>/integration", got)
+	if got := read(t, h.mark("pwd")); filepath.Base(got) != ".integration" || filepath.Base(filepath.Dir(got)) != projectID {
+		t.Fatalf("ran in %s, want worktrees/<projectId>/.integration", got)
 	}
 
 	// Without a SHA (the « Livraison »): the head of the integration branch.

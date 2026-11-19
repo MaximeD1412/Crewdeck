@@ -19,7 +19,7 @@ import { appareilAApprouver, appareilAApprouverCode, appareils, appareilsAjouter
 import type { Scenario } from './define.js';
 import { idees, ideesDictee, ideesNouvelle, ideesVide } from './idees.js';
 import { menuPlus } from './menu-plus.js';
-import { demarrageProjets, demarrageProjetsDossier, demarrageProjetsSansGithub, projetLocal, projets, projetsVide } from './projets.js';
+import { demarrageProjets, demarrageProjetsDossier, demarrageProjetsSansGithub, projet, projetLocal, projetLocalAPreparer, projets, projetsVide } from './projets.js';
 import { parametres, parametresNotifications, parametresNotificationsIphone } from './parametres.js';
 import { parametresProjet } from './parametres-projet.js';
 import { processMigrationScenarios } from './process-migration.js';
@@ -67,7 +67,9 @@ const SCENARIOS: readonly Scenario[] = [
   parametresNotifications,
   parametresNotificationsIphone,
   parametresProjet,
+  projet,
   projetLocal,
+  projetLocalAPreparer,
   projets,
   projetsVide,
   resynchronisation,

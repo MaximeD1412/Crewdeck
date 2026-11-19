@@ -98,9 +98,16 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await expect(form.getByRole('button', { name: 'Créer le Projet' })).toBeEnabled();
   },
   // The Local Projet's name opened by the trusted Appareil, its folder kept by the Runner.
+  // A GitHub Projet's page once its readiness came: « Site mairie », its integration branch to create.
+  projet: async (page) => {
+    await expect(page.locator('cd-page-projet').getByRole('heading', { level: 1, name: 'Site mairie' })).toBeVisible();
+    await expect(page.locator('cd-page-projet')).toContainText('1 point à régler');
+  },
+  // The Local Projet's name opened by the trusted Appareil, its folder kept by the Runner, its readiness met.
   'projet-local': async (page) => {
     await expect(page.locator('cd-page-projet').getByRole('heading', { level: 1, name: 'Recettes' })).toBeVisible();
     await expect(page.locator('cd-page-projet')).toContainText('sur atelier-pc');
+    await expect(page.locator('cd-page-projet')).toContainText('prêt');
   },
   'projets-vide': async (page) => {
     await expect(page.locator('cd-page-projets')).toContainText('Aucun Projet suivi');
@@ -128,8 +135,10 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await editor.getByRole('button', { name: 'Étape', exact: true }).click();
     await expect(editor.getByRole('menu', { name: 'Ajouter dans « Développement »' })).toBeVisible();
   },
+  // Each Projet with its readiness's badge.
   projets: async (page) => {
     await expect(page.locator('cd-page-projets cd-list-row')).toHaveCount(4);
+    await expect(page.locator('cd-page-projets cd-list-row').filter({ hasText: 'Site mairie' })).toContainText('1 point à régler');
   },
   // « Rôles et modèles » once the snapshot gave the Comptes IA: the Idée on Sonnet, as the mockup.
   parametres: async (page) => {

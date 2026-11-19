@@ -10,6 +10,8 @@ import {
   HEARTBEAT_SECONDS,
   type McpServers,
   projectFolderAad,
+  type ProjectFolderPrepare,
+  type ProjectFolderStatus,
   PROTOCOL_VERSION,
   type Runner,
   type RunnerToServer,
@@ -41,8 +43,14 @@ const OWN_MACHINE: RunnerMachine = { runnerVersion: 'fake', machine: 'atelier', 
 type WithoutEnvelope<T> = T extends unknown ? Omit<T, 'id' | 'at'> : never;
 type WithoutStamp<T> = T extends unknown ? Omit<T, 'seq' | 'at'> : never;
 
-/** A folder a scenario seeds on the fake Runner's machine: how it checks, its `name` its path's last part unless given. */
-export type SeededFolder = Omit<FolderCheckResult, 'name'> & { readonly name?: string };
+/**
+ * A folder a scenario seeds on the fake Runner's machine: how it checks, its
+ * `name` its path's last part unless given; `branches` its local branches
+ * (PROJET-3), by default its current `branch`, none without git.
+ */
+export type SeededFolder = Omit<FolderCheckResult, 'name'> & { readonly name?: string; readonly branches?: readonly string[] };
+
+const branchesOf = (folder: SeededFolder): readonly string[] => (folder.state !== 'ready' ? [] : (folder.branches ?? (folder.branch ? [folder.branch] : [])));
 
 /** A folder a Projet may keep: a git repository's root, or a folder without git. */
 const ATTACHABLE: ReadonlySet<FolderCheckResult['state']> = new Set(['ready', 'not-git']);
@@ -109,7 +117,9 @@ const fakeChunk = (seq: number) => ({ seq, nonce: Buffer.alloc(12, seq).toString
  * (`seedFolder`; any other path is `missing`, a relative one `not-absolute`,
  * another Projet's `taken`), keeps the folder `project.folder.attach` sends
  * when it may, and tells `projects.folders` on connecting and after each
- * change, as the Runner.
+ * change, as the Runner; `project.folder.status` answers where a kept folder
+ * stands from its branches, `project.folder.prepare` makes it a git
+ * repository with the release branch then the integration one (PROJET-3).
  * Its Commandes (RUNNER-18): `command.run` answers `command.started`, two
  * output chunks (opaque bytes) and the verdict `endCommandsWith` set (by
  * default exited with 0); `command.replay` sends the tab those two chunks again.
@@ -299,6 +309,10 @@ export class FakeRunner implements Fake {
         this.reportFolders(socket);
         return;
       }
+      case 'project.folder.status':
+        return this.sendFolderState(socket, message);
+      case 'project.folder.prepare':
+        return this.prepare(socket, message);
       case 'session.replay':
         return this.replay(socket, message);
       case 'session.input':
@@ -339,7 +353,37 @@ export class FakeRunner implements Fake {
     if (!folder) return { state: 'missing', hasCode: false, branch: null, name };
     const takenBy = [...this.projects].filter(([id, kept]) => kept === path && id !== projectId);
     if (takenBy.length > 0 && ATTACHABLE.has(folder.state)) return { state: 'taken', hasCode: folder.hasCode, branch: folder.branch, name: folder.name ?? name };
-    return { ...folder, name: folder.name ?? name };
+    return { state: folder.state, hasCode: folder.hasCode, branch: folder.branch, name: folder.name ?? name };
+  }
+
+  /** Where the folder of `projectId` stands, as the Runner's `git` would say. */
+  private sendFolderState(socket: WebSocket, { projectId, releaseBranch, integrationBranch }: Pick<ProjectFolderStatus, 'projectId' | 'releaseBranch' | 'integrationBranch'>): void {
+    const path = this.projects.get(projectId);
+    const folder = path === undefined ? undefined : this.folders.get(path);
+    const branches = folder ? branchesOf(folder) : [];
+    this.send(socket, {
+      type: 'project.folder.state',
+      projectId,
+      present: folder !== undefined,
+      isGit: folder?.state === 'ready',
+      hasCommits: branches.length > 0,
+      releaseBranch: branches.includes(releaseBranch),
+      integrationBranch: branches.includes(integrationBranch),
+    });
+  }
+
+  /** « git init » and a first commit on the release branch when it has none, then the integration branch from it. */
+  private prepare(socket: WebSocket, message: ProjectFolderPrepare): void {
+    const { requestId, projectId, releaseBranch, integrationBranch } = message;
+    const path = this.projects.get(projectId);
+    const folder = path === undefined ? undefined : this.folders.get(path);
+    if (path !== undefined && folder) {
+      const branches = branchesOf(folder);
+      const next = branches.length === 0 ? [releaseBranch, integrationBranch] : [...new Set([...branches, integrationBranch])];
+      this.folders.set(path, { ...folder, state: 'ready', branch: folder.branch ?? releaseBranch, branches: next });
+    }
+    this.sendFolderState(socket, message);
+    this.send(socket, { type: 'project.folder.prepared', requestId, projectId, ...(folder ? { ok: true } : { ok: false, error: 'folder-missing' as const }) });
   }
 
   /** The Projets whose folder is still on its machine. */

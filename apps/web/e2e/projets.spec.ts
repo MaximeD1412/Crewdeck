@@ -56,7 +56,7 @@ test.describe('« Projets » (US-3)', () => {
 
     await expect(page).toHaveURL('/projets');
     await expect(list(page)).toContainText('5 Projets');
-    await expect(rows(page).filter({ hasText: 'octocat/sandbox-vue3' })).toHaveCount(1);
+    await expect(rows(page).filter({ hasText: 'sandbox-vue3' })).toHaveCount(1);
   });
 
   test('the picker without any repository: the Empty and the link to install the App', async ({ page, scenario, expectAccessible }) => {
@@ -98,7 +98,7 @@ const apiProjects = async (page: Page): Promise<ApiProject[]> => ((await (await 
 
 /** US-3, US-99: a Projet from a folder of the Runner's machine, its path checked by the Runner as it is typed. */
 test.describe('« Ajouter un Projet », a folder of the Runner’s machine (US-3, US-99)', () => {
-  test('checks each path through the Runner, creates « Recettes » from a git folder, its page then the list naming it « Local · sur atelier-pc »', async ({
+  test('checks each path through the Runner, creates « Recettes » from a git folder, its page then the list with its points to fix', async ({
     page,
     scenario,
     expectAccessible,
@@ -136,7 +136,8 @@ test.describe('« Ajouter un Projet », a folder of the Runner’s machine (US-3
     await page.goto('/projets');
     await expect(rows(page)).toHaveCount(1);
     await expect(rows(page).first()).toContainText('Recettes');
-    await expect(rows(page).first()).toContainText('Local · sur atelier-pc');
+    // Not ready yet (no Compte IA, its Process a draft): the list says its first point to fix (PROJET-3).
+    await expect(rows(page).first()).toContainText('à régler');
 
     // The same folder again: another Projet's.
     await page.goto('/projets/ajouter');
@@ -182,7 +183,7 @@ test.describe('A Local Projet (US-3, US-99)', () => {
     await expect(decision).toContainText('Choisis à nouveau son dossier');
     await expect(decision).toContainText('Recettes');
     await page.goto('/projets');
-    await expect(rows(page).first()).toContainText('Local · dossier introuvable');
+    await expect(rows(page).first()).toContainText('1 point à régler : dossier introuvable');
 
     await page.goto(`/projets/ajouter?projet=${RECETTES_ID}`);
     await expect(ajouter(page)).toContainText('Choisir le dossier de Recettes');

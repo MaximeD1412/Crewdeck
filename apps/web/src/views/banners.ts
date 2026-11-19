@@ -101,7 +101,8 @@ const runnerOfflineBanner = ({ path, session = false, runner, decisions = [] }: 
  * loss in its text; « Runner hors ligne » over a Session panel, on `/a-toi`
  * and `/runner`; then the API error no caller handled, its `message` as is
  * (ADR 0008); then, for a browser with no Appareil while another one holds
- * the vault, the offer to approve it (E2E-3, US-60). The first boot, before
+ * the vault, a trusted Appareil or the linked Runner (the last Appareil
+ * revoked, E2E-4), the offer to approve it (E2E-3, US-60). The first boot, before
  * any loss, shows none.
  */
 export const bannersView = (state: BannersState, error: string | null): readonly BannerView[] => {
@@ -116,7 +117,7 @@ export const bannersView = (state: BannersState, error: string | null): readonly
   const offline = runnerOfflineBanner(state);
   if (offline) banners.push(offline);
   if (error !== null) banners.push({ key: 'error', data: { tone: 'halt', title: error, icon: 'alert' }, text: null });
-  const vaultExists = [...(state.slices?.device?.values() ?? [])].some((device) => device.state === 'trusted');
+  const vaultExists = state.runner != null || [...(state.slices?.device?.values() ?? [])].some((device) => device.state === 'trusted');
   if (state.vaultState === 'no-device' && vaultExists) {
     banners.push({
       key: 'device',

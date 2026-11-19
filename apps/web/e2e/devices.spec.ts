@@ -152,9 +152,13 @@ test('a new browser shows its code, which the trusted Appareil approves by pasti
   await context.close();
 });
 
-/** « Retirer » on the row of `name`, then the core's confirmation dialog it opens. */
-const revoke = async (page: Page, name: string) => {
-  await appareilsCard(page).locator('cd-list-row').filter({ hasText: name }).getByRole('button', { name: 'Retirer' }).click();
+/**
+ * « Retirer » on this browser's row (« cet Appareil ») or on the other one's, then the core's
+ * confirmation dialog it opens, named after `name`. Both browsers may share a name (same user agent).
+ */
+const revoke = async (page: Page, row: 'this' | 'other', name: string) => {
+  const rows = appareilsCard(page).locator('cd-list-row');
+  await (row === 'this' ? rows.filter({ hasText: 'cet Appareil' }) : rows.filter({ hasNotText: 'cet Appareil' })).getByRole('button', { name: 'Retirer' }).click();
   const dialog = page.locator('crewdeck-confirm').getByRole('alertdialog');
   await expect(dialog.getByRole('heading', { name: `Retirer « ${name} » ?` })).toBeVisible();
   await expect(dialog).toContainText('Confirmé par Crewdeck');
@@ -191,7 +195,7 @@ test('revoking an Appareil: refused at once, the vault key rotated by the truste
   await expect(card.locator('cd-list-row')).toHaveCount(2);
 
   // « Retirer » on the second one: what happens, no warning while another stays trusted.
-  const dialog = await revoke(page, name);
+  const dialog = await revoke(page, 'other', name);
   await expect(dialog).toContainText('Crewdeck cesse aussitôt de lui servir tes données chiffrées');
   await expect(dialog).toContainText('La clé de tes données chiffrées change');
   await expect(dialog).not.toContainText('C’est ton dernier Appareil de confiance');
@@ -211,7 +215,7 @@ test('revoking an Appareil: refused at once, the vault key rotated by the truste
   await context.close();
 
   // The last trusted Appareil, this one: the OPS-1 warning first, then its keys cleared from this browser.
-  const last = await revoke(page, trustedName);
+  const last = await revoke(page, 'this', trustedName);
   await expect(last).toContainText('C’est cet Appareil');
   await expect(last).toContainText('C’est ton dernier Appareil de confiance : si tu réinstalles ensuite le Runner, le texte de tes Idées sera perdu.');
   await expectAccessible(page);

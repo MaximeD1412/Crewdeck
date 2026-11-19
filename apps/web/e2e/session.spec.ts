@@ -137,3 +137,87 @@ test.describe('the Session panel (US-9, US-60)', () => {
     await expect(page.locator('cd-page-runner')).toBeAttached();
   });
 });
+
+const row = (page: Page, kind: string) => page.locator('cd-page-a-toi cd-decision-row').filter({ hasText: kind });
+const QUESTION = 'Qui peut modifier un événement d’un agenda partagé ?';
+
+/** US-9, US-17, SESSION-3: a question or a permission request of the agent, answered from the panel, raised in « À toi ». */
+test.describe('the requests of a Session (SESSION-3)', () => {
+  test('a question: its options in the panel, « Répondre » sends the one chosen, the agent goes on, the Décision leaves « À toi »', async ({
+    page,
+    scenario,
+    expectAccessible,
+    capture,
+  }) => {
+    await scenario('session-question');
+
+    const question = panel(page).locator('cd-question');
+    await expect(question).toContainText('Question 1 sur 3');
+    await expect(question).toContainText(QUESTION);
+    await expect(question).toContainText('Tous les membres de l’agenda');
+    await expect(question).toContainText('Les autres membres le voient en lecture seule.');
+    await expect(question.getByRole('button', { name: 'Répondre' })).toBeDisabled();
+    await expect(composer(page, 'Ou réponds avec tes mots')).toBeVisible();
+    // Its Décision, under the panel: the question read from the Runner, nothing of it in the row the server holds.
+    await expect(row(page, 'Question de l’agent')).toContainText(QUESTION);
+    await expectAccessible(page);
+
+    await question.getByRole('radio', { name: 'Tous les membres de l’agenda' }).check();
+    await expectAccessible(page);
+    await capture(page, 'session-question');
+    await question.getByRole('button', { name: 'Répondre' }).click();
+
+    await expect(panel(page)).toContainText('Tu as répondu : Tous les membres de l’agenda');
+    await expect(panel(page)).toContainText('Noté : « Tous les membres de l’agenda ».');
+    await expect(panel(page).locator('cd-question')).toHaveCount(0);
+    await expect(composer(page, 'Écrire à l’agent, ou dicter')).toBeVisible();
+    await expect(row(page, 'Question de l’agent')).toHaveCount(0);
+  });
+
+  test('a question answered with the Pilote’s own words, typed in the Composer', async ({ page, scenario }) => {
+    await scenario('session-question');
+    await expect(panel(page).locator('cd-question')).toContainText(QUESTION);
+
+    const field = composer(page, 'Ou réponds avec tes mots');
+    await field.fill('Les membres invités par l’auteur');
+    await field.press('Enter');
+    await expect(panel(page)).toContainText('Tu as répondu : Les membres invités par l’auteur');
+    await expect(panel(page)).toContainText('Noté : « Les membres invités par l’auteur ».');
+    await expect(panel(page).locator('cd-question')).toHaveCount(0);
+    await expect(row(page, 'Question de l’agent')).toHaveCount(0);
+  });
+
+  test('a permission: its tool and command, each of its three buttons reaches the Moteur', async ({ page, scenario, expectAccessible, capture }) => {
+    for (const [button, said] of [
+      ['Autoriser', 'Autorisé'],
+      ['Autoriser pour la session', 'Autorisé pour la session'],
+      ['Refuser', 'Refusé'],
+    ] as const) {
+      await scenario('session-permission');
+      const request = panel(page).locator('cd-permission-request');
+      await expect(request).toContainText('Bash demande ta permission');
+      await expect(request).toContainText('git push origin design/agenda-partage');
+      await expect(row(page, 'Concevoir · Agenda partagé')).toContainText('Bash : git push origin design/agenda-partage');
+      if (button === 'Autoriser') {
+        await expectAccessible(page);
+        await capture(page, 'session-permission');
+      }
+
+      await request.getByRole('button', { name: button, exact: true }).click();
+      await expect(panel(page).locator('cd-permission-request')).toHaveCount(0);
+      await expect(panel(page)).toContainText(said);
+      if (button === 'Autoriser') await expect(panel(page)).not.toContainText('Autorisé pour la session');
+      await expect(row(page, 'Concevoir · Agenda partagé')).toHaveCount(0);
+    }
+  });
+
+  test('the Runner offline: the Décision says to open the Session, its text not read', async ({ page, scenario }) => {
+    await scenario('session-question');
+    await expect(row(page, 'Question de l’agent')).toContainText(QUESTION);
+
+    await post(page, '/api/testing/runner/disconnect');
+    await expect(row(page, 'Question de l’agent')).toContainText('Ouvre la Session pour lire la question.');
+    await expect(row(page, 'Question de l’agent')).not.toContainText(QUESTION);
+  });
+});
+

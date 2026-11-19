@@ -53,22 +53,30 @@
     "title": "Quelle couleur pour le titre du README ?"
   },
   {
+    "kind": "answer",
+    "options": [
+      "Rouge"
+    ],
+    "requestId": "toolu_01CeX3unbDfTYMLUkeuix4fk",
+    "seq": 6
+  },
+  {
     "callId": "toolu_01CeX3unbDfTYMLUkeuix4fk",
     "detail": "Your questions have been answered: \"Quelle couleur pour le titre du README ?\"=\"Bleu\". You can now continue with these answers in mind.",
     "kind": "tool-result",
     "ok": true,
-    "seq": 6
+    "seq": 7
   },
   {
     "final": true,
     "from": "agent",
     "kind": "message",
-    "seq": 7,
+    "seq": 8,
     "text": "Couleur choisie : Bleu SKILL-OK"
   },
   {
     "kind": "usage",
-    "seq": 8,
+    "seq": 9,
     "windows": [
       {
         "id": "five-hour",
@@ -87,13 +95,13 @@
     "inputTokens": 61722,
     "kind": "usage",
     "outputTokens": 229,
-    "seq": 9
+    "seq": 10
   },
   {
     "costUsdMicros": 2231,
     "engineSessionId": "fbb2ff45-baba-4dda-97b7-fb1ad3a0a91b",
     "kind": "result",
-    "seq": 10,
+    "seq": 11,
     "status": "ok"
   }
 ]

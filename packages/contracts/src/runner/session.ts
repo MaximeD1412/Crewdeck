@@ -136,6 +136,28 @@ export const zSessionStateMessage = runnerMessage('session.state', {
 });
 export type SessionStateMessage = z.infer<typeof zSessionStateMessage>;
 
+/** What a Session's request asks: an answer to a question, or a permission. */
+export const SESSION_REQUEST_KINDS = ['question', 'permission'] as const;
+export const zSessionRequestKind = z.enum(SESSION_REQUEST_KINDS);
+export type SessionRequestKind = z.infer<typeof zSessionRequestKind>;
+
+/**
+ * Runner → server: the agent of the Session waits for the Pilote's answer to
+ * the request `requestId` (SESSION-3), the event `seq` of its log. Never the
+ * question nor the command: the page reads them through the relay.
+ */
+export const zSessionWaiting = runnerMessage('session.waiting', {
+  sessionId: zId,
+  requestId: z.string().min(1).max(200),
+  kind: zSessionRequestKind,
+  seq: z.int().positive(),
+});
+export type SessionWaiting = z.infer<typeof zSessionWaiting>;
+
+/** Runner → server: the request `requestId` was answered, from whichever tab. */
+export const zSessionAnswered = runnerMessage('session.answered', { sessionId: zId, requestId: z.string().min(1).max(200) });
+export type SessionAnswered = z.infer<typeof zSessionAnswered>;
+
 /** A Session the Runner knows, in its `hello`: `alive` while its Moteur still runs (never after a restart of the Runner). */
 export const zHelloSession = z.object({ sessionId: zId, alive: z.boolean() });
 export type HelloSession = z.infer<typeof zHelloSession>;

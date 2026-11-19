@@ -199,6 +199,12 @@ func (s *Server) call(ctx context.Context, conn *connection, id json.RawMessage,
 				answer = map[string]any{"behavior": "deny", "message": "Le Runner ne répond plus : l’action n’a pas été autorisée."}
 			case o.reply.Allow:
 				answer = map[string]any{"behavior": "allow", "updatedInput": input}
+				if o.reply.ForSession {
+					answer["updatedPermissions"] = []any{map[string]any{
+						"type": "addRules", "behavior": "allow", "destination": "session",
+						"rules": []any{map[string]any{"toolName": params.Arguments.ToolName}},
+					}}
+				}
 			default:
 				message := o.reply.Message
 				if message == "" {

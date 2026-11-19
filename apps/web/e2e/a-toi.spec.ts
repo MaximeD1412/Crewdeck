@@ -78,8 +78,9 @@ test('« À toi » lists the nine open Décisions newest first, the Cadre counti
   await expect(page).toHaveURL(/\/boucle\?ticket=44$/);
   if ((viewport?.width ?? 0) >= 1280) {
     await page.goBack();
-    await rows(page).nth(1).getByRole('button', { name: 'Ouvrir' }).click();
-    await expect(page).toHaveURL(/\/conceptions$/);
+    // A question of an agent is answered in its Session's panel (SESSION-3).
+    await rows(page).nth(1).getByRole('button', { name: 'Répondre' }).click();
+    await expect(page).toHaveURL(/\/a-toi\?session=019a6f1e-7c3d-7e4f-9a1b-5e5510000001$/);
   }
 });
 

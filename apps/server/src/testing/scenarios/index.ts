@@ -26,7 +26,7 @@ import { processScenarios } from './process.js';
 import { resynchronisation } from './resynchronisation.js';
 import { runner, runnerServeursMcp } from './runner.js';
 import { aToiRunnerHorsLigne, runnerHorsLigne } from './runner-offline.js';
-import { session, sessionArretee, sessionRunnerHorsLigne } from './session.js';
+import { session, sessionArretee, sessionPermission, sessionQuestion, sessionRunnerHorsLigne } from './session.js';
 import { smoke } from './smoke.js';
 
 export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed } from './define.js';
@@ -69,6 +69,8 @@ const SCENARIOS: readonly Scenario[] = [
   runnerServeursMcp,
   session,
   sessionArretee,
+  sessionQuestion,
+  sessionPermission,
   sessionRunnerHorsLigne,
   smoke,
   ...composantsRows,

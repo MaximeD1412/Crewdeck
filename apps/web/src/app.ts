@@ -16,6 +16,8 @@ import {
   RepositoryPicker,
   RoleSettings,
   Composer,
+  PermissionRequest,
+  Question,
   Session,
   SettingRow,
   type Skin,
@@ -43,6 +45,7 @@ import { bootSkin } from './registry.js';
 import { createDeviceStore } from './keys/device-store.js';
 import { createRoleSettings } from './role-settings.js';
 import { createSessionPanel } from './session-panel.js';
+import { createSessionPeek } from './sessions/peek.js';
 import { createSessionRelay, type SessionRelay } from './sessions/relay.js';
 import { routeData, routeSlots, startRouter, type Route, type RouteMatch, type Router } from './router.js';
 import { aToiHref, composantsHref, ideesHref, ROUTES } from './routes.js';
@@ -53,10 +56,13 @@ import type { Connection } from './store/connection.js';
 import { createIdeaPlaintext } from './store/idea-plaintext.js';
 import { createLatencyMeter, type LatencyMeter } from './store/latency.js';
 import type { Store } from './store/store.js';
+import { aToiView } from './views/a-toi.js';
 import { createConnexion } from './views/connexion.js';
 import { createConnexionLien, takeLinkToken } from './views/connexion-lien.js';
 import { actionsOf, decisionViews } from './views/decisions/registry.js';
+import './views/decisions/agent-question.js';
 import './views/decisions/loop-back-exhausted.js';
+import './views/decisions/permission-requested.js';
 import './views/decisions/runner-offline.js';
 import { systemOfBrowser } from './views/demarrage.js';
 import { ADD_DEVICE_ID, isLastTrusted, revokeConfirmation, revokedDeviceOf } from './views/devices.js';
@@ -66,6 +72,7 @@ import { parametresProjetView, type ParametresProjetView } from './views/paramet
 import { processEditorView } from './views/process-editor.js';
 import { projetsView } from './views/projets.js';
 import { runnerView } from './views/runner.js';
+import { roleName } from './views/session.js';
 import { usageChangesAt } from './views/usage.js';
 
 /** The Skins the page knows, by id: at the MVP, the default one. */
@@ -238,6 +245,8 @@ export const boot = async ({
     url.searchParams.delete('session');
     router.navigate(url.pathname + url.search + url.hash);
   };
+  // What « À toi » reads of a Session's request, from the Runner (SESSION-3).
+  const peek = createSessionPeek({ relay });
   const sessionPanel = createSessionPanel({ store, client, relay, shell, navigate: (url) => router.navigate(url), close: closePanel });
   const projectSettings = createProjectSettings({
     client,
@@ -303,6 +312,13 @@ export const boot = async ({
       if (match.composant === PageConnexionLien) return connexionLien.view();
       if (match.composant === RepositoryPicker) return projects.picker('projets');
       const { slices } = store.getState();
+      if (match.composant === PageAToi) {
+        return aToiView(slices.decision?.values() ?? [], match.query, {
+          runnerOnline: slices.runner?.state === 'online',
+          sessionEvent: peek.read,
+          roleName: (role) => roleName(role, slices.settings),
+        });
+      }
       if (match.composant === PageProjets) return projetsView(slices.project?.values() ?? []);
       if (match.composant === PageProcessEditor) {
         const projectId = match.params['id'] ?? '';
@@ -331,8 +347,13 @@ export const boot = async ({
   const refreshNoteDialog = () => {
     noteDialog.data = noteIdea.view();
   };
+  // The Runner back: the reads of « À toi » it failed are tried again.
+  let runnerOnline = store.getState().slices.runner?.state === 'online';
   const unsubscribe = [
     store.subscribe(() => {
+      const online = store.getState().slices.runner?.state === 'online';
+      if (online && !runnerOnline) peek.retry();
+      runnerOnline = online;
       gettingStarted.sync();
       router.refresh();
       shell.refresh();
@@ -340,6 +361,7 @@ export const boot = async ({
       refreshNoteDialog();
     }),
     plaintext.subscribe(() => router.refresh()),
+    peek.subscribe(() => router.refresh()),
     noteIdea.subscribe(refreshNoteDialog),
     gettingStarted.subscribe(() => router.refresh()),
     connexion.subscribe(() => router.refresh()),
@@ -452,6 +474,11 @@ export const boot = async ({
   // « Agrandir » is not at the MVP: the panel does not offer it.
   dispatcher.registerAction(Session, 'expand', { run: () => undefined });
   dispatcher.registerAction(Composer, 'send', { run: ({ text }) => sessionPanel.send(text) });
+  // The agent's requests in the panel (SESSION-3): sealed to the Runner, which hands them to the Moteur once.
+  dispatcher.registerAction(Question, 'answer', { run: ({ questionId, optionIds }) => sessionPanel.answer(questionId, optionIds) });
+  dispatcher.registerAction(PermissionRequest, 'allow', { run: ({ id }) => sessionPanel.permission(id, 'allow') });
+  dispatcher.registerAction(PermissionRequest, 'allowForSession', { run: ({ id }) => sessionPanel.permission(id, 'allow-session') });
+  dispatcher.registerAction(PermissionRequest, 'deny', { run: ({ id }) => sessionPanel.permission(id, 'deny') });
   const stop = () => {
     sessionPanel.dispose();
     stopFollowingVault();

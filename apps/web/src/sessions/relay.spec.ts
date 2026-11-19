@@ -327,6 +327,35 @@ describe('the relay of a Session in the page', () => {
     await expect(relay.sendInput(v.sessionId, v.input.payload)).rejects.toEqual(new SessionInputError('no-key'));
   });
 
+  it('opens the Session from a later seq: only its events from there (SESSION-3, an « À toi » row reading its request)', async () => {
+    const { v, socket, relay } = await setUp();
+    const session = relay.openSession(v.sessionId, 2);
+    expect(socket.sent).toEqual([{ type: 'session.open', sessionId: v.sessionId, fromSeq: 2 }]);
+    socket.receive(v.keys);
+    for (const { frame } of v.frames) socket.receive(frame);
+    await vi.waitFor(() => expect(session.events()).toEqual([v.frames[1]?.event]));
+  });
+
+  it('follows a Session opened twice until both close it; one opened from earlier opens it again from there', async () => {
+    const { v, socket, relay } = await setUp();
+    const peek = relay.openSession(v.sessionId, 2);
+    socket.receive(v.keys);
+    for (const { frame } of v.frames) socket.receive(frame);
+    await vi.waitFor(() => expect(peek.events()).toHaveLength(1));
+
+    const panel = relay.openSession(v.sessionId);
+    expect(socket.sent.at(-1)).toEqual({ type: 'session.open', sessionId: v.sessionId, fromSeq: 1 });
+    for (const { frame } of v.frames) socket.receive(frame);
+    await vi.waitFor(() => expect(panel.events()).toEqual(v.frames.map(({ event }) => event)));
+
+    relay.closeSession(v.sessionId);
+    expect(socket.sent.at(-1)).toEqual({ type: 'session.open', sessionId: v.sessionId, fromSeq: 1 });
+    expect(panel.events()).toHaveLength(2);
+    relay.closeSession(v.sessionId);
+    expect(socket.sent.at(-1)).toEqual({ type: 'session.close', sessionId: v.sessionId });
+    expect(panel.events()).toEqual([]);
+  });
+
   it('writes web-relay.json: an input the browser sealed, for the Runner to hand to its Moteur', async () => {
     const { v, socket, relay } = await setUp();
     relay.openSession(v.sessionId);

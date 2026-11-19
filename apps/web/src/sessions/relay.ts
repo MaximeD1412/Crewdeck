@@ -72,11 +72,15 @@ export class SessionInputError extends Error {
 }
 
 export interface SessionRelay {
-  /** Follows the Session from its first event; the same subscription while it is open. */
-  openSession(sessionId: string): SessionSubscription;
+  /**
+   * Follows the Session from its event `fromSeq` (its first by default); the
+   * same subscription while it is open, its events then from the lowest
+   * `fromSeq` asked. Each open is closed by its own `closeSession`.
+   */
+  openSession(sessionId: string, fromSeq?: number): SessionSubscription;
   /** Seals the input and sends it; its `inputId` (drawn when not given), to send it again. */
   sendInput(sessionId: string, input: SessionInputPayload, inputId?: string): Promise<string>;
-  /** Stops following the Session and drops what was decrypted. */
+  /** Ends one open of the Session; the last one stops following it and drops what was decrypted. */
   closeSession(sessionId: string): void;
 }
 
@@ -95,7 +99,11 @@ type Keys = Extract<TabRelayServerMessage, { type: 'session.keys' }>;
 
 interface Followed {
   readonly subscription: SessionSubscription;
-  readonly buffer: SessionBuffer;
+  buffer: SessionBuffer;
+  /** The `seq` its buffer starts at: the lowest `fromSeq` of its opens. */
+  from: number;
+  /** Its opens not closed yet. */
+  opens: number;
   readonly listeners: Set<() => void>;
   key: CryptoKey | null;
   pending: Frame[];
@@ -229,13 +237,24 @@ export const createSessionRelay = ({
   });
 
   return {
-    openSession(sessionId) {
+    openSession(sessionId, fromSeq = 1) {
       const known = followed.get(sessionId);
-      if (known) return known.subscription;
+      if (known) {
+        known.opens += 1;
+        if (fromSeq < known.from) {
+          // Asked from earlier: the events from there, the Runner replaying them.
+          known.from = fromSeq;
+          known.buffer = createSessionBuffer(fromSeq);
+          open(sessionId, known);
+          changed(known);
+        }
+        return known.subscription;
+      }
       const listeners = new Set<() => void>();
-      const buffer = createSessionBuffer();
       const session: Followed = {
-        buffer,
+        buffer: createSessionBuffer(fromSeq),
+        from: fromSeq,
+        opens: 1,
         listeners,
         key: null,
         pending: [],
@@ -245,7 +264,7 @@ export const createSessionRelay = ({
         closed: false,
         subscription: {
           sessionId,
-          events: () => buffer.events(),
+          events: () => session.buffer.events(),
           error: () => session.error,
           onChange(listener) {
             listeners.add(listener);
@@ -282,6 +301,8 @@ export const createSessionRelay = ({
     closeSession(sessionId) {
       const session = followed.get(sessionId);
       if (!session) return;
+      session.opens -= 1;
+      if (session.opens > 0) return;
       followed.delete(sessionId);
       session.closed = true;
       session.key = null;

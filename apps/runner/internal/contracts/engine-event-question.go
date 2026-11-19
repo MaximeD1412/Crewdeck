@@ -11,6 +11,12 @@ type EngineEventQuestion struct {
 	// At corresponds to the JSON schema field "at".
 	At time.Time `json:"at"`
 
+	// Count corresponds to the JSON schema field "count".
+	Count *int `json:"count,omitempty,omitzero"`
+
+	// Index corresponds to the JSON schema field "index".
+	Index *int `json:"index,omitempty,omitzero"`
+
 	// Kind corresponds to the JSON schema field "kind".
 	Kind string `json:"kind"`
 
@@ -93,6 +99,18 @@ func (j *EngineEventQuestion) UnmarshalJSON(value []byte) error {
 	var plain Plain
 	if err := json.Unmarshal(value, &plain); err != nil {
 		return err
+	}
+	if plain.Count != nil && 9007199254740991 < *plain.Count {
+		return fmt.Errorf("field %s: must be <= %v", "count", 9007199254740991)
+	}
+	if plain.Count != nil && 0 >= *plain.Count {
+		return fmt.Errorf("field %s: must be > %v", "count", 0)
+	}
+	if plain.Index != nil && 9007199254740991 < *plain.Index {
+		return fmt.Errorf("field %s: must be <= %v", "index", 9007199254740991)
+	}
+	if plain.Index != nil && 0 >= *plain.Index {
+		return fmt.Errorf("field %s: must be > %v", "index", 0)
 	}
 	if plain.Kind != "question" {
 		return fmt.Errorf("field %s: must be equal to %s", "kind", "question")

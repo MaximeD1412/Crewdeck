@@ -372,6 +372,112 @@ describe('the Sessions against PostgreSQL', () => {
     });
   });
 
+  describe('the Runner’s session.waiting and session.answered', () => {
+    const decisions = (sessionId: string) =>
+      sql<{ kind: string; subject_type: string; subject_id: string; label: string; meta_parts: string[]; project_name: string | null; tone: string; link: string; params: unknown; state: string; outcome: string | null }>(
+        `SELECT kind, subject_type, subject_id, label, meta_parts, project_name, tone, link, params, state, outcome FROM decisions WHERE params->>'sessionId' = $1 ORDER BY created_at, subject_id`,
+        [sessionId],
+      );
+
+    const QUESTION = 'Qui peut modifier un événement d’un agenda partagé ?';
+    const COMMAND = 'git push origin design/agenda-partage';
+
+    it('raises one Décision per request, the Session waiting, and the stored rows hold no question nor command', async () => {
+      const alice = await pilot();
+      const projectId = await project(alice);
+      const socket = await online(alice);
+      const session = await start(alice, input(projectId, { role: 'design', step: undefined }));
+      report(socket, { sessionId: session.id, state: 'active' });
+      await settle(session.id, 'active');
+
+      socket.send({ type: 'session.waiting', sessionId: session.id, requestId: 'toolu_q1', kind: 'question', seq: 4 });
+      socket.send({ type: 'session.waiting', sessionId: session.id, requestId: 'toolu_p1', kind: 'permission', seq: 6 });
+      await vi.waitFor(async () => expect(await decisions(session.id)).toHaveLength(2), { timeout: 5_000 });
+
+      expect(await decisions(session.id)).toEqual([
+        {
+          kind: 'agent-question',
+          subject_type: 'session-request',
+          subject_id: 'toolu_q1',
+          label: 'Le panier garde ses articles',
+          meta_parts: ['session'],
+          project_name: 'shop',
+          tone: 'accent',
+          link: `/a-toi?session=${session.id}`,
+          params: { sessionId: session.id, requestSeq: 4, role: 'design' },
+          state: 'open',
+          outcome: null,
+        },
+        expect.objectContaining({ kind: 'permission-requested', subject_id: 'toolu_p1', tone: 'caution', params: { sessionId: session.id, requestSeq: 6, role: 'design' } }),
+      ]);
+      expect((await row(session.id))?.state).toBe('waiting');
+      const stored = JSON.stringify(await sql(`SELECT * FROM decisions`)) + JSON.stringify(await sql(`SELECT * FROM agent_sessions`));
+      expect(stored).not.toContain(QUESTION);
+      expect(stored).not.toContain(COMMAND);
+    });
+
+    it('resolves the Décision answered, the Session active once no other request waits, and an answer again does nothing', async () => {
+      const alice = await pilot();
+      const projectId = await project(alice);
+      const socket = await online(alice);
+      const session = await start(alice, input(projectId, { step: undefined }));
+      report(socket, { sessionId: session.id, state: 'active' });
+      socket.send({ type: 'session.waiting', sessionId: session.id, requestId: 'toolu_q1', kind: 'question', seq: 2 });
+      socket.send({ type: 'session.waiting', sessionId: session.id, requestId: 'toolu_q2', kind: 'question', seq: 3 });
+      await vi.waitFor(async () => expect(await decisions(session.id)).toHaveLength(2), { timeout: 5_000 });
+
+      socket.send({ type: 'session.answered', sessionId: session.id, requestId: 'toolu_q1' });
+      await vi.waitFor(async () => expect((await decisions(session.id))[0]).toMatchObject({ subject_id: 'toolu_q1', state: 'resolved', outcome: 'answered' }), { timeout: 5_000 });
+      expect((await row(session.id))?.state).toBe('waiting');
+
+      socket.send({ type: 'session.answered', sessionId: session.id, requestId: 'toolu_q2' });
+      await settle(session.id, 'active');
+      socket.send({ type: 'session.answered', sessionId: session.id, requestId: 'toolu_q2' });
+      report(socket, { sessionId: session.id, state: 'active' });
+      await vi.waitFor(async () => expect((await decisions(session.id)).map((d) => d.state)).toEqual(['resolved', 'resolved']), { timeout: 5_000 });
+      expect(await sql(`SELECT count(*)::int AS n FROM decisions`)).toEqual([{ n: 2 }]);
+    });
+
+    it('keeps the Décisions of an interrupted Session open, and resolves them once it ended', async () => {
+      const alice = await pilot();
+      const projectId = await project(alice);
+      const socket = await online(alice);
+      const session = await start(alice, input(projectId, { step: undefined }));
+      report(socket, { sessionId: session.id, state: 'active' });
+      socket.send({ type: 'session.waiting', sessionId: session.id, requestId: 'toolu_p1', kind: 'permission', seq: 2 });
+      await settle(session.id, 'waiting');
+
+      await socket.close();
+      await settle(session.id, 'interrupted');
+      expect((await decisions(session.id)).map((d) => d.state)).toEqual(['open']);
+
+      await runInPilotScope(alice.id, () =>
+        sessions.report(alice.id, { type: 'session.state', id: newId(), at: new Date().toISOString(), sessionId: session.id, state: 'ended', outcome: 'ok' }),
+      );
+      expect(await decisions(session.id)).toEqual([expect.objectContaining({ state: 'resolved', outcome: 'ended' })]);
+    });
+
+    it('keeps the Décisions of a stopped Session open, and resolves them withdrawn once it resumes: the new run never takes them', async () => {
+      const alice = await pilot();
+      const projectId = await project(alice);
+      const socket = await online(alice);
+      const session = await start(alice, input(projectId, { step: undefined }));
+      report(socket, { sessionId: session.id, state: 'active', engineSessionId: 'eng-1' });
+      socket.send({ type: 'session.waiting', sessionId: session.id, requestId: 'toolu_q1', kind: 'question', seq: 2 });
+      await settle(session.id, 'waiting');
+
+      const stopped = await call(alice, 'POST', `/api/sessions/${session.id}/stop`, { seq: (await row(session.id))?.last_seq ?? '0' });
+      expect(stopped.status).toBe(200);
+      expect((await decisions(session.id)).map((d) => d.state)).toEqual(['open']);
+
+      const resumed = await call(alice, 'POST', `/api/sessions/${session.id}/resume`, { seq: (await row(session.id))?.last_seq ?? '0' });
+      expect(resumed.status).toBe(200);
+      expect(await decisions(session.id)).toEqual([expect.objectContaining({ subject_id: 'toolu_q1', state: 'resolved', outcome: 'withdrawn' })]);
+      const state = zState.parse(await (await call(alice, 'GET', '/api/state')).json());
+      expect(state.decisions.filter((decision) => decision.kind === 'agent-question')).toEqual([]);
+    });
+  });
+
   describe('the Runner away and back', () => {
     it('makes the live Sessions interrupted (runner-offline) when the Runner goes offline, and leaves the others', async () => {
       const alice = await pilot();

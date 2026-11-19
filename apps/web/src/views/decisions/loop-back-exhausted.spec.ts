@@ -4,7 +4,10 @@ import type { z } from 'zod';
 import type { Client } from '../../api/client.js';
 import { aToiView } from '../a-toi.js';
 import { loopBackExhaustedView } from './loop-back-exhausted.js';
-import { decisionViews } from './registry.js';
+import { decisionViews, type DecisionReads } from './registry.js';
+
+/** What the row reads beyond its Décision: nothing this kind needs. */
+const READS: DecisionReads = { runnerOnline: true, sessionEvent: () => ({ state: 'reading' }), roleName: (role) => role };
 
 const NOW = new Date('2026-11-16T10:25:00.000Z');
 const PHASE_RUN_ID = '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6b01';
@@ -104,8 +107,8 @@ describe('the « Maximum de Retours atteint » Décision in « À toi »', () =>
   });
 
   it('says what stopped by the item’s type', () => {
-    expect(loopBackExhaustedView.context?.(exhausted({ itemType: 'idea' }))).toMatch(/: l’Idée s’est arrêtée\.$/);
-    expect(loopBackExhaustedView.context?.(exhausted({ itemType: 'prd' }))).toMatch(/: le travail s’est arrêté\.$/);
+    expect(loopBackExhaustedView.context?.(exhausted({ itemType: 'idea' }), READS)).toMatch(/: l’Idée s’est arrêtée\.$/);
+    expect(loopBackExhaustedView.context?.(exhausted({ itemType: 'prd' }), READS)).toMatch(/: le travail s’est arrêté\.$/);
   });
 
   it('answers through the PhaseRun’s routes, naming the Décision', async () => {

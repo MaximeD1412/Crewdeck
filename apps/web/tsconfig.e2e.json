@@ -6,6 +6,6 @@
     "lib": ["es2024", "dom"],
     "types": ["node"]
   },
-  "include": ["e2e/**/*.ts", "playwright.config.ts"],
+  "include": ["e2e/**/*.ts", "src/dictation/fake-speech.ts", "playwright.config.ts"],
   "references": [{ "path": "../../packages/contracts/tsconfig.lib.json" }]
 }

@@ -18,7 +18,7 @@ const SESSION_COMPOSANTS = [
   { name: 'ToolCall', scenario: 'composants-tool-call', tag: 'cd-tool-call', examples: 2 },
   { name: 'Question', scenario: 'composants-question', tag: 'cd-question', examples: 2 },
   { name: 'PermissionRequest', scenario: 'composants-permission-request', tag: 'cd-permission-request', examples: 1 },
-  { name: 'Composer', scenario: 'composants-composer', tag: 'cd-composer', examples: 4 },
+  { name: 'Composer', scenario: 'composants-composer', tag: 'cd-composer', examples: 6 },
 ] as const;
 
 test.describe('the Session Composants in the library (/parametres/composants)', () => {

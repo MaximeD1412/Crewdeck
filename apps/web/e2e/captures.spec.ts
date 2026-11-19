@@ -4,6 +4,7 @@
  * `design/screens.json`) into `CAPTURES_DIR`, once per project (390 and 1280 px).
  */
 import type { Page } from '@playwright/test';
+import { installFakeSpeech, type FakeSpeechControl } from '../src/dictation/fake-speech.js';
 import { openConfirm } from './confirm.js';
 import { expect, test } from './fixtures.js';
 import { linkFirstAppareil } from './runner-link.js';
@@ -114,6 +115,23 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await page.locator('cd-page-idees cd-page-header').getByRole('button', { name: 'Noter une Idée' }).click();
     await expect(page.getByRole('dialog', { name: 'Noter une Idée' })).toBeVisible();
   },
+  // « Noter une Idée » dictating, as the mockup: the fake recognition, the notice already seen on this Appareil, 7 s heard.
+  'idees-dictee': async (page) => {
+    await page.addInitScript(installFakeSpeech);
+    await page.addInitScript(() => localStorage.setItem('crewdeck.dictation.notice', 'vue'));
+    await page.clock.install({ time: new Date('2026-11-19T10:00:00+01:00') });
+    await page.reload();
+    await expect(page.locator('cd-page-idees cd-idea-row').first()).toContainText('Prévenir quand une Planification');
+    await page.clock.pauseAt(new Date('2026-11-19T10:01:00+01:00'));
+    await page.locator('cd-page-idees cd-page-header').getByRole('button', { name: 'Noter une Idée' }).click();
+    await expect(page.getByRole('dialog', { name: 'Noter une Idée' })).toBeVisible();
+    await page.locator('cd-note-idea-dialog').getByRole('button', { name: 'Dicter', exact: true }).click();
+    await page.evaluate(() =>
+      (window as unknown as { fakeSpeech: FakeSpeechControl }).fakeSpeech.say('Pouvoir dupliquer une recette pour en faire une variante, avec…', false),
+    );
+    await page.clock.runFor(7_000);
+    await expect(page.locator('cd-note-idea-dialog .rec')).toContainText('Dictée en cours · 0:07');
+  },
   'idees-vide': async (page) => {
     await expect(page.locator('cd-page-idees cd-empty')).toContainText('Aucune Idée pour l’instant');
   },
@@ -161,7 +179,7 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
 };
 
 /** The scenarios whose capture is the screen, not the whole page: a modal over it. */
-const SCREEN_ONLY: ReadonlySet<string> = new Set(['confirm-dialog', 'appareil-a-approuver-code', 'appareils-ajouter', 'idees-nouvelle']);
+const SCREEN_ONLY: ReadonlySet<string> = new Set(['confirm-dialog', 'appareil-a-approuver-code', 'appareils-ajouter', 'idees-nouvelle', 'idees-dictee']);
 
 const names = (process.env['CAPTURES_SCENARIOS'] ?? '')
   .split(',')

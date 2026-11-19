@@ -32,6 +32,8 @@ const PROJECT: Project = {
   name: 'site-mairie',
   fullName: 'MaximeD1412/site-mairie',
   displayName: 'Site mairie',
+  nameSealed: null,
+  folder: null,
   releaseBranch: 'main',
   integrationBranch: 'develop',
   hasCode: true,

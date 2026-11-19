@@ -253,7 +253,7 @@ const sourcesPanel = (view: ProjectProcess, definition: ProcessDefinition, proje
   const group = (id: 'ticket' | 'code', source: ProjectSource): SourceRow => {
     const held = typesOf(id).filter((type) => passed.has(type));
     const unused = typesOf(id).filter((type) => !passed.has(type));
-    const place = source.source === 'github' ? project.fullName : t(`process.sources.${id}.local`, { machine });
+    const place = source.source === 'github' ? (project.fullName ?? '') : t(`process.sources.${id}.local`, { machine });
     const parts = [
       // The Tickets' group holds only the Ticket: its place says it.
       ...(id === 'code' && held.length > 0 ? [t('process.sources.held', { types: held.map(typeLabel).join(', ') })] : []),
@@ -331,7 +331,14 @@ const nothing = (found: boolean, ui: EditorUi): ProcessEditorData => ({
  * the edits' view in place of the store's, the target Phase, why a block
  * does not go, the catalogue, the refusal and the Dialog asked.
  */
-export const processEditorView = (state: ProcessEditorState, projectId: string, ui: EditorUi, edits: EditorEdits = NO_EDITS): ProcessEditorData => {
+export const processEditorView = (
+  state: ProcessEditorState,
+  projectId: string,
+  ui: EditorUi,
+  edits: EditorEdits = NO_EDITS,
+  // A Local Projet's name is sealed: the page opens it (PROJET-6, `projects.ts`).
+  projectName: (project: Project) => string = (project) => project.displayName ?? '',
+): ProcessEditorData => {
   const { slices } = state;
   if (!slices.project || !slices.process) return nothing(true, ui);
   const project = slices.project.get(projectId);
@@ -349,7 +356,7 @@ export const processEditorView = (state: ProcessEditorState, projectId: string, 
 
   return {
     found: true,
-    title: { projectName: project.displayName, backHref: '/projets', count: countOf(view, gaps.length) },
+    title: { projectName: projectName(project), backHref: '/projets', count: countOf(view, gaps.length) },
     hasVersion: view.active !== null,
     canvas: canvasOf(definition, gaps, selection, { zoom: ui.zoom, pan: ui.pan, roleNames, focus: ui.focus, editable: true, target: target?.id ?? null }),
     tab: ui.tab,

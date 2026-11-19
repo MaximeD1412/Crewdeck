@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { GitHubEvents, type GitHubEvent } from '../webhooks/dispatcher.js';
 import { CHANGE_VIEW, toChange } from './change.view.js';
 import { CHANGE_EVENTS, changeOf } from './changes.mapping.js';
+import { githubNamesOf } from '../../projects/project.view.js';
 import { MirrorRelay } from './mirror-relay.js';
 
 /**
@@ -30,10 +31,10 @@ export class GitHubChanges implements OnModuleInit {
     if (!facts) return;
     const { githubRepoId, ...envelope } = facts;
     const row = await this.prisma.scoped.$transaction(async (tx) => {
-      const project = await tx.project.findFirst({ where: { githubRepoId: BigInt(githubRepoId), accessLost: false }, select: { id: true, fullName: true } });
+      const project = await tx.project.findFirst({ where: { githubRepoId: BigInt(githubRepoId), accessLost: false }, select: { id: true, owner: true, name: true, fullName: true } });
       if (!project) return null;
       const { githubChangeSeq: seq } = await tx.pilot.update({ where: { id: pilotId }, data: { githubChangeSeq: { increment: 1 } }, select: { githubChangeSeq: true } });
-      return tx.gitHubChange.create({ data: { pilotId, seq, projectId: project.id, repository: project.fullName, ...envelope, at: sourceAt }, select: CHANGE_VIEW });
+      return tx.gitHubChange.create({ data: { pilotId, seq, projectId: project.id, repository: githubNamesOf(project).fullName, ...envelope, at: sourceAt }, select: CHANGE_VIEW });
     });
     if (row) this.relay.publish(pilotId, toChange(row));
   }

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -245,7 +246,7 @@ func TestLinkSendsTheShortIdAndTheMachineThenSavesTheTokenOnceThePageConfirmed(t
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved != (state.State{Server: srv.URL, RunnerID: runnerID, Token: "rnr_token"}) {
+	if !reflect.DeepEqual(saved, state.State{Server: srv.URL, RunnerID: runnerID, Token: "rnr_token"}) {
 		t.Fatalf("runner.json %+v", saved)
 	}
 	info, err := os.Stat(h.linker.store.Path())

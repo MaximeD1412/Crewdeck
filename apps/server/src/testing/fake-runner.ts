@@ -3,25 +3,32 @@ import {
   type CommandRunReason,
   type EngineCapabilities,
   type EngineEvent,
+  folderCheckAad,
+  folderCheckedAad,
+  type FolderCheck,
+  type FolderCheckResult,
   HEARTBEAT_SECONDS,
   type McpServers,
+  projectFolderAad,
   PROTOCOL_VERSION,
   type Runner,
   type RunnerToServer,
   type ServerToRunner,
+  type SealedItem,
   SESSION_KEY_INFO,
   type SessionInput,
   type SessionInputPayload,
   type SessionOutcome,
   type SessionReplay,
   type TestingRunnerUsage,
+  zFolderCheck,
   zServerToRunner,
   zSessionInputPayload,
 } from '@crewdeck/contracts';
 import WebSocket from 'ws';
 import { newId } from '../ids.js';
 import type { Fake } from './fakes.js';
-import { openFrame, sealFrame, sealWrap } from './vault.js';
+import { openFrame, openItem, sealFrame, sealItem, sealWrap } from './vault.js';
 
 /** How long `connect` waits for `hello.accepted`. */
 const ACCEPT_MS = 5_000;
@@ -33,6 +40,14 @@ const OWN_MACHINE: RunnerMachine = { runnerVersion: 'fake', machine: 'atelier', 
 
 type WithoutEnvelope<T> = T extends unknown ? Omit<T, 'id' | 'at'> : never;
 type WithoutStamp<T> = T extends unknown ? Omit<T, 'seq' | 'at'> : never;
+
+/** A folder a scenario seeds on the fake Runner's machine: how it checks, its `name` its path's last part unless given. */
+export type SeededFolder = Omit<FolderCheckResult, 'name'> & { readonly name?: string };
+
+/** A folder a Projet may keep: a git repository's root, or a folder without git. */
+const ATTACHABLE: ReadonlySet<FolderCheckResult['state']> = new Set(['ready', 'not-git']);
+
+const baseName = (path: string): string => path.replace(/\/+$/, '').split('/').pop() ?? '';
 
 type Request = Extract<EngineEvent, { kind: 'question' | 'permission-request' }>;
 type AnswerFields = Pick<Extract<EngineEvent, { kind: 'answer' }>, 'options' | 'text' | 'decision'>;
@@ -89,7 +104,12 @@ const fakeChunk = (seq: number) => ({ seq, nonce: Buffer.alloc(12, seq).toString
  * (SESSION-3) adds its `answer` event and says `session.answered` (the
  * agent's `heldReply` to a question's), one already answered is ignored; its
  * `session.start` and `session.resume` say `session.waiting` for each request
- * still pending.
+ * still pending. Its folders (PROJET-6): with the vault key a scenario gives
+ * it (`useVault`), it answers `folder.check` from the folders seeded
+ * (`seedFolder`; any other path is `missing`, a relative one `not-absolute`,
+ * another Projet's `taken`), keeps the folder `project.folder.attach` sends
+ * when it may, and tells `projects.folders` on connecting and after each
+ * change, as the Runner.
  * Its Commandes (RUNNER-18): `command.run` answers `command.started`, two
  * output chunks (opaque bytes) and the verdict `endCommandsWith` set (by
  * default exited with 0); `command.replay` sends the tab those two chunks again.
@@ -102,6 +122,11 @@ export class FakeRunner implements Fake {
   /** The Sessions it was asked to run, by id: their Moteur's id. */
   private readonly sessions = new Map<string, string>();
   private sessionsEnd: SessionOutcome | undefined;
+  private vaultKey: Uint8Array | undefined;
+  /** The folders of its machine, by path. */
+  private readonly folders = new Map<string, SeededFolder>();
+  /** The Local Projets' folders it keeps, by Projet id: their path. */
+  private readonly projects = new Map<string, string>();
   /** The Sessions whose log it holds, by id: their key and log. */
   private readonly held = new Map<string, HeldSession & { readonly key: Buffer; readonly log: EngineEvent[] }>();
   private commandsEnd: FakeCommandEnd = { reason: 'exited', exitCode: 0 };
@@ -149,6 +174,7 @@ export class FakeRunner implements Fake {
         socket.on('error', () => undefined);
         this.heartbeats = setInterval(() => this.send(socket, { type: 'heartbeat' }), HEARTBEAT_SECONDS * 1000);
         this.heartbeats.unref();
+        this.reportFolders(socket);
         resolve();
       });
     });
@@ -178,6 +204,29 @@ export class FakeRunner implements Fake {
   /** How its Sessions end once `active`, from now on: `undefined`, they stay `active`; `error`, as a Moteur that failed. */
   endSessionsWith(outcome: SessionOutcome | undefined): void {
     this.sessionsEnd = outcome;
+  }
+
+  /** The vault key it opens and seals the folders' texts with, as the Runner's own wrap would give it. */
+  useVault(vaultKey: Uint8Array): void {
+    this.vaultKey = vaultKey;
+  }
+
+  /** A folder at `path` on its machine, checked as `folder`. */
+  seedFolder(path: string, folder: SeededFolder): void {
+    this.folders.set(path, folder);
+  }
+
+  /** The Local Projet `projectId` keeps the folder at `path`, as a Projet created before the scenario starts. */
+  keepFolder(projectId: string, path: string): void {
+    this.projects.set(projectId, path);
+  }
+
+  /** The folder at `path` deleted from its machine: `projects.folders` tells it at once; `false` while not connected. */
+  removeFolder(path: string): boolean {
+    this.folders.delete(path);
+    if (!this.socket || !this.connected) return false;
+    this.reportFolders(this.socket);
+    return true;
   }
 
   /** Holds the log of `sessionId` under a key of its own, for the tabs that open it from now on. */
@@ -210,6 +259,9 @@ export class FakeRunner implements Fake {
     this.last = undefined;
     this.sessions.clear();
     this.sessionsEnd = undefined;
+    this.vaultKey = undefined;
+    this.folders.clear();
+    this.projects.clear();
     this.held.clear();
     this.commandsEnd = { reason: 'exited', exitCode: 0 };
   }
@@ -230,6 +282,21 @@ export class FakeRunner implements Fake {
       case 'session.stop':
         if (this.sessions.has(message.sessionId)) this.send(socket, { type: 'session.state', sessionId: message.sessionId, state: 'stopped' });
         return;
+      case 'folder.check': {
+        const input = this.open(message.sealed, folderCheckAad(message.requestId));
+        if (input === undefined || !this.vaultKey) return;
+        const sealed = sealItem(this.vaultKey, JSON.stringify(this.check(input.path, input.projectId)), folderCheckedAad(message.requestId));
+        this.send(socket, { type: 'folder.checked', requestId: message.requestId, tabId: message.tabId, sealed });
+        return;
+      }
+      case 'project.folder.attach': {
+        const path = this.open(message.sealed, projectFolderAad(message.projectId))?.path;
+        if (path === undefined) return;
+        this.projects.delete(message.projectId);
+        if (ATTACHABLE.has(this.check(path).state)) this.projects.set(message.projectId, path);
+        this.reportFolders(socket);
+        return;
+      }
       case 'session.replay':
         return this.replay(socket, message);
       case 'session.input':
@@ -249,6 +316,34 @@ export class FakeRunner implements Fake {
       default:
         return;
     }
+  }
+
+  /** What `sealed` holds, its path trimmed as the Runner reads it; `undefined` without the vault key or for what does not open. */
+  private open(sealed: SealedItem, aad: string): FolderCheck | undefined {
+    if (!this.vaultKey) return undefined;
+    try {
+      const input = zFolderCheck.parse(JSON.parse(openItem(this.vaultKey, sealed, aad).toString('utf8')));
+      return { ...input, path: input.path.trim() };
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** `projectId`, a Projet whose folder is chosen again: its own folder is not `taken`. */
+  private check(path: string, projectId?: string): FolderCheckResult {
+    const name = baseName(path);
+    if (!path.startsWith('/') && !path.startsWith('~')) return { state: 'not-absolute', hasCode: false, branch: null, name };
+    const folder = this.folders.get(path);
+    if (!folder) return { state: 'missing', hasCode: false, branch: null, name };
+    const takenBy = [...this.projects].filter(([id, kept]) => kept === path && id !== projectId);
+    if (takenBy.length > 0 && ATTACHABLE.has(folder.state)) return { state: 'taken', hasCode: folder.hasCode, branch: folder.branch, name: folder.name ?? name };
+    return { ...folder, name: folder.name ?? name };
+  }
+
+  /** The Projets whose folder is still on its machine. */
+  private reportFolders(socket: WebSocket): void {
+    const present = [...this.projects].filter(([, path]) => this.folders.has(path)).map(([projectId]) => projectId);
+    this.send(socket, { type: 'projects.folders', present });
   }
 
   private replay(socket: WebSocket, { sessionId, tabId, fromSeq }: SessionReplay): void {

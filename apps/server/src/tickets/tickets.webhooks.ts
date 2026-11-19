@@ -14,6 +14,7 @@ import { checkStateOf, statusAsCheck } from './checks.js';
 import { botLoginOf, codeChangeOfPullRequest, milestoneOfGitHub, ticketOfIssue } from './github-rows.js';
 import { TicketActivity } from './ticket-activity.js';
 import { TicketsQueue } from './tickets.queue.js';
+import { githubNamesOf } from '../projects/project.view.js';
 import { type CheckInput, TicketsWriter, type WriteOrigin } from './tickets.writer.js';
 
 /** The Projet a webhook is about, and its repository. */
@@ -125,7 +126,9 @@ export class TicketsWebhooks implements OnModuleInit {
     const parsed = zRepositoryId.safeParse(payload);
     if (!parsed.success) return null;
     const row = await this.prisma.scoped.project.findFirst({ where: { githubRepoId: BigInt(parsed.data.repository.id) }, select: { id: true, owner: true, name: true, fullName: true, githubRepoId: true } });
-    return row && { id: row.id, repo: { owner: row.owner, name: row.name, id: Number(row.githubRepoId) }, fullName: row.fullName };
+    if (!row) return null;
+    const { owner, name, fullName } = githubNamesOf(row);
+    return { id: row.id, repo: { owner, name, id: Number(row.githubRepoId) }, fullName };
   }
 
   /** Whether an issue of a payload (its `repository_url`) is of the Projet's repository. */

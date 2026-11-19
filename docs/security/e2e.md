@@ -694,7 +694,8 @@ POST /api/vault/rotations (the Runner: /api/runner/vault/rotations)
   lists its keys and replaces one: `idea.text`, `idea.analysis`,
   `idea.reason` (`"<ideaId>:<field>"`), `process-version.sealed` and
   `process-draft.sealed` (`"process:<projectId>"`), `project-settings.worktree-commands`
-  (`"settings:<projectId>"`). A ticket that stores a new kind of item
+  (`"settings:<projectId>"`), `project.name` (`"project:<projectId>:name"`,
+  a Local Projet's name). A ticket that stores a new kind of item
   registers it.
 - The server takes the rotation in one transaction, or nothing: 409
   `vault.version-changed` when `fromVersion` is no longer the current one,

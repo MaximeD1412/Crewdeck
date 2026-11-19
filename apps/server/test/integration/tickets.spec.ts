@@ -199,7 +199,7 @@ describe('the Tickets and changes of code against PostgreSQL', () => {
     await deliver('installation', created);
     const repositories = (await state()).repositories;
     const repository = repositories.find((item) => item.name === APP_REPO.name);
-    const res = await call(alice, '/api/projects', { repositoryIds: [repository?.id], seq: String((await state()).seq) });
+    const res = await call(alice, '/api/projects', { repositoryIds: [repository?.id], templateId: 'process-crewdeck', seq: String((await state()).seq) });
     const [project] = zProjectList.parse(await res.json()).items;
     projectId = project?.id ?? '';
     expect(projectId).not.toBe('');

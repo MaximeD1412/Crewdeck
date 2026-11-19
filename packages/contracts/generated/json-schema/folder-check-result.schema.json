@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "branch": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "hasCode": {
+      "type": "boolean"
+    },
+    "name": {
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "not-absolute",
+        "missing",
+        "not-a-folder",
+        "taken",
+        "not-git",
+        "ready"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "branch",
+    "hasCode",
+    "name",
+    "state"
+  ],
+  "title": "FolderCheckResult",
+  "type": "object"
+}

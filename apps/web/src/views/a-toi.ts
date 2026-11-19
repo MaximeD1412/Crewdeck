@@ -23,6 +23,7 @@ const ICONS: Readonly<Record<DecisionKind, IconName>> = {
   'step-failed': 'alert',
   'runner-offline': 'server',
   'ideas-to-triage': 'bulb',
+  'project.folder-missing': 'folder',
 };
 
 export interface AToiOptions {
@@ -32,6 +33,12 @@ export interface AToiOptions {
   readonly now?: Date;
   /** The kinds' views: the page's registry by default. */
   readonly views?: DecisionViews;
+  /**
+   * The name of a Projet a Décision has no `projectName` for (a Local
+   * Projet's, sealed: `projects.ts`, `projectName`); `null` when the page
+   * does not know it, the Décision then named by its `projectId`.
+   */
+  readonly projectName?: (projectId: string) => string | null;
   /** A Session's event read from the Runner (`sessions/peek.ts`); none read by default. */
   readonly sessionEvent?: DecisionReads['sessionEvent'];
   /** A Rôle's name; a default Rôle's, else its id, by default. */
@@ -55,10 +62,14 @@ const newestFirst = (a: Decision, b: Decision): number =>
 export const aToiView = (
   open: Iterable<Decision>,
   query: Readonly<Record<string, string>>,
-  { runnerOnline, now = new Date(), views = decisionViews, sessionEvent = () => NOT_READ, roleName = defaultRoleName }: AToiOptions,
+  { runnerOnline, now = new Date(), views = decisionViews, sessionEvent = () => NOT_READ, roleName = defaultRoleName, projectName: nameOf = () => null }: AToiOptions,
 ): PageAToiData => {
   const reads: DecisionReads = { runnerOnline, sessionEvent, roleName };
-  const all = [...open].sort(newestFirst);
+  const all = [...open]
+    .map((decision) =>
+      decision.projectName === null && decision.projectId !== null ? { ...decision, projectName: nameOf(decision.projectId) ?? decision.projectId } : decision,
+    )
+    .sort(newestFirst);
   const counts = new Map<string, { name: string; count: number }>();
   for (const { projectId, projectName } of all) {
     if (projectId === null) continue;

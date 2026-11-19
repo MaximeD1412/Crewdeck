@@ -52,9 +52,12 @@ const modders = (): PlacedNode =>
  * account (its Rôles, its push), a link to its Paramètres; no Card without a
  * Projet.
  */
-const byProject = (settings: SettingsState, projects: readonly Project[]): readonly PlacedNode[] => {
+/** A Projet's name without the page's vault: its `displayName`. */
+const defaultProjectName = (project: Project): string => project.displayName ?? '';
+
+const byProject = (settings: SettingsState, projects: readonly Project[], name: (project: Project) => string): readonly PlacedNode[] => {
   if (projects.length === 0) return [];
-  const sorted = [...projects].sort((a, b) => a.displayName.localeCompare(b.displayName, 'fr') || a.fullName.localeCompare(b.fullName, 'fr'));
+  const sorted = [...projects].sort((a, b) => name(a).localeCompare(name(b), 'fr') || (a.fullName ?? '').localeCompare(b.fullName ?? '', 'fr'));
   return [
     card(
       'projects',
@@ -63,7 +66,7 @@ const byProject = (settings: SettingsState, projects: readonly Project[]): reado
         const count = settings.projects.find((candidate) => candidate.projectId === project.id)?.changedCount ?? 0;
         const meta =
           count === 0 ? t('settings.projects.inherits') : t(count === 1 ? 'settings.projects.changed.one' : 'settings.projects.changed.other', { count });
-        return linkRow({ title: project.displayName, meta, href: `/projets/${encodeURIComponent(project.id)}/parametres` });
+        return linkRow({ title: name(project), meta, href: `/projets/${encodeURIComponent(project.id)}/parametres` });
       }),
     ),
   ];
@@ -212,6 +215,8 @@ export interface ParametresInput extends RolesInput, IdentitiesInput {
   readonly push?: PushInput;
   readonly devices?: ReadonlyMap<string, Device>;
   readonly currentDeviceId?: string | null;
+  /** A Projet's name: its `displayName`, a Local Projet's opened by the page (PROJET-6, `projects.ts`); `displayName` by default. */
+  readonly projectName?: (project: Project) => string;
 }
 
 /**
@@ -226,11 +231,11 @@ export interface ParametresInput extends RolesInput, IdentitiesInput {
 export const parametresView = (
   settings: SettingsState | null | undefined,
   zones: readonly string[],
-  { accounts = [], local = NO_ROLES_LOCAL, push = {}, projects = [], pilot, erreur, devices, currentDeviceId }: ParametresInput = {},
+  { accounts = [], local = NO_ROLES_LOCAL, push = {}, projects = [], pilot, erreur, devices, currentDeviceId, projectName = defaultProjectName }: ParametresInput = {},
 ): readonly PlacedNode[] => [
   ...[devicesCard(devices, currentDeviceId)].filter((node) => node !== null),
   ...(settings ? [roles(settings, accounts, local), notifications(settings, push)] : []),
   ...(pilot ? [identities(pilot, erreur)] : []),
-  ...(settings ? [account(settings, zones), ...byProject(settings, projects)] : []),
+  ...(settings ? [account(settings, zones), ...byProject(settings, projects, projectName)] : []),
   modders(),
 ];

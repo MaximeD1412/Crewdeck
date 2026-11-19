@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zEvent } from '../events/index.js';
+import { zTabFolderCheck, zTabFolderChecked, zTabFolderError } from '../runner/folders.js';
 import { zTabCommandClose, zTabCommandError, zTabCommandKeys, zTabCommandOpen, zTabCommandOutput } from '../runner/command.js';
 import { zTabRelay, zTabSessionClose, zTabSessionError, zTabSessionInput, zTabSessionKeys, zTabSessionOpen } from '../runner/relay.js';
 import { zSeq } from '../values.js';
@@ -24,6 +25,7 @@ export const zClientMessage = z.discriminatedUnion('type', [
   zTabSessionOpen,
   zTabSessionClose,
   zTabSessionInput,
+  zTabFolderCheck,
   zTabCommandOpen,
   zTabCommandClose,
 ]);
@@ -43,6 +45,8 @@ export const zServerMessage = z.discriminatedUnion('type', [
   zTabSessionKeys,
   zTabRelay,
   zTabSessionError,
+  zTabFolderChecked,
+  zTabFolderError,
   zTabCommandKeys,
   zTabCommandOutput,
   zTabCommandError,

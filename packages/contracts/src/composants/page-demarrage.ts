@@ -4,6 +4,8 @@ import { zLinkFailureReason } from '../api/runner-link.js';
 import { zRunner } from '../api/runner.js';
 import { defineComposant } from './define.js';
 import { EXAMPLE_ENGINES, EXAMPLE_ENGINES_NONE, zEngineAccount } from './engine-account.js';
+import { EXAMPLE_TEMPLATES, FolderProjectForm } from './folder-project-form.js';
+import { zProjectOrigin } from './page-ajouter-projet.js';
 import { EXAMPLE_REPOSITORIES, RepositoryPicker } from './repository-picker.js';
 
 /** The systems of the install command's tabs: the same command, a help line each. */
@@ -28,9 +30,26 @@ const PICKER: z.input<typeof RepositoryPicker.data> = {
   repositories: [...EXAMPLE_REPOSITORIES],
   installUrl: 'https://github.com/apps/crewdeck/installations/new?state=demarrage',
   busy: false,
+  templates: [...EXAMPLE_TEMPLATES],
+  templateId: 'process-crewdeck',
 };
 /** The other steps show no picker: an empty one. */
-const NO_PICKER: z.input<typeof RepositoryPicker.data> = { context: 'demarrage', repositories: [], installUrl: null, busy: false };
+const NO_PICKER: z.input<typeof RepositoryPicker.data> = { ...PICKER, repositories: [], installUrl: null };
+
+/** The folder's form of the Projets' step. */
+const FOLDER: z.input<typeof FolderProjectForm.data> = {
+  context: 'demarrage',
+  path: '',
+  check: { state: 'idle', hasCode: false },
+  name: '',
+  templates: [...EXAMPLE_TEMPLATES],
+  templateId: 'process-crewdeck',
+  busy: false,
+  vaultLocked: false,
+  machine: 'atelier-pc',
+};
+/** The other steps keep the form's state as it is: here, empty. */
+const PROJECTS = { projectsTab: 'github', folder: FOLDER } as const;
 
 /**
  * « Premiers pas » (US-2, `/demarrage`), in the bare Cadre: the track of its
@@ -42,16 +61,18 @@ const NO_PICKER: z.input<typeof RepositoryPicker.data> = { context: 'demarrage',
  * shows each Moteur of `engines`, its Compte IA, its models and, when not
  * connected, the command that connects it; « Continuer » only once `usable`
  * (a Rôle can run on one of them), else disabled under the Banner « Aucun
- * Moteur utilisable ». The Projets' step shows the RepositoryPicker of
- * `picker` (PROJET-2): its `follow` goes up to the page's dispatcher, its
- * `later` becomes the page's `continue`; without `githubLinked` (CORE-11), a
- * caution Banner above it, « Relier GitHub » (`linkGitHub`: the core leaves
- * for `/api/auth/github/link`). `command` is `null` until the page
+ * Moteur utilisable ». The Projets' step shows Tabs « Dossier sur ta
+ * machine » and « Dépôt GitHub » (`projectsTab`, `selectProjectsTab`,
+ * PROJET-6), then the FolderProjectForm of `folder` or the RepositoryPicker
+ * of `picker` (PROJET-2): their `checkPath`, `create` and `follow` go up to
+ * the page's dispatcher, their `later` becomes the page's `continue`; without
+ * `githubLinked` (CORE-11), a caution Banner above the Tabs, « Relier GitHub »
+ * (`linkGitHub`: the core leaves for `/api/auth/github/link`). `command` is `null` until the page
  * drew its code; `busy` while a command is on its way.
  */
 export const PageDemarrage = defineComposant({
   name: 'PageDemarrage',
-  version: 5,
+  version: 6,
   tag: 'cd-page-demarrage',
   category: 'page',
   description: 'Les Premiers pas : le Runner, les Comptes IA, les Projets.',
@@ -67,14 +88,22 @@ export const PageDemarrage = defineComposant({
     engines: z.array(zEngineAccount),
     usable: z.boolean(),
     githubLinked: z.boolean(),
+    projectsTab: zProjectOrigin,
+    folder: FolderProjectForm.data,
     picker: RepositoryPicker.data,
   }),
-  actions: { selectSystem: z.object({ system: zDemarrageSystem }), retry: z.object({}), continue: z.object({}), linkGitHub: z.object({}) },
+  actions: {
+    selectSystem: z.object({ system: zDemarrageSystem }),
+    selectProjectsTab: z.object({ id: zProjectOrigin }),
+    retry: z.object({}),
+    continue: z.object({}),
+    linkGitHub: z.object({}),
+  },
   slots: [],
   examples: [
     {
       name: 'en attente du Runner',
-      data: { step: 'runner', displayName: 'octocat', system: 'linux', command: COMMAND, shortId: '7KQ4', failure: null, runner: null, busy: false, engines: [], usable: false, githubLinked: true, picker: NO_PICKER },
+      data: { step: 'runner', displayName: 'octocat', system: 'linux', command: COMMAND, shortId: '7KQ4', failure: null, runner: null, busy: false, engines: [], usable: false, githubLinked: true, picker: NO_PICKER, ...PROJECTS },
     },
     {
       name: 'liaison échouée',
@@ -91,11 +120,12 @@ export const PageDemarrage = defineComposant({
         usable: false,
         githubLinked: true,
         picker: NO_PICKER,
+        ...PROJECTS,
       },
     },
     {
       name: 'Runner relié',
-      data: { step: 'runner', displayName: 'octocat', system: 'wsl', command: null, shortId: null, failure: null, runner: RUNNER, busy: false, engines: [], usable: false, githubLinked: true, picker: NO_PICKER },
+      data: { step: 'runner', displayName: 'octocat', system: 'wsl', command: null, shortId: null, failure: null, runner: RUNNER, busy: false, engines: [], usable: false, githubLinked: true, picker: NO_PICKER, ...PROJECTS },
     },
     {
       name: 'Comptes IA',
@@ -112,6 +142,7 @@ export const PageDemarrage = defineComposant({
         usable: true,
         githubLinked: true,
         picker: NO_PICKER,
+        ...PROJECTS,
       },
     },
     {
@@ -129,6 +160,7 @@ export const PageDemarrage = defineComposant({
         usable: false,
         githubLinked: true,
         picker: NO_PICKER,
+        ...PROJECTS,
       },
     },
     {
@@ -146,6 +178,26 @@ export const PageDemarrage = defineComposant({
         usable: false,
         githubLinked: true,
         picker: PICKER,
+        ...PROJECTS,
+      },
+    },
+    {
+      name: 'Projets, un dossier',
+      data: {
+        step: 'projects',
+        displayName: 'octocat',
+        system: 'linux',
+        command: null,
+        shortId: null,
+        failure: null,
+        runner: RUNNER,
+        busy: false,
+        engines: [],
+        usable: false,
+        githubLinked: true,
+        picker: PICKER,
+        projectsTab: 'dossier',
+        folder: { ...FOLDER, path: '~/projets/recettes', check: { state: 'ready', hasCode: true }, name: 'recettes' },
       },
     },
     {
@@ -163,6 +215,7 @@ export const PageDemarrage = defineComposant({
         usable: false,
         githubLinked: false,
         picker: NO_PICKER,
+        ...PROJECTS,
       },
     },
   ],

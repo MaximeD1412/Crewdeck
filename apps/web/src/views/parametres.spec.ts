@@ -256,6 +256,8 @@ const project = (id: string, displayName: string, fullName = `dupre/${displayNam
   name: fullName.split('/')[1] ?? displayName,
   fullName,
   displayName,
+  nameSealed: null,
+  folder: null,
   releaseBranch: 'main',
   integrationBranch: 'develop',
   hasCode: true,

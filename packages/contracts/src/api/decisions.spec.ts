@@ -26,9 +26,10 @@ describe('zDecision', () => {
     expect(STATE_SLICES.decisions.parse([DECISION])).toEqual([DECISION]);
   });
 
-  it('has the fifteen kinds, a Retour at its maximum among them', () => {
-    expect(DECISION_KINDS).toHaveLength(15);
+  it('has the sixteen kinds, a Retour at its maximum and a Local Projet\'s missing folder among them', () => {
+    expect(DECISION_KINDS).toHaveLength(16);
     expect(DECISION_KINDS).toContain('loop-back.exhausted');
+    expect(DECISION_KINDS).toContain('project.folder-missing');
     expect(zDecision.safeParse({ ...DECISION, kind: 'something-else' }).success).toBe(false);
   });
 

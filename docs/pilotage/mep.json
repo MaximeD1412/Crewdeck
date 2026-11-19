@@ -573,6 +573,20 @@
       ],
       "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261201000000_identities'\"",
       "ajouteLe": "2026-11-17"
+    },
+    {
+      "id": "migration-local-projects",
+      "phase": "db",
+      "source": "#179",
+      "titre": "Appliquer la migration 20261210000000_local_projects en staging puis en production",
+      "pourquoi": "Les Projets locaux (PROJET-6) : la table projects accepte un Projet sans dépôt GitHub, son nom scellé et l'état de son dossier sur le Runner. Sans elle, créer un Projet depuis un dossier échoue, et GET /api/state lit des colonnes absentes. La migration rend des colonnes facultatives et en ajoute (expand seulement) : la version précédente du serveur tourne sur la base migrée.",
+      "etapes": [
+        "Rien à lancer à la main : deploy.sh répète la migration sur la dernière sauvegarde (rehearse.sh), puis l'applique au déploiement du staging, puis à celui de la production.",
+        "Vérifier sur chaque base (crewdeck-prod, puis crewdeck-staging) que la commande imprime une date : la migration est appliquée.",
+        "Créer un Projet local demande un Runner de cette version ou plus récent : un Runner plus ancien ne répond pas à la vérification du dossier (la page dit « Le Runner ne répond pas »)."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261210000000_local_projects'\"",
+      "ajouteLe": "2026-11-17"
     }
   ]
 }

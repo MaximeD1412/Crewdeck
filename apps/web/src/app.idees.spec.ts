@@ -21,6 +21,8 @@ const project: Project = {
   name: 'personal-os',
   fullName: 'maxime/personal-os',
   displayName: 'Personal OS',
+  nameSealed: null,
+  folder: null,
   releaseBranch: 'main',
   integrationBranch: 'develop',
   hasCode: true,

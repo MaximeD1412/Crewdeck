@@ -11,15 +11,15 @@ import type { PrismaService } from '../../prisma/prisma.service.js';
 export const mirrorProjectsOf = (scoped: PrismaService['scoped']): Promise<MirrorProject[]> =>
   scoped.$transaction(async (tx) => {
     const projects = await tx.project.findMany({
-      where: { accessLost: false },
+      where: { accessLost: false, repositoryId: { not: null } },
       select: { id: true, repositoryId: true, githubRepoId: true, fullName: true, displayName: true, integrationBranch: true },
       orderBy: { followedAt: 'asc' },
     });
-    const repositories = await tx.repository.findMany({ where: { id: { in: projects.map((project) => project.repositoryId) } }, select: { id: true, installationId: true } });
+    const repositories = await tx.repository.findMany({ where: { id: { in: projects.flatMap((project) => (project.repositoryId === null ? [] : [project.repositoryId])) } }, select: { id: true, installationId: true } });
     const installations = new Map(repositories.map((repository) => [repository.id, Number(repository.installationId)]));
     return projects.flatMap((project) => {
-      const installationId = installations.get(project.repositoryId);
-      if (installationId === undefined) return [];
+      const installationId = project.repositoryId === null ? undefined : installations.get(project.repositoryId);
+      if (installationId === undefined || project.fullName === null || project.displayName === null) return [];
       return [
         {
           projectId: project.id,

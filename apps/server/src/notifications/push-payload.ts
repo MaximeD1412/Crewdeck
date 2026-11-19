@@ -14,6 +14,7 @@ export const KIND_LABELS: Record<DecisionKind, string> = {
   'limit-reached': 'Limite atteinte',
   'loop-back.exhausted': 'Maximum de Retours atteint',
   'permission-requested': 'Permission demandée',
+  'project.folder-missing': 'Dossier du Projet introuvable',
   'runner-offline': 'Runner hors ligne',
   'step-failed': 'Étape échouée',
   'ticket-blocked': 'Ticket bloqué',

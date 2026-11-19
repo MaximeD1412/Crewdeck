@@ -75,6 +75,16 @@ describe('aToiView', () => {
     ]);
   });
 
+  it('names a Local Projet’s Décision, whose name the server cannot read, by the page’s name, else by its id', () => {
+    const LOCAL = '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a03';
+    const missing = decision(6, { kind: 'project.folder-missing', projectId: LOCAL, projectName: null, label: 'Dossier introuvable', metaParts: [] });
+
+    const named = view({}, [missing], { projectName: (id) => (id === LOCAL ? 'Recettes' : null) });
+    expect(named.projects[1]).toEqual({ id: LOCAL, name: 'Recettes', count: 1, selected: false });
+    expect(named.decisions[0]).toMatchObject({ icon: 'folder', meta: 'Recettes · il y a 6 min' });
+    expect(view({}, [missing]).projects[1]?.name).toBe(LOCAL);
+  });
+
   it('lists only the chosen Projet’s with ?projet=, the total still counting every one', () => {
     const data = view({ projet: CREWDECK });
     expect(data.total).toBe(4);

@@ -51,6 +51,7 @@ export * from './keys/pairing.js';
 export * from './events/settings.js';
 export * from './events/step-run.js';
 export * from './keys/sealed.js';
+export * from './keys/folder.js';
 export * from './realtime/ws.js';
 export * from './runner/index.js';
 export * from './github/index.js';

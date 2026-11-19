@@ -9,8 +9,8 @@ afterEach(() => document.body.replaceChildren());
 type WithData = HTMLElement & { data: Record<string, unknown> };
 
 const PROJECTS = [
-  { id: '019a6f00-0000-7000-8000-000000000011', displayName: 'Personal OS', fullName: 'MaximeD1412/personal-os' },
-  { id: '019a6f00-0000-7000-8000-000000000012', displayName: 'Crewdeck', fullName: 'MaximeD1412/crewdeck' },
+  { id: '019a6f00-0000-7000-8000-000000000011', name: 'Personal OS', meta: 'MaximeD1412/personal-os' },
+  { id: '019a6f00-0000-7000-8000-000000000021', name: 'Recettes', meta: 'Local · sur atelier-pc' },
 ];
 
 const all = (el: Element, selector: string) => [...(el.shadowRoot?.querySelectorAll<WithData>(selector) ?? [])];
@@ -22,7 +22,7 @@ describe('PageProjets', () => {
     expect(inside<WithData>(el, 'cd-card').data).toMatchObject({ title: 'Prêts pour le Process ?' });
     expect(all(el, 'cd-list-row').map((row) => row.data)).toEqual([
       { title: 'Personal OS', meta: 'MaximeD1412/personal-os', href: `/projets/${PROJECTS[0]?.id}` },
-      { title: 'Crewdeck', meta: 'MaximeD1412/crewdeck', href: `/projets/${PROJECTS[1]?.id}` },
+      { title: 'Recettes', meta: 'Local · sur atelier-pc', href: `/projets/${PROJECTS[1]?.id}` },
     ]);
     const one = await render(COMPOSANTS.PageProjets, { projects: PROJECTS.slice(0, 1) });
     expect(inside<WithData>(one, 'cd-page-header').data['count']).toBe('1 Projet');
@@ -37,7 +37,7 @@ describe('PageProjets', () => {
     const el = await render(COMPOSANTS.PageProjets, { projects: [] });
     expect(inside<WithData>(el, 'cd-page-header').data).toEqual({ title: 'Projets' });
     expect(inside<WithData>(el, 'cd-empty').data).toEqual({ icon: 'folder', title: 'Aucun Projet suivi' });
-    expect(textOf(inside(el, 'cd-empty'))).toContain('il devient un Projet');
+    expect(textOf(inside(el, 'cd-empty'))).toContain('Choisis un dossier de ta machine ou un dépôt GitHub : il devient un Projet, préparé pour son Process.');
     expect(all(el, 'cd-list-row')).toEqual([]);
     expect(await actionsOf(() => inside(el, 'cd-empty cd-button.add', 'button').click())).toEqual([{ composant: 'PageProjets', action: 'add', payload: {} }]);
   });

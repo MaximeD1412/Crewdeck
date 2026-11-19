@@ -90,6 +90,24 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     await settle(el);
     inside(el, 'cd-button.later', 'button').click();
   },
+  'FolderProjectForm.checkPath': (el) => {
+    const field = inside<HTMLInputElement>(el, 'cd-text-field.path', 'input');
+    field.value = '~/projets/recettes-2';
+    field.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+  },
+  'FolderProjectForm.create': (el) => inside(el, 'cd-button.create', 'button').click(),
+  'FolderProjectForm.later': async (el) => {
+    el.data = { ...(el.data as object), context: 'demarrage' };
+    await settle(el);
+    inside(el, 'cd-button.later', 'button').click();
+  },
+  'PageAjouterProjet.selectTab': (el) => inside(el, 'cd-tabs', 'button[role=tab]:nth-of-type(2)').click(),
+  'PageProjet.openProcess': (el) => inside(el, 'cd-button.process', 'button').click(),
+  'PageDemarrage.selectProjectsTab': async (el) => {
+    el.data = COMPOSANTS.PageDemarrage.examples.find((example) => example.name === 'Projets')?.data;
+    await settle(el);
+    inside(el, 'cd-tabs.projects-tabs', 'button[role=tab]').click();
+  },
   'PageAToi.filter': (el) => inside(el, 'cd-project-filter', 'cd-chip:nth-of-type(2)', 'button').click(),
   'PageAToi.open': (el) => inside(el, 'cd-decision-row', '.open').click(),
   'PageAToi.act': (el) => inside(el, 'cd-decision-row cd-button', 'button').click(),

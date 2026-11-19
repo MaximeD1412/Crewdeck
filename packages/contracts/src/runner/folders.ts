@@ -54,3 +54,49 @@ export const zTabFolderClientMessage = zTabFolderCheck;
 export type TabFolderClientMessage = z.infer<typeof zTabFolderCheck>;
 export const zTabFolderServerMessage = z.discriminatedUnion('type', [zTabFolderChecked, zTabFolderError]);
 export type TabFolderServerMessage = z.infer<typeof zTabFolderServerMessage>;
+
+/**
+ * The readiness of a Local Projet's folder (PROJET-3): the server asks where
+ * the folder stands, and asks the Runner to prepare it (« git init », a first
+ * commit with the Pilote's own git identity, the integration branch), never
+ * on top of the Pilote's work. Figures only, never the path.
+ *
+ * - server → Runner: `project.folder.status`, `project.folder.prepare`;
+ * - Runner → server: `project.folder.state` (after each status and each prepare), `project.folder.prepared`.
+ */
+
+const zBranchName = z.string().min(1).max(255);
+const branchesShape = { releaseBranch: zBranchName, integrationBranch: zBranchName };
+
+/** Server → Runner: say where the Projet's folder stands (`project.folder.state`), its branches by these names. */
+export const zProjectFolderStatus = runnerMessage('project.folder.status', { projectId: zId, ...branchesShape });
+export type ProjectFolderStatus = z.infer<typeof zProjectFolderStatus>;
+
+/** Server → Runner: prepare the Projet's folder, from its release and its integration branches; answered by `project.folder.prepared` for `requestId`. */
+export const zProjectFolderPrepare = runnerMessage('project.folder.prepare', { requestId: zId, projectId: zId, ...branchesShape });
+export type ProjectFolderPrepare = z.infer<typeof zProjectFolderPrepare>;
+
+/**
+ * Runner → server: where the Projet's folder stands. `present` false when the
+ * Runner has no folder for it or the folder is gone (every other figure then
+ * false); `isGit` a git repository, `hasCommits` at least one commit, each
+ * branch whether it exists locally.
+ */
+export const zProjectFolderStateMessage = runnerMessage('project.folder.state', {
+  projectId: zId,
+  present: z.boolean(),
+  isGit: z.boolean(),
+  hasCommits: z.boolean(),
+  releaseBranch: z.boolean(),
+  integrationBranch: z.boolean(),
+});
+export type ProjectFolderStateMessage = z.infer<typeof zProjectFolderStateMessage>;
+
+/** Why a folder's preparation failed: the folder gone, no git identity for the first commit (nothing committed), git refused. */
+export const PROJECT_FOLDER_PREPARE_ERRORS = ['folder-missing', 'git-identity-missing', 'git-failed'] as const;
+export const zProjectFolderPrepareError = z.enum(PROJECT_FOLDER_PREPARE_ERRORS);
+export type ProjectFolderPrepareError = z.infer<typeof zProjectFolderPrepareError>;
+
+/** Runner → server: the preparation `requestId` ended, `ok` or with its `error`. */
+export const zProjectFolderPrepared = runnerMessage('project.folder.prepared', { requestId: zId, projectId: zId, ok: z.boolean(), error: zProjectFolderPrepareError.optional() });
+export type ProjectFolderPrepared = z.infer<typeof zProjectFolderPrepared>;

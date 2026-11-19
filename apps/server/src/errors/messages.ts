@@ -46,6 +46,7 @@ export const MESSAGES = {
   'process.no-draft': 'Il n’y a pas de brouillon à activer.',
   'project.already-followed': 'Ce dépôt est déjà un Projet.',
   'project.id-taken': 'Ce Projet existe déjà.',
+  'project.fix-unavailable': 'Rien à corriger ici.',
   'project.not-found': 'Ce Projet est introuvable.',
   'project.not-local': 'Ce Projet n’a pas de dossier sur ta machine.',
   'project.repository-not-found': 'Ce dépôt GitHub est introuvable : installe Crewdeck dessus, puis réessaie.',

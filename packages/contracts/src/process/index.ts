@@ -3,6 +3,7 @@ export * from './catalogue.js';
 export * from './definition.js';
 export * from './diff.js';
 export * from './gaps.js';
+export * from './labels.js';
 export * from './loop-backs.js';
 export * from './sources.js';
 export * from './templates/process-crewdeck.js';

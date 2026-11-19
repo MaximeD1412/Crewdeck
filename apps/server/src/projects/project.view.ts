@@ -1,4 +1,4 @@
-import { type InventoryState, type Project, zSealedItem } from '@crewdeck/contracts';
+import { type InventoryState, type Project, zReadiness, zSealedItem } from '@crewdeck/contracts';
 import type { InventoryState as InventoryStateRow, Prisma, ProjectFolderState } from '../generated/prisma/client.js';
 
 /** What of a `projects` row the page sees: `GET /api/projects`, the `projects` slice, `project.upserted`. */
@@ -16,6 +16,7 @@ export const PROJECT_VIEW = {
   hasCode: true,
   inventoryState: true,
   accessLost: true,
+  readiness: true,
   followedAt: true,
 } as const;
 
@@ -33,6 +34,7 @@ export interface ProjectRow {
   readonly hasCode: boolean;
   readonly inventoryState: InventoryStateRow;
   readonly accessLost: boolean;
+  readonly readiness: Prisma.JsonValue;
   readonly followedAt: Date;
 }
 
@@ -50,9 +52,10 @@ export const githubNamesOf = (row: { readonly owner: string | null; readonly nam
   return { owner: row.owner, name: row.name, fullName: row.fullName ?? `${row.owner}/${row.name}` };
 };
 
-export const toProject = ({ nameSealed, folderState, ...row }: ProjectRow): Project => ({
+export const toProject = ({ nameSealed, folderState, readiness, ...row }: ProjectRow): Project => ({
   ...row,
   nameSealed: nameSealed === null ? null : zSealedItem.parse(nameSealed),
+  readiness: readiness === null ? null : zReadiness.parse(readiness),
   folder: folderState,
   inventoryState: inventoryStateOf(row.inventoryState),
   followedAt: row.followedAt.toISOString(),

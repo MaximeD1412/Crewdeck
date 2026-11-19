@@ -262,6 +262,12 @@ export class FakeGitHub implements GitHubClient, Fake {
     this.repo(repo).installationId = undefined;
   }
 
+  /** Labels already on the repository, as the Pilote or an earlier run left them. */
+  seedLabels(repo: RepoRef, labels: readonly LabelInput[]): void {
+    const fake = this.repo(repo);
+    for (const { name, color, description } of labels) fake.labels.set(name, { name, color, description });
+  }
+
   async pushCommit(repo: RepoRef, branch: string, files: Record<string, FileContent> = {}): Promise<string> {
     const fake = this.repo(repo);
     if (!fake.branches.has(branch)) fake.branches.set(branch, { sha: this.head(fake, fake.defaultBranch), protected: false });

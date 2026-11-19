@@ -264,6 +264,7 @@ const project = (id: string, displayName: string, fullName = `dupre/${displayNam
   inventoryState: 'approved',
   accessLost: false,
   followedAt: '2026-11-11T08:30:00.000Z',
+  readiness: null,
 });
 
 describe('parametresView, « Par Projet »', () => {

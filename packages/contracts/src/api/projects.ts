@@ -49,6 +49,47 @@ export const zProjectFolderState = z.enum(PROJECT_FOLDER_STATES);
 export type ProjectFolderState = z.infer<typeof zProjectFolderState>;
 
 /**
+ * The checks of a Projet's readiness (US-4, PROJET-3), in the order the page
+ * lists them: the Runner linked, the Local folder, a usable Moteur per Rôle
+ * the Étapes name, their Outils (Serveurs MCP, the Connecteur), the Process
+ * (its active version, or the draft's Manques), the labels and the branches
+ * on GitHub (by the Sources of the groups), the approved Inventaire.
+ */
+export const READINESS_CHECK_IDS = ['runner-linked', 'folder', 'engines', 'tools', 'process', 'labels', 'branches', 'inventory'] as const;
+export const zReadinessCheckId = z.enum(READINESS_CHECK_IDS);
+export type ReadinessCheckId = z.infer<typeof zReadinessCheckId>;
+
+/** The checks « Corriger » fixes on one click (`POST /api/projects/:id/fixes/:checkId`). */
+export const READINESS_AUTO_FIXES = ['labels', 'branches', 'folder'] as const satisfies readonly ReadinessCheckId[];
+export const zReadinessFixId = z.enum(READINESS_AUTO_FIXES);
+export type ReadinessFixId = z.infer<typeof zReadinessFixId>;
+
+export const READINESS_CHECK_STATES = ['ok', 'missing', 'pending'] as const;
+export type ReadinessCheckState = (typeof READINESS_CHECK_STATES)[number];
+
+/**
+ * One check: its state, the figures its row shows (`facts`: names, counts,
+ * flags, never a free text of the Pilote), and its fix: `auto` the product
+ * makes it on one click, `link` the page leads where it is made, `null`
+ * nothing to do here.
+ */
+export const zReadinessCheck = z.object({
+  id: zReadinessCheckId,
+  state: z.enum(READINESS_CHECK_STATES),
+  facts: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+  fix: z.enum(['auto', 'link']).nullable(),
+});
+export type ReadinessCheck = z.infer<typeof zReadinessCheck>;
+
+/** What a Projet still misses to run its Process: the checks that apply, `ready` once every one is `ok`. Stored, computed on its triggers only. */
+export const zReadiness = z.object({ ready: z.boolean(), computedAt: zInstant, checks: z.array(zReadinessCheck) });
+export type Readiness = z.infer<typeof zReadiness>;
+
+/** `POST /api/projects/:id/fixes/:checkId` (session): fix the check, against the Projet's `seq`. */
+export const zFixReadiness = withSeq(z.object({}));
+export type FixReadiness = z.infer<typeof zFixReadiness>;
+
+/**
  * A Projet (US-3): a Dépôt GitHub the Pilote follows, or a folder of the
  * Runner's machine (a Local Projet, PROJET-6: no repository, its name sealed
  * under the vault key in `nameSealed`, `project:<id>:name`, its folder's path
@@ -56,7 +97,9 @@ export type ProjectFolderState = z.infer<typeof zProjectFolderState>;
  * Process. A GitHub Projet's name is its repository's; its integration branch is `develop`
  * and its release branch the repository's default branch until the Pilote
  * changes them in its Paramètres (ADR 0011). `accessLost` once the App can no longer reach its
- * repository (removed from the installation, the installation deleted). The
+ * repository (removed from the installation, the installation deleted).
+ * `readiness` what it still misses to run its Process (PROJET-3), `null`
+ * until first computed. The
  * payload of `project.upserted`, an item of `GET /api/projects` and of the
  * `projects` slice of `GET /api/state`.
  */
@@ -74,6 +117,7 @@ export const zProject = z.object({
   hasCode: z.boolean(),
   inventoryState: zInventoryState,
   accessLost: z.boolean(),
+  readiness: zReadiness.nullable(),
   followedAt: zInstant,
 });
 export type Project = z.infer<typeof zProject>;

@@ -1,10 +1,11 @@
-import { PROCESS_CREWDECK, PROCESS_CREWDECK_NAME, projectNameAad } from '@crewdeck/contracts';
+import { PROCESS_CREWDECK, PROCESS_CREWDECK_NAME, PROCESS_LABELS, projectNameAad, type ProcessDefinition } from '@crewdeck/contracts';
 import { Prisma } from '../../generated/prisma/client.js';
 import { newId } from '../../ids.js';
-import { createLinkedRunner } from '../runners.js';
+import { createAiAccounts, createLinkedRunner } from '../runners.js';
 import { sealItem } from '../vault.js';
 import type { ScenarioContext, ScenarioSeed } from './define.js';
 import { defineScenario } from './define.js';
+import { CLAUDE_SUBSCRIPTION, CODEX_API_KEY } from './engines.js';
 import { seedTrustedDevice } from './idees.js';
 import { RUNNER_MACHINE } from './runner.js';
 import { OCTOCAT, signInPilot } from './sign-in.js';
@@ -19,6 +20,11 @@ interface SeededRepository {
   readonly project?: string;
   /** That Projet's id, when a scenario names it elsewhere (a Décision, a PhaseRun); else a new one. */
   readonly projectId?: string;
+  /** What its readiness finds on GitHub (PROJET-3): the Process's labels already there, its integration branch `develop` pushed. */
+  readonly labels?: boolean;
+  readonly integration?: boolean;
+  /** Its Inventaire's state; by default `pending` with code, `not_needed` without. */
+  readonly inventoryState?: 'pending' | 'to_approve' | 'approved';
 }
 
 /**
@@ -31,11 +37,13 @@ export const seedRepositories = async (ctx: ScenarioContext, pilotId: string, re
   await ctx.prisma.unscoped.gitHubInstallation.create({
     data: { installationId: BigInt(SCENARIO_INSTALLATION_ID), accountLogin: owner, accountId: BigInt(OCTOCAT.id), senderId: BigInt(OCTOCAT.id), pilotId },
   });
-  for (const [index, { name, hasCode, project, projectId: knownProjectId }] of repositories.entries()) {
+  for (const [index, { name, hasCode, project, projectId: knownProjectId, labels, integration, inventoryState }] of repositories.entries()) {
     const githubId = 72000001 + index;
     const ref = ctx.fakes.github.seedRepo({ owner, name, id: githubId, installationId: SCENARIO_INSTALLATION_ID });
     // « Has code » as GitHub would count it: a commit past the initial one, which the reconciliation counts again.
     if (hasCode) await ctx.fakes.github.pushCommit(ref, 'main', { 'src/index.ts': `// ${name}\n` });
+    if (integration) await ctx.fakes.github.pushCommit(ref, 'develop');
+    if (labels) ctx.fakes.github.seedLabels(ref, PROCESS_LABELS);
     const id = newId();
     const fullName = `${owner}/${name}`;
     await ctx.prisma.unscoped.repository.create({
@@ -56,7 +64,7 @@ export const seedRepositories = async (ctx: ScenarioContext, pilotId: string, re
         releaseBranch: 'main',
         integrationBranch: 'develop',
         hasCode,
-        inventoryState: hasCode ? 'pending' : 'not_needed',
+        inventoryState: inventoryState ?? (hasCode ? 'pending' : 'not_needed'),
       },
     });
     // Its Sources and its version 1, « Process Crewdeck », as following it writes.
@@ -94,7 +102,7 @@ export const withRunnerFolders = async (ctx: ScenarioContext, pilotId: string): 
   const { device, vaultKey } = await seedTrustedDevice(ctx, pilotId);
   const { token } = await createLinkedRunner(ctx.prisma, pilotId, RUNNER_MACHINE);
   ctx.fakes.runner.useVault(vaultKey);
-  ctx.fakes.runner.seedFolder(RECETTES_FOLDER, { state: 'ready', hasCode: true, branch: 'main' });
+  ctx.fakes.runner.seedFolder(RECETTES_FOLDER, { state: 'ready', hasCode: true, branch: 'main', branches: ['main', 'develop'] });
   ctx.fakes.runner.seedFolder(CARNET_FOLDER, { state: 'not-git', hasCode: false, branch: null });
   return { runner: { device, runnerToken: token, runnerMachine: RUNNER_MACHINE }, vaultKey };
 };
@@ -107,25 +115,51 @@ const PICKER_REPOSITORIES: readonly SeededRepository[] = [
   { name: 'sandbox-vue3', hasCode: false },
 ];
 
+/** « Site mairie », whose page `projet` opens. */
+export const SITE_MAIRIE_ID = '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6b11';
+
 /**
- * « Projets » (`design/screens.json`: `projets`): four Projets followed, one
- * repository still only a Dépôt GitHub for « Ajouter un Projet ».
+ * The Pilote's Runner `atelier-pc`, online, and both Comptes IA connected
+ * (Claude by subscription, Codex by API key): every Rôle has a Moteur.
  */
-export const projets = defineScenario({
-  name: 'projets',
-  path: '/projets',
-  seed: async (ctx) => {
-    const seed = await signInPilot(ctx);
-    await seedRepositories(ctx, seed.pilotId, [
-      { name: 'personal-os', hasCode: true, project: 'Personal OS' },
-      { name: 'site-mairie', hasCode: true, project: 'Site mairie' },
-      { name: 'crewdeck', hasCode: true, project: 'Crewdeck' },
-      { name: 'tennis-manager', hasCode: true, project: 'Tennis Manager' },
-      { name: 'sandbox-vue3', hasCode: false },
-    ]);
-    return seed;
-  },
-});
+const withReadyRunner = async (ctx: ScenarioContext, pilotId: string): Promise<Pick<ScenarioSeed, 'runnerToken' | 'runnerMachine'>> => {
+  const { token } = await createLinkedRunner(ctx.prisma, pilotId, RUNNER_MACHINE);
+  await createAiAccounts(ctx.prisma, pilotId, [CLAUDE_SUBSCRIPTION, CODEX_API_KEY]);
+  return { runnerToken: token, runnerMachine: RUNNER_MACHINE };
+};
+
+/**
+ * The four Projets of « Projets »' mockup, the Runner online: Personal OS and
+ * Crewdeck ready, Site mairie without its integration branch, Tennis Manager
+ * whose Inventaire waits for approval; and a repository still only a Dépôt
+ * GitHub for « Ajouter un Projet ».
+ */
+const seedProjets = async (ctx: ScenarioContext): Promise<ScenarioSeed> => {
+  const seed = await signInPilot(ctx);
+  const ready = { hasCode: true, labels: true, integration: true, inventoryState: 'approved' } as const;
+  await seedRepositories(ctx, seed.pilotId, [
+    { name: 'personal-os', project: 'Personal OS', ...ready },
+    { name: 'site-mairie', project: 'Site mairie', projectId: SITE_MAIRIE_ID, ...ready, integration: false },
+    { name: 'crewdeck', project: 'Crewdeck', ...ready },
+    { name: 'tennis-manager', project: 'Tennis Manager', ...ready, inventoryState: 'to_approve' },
+    { name: 'sandbox-vue3', hasCode: false },
+  ]);
+  return { ...seed, ...(await withReadyRunner(ctx, seed.pilotId)) };
+};
+
+/**
+ * « Projets » (`design/screens.json`: `projets`): four Projets followed, each
+ * with its readiness's badge (PROJET-3), one repository still only a Dépôt
+ * GitHub for « Ajouter un Projet ».
+ */
+export const projets = defineScenario({ name: 'projets', path: '/projets', seed: seedProjets });
+
+/**
+ * A GitHub Projet's page (`projet`): « Site mairie », whose Process waits for
+ * its integration branch `develop`, « Corriger » creating it on GitHub; every
+ * other check met.
+ */
+export const projet = defineScenario({ name: 'projet', path: `/projets/${SITE_MAIRIE_ID}`, seed: seedProjets });
 
 /**
  * No Projet yet (`projets`, state `vide`); the installation has the mockup's
@@ -146,42 +180,67 @@ export const projetsVide = defineScenario({
 export const RECETTES = { id: '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6b01', name: 'Recettes', followedAt: new Date('2026-11-10T09:00:00.000Z') } as const;
 
 /**
- * A Local Projet's page (`projet-local`): « Recettes », from the folder
- * `~/projets/recettes` the Runner `atelier-pc` keeps, every group Local; its
- * Process a draft of « Process Crewdeck » (« Checks » needs a Commande), as
- * its creation leaves it.
+ * « Process Crewdeck » for a Local Projet, as its activation leaves it: its
+ * « Checks » on the Projet's Commandes, no CI without GitHub.
  */
-export const projetLocal = defineScenario({
-  name: 'projet-local',
-  path: `/projets/${RECETTES.id}`,
-  seed: async (ctx) => {
-    const seed = await signInPilot(ctx);
-    const { runner, vaultKey } = await withRunnerFolders(ctx, seed.pilotId);
-    const { pilotId } = seed;
-    const projectId = RECETTES.id;
-    await ctx.prisma.unscoped.project.create({
-      data: {
-        id: projectId,
-        pilotId,
-        nameSealed: sealItem(vaultKey, RECETTES.name, projectNameAad(projectId)) as unknown as Prisma.InputJsonValue,
-        folderState: 'present',
-        releaseBranch: 'main',
-        integrationBranch: 'develop',
-        hasCode: true,
-        inventoryState: 'pending',
-        followedAt: RECETTES.followedAt,
-      },
-    });
-    await ctx.prisma.unscoped.artifactSource.createMany({
-      data: (['ticket', 'code'] as const).map((group) => ({ id: newId(), pilotId, projectId, group, source: 'local' as const, since: RECETTES.followedAt })),
-    });
-    await ctx.prisma.unscoped.processDraft.create({
-      data: { id: newId(), pilotId, projectId, definition: PROCESS_CREWDECK as unknown as Prisma.InputJsonValue, sealed: Prisma.DbNull, revision: 1, baseVersion: 0, updatedAt: RECETTES.followedAt },
-    });
-    ctx.fakes.runner.keepFolder(projectId, RECETTES_FOLDER);
-    return { ...seed, ...runner };
-  },
-});
+const LOCAL_ACTIVE: ProcessDefinition = (() => {
+  const definition = structuredClone(PROCESS_CREWDECK) as ProcessDefinition;
+  const checks = definition.steps.find((step) => step.id === 'st-checks');
+  if (checks) checks.tools = [{ kind: 'command', commandId: 'tests' }];
+  return definition;
+})();
+
+/**
+ * Recettes, the Local Projet of `projet-local`, from the folder
+ * `~/projets/recettes` the Runner `atelier-pc` keeps, every group Local, no
+ * code to inventory; its Process active (« Process Crewdeck » on its
+ * Commandes), both Comptes IA connected: ready (PROJET-3). `folder` the
+ * folder it keeps, `~/projets/recettes` by default.
+ */
+const seedRecettes = async (ctx: ScenarioContext, folder: string = RECETTES_FOLDER): Promise<ScenarioSeed> => {
+  const seed = await signInPilot(ctx);
+  const { runner, vaultKey } = await withRunnerFolders(ctx, seed.pilotId);
+  const { pilotId } = seed;
+  const projectId = RECETTES.id;
+  await createAiAccounts(ctx.prisma, pilotId, [CLAUDE_SUBSCRIPTION, CODEX_API_KEY]);
+  await ctx.prisma.unscoped.project.create({
+    data: {
+      id: projectId,
+      pilotId,
+      nameSealed: sealItem(vaultKey, RECETTES.name, projectNameAad(projectId)) as unknown as Prisma.InputJsonValue,
+      folderState: 'present',
+      releaseBranch: 'main',
+      integrationBranch: 'develop',
+      hasCode: false,
+      inventoryState: 'not_needed',
+      followedAt: RECETTES.followedAt,
+    },
+  });
+  await ctx.prisma.unscoped.artifactSource.createMany({
+    data: (['ticket', 'code'] as const).map((group) => ({ id: newId(), pilotId, projectId, group, source: 'local' as const, since: RECETTES.followedAt })),
+  });
+  await ctx.prisma.unscoped.processVersion.create({
+    data: {
+      id: newId(),
+      pilotId,
+      projectId,
+      number: 1,
+      definition: LOCAL_ACTIVE as unknown as Prisma.InputJsonValue,
+      sealed: Prisma.DbNull,
+      activatedAt: RECETTES.followedAt,
+      activatedBy: 'pilot',
+      templateName: PROCESS_CREWDECK_NAME,
+    },
+  });
+  ctx.fakes.runner.keepFolder(projectId, folder);
+  return { ...seed, ...runner };
+};
+
+/** A Local Projet's page (`projet-local`): « Recettes », ready. */
+export const projetLocal = defineScenario({ name: 'projet-local', path: `/projets/${RECETTES.id}`, seed: (ctx) => seedRecettes(ctx) });
+
+/** `projet-local` whose folder has no git yet: « Corriger » makes it a repository with `main` and `develop` (PROJET-3). */
+export const projetLocalAPreparer = defineScenario({ name: 'projet-local-a-preparer', path: `/projets/${RECETTES.id}`, seed: (ctx) => seedRecettes(ctx, CARNET_FOLDER) });
 
 /**
  * « Premiers pas »' last step (`demarrage`, state `projets`): the Pilote's

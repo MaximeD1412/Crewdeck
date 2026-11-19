@@ -6,8 +6,10 @@ import {
   type Project,
   type ProjectProcess,
   type Repository,
+  type ReadinessCheckId,
 } from '@crewdeck/contracts';
 import { t, type ComposantData, type FolderProjectForm, type PageAjouterProjet, type PageProjet, type PageProjets, type ProjectOrigin, type RepositoryPicker } from '@crewdeck/sdk';
+import { readinessBadge, readinessView, type RoleNameOf } from './projet.js';
 
 export type ProjetsView = ComposantData<typeof PageProjets>;
 export type PickerView = ComposantData<typeof RepositoryPicker>;
@@ -35,11 +37,12 @@ export const projectMeta = (project: Pick<Project, 'fullName' | 'folder'>, machi
   return project.folder === 'missing' ? t('projets.meta.missing') : t('projets.meta.local', { machine: machineOr(machine) });
 };
 
-/** « Projets »' data (pure): every Projet of the `project` slice, by name then meta. `machine` is the Runner's. */
+/** « Projets »' data (pure): every Projet of the `project` slice, by name then meta, with its readiness's badge. `machine` is the Runner's. */
 export const projetsView = (projects: Iterable<Project>, { name, machine }: { readonly name: NameOf; readonly machine: string | null }): ProjetsView => ({
   projects: [...projects]
-    .map((project) => ({ id: project.id, name: name(project), meta: projectMeta(project, machine) }))
-    .sort((a, b) => compare(a.name, b.name) || compare(a.meta, b.meta)),
+    .map((project) => ({ project, name: name(project), meta: projectMeta(project, machine) }))
+    .sort((a, b) => compare(a.name, b.name) || compare(a.meta, b.meta))
+    .map(({ project, name: shown, meta }) => ({ id: project.id, name: shown, ...readinessBadge(project, meta) })),
 });
 
 export interface PickerState {
@@ -87,15 +90,22 @@ const connectorsOf = (project: Project, process: ProjectProcess | undefined): Pr
   return [...kinds].filter((kind): kind is 'github' => kind !== null && kind !== 'local');
 };
 
-/** A Projet's page (pure, `/projets/:id`): its name, its Dépôt GitHub or its folder on the Runner's machine, its Connecteurs. */
-export const projetView = (
-  project: Project,
-  { name, machine, process }: { readonly name: NameOf; readonly machine: string | null; readonly process: ProjectProcess | undefined },
-): ProjetView => ({
+export interface ProjetState {
+  readonly name: NameOf;
+  readonly machine: string | null;
+  readonly process: ProjectProcess | undefined;
+  readonly roleName: RoleNameOf;
+  /** The check whose « Corriger » runs. */
+  readonly fixing: ReadinessCheckId | null;
+}
+
+/** A Projet's page (pure, `/projets/:id`): its name, its Dépôt GitHub or its folder on the Runner's machine, its Connecteurs, what its Process still misses. */
+export const projetView = (project: Project, { name, machine, process, roleName, fixing }: ProjetState): ProjetView => ({
   id: project.id,
   name: name(project),
   fullName: project.fullName,
   folder: project.folder === null ? null : { state: project.folder, machine },
   connectors: connectorsOf(project, process),
   followedAt: project.followedAt,
+  readiness: readinessView(project, { roleName, fixing }),
 });

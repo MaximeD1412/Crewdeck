@@ -5,6 +5,7 @@ import { HttpAdapterHost, ModuleRef } from '@nestjs/core';
 import { EmailLinkLimiter } from '../auth/email/email-link-limiter.js';
 import { GithubTokens } from '../auth/github-tokens.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ReadinessService } from '../projects/readiness/readiness.service.js';
 import { RunnerLinkLimiter } from '../runners/link/link-limiter.js';
 import { RunnerOffline } from '../runners/runner-offline.service.js';
 import { RunnerWaitingWork } from '../runners/waiting-work.js';
@@ -59,7 +60,16 @@ export class ScenariosService implements OnModuleInit, OnModuleDestroy {
       storeGithubTokens: (pilotId, userTokens) => runInPilotScope(pilotId, () => tokens.store(this.prisma.scoped, pilotId, userTokens)),
     });
     if (seeded.runnerToken) await this.fakes.runner.connect(this.ownUrl(), seeded.runnerToken, seeded.runnerMachine);
+    await this.computeReadiness();
     return { name: scenario.name, path: seeded.path ?? scenario.path, sessionCookie: seeded.sessionCookie ?? null, runnerLink: seeded.runnerLink ?? null, device: seeded.device ?? null };
+  }
+
+  /** Each seeded Projet's readiness (PROJET-3), written before the page opens, as the server would have computed it. */
+  private async computeReadiness(): Promise<void> {
+    const readiness = this.moduleRef.get(ReadinessService, { strict: false });
+    const projects = await this.prisma.unscoped.project.findMany({ select: { id: true, pilotId: true }, orderBy: { id: 'asc' } });
+    await Promise.all(projects.map((project) => readiness.recompute(project.pilotId, project.id)));
+    await readiness.settled();
   }
 
   /**

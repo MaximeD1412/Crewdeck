@@ -628,6 +628,33 @@
       ],
       "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261211000000_source_migrations'\"",
       "ajouteLe": "2026-11-19"
+    },
+    {
+      "id": "evenements-github-apps-preparation",
+      "phase": "acc",
+      "source": "#61",
+      "titre": "Vérifier que les deux GitHub Apps reçoivent Push et Label, et peuvent créer une branche et un label",
+      "pourquoi": "La préparation d'un Projet (PROJET-3) se recalcule à l'enveloppe des webhooks push (une branche créée ou supprimée) et label (un label du Process ajouté, renommé ou supprimé) ; sans eux, la page du Projet ne change qu'à la réconciliation, toutes les 15 min. « Corriger » crée la branche d'intégration et les labels absents avec l'App : il lui faut contents et issues en écriture (ADR 0002). Les Apps sont créées par INFRA-11 ; l'abonnement à Push et Label est celui de l'élément evenements-github-apps-miroir.",
+      "etapes": [
+        "github.com > Settings > Developer settings > GitHub Apps > « Crewdeck » > Permissions & events : Contents et Issues en « Read and write » ; Push et Label cochés dans Subscribe to events ; « Save changes ».",
+        "Même chose pour « Crewdeck staging » ; une permission ajoutée s'accepte sur chaque installation (Settings > Applications > Configure).",
+        "Vérifier sur le staging : un Projet sans branche develop affiche « 1 point à régler » ; « Corriger » crée develop sur GitHub et le Projet passe à « prêt » en quelques secondes ; supprimer un label du Process sur GitHub le refait apparaître comme point à régler."
+      ],
+      "ajouteLe": "2026-11-19"
+    },
+    {
+      "id": "migration-project-readiness",
+      "phase": "db",
+      "source": "#61",
+      "titre": "Appliquer la migration 20261212000000_project_readiness en staging puis en production",
+      "pourquoi": "La préparation d'un Projet (PROJET-3) s'écrit dans deux colonnes de projects, readiness et readiness_facts. Sans elles, GET /api/state et le calcul de la préparation lisent des colonnes absentes. La migration n'ajoute que des colonnes facultatives (expand seulement) : la version précédente du serveur tourne sur la base migrée, et chaque Projet reçoit sa préparation au premier calcul (à son prochain événement ou à la réconciliation).",
+      "etapes": [
+        "Rien à lancer à la main : deploy.sh répète la migration sur la dernière sauvegarde (rehearse.sh), puis l'applique au déploiement du staging, puis à celui de la production.",
+        "Vérifier sur chaque base (crewdeck-prod, puis crewdeck-staging) que la commande imprime une date : la migration est appliquée.",
+        "Préparer le dossier d'un Projet Local demande un Runner de cette version ou plus récent : un Runner plus ancien ne répond pas à project.folder.status, et la ligne « Dossier du Projet » reste en attente."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261212000000_project_readiness'\"",
+      "ajouteLe": "2026-11-19"
     }
   ]
 }

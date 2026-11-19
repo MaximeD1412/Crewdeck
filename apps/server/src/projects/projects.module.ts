@@ -20,6 +20,6 @@ import { ProjectState, Projects, ProjectsController } from './projects.js';
   imports: [ProcessModule, SourcesModule, RunnersModule, DecisionsModule],
   controllers: [ProjectsController, LocalProjectsController],
   providers: [Projects, ProjectState, ProjectSources, ProjectChanges, LocalProjects, ProjectFolders, FolderRelay],
-  exports: [ProjectSources, ProjectChanges],
+  exports: [ProjectSources, ProjectChanges, ProjectFolders],
 })
 export class ProjectsModule {}

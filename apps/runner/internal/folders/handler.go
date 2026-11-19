@@ -43,8 +43,9 @@ type Config struct {
 	Logger *slog.Logger
 }
 
-// Handler answers the server's folder.check and project.folder.attach, and
-// says the Projets' folders that exist (projects.folders).
+// Handler answers the server's folder.check and project.folder.attach, says
+// the Projets' folders that exist (projects.folders), and where each stands
+// for its Process (project.folder.status, project.folder.prepare).
 type Handler struct {
 	cfg Config
 
@@ -52,6 +53,8 @@ type Handler struct {
 	mu sync.Mutex
 	// said is the last set of projects.folders sent; nil before the first.
 	said []string
+	// preparing serializes the preparations of the Projets' folders (PROJET-3).
+	preparing sync.Mutex
 }
 
 // New is the handler of cfg.
@@ -62,10 +65,14 @@ func New(cfg Config) *Handler {
 	return &Handler{cfg: cfg}
 }
 
-// Register makes the client hand the server's folder.check and project.folder.attach to the handler.
+// Register makes the client hand the server's folder.check,
+// project.folder.attach, project.folder.status and project.folder.prepare to
+// the handler; a preparation runs aside.
 func (h *Handler) Register(client *protocol.Client) {
 	protocol.On(client, protocol.TypeFolderCheck, h.HandleCheck)
 	protocol.On(client, protocol.TypeProjectFolderAttach, h.HandleAttach)
+	protocol.On(client, protocol.TypeProjectFolderStatus, h.HandleStatus)
+	protocol.On(client, protocol.TypeProjectFolderPrepare, h.handlePrepareAside)
 }
 
 // HandleCheck opens the tab's path, checks it, and answers that tab with the

@@ -57,6 +57,7 @@ describe('« Premiers pas » in the page', () => {
                 hasCode: false,
                 inventoryState: 'not-needed',
                 accessLost: false,
+                readiness: null,
                 followedAt: AT,
               }
             : { ...PILOT, gettingStartedStep: path.endsWith('advance') ? NEXT[String(body['from'])] : 'runner' };

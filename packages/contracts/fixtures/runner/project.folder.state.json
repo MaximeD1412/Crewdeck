@@ -1,0 +1,11 @@
+{
+  "type": "project.folder.state",
+  "id": "019a6f00-0000-7000-8000-0000000000e7",
+  "at": "2026-11-17T09:00:00.000Z",
+  "projectId": "019a6f00-0000-7000-8000-000000000021",
+  "present": true,
+  "isGit": false,
+  "hasCommits": false,
+  "releaseBranch": false,
+  "integrationBranch": false
+}

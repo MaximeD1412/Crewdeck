@@ -17,42 +17,46 @@ var fixturesDir = filepath.Join("..", "..", "..", "..", "packages", "contracts",
 // Each fixture of the protocol decodes into its generated type, and into the envelope with its type.
 func TestEveryFixtureOfTheProtocolDecodesIntoItsGeneratedType(t *testing.T) {
 	decoders := map[string]func([]byte) error{
-		TypeHello:                decodeInto[contracts.RunnerHello],
-		TypeHelloAccepted:        decodeInto[contracts.RunnerHelloAccepted],
-		TypeHelloRejected:        decodeInto[contracts.RunnerHelloRejected],
-		TypeHeartbeat:            decodeInto[contracts.RunnerHeartbeat],
-		TypeHeartbeatAck:         decodeInto[contracts.RunnerHeartbeatAck],
-		TypeError:                decodeInto[contracts.RunnerError],
-		TypeStepVerdict:          decodeInto[contracts.RunnerStepVerdict],
-		TypeCapabilities:         decodeInto[contracts.RunnerCapabilities],
-		TypeMcpServers:           decodeInto[contracts.RunnerMcpServers],
-		TypeGitHubChanged:        decodeInto[contracts.RunnerGithubChanged],
-		TypeMirrorResync:         decodeInto[contracts.RunnerMirrorResync],
-		TypeMirrorLive:           decodeInto[contracts.RunnerMirrorLive],
-		TypeMirrorProjects:       decodeInto[contracts.RunnerMirrorProjects],
-		TypeMirrorToken:          decodeInto[contracts.RunnerMirrorToken],
-		TypeMirrorTokenIssued:    decodeInto[contracts.RunnerMirrorTokenIssued],
-		TypeMirrorTokenFailed:    decodeInto[contracts.RunnerMirrorTokenFailed],
-		TypeUsage:                decodeInto[contracts.RunnerUsage],
-		TypeUsageAck:             decodeInto[contracts.RunnerUsageAck],
-		TypeSessionStart:         decodeInto[contracts.RunnerSessionStart],
-		TypeSessionStop:          decodeInto[contracts.RunnerSessionStop],
-		TypeSessionResume:        decodeInto[contracts.RunnerSessionResume],
-		TypeSessionState:         decodeInto[contracts.RunnerSessionState],
-		TypeVaultRotationPending: decodeInto[contracts.RunnerVaultRotationPending],
-		TypeVaultRotated:         decodeInto[contracts.RunnerVaultRotated],
-		TypeSessionWaiting:       decodeInto[contracts.RunnerSessionWaiting],
-		TypeSessionAnswered:      decodeInto[contracts.RunnerSessionAnswered],
-		TypeMigrationCopy:        decodeInto[contracts.RunnerMigrationCopy],
-		TypeMigrationFinish:      decodeInto[contracts.RunnerMigrationFinish],
-		TypeMigrationProgress:    decodeInto[contracts.RunnerMigrationProgress],
-		TypeMigrationSwitch:      decodeInto[contracts.RunnerMigrationSwitch],
-		TypeMigrationFinished:    decodeInto[contracts.RunnerMigrationFinished],
-		TypeMigrationFailed:      decodeInto[contracts.RunnerMigrationFailed],
-		TypeFolderCheck:          decodeInto[contracts.RunnerFolderCheck],
-		TypeFolderChecked:        decodeInto[contracts.RunnerFolderChecked],
-		TypeProjectFolderAttach:  decodeInto[contracts.RunnerProjectFolderAttach],
-		TypeProjectsFolders:      decodeInto[contracts.RunnerProjectsFolders],
+		TypeHello:                 decodeInto[contracts.RunnerHello],
+		TypeHelloAccepted:         decodeInto[contracts.RunnerHelloAccepted],
+		TypeHelloRejected:         decodeInto[contracts.RunnerHelloRejected],
+		TypeHeartbeat:             decodeInto[contracts.RunnerHeartbeat],
+		TypeHeartbeatAck:          decodeInto[contracts.RunnerHeartbeatAck],
+		TypeError:                 decodeInto[contracts.RunnerError],
+		TypeStepVerdict:           decodeInto[contracts.RunnerStepVerdict],
+		TypeCapabilities:          decodeInto[contracts.RunnerCapabilities],
+		TypeMcpServers:            decodeInto[contracts.RunnerMcpServers],
+		TypeGitHubChanged:         decodeInto[contracts.RunnerGithubChanged],
+		TypeMirrorResync:          decodeInto[contracts.RunnerMirrorResync],
+		TypeMirrorLive:            decodeInto[contracts.RunnerMirrorLive],
+		TypeMirrorProjects:        decodeInto[contracts.RunnerMirrorProjects],
+		TypeMirrorToken:           decodeInto[contracts.RunnerMirrorToken],
+		TypeMirrorTokenIssued:     decodeInto[contracts.RunnerMirrorTokenIssued],
+		TypeMirrorTokenFailed:     decodeInto[contracts.RunnerMirrorTokenFailed],
+		TypeUsage:                 decodeInto[contracts.RunnerUsage],
+		TypeUsageAck:              decodeInto[contracts.RunnerUsageAck],
+		TypeSessionStart:          decodeInto[contracts.RunnerSessionStart],
+		TypeSessionStop:           decodeInto[contracts.RunnerSessionStop],
+		TypeSessionResume:         decodeInto[contracts.RunnerSessionResume],
+		TypeSessionState:          decodeInto[contracts.RunnerSessionState],
+		TypeVaultRotationPending:  decodeInto[contracts.RunnerVaultRotationPending],
+		TypeVaultRotated:          decodeInto[contracts.RunnerVaultRotated],
+		TypeSessionWaiting:        decodeInto[contracts.RunnerSessionWaiting],
+		TypeSessionAnswered:       decodeInto[contracts.RunnerSessionAnswered],
+		TypeMigrationCopy:         decodeInto[contracts.RunnerMigrationCopy],
+		TypeMigrationFinish:       decodeInto[contracts.RunnerMigrationFinish],
+		TypeMigrationProgress:     decodeInto[contracts.RunnerMigrationProgress],
+		TypeMigrationSwitch:       decodeInto[contracts.RunnerMigrationSwitch],
+		TypeMigrationFinished:     decodeInto[contracts.RunnerMigrationFinished],
+		TypeMigrationFailed:       decodeInto[contracts.RunnerMigrationFailed],
+		TypeFolderCheck:           decodeInto[contracts.RunnerFolderCheck],
+		TypeFolderChecked:         decodeInto[contracts.RunnerFolderChecked],
+		TypeProjectFolderAttach:   decodeInto[contracts.RunnerProjectFolderAttach],
+		TypeProjectsFolders:       decodeInto[contracts.RunnerProjectsFolders],
+		TypeProjectFolderStatus:   decodeInto[contracts.RunnerProjectFolderStatus],
+		TypeProjectFolderPrepare:  decodeInto[contracts.RunnerProjectFolderPrepare],
+		TypeProjectFolderState:    decodeInto[contracts.RunnerProjectFolderState],
+		TypeProjectFolderPrepared: decodeInto[contracts.RunnerProjectFolderPrepared],
 	}
 	entries, err := os.ReadDir(fixturesDir)
 	if err != nil {
@@ -230,6 +234,38 @@ func TestTheFoldersMessagesMatchTheirSchema(t *testing.T) {
 	}
 	if err := decodeInto[contracts.RunnerProjectsFolders](data); err != nil || !strings.Contains(string(data), `"present":[]`) {
 		t.Fatalf("projects.folders %s: %v", data, err)
+	}
+}
+
+// The readiness messages (PROJET-3) the Runner sends match their schema: a
+// state of figures only, a prepared with its error only when it failed.
+func TestTheReadinessMessagesMatchTheirSchema(t *testing.T) {
+	const requestID, projectID = "019a6f00-0000-7000-8000-0000000000f1", "019a6f00-0000-7000-8000-000000000021"
+	data, err := json.Marshal(NewProjectFolderState(projectID, true, true, false, true, false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var state contracts.RunnerProjectFolderState
+	if err := json.Unmarshal(data, &state); err != nil {
+		t.Fatalf("decode %s: %v", data, err)
+	}
+	if state.Type != TypeProjectFolderState || state.ProjectId != projectID || !state.Present || !state.IsGit || state.HasCommits || !state.ReleaseBranch || state.IntegrationBranch {
+		t.Fatalf("project.folder.state %+v", state)
+	}
+	data, err = json.Marshal(NewProjectFolderPrepared(requestID, projectID, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var prepared contracts.RunnerProjectFolderPrepared
+	if err := json.Unmarshal(data, &prepared); err != nil || !prepared.Ok || prepared.Error != nil || strings.Contains(string(data), `"error"`) {
+		t.Fatalf("project.folder.prepared %s: %v", data, err)
+	}
+	data, err = json.Marshal(NewProjectFolderPrepared(requestID, projectID, contracts.RunnerProjectFolderPreparedErrorGitIdentityMissing))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &prepared); err != nil || prepared.Ok || prepared.Error == nil || *prepared.Error != contracts.RunnerProjectFolderPreparedErrorGitIdentityMissing || prepared.RequestId != requestID {
+		t.Fatalf("project.folder.prepared %s: %v", data, err)
 	}
 }
 

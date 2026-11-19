@@ -8,6 +8,7 @@ import { appOrigin, parseEnv } from '../../src/config/env.js';
 import { WebhookDispatcher } from '../../src/github/webhooks/dispatcher.js';
 import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
+import { ReadinessService } from '../../src/projects/readiness/readiness.service.js';
 import { Engine } from '../../src/process/engine/engine.js';
 import { EngineModule } from '../../src/process/engine/engine.module.js';
 import { STEP_KIND_HANDLERS, type StepKindHandler, type StepKindHandlers } from '../../src/process/engine/kinds/handler.js';
@@ -115,7 +116,11 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   const state = async () => zState.parse(await (await call('GET', '/api/state')).json());
-  const lastSeq = async (): Promise<string> => (await sql<{ seq: string }>('SELECT seq::text FROM pilots WHERE id = $1', [alice.id]))[0]?.seq ?? '0';
+  // The readiness writes its own `project.upserted` after a change: the seq the page holds once it is written.
+  const lastSeq = async (): Promise<string> => {
+    await app.get(ReadinessService).settled();
+    return (await sql<{ seq: string }>('SELECT seq::text FROM pilots WHERE id = $1', [alice.id]))[0]?.seq ?? '0';
+  };
 
   beforeEach(async () => {
     await empty();

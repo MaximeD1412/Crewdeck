@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import type { Client } from './client.js';
-import { followProjects, installUrl } from './projects.js';
+import { followProjects, installUrl, postProjectFix } from './projects.js';
 
 const PROJECT = {
   id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a80',
@@ -17,6 +17,18 @@ const PROJECT = {
   inventoryState: 'pending',
   accessLost: false,
   followedAt: '2026-11-12T09:00:00.000Z',
+  readiness: null,
+};
+
+const recording = (answer: unknown) => {
+  const calls: unknown[] = [];
+  const client = {
+    command: (async (method: string, path: string, body: object, schema?: z.ZodType) => {
+      calls.push({ method, path, body });
+      return schema?.parse(answer);
+    }) as Client['command'],
+  };
+  return { calls, client };
 };
 
 describe('followProjects', () => {
@@ -31,6 +43,15 @@ describe('followProjects', () => {
 
     await expect(followProjects(client, [PROJECT.repositoryId], 'process-crewdeck')).resolves.toEqual([PROJECT]);
     expect(calls).toEqual([{ method: 'POST', path: '/api/projects', body: { repositoryIds: [PROJECT.repositoryId], templateId: 'process-crewdeck' } }]);
+  });
+});
+
+describe('postProjectFix', () => {
+  it('posts « Corriger » of a check and answers the Projet', async () => {
+    const { calls, client } = recording(PROJECT);
+
+    await expect(postProjectFix(client, PROJECT.id, 'labels')).resolves.toEqual(PROJECT);
+    expect(calls).toEqual([{ method: 'POST', path: `/api/projects/${PROJECT.id}/fixes/labels`, body: {} }]);
   });
 });
 

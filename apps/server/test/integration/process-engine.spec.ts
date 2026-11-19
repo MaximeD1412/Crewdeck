@@ -27,6 +27,7 @@ import { runInPilotScope } from '../../src/scope/scope.context.js';
 import { FAKES, type Fakes } from '../../src/testing/fakes.js';
 import { deliverWebhook, TEST_WEBHOOK_SECRET, webhookFixture } from '../fakes/github.js';
 import { authKeysEnv } from '../github-app.js';
+import { readinessSettled } from '../readiness.js';
 import { startApp } from '../route-baseline.js';
 
 const databaseUrl = inject('databaseUrl');
@@ -209,7 +210,8 @@ describe('the engine against PostgreSQL', () => {
   const phaseRunState = async (phaseRunId: string) => (await sql<{ state: string }>('SELECT state FROM phase_runs WHERE id = $1', [phaseRunId]))[0]?.state;
   const eventsSince = (seq: number) =>
     sql<EventRow>('SELECT type, payload, xmin::text AS tx FROM events WHERE pilot_id = $1 AND seq > $2 ORDER BY seq', [alice.id, seq]);
-  const lastSeq = async () => Number((await sql<{ seq: string }>('SELECT seq::text FROM pilots WHERE id = $1', [alice.id]))[0]?.seq);
+  // After the readiness the setup's changes recompute (PROJET-3): its events are not the engine's.
+  const lastSeq = async () => (await readinessSettled(app), Number((await sql<{ seq: string }>('SELECT seq::text FROM pilots WHERE id = $1', [alice.id]))[0]?.seq));
 
   /** A version written beside the active one, as PROCESS-10's activation will: the next number. */
   const writeVersion = async (definition: ProcessDefinition): Promise<void> => {

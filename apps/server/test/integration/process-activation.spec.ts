@@ -29,6 +29,7 @@ import { FAKES, type Fakes } from '../../src/testing/fakes.js';
 import { deliverWebhook, TEST_WEBHOOK_SECRET, webhookFixture } from '../fakes/github.js';
 import { authKeysEnv } from '../github-app.js';
 import { expectEnvelope, startApp } from '../route-baseline.js';
+import { readinessSettled, withoutReadiness } from '../readiness.js';
 
 const databaseUrl = inject('databaseUrl');
 const env = parseEnv({
@@ -134,7 +135,11 @@ describe('POST /api/projects/:id/process/activate against PostgreSQL', () => {
     });
 
   const state = async (tab: Tab) => zState.parse(await (await call(tab, 'GET', '/api/state')).json());
-  const eventsOf = (tab: Tab): Promise<EventRow[]> => sql<EventRow>('SELECT type, payload, xmin::text AS tx FROM events WHERE pilot_id = $1 ORDER BY seq', [tab.id]);
+  // Once the readiness is written, without its own events.
+  const eventsOf = async (tab: Tab): Promise<EventRow[]> => {
+    await readinessSettled(app);
+    return withoutReadiness(await sql<EventRow>('SELECT type, payload, xmin::text AS tx FROM events WHERE pilot_id = $1 ORDER BY seq', [tab.id]));
+  };
 
   let alice: Tab;
   let projectId: string;

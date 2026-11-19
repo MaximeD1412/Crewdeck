@@ -15,6 +15,7 @@ import { FAKES, type Fakes } from '../../src/testing/fakes.js';
 import { deliverWebhook, TEST_WEBHOOK_SECRET, webhookFixture } from '../fakes/github.js';
 import { authKeysEnv } from '../github-app.js';
 import { expectEnvelope, expectFields, startApp } from '../route-baseline.js';
+import { readinessSettled, withoutReadiness } from '../readiness.js';
 
 const databaseUrl = inject('databaseUrl');
 const env = parseEnv({
@@ -127,7 +128,11 @@ describe('the Dépôts GitHub and the Projets against PostgreSQL', () => {
 
   const state = async (tab: Tab) => zState.parse(await (await call(tab, '/api/state')).json());
 
-  const eventsOf = (tab: Tab): Promise<EventRow[]> => sql<EventRow>('SELECT type, payload, source FROM events WHERE pilot_id = $1 ORDER BY seq', [tab.id]);
+  // Once the readiness is written, without its own events.
+  const eventsOf = async (tab: Tab): Promise<EventRow[]> => {
+    await readinessSettled(app);
+    return withoutReadiness(await sql<EventRow>('SELECT type, payload, source FROM events WHERE pilot_id = $1 ORDER BY seq', [tab.id]));
+  };
 
   /** The App installed on the two repositories, and the Dépôts GitHub it gave. */
   const install = async (tab: Tab = alice) => {
@@ -330,7 +335,8 @@ describe('the Dépôts GitHub and the Projets against PostgreSQL', () => {
       expect(fakes.github.calls.slice(callsBefore).filter((call) => JSON.stringify(call.args).includes('.process.json'))).toEqual([]);
       expect(fakes.github.fileAt(APP_REPO.owner, APP_REPO.name, 'main', '.process.json')).toBeDefined();
       expect(zProjectList.parse(await (await call(alice, '/api/projects')).json()).items).toEqual(after.projects);
-      expect(zProject.parse(await (await call(alice, `/api/projects/${items[0]?.id}`)).json())).toEqual(items[0]);
+      // Its readiness computed since its creation (PROJET-3).
+      expect(zProject.parse(await (await call(alice, `/api/projects/${items[0]?.id}`)).json())).toEqual(after.projects[0]);
     });
 
     it('answers 400 with fields for no repository, an id that is not one, or no Modèle de process of the catalogue', async () => {

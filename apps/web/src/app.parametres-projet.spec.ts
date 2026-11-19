@@ -24,6 +24,7 @@ const PROJECT: Project = {
   inventoryState: 'approved',
   accessLost: false,
   followedAt: AT,
+  readiness: null,
 };
 const CODEX: AiAccount = {
   id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6b02',

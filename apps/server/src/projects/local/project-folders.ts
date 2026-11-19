@@ -4,7 +4,7 @@ import { DecisionsService, type RaiseInput } from '../../decisions/decisions.ser
 import type { ProjectFolderState } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { EventsWriter } from '../../realtime/events.writer.js';
-import { Transactions } from '../../realtime/transactions.js';
+import { afterCommit, Transactions } from '../../realtime/transactions.js';
 import { RunnerDispatcher } from '../../runners/runner-dispatcher.js';
 import { runInPilotScope } from '../../scope/scope.context.js';
 import { PROJECT_VIEW, toProject } from '../project.view.js';
@@ -40,6 +40,7 @@ export const folderMissingDecision = (projectId: string, machine: string | null)
 @Injectable()
 export class ProjectFolders implements OnModuleInit {
   private readonly queues = new Map<string, Promise<void>>();
+  private readonly changedHandlers = new Set<(pilotId: string, projectId: string) => void>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -52,6 +53,12 @@ export class ProjectFolders implements OnModuleInit {
 
   onModuleInit(): void {
     this.dispatcher.registerRunnerHandler('projects.folders', (message, context) => this.reported(context.pilotId, message.present));
+  }
+
+  /** Calls `handler` once a Projet's folder state changed, committed (the readiness reads the folder again, PROJET-3); returns its removal. */
+  onFolderChanged(handler: (pilotId: string, projectId: string) => void): () => void {
+    this.changedHandlers.add(handler);
+    return () => this.changedHandlers.delete(handler);
   }
 
   private reported(pilotId: string, present: readonly string[]): Promise<void> {
@@ -81,6 +88,9 @@ export class ProjectFolders implements OnModuleInit {
       const view = toProject(await tx.project.update({ where: { id }, data: { folderState: next }, select: PROJECT_VIEW }));
       const seq = await this.events.write(tx, pilotId, 'project.upserted', view);
       await tx.project.update({ where: { id }, data: { lastSeq: seq } });
+      afterCommit(tx, () => {
+        for (const handler of this.changedHandlers) handler(pilotId, id);
+      });
       if (next === 'present') {
         await this.decisions.resolve(tx, 'project.folder-missing', id, FOLDER_BACK);
         return;

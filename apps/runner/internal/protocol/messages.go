@@ -53,6 +53,13 @@ const (
 	TypeFolderChecked       = "folder.checked"
 	TypeProjectFolderAttach = "project.folder.attach"
 	TypeProjectsFolders     = "projects.folders"
+	// A Local Projet's readiness (PROJET-3): the server asks where its folder
+	// stands and asks to prepare it; the Runner says its figures, never its
+	// path, and whether the preparation went through.
+	TypeProjectFolderStatus   = "project.folder.status"
+	TypeProjectFolderPrepare  = "project.folder.prepare"
+	TypeProjectFolderState    = "project.folder.state"
+	TypeProjectFolderPrepared = "project.folder.prepared"
 
 	// The Commandes (RUNNER-18): the server asks a run, its stop and the
 	// replay of its output; the Runner says it started, its verdict, and
@@ -240,6 +247,28 @@ func NewProjectsFolders(present []string) contracts.RunnerProjectsFolders {
 		present = []string{}
 	}
 	return contracts.RunnerProjectsFolders{Type: TypeProjectsFolders, Id: newID(at), At: at, Present: present}
+}
+
+// NewProjectFolderState says where the Projet's folder stands: whether it is
+// still a folder, a git repository's root with commits, and whether its
+// release and integration branches exist.
+func NewProjectFolderState(projectID string, present, isGit, hasCommits, releaseBranch, integrationBranch bool) contracts.RunnerProjectFolderState {
+	at := now()
+	return contracts.RunnerProjectFolderState{
+		Type: TypeProjectFolderState, Id: newID(at), At: at, ProjectId: projectID,
+		Present: present, IsGit: isGit, HasCommits: hasCommits, ReleaseBranch: releaseBranch, IntegrationBranch: integrationBranch,
+	}
+}
+
+// NewProjectFolderPrepared answers the project.folder.prepare requestID: ok
+// when failure is "", else failed with it.
+func NewProjectFolderPrepared(requestID, projectID string, failure contracts.RunnerProjectFolderPreparedError) contracts.RunnerProjectFolderPrepared {
+	at := now()
+	message := contracts.RunnerProjectFolderPrepared{Type: TypeProjectFolderPrepared, Id: newID(at), At: at, RequestId: requestID, ProjectId: projectID, Ok: failure == ""}
+	if failure != "" {
+		message.Error = &failure
+	}
+	return message
 }
 
 // NewCommandStarted says the run's process started.

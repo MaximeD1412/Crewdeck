@@ -5,7 +5,7 @@ import { decisionViews, type DecisionReads } from './registry.js';
 import { runnerOfflineView, waitingItemText } from './runner-offline.js';
 
 /** What the row reads beyond its Décision: nothing this kind needs. */
-const READS: DecisionReads = { runnerOnline: true, sessionEvent: () => ({ state: 'reading' }), roleName: (role) => role };
+const READS: DecisionReads = { runnerOnline: true, sessionEvent: () => ({ state: 'reading' }), roleName: (role) => role, localText: () => '…' };
 
 const NOW = new Date('2026-11-11T13:30:00.000Z');
 const SINCE = '2026-11-11T13:02:00.000Z';

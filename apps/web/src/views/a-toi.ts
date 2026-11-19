@@ -46,10 +46,13 @@ export interface AToiOptions {
   readonly sessionEvent?: DecisionReads['sessionEvent'];
   /** A Rôle's name; a default Rôle's, else its id, by default. */
   readonly roleName?: DecisionReads['roleName'];
+  /** A Local Projet's sealed text opened; « … » by default. */
+  readonly localText?: DecisionReads['localText'];
 }
 
 const NOT_READ: SessionEventRead = { state: 'reading' };
 const defaultRoleName = (role: string): string => sessionRoleName(role, undefined);
+const notOpened = (): string => t('local.text.pending');
 
 /** Newest first; the same instant by id, as `GET /api/decisions` orders them. */
 const newestFirst = (a: Decision, b: Decision): number =>
@@ -65,9 +68,9 @@ const newestFirst = (a: Decision, b: Decision): number =>
 export const aToiView = (
   open: Iterable<Decision>,
   query: Readonly<Record<string, string>>,
-  { runnerOnline, now = new Date(), views = decisionViews, sessionEvent = () => NOT_READ, roleName = defaultRoleName, projectName: nameOf = () => null }: AToiOptions,
+  { runnerOnline, now = new Date(), views = decisionViews, sessionEvent = () => NOT_READ, roleName = defaultRoleName, projectName: nameOf = () => null, localText = notOpened }: AToiOptions,
 ): PageAToiData => {
-  const reads: DecisionReads = { runnerOnline, sessionEvent, roleName };
+  const reads: DecisionReads = { runnerOnline, sessionEvent, roleName, localText };
   const all = [...open]
     .map((decision) =>
       decision.projectName === null && decision.projectId !== null ? { ...decision, projectName: nameOf(decision.projectId) ?? decision.projectId } : decision,

@@ -7,7 +7,7 @@ import { loopBackExhaustedView } from './loop-back-exhausted.js';
 import { decisionViews, type DecisionReads } from './registry.js';
 
 /** What the row reads beyond its Décision: nothing this kind needs. */
-const READS: DecisionReads = { runnerOnline: true, sessionEvent: () => ({ state: 'reading' }), roleName: (role) => role };
+const READS: DecisionReads = { runnerOnline: true, sessionEvent: () => ({ state: 'reading' }), roleName: (role) => role, localText: () => '…' };
 
 const NOW = new Date('2026-11-16T10:25:00.000Z');
 const PHASE_RUN_ID = '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6b01';

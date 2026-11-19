@@ -176,6 +176,19 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
     for (const { id } of live) await this.change(tx, pilotId, id, { state: 'interrupted', interruptedReason: 'runner_offline' });
   }
 
+  /**
+   * The live Session `id` `stopped` in `tx`, its Moteur stopped by the
+   * Runner once committed: the engine's agent Étape whose StepRun is stopped
+   * or undone (RUNNER-12). A Session no longer live is left as it is.
+   */
+  async stopIn(tx: Tx, id: string): Promise<void> {
+    const pilotId = currentPilotId();
+    const row = await tx.agentSession.findUnique({ where: { id }, select: { state: true } });
+    if (!row || !LIVE.includes(row.state)) return;
+    await this.change(tx, pilotId, id, { state: 'stopped', interruptedReason: null, endedAt: this.clock.now() });
+    afterCommit(tx, () => this.trySend(pilotId, { type: 'session.stop', sessionId: id }));
+  }
+
   /** `POST /api/sessions/:id/stop`: the Session `stopped` at `endedAt`, its Moteur stopped by the Runner, its worktree and Moteur's id kept. */
   async stop(id: string, seq: bigint): Promise<AgentSession> {
     const pilotId = currentPilotId();
@@ -350,8 +363,10 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async written(tx: Tx, pilotId: string, row: SessionRow): Promise<SessionRow> {
-    const seq = await this.events.write(tx, pilotId, 'agent-session.upserted', toAgentSession(row));
+    const session = toAgentSession(row);
+    const seq = await this.events.write(tx, pilotId, 'agent-session.upserted', session);
     await tx.agentSession.update({ where: { id: row.id }, data: { lastSeq: seq } });
+    await this.hooks.changed(tx, session);
     return { ...row, lastSeq: seq };
   }
 

@@ -18,9 +18,11 @@ import {
   type StepRunInput,
   type StepRunState,
   UNFINISHED_PHASE_RUN_STATES,
+  type Verdict,
   zArtifactRef,
   zBuiltinTemplateId,
   zProcessDefinition,
+  zVerdict,
 } from '@crewdeck/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
@@ -269,6 +271,26 @@ export class Engine {
     const done = after.stepRuns.find((run) => run.id === stepRunId);
     if (done?.state === 'done' && done.verdict !== 'changes') await this.carry(tx, after, done);
     return true;
+  }
+
+  /**
+   * The Session of an agent's StepRun (RUNNER-12), written by its handler as
+   * it starts it: no event of its own, the engine publishes the StepRun once
+   * its handler started it.
+   */
+  async recordSession(tx: Tx, run: StepRunContext, sessionId: string): Promise<void> {
+    await tx.stepRun.update({ where: { id: run.stepRun.id }, data: { sessionId }, select: { id: true } });
+  }
+
+  /**
+   * The verdict of a StepRun's Contrat as the Runner checked it (RUNNER-12),
+   * written with its `step-run.upserted` in `tx`; its state is the handler's
+   * result to say. The returned StepRun carries it.
+   */
+  async recordContratVerdict(tx: Tx, run: StepRunContext, verdict: Verdict): Promise<StepRun> {
+    const stepRun = toStepRun(await tx.stepRun.update({ where: { id: run.stepRun.id }, data: { contratVerdict: json(zVerdict.parse(verdict)) }, select: STEP_RUN_VIEW }), run.definition);
+    await this.publishStepRun(tx, stepRun);
+    return stepRun;
   }
 
   /**
@@ -693,7 +715,11 @@ export class Engine {
     let stepRun = toStepRun(row, loaded.definition);
     if (handler) {
       const state = await handler.start(tx, this.contextOf(loaded, stepRun));
-      if (state !== 'running') stepRun = toStepRun(await tx.stepRun.update({ where: { id: stepRun.id }, data: { state }, select: STEP_RUN_VIEW }), loaded.definition);
+      // Read again whatever the state: the handler may have written the StepRun's Session (`recordSession`).
+      stepRun = toStepRun(
+        state === 'running' ? await tx.stepRun.findUniqueOrThrow({ where: { id: stepRun.id }, select: STEP_RUN_VIEW }) : await tx.stepRun.update({ where: { id: stepRun.id }, data: { state }, select: STEP_RUN_VIEW }),
+        loaded.definition,
+      );
     }
     await this.publishStepRun(tx, stepRun);
     return stepRun;

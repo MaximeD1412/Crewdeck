@@ -25,7 +25,8 @@ func init() { buildFlags = smokeFlags }
 // smokeFlags adds, hidden: --engine-fake <stream.jsonl>, the fake Moteur
 // replaying the stream's normalised events for every Moteur, found on PATH
 // by `link`; --github-url <url>, where the Sessions clone their GitHub
-// repository from (a file:// folder of bare repositories, `<owner>/<name>.git`).
+// repository from (a file:// folder of bare repositories, `<owner>/<name>.git`),
+// without a Session token.
 func smokeFlags(root *cobra.Command) {
 	var stream, githubURL string
 	flags := root.PersistentFlags()
@@ -35,7 +36,8 @@ func smokeFlags(root *cobra.Command) {
 	_ = flags.MarkHidden("github-url")
 	root.PersistentPreRunE = func(*cobra.Command, []string) error {
 		if githubURL != "" {
-			sessionsGitHubURL = githubURL
+			// Its repositories are local: no GitHub, no Session token.
+			sessionsGitHubURL, sessionsTokens = githubURL, false
 		}
 		if stream == "" {
 			return nil

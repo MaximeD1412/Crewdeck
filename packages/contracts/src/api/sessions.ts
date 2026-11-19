@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { InstallationPermissions } from '../github/index.js';
 import { zSealedItem } from '../keys/sealed.js';
 import { zEngineId } from '../runner/engines.js';
 import { zGitBranch, zSessionError, zSessionOutcome, zSessionState, zSessionTitle } from '../runner/session.js';
@@ -62,3 +63,27 @@ export type AgentSessionList = z.infer<typeof zAgentSessionList>;
 /** `POST /api/sessions/:id/stop` and `/resume`: the `seq` the page read the Session at. */
 export const zSessionAction = withSeq(z.object({}));
 export type SessionAction = z.infer<typeof zSessionAction>;
+
+/**
+ * What a Session's GitHub token may do (ADR 0002, risk SEC-6): the four
+ * permissions an agent writes with, on the Session's repository only, 1 h.
+ * Never the Pilote's token, never a broader one.
+ */
+export const SESSION_TOKEN_PERMISSIONS = {
+  contents: 'write',
+  issues: 'write',
+  pull_requests: 'write',
+  workflows: 'write',
+} as const satisfies InstallationPermissions;
+
+/**
+ * `POST /api/runner/sessions/:id/github-token` (RUNNER-10), with the Runner's
+ * token: the Session's installation token and when it expires. The Runner
+ * keeps it in memory only and renews it before `expiresAt`; the server never
+ * stores nor logs it.
+ */
+export const zSessionGithubToken = z.object({
+  token: z.string().min(1),
+  expiresAt: zInstant,
+});
+export type SessionGithubToken = z.infer<typeof zSessionGithubToken>;

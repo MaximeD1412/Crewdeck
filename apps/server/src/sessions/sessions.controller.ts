@@ -23,7 +23,8 @@ export const RECENTLY_ENDED_HOURS = 24;
 
 const NEWEST_FIRST = [{ startedAt: 'desc' }, { id: 'desc' }] as const;
 
-const sessionId = (value: string): string => {
+/** The id of a Session route, `sessions.not-found` when it is not one. */
+export const sessionId = (value: string): string => {
   const parsed = zId.safeParse(value);
   if (!parsed.success) throw notFound('sessions.not-found', MESSAGES['sessions.not-found']);
   return parsed.data;

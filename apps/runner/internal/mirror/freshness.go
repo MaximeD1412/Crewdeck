@@ -13,7 +13,8 @@ const (
 	FreshnessFilling FreshnessState = "filling"
 	// FreshnessLive: connected, the replay over, every envelope received applied.
 	FreshnessLive FreshnessState = "live"
-	// FreshnessLate: disconnected, replaying, resyncing, or an envelope waits.
+	// FreshnessLate: disconnected, replaying, resyncing, an envelope waits, or
+	// a refresh asked failed and none succeeded since.
 	FreshnessLate FreshnessState = "late"
 )
 
@@ -39,7 +40,7 @@ func (f *Follower) State(repository string) (Freshness, error) {
 	case p.project.Source == SourceLocal:
 		// Its Source is the disk: live once filled, while the Runner runs.
 		state = FreshnessLive
-	case f.connected && f.live && f.resync == nil && len(p.queue) == 0:
+	case f.connected && f.live && f.resync == nil && len(p.queue) == 0 && len(p.behind) == 0:
 		state = FreshnessLive
 	}
 	return Freshness{State: state, SyncedAt: p.synced}, nil

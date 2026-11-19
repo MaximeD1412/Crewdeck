@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -708,6 +709,124 @@ func TestAProjetsFreshnessFollowsItsCopy(t *testing.T) {
 	server.set(func(s *runnerServer) { s.refuse = true })
 	server.drop()
 	eventually(t, "late once disconnected", func() bool { return state().State == FreshnessLate })
+}
+
+func TestAFailedRefreshLeavesItsCopyLateUntilARefreshOfItSucceeds(t *testing.T) {
+	clock := newClock()
+	server := newRunnerServer(t, clock)
+	fake := newFake(t, "testdata/graphql")
+	store, path := followedStore(t, 0, followedAtelier)
+	server.sendLive(0)
+	server.set(func(s *runnerServer) { s.answer = func(int) any { return nil } })
+	f, _ := follow(t, store, fake, server)
+	server.awaitHello()
+	server.send(server.issued(clock.Now().Add(time.Hour)))
+	awaitFilled(t, path, 1)
+	state := func() FreshnessState {
+		t.Helper()
+		freshness, err := f.State("acme/atelier")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return freshness.State
+	}
+	eventually(t, "live", func() bool { return state() == FreshnessLive })
+	ctx := context.Background()
+
+	// An agent's write, whose refresh of #38 fails: late, the next read fetches.
+	fake.Fail("MirrorObject", githubtest.BadGateway(), 1)
+	if err := f.Fetch(ctx, "acme/atelier", 38); err == nil {
+		t.Fatal("the refused fetch succeeded")
+	}
+	if got := state(); got != FreshnessLate {
+		t.Fatalf("after a failed refresh: %s, want late", got)
+	}
+	if err := f.Fetch(ctx, "acme/atelier", 39); err != nil {
+		t.Fatal(err)
+	}
+	if got := state(); got != FreshnessLate {
+		t.Fatalf("after another object's fetch: %s, want late", got)
+	}
+	if err := f.Fetch(ctx, "acme/atelier", 38); err != nil {
+		t.Fatal(err)
+	}
+	if got := state(); got != FreshnessLive {
+		t.Fatalf("once #38 fetched: %s, want live", got)
+	}
+
+	// A failed synchronization: late until one succeeds.
+	fake.Fail("MirrorIssues", githubtest.BadGateway(), 1)
+	if _, err := f.Sync(ctx, "acme/atelier", false); err == nil {
+		t.Fatal("the refused synchronization succeeded")
+	}
+	if err := f.Fetch(ctx, "acme/atelier", 38); err != nil {
+		t.Fatal(err)
+	}
+	if got := state(); got != FreshnessLate {
+		t.Fatalf("after a failed synchronization and a fetch: %s, want late", got)
+	}
+	if _, err := f.Sync(ctx, "acme/atelier", false); err != nil {
+		t.Fatal(err)
+	}
+	if got := state(); got != FreshnessLive {
+		t.Fatalf("once synchronized: %s, want live", got)
+	}
+}
+
+func TestAnOpenSynchronizationRefetchesTheClosedObjectWhoseRefreshFailed(t *testing.T) {
+	clock := newClock()
+	server := newRunnerServer(t, clock)
+	fake := newFake(t, "testdata/graphql")
+	store, path := followedStore(t, 0, followedAtelier)
+	server.sendLive(0)
+	server.set(func(s *runnerServer) { s.answer = func(int) any { return nil } })
+	f, _ := follow(t, store, fake, server)
+	server.awaitHello()
+	server.send(server.issued(clock.Now().Add(time.Hour)))
+	awaitFilled(t, path, 1)
+	state := func() FreshnessState {
+		t.Helper()
+		freshness, err := f.State("acme/atelier")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return freshness.State
+	}
+	eventually(t, "live", func() bool { return state() == FreshnessLive })
+	ctx := context.Background()
+	noOpen := map[string]any{"pageInfo": map[string]any{"hasNextPage": false, "endCursor": nil}, "nodes": []any{}}
+	fake.Reply("MirrorOpenIssues", map[string]any{"owner": "acme", "name": "atelier"}, map[string]any{"repository": map[string]any{"issues": noOpen}})
+	fake.Reply("MirrorOpenPulls", map[string]any{"owner": "acme", "name": "atelier"}, map[string]any{"repository": map[string]any{"pullRequests": noOpen}})
+
+	// An agent comments on the closed #39, which GitHub has retitled since;
+	// its refresh fails: late.
+	var closed struct {
+		Operation string         `json:"operation"`
+		Variables map[string]any `json:"variables"`
+		Data      map[string]any `json:"data"`
+	}
+	raw, err := os.ReadFile("testdata/graphql/object-39.json")
+	if err != nil || json.Unmarshal(raw, &closed) != nil {
+		t.Fatalf("object-39.json: %v", err)
+	}
+	closed.Data["repository"].(map[string]any)["issueOrPullRequest"].(map[string]any)["title"] = "Une idée commentée"
+	fake.Reply(closed.Operation, closed.Variables, closed.Data)
+	fake.Fail("MirrorObject", githubtest.BadGateway(), 1)
+	if err := f.Fetch(ctx, "acme/atelier", 39); err == nil {
+		t.Fatal("the refused fetch succeeded")
+	}
+	if got := state(); got != FreshnessLate {
+		t.Fatalf("after the failed refresh of #39: %s, want late", got)
+	}
+
+	// The open synchronization reads #39 again, closed as it is.
+	if _, err := f.Sync(ctx, "acme/atelier", true); err != nil {
+		t.Fatal(err)
+	}
+	if got := state(); got != FreshnessLive {
+		t.Fatalf("once #39 read again: %s, want live", got)
+	}
+	assertRows(t, path, "SELECT title FROM issues WHERE number = 39", [][]any{{"Une idée commentée"}})
 }
 
 func TestTheReconciliationRunsAtStartAndEvery15MinutesAndCatchesALostEnvelope(t *testing.T) {

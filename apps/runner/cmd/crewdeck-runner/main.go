@@ -13,6 +13,7 @@ import (
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/engine"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/github"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/service"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
@@ -118,6 +119,7 @@ func newRoot(m *machine) *cobra.Command {
 	root.AddCommand(newMCPCommand())
 	root.AddCommand(newHookCommand())
 	root.AddCommand(newMiroirCommand())
+	root.AddCommand(newGhCommand("gh", "Run gh with the Session's token, then refresh the Miroir (the Session's gh shim)"))
 	buildFlags(root)
 	return root
 }
@@ -142,6 +144,10 @@ func refusal(err error) error {
 }
 
 func main() {
+	if github.IsAskpass(os.Args[1:]) {
+		// git's askpass of a Session (RUNNER-10): its token, over runner.sock.
+		os.Exit(github.RunAskpass(os.Args[1], os.Stdout, os.Stderr))
+	}
 	err := newRootCommand().ExecuteContext(context.Background())
 	var exit silentExit
 	if errors.As(err, &exit) {

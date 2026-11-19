@@ -3,6 +3,7 @@ import { zApproveDevice, zDeviceHolders, zPendingDevice } from './api/devices.js
 import { zErrorEnvelope } from './api/errors.js';
 import { zHealth } from './api/health.js';
 import { zRunnerLatest } from './api/runner.js';
+import { zSessionGithubToken } from './api/sessions.js';
 import { LINK_ATTEMPTS_PER_MINUTE, LINK_CODE_TTL_SECONDS, LINK_POLL_SECONDS, zRunnerLinkAccepted, zRunnerLinkPairing, zRunnerLinkRequest, zRunnerLinkStatus } from './api/runner-link.js';
 import { CAPABILITIES_EVERY_SECONDS, zCapabilities } from './runner/capabilities.js';
 import { zEngineEvent } from './runner/events.js';
@@ -106,6 +107,8 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-migration-failed', schema: zMigrationFailed },
   // A Local Projet's folder followed (SOURCE-3).
   { name: 'runner-local-changed', schema: zLocalChanged },
+  // A Session's GitHub token (RUNNER-10), the Runner's HTTP route.
+  { name: 'runner-session-github-token', schema: zSessionGithubToken },
 ];
 
 /**

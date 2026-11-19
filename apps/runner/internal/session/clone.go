@@ -72,9 +72,12 @@ type GitHubOrigin struct {
 	// URL is GitHub's, DefaultGitHubURL; the tests give a file:// one.
 	URL         string
 	Owner, Name string
-	// Tokens authenticates the clone and its fetches (RUNNER-10 gives the
-	// real one); nil, or an empty token, clones without one.
+	// Tokens authenticates the clone and its fetches with a header; nil, or
+	// an empty token, clones without one.
 	Tokens github.TokenSource
+	// Env, when set, is what authenticates git instead: a Session's
+	// askpass (github.GitEnv), the token asked at each git command.
+	Env []string
 
 	locks *locks
 }
@@ -116,10 +119,13 @@ func (o *GitHubOrigin) Clone(ctx context.Context) (string, []string, error) {
 	return dir, env, err
 }
 
-// auth is the environment that gives git the token, as an HTTP header in
-// git's configuration from the environment: never in a command line, nor in
-// the clone's configuration.
+// auth is the environment that gives git the token: a Session's askpass,
+// else the token as an HTTP header in git's configuration from the
+// environment; never in a command line, nor in the clone's configuration.
 func (o *GitHubOrigin) auth(ctx context.Context) ([]string, error) {
+	if o.Env != nil {
+		return o.Env, nil
+	}
 	if o.Tokens == nil {
 		return nil, nil
 	}

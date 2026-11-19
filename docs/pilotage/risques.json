@@ -184,13 +184,13 @@
       "categorie": "sec",
       "gravite": "moyenne",
       "titre": "Jeton GitHub du Runner volé sur la machine du Pilote",
-      "statut": "solution choisie",
-      "statutDepuis": "2026-11-12",
+      "statut": "implémenté",
+      "statutDepuis": "2026-11-19",
       "solutions": [
         {
           "texte": "Jeton d'installation limité à un dépôt et à quatre permissions, valable 1 h",
           "ref": "ADR 0002",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Jeton « Miroir » en lecture seule, limité aux dépôts des Projets, valable 1 h",
@@ -901,6 +901,11 @@
         },
         {
           "texte": "Chaque réponse du Miroir porte son état de fraîcheur",
+          "ref": "ADR 0010",
+          "fait": true
+        },
+        {
+          "texte": "Après chaque écriture d'un agent avec gh, le Miroir rafraîchit l'objet écrit avant que la commande rende la main",
           "ref": "ADR 0010",
           "fait": true
         }

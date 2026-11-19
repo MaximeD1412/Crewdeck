@@ -46,7 +46,8 @@ func newMiroirCommand() *cobra.Command {
 	pr := &cobra.Command{Use: "pr", Short: "The Projet's changes of code, as gh pr"}
 	pr.AddCommand(newMiroirView(&repo, true), newMiroirList(&repo, true))
 	command.AddCommand(issue, pr, newMiroirReady(&repo), newMiroirSearch(&repo), newMiroirSQL(),
-		newMiroirStatus(), newMiroirSync(&repo), newMiroirRebuild())
+		newMiroirStatus(), newMiroirSync(&repo), newMiroirRebuild(),
+		newGhCommand("gh", "Run gh with the Session's token, then refresh in the copy what it changed"))
 	return command
 }
 

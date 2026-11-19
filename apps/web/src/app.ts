@@ -235,6 +235,12 @@ export const boot = async ({
       vaultTried = resolve;
     }),
   });
+  /** An Idée's title, the first line of its text, once the store holds it opened; its opening started otherwise. */
+  const ideaTitle = (ideaId: string): string | null => {
+    const idea = store.getState().slices.idea?.get(ideaId);
+    const text = idea ? plaintext.text(idea) : null;
+    return text?.status === 'open' ? text.text.split('\n', 1)[0]?.trim() || null : null;
+  };
   const noteIdea = createNoteIdea({ client, vault: keys.vault, store });
   const noteDialog = document.createElement(NoteIdeaDialog.tag) as HTMLElement & { data: unknown };
   noteDialog.data = noteIdea.view();
@@ -325,6 +331,8 @@ export const boot = async ({
       if (match.composant === PageProjets) return projetsView(slices.project?.values() ?? []);
       if (match.composant === PageProcessEditor) {
         const projectId = match.params['id'] ?? '';
+        // The Idées at work opened ahead: the activation's confirmation names them by their title, read when pressed.
+        for (const work of slices.process?.get(projectId)?.running ?? []) if (work.itemType === 'idea') ideaTitle(work.itemId);
         return processEditorView(store.getState(), projectId, editorUi.view(projectId, match.query));
       }
       if (match.composant === PageIdees) {
@@ -465,11 +473,7 @@ export const boot = async ({
     navigate: (url, options) => router.navigate(url, options),
     current: () => router.current,
     client,
-    ideaTitle: (ideaId) => {
-      const idea = store.getState().slices.idea?.get(ideaId);
-      const text = idea ? plaintext.text(idea) : null;
-      return text?.status === 'open' ? text.text.split('\n', 1)[0]?.trim() || null : null;
-    },
+    ideaTitle,
   });
   dispatcher.registerAction(PageProcessEditor, 'select', { run: (payload) => editor.select(payload) });
   dispatcher.registerAction(PageProcessEditor, 'tab', { run: (payload) => editor.tab(payload) });

@@ -37,6 +37,7 @@ test.describe('« Gestion du process » (US-92, US-94, US-88)', () => {
     await expect(editor(page).getByRole('heading', { level: 1, name: 'Gestion du process' })).toBeVisible();
     await expect(editor(page).locator('cd-page-header a.back')).toHaveText('Site mairie');
     await expect(editor(page).locator('cd-page-header')).toContainText('v3 active');
+    await expect(editor(page).locator('cd-page-header').getByRole('button', { name: 'Activer la v4' })).toBeDisabled();
     await expect(canvas(page).locator('cd-phase')).toHaveCount(CREWDECK.phases);
     await expect(canvas(page).locator('cd-step-card')).toHaveCount(CREWDECK.steps);
     await expect(canvas(page).locator('path.wire.arrow')).toHaveCount(CREWDECK.arrows);
@@ -56,7 +57,9 @@ test.describe('« Gestion du process » (US-92, US-94, US-88)', () => {
   }) => {
     await scenario('process-manques');
 
-    await expect(editor(page).locator('cd-page-header')).toContainText('brouillon · 5 Manques');
+    await expect(editor(page).locator('cd-page-header')).toContainText('brouillon · 3 changements · 5 Manques');
+    await expect(editor(page).locator('cd-page-header').getByRole('button', { name: 'Activer la v4' })).toBeDisabled();
+    await expect(editor(page).locator('cd-page-header')).toContainText('Règle les Manques pour activer.');
     await expect(tab(page, /^Manques/)).toHaveText('Manques5');
     await expect(gapRows(page)).toHaveCount(5);
     await expect(gapRows(page).nth(1)).toContainText('Entrée « Verdict de la Review » de « Merge » : rien ne l’alimente');
@@ -158,7 +161,8 @@ test.describe('« Gestion du process » (US-92, US-94, US-88)', () => {
     await scenario('process-sans-version');
 
     await expect(editor(page).locator('cd-banner')).toContainText('Pas encore de version active : règle les Manques puis active.');
-    await expect(editor(page).locator('cd-page-header')).toContainText('brouillon · pas encore de version active');
+    await expect(editor(page).locator('cd-page-header')).toContainText('brouillon · première version · 1 Manque');
+    await expect(editor(page).locator('cd-page-header').getByRole('button', { name: 'Activer la v1' })).toBeDisabled();
     await expect(gapRows(page)).toHaveCount(1);
     await expect(editor(page).locator('footer.foot')).toContainText('Ce brouillon deviendra la v1.');
     await expectAccessible(page);

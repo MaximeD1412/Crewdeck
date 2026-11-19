@@ -1021,6 +1021,7 @@ export const fr = {
   'session.question.answered': 'Tu as répondu : {answer}',
   'session.question.composer': 'Ou réponds avec tes mots',
   'session.question.kicker': 'Question {index} sur {count}',
+  'session.request.withdrawn': 'Restée sans réponse : la Session s’est arrêtée.',
   'session.resume': 'Reprendre',
   'session.resumeDisabled.ended': 'Session terminée',
   'session.resumeDisabled.offline': 'Runner hors ligne',

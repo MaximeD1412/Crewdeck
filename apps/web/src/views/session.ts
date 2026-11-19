@@ -102,11 +102,34 @@ type Request = Extract<EngineEvent, { kind: 'question' | 'permission-request' }>
 const answersOf = (events: readonly EngineEvent[]): ReadonlyMap<string, Answer> =>
   new Map(events.flatMap((event) => (event.kind === 'answer' ? [[event.requestId, event] as const] : [])));
 
-/** The question still waiting for the Pilote, the last one: the Composer's text answers it. */
+/**
+ * The requests a turn ended on with no answer: a stop (or the Runner's end)
+ * withdrew them, the run resumed after never taking them (SESSION-3).
+ */
+const withdrawnOf = (events: readonly EngineEvent[]): ReadonlySet<string> => {
+  const open = new Set<string>();
+  const withdrawn = new Set<string>();
+  for (const event of events) {
+    if (event.kind === 'question' || event.kind === 'permission-request') open.add(event.requestId);
+    else if (event.kind === 'answer') open.delete(event.requestId);
+    else if (event.kind === 'result') {
+      for (const id of open) withdrawn.add(id);
+      open.clear();
+    }
+  }
+  return withdrawn;
+};
+
+/** The question still waiting for the Pilote, the last one of the current turn: the Composer's text answers it. */
 export const pendingQuestion = (events: readonly EngineEvent[], state: AgentSession['state']): Extract<EngineEvent, { kind: 'question' }> | null => {
   if (!RUNNING.has(state)) return null;
   const answers = answersOf(events);
-  return events.findLast((event): event is Extract<EngineEvent, { kind: 'question' }> => event.kind === 'question' && !answers.has(event.requestId)) ?? null;
+  const withdrawn = withdrawnOf(events);
+  return (
+    events.findLast(
+      (event): event is Extract<EngineEvent, { kind: 'question' }> => event.kind === 'question' && !answers.has(event.requestId) && !withdrawn.has(event.requestId),
+    ) ?? null
+  );
 };
 
 const asked = (request: Request): string =>
@@ -140,13 +163,16 @@ const pendingNode = (request: Request): PlacedNode =>
  * (the result's detail on its call), its questions and permission requests
  * (SESSION-3: the `Question` or the `PermissionRequest` while it waits and the
  * Session runs; once answered, what it asked then the answer given, as the
- * Pilote's line; the agent's message in a Session that no longer runs), and
+ * Pilote's line; withdrawn, a turn ended on it unanswered, what it asked then
+ * that it stayed unanswered; the agent's message in a Session that no longer
+ * runs), and
  * the Pilote's messages after the event they followed. Usage, results and
  * the rest show nothing.
  */
 const conversation = (events: readonly EngineEvent[], sent: readonly PilotMessage[], running: boolean): PlacedNode[] => {
   const nodes: PlacedNode[] = [];
   const answers = answersOf(events);
+  const withdrawn = withdrawnOf(events);
   const calls = new Map<string, number>();
   let streaming: Streaming | null = null;
   let pending = [...sent];
@@ -185,12 +211,13 @@ const conversation = (events: readonly EngineEvent[], sent: readonly PilotMessag
       case 'question':
       case 'permission-request': {
         const answer = answers.get(event.requestId);
-        if (!answer && running) {
+        if (!answer && running && !withdrawn.has(event.requestId)) {
           nodes.push(pendingNode(event));
           break;
         }
         nodes.push(message('agent', asked(event), event.at));
         if (answer) nodes.push(message('pilote', answered(answer), answer.at));
+        else if (withdrawn.has(event.requestId)) nodes.push(message('agent', t('session.request.withdrawn'), event.at));
         break;
       }
       case 'error':

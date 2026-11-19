@@ -211,6 +211,20 @@ describe('sessionView', () => {
       ]);
     });
 
+    it('a request a stop withdrew, the Session resumed: what it asked, that it stayed unanswered; nothing to answer, the Composer writes to the agent', () => {
+      const { children } = view({
+        events: [QUESTION, { kind: 'result', seq: 3, at: secondsAgo(80), status: 'interrupted' }, { ...PERMISSION, seq: 4 }, { kind: 'result', seq: 5, at: secondsAgo(60), status: 'interrupted' }, agent(6, 'Je reprends.')],
+      });
+      expect(stream(children).map((node) => [node.tag, (node.data as { text: string }).text])).toEqual([
+        ['cd-message', 'Qui peut modifier un événement d’un agenda partagé ?'],
+        ['cd-message', t('session.request.withdrawn')],
+        ['cd-message', 'Bash demande ta permission : git push origin design/agenda-partage'],
+        ['cd-message', t('session.request.withdrawn')],
+        ['cd-message', 'Je reprends.'],
+      ]);
+      expect((composerOf(children)?.data as { placeholder: string }).placeholder).toBe(t('session.composer.running'));
+    });
+
     it('the requests of a Session that no longer runs are the agent’s messages: nothing to answer them', () => {
       const { children } = view({ session: { ...SESSION, state: 'stopped', endedAt: secondsAgo(10) }, events: [QUESTION, { ...PERMISSION, seq: 3 }] });
       expect(stream(children).map((node) => [node.tag, (node.data as { text: string }).text])).toEqual([

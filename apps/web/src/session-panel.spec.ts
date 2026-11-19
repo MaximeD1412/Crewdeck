@@ -368,6 +368,14 @@ describe('the Session panel', () => {
       expect(relay.relay.sendInput).toHaveBeenCalledWith(SESSION.id, { kind: 'permission', requestId: 'toolu-p1', decision });
     });
 
+    it('a question a stop withdrew, the Session resumed: the Composer’s text is a message to the agent, no answer', async () => {
+      const { panel, relay } = setup();
+      panel.show(SESSION.id);
+      relay.push(QUESTION, { kind: 'result', seq: 3, at: '2026-11-11T14:04:35.000Z', status: 'interrupted' }, agent(4, 'Je reprends.'));
+      await panel.send('Tous les membres.');
+      expect(relay.relay.sendInput).toHaveBeenCalledWith(SESSION.id, { kind: 'message', text: 'Tous les membres.' });
+    });
+
     it('an answer the relay cannot send: why, in the Cadre', async () => {
       const { panel, relay, shell } = setup({ session: waiting });
       panel.show(SESSION.id);

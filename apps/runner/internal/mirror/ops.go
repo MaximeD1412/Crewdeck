@@ -466,8 +466,9 @@ func (f *Follower) fetchNow(ctx context.Context, repository string, number int) 
 }
 
 // Sync reconciles the key (every key when ""), openOnly walking only a
-// GitHub key's open issues and PRs; the keys synchronized, in order. A
-// GitHub key whose synchronization failed stays late until one succeeds.
+// GitHub key's open issues and PRs, then the objects whose refresh failed;
+// the keys synchronized, in order. A GitHub key whose synchronization failed
+// stays late until one succeeds.
 func (f *Follower) Sync(ctx context.Context, repository string, openOnly bool) ([]string, error) {
 	var targets []*followed
 	f.mu.Lock()
@@ -496,7 +497,11 @@ func (f *Follower) Sync(ctx context.Context, repository string, openOnly bool) (
 		case IsLocal(k):
 			err = f.reconcileLocal(ctx, p, k, 0)
 		case openOnly:
-			err = f.reconcileOpen(ctx, p, k)
+			if err = f.reconcileOpen(ctx, p, k); err == nil {
+				// The open walk reads no closed object: each one whose
+				// refresh failed is fetched again, its mark cleared by Fetch.
+				err = f.refetchBehind(ctx, p, k, begun)
+			}
 		default:
 			err = f.reconcileProject(ctx, p, k, 0)
 		}
@@ -504,6 +509,10 @@ func (f *Follower) Sync(ctx context.Context, repository string, openOnly bool) (
 		switch {
 		case err != nil && !IsLocal(k):
 			f.markBehind(p, 0)
+		case err == nil && openOnly:
+			if seq, ok := p.behind[0]; ok && seq <= begun {
+				delete(p.behind, 0)
+			}
 		case err == nil:
 			p.caughtUp(0, begun)
 		}
@@ -514,6 +523,26 @@ func (f *Follower) Sync(ctx context.Context, repository string, openOnly bool) (
 		synced = append(synced, k)
 	}
 	return synced, nil
+}
+
+// refetchBehind fetches each object of p whose refresh failed before seq
+// begun, in order; the first failure stops it.
+func (f *Follower) refetchBehind(ctx context.Context, p *followed, repository string, begun uint64) error {
+	f.mu.Lock()
+	var numbers []int
+	for n, seq := range p.behind {
+		if n != 0 && seq <= begun {
+			numbers = append(numbers, n)
+		}
+	}
+	f.mu.Unlock()
+	sort.Ints(numbers)
+	for _, n := range numbers {
+		if err := f.Fetch(ctx, repository, n); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (f *Follower) reconcileOpen(ctx context.Context, p *followed, repository string) error {

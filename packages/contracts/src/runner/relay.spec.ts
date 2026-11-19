@@ -81,9 +81,26 @@ describe('the relay of a Session', () => {
     expect(zServerMessage.safeParse({ ...error, code: 'session.ended' }).success).toBe(false);
   });
 
-  it('reads an input as a message of text, nothing else yet', () => {
+  it('reads an input as a message of text', () => {
     expect(zSessionInputPayload.parse({ kind: 'message', text: 'Continue' })).toEqual({ kind: 'message', text: 'Continue' });
     expect(zSessionInputPayload.safeParse({ kind: 'message', text: '' }).success).toBe(false);
-    expect(zSessionInputPayload.safeParse({ kind: 'answer', requestId: 'r1', text: 'oui' }).success).toBe(false);
+    expect(zSessionInputPayload.safeParse({ kind: 'thought', text: 'oui' }).success).toBe(false);
+  });
+
+  it('reads the answer to a question as the indexes of its options chosen, or a text, never both nor neither', () => {
+    expect(zSessionInputPayload.parse({ kind: 'answer', requestId: 'r1', optionIndexes: [0, 2] })).toEqual({ kind: 'answer', requestId: 'r1', optionIndexes: [0, 2] });
+    expect(zSessionInputPayload.parse({ kind: 'answer', requestId: 'r1', text: 'oui' })).toEqual({ kind: 'answer', requestId: 'r1', text: 'oui' });
+    expect(zSessionInputPayload.safeParse({ kind: 'answer', requestId: 'r1', optionIndexes: [0], text: 'oui' }).success).toBe(false);
+    expect(zSessionInputPayload.safeParse({ kind: 'answer', requestId: 'r1' }).success).toBe(false);
+    expect(zSessionInputPayload.safeParse({ kind: 'answer', requestId: 'r1', optionIndexes: [] }).success).toBe(false);
+    expect(zSessionInputPayload.safeParse({ kind: 'answer', requestId: 'r1', optionIndexes: [-1] }).success).toBe(false);
+    expect(zSessionInputPayload.safeParse({ kind: 'answer', requestId: '', text: 'oui' }).success).toBe(false);
+  });
+
+  it('reads the answer to a permission as allowed, allowed for the Session or refused', () => {
+    for (const decision of ['allow', 'allow-session', 'deny']) {
+      expect(zSessionInputPayload.parse({ kind: 'permission', requestId: 'r1', decision })).toEqual({ kind: 'permission', requestId: 'r1', decision });
+    }
+    expect(zSessionInputPayload.safeParse({ kind: 'permission', requestId: 'r1', decision: 'always' }).success).toBe(false);
   });
 });

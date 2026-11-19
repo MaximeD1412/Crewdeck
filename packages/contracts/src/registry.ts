@@ -10,7 +10,7 @@ import { zHeartbeat, zHeartbeatAck } from './runner/heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './runner/hello.js';
 import { zMcpServers } from './runner/mcp.js';
 import { zGitHubChanged, zMirrorLive, zMirrorProjects, zMirrorResync, zMirrorToken, zMirrorTokenFailed, zMirrorTokenIssued } from './runner/mirror.js';
-import { zSessionResume, zSessionStart, zSessionStateMessage, zSessionStop } from './runner/session.js';
+import { zSessionAnswered, zSessionResume, zSessionStart, zSessionStateMessage, zSessionStop, zSessionWaiting } from './runner/session.js';
 import { zSessionInputPayload } from './runner/inputs.js';
 import { zRelay, zSessionInput, zSessionKeys, zSessionReplay } from './runner/relay.js';
 import { zStepVerdict } from './runner/step.js';
@@ -57,6 +57,8 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-session-stop', schema: zSessionStop },
   { name: 'runner-session-resume', schema: zSessionResume },
   { name: 'runner-session-state', schema: zSessionStateMessage },
+  { name: 'runner-session-waiting', schema: zSessionWaiting },
+  { name: 'runner-session-answered', schema: zSessionAnswered },
   { name: 'runner-session-replay', schema: zSessionReplay },
   { name: 'runner-session-input', schema: zSessionInput },
   { name: 'runner-session-keys', schema: zSessionKeys },

@@ -1,10 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import type { EngineEvent } from '@crewdeck/contracts';
-import { createAiAccounts, createLinkedRunner } from '../runners.js';
 import { publicKeyFor } from '../vault.js';
 import { PROJECTS, seedDecisions } from './a-toi.js';
 import { defineScenario, type ScenarioContext, type ScenarioSeed } from './define.js';
-import { CLAUDE_SUBSCRIPTION, CODEX_API_KEY } from './engines.js';
 import { seedTrustedDevice } from './idees.js';
 import { seedRepositories } from './projets.js';
 import { LAST_SEEN_AT, RUNNER_MACHINE } from './runner.js';
@@ -61,11 +59,9 @@ type SessionState = 'starting' | 'stopped' | 'interrupted';
  * starts a `starting` Session, `active` then), else it is offline since 14:02.
  */
 const seedSession = async (ctx: ScenarioContext, state: SessionState, online: boolean): Promise<ScenarioSeed> => {
-  const seed = await seedDecisions(ctx);
+  const { token, ...seed } = await seedDecisions(ctx, online ? undefined : LAST_SEEN_AT);
   const { pilotId } = seed;
   await seedRepositories(ctx, pilotId, [{ name: 'personal-os', hasCode: true, project: PROJECTS.personalOs.projectName, projectId: PROJECTS.personalOs.projectId }]);
-  const { token } = await createLinkedRunner(ctx.prisma, pilotId, { ...RUNNER_MACHINE, ...(online ? {} : { lastSeenAt: LAST_SEEN_AT }) });
-  await createAiAccounts(ctx.prisma, pilotId, [CLAUDE_SUBSCRIPTION, CODEX_API_KEY], online ? undefined : LAST_SEEN_AT);
   const { device } = await seedTrustedDevice(ctx, pilotId);
   const runnerPrivateKey = randomBytes(32);
   const runnerPublicKey = publicKeyFor(runnerPrivateKey);

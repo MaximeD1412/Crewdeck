@@ -294,6 +294,41 @@
           ]
         },
         {
+          "id": "google",
+          "zone": "externes",
+          "x": 1180,
+          "y": 344,
+          "w": 330,
+          "h": 56,
+          "titre": "Google",
+          "sous": "connexion OpenID Connect",
+          "desc": "Une des façons de se connecter : Google dit seulement qui se connecte (une adresse vérifiée). Crewdeck ne garde aucun jeton Google.",
+          "tickets": [
+            "CORE-10",
+            "INFRA-15"
+          ],
+          "adr": [
+            "0014"
+          ]
+        },
+        {
+          "id": "bce",
+          "zone": "externes",
+          "x": 1180,
+          "y": 490,
+          "w": 330,
+          "h": 56,
+          "titre": "BCE",
+          "sous": "cours de référence de l'euro, chaque jour",
+          "desc": "Le fichier quotidien des cours de la Banque centrale européenne : le serveur en garde le cours du dollar de chaque jour pour estimer en euros la dépense d'une clé API. Il n'y envoie rien.",
+          "tickets": [
+            "RUNNER-13"
+          ],
+          "adr": [
+            "0008"
+          ]
+        },
+        {
           "id": "stockage",
           "zone": "externes",
           "x": 1180,
@@ -636,6 +671,44 @@
             ]
           ],
           "label": "notifications"
+        },
+        {
+          "de": "serveur",
+          "vers": "google",
+          "points": [
+            [
+              540,
+              360
+            ],
+            [
+              1180,
+              360
+            ]
+          ],
+          "label": "connexion"
+        },
+        {
+          "de": "serveur",
+          "vers": "bce",
+          "points": [
+            [
+              540,
+              384
+            ],
+            [
+              1160,
+              384
+            ],
+            [
+              1160,
+              518
+            ],
+            [
+              1180,
+              518
+            ]
+          ],
+          "label": "cours du jour"
         },
         {
           "de": "runner",

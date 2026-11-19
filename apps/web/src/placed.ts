@@ -7,6 +7,8 @@
 export interface PlacedNode {
   readonly tag: `cd-${string}`;
   readonly slot?: string;
+  /** Its `id`, for the core to find what it placed (a button whose click it handles). */
+  readonly id?: string;
   readonly data?: unknown;
   readonly text?: string;
   readonly children?: readonly PlacedNode[];
@@ -31,6 +33,7 @@ const leadingText = (element: Element, text: string) => {
  */
 export const placeNode = (element: Element, node: PlacedNode): void => {
   const target = element as WithData;
+  if (node.id !== undefined) element.id = node.id;
   if (node.data !== undefined && !sameData(target.data, node.data)) target.data = node.data;
   if (node.text !== undefined && node.children === undefined) {
     if (element.textContent !== node.text) element.textContent = node.text;

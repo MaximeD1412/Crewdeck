@@ -69,6 +69,7 @@ import { PasserelleToast } from './toast.js';
 import { PasserelleToolCall } from './tool-call.js';
 import { PasserelleToggle } from './toggle.js';
 import { PasserelleToolChip } from './tool-chip.js';
+import { PasserelleUsageCard } from './usage-card.js';
 import { PasserelleUsageMeter } from './usage-meter.js';
 
 export default defineSkin({
@@ -117,6 +118,7 @@ export default defineSkin({
     ToolChip: PasserelleToolChip,
     LoopBack: PasserelleLoopBack,
     UsageMeter: PasserelleUsageMeter,
+    UsageCard: PasserelleUsageCard,
     Stat: PasserelleStat,
     CheckRow: PasserelleCheckRow,
     Capture: PasserelleCapture,

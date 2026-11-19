@@ -1,6 +1,7 @@
-import type { Decision } from '@crewdeck/contracts';
+import type { Decision, Device } from '@crewdeck/contracts';
 import { Banner, Button, Cadre, CodeBlock, MenuItem } from '@crewdeck/sdk';
 import { announcer as pageAnnouncer, type Announcer } from './announcer.js';
+import type { VaultState } from './keys/vault.js';
 import type { RouteMatch } from './router.js';
 import { bannersView, type BannerAction, type BannerView } from './views/banners.js';
 import { cadreView, type CadreState } from './views/cadre.js';
@@ -26,9 +27,12 @@ export interface Shell {
 export interface ShellState extends CadreState {
   /** When the page lost the state (the store's `lostAt`). */
   readonly lostAt?: Date | null;
+  /** Where this browser stands with the vault key: `no-device` offers to approve it. */
+  readonly vaultState?: VaultState;
   readonly slices: Omit<CadreState['slices'], 'decision'> & {
     /** The open Décisions: « Runner hors ligne »'s Banner reads its own (ATOI-3). */
     readonly decision?: ReadonlyMap<string, Decision>;
+    readonly device?: ReadonlyMap<string, Device>;
   };
 }
 
@@ -40,14 +44,17 @@ export interface ShellOptions {
   readonly announcer?: Announcer;
   /** Moves to a page of the app: a Banner's button (« Voir le Runner »). The router's, once it is started. */
   readonly navigate?: (url: string) => void;
+  /** A Banner's button with no page to lead to was clicked: « Approuver cet Appareil » (`device`). */
+  readonly onBannerAction?: (key: BannerView['key']) => void;
 }
 
 /** A Banner on the page: its element, the text node of its default Emplacement, the element of its `actions` one. */
 interface MountedBanner {
+  readonly key: BannerView['key'];
   readonly element: WithData;
   readonly text: Text;
   action: { readonly kind: BannerAction['kind']; readonly element: WithData } | null;
-  /** Where its button leads, read on each click. */
+  /** Where its button leads, read on each click; `null` for one the Shell reports. */
   href: string | null;
 }
 
@@ -60,7 +67,13 @@ const EMPTY: ShellState = { slices: {} };
  * core's Banners (the Resynchronisation, an unhandled API error). After the
  * outlet, the page's aria-live region, which no navigation replaces.
  */
-export const mountShell = ({ root, state = () => EMPTY, announcer = pageAnnouncer, navigate = (url) => location.assign(url) }: ShellOptions): Shell => {
+export const mountShell = ({
+  root,
+  state = () => EMPTY,
+  announcer = pageAnnouncer,
+  navigate = (url) => location.assign(url),
+  onBannerAction,
+}: ShellOptions): Shell => {
   const cadre = document.createElement(Cadre.tag) as WithData;
   const outlet = document.createElement('div');
   outlet.style.display = 'contents';
@@ -72,21 +85,25 @@ export const mountShell = ({ root, state = () => EMPTY, announcer = pageAnnounce
   let error: string | null = null;
   let panel: HTMLElement | null = null;
 
-  const mountBanner = (): MountedBanner => {
+  const mountBanner = (key: BannerView['key']): MountedBanner => {
     const element = document.createElement(Banner.tag) as WithData;
     element.slot = 'banner';
     const text = document.createTextNode('');
     element.append(text);
-    return { element, text, action: null, href: null };
+    return { key, element, text, action: null, href: null };
   };
 
-  /** The Banner's action: a `cd-button` whose click moves to its page, or a `cd-code-block`; the same element while its kind stays. */
+  /**
+   * The Banner's action: a `cd-button` whose click moves to its page, or is
+   * reported (`onBannerAction`) when it has none, or a `cd-code-block`; the
+   * same element while its kind stays.
+   */
   const renderAction = (banner: MountedBanner, action: BannerAction | undefined) => {
     if (banner.action && banner.action.kind !== action?.kind) {
       banner.action.element.remove();
       banner.action = null;
     }
-    banner.href = action?.kind === 'button' ? action.href : null;
+    banner.href = action?.kind === 'button' ? (action.href ?? null) : null;
     if (!action) return;
     if (!banner.action) {
       const element = document.createElement(action.kind === 'button' ? Button.tag : CodeBlock.tag) as WithData;
@@ -94,6 +111,7 @@ export const mountShell = ({ root, state = () => EMPTY, announcer = pageAnnounce
       if (action.kind === 'button') {
         element.addEventListener('click', () => {
           if (banner.href !== null) navigate(banner.href);
+          else onBannerAction?.(banner.key);
         });
       }
       banner.element.append(element);
@@ -102,8 +120,8 @@ export const mountShell = ({ root, state = () => EMPTY, announcer = pageAnnounce
     banner.action.element.data = action.data;
   };
 
-  const renderBanners = (current: ShellState) => {
-    const views = bannersView(
+  const renderBanners = (current: ShellState, bare: boolean) => {
+    const all = bannersView(
       {
         connection: current.connection ?? 'live',
         lostAt: current.lostAt ?? null,
@@ -111,9 +129,13 @@ export const mountShell = ({ root, state = () => EMPTY, announcer = pageAnnounce
         session: route?.panel.session != null,
         runner: current.slices.runner ?? null,
         decisions: current.slices.decision?.values() ?? [],
+        ...(current.vaultState ? { vaultState: current.vaultState } : {}),
+        slices: current.slices.device ? { device: current.slices.device } : {},
       },
       error,
     );
+    // A bare page (the sign-in, « Premiers pas ») has no room for an offer.
+    const views = bare ? all.filter((view) => view.key !== 'device') : all;
     const kept = new Set(views.map((view) => view.key));
     for (const [key, banner] of banners) {
       if (kept.has(key)) continue;
@@ -125,7 +147,7 @@ export const mountShell = ({ root, state = () => EMPTY, announcer = pageAnnounce
     for (const view of [...views].reverse()) {
       let banner = banners.get(view.key);
       if (!banner) {
-        banner = mountBanner();
+        banner = mountBanner(view.key);
         banners.set(view.key, banner);
         cadre.insertBefore(banner.element, next);
       }
@@ -150,7 +172,7 @@ export const mountShell = ({ root, state = () => EMPTY, announcer = pageAnnounce
       }
       item.data = data;
     });
-    renderBanners(current);
+    renderBanners(current, view.cadre.variant === 'bare');
     cadre.data = view.cadre;
   };
 

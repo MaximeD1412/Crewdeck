@@ -5,21 +5,29 @@ import { offlineSince, projectsCount, RESTART_COMMAND, RUNNER_PAGE, waitingItems
 
 export type BannerData = ComposantData<typeof Banner>;
 
-/** What a Banner holds in its `actions` Emplacement: a button leading to a page of the app, or a command to copy. */
+/**
+ * What a Banner holds in its `actions` Emplacement: a button leading to a
+ * page of the app, or without `href` one the Shell reports
+ * (`onBannerAction`), or a command to copy.
+ */
 export type BannerAction =
-  | { readonly kind: 'button'; readonly data: ComposantData<typeof Button>; readonly href: string }
+  | { readonly kind: 'button'; readonly data: ComposantData<typeof Button>; readonly href?: string }
   | { readonly kind: 'code'; readonly data: ComposantData<typeof CodeBlock> };
 
 /** One Banner of the Cadre's `banner` Emplacement: its data, the text of its default Emplacement, its action. */
 export interface BannerView {
   /** Which banner it is, the same element kept from one state to the next. */
-  readonly key: 'resync' | 'runner-offline' | 'error';
+  readonly key: 'resync' | 'runner-offline' | 'error' | 'device';
   readonly data: BannerData;
   readonly text: string | null;
   readonly action?: BannerAction;
 }
 
-/** What the Banners read: the store's connection, and for « Runner hors ligne » the page, the Runner and the open Décisions. */
+/**
+ * What the Banners read: the store's connection; for « Runner hors ligne »
+ * the page, the Runner and the open Décisions; for the offer to approve this
+ * browser, its vault state and the Appareils.
+ */
 export interface BannersState extends Pick<StoreState, 'connection' | 'lostAt'> {
   /** The page's path (`/a-toi`); none before the first route. */
   readonly path?: string | null;
@@ -27,6 +35,8 @@ export interface BannersState extends Pick<StoreState, 'connection' | 'lostAt'> 
   readonly session?: boolean;
   readonly runner?: (Pick<Runner, 'state'> & Partial<Pick<Runner, 'lastSeenAt'>>) | null;
   readonly decisions?: Iterable<Decision>;
+  readonly vaultState?: StoreState['vaultState'];
+  readonly slices?: Pick<StoreState['slices'], 'device'>;
 }
 
 const RUNNER_OFFLINE: BannerData = { tone: 'halt', title: t('runnerOffline.title'), icon: 'server' };
@@ -89,9 +99,10 @@ const runnerOfflineBanner = ({ path, session = false, runner, decisions = [] }: 
  * The core's Banners above the page (pure): the Resynchronisation's while the
  * page lost the state and is not `live` again (ADR 0007), the time of the
  * loss in its text; « Runner hors ligne » over a Session panel, on `/a-toi`
- * and `/runner`; then the
- * API error no caller handled, its `message` as is (ADR 0008). The first
- * boot, before any loss, shows none.
+ * and `/runner`; then the API error no caller handled, its `message` as is
+ * (ADR 0008); then, for a browser with no Appareil while another one holds
+ * the vault, the offer to approve it (E2E-3, US-60). The first boot, before
+ * any loss, shows none.
  */
 export const bannersView = (state: BannersState, error: string | null): readonly BannerView[] => {
   const banners: BannerView[] = [];
@@ -105,5 +116,14 @@ export const bannersView = (state: BannersState, error: string | null): readonly
   const offline = runnerOfflineBanner(state);
   if (offline) banners.push(offline);
   if (error !== null) banners.push({ key: 'error', data: { tone: 'halt', title: error, icon: 'alert' }, text: null });
+  const vaultExists = [...(state.slices?.device?.values() ?? [])].some((device) => device.state === 'trusted');
+  if (state.vaultState === 'no-device' && vaultExists) {
+    banners.push({
+      key: 'device',
+      data: { tone: 'caution', title: t('devices.banner.title'), icon: 'lock' },
+      text: t('devices.banner.body'),
+      action: { kind: 'button', data: { label: t('devices.banner.approve'), variant: 'primary', size: 'sm' } },
+    });
+  }
   return banners;
 };

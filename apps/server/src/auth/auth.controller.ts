@@ -15,18 +15,8 @@ import { clearCookie, OAUTH_COOKIE, OAUTH_COOKIE_PATH, readCookie, SESSION_COOKI
 import { GithubTokens } from './github-tokens.js';
 import { isUniqueViolation, PilotIdentities } from './identities.js';
 import { newState, OAUTH_TTL_SECONDS, openOauthState, safeNext, safeTimeZone, sameState, sealOauthState } from './oauth-state.js';
+import { failed, type Redirection, to } from './sign-in-redirect.js';
 import { SESSION_TTL_SECONDS, WebSessions } from './web-sessions.js';
-
-/** Why a sign-in failed, as `/connexion?erreur=` names it (the `PageConnexion`'s `error`). */
-type SignInError = 'state-mismatch' | 'denied' | 'github-unavailable';
-
-interface Redirection {
-  readonly url: string;
-  readonly statusCode: 302;
-}
-
-const to = (url: string): Redirection => ({ url, statusCode: 302 });
-const failed = (error: SignInError): Redirection => to(`/connexion?erreur=${error}`);
 
 /**
  * Sign-in with GitHub (US-1), which is also the sign-up: the first callback

@@ -13,14 +13,17 @@ import {
 } from '../index.js';
 
 const FIXTURES = join(import.meta.dirname, '../../fixtures/runner');
-// The relay's messages have theirs in `relay/`, beside the tab's (relay.spec.ts).
+// The relay's messages have theirs in `relay/`, the Commandes' in `command/`, beside the tab's (relay.spec.ts, command.spec.ts).
 const RELAY_FIXTURES = join(FIXTURES, 'relay');
+const COMMAND_FIXTURES = join(FIXTURES, 'command');
 const jsonNames = (dir: string): string[] =>
   readdirSync(dir)
     .filter((file) => file.endsWith('.json'))
     .map((file) => file.replace(/\.json$/, ''));
 const RELAY_TYPES = jsonNames(RELAY_FIXTURES).filter((name) => !name.startsWith('tab.'));
-const fixture = (type: string): unknown => JSON.parse(readFileSync(join(RELAY_TYPES.includes(type) ? RELAY_FIXTURES : FIXTURES, `${type}.json`), 'utf8'));
+const COMMAND_TYPES = jsonNames(COMMAND_FIXTURES).filter((name) => !name.startsWith('tab.'));
+const dirOf = (type: string): string => (RELAY_TYPES.includes(type) ? RELAY_FIXTURES : COMMAND_TYPES.includes(type) ? COMMAND_FIXTURES : FIXTURES);
+const fixture = (type: string): unknown => JSON.parse(readFileSync(join(dirOf(type), `${type}.json`), 'utf8'));
 const typesOf = (union: { options: readonly { shape: { type: { value: string } } }[] }): string[] => union.options.map((option) => option.shape.type.value);
 
 const RUNNER_TO_SERVER = typesOf(zRunnerToServer);
@@ -35,7 +38,7 @@ describe('the Runner protocol', () => {
   });
 
   it('has one fixture per message, and no other', () => {
-    expect([...jsonNames(FIXTURES), ...RELAY_TYPES].sort()).toEqual([...RUNNER_TO_SERVER, ...SERVER_TO_RUNNER].sort());
+    expect([...jsonNames(FIXTURES), ...RELAY_TYPES, ...COMMAND_TYPES].sort()).toEqual([...RUNNER_TO_SERVER, ...SERVER_TO_RUNNER].sort());
   });
 
   it.each(RUNNER_TO_SERVER)('accepts the fixture of %s, Runner to server', (type) => {

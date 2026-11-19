@@ -13,8 +13,9 @@ import {
   composantsTextField,
   confirmDialog,
 } from './composants.js';
-import { connexion, connexionErreur, connexionLien, connexionLienEnvoye } from './connexion.js';
+import { connexion, connexionErreur, connexionGoogleNonVerifiee, connexionLien, connexionLienEnvoye } from './connexion.js';
 import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
+import { appareilAApprouver, appareilAApprouverCode, appareils, appareilsAjouter } from './devices.js';
 import type { Scenario } from './define.js';
 import { idees, ideesNouvelle, ideesVide } from './idees.js';
 import { menuPlus } from './menu-plus.js';
@@ -30,14 +31,20 @@ export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed 
 
 /** Every scenario, by name: a screen ticket adds its own here. */
 const SCENARIOS: readonly Scenario[] = [
+  appareilAApprouver,
+  appareilAApprouverCode,
+  appareils,
+  appareilsAjouter,
   aToi,
   aToiVide,
   aToiProcess,
   aToiRunnerHorsLigne,
+  aToiVide,
   blank,
   composants,
   connexion,
   connexionErreur,
+  connexionGoogleNonVerifiee,
   connexionLien,
   connexionLienEnvoye,
   demarrage,

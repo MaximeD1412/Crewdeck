@@ -13,6 +13,7 @@ import { zRunnerLink } from './runner-link.js';
 import { zAgentSession } from './sessions.js';
 import { zAccountSettings } from './settings.js';
 import { zCodeChange, zMilestone, zTicket } from './tickets.js';
+import { zUsageAccount } from './usage.js';
 import { zSeq } from '../values.js';
 
 /**
@@ -56,6 +57,8 @@ export const STATE_SLICES = {
   sessions: z.array(zAgentSession),
   /** The Paramètres of the account. */
   settings: zAccountSettings,
+  /** The usage of the Pilote's Comptes IA that have one (RUNNER-13). */
+  usage: z.array(zUsageAccount),
 } as const;
 export type StateKey = keyof typeof STATE_SLICES;
 

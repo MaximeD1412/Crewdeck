@@ -1,6 +1,8 @@
 # Crewdeck — PRD
 
-> Ideas: DCCM-IDEA#29, #30. Approved: <PR link> (<date>). Features:
+> Ideas: DCCM-IDEA#29, #30; US-112 to US-123 from the survey of AI
+> orchestrators of 2026-11-19 ([research](../research/2026-11-19-ai-orchestrators.md)).
+> Approved: <PR link> (<date>). Features:
 > [Gestion du process](features/gestion-du-process.md).
 
 ## Problem
@@ -11,9 +13,11 @@
 - The state they see lags behind: a merged PR, a failed check or an agent
   waiting for a Décision shows up minutes later, or not at all.
 - The agent workspaces that exist (Paradev, Shuriken, VibeiDE, T3 Code, as of
-  2026-11-08) run and show agents, but none takes a Projet from the Idée
-  through a validated Conception and Tickets to the merged PR, with the
-  Pilote's gates in one place.
+  2026-11-08) run and show agents. A few products now take a project from an
+  idea to the merged PR with gates of a human (Multica, Spaces, Factory
+  Missions, as of 2026-11-19), but none, as far as their documentation goes,
+  checks each step's output against a contract, nor runs the whole process
+  on a project kept only in a folder of the developer's machine.
 - They impose one interface, or let you change it only by forking their code;
   a developer cannot shape the view of their own work (from a sober dashboard
   to a game-like office) and keep the product's updates.
@@ -61,7 +65,7 @@
   actions from the core and never decides alone.
 - **An Action sensible is always confirmed by the core** (merge, start the
   Boucle, approve a document of a Conception — PRD, mockups, technical
-  design, Tickets — approve the inventory of an existing repository,
+  design, Tickets — or an Amendement, approve the inventory of an existing repository,
   activate a changed **Process**, move a **Type d'artefact** to another
   **Source**, and later release), whatever the **Skin**. Starting the **Boucle**, or
   creating or resuming its **Planification**, is the one confirmation that
@@ -105,6 +109,7 @@ triage it.
 - **US-56** (MVP) As a Pilote, I want to turn an Idée straight into a Ticket, without a Conception, when it is a small fix, the agent of the Rôle Idée drafting the Ticket from the Idée and its analysis and I validating it like the Tickets of a Conception, or sending it back with a comment the agent takes up, the validated Ticket joining the ready Tickets at the Source of its Projet's Tickets, so that small things do not wait for a PRD.
 - **US-57** (MVP) As a Pilote, I want to dictate an Idée or a message to an agent, on the PC or the phone, the transcript filling the field so that I correct it before sending, so that I capture and answer without typing.
 - **US-91** (MVP) As a Pilote, I want to put a merged or rejected Idée back to triage, keeping its analysis, which I can run again, so that a wrong click is never final.
+- **US-121** (next) As a Pilote, I want to note an Idée with « /idee » in the channel of my Décisions (US-71), the message read by my Runner so that its text never reaches the product's servers in clear, the Idée keeping the time of the message and the channel confirming it once noted, so that I capture an idea from where I already am.
 
 ### Conception
 In the default Modèle de process, a retained Idée goes through product
@@ -116,6 +121,7 @@ Process may add, remove or replace these Étapes.
 - **US-9** (MVP) As a Pilote, I want to drive an agent session from the product (read it as it streams, write to it, answer its questions and permission requests, stop and resume it), so that I never need a terminal to talk to an agent.
 - **US-10** (MVP) As a Pilote, I want to follow each Conception from the Idée to its Tickets through the Étapes its Projet's Process gives it (PRD, mockups, technical design in the default Modèle), so that I know where each one stands.
 - **US-11** (MVP) As a Pilote, I want to review a Conception document or a set of mockups and either approve it or ask for changes, so that nothing is built that I did not validate.
+- **US-113** (MVP) As a Pilote, I want « Continuer dans mon terminal » on any Session, which stops it and copies the command that resumes it in its worktree on my Runner's machine (named), its Ticket or its Étape then « repris hors Crewdeck », never taken back by the Boucle and its dependents waiting, a Décision staying in « À toi » until I choose « Rendre la main » (its Étape's Contrat checked again, the Process going on from there) or « Rendre à la Boucle », so that I take over a stuck agent with my own tools without the Boucle working on it at the same time.
 
 ### Tickets and the Boucle
 An approved Conception becomes Tickets; the Boucle implements them one by
@@ -132,6 +138,9 @@ Ticket.
 - **US-15** (MVP) As a Pilote, I want each Ticket delivered as a change of code (a PR on GitHub, a branch on a local Projet) that the Review and the checks judge, and that the Boucle merges itself once they pass, unless the Ticket needs a visual review or is blocked, the Boucle going on meanwhile with the Tickets that do not depend on it, so that I only look at what needs my eyes.
 - **US-16** (MVP) As a Pilote, I want the planning of each Projet (what is next, what is blocked, by what), so that I see when a milestone will be done.
 - **US-36** (MVP) As a Pilote, I want to review the captures of a Ticket with a visual review and either approve it, which merges its change of code, or ask for changes with a comment that the Boucle takes up, while the Boucle goes on with the Tickets that do not depend on it, so that my review never stops the other work.
+- **US-112** (MVP) As a Pilote, I want a Session that makes no progress (no event for 15 minutes, or activity with no change to its work for 45 minutes, both set in my Paramètres) interrupted with a Décision « Session sans progrès » in « À toi » (run the Étape again, resume the Session, block the Ticket), the Boucle going on meanwhile with the Tickets that do not depend on it, so that a stuck agent never burns a night of my Comptes IA.
+- **US-117** (next) As a Pilote, I want to draw zones on a capture, in the visual review of a Ticket or the review of a Conception's mockups, on the PC or the phone, each zone numbered with its remark, the agent getting the capture, the zone and the remark, so that a change I ask for is never ambiguous.
+- **US-123** (next) As a Pilote, I want an agent blocked by a Ticket that contradicts a text document of the Projet (the PRD, the glossary, an ADR, the technical design) to join an Amendement to its « Ticket bloqué », which I approve as an Action sensible (the document changed at its Source, the Ticket starting again on the new version, the work in progress finishing on its own) or turn down by answering the Ticket as today, so that a wrong spec is fixed where it lives instead of blocking the Boucle.
 - **US-39** (MVP) As a Pilote, I want to choose the Moteur and the model of each Rôle (Idée, Conception, Code and Review by default, and the Rôles I add, such as a review by Gemini) for all my Projets and change it for one Projet, each agent Étape naming its Rôle, the Review using by default another Moteur than the Code, so that each Étape runs on the agent I trust for it and the review stays independent.
 
 ### « À toi »
@@ -141,6 +150,7 @@ when they are away.
 - **US-18** (MVP) As a Pilote, I want a notification on my phone when a Décision waits and I am away (no Crewdeck tab visible for 2 minutes), so that the agents do not stay stuck for hours.
 - **US-19** (MVP) As a Pilote, I want to see « Runner hors ligne » in « À toi », one Décision listing the Projets whose work waits, with a notification, when work waits and my Runner is off, so that I do not believe agents are working when nothing runs.
 - **US-71** (next) As a Pilote, I want my Décisions in Slack, Discord or Telegram, and to answer them there, so that I decide from where I already am.
+- **US-114** (MVP) As a Pilote, I want « Depuis ta dernière visite » at the top of « À toi » once it has been visible on none of my Appareils for more than an hour, per Projet: the Tickets merged and blocked, the Décisions raised and settled, the spend, each with its link, which I can close, so that I know in seconds what happened while I was away.
 - **US-40** (MVP) As a Pilote, I want a Décision in « À toi » when a Ticket stops because a Compte IA reached its limit or got disconnected, saying what to do (wait for the reset, reconnect, switch the Rôle to another Moteur), so that a quota never silently stops the Boucle.
 - **US-55** (MVP) As a Pilote, I want to see the usage of each Compte IA against its limits (the 5-hour and weekly windows where the provider has them) and when it will run out at the current pace, and for an API key its estimated spend of the month, so that I start the Boucle when it can finish.
 
@@ -185,16 +195,23 @@ subscription. Spends are estimates in euros, converted from the provider's
 bill.
 - **US-61** (MVP) As a Pilote, I want the statistics of each Projet and of all of them (lead time from Idée to merge, Boucle success rate, share of blocked Tickets, cost per Ticket), so that I know what the agents really bring.
 - **US-63** (MVP) As a Pilote, I want the tree of the open Tickets of a Projet, with what blocks what, next to its planning, so that I see the critical path at a glance.
+- **US-115** (MVP) As a Pilote, I want the statistics to split the spend of each Projet by Étape of its Process, with the share due to Retours (for a subscription, the share of the window used), so that I see which Étape costs, such as a Review that sends the work back three times.
 - **US-65** (next) As a Pilote, I want to paste a client's feedback and get it split into Idées, each analysed and linked to that client, so that no request is lost.
 - **US-66** (next) As a Pilote, I want a summary of what was delivered since a date, written for my client in plain words, so that I report without rewriting commits.
 - **US-76** (next) As a Pilote, I want a read-only Lien de suivi for a client (planning, progress, what is ready to try), which I can revoke, so that the client sees progress without asking.
 - **US-77** (next) As a Pilote, I want a weekly report of all my Projets (delivered, blocked, cost), in the product and by email, so that I keep the big picture.
 - **US-78** (next) As a Pilote, I want a searchable Journal des Décisions (every approval, refusal and answer, with its reason and date), so that months later I know why something was done.
+- **US-120** (next) As a Pilote, I want the Journal des Décisions of a Local Projet written as a Copie in its folder, Markdown files I read with my usual tools, and that of any Projet into a folder of my choice once Copies exist (US-100), so that a Projet's history stays readable on my machine.
 
 ### Quality
 - **US-67** (next) As a Pilote, I want an agent to test the delivered app as a user would (journeys of the PRD, on the phone and the PC) and report what fails as Idées or Tickets, so that bugs are found before my client finds them.
 - **US-72** (next) As a Pilote, I want an automatic visual audit of a Ticket's screens (contrast, states, layout) with a score before its visual review, the Boucle fixing what fails, so that I only review screens that already pass.
 - **US-75** (next) As a Pilote, I want a preview address for each PR of a Projet that has a preview deployment, so that I try the change on my phone before I approve it.
+- **US-118** (next) As a Pilote, I want « Essayer » on the visual review and on the page of a Ticket, on the PC, running the Projet's Commande « Essayer » (by default the one of « Lancer ») in the Ticket's worktree and opening its address, stopped once the review is decided or after an hour, for any Projet, so that I try a change on my machine before I approve it, with no preview deployment.
+
+### Search
+The Pilote finds anything of their Projets from one field.
+- **US-119** (next) As a Pilote, I want to search, with Ctrl+K on the PC or from the phone, the Idées, Tickets, documents, Décisions and the titles of the Sessions of all my Projets, the search saying which results wait for my Runner while it is offline, so that I find anything without knowing where it lives.
 
 ### Settings
 The Pilote sets their account once, and each Projet differs where it needs.
@@ -207,6 +224,7 @@ The Pilote sets their account once, and each Projet differs where it needs.
 
 ### Next
 - **US-30** (next) As a Pilote, I want the Étapes of acceptance, release and operations in the catalogue of the canvas (candidate, release button, prod watch), so that the Process goes to prod from the product.
+- **US-122** (next) As a Pilote, I want an alert of my production (Sentry first) to become an analysed Idée of its Projet, so that what breaks in prod feeds the Process.
 - **US-31** (next) As a Pilote, I want to subscribe to a paid plan, so that I keep using the product after the beta.
 - **US-34** (next) As a Moddeur, I want to publish my Skin in the Marketplace, after the product's review, so that the community shares its Skins.
 - **US-49** (next) As a Pilote, I want to import my own Skill (a `SKILL.md`, the format Claude Code and Codex read) for an Étape, for all my Projets or for one, so that the agents work my way while the Process keeps its frame.
@@ -239,9 +257,9 @@ The Pilote sets their account once, and each Projet differs where it needs.
 
 | Version | Contains | Done when |
 |---|---|---|
-| MVP (`MVP`) | US-1 to US-21, US-23, US-26, US-36, US-38 to US-40, US-48, US-55 to US-57, US-60 to US-63, US-68, US-73, US-82, US-88, US-91 to US-99, US-102 to US-106, US-111: the founder's own use. One-person account, sign-in without GitHub, **Projets** from a local folder or a GitHub repository, **Runner** with the **Pilote**'s **Comptes IA** and their **Rôles**; « Gestion du process »: the canvas, the « Process Crewdeck » **Modèle**, the catalogue's **Étapes**, checked arrows, « pour chaque » and **Retours**, versioned activation; **Sources** Local and GitHub and their migration; **Commandes** (checks and launch of a local **Projet**) and **Serveurs MCP**; Idées (dictated or typed, straight to a Ticket when small), Conception, Tickets, Boucle, « À toi »; limits and **Planifications**; statistics, planning and ticket tree; real time, end-to-end encryption; the default sober **Skin** built on the library of **Composants**; every **Étape** checked against its **Contrat**; **Paramètres** | the success criteria of the MVP below are met |
-| Bêta (`next`) | US-22, US-24, US-25, US-27 to US-29, US-41 to US-46, US-65 to US-67, US-70 to US-72, US-74 to US-78, US-80, US-84, US-86, US-100, US-101: what external testers need. **Thèmes**, **Skins** (inheritance, **Emplacements**, versioned contracts), the **Marketplace** with the isometric and « Terminal » **Skins**, private **Skins**; French and English; client feedback, reports and **Lien de suivi**, **Journal des Décisions**; user tests, visual audit, previews; **Runner** on a server; Slack, Discord, Telegram; **Copies** (another tool, or a folder such as an Obsidian vault); more **Moteurs** (Gemini CLI first); **Plafonds**; the demonstration **Projet** | 5 external beta testers are active every week; the three official **Skins** use the public library only |
-| Lancement (`next`) | US-30, US-31, US-34, US-35, US-49 to US-54, US-58, US-64, US-69, US-79, US-85, US-87, US-90, US-110: acceptance, release and operations, a paid plan, third-party **Skins** and **Skills** after review, the **Pilote**'s own **Skills** and **Étapes**, parallel **Boucles**, progression, architecture and risks, dependency PRs, **Skill** ratings, design tools (Penpot, Pencil, Figma), own models, **Connecteurs** for ticket trackers and documentation tools (Jira, Confluence and the like) and code hosts (GitLab, Gitea) | a first paying **Pilote**; a first **Skin** and a first **Skill** published by someone outside the team; the second extreme case of [Gestion du process](features/gestion-du-process.md#success-criteria) runs |
+| MVP (`MVP`) | US-1 to US-21, US-23, US-26, US-36, US-38 to US-40, US-48, US-55 to US-57, US-60 to US-63, US-68, US-73, US-82, US-88, US-91 to US-99, US-102 to US-106, US-111 to US-115: the founder's own use. One-person account, sign-in without GitHub, **Projets** from a local folder or a GitHub repository, **Runner** with the **Pilote**'s **Comptes IA** and their **Rôles**; « Gestion du process »: the canvas, the « Process Crewdeck » **Modèle**, the catalogue's **Étapes**, checked arrows, « pour chaque » and **Retours**, versioned activation; **Sources** Local and GitHub and their migration; **Commandes** (checks and launch of a local **Projet**) and **Serveurs MCP**; Idées (dictated or typed, straight to a Ticket when small), Conception, Tickets, Boucle, « À toi »; limits and **Planifications**; statistics, planning and ticket tree, the spend per **Étape**; « Session sans progrès », « Continuer dans mon terminal », « Depuis ta dernière visite »; real time, end-to-end encryption; the default sober **Skin** built on the library of **Composants**; every **Étape** checked against its **Contrat**; **Paramètres** | the success criteria of the MVP below are met |
+| Bêta (`next`) | US-22, US-24, US-25, US-27 to US-29, US-41 to US-46, US-65 to US-67, US-70 to US-72, US-74 to US-78, US-80, US-84, US-86, US-100, US-101, US-116 to US-121: what external testers need. **Thèmes**, **Skins** (inheritance, **Emplacements**, versioned contracts), the **Marketplace** with the isometric and « Terminal » **Skins**, private **Skins**; French and English; client feedback, reports and **Lien de suivi**, **Journal des Décisions**; user tests, visual audit, previews; **Runner** on a server; Slack, Discord, Telegram; **Copies** (another tool, or a folder such as an Obsidian vault); more **Moteurs** (Gemini CLI first); **Plafonds**; the demonstration **Projet**; the live canvas, zones on a capture, « Essayer » a Ticket, search, the Journal in the folder, an Idée from a channel | 5 external beta testers are active every week; the three official **Skins** use the public library only |
+| Lancement (`next`) | US-30, US-31, US-34, US-35, US-49 to US-54, US-58, US-64, US-69, US-79, US-85, US-87, US-90, US-110, US-122, US-123: acceptance, release and operations (with production alerts as Idées), a paid plan, third-party **Skins** and **Skills** after review, the **Pilote**'s own **Skills** and **Étapes**, parallel **Boucles**, progression, architecture and risks, dependency PRs, **Skill** ratings, design tools (Penpot, Pencil, Figma), own models, **Connecteurs** for ticket trackers and documentation tools (Jira, Confluence and the like) and code hosts (GitLab, Gitea), the **Amendement** | a first paying **Pilote**; a first **Skin** and a first **Skill** published by someone outside the team; the second extreme case of [Gestion du process](features/gestion-du-process.md#success-criteria) runs |
 | later | US-32, US-33, US-37, US-47, US-59, US-81, US-89, US-107 to US-109: agents in our cloud, teams, self-hosting, paid **Skins**, agents' learnings, project templates, third-party **Connecteurs**, n8n workflows, the **Pilote**'s own **Types d'artefact**, a **Modèle**'s changes offered to its **Projets** | — |
 
 **Out**:
@@ -256,6 +274,9 @@ The Pilote sets their account once, and each Projet differs where it needs.
 - Switching or rotating between several AI accounts to go past a limit
   (offered by some competitors): the providers' terms forbid getting around
   their limits; a quota is a **Décision** (US-40), never a silent switch.
+- Opening a Ticket's app on the phone through a tunnel to the Runner's
+  machine: it would expose the Pilote's machine; on the phone, the captures
+  and their zones are the review (US-117), « Essayer » stays on the PC.
 - Offering a Claude.ai or ChatGPT sign-in of our own, or holding AI
   credentials: the providers forbid it; the **Pilote** signs in to the
   official programs on their machine.
@@ -273,6 +294,12 @@ The Pilote sets their account once, and each Projet differs where it needs.
   machine, with no GitHub account linked to it, measured by that Projet's
   history; and a change made on its canvas (an **Étape** removed, a **Source**
   moved) applies to the next work without restarting anything.
+- MVP: during the 4 weeks of the switchover (BIZ-4), no Session stays more
+  than 15 minutes past its threshold without its « Session sans progrès »,
+  measured by the Sessions' history.
+- Bêta: more than half of the visual reviews that ask for changes use a
+  zone on a capture, and at least 70 % of their Retours pass the next review,
+  measured by the Retours.
 - Bêta: 5 external beta testers are active every week (at least one ticket
   merged by the Boucle per week each), measured by the product's usage.
 - A change at a **Source** (a file of a local **Projet**, GitHub) or from an
@@ -291,6 +318,9 @@ The Pilote sets their account once, and each Projet differs where it needs.
 - The secrets of a **Serveur MCP**, of a **Commande** and of a **Connecteur**
   that is not GitHub stay on the **Runner**, as the **Comptes IA** do; the
   server never reads what such a **Connecteur** carries (US-60).
+- An Idée noted from a channel (US-121) is read by the **Runner**, never in
+  clear by the product's servers: while the **Runner** is off it waits in the
+  channel, noted when the **Runner** is back (or always, with US-70).
 - AI providers' terms, read on 2026-11-08 (sources and matrix in
   `docs/research/2026-11-08-ai-providers-and-competitors.md`, added by
   PR #3):
@@ -322,12 +352,16 @@ The Pilote sets their account once, and each Projet differs where it needs.
 - The business model (subscription, free and paid tiers): the founder, after
   the beta testers and OpenAI's answer.
 - Demand validation: a sign-up page and 5 interviews, run alongside the
-  technical design (ticket `externe`). Conductor, the closest product, stops
-  its cloud on 2026-11-20 and its local app in early 2027: the sign-up page
-  should be up before then. The interviews also test whether the Skins are
+  technical design (ticket `externe`). Conductor, the closest product, shuts
+  its cloud down « over the next few weeks » but keeps developing its local
+  app (announcement read on 2026-11-19, which no longer gives the dates of
+  2026-11-08): the sign-up page should be up while its cloud users move. The interviews also test whether the Skins are
   worth it to a solo developer, the riskiest bet of this PRD.
 - Is the name « Crewdeck » free (trademark, domain)? The founder, before the
   sign-up page.
+- How a production alert (US-122) reaches the **Runner** without the
+  product's servers reading it (a webhook needs a public address): the
+  technical design, before the Lancement.
 - The questions of [Gestion du process](features/gestion-du-process.md#open-questions)
   (nested Phases, more kinds of Outils, n8n).
 
@@ -335,4 +369,4 @@ The Pilote sets their account once, and each Projet differs where it needs.
 
 | File | What | Stories |
 |---|---|---|
-| [features/gestion-du-process.md](features/gestion-du-process.md) | The canvas of the Process, Sources and Copies, Commandes and Serveurs MCP | US-92 to US-111 |
+| [features/gestion-du-process.md](features/gestion-du-process.md) | The canvas of the Process, Sources and Copies, Commandes and Serveurs MCP | US-92 to US-111, US-116 |

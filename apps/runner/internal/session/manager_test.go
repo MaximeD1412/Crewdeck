@@ -87,16 +87,26 @@ type reports struct {
 	frames chan any
 	// requests are the session.waiting and session.answered (answer_test.go).
 	requests chan any
+	// steps are the step.* messages (step_test.go); order, every message
+	// sent but the relay's, by its type, as sent.
+	steps chan any
+	order []string
 }
 
 func newReports() *reports {
-	return &reports{next: make(chan contracts.RunnerSessionState, 100), frames: make(chan any, 1000), requests: make(chan any, 100)}
+	return &reports{next: make(chan contracts.RunnerSessionState, 100), frames: make(chan any, 1000), requests: make(chan any, 100), steps: make(chan any, 100)}
 }
 
 func (r *reports) send(_ context.Context, message any) error {
 	switch message.(type) {
 	case contracts.RunnerSessionKeys, contracts.RunnerRelay:
 		r.frames <- message
+		return nil
+	case contracts.RunnerStepStarted, contracts.RunnerStepReport, contracts.RunnerStepVerdict:
+		r.mu.Lock()
+		r.order = append(r.order, typeOf(message))
+		r.mu.Unlock()
+		r.steps <- message
 		return nil
 	case contracts.RunnerSessionWaiting, contracts.RunnerSessionAnswered:
 		select {
@@ -111,6 +121,7 @@ func (r *reports) send(_ context.Context, message any) error {
 	}
 	r.mu.Lock()
 	r.all = append(r.all, state)
+	r.order = append(r.order, "session.state "+string(state.State))
 	r.mu.Unlock()
 	r.next <- state
 	return nil
@@ -131,6 +142,19 @@ func (r *reports) await(t *testing.T, id string, state contracts.RunnerSessionSt
 			return contracts.RunnerSessionState{}
 		}
 	}
+}
+
+// typeOf is a step message's type.
+func typeOf(message any) string {
+	switch m := message.(type) {
+	case contracts.RunnerStepStarted:
+		return m.Type
+	case contracts.RunnerStepReport:
+		return m.Type
+	case contracts.RunnerStepVerdict:
+		return m.Type
+	}
+	return "?"
 }
 
 func (r *reports) states(id string) []contracts.RunnerSessionStateState {
@@ -155,6 +179,8 @@ type setup struct {
 	adapter engine.Engine
 	// keys, when set, seal the relay of the Sessions.
 	keys *session.RelayKeys
+	// config, when set, completes the manager's Config.
+	config func(*session.Config)
 }
 
 func newSetup(t *testing.T, events ...contracts.EngineEvent) *setup {
@@ -175,7 +201,11 @@ func (s *setup) manager(t *testing.T) *session.Manager {
 	} else {
 		engines.Register(s.engine)
 	}
-	m, err := session.New(session.Config{Home: s.home, Engines: &engines, GitHubURL: s.remote.url(), Hooks: s.hooks, Send: s.reports.send, Keys: s.keys})
+	cfg := session.Config{Home: s.home, Engines: &engines, GitHubURL: s.remote.url(), Hooks: s.hooks, Send: s.reports.send, Keys: s.keys}
+	if s.config != nil {
+		s.config(&cfg)
+	}
+	m, err := session.New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +227,8 @@ func start(id, branch string) contracts.RunnerSessionStart {
 		Model:          "claude-opus-5-5",
 		Role:           "code",
 		PermissionMode: contracts.RunnerSessionStartPermissionModeBypass,
-		Step:           &contracts.RunnerSessionStartStep{StepRunId: stepRunID, StepKind: contracts.RunnerSessionStartStepStepKindCode},
+		Step:           &contracts.RunnerSessionStartStep{StepRunId: stepRunID, StepKind: contracts.RunnerSessionStartStepStepKindCode, Skill: "crewdeck-test", Inputs: []contracts.RunnerSessionStartStepInputsElem{}},
+		McpServers:     []string{},
 		Title:          "Le panier garde les articles",
 	}
 }
@@ -253,7 +284,7 @@ func TestASessionClonesOnceFetchesBeforeTheNextAndRemovesItsWorktreeOnceEnded(t 
 	if opts.Dir != s.worktree("feat/12-panier") || opts.PermissionMode != engine.PermissionBypass || opts.Model != "claude-opus-5-5" || opts.Role != "code" || opts.SessionID != firstID {
 		t.Fatalf("options %+v", opts)
 	}
-	if !strings.Contains(opts.InitialPrompt, "Run the Étape code for the StepRun "+stepRunID+".") {
+	if !strings.Contains(opts.InitialPrompt, "Use the Skill `crewdeck-test`. Your StepRun is `"+stepRunID+"`; start with `crewdeck-runner etape start`.") {
 		t.Fatalf("initial prompt %q", opts.InitialPrompt)
 	}
 	if opts.SessionDir != filepath.Join(s.home, "sessions", firstID) {

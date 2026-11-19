@@ -326,6 +326,9 @@ func (m *Manager) Input(message contracts.RunnerSessionInput) {
 			// Answered already (from another tab), or not an answer to it.
 			return
 		}
+		if m.answerAsk(s, requestID, answer) {
+			return // the Étape's question, answered to its Skill (etape ask)
+		}
 		if err = run.Answer(ctx, requestID, answer); errors.Is(err, engine.ErrNoSuchRequest) {
 			return
 		}

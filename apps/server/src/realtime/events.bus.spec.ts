@@ -47,4 +47,17 @@ describe('EventsBus', () => {
     expect(seen).toEqual([3]);
     expect(logger.error).toHaveBeenCalledWith(expect.objectContaining({ seq: 3, type: 'pilot.upserted' }), 'an event listener failed');
   });
+
+  it('hands every Pilote’s events to a listener of all of them, with its Pilote, until unsubscribed', () => {
+    const events = bus();
+    const seen: string[] = [];
+    const unsubscribe = events.subscribeAll((pilotId, e) => seen.push(`${pilotId}:${e.seq}`));
+
+    events.publish('alice', event(1));
+    events.publish('bob', event(2));
+    unsubscribe();
+    events.publish('alice', event(3));
+
+    expect(seen).toEqual(['alice:1', 'bob:2']);
+  });
 });

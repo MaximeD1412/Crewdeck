@@ -21,6 +21,7 @@ import { WebhookDispatcher } from '../../src/github/webhooks/dispatcher.js';
 import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { ProcessBackfill } from '../../src/process/process-backfill.js';
+import { ReadinessService } from '../../src/projects/readiness/readiness.service.js';
 import { SourcesService } from '../../src/process/sources/sources.service.js';
 import { Transactions } from '../../src/realtime/transactions.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
@@ -129,7 +130,11 @@ describe('the Process of a Projet against PostgreSQL', () => {
 
   const state = async (tab: Tab) => zState.parse(await (await call(tab, 'GET', '/api/state')).json());
 
-  const eventsOf = (tab: Tab): Promise<EventRow[]> => sql<EventRow>('SELECT type, payload, xmin::text AS tx FROM events WHERE pilot_id = $1 ORDER BY seq', [tab.id]);
+  // After the readiness's own `project.upserted`, written once a change settles.
+  const eventsOf = async (tab: Tab): Promise<EventRow[]> => {
+    await app.get(ReadinessService).settled();
+    return sql<EventRow>('SELECT type, payload, xmin::text AS tx FROM events WHERE pilot_id = $1 ORDER BY seq', [tab.id]);
+  };
 
   let alice: Tab;
   let projectId: string;
@@ -146,6 +151,8 @@ describe('the Process of a Projet against PostgreSQL', () => {
     const followed = await call(tab, 'POST', '/api/projects', { repositoryIds: repositories.map((repository) => repository.id), templateId: 'process-crewdeck', seq: String(seq) });
     expect(followed.status).toBe(201);
     const [project] = zProjectList.parse(await followed.json()).items;
+    // Its readiness, computed after the creation, written.
+    await app.get(ReadinessService).settled();
     return project?.id ?? '';
   };
 

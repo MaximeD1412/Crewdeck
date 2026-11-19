@@ -742,6 +742,12 @@ model Project {
   hasCode           Boolean             @map("has_code")
   inventoryState    InventoryState      @map("inventory_state")
   accessLost        Boolean             @default(false) @map("access_lost")
+  /// What the Projet still misses to run its Process (`zReadiness`, PROJET-3):
+  /// stored, computed on its triggers only; `null` until first computed.
+  readiness         Json?
+  /// What the readiness last read of GitHub and of the folder (`ReadinessStoredFacts`),
+  /// reused by a recompute that does not read them again. Figures only.
+  readinessFacts    Json?               @map("readiness_facts")
   lastSeq           BigInt              @default(0) @map("last_seq")
   followedAt        DateTime            @default(now()) @map("followed_at") @db.Timestamptz
   pilot             Pilot               @relation(fields: [pilotId], references: [id], onDelete: Cascade)

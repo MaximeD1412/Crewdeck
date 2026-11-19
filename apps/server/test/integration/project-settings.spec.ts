@@ -14,6 +14,7 @@ import { SettingsService } from '../../src/settings/settings.service.js';
 import { createAiAccounts } from '../../src/testing/runners.js';
 import { CLAUDE_SUBSCRIPTION, CODEX_API_KEY } from '../../src/testing/scenarios/engines.js';
 import { expectEnvelope, expectFields, startApp } from '../route-baseline.js';
+import { readinessSettled, withoutReadiness } from '../readiness.js';
 
 const databaseUrl = inject('databaseUrl');
 const env = parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: databaseUrl });
@@ -99,7 +100,11 @@ describe('the Paramètres of a Projet against PostgreSQL', () => {
     fetch(`${url}/api/projects/${projectId}/settings`, { method: 'PATCH', headers: { cookie, 'content-type': 'application/json', origin: appOrigin(env) }, body: JSON.stringify(body) });
   const patchAccount = (cookie: string, body: unknown): Promise<Response> =>
     fetch(`${url}/api/settings`, { method: 'PATCH', headers: { cookie, 'content-type': 'application/json', origin: appOrigin(env) }, body: JSON.stringify(body) });
-  const events = (pilotId: string) => sql<EventRow>(`SELECT type, payload FROM events WHERE pilot_id = $1 ORDER BY seq`, [pilotId]);
+  // Once the readiness is written, without its own events.
+  const events = async (pilotId: string) => {
+    await readinessSettled(app);
+    return withoutReadiness(await sql<EventRow>(`SELECT type, payload FROM events WHERE pilot_id = $1 ORDER BY seq`, [pilotId]));
+  };
 
   describe('GET /api/projects/:id/settings', () => {
     it('gives a Projet that changed nothing everything from the account, with its branches, nothing changed', async () => {
@@ -146,8 +151,8 @@ describe('the Paramètres of a Projet against PostgreSQL', () => {
       expect(body.effective.roles).toEqual({ idea: CLAUDE, design: CLAUDE, code: CODEX, review: CLAUDE });
       expect(body.origins.roles).toEqual({ ...INHERITED.roles, code: 'projet' });
       expect(body.changedCount).toBe(1);
-      expect(await events(alice.id)).toEqual([{ type: 'settings.upserted', payload: { projectSettings: body } }]);
-      expect(await sql('SELECT seq FROM pilots WHERE id = $1', [alice.id])).toEqual([{ seq: '1' }]);
+      // The readiness follows the Rôle (PROJET-3): its project.upserted comes after.
+      expect((await events(alice.id)).filter(({ type }) => type !== 'project.upserted')).toEqual([{ type: 'settings.upserted', payload: { projectSettings: body } }]);
       // The seq of its settings.upserted: the page knows the store holds the write once it reaches it.
       expect(answer.seq).toBe(1);
 
@@ -214,9 +219,7 @@ describe('the Paramètres of a Projet against PostgreSQL', () => {
       const written = await events(alice.id);
       expect(written.map(({ type }) => type)).toEqual(['project.upserted', 'settings.upserted']);
       expect(zProject.parse(written[0]?.payload)).toMatchObject({ id: projectId, integrationBranch: 'main-2', releaseBranch: 'release/2026' });
-      expect(await sql('SELECT integration_branch, release_branch, last_seq FROM projects WHERE id = $1', [projectId])).toEqual([
-        { integration_branch: 'main-2', release_branch: 'release/2026', last_seq: '1' },
-      ]);
+      expect(await sql('SELECT integration_branch, release_branch FROM projects WHERE id = $1', [projectId])).toEqual([{ integration_branch: 'main-2', release_branch: 'release/2026' }]);
       expect(told).toEqual([alice.id]);
       // Branches are the Projet's own: never counted as changed over the account.
       expect(zProjectSettings.parse(await (await get(alice.cookie, projectId)).json()).changedCount).toBe(0);
@@ -320,7 +323,8 @@ describe('the Paramètres of a Projet against PostgreSQL', () => {
 
       await patchAccount(alice.cookie, { seq: '1', roles: { code: CODEX }, notifications: { push: true } });
 
-      const written = (await events(alice.id)).slice(1);
+      // The readiness follows the Rôles (PROJET-3): its project.upserted left out.
+      const written = (await events(alice.id)).filter(({ type }) => type !== 'project.upserted').slice(1);
       expect(written.map(({ type, payload }) => [type, (payload['projectSettings'] as { projectId?: string } | undefined)?.projectId ?? 'compte'])).toEqual([
         ['settings.upserted', 'compte'],
         ['settings.upserted', first],

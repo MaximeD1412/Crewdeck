@@ -15,6 +15,7 @@ import { sealItem } from '../../src/testing/vault.js';
 import { connectRunner, type FakeRunnerClient } from '../fakes/runner.js';
 import { connect, type WsClient } from '../fakes/ws-client.js';
 import { expectEnvelope, expectFields, startApp } from '../route-baseline.js';
+import { readinessSettled, withoutReadiness } from '../readiness.js';
 
 const databaseUrl = inject('databaseUrl');
 const env = parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: databaseUrl, CREWDECK_COMMIT: 'abc1234' });
@@ -141,8 +142,11 @@ describe('the Local Projets against PostgreSQL', () => {
   });
 
   /** The Pilote's events but their Runner's own (its hello, its heartbeats). */
-  const eventsOf = (who: Pilot) =>
-    sql<{ type: string; payload: Record<string, unknown> }>(`SELECT type, payload FROM events WHERE pilot_id = $1 AND type NOT LIKE 'runner.%' ORDER BY seq`, [who.id]);
+  // Once the readiness is written, without its own events.
+  const eventsOf = async (who: Pilot) => {
+    await readinessSettled(app);
+    return withoutReadiness(await sql<{ type: string; payload: Record<string, unknown> }>(`SELECT type, payload FROM events WHERE pilot_id = $1 AND type NOT LIKE 'runner.%' ORDER BY seq`, [who.id]));
+  };
 
   /** Waits until `check` passes, the server's handling of a Runner's message being asynchronous. */
   const eventually = async (check: () => Promise<void>): Promise<void> => {

@@ -26,6 +26,7 @@ import { PilotsModule } from './pilots/me.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
+import { ReadinessModule } from './projects/readiness/readiness.module.js';
 import { RunnersModule } from './runners/runners.module.js';
 import { EngineModule } from './process/engine/engine.module.js';
 import { SourceMigrationsModule } from './process/sources/migrations/source-migrations.module.js';
@@ -88,6 +89,7 @@ export class AppModule {
         RepositoriesModule,
         GitHubChangesModule,
         ProjectsModule,
+        ReadinessModule,
         EngineModule,
         SourceMigrationsModule,
         TicketsModule,

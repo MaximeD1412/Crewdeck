@@ -892,7 +892,7 @@
         {
           "texte": "Lecture d'abord sur GitHub quand le Miroir est en retard",
           "ref": "ADR 0010",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Le serveur merge avec le SHA jugé, les gestes vérifient GitHub",
@@ -902,7 +902,7 @@
         {
           "texte": "Chaque réponse du Miroir porte son état de fraîcheur",
           "ref": "ADR 0010",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

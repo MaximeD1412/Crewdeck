@@ -47,20 +47,12 @@ func lead(cmd *exec.Cmd) *leader {
 	return l
 }
 
-// pollExit waits, every pollEvery, until it is a zombie: its exit code, nil
-// when a signal ended it; known says the OS gave it.
+// pollExit waits, every pollEvery, until it exited, unreaped: its exit
+// code, nil when a signal ended it; known says the OS gave it.
 func (l *leader) pollExit() (code *int, known bool) {
 	for {
-		dead, status, known := zombie(l.pid)
-		if dead {
-			if !known {
-				return nil, false
-			}
-			if status.Exited() {
-				c := status.ExitStatus()
-				return &c, true
-			}
-			return nil, true
+		if dead, code, known := zombie(l.pid); dead {
+			return code, known
 		}
 		time.Sleep(pollInterval())
 	}
@@ -69,7 +61,8 @@ func (l *leader) pollExit() (code *int, known bool) {
 // pollEvery is how often an unwatched process is looked at.
 const pollEvery = 100 * time.Millisecond
 
-// hasLeft says whether it exited, noticed or not yet: a zombie has.
+// hasLeft says whether it exited, noticed or not yet: the process as a
+// whole, not its main thread alone.
 func (l *leader) hasLeft() bool {
 	select {
 	case <-l.left:

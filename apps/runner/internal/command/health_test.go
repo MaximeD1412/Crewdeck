@@ -663,3 +663,61 @@ func TestHealthAnAddressThatAnswersAfterAnUnnoticedExitOneFailsExited(t *testing
 		t.Fatal("a run that exited 1 has a pid file")
 	}
 }
+
+// mainThreadExits is a server whose main thread exits (pthread_exit) while
+// another thread binds the port given, half a second later, and serves it.
+// It exits on its own after a minute, so a failing test leaves nothing.
+const mainThreadExits = `import ctypes, http.server, os, sys, threading, time
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200); self.end_headers(); self.wfile.write(b"ok")
+    def log_message(self, *a): pass
+def serve():
+    time.sleep(0.5)
+    http.server.HTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
+threading.Thread(target=serve).start()
+threading.Timer(60, os._exit, (0,)).start()
+ctypes.CDLL(None).pthread_exit(None)
+`
+
+func TestHealthAServiceWhoseMainThreadExitsWhileAnotherServesIsKeptThenStopped(t *testing.T) {
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 is needed for a process whose main thread exits")
+	}
+	h := newHarness(t)
+	sha := h.remote.ticket(t)
+	h.start(t)
+	port := freePort(t)
+	script := filepath.Join(t.TempDir(), "main_exits.py")
+	if err := os.WriteFile(script, []byte(mainThreadExits), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	h.commands.Run(h.healthRun(t, runID, "exec '"+python+"' '"+script+"' "+port, address(port), sha))
+	if v := h.sent.verdict(t, runID); !v.Passed || v.Reason != contracts.RunnerCommandVerdictReasonHealthy || v.ExitCode != nil {
+		t.Fatalf("verdict %+v, want passed, healthy, no exit code", v)
+	}
+	rec := h.service(t)
+	t.Cleanup(func() { _ = syscall.Kill(-rec.Pgid, syscall.SIGKILL) })
+	if !zombie(rec.Pid) {
+		t.Fatal("the service's main thread is not a zombie")
+	}
+	if status, _ := get(t, address(port)); status != http.StatusOK {
+		t.Fatalf("GET %d, want 200 from its other thread", status)
+	}
+
+	// Its Commande run again stops it first: its threads, not its main one alone.
+	h.commands.Run(h.run(t, secondRun, "exit 0", "project", sha))
+	if v := h.sent.verdict(t, secondRun); !v.Passed {
+		t.Fatalf("verdict %+v, want passed", v)
+	}
+	client := &http.Client{Timeout: time.Second}
+	if res, err := client.Get(address(port)); err == nil {
+		res.Body.Close()
+		t.Fatal("the service still answers once its Commande ran again")
+	}
+	if exists(h.pidFile()) {
+		t.Fatal("the stopped service's pid file is still there")
+	}
+}

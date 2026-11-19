@@ -13,6 +13,7 @@ const (
 	pPID      = 1          // P_PID
 	wEXITED   = 0x4        // WEXITED
 	wNOWAIT   = 0x01000000 // WNOWAIT
+	wNOHANG   = 0x1        // WNOHANG
 	cldExited = 1          // CLD_EXITED
 )
 
@@ -47,28 +48,72 @@ func awaitExit(pid int) (*int, error) {
 	return nil, nil
 }
 
-// zombie says whether pid exited, unreaped, and its wait status when the
-// OS gives it (`/proc/<pid>/stat`: its state, field 3, its exit code,
-// field 52).
-func zombie(pid int) (dead bool, status syscall.WaitStatus, known bool) {
-	stat, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
-	if err != nil {
-		return false, 0, false
+// zombie says whether the process pid, a child, exited, unreaped, and its
+// exit code (nil when a signal ended it) when the OS gives it. It asks
+// waitid (WNOHANG, WNOWAIT): the process as a whole, never its main thread
+// alone, which may be a zombie while another thread runs on. When waitid
+// refuses, /proc says it, without its code.
+func zombie(pid int) (dead bool, code *int, known bool) {
+	for {
+		var info siginfo
+		_, _, errno := syscall.Syscall6(syscall.SYS_WAITID, pPID, uintptr(pid), uintptr(unsafe.Pointer(&info)), wEXITED|wNOWAIT|wNOHANG, 0, 0)
+		if errno == syscall.EINTR {
+			continue
+		}
+		if errno != 0 {
+			return !alive(strconv.Itoa(pid)), nil, false
+		}
+		if info.pid == 0 {
+			return false, nil, true
+		}
+		if info.code == cldExited {
+			c := int(info.status)
+			return true, &c, true
+		}
+		return true, nil, true
 	}
-	fields := strings.Fields(string(stat[bytes.LastIndexByte(stat, ')')+1:]))
-	if len(fields) == 0 || fields[0] != "Z" {
-		return false, 0, false
-	}
-	if len(fields) < 50 {
-		return true, 0, false
-	}
-	code, err := strconv.ParseUint(fields[49], 10, 32)
-	return true, syscall.WaitStatus(code), err == nil
 }
 
-// groupLives says whether the group pgid holds a process that is not a
-// zombie (`/proc/<pid>/stat`: its state, field 3, and its group, field 5).
-// When /proc cannot be read, it says yes.
+// alive says whether the process pid runs: its main thread, or another of
+// its threads when its main one is a zombie (`/proc/<pid>/task/*/stat`,
+// field 3). When /proc cannot be read, it says yes.
+func alive(pid string) bool {
+	state, ok := stateOf("/proc/" + pid + "/stat")
+	if !ok {
+		_, err := os.Stat("/proc/" + pid)
+		return err == nil || !os.IsNotExist(err)
+	}
+	if state != "Z" && state != "X" {
+		return true
+	}
+	tasks, err := os.ReadDir("/proc/" + pid + "/task")
+	if err != nil {
+		return !os.IsNotExist(err)
+	}
+	for _, task := range tasks {
+		if state, ok := stateOf("/proc/" + pid + "/task/" + task.Name() + "/stat"); ok && state != "Z" && state != "X" {
+			return true
+		}
+	}
+	return false
+}
+
+// stateOf is the state of a stat file, field 3.
+func stateOf(path string) (string, bool) {
+	stat, err := os.ReadFile(path)
+	if err != nil {
+		return "", false
+	}
+	fields := strings.Fields(string(stat[bytes.LastIndexByte(stat, ')')+1:]))
+	if len(fields) == 0 {
+		return "", false
+	}
+	return fields[0], true
+}
+
+// groupLives says whether the group pgid holds a process that runs, a
+// zombie whose other threads run included (`/proc/<pid>/stat`: its group,
+// field 5). When /proc cannot be read, it says yes.
 func groupLives(pgid int) bool {
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
@@ -83,10 +128,10 @@ func groupLives(pgid int) bool {
 			continue
 		}
 		fields := strings.Fields(string(stat[bytes.LastIndexByte(stat, ')')+1:]))
-		if len(fields) < 3 || fields[0] == "Z" || fields[0] == "X" {
+		if len(fields) < 3 {
 			continue
 		}
-		if group, err := strconv.Atoi(fields[2]); err == nil && group == pgid {
+		if group, err := strconv.Atoi(fields[2]); err == nil && group == pgid && alive(entry.Name()) {
 			return true
 		}
 	}

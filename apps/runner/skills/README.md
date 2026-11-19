@@ -70,6 +70,9 @@ Runner's copy (ADR 0010), and writes through it too, never with `gh`:
 - writes: `mirror issue create|edit|comment|close|reopen`, `mirror pr
   create|edit|comment|close|reopen|review` (MIROIR-7).
 
-`skills_test.go` fails on an embedded Markdown file that calls `gh issue …`
-or `gh pr …` outside `mirror`, or that writes with `mirror gh issue|pr
-create|edit|comment|close|reopen|review`.
+`skills_test.go` fails on an embedded Markdown file that calls `gh`
+outside `mirror`, whatever its command (`gh api …` among them) and its
+options before or after it (`gh -R <owner>/<repo> issue view …`); or that
+calls `mirror gh` with anything but a read of `issue|pr`: a write
+(`create|edit|comment|close|reopen|review`, options before the verb
+included), `api` or another command.

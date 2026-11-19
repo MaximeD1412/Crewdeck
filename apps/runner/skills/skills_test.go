@@ -11,27 +11,71 @@ import (
 	"testing"
 )
 
-// ghCall is a `gh issue …` or `gh pr …`, its verb kept.
-var ghCall = regexp.MustCompile(`(^|[^\w-])gh\s+(issue|pr)\s+([a-z-]+)`)
+// ghWord is `gh` as a command's word: at a line's start, or after a space,
+// a backtick, a path's `/` or a shell's `(`, `|`, `;`, `&`.
+var ghWord = regexp.MustCompile("(^|[\\s`(|;&/])gh([\\s`]|$)")
+
+// commandEnd ends the words of a command: a line, a backtick, a shell's
+// `;`, `|`, `&`, `)`.
+var commandEnd = regexp.MustCompile("[\\n`;|&)]")
+
+// ghCommands are gh's commands: a `gh` followed by none of them is prose.
+var ghCommands = []string{
+	"alias", "api", "attestation", "auth", "browse", "cache", "co", "codespace", "completion", "config",
+	"extension", "gist", "gpg-key", "issue", "label", "org", "pr", "project", "release", "repo",
+	"ruleset", "run", "search", "secret", "ssh-key", "status", "variable", "workflow",
+}
+
+// ghValueOptions are gh's options whose value is the next word.
+var ghValueOptions = []string{"-R", "--repo", "--hostname"}
 
 // mirrorWrites are the verbs a Skill writes with through `mirror issue|pr`
 // (MIROIR-7), never through `mirror gh`.
 var mirrorWrites = []string{"create", "edit", "comment", "close", "reopen", "review"}
 
+// ghWords are the words of a gh call but its options and their values:
+// its command, its verb, its arguments.
+func ghWords(call string) []string {
+	var words []string
+	fields := strings.Fields(call)
+	for i := 0; i < len(fields); i++ {
+		field := fields[i]
+		switch {
+		case slices.Contains(ghValueOptions, field):
+			i++
+		case strings.HasPrefix(field, "-"):
+		default:
+			words = append(words, field)
+		}
+	}
+	return words
+}
+
 // violations are the calls of text that do not read and write through the
-// Miroir: a `gh issue|pr …` outside `mirror`, or a `mirror gh issue|pr`
-// that writes.
+// Miroir: any gh call outside `mirror`, whatever its options before or
+// after its command; through `mirror gh`, one of `issue|pr` that writes,
+// or any other command (`api` among them).
 func violations(text string) []string {
+	text = strings.ReplaceAll(text, "\\\n", " ")
 	var found []string
-	for _, match := range ghCall.FindAllStringSubmatchIndex(text, -1) {
-		call := text[match[3]:match[1]]
-		before := strings.TrimRight(text[:match[3]], " \t")
-		verb := text[match[6]:match[7]]
-		if !strings.HasSuffix(before, "mirror") {
+	for _, match := range ghWord.FindAllStringSubmatchIndex(text, -1) {
+		at := match[3]
+		rest := text[at+len("gh"):]
+		if end := commandEnd.FindStringIndex(rest); end != nil {
+			rest = rest[:end[0]]
+		}
+		words := ghWords(rest)
+		if len(words) == 0 || !slices.Contains(ghCommands, words[0]) {
+			continue
+		}
+		call := "gh" + strings.TrimRight(rest, " \t")
+		before := strings.Fields(text[:at])
+		if len(before) == 0 || before[len(before)-1] != "mirror" && !strings.HasSuffix(before[len(before)-1], "`mirror") {
 			found = append(found, call)
 			continue
 		}
-		if slices.Contains(mirrorWrites, verb) {
+		read := (words[0] == "issue" || words[0] == "pr") && (len(words) < 2 || !slices.Contains(mirrorWrites, words[1]))
+		if !read {
 			found = append(found, "mirror "+call)
 		}
 	}
@@ -44,11 +88,29 @@ func TestTheRuleOfTheMiroirFindsTheCallsOfGhOutsideIt(t *testing.T) {
 		"Commente : `mirror gh issue comment 12 --body-file note.md`": 1,
 		"crewdeck-runner gh pr create --draft":                        1,
 		"```sh\ngh pr review 7 --approve\n```":                        1,
+		"`gh api repos/acme/shop/issues/12`":                          1,
+		"`gh api -X PATCH repos/acme/shop/issues/12 -f state=closed`": 1,
+		"`gh -R acme/shop issue view 12`":                             1,
+		"`gh --repo=acme/shop pr view 7`":                             1,
+		"`gh --repo acme/shop pr diff 7`":                             1,
+		"`gh repo view acme/shop`":                                    1,
+		"`/usr/bin/gh issue list`":                                    1,
+		"`echo ok | gh pr comment 7 --body-file -`":                   1,
+		"`n=$(gh pr view 7 --json number)`":                           1,
+		"```sh\ngh \\\n  issue view 12\n```":                          1,
+		"`mirror gh -R acme/shop issue comment 12 --body x`":          1,
+		"`mirror gh issue -R acme/shop comment 12`":                   1,
+		"`mirror gh --repo=acme/shop pr review 7 --approve`":          1,
+		"`mirror gh api repos/acme/shop/issues/12 -X PATCH`":          1,
+		"`mirror gh repo view`":                                       1,
 		"Lis le Ticket : `mirror issue view 12 --json title`.":        0,
 		"`mirror pr view 7 --json body` puis `mirror ready`":          0,
 		"`mirror gh issue view 12` lit à travers le Miroir":           0,
+		"`mirror gh -R acme/shop issue view 12 --json title`":         0,
 		"`mirror issue comment 12 --body-file note.md`":               0,
 		"Le gh de la machine n'est jamais appelé.":                    0,
+		"Jamais `gh` : le Miroir.":                                    0,
+		"high, ghost, crewdeck-gh issue":                              0,
 	} {
 		if got := violations(text); len(got) != want {
 			t.Errorf("violations(%q) = %q, want %d", text, got, want)

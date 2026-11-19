@@ -128,7 +128,7 @@ func (m *Manager) TicketWorktree(ctx context.Context, projectID string, from con
 	}
 	prep.Commands = m.cfg.Hooks.keep(projectID, prep.Commands)
 	w := Worktree{ProjectID: projectID, Dir: dir, Branch: branch, Clone: clone, Preparation: prep}
-	unlock := m.locks.lock(clone)
+	unlock := LockClone(clone)
 	removeWorktree(ctx, clone, dir) // one a killed Runner left there
 	err = os.MkdirAll(filepath.Dir(dir), 0o700)
 	if err == nil {
@@ -140,7 +140,7 @@ func (m *Manager) TicketWorktree(ctx context.Context, projectID string, from con
 		unhold()
 	}
 	if err != nil {
-		unlock := m.locks.lock(clone)
+		unlock := LockClone(clone)
 		removeWorktree(ctx, clone, dir)
 		unlock()
 		unhold()
@@ -184,7 +184,7 @@ func (m *Manager) IntegrationCheckout(ctx context.Context, projectID string, fro
 	if target == "" {
 		target = "origin/" + integrationBranch
 	}
-	unlock := m.locks.lock(clone)
+	unlock := LockClone(clone)
 	if _, statErr := os.Stat(filepath.Join(dir, ".git")); statErr != nil {
 		removeWorktree(ctx, clone, dir)
 		if err = os.MkdirAll(filepath.Dir(dir), 0o700); err == nil {

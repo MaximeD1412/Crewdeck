@@ -36,21 +36,22 @@ var errNoOrigin = errors.New("session: no origin")
 func (m *Manager) originOf(projectID string, origin contracts.Origin) (Origin, error) {
 	switch {
 	case origin.Github != nil:
-		return &GitHubOrigin{Home: m.cfg.Home, URL: m.cfg.GitHubURL, Owner: origin.Github.Owner, Name: origin.Github.Name, Tokens: m.cfg.Tokens, locks: &m.locks}, nil
+		return &GitHubOrigin{Home: m.cfg.Home, URL: m.cfg.GitHubURL, Owner: origin.Github.Owner, Name: origin.Github.Name, Tokens: m.cfg.Tokens}, nil
 	case origin.Local != nil && m.cfg.LocalOrigin != nil:
-		return &lockedOrigin{Origin: m.cfg.LocalOrigin(projectID), locks: &m.locks}, nil
+		return LockedOrigin(m.cfg.LocalOrigin(projectID)), nil
 	}
 	return nil, errNoOrigin
 }
 
+// LockedOrigin is o, its Clone holding the clone's lock (LockClone): a
+// Local Origin's, whose own Clone holds none, as GitHubOrigin's does.
+func LockedOrigin(o Origin) Origin { return &lockedOrigin{Origin: o} }
+
 // lockedOrigin serialises an Origin's Clone with what else changes its clone.
-type lockedOrigin struct {
-	Origin
-	locks *locks
-}
+type lockedOrigin struct{ Origin }
 
 func (o *lockedOrigin) Clone(ctx context.Context) (string, []string, error) {
-	unlock := o.locks.lock(o.Dir())
+	unlock := LockClone(o.Dir())
 	defer unlock()
 	return o.Origin.Clone(ctx)
 }
@@ -78,8 +79,6 @@ type GitHubOrigin struct {
 	// Env, when set, is what authenticates git instead: a Session's
 	// askpass (github.GitEnv), the token asked at each git command.
 	Env []string
-
-	locks *locks
 }
 
 // Dir is the clone's folder.
@@ -96,7 +95,7 @@ func (o *GitHubOrigin) Clone(ctx context.Context) (string, []string, error) {
 		return "", nil, err
 	}
 	dir := o.Dir()
-	unlock := o.locks.lock(dir)
+	unlock := LockClone(dir)
 	defer unlock()
 	if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
 		return dir, env, runGit(ctx, dir, env, "fetch", "--prune", "origin")
@@ -105,7 +104,7 @@ func (o *GitHubOrigin) Clone(ctx context.Context) (string, []string, error) {
 		return "", nil, err
 	}
 	_ = os.RemoveAll(dir) // a clone a killed Runner left half made
-	url := strings.TrimSuffix(o.URL, "/") + "/" + o.Owner + "/" + o.Name + ".git"
+	url := o.base() + "/" + o.Owner + "/" + o.Name + ".git"
 	if err := runGit(ctx, filepath.Dir(dir), env, "clone", "--filter=blob:none", "--no-checkout", "--quiet", url, dir); err != nil {
 		_ = os.RemoveAll(dir)
 		return "", nil, err
@@ -119,9 +118,18 @@ func (o *GitHubOrigin) Clone(ctx context.Context) (string, []string, error) {
 	return dir, env, err
 }
 
+// base is GitHub's URL, DefaultGitHubURL when URL is empty.
+func (o *GitHubOrigin) base() string {
+	if o.URL == "" {
+		return DefaultGitHubURL
+	}
+	return strings.TrimSuffix(o.URL, "/")
+}
+
 // auth is the environment that gives git the token: a Session's askpass,
-// else the token as an HTTP header in git's configuration from the
-// environment; never in a command line, nor in the clone's configuration.
+// else the token as an HTTP header for GitHub's URL only, in git's
+// configuration from the environment; never in a command line, nor in the
+// clone's configuration.
 func (o *GitHubOrigin) auth(ctx context.Context) ([]string, error) {
 	if o.Env != nil {
 		return o.Env, nil
@@ -134,8 +142,18 @@ func (o *GitHubOrigin) auth(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	basic := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + token))
-	return []string{"GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=http.extraHeader", "GIT_CONFIG_VALUE_0=Authorization: Basic " + basic}, nil
+	return []string{"GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=http." + o.base() + "/.extraheader", "GIT_CONFIG_VALUE_0=Authorization: Basic " + basic}, nil
 }
+
+// cloneLocks are the Runner's clones' locks, one process-wide set: the
+// Sessions' managers and the Miroir's documentation index (MIROIR-5) share
+// them.
+var cloneLocks locks
+
+// LockClone holds the lock of the clone at dir until unlock: every git
+// command that changes or reads a Runner's clone (its fetch, its worktrees,
+// the documentation index) runs under it.
+func LockClone(dir string) (unlock func()) { return cloneLocks.lock(filepath.Clean(dir)) }
 
 // locks serialises what changes one clone: its fetch, its worktrees.
 type locks struct {

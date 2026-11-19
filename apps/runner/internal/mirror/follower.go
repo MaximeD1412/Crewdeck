@@ -69,6 +69,9 @@ type FollowerConfig struct {
 	// Tokens, when set, give the GitHub tokens in place of the server's «
 	// Miroir » ones: the commands' tests, which run no server.
 	Tokens func(repository string) github.TokenSource
+	// Clones are the Projets' clones of the Runner, the documentation
+	// index's (MIROIR-5); without them no document is indexed.
+	Clones Clones
 }
 
 // Follower keeps the copy live from the server's envelopes (ADR 0010,
@@ -134,10 +137,18 @@ type followed struct {
 	// synchronization), each with its mark's seq: the copy stays late until
 	// a refresh of it begun after succeeds (risk AGT-7, after an agent's
 	// write).
-	behind  map[int]uint64
-	wake    chan struct{}
-	cancel  context.CancelFunc
-	stopped chan struct{}
+	behind map[int]uint64
+	// docsWanted are the documentation indexes asked (a reconciliation, a
+	// push on the integration branch, a moved Local ref), docsDone the last
+	// one finished; docsFailed while the last try failed, docsRetry when the
+	// next one runs.
+	docsWanted, docsDone uint64
+	docsFailed           bool
+	docsFailures         int
+	docsRetry            time.Time
+	wake                 chan struct{}
+	cancel               context.CancelFunc
+	stopped              chan struct{}
 }
 
 // resync is a mirror.resync in progress: each Projet's reconciliation asked
@@ -170,6 +181,7 @@ type change struct {
 	sha        string
 	received   time.Time
 	epoch      uint64
+	ref        string // a push's
 }
 
 // NewFollower is the follower of cfg.Store, from where its last run left the copy.
@@ -203,7 +215,7 @@ func NewFollower(cfg FollowerConfig) (*Follower, error) {
 	if cfg.GitHub.Now == nil {
 		cfg.GitHub.Now = f.clock.Now
 	}
-	f.mirror = &Mirror{Store: cfg.Store, GitHub: cfg.GitHub, Locals: cfg.Locals, Logger: f.logger, Now: f.clock.Now}
+	f.mirror = &Mirror{Store: cfg.Store, GitHub: cfg.GitHub, Locals: cfg.Locals, Logger: f.logger, Now: f.clock.Now, Clones: cfg.Clones}
 	cursor, err := cfg.Store.Cursor()
 	if err != nil {
 		return nil, err
@@ -396,6 +408,11 @@ func (f *Follower) projectsChanged(_ context.Context, m contracts.RunnerMirrorPr
 	f.mu.Lock()
 	for _, p := range projects {
 		if current, ok := f.projects[key(p.Repository)]; ok {
+			if current.project.IntegrationBranch != p.IntegrationBranch || current.project.Has(GroupCode) != p.Has(GroupCode) {
+				// Its documents are another branch's, or none.
+				current.docsWanted++
+				wake(current)
+			}
 			current.project = p
 			if p.Source == SourceLocal {
 				// Its Source may have moved its folder or its groups: read again.
@@ -432,6 +449,9 @@ func (f *Follower) changed(_ context.Context, m contracts.RunnerGithubChanged) e
 	}
 	if sha, ok := m.Change.Sha.(string); ok {
 		c.sha = sha
+	}
+	if ref, ok := m.Change.Ref.(string); ok {
+		c.ref = ref
 	}
 	f.mu.Lock()
 	// While a resync runs, the stored cursor is no longer the server's.
@@ -648,12 +668,15 @@ func (f *Follower) commit(seq int64, epoch uint64, repository string, write func
 type job struct {
 	repository string
 	reconcile  bool
+	docs       bool
 	generation uint64
 	change     change
 }
 
 // next is p's next job: none before the tokens, the reconciliation first,
-// then the envelopes, which wait while a resync runs.
+// then the envelopes, which wait while a resync runs, then the
+// documentation index, after its wait when it failed: a failed index never
+// holds an envelope.
 func (f *Follower) next(p *followed) (job, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -663,10 +686,22 @@ func (f *Follower) next(p *followed) (job, bool) {
 		return job{}, false
 	case p.done < p.wanted:
 		return job{repository: p.project.Repository, reconcile: true, generation: p.wanted}, true
-	case f.resync != nil || len(p.queue) == 0:
-		return job{}, false
+	case f.resync == nil && len(p.queue) > 0:
+		return job{repository: p.project.Repository, change: p.queue[0]}, true
+	case p.docsDone < p.docsWanted && !f.clock.Now().Before(p.docsRetry):
+		return job{repository: p.project.Repository, docs: true, generation: p.docsWanted}, true
 	}
-	return job{repository: p.project.Repository, change: p.queue[0]}, true
+	return job{}, false
+}
+
+// docsWait is when p's failed index is tried again; zero when none waits.
+func (f *Follower) docsWait(p *followed) time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if p.docsDone < p.docsWanted {
+		return p.docsRetry
+	}
+	return time.Time{}
 }
 
 // work is p's worker: one job at a time, a failed one retried after its wait.
@@ -674,17 +709,33 @@ func (f *Follower) work(ctx context.Context, p *followed) {
 	for {
 		j, ok := f.next(p)
 		if !ok {
+			var retry <-chan time.Time
+			stop := func() {}
+			if at := f.docsWait(p); !at.IsZero() {
+				retry, stop = f.clock.Timer(at.Sub(f.clock.Now()))
+			}
 			select {
 			case <-ctx.Done():
+				stop()
 				return
 			case <-p.wake:
+			case <-retry:
 			}
+			stop()
 			continue
 		}
 		var err error
-		if j.reconcile {
+		switch {
+		case j.docs:
+			// Its failure waits in docsRetry: the envelopes go on meanwhile.
+			f.indexDocs(ctx, p, j.repository, j.generation)
+			if ctx.Err() != nil {
+				return
+			}
+			continue
+		case j.reconcile:
 			err = f.reconcileProject(ctx, p, j.repository, j.generation)
-		} else {
+		default:
 			err = f.apply(ctx, p, j.repository, j.change)
 		}
 		if ctx.Err() != nil {
@@ -765,6 +816,8 @@ func (f *Follower) reconcileProject(ctx context.Context, p *followed, repository
 	m := marks[repository]
 	p.done, p.filled, p.synced = max(p.done, generation), m.filled, m.synced
 	p.caughtUp(0, begun)
+	p.docsWanted++ // the branch may have moved without an envelope
+	wake(p)
 	f.mu.Unlock()
 	return f.finishResync()
 }
@@ -786,8 +839,49 @@ func (f *Follower) reconcileLocal(ctx context.Context, p *followed, repository s
 	f.mu.Lock()
 	m := marks[repository]
 	p.done, p.filled, p.synced = max(p.done, generation), m.filled, m.synced
+	p.docsWanted++
+	wake(p)
 	f.mu.Unlock()
 	return nil
+}
+
+// indexDocs runs the key's documentation index (MIROIR-5): asked by
+// generation, it is done once one begun after the ask succeeds; a failure
+// waits its backoff in docsRetry, the key late meanwhile, and the worker
+// tries again then.
+func (f *Follower) indexDocs(ctx context.Context, p *followed, repository string, generation uint64) error {
+	err := f.mirror.IndexDocs(ctx, repository)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	switch {
+	case err == nil:
+		p.docsDone, p.docsFailed, p.docsFailures, p.docsRetry = max(p.docsDone, generation), false, 0, time.Time{}
+	case ctx.Err() == nil:
+		f.logger.Warn("mirror docs failed", "repository", repository, "class", errorClass(err), "error", err.Error())
+		p.docsFailed = true
+		p.docsRetry = f.clock.Now().Add(f.backoff.Delay(p.docsFailures))
+		p.docsFailures++
+		// An ask stays pending, should the worker have done this
+		// generation already (a Sync's index failing after it): the worker
+		// retries it after the backoff.
+		p.docsWanted = max(p.docsWanted, p.docsDone+1)
+		wake(p)
+	}
+	return err
+}
+
+// RefsMoved asks the documentation index of the Local Projet whose refs
+// moved (SOURCE-3's watcher: a commit, a merge, a branch made or gone in
+// its folder), on the key holding its code.
+func (f *Follower) RefsMoved(projectID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, p := range f.projects {
+		if p.project.Source == SourceLocal && p.project.ProjectID == projectID && p.project.Has(GroupCode) {
+			p.docsWanted++
+			wake(p)
+		}
+	}
 }
 
 // apply fetches what the envelope c names and commits it with the cursor.
@@ -813,6 +907,9 @@ func (f *Follower) apply(ctx context.Context, p *followed, repository string, c 
 	if len(p.queue) > 0 && p.queue[0].seq == c.seq && p.queue[0].epoch == c.epoch {
 		p.queue = p.queue[1:]
 	}
+	if c.kind == contracts.RunnerGithubChangedChangeKindPush && c.ref == "refs/heads/"+p.project.IntegrationBranch && p.project.Has(GroupCode) {
+		p.docsWanted++ // the worker indexes it once the envelopes before are applied
+	}
 	f.mu.Unlock()
 	f.logger.Info("mirror envelope applied", attrs...)
 	return nil
@@ -821,7 +918,8 @@ func (f *Follower) apply(ctx context.Context, p *followed, repository string, c 
 // fetch reads from GitHub what c names and returns what writes it: an issue
 // or a PR (with its head's checks), a commit's checks for the PRs of the
 // copy whose head or merge commit it is, the repository's labels,
-// milestones and releases; nothing for a push (MIROIR-5 reindexes).
+// milestones and releases; nothing for a push, which asks the documentation
+// index once applied (MIROIR-5).
 func (f *Follower) fetch(ctx context.Context, repository string, c change) (func(*sql.Tx) error, error) {
 	gh := f.mirror.GitHub
 	switch c.kind {

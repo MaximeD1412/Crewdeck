@@ -517,6 +517,15 @@ func (f *Follower) Sync(ctx context.Context, repository string, openOnly bool) (
 			p.caughtUp(0, begun)
 		}
 		f.mu.Unlock()
+		if err == nil && (IsLocal(k) || !openOnly) {
+			// Its documents too, before the answer: the reconciliation
+			// asked their index, which an agent searching after a commit
+			// or a merge expects done (MIROIR-5).
+			f.mu.Lock()
+			generation := p.docsWanted
+			f.mu.Unlock()
+			err = f.indexDocs(ctx, p, k, generation)
+		}
 		if err != nil {
 			return synced, err
 		}

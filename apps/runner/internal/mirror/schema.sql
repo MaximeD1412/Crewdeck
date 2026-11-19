@@ -26,7 +26,8 @@ CREATE TABLE projects (
   integration_branch TEXT NOT NULL,
   folder             TEXT,          -- a Local key's folder, from the Runner's state
   filled_at          TEXT, -- the end of its first complete reconciliation
-  synced_at          TEXT  -- its last applied envelope or reconciliation
+  synced_at          TEXT, -- its last applied envelope or reconciliation
+  docs_head          TEXT  -- the commit of origin/<integration_branch> its documents were indexed at (MIROIR-5)
 );
 
 -- Issues and PRs (is_pull = 1), one numbering per repository.
@@ -212,6 +213,17 @@ CREATE TABLE releases (
   created_at    TEXT,
   published_at  TEXT,
   PRIMARY KEY (repository, tag)
+);
+
+-- The documentation index (MIROIR-5): the validated documents of the key
+-- holding a Projet's code group, as they are on origin/<integration_branch>
+-- in the Runner's clone; their content is in `search` (kind 'doc').
+CREATE TABLE docs (
+  repository TEXT NOT NULL,
+  path       TEXT NOT NULL,
+  blob_sha   TEXT NOT NULL, -- the file's blob: one unchanged is not read again
+  title      TEXT NOT NULL, -- its first `# ` heading, else its path
+  PRIMARY KEY (repository, path)
 );
 
 -- Full-text search: an issue or PR (title, body), a comment, a review or a

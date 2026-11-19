@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -27,6 +28,12 @@ type Mirror struct {
 	Logger *slog.Logger
 	// Now is time.Now unless a test fixes it.
 	Now func() time.Time
+	// Clones are the Projets' clones the documentation index reads (MIROIR-5).
+	Clones Clones
+
+	git       gitFunc // runGit unless a test counts the calls
+	docsMu    sync.Mutex
+	docsLocks map[string]*sync.Mutex
 }
 
 func (m *Mirror) now() time.Time {

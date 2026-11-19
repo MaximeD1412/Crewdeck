@@ -352,7 +352,7 @@ func generateItemVectors() itemVectors {
 		// A folder's check as the Runner answers it (PROJET-6, internal/folders).
 		{"folder-checked", "folder.checked:019a6f00-0000-7000-8000-0000000000f1", `{"state":"ready","hasCode":true,"branch":"main","name":"recettes"}`},
 		// A Local Projet's texts as the Runner reports them (SOURCE-3, internal/source/local/report.go),
-		// the ones packages/contracts/fixtures/runner/local/local.changed.json carries.
+		// the ones packages/contracts/fixtures/runner/local.changed.json carries.
 		{"local-ticket-title", "local:019a6f00-0000-7000-8000-0000000000b1:ticket:12:title", "Panier partagé"},
 		{"local-ticket-labels", "local:019a6f00-0000-7000-8000-0000000000b1:ticket:12:labels", `["revue-visuelle","type:fix"]`},
 		{"local-milestone-title", "local:019a6f00-0000-7000-8000-0000000000b1:milestone:1:title", "Bêta"},

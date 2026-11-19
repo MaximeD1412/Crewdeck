@@ -2,7 +2,6 @@ package contracts
 
 import (
 	"encoding/json"
-	"path/filepath"
 	"testing"
 )
 
@@ -10,7 +9,7 @@ import (
 // types, each item into its option of LocalItem, as the server reads it.
 func TestLocalChangedDecodesTheSharedFixture(t *testing.T) {
 	var message RunnerLocalChanged
-	if err := json.Unmarshal(readRunnerFixture(t, filepath.Join("local", "local.changed.json")), &message); err != nil {
+	if err := json.Unmarshal(readRunnerFixture(t, "local.changed.json"), &message); err != nil {
 		t.Fatalf("decode local.changed: %v", err)
 	}
 	if message.Type != "local.changed" || message.Full || len(message.Items) != 5 || len(message.Unreadable) != 1 {

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { LOCAL_ITEM_KINDS, localSealedOfParam, localSealedParam, localTextAad, zLocalChanged, zRunnerToServer, zServerToRunner } from '../index.js';
 
-const FIXTURE = join(import.meta.dirname, '../../fixtures/runner/local/local.changed.json');
+const FIXTURE = join(import.meta.dirname, '../../fixtures/runner/local.changed.json');
 const fixture = (): Record<string, unknown> & { items: Record<string, unknown>[]; unreadable: Record<string, unknown>[] } =>
   JSON.parse(readFileSync(FIXTURE, 'utf8')) as Record<string, unknown> & { items: Record<string, unknown>[]; unreadable: Record<string, unknown>[] };
 

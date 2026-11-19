@@ -30,7 +30,7 @@ US-99: the Pilote edits a Local Ticket by hand and sees it on screen in under 2 
 
 ## To do
 
-- **Protocol** `packages/contracts/src/runner/local.ts`, Runner → server `local.changed { projectId, full: boolean, items, unreadable }`, fixtures in `packages/contracts/fixtures/runner/local/`, `pnpm exec nx run contracts:generate`:
+- **Protocol** `packages/contracts/src/runner/local.ts`, Runner → server `local.changed { projectId, full: boolean, items, unreadable }`, fixtures in `packages/contracts/fixtures/runner/local.changed.json`, `pnpm exec nx run contracts:generate`:
   - `{ kind: 'ticket', number, state, stateReason, readyMark, labels (the readable ones: `priority:*`, `size:*`, `ready-for-agent`, `needs-human`), labelsSealed (the others as one sealed JSON array, or null), branchPrefix ('feat'|'fix'|'chore', from a `type:*` label, `feat` by default), visualReview (the label `revue-visuelle`), titleSealed, milestoneRank (int|null), blockedBy, parent, contentHash, createdAt, updatedAt, closedAt, observedAt }`, `{ kind: 'ticket-removed', number, observedAt }`;
   - `{ kind: 'milestone', rank (its order in `tickets/milestones.yml`, from 1), titleSealed, dueOn: zDay|null, observedAt }`, `{ kind: 'milestone-removed', rank }`;
   - `{ kind: 'change', number, ticketNumber (from its head branch `<feat|fix|chore>/<n>-…`, or null), titleSealed, state 'draft'|'open'|'merged'|'closed', baseRef, headSha, mergeSha, createdAt, updatedAt, mergedAt, closedAt, observedAt }` (no head branch name: its slug is the Ticket's title);

@@ -53,6 +53,7 @@ func TestEveryFixtureOfTheProtocolDecodesIntoItsGeneratedType(t *testing.T) {
 		TypeFolderChecked:        decodeInto[contracts.RunnerFolderChecked],
 		TypeProjectFolderAttach:  decodeInto[contracts.RunnerProjectFolderAttach],
 		TypeProjectsFolders:      decodeInto[contracts.RunnerProjectsFolders],
+		TypeLocalChanged:         decodeInto[contracts.RunnerLocalChanged],
 	}
 	entries, err := os.ReadDir(fixturesDir)
 	if err != nil {

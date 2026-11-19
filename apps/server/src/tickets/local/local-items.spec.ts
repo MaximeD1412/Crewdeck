@@ -11,7 +11,7 @@ import {
   unreadableSubject,
 } from './local-items.js';
 
-const fixture = zLocalChanged.parse(JSON.parse(readFileSync(join(import.meta.dirname, '../../../../../packages/contracts/fixtures/runner/local/local.changed.json'), 'utf8')));
+const fixture = zLocalChanged.parse(JSON.parse(readFileSync(join(import.meta.dirname, '../../../../../packages/contracts/fixtures/runner/local.changed.json'), 'utf8')));
 const item = <K extends string>(kind: K) => {
   const found = fixture.items.find((candidate) => candidate.kind === kind);
   if (!found) throw new Error(`no ${kind} in the fixture`);

@@ -79,7 +79,7 @@ describe('the Sessions of the Runner protocol', () => {
     expect(zSessionWaiting.safeParse({ ...waiting, kind: 'message' }).success).toBe(false);
     expect(zSessionWaiting.safeParse({ ...waiting, seq: 0 }).success).toBe(false);
     expect(zSessionWaiting.parse({ ...waiting, title: 'Quelle couleur ?' })).not.toHaveProperty('title');
-    expect(zSessionAnswered.safeParse({ ...fixture('session.answered'), requestId: '' }).success).toBe(false);
+    expect(zSessionAnswered.safeParse({ ...fixture<Record<string, unknown>>('session.answered'), requestId: '' }).success).toBe(false);
   });
 });
 

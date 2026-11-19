@@ -233,6 +233,51 @@ describe('ProcessCanvas', () => {
     });
   });
 
+  describe('focus', () => {
+    const middleOf = (el: Element) => {
+      const box = el.getBoundingClientRect();
+      return { x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2 };
+    };
+
+    it('centres the block it names, and emits the view', async () => {
+      const details = await actionsOf(async () => {
+        const el = await show(withData({ zoom: 100, pan: { x: 0, y: 0 }, focus: { id: 'review', at: 0 } }));
+        await expect.poll(() => Math.abs(middleOf(card(el, 'review')).x - middleOf(inside(el, '.canvas')).x)).toBeLessThan(2);
+        const frame = middleOf(inside(el, '.canvas'));
+        expect(middleOf(card(el, 'review')).y).toBeCloseTo(frame.y, 0);
+      });
+      expect(details.map((detail) => detail.action)).toEqual(['view']);
+    });
+
+    it('centres a Phase too, and again only when asked again', async () => {
+      const el = await show(withData({ zoom: 100, pan: { x: 0, y: 0 }, focus: { id: 'ph-dev', at: 0 } }));
+      const phase = inside(el, 'cd-phase[data-phase="ph-dev"]');
+      await expect.poll(() => Math.abs(middleOf(phase).x - middleOf(inside(el, '.canvas')).x)).toBeLessThan(2);
+      const again = await actionsOf(async () => {
+        (el as Canvas).data = withData({ zoom: 100, pan: { x: 0, y: 0 }, focus: { id: 'ph-dev', at: 0 } });
+        await settle(el);
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        await settle(el);
+      });
+      expect(again).toEqual([]);
+      const asked = await actionsOf(async () => {
+        (el as Canvas).data = withData({ zoom: 100, pan: { x: 300, y: 300 }, focus: { id: 'ph-dev', at: 1 } });
+        await settle(el);
+        await expect.poll(() => Math.abs(middleOf(phase).x - middleOf(inside(el, '.canvas')).x)).toBeLessThan(2);
+      });
+      expect(asked.map((detail) => detail.action)).toEqual(['view']);
+    });
+
+    it('ignores a block it does not have', async () => {
+      const details = await actionsOf(async () => {
+        const el = await show(withData({ zoom: 100, pan: { x: 0, y: 0 }, focus: { id: 'nowhere', at: 0 } }));
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        await settle(el);
+      });
+      expect(details).toEqual([]);
+    });
+  });
+
   describe('pan', () => {
     it('follows a drag on the background, and emits view at its end', async () => {
       const el = await show(withData({ zoom: 100, pan: { x: 0, y: 0 } }));

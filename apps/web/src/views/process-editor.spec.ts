@@ -272,13 +272,14 @@ describe('processEditorView', () => {
     });
   });
 
-  it('shows the Source the Pilote picked in its Select while its migration is asked', () => {
+  it('shows the Source the Pilote picked in its Select, and that it waits for confirmation, while its migration is asked', () => {
     const ui = createEditorUi();
     ui.choose(ID, { group: 'ticket', to: 'github' });
     const data = processEditorView(stateOf({ ...PROCESS, sources: { ticket: local, code: github } }), ID, ui.view(ID, { onglet: 'sources' }));
 
     expect(data.sources.rows.map((row) => row.select?.value ?? null)).toEqual(['github', 'github', null]);
     expect(data.sources.rows[0]?.value).toBe('Local');
+    expect(data.sources.rows[0]?.detail).toBe('choisi : GitHub, à confirmer');
   });
 
   it('shows a migration draining: its Banner, the group’s badge and meta in place of its Select, the other Select disabled', () => {

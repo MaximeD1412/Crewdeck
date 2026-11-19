@@ -212,14 +212,16 @@ const sourcesPanel = (view: ProjectProcess, definition: ProcessDefinition, reads
     const row = { label: t(`process.sources.${id}`), value: sourceLabel(source.source) };
     if (running?.group === id) return { ...row, icon: 'refresh', detail: migrationMeta(running), select: null, migration: migrationBadge(running) };
     const done = lastDoneOf(migrations, project.id, id);
+    // The Pilote's pick, until the dialog confirms it or « Annuler » forgets it.
+    const picked = choice?.group === id && choice.to !== source.source ? choice.to : null;
     return {
       ...row,
       icon: source.source === 'github' ? 'github' : 'folder',
-      detail: done && done.to === source.source ? doneMeta(detail, done) : detail,
+      detail: picked ? t('process.sources.migration.chosen', { source: sourceLabel(picked) }) : done && done.to === source.source ? doneMeta(detail, done) : detail,
       select: {
         group: id,
         label: t(`process.sources.migration.${id}.select`),
-        value: choice?.group === id ? choice.to : source.source,
+        value: picked ?? source.source,
         options: SOURCE_KINDS.map((kind) => ({ value: kind, label: sourceLabel(kind) })),
         disabled: running !== null,
       },

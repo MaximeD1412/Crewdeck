@@ -902,6 +902,7 @@ export const fr = {
   'process.sources.migration.banner.running': 'Aucun nouveau {noun} ne démarre pendant la migration.',
   'process.sources.migration.banner.switched': 'Les {group} sont sur {to} ; on archive l’ancienne place.',
   'process.sources.migration.badge': '{from} → {to}',
+  'process.sources.migration.chosen': 'choisi : {source}, à confirmer',
   'process.sources.migration.code.group': 'changements de code',
   'process.sources.migration.code.moved': 'le code passe',
   'process.sources.migration.code.noun': 'changement de code',

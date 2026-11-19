@@ -31,11 +31,13 @@ test.describe('changing a Type d’artefact’s Source (US-102)', () => {
     await expect(dialog(page)).toContainText('Le dossier tickets/ est archivé, figé : plus rien ne s’y écrit.');
     await expect(dialog(page)).toContainText('Un Type d’artefact n’a jamais deux Sources, même un instant.');
     await expect(ticketsSelect(page)).toHaveValue('github');
+    await expect(panel(page)).toContainText('choisi : GitHub, à confirmer');
     await expectAccessible(page);
 
     await dialog(page).getByRole('button', { name: 'Annuler' }).click();
     await expect(dialog(page)).toBeHidden();
     await expect(ticketsSelect(page)).toHaveValue('local');
+    await expect(panel(page)).not.toContainText('à confirmer');
     await expect(banner(page)).toHaveCount(0);
 
     await ticketsSelect(page).selectOption('github');

@@ -1,0 +1,91 @@
+{
+  "operation": "MirrorListIssues",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "after": null,
+    "states": [
+      "OPEN"
+    ]
+  },
+  "data": {
+    "repository": {
+      "issues": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        },
+        "nodes": [
+          {
+            "number": 15,
+            "state": "OPEN",
+            "author": {
+              "login": "pilote"
+            },
+            "labels": {
+              "nodes": [
+                {
+                  "name": "priority:P0"
+                },
+                {
+                  "name": "ready-for-agent"
+                }
+              ]
+            }
+          },
+          {
+            "number": 14,
+            "state": "OPEN",
+            "author": {
+              "login": "pilote"
+            },
+            "labels": {
+              "nodes": [
+                {
+                  "name": "ready-for-agent"
+                },
+                {
+                  "name": "size:XS"
+                }
+              ]
+            }
+          },
+          {
+            "number": 13,
+            "state": "OPEN",
+            "author": {
+              "login": "pilote"
+            },
+            "labels": {
+              "nodes": [
+                {
+                  "name": "ready-for-agent"
+                }
+              ]
+            }
+          },
+          {
+            "number": 12,
+            "state": "OPEN",
+            "author": {
+              "login": "pilote"
+            },
+            "labels": {
+              "nodes": [
+                {
+                  "name": "priority:P1"
+                },
+                {
+                  "name": "size:S"
+                },
+                {
+                  "name": "ready-for-agent"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

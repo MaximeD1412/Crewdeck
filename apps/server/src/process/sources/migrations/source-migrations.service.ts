@@ -31,6 +31,7 @@ import { currentPilotId, runInPilotScope } from '../../../scope/scope.context.js
 import { SensitiveActionsService } from '../../../sensitive-actions/sensitive-actions.service.js';
 import { Engine } from '../../engine/engine.js';
 import { publishProcess } from '../../process.service.js';
+import { ProjectChanges } from '../../../projects/project-changes.js';
 import { toProject, PROJECT_VIEW } from '../../../projects/project.view.js';
 import { decodeMigrationCursor, encodeMigrationCursor } from './migration-cursor.js';
 import { SOURCE_MIGRATION_VIEW, type SourceMigrationRow, toSourceMigration, waitingItemsOf } from './source-migration.view.js';
@@ -112,6 +113,7 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
     private readonly commands: RunnerCommands,
     private readonly presence: RunnerPresence,
     private readonly clock: RunnerClock,
+    private readonly projectChanges: ProjectChanges,
     @InjectPinoLogger(SourceMigrations.name) private readonly logger: PinoLogger,
   ) {}
 
@@ -405,12 +407,14 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
    * `state` (`switched`, or `done` for a group that held nothing), its
    * fingerprints, the group's hooks; the events of the migration, the
    * Process's view and the Projet; for `done`, the held work then starts
-   * on the new Source.
+   * on the new Source. Once committed, the Runner's Miroir is sent the
+   * Projets again (`mirror.projects` names each group's Source).
    */
   private async switchIn(tx: Tx, row: SourceMigrationRow, message: SwitchMessage, state: 'switched' | 'done'): Promise<void> {
     const pilotId = currentPilotId();
     const now = this.clock.now();
     await tx.artifactSource.updateMany({ where: { projectId: row.projectId, group: row.group }, data: { source: row.to, since: now } });
+    afterCommit(tx, () => this.projectChanges.changed(pilotId));
     const updated = await tx.sourceMigration.update({
       where: { id: row.id },
       data: {

@@ -55,8 +55,13 @@ describe('the Miroir’s messages', () => {
 
   it('ends a replay with mirror.live and its seq, and lists the Projets with their repository and branch', () => {
     expect(zMirrorLive.parse(fixture('mirror.live')).seq).toBeGreaterThanOrEqual(0);
-    const [project] = zMirrorProjects.parse(fixture('mirror.projects')).projects;
-    expect(Object.keys(project ?? {}).sort()).toEqual(['displayName', 'githubRepoId', 'installationId', 'integrationBranch', 'projectId', 'repository'].sort());
+    const [project, local] = zMirrorProjects.parse(fixture('mirror.projects')).projects;
+    expect(Object.keys(project ?? {}).sort()).toEqual(['displayName', 'githubRepoId', 'installationId', 'integrationBranch', 'nameSealed', 'projectId', 'repository', 'sources'].sort());
+    expect(project).toMatchObject({ sources: { ticket: 'github', code: 'github' }, nameSealed: null });
+    // A Local Projet: no repository, its name sealed, which only the Runner opens.
+    expect(local).toMatchObject({ sources: { ticket: 'local', code: 'local' }, repository: null, githubRepoId: null, installationId: null, displayName: null });
+    expect(local?.nameSealed).toEqual({ key: expect.any(String), ciphertext: expect.any(String) });
+    expect(zMirrorProjects.safeParse({ ...fixture<Record<string, unknown>>('mirror.projects'), projects: [{ ...project, sources: { ticket: 'local' } }] }).success).toBe(false);
     expect(zServerToRunner.parse(fixture('mirror.resync'))).toMatchObject({ type: 'mirror.resync' });
   });
 

@@ -1,0 +1,27 @@
+{
+  "operation": "MirrorMilestones",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "after": null
+  },
+  "data": {
+    "repository": {
+      "milestones": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        },
+        "nodes": [
+          {
+            "number": 2,
+            "title": "M2 Le panier",
+            "state": "OPEN",
+            "description": "Le jalon du panier",
+            "dueOn": "2026-12-15T00:00:00Z"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "operation": "MirrorObject",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "number": 13
+  },
+  "data": {
+    "repository": {
+      "issueOrPullRequest": {
+        "__typename": "Issue",
+        "number": 13,
+        "title": "Le paiement",
+        "body": "Après le panier.",
+        "issueState": "OPEN",
+        "stateReason": null,
+        "url": "https://github.com/acme/atelier/issues/13",
+        "createdAt": "2026-11-02T08:00:00Z",
+        "updatedAt": "2026-11-09T09:00:00Z",
+        "closedAt": null,
+        "author": {
+          "login": "pilote"
+        },
+        "milestone": {
+          "number": 2
+        },
+        "labels": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "name": "ready-for-agent"
+            }
+          ]
+        },
+        "assignees": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "comments": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "parent": null,
+        "subIssues": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "blockedBy": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "number": 12,
+              "repository": {
+                "nameWithOwner": "acme/atelier"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

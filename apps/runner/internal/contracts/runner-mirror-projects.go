@@ -3,7 +3,9 @@
 package contracts
 
 import "encoding/json"
+import "errors"
 import "fmt"
+import "reflect"
 import "regexp"
 import "time"
 import "unicode/utf8"
@@ -24,22 +26,191 @@ type RunnerMirrorProjects struct {
 
 type RunnerMirrorProjectsProjectsElem struct {
 	// DisplayName corresponds to the JSON schema field "displayName".
-	DisplayName string `json:"displayName"`
+	DisplayName interface{} `json:"displayName"`
 
 	// GithubRepoId corresponds to the JSON schema field "githubRepoId".
-	GithubRepoId int `json:"githubRepoId"`
+	GithubRepoId interface{} `json:"githubRepoId"`
 
 	// InstallationId corresponds to the JSON schema field "installationId".
-	InstallationId int `json:"installationId"`
+	InstallationId interface{} `json:"installationId"`
 
 	// IntegrationBranch corresponds to the JSON schema field "integrationBranch".
 	IntegrationBranch string `json:"integrationBranch"`
+
+	// NameSealed corresponds to the JSON schema field "nameSealed".
+	NameSealed *RunnerMirrorProjectsProjectsElemNameSealed `json:"nameSealed"`
 
 	// ProjectId corresponds to the JSON schema field "projectId".
 	ProjectId string `json:"projectId"`
 
 	// Repository corresponds to the JSON schema field "repository".
-	Repository string `json:"repository"`
+	Repository interface{} `json:"repository"`
+
+	// Sources corresponds to the JSON schema field "sources".
+	Sources RunnerMirrorProjectsProjectsElemSources `json:"sources"`
+}
+
+type RunnerMirrorProjectsProjectsElemDisplayName_0 *string
+
+type RunnerMirrorProjectsProjectsElemGithubRepoId_0 *int
+
+type RunnerMirrorProjectsProjectsElemInstallationId_0 *int
+
+type RunnerMirrorProjectsProjectsElemNameSealed struct {
+	// Ciphertext corresponds to the JSON schema field "ciphertext".
+	Ciphertext string `json:"ciphertext"`
+
+	// Key corresponds to the JSON schema field "key".
+	Key string `json:"key"`
+}
+
+type RunnerMirrorProjectsProjectsElemNameSealed_0 struct {
+	// Ciphertext corresponds to the JSON schema field "ciphertext".
+	Ciphertext string `json:"ciphertext"`
+
+	// Key corresponds to the JSON schema field "key".
+	Key string `json:"key"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerMirrorProjectsProjectsElemNameSealed_0) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["ciphertext"]; raw != nil && !ok {
+		return fmt.Errorf("field ciphertext in RunnerMirrorProjectsProjectsElemNameSealed_0: required")
+	}
+	if _, ok := raw["key"]; raw != nil && !ok {
+		return fmt.Errorf("field key in RunnerMirrorProjectsProjectsElemNameSealed_0: required")
+	}
+	type Plain RunnerMirrorProjectsProjectsElemNameSealed_0
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Ciphertext)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Ciphertext", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Key)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Key", `^[A-Za-z0-9_-]*$`)
+	}
+	*j = RunnerMirrorProjectsProjectsElemNameSealed_0(plain)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerMirrorProjectsProjectsElemNameSealed) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	var runnerMirrorProjectsProjectsElemNameSealed_0 RunnerMirrorProjectsProjectsElemNameSealed_0
+	var errs []error
+	if err := runnerMirrorProjectsProjectsElemNameSealed_0.UnmarshalJSON(value); err != nil {
+		errs = append(errs, err)
+	}
+	if len(errs) == 1 {
+		return fmt.Errorf("all validators failed: %s", errors.Join(errs...))
+	}
+	type Plain RunnerMirrorProjectsProjectsElemNameSealed
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	*j = RunnerMirrorProjectsProjectsElemNameSealed(plain)
+	return nil
+}
+
+type RunnerMirrorProjectsProjectsElemRepository_0 *string
+
+type RunnerMirrorProjectsProjectsElemSources struct {
+	// Code corresponds to the JSON schema field "code".
+	Code RunnerMirrorProjectsProjectsElemSourcesCode `json:"code"`
+
+	// Ticket corresponds to the JSON schema field "ticket".
+	Ticket RunnerMirrorProjectsProjectsElemSourcesTicket `json:"ticket"`
+}
+
+type RunnerMirrorProjectsProjectsElemSourcesCode string
+
+const RunnerMirrorProjectsProjectsElemSourcesCodeGithub RunnerMirrorProjectsProjectsElemSourcesCode = "github"
+const RunnerMirrorProjectsProjectsElemSourcesCodeLocal RunnerMirrorProjectsProjectsElemSourcesCode = "local"
+
+var enumValues_RunnerMirrorProjectsProjectsElemSourcesCode = []interface{}{
+	"local",
+	"github",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerMirrorProjectsProjectsElemSourcesCode) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_RunnerMirrorProjectsProjectsElemSourcesCode {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_RunnerMirrorProjectsProjectsElemSourcesCode, v)
+	}
+	*j = RunnerMirrorProjectsProjectsElemSourcesCode(v)
+	return nil
+}
+
+type RunnerMirrorProjectsProjectsElemSourcesTicket string
+
+const RunnerMirrorProjectsProjectsElemSourcesTicketGithub RunnerMirrorProjectsProjectsElemSourcesTicket = "github"
+const RunnerMirrorProjectsProjectsElemSourcesTicketLocal RunnerMirrorProjectsProjectsElemSourcesTicket = "local"
+
+var enumValues_RunnerMirrorProjectsProjectsElemSourcesTicket = []interface{}{
+	"local",
+	"github",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerMirrorProjectsProjectsElemSourcesTicket) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_RunnerMirrorProjectsProjectsElemSourcesTicket {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_RunnerMirrorProjectsProjectsElemSourcesTicket, v)
+	}
+	*j = RunnerMirrorProjectsProjectsElemSourcesTicket(v)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerMirrorProjectsProjectsElemSources) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["code"]; raw != nil && !ok {
+		return fmt.Errorf("field code in RunnerMirrorProjectsProjectsElemSources: required")
+	}
+	if _, ok := raw["ticket"]; raw != nil && !ok {
+		return fmt.Errorf("field ticket in RunnerMirrorProjectsProjectsElemSources: required")
+	}
+	type Plain RunnerMirrorProjectsProjectsElemSources
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	*j = RunnerMirrorProjectsProjectsElemSources(plain)
+	return nil
 }
 
 // UnmarshalJSON implements json.Unmarshaler.
@@ -60,40 +231,28 @@ func (j *RunnerMirrorProjectsProjectsElem) UnmarshalJSON(value []byte) error {
 	if _, ok := raw["integrationBranch"]; raw != nil && !ok {
 		return fmt.Errorf("field integrationBranch in RunnerMirrorProjectsProjectsElem: required")
 	}
+	if _, ok := raw["nameSealed"]; raw != nil && !ok {
+		return fmt.Errorf("field nameSealed in RunnerMirrorProjectsProjectsElem: required")
+	}
 	if _, ok := raw["projectId"]; raw != nil && !ok {
 		return fmt.Errorf("field projectId in RunnerMirrorProjectsProjectsElem: required")
 	}
 	if _, ok := raw["repository"]; raw != nil && !ok {
 		return fmt.Errorf("field repository in RunnerMirrorProjectsProjectsElem: required")
 	}
+	if _, ok := raw["sources"]; raw != nil && !ok {
+		return fmt.Errorf("field sources in RunnerMirrorProjectsProjectsElem: required")
+	}
 	type Plain RunnerMirrorProjectsProjectsElem
 	var plain Plain
 	if err := json.Unmarshal(value, &plain); err != nil {
 		return err
-	}
-	if utf8.RuneCountInString(string(plain.DisplayName)) < 1 {
-		return fmt.Errorf("field %s length: must be >= %d", "displayName", 1)
-	}
-	if 9007199254740991 < plain.GithubRepoId {
-		return fmt.Errorf("field %s: must be <= %v", "githubRepoId", 9007199254740991)
-	}
-	if 0 >= plain.GithubRepoId {
-		return fmt.Errorf("field %s: must be > %v", "githubRepoId", 0)
-	}
-	if 9007199254740991 < plain.InstallationId {
-		return fmt.Errorf("field %s: must be <= %v", "installationId", 9007199254740991)
-	}
-	if 0 >= plain.InstallationId {
-		return fmt.Errorf("field %s: must be > %v", "installationId", 0)
 	}
 	if utf8.RuneCountInString(string(plain.IntegrationBranch)) < 1 {
 		return fmt.Errorf("field %s length: must be >= %d", "integrationBranch", 1)
 	}
 	if matched, _ := regexp.MatchString(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`, string(plain.ProjectId)); !matched {
 		return fmt.Errorf("field %s pattern match: must match %s", "ProjectId", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
-	}
-	if matched, _ := regexp.MatchString(`^[^/\s]+\/[^/\s]+$`, string(plain.Repository)); !matched {
-		return fmt.Errorf("field %s pattern match: must match %s", "Repository", `^[^/\s]+\/[^/\s]+$`)
 	}
 	*j = RunnerMirrorProjectsProjectsElem(plain)
 	return nil

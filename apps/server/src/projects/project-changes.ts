@@ -5,10 +5,12 @@ import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 export type ProjectsChangedHandler = (pilotId: string) => void;
 
 /**
- * Who learns that a Pilote's Projets changed (a Projet followed, its access
- * lost or back), after the commit: the Runner's Miroir is sent its Projets
- * again (`mirror.projects`, MIROIR-1). `Projects` and `Repositories` call
- * `changed`; a handler that throws is logged, the others still run.
+ * Who learns that a Pilote's Projets changed (a Projet followed or
+ * created, its access lost or back, one of its Sources moved), after the
+ * commit: the Runner's Miroir is sent its Projets again (`mirror.projects`,
+ * MIROIR-1, MIROIR-6). `Projects`, `Repositories`, `LocalProjects` and
+ * `SourceMigrations` call `changed`; a handler that throws is logged, the
+ * others still run.
  */
 @Injectable()
 export class ProjectChanges {

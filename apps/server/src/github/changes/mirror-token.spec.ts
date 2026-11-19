@@ -4,10 +4,24 @@ import { mirrorTokens } from './mirror-token.js';
 
 const project = (n: number, installationId: number): MirrorProject => ({
   projectId: `019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a0${n}`,
+  sources: { ticket: 'github', code: 'github' },
   repository: `octo-fixture/app-${n}`,
   githubRepoId: 71000000 + n,
   installationId,
   displayName: `App ${n}`,
+  nameSealed: null,
+  integrationBranch: 'develop',
+});
+
+/** A Local Projet (PROJET-6): no repository, its name sealed. */
+const local = (n: number): MirrorProject => ({
+  projectId: `019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6b0${n}`,
+  sources: { ticket: 'local', code: 'local' },
+  repository: null,
+  githubRepoId: null,
+  installationId: null,
+  displayName: null,
+  nameSealed: { key: 'A'.repeat(80), ciphertext: 'B'.repeat(43) },
   integrationBranch: 'develop',
 });
 
@@ -47,6 +61,17 @@ describe('mirrorTokens, the « Miroir » tokens of the Pilote’s Projets', () =
 
   it('answers tokens: [] without asking GitHub when the Pilote has no Projet', async () => {
     expect(await mirrorTokens(github, [])).toEqual({ type: 'mirror.token.issued', tokens: [] });
+    expect(github.calls).toEqual([]);
+  });
+
+  it('leaves out the Projets without a repository, and asks GitHub nothing when none has one', async () => {
+    const answer = await mirrorTokens(github, [local(1), project(2, 51000001), local(3)]);
+
+    expect(github.calls).toEqual([{ method: 'installationToken', args: [51000001, { repositoryIds: [71000002], permissions: MIRROR_TOKEN_PERMISSIONS }] }]);
+    expect(answer).toMatchObject({ type: 'mirror.token.issued', tokens: [{ installationId: 51000001, repositories: ['octo-fixture/app-2'] }] });
+
+    github.calls.length = 0;
+    expect(await mirrorTokens(github, [local(1)])).toEqual({ type: 'mirror.token.issued', tokens: [] });
     expect(github.calls).toEqual([]);
   });
 

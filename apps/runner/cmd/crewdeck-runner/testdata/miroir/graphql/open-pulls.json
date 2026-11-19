@@ -1,0 +1,29 @@
+{
+  "operation": "MirrorOpenPulls",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "after": null
+  },
+  "data": {
+    "repository": {
+      "pullRequests": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        },
+        "nodes": [
+          {
+            "number": 7,
+            "updatedAt": "2026-11-06T09:00:00Z",
+            "state": "OPEN",
+            "headRefOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "statusCheckRollup": {
+              "state": "SUCCESS"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

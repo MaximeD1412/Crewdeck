@@ -40,6 +40,8 @@ type Status struct {
 	LatestVersion   string                         `json:"latestVersion,omitempty"`
 	UpdateAvailable bool                           `json:"updateAvailable"`
 	Engines         []contracts.EngineCapabilities `json:"engines"`
+	// Mirror is the Miroir's freshness, absent without a Projet in the copy.
+	Mirror *MirrorStatus `json:"mirror,omitempty"`
 }
 
 func newStatusCommand(m *machine) *cobra.Command {
@@ -96,6 +98,7 @@ func (m *machine) status(ctx context.Context) (Status, error) {
 		return Status{}, err
 	}
 	status.Linked, status.Server = true, linked.Server
+	status.Mirror = mirrorStatus(ctx)
 	updater := &update.Updater{Server: linked.Server, HTTP: &http.Client{Timeout: 5 * time.Second}}
 	latest, err := updater.Latest(ctx)
 	var unreachable *url.Error
@@ -156,6 +159,9 @@ func printStatus(w io.Writer, s Status) {
 		fmt.Fprintf(w, "Version : %s · à jour\n", s.Version)
 	default:
 		fmt.Fprintf(w, "Version : %s\n", s.Version)
+	}
+	if s.Mirror != nil {
+		fmt.Fprintln(w, mirrorLine(s.Mirror))
 	}
 	found := false
 	for _, e := range s.Engines {

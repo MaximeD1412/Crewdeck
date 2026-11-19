@@ -24,7 +24,7 @@ import (
 
 // SchemaVersion is schema.sql's version, kept in PRAGMA user_version; a copy
 // of another version is rebuilt.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 // FileName is the copy's file in the Runner's folder.
 const FileName = "miroir.db"
@@ -227,33 +227,75 @@ func tableNames(ctx context.Context, tx *sql.Tx, where string) ([]string, error)
 // keptProjects reads the Projets of the copy before a rebuild; none when its
 // schema does not have them as this version does.
 func (s *Store) keptProjects(ctx context.Context, conn *sql.Conn) []Project {
-	rows, err := conn.QueryContext(ctx, "SELECT repository, project_id, github_repo_id, installation_id, display_name, integration_branch FROM projects")
+	rows, err := conn.QueryContext(ctx, "SELECT "+projectColumns+" FROM projects")
 	if err != nil {
 		return nil
 	}
 	defer rows.Close()
-	var projects []Project
-	for rows.Next() {
-		var p Project
-		if err := rows.Scan(&p.Repository, &p.ProjectID, &p.GitHubRepoID, &p.InstallationID, &p.DisplayName, &p.IntegrationBranch); err != nil {
-			return nil
-		}
-		projects = append(projects, p)
-	}
-	if rows.Err() != nil {
+	projects, err := scanProjects(rows)
+	if err != nil {
 		return nil
 	}
 	return projects
 }
 
-// Project is a Projet of the Pilote, as the server names it (mirror.projects).
+// Project is one key of the copy: a Projet of the Pilote, as the server names
+// it (mirror.projects), on one of its Sources.
 type Project struct {
-	Repository        string // owner/name
+	Repository        string // the key: owner/name, or local/<projectId>
 	ProjectID         string
-	GitHubRepoID      int64
-	InstallationID    int64
+	Source            string   // SourceGitHub or SourceLocal
+	Groups            []string // GroupTicket, GroupCode: the groups living under this key
+	GitHubRepoID      int64    // 0 for a Local key
+	InstallationID    int64    // 0 for a Local key
 	DisplayName       string
 	IntegrationBranch string
+	Folder            string // a Local key's folder, "" for a GitHub one
+}
+
+// The Sources and groups of a key (ADR 0012).
+const (
+	SourceGitHub = "github"
+	SourceLocal  = "local"
+	GroupTicket  = "ticket"
+	GroupCode    = "code"
+)
+
+// LocalPrefix starts a Local key, local/<projectId>.
+const LocalPrefix = "local/"
+
+// IsLocal says whether the key is a Local Projet's.
+func IsLocal(key string) bool { return strings.HasPrefix(key, LocalPrefix) }
+
+// Has says whether the group lives under this key.
+func (p Project) Has(group string) bool {
+	for _, g := range p.Groups {
+		if g == group {
+			return true
+		}
+	}
+	return false
+}
+
+const projectColumns = "repository, project_id, source, groups, github_repo_id, installation_id, display_name, integration_branch, folder"
+
+func scanProjects(rows *sql.Rows) ([]Project, error) {
+	var projects []Project
+	for rows.Next() {
+		var p Project
+		var groups string
+		var repoID, installationID sql.NullInt64
+		var folder sql.NullString
+		if err := rows.Scan(&p.Repository, &p.ProjectID, &p.Source, &groups, &repoID, &installationID, &p.DisplayName, &p.IntegrationBranch, &folder); err != nil {
+			return nil, err
+		}
+		if groups != "" {
+			p.Groups = strings.Split(groups, ",")
+		}
+		p.GitHubRepoID, p.InstallationID, p.Folder = repoID.Int64, installationID.Int64, folder.String
+		projects = append(projects, p)
+	}
+	return projects, rows.Err()
 }
 
 // repositoryTables are the tables keyed by a repository, which a repository
@@ -310,11 +352,20 @@ func (s *Store) PutProjects(projects []Project) error {
 
 func putProjects(ctx context.Context, tx *sql.Tx, projects []Project) error {
 	for _, p := range projects {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO projects (repository, project_id, github_repo_id, installation_id, display_name, integration_branch)
-			VALUES (?, ?, ?, ?, ?, ?)
-			ON CONFLICT (repository) DO UPDATE SET project_id = excluded.project_id, github_repo_id = excluded.github_repo_id,
-				installation_id = excluded.installation_id, display_name = excluded.display_name, integration_branch = excluded.integration_branch`,
-			p.Repository, p.ProjectID, p.GitHubRepoID, p.InstallationID, p.DisplayName, p.IntegrationBranch); err != nil {
+		source := p.Source
+		if source == "" {
+			source = SourceGitHub
+		}
+		groups := strings.Join(p.Groups, ",")
+		if groups == "" {
+			groups = GroupTicket + "," + GroupCode
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO projects (`+projectColumns+`)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT (repository) DO UPDATE SET project_id = excluded.project_id, source = excluded.source, groups = excluded.groups,
+				github_repo_id = excluded.github_repo_id, installation_id = excluded.installation_id, display_name = excluded.display_name,
+				integration_branch = excluded.integration_branch, folder = excluded.folder`,
+			p.Repository, p.ProjectID, source, groups, null(p.GitHubRepoID), null(p.InstallationID), p.DisplayName, p.IntegrationBranch, null(p.Folder)); err != nil {
 			return fmt.Errorf("mirror: projects: %w", err)
 		}
 	}
@@ -323,20 +374,12 @@ func putProjects(ctx context.Context, tx *sql.Tx, projects []Project) error {
 
 // Projects are the copy's Projets.
 func (s *Store) Projects() ([]Project, error) {
-	rows, err := s.db.Query("SELECT repository, project_id, github_repo_id, installation_id, display_name, integration_branch FROM projects ORDER BY repository")
+	rows, err := s.db.Query("SELECT " + projectColumns + " FROM projects ORDER BY repository")
 	if err != nil {
 		return nil, fmt.Errorf("mirror: projects: %w", err)
 	}
 	defer rows.Close()
-	var projects []Project
-	for rows.Next() {
-		var p Project
-		if err := rows.Scan(&p.Repository, &p.ProjectID, &p.GitHubRepoID, &p.InstallationID, &p.DisplayName, &p.IntegrationBranch); err != nil {
-			return nil, err
-		}
-		projects = append(projects, p)
-	}
-	return projects, rows.Err()
+	return scanProjects(rows)
 }
 
 // MarkFilled records the end of the Projet's first complete reconciliation.

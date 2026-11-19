@@ -5,11 +5,32 @@
   "projects": [
     {
       "projectId": "019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a01",
+      "sources": {
+        "ticket": "github",
+        "code": "github"
+      },
       "repository": "octo-fixture/fixture-app",
       "githubRepoId": 71000001,
       "installationId": 51000001,
       "displayName": "Fixture App",
+      "nameSealed": null,
       "integrationBranch": "develop"
+    },
+    {
+      "projectId": "019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a02",
+      "sources": {
+        "ticket": "local",
+        "code": "local"
+      },
+      "repository": null,
+      "githubRepoId": null,
+      "installationId": null,
+      "displayName": null,
+      "nameSealed": {
+        "key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "ciphertext": "BBBBBBBBBBBBBBBBBBBBBBBB"
+      },
+      "integrationBranch": "main"
     }
   ]
 }

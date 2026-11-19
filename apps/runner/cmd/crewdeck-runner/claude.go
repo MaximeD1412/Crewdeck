@@ -76,5 +76,9 @@ func exitCode(err error) int {
 	if errors.As(err, &exit) {
 		return exit.code
 	}
+	var silent silentExit
+	if errors.As(err, &silent) {
+		return int(silent)
+	}
 	return 1
 }

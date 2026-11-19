@@ -58,7 +58,7 @@ func TestRebuildAndANewSchemaVersionLeaveLocalDBByteForByte(t *testing.T) {
 
 	after := localFiles(t, home)
 	if len(after) != len(before) {
-		t.Fatalf("local.db's files %v after, want %v", keys(after), keys(before))
+		t.Fatalf("local.db's files %v after, want %v", fileNames(after), fileNames(before))
 	}
 	for name, data := range before {
 		if !bytes.Equal(after[name], data) {
@@ -87,7 +87,7 @@ func localFiles(t *testing.T, home string) map[string][]byte {
 	return files
 }
 
-func keys(files map[string][]byte) []string {
+func fileNames(files map[string][]byte) []string {
 	var names []string
 	for name := range files {
 		names = append(names, name)

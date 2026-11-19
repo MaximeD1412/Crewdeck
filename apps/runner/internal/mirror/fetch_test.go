@@ -363,6 +363,8 @@ func miroirQueries() map[string]string {
 		"MirrorObject": objectQuery, "MirrorThreadComments": threadCommentsQuery, "MirrorChecks": checksQuery,
 		"MirrorLabels": labelsQuery, "MirrorMilestones": milestonesQuery, "MirrorReleases": releasesQuery,
 		"MirrorIssues": issuesWalkQuery, "MirrorPulls": pullsWalkQuery,
+		"MirrorOpenIssues": openIssuesWalkQuery, "MirrorOpenPulls": openPullsWalkQuery,
+		"MirrorListIssues": listIssuesQuery, "MirrorListPulls": listPullsQuery,
 	}
 	for _, p := range []objectPage{labelsPage, assigneesPage, commentsPage, subIssuesPage, blockedByPage, closingIssuesPage, commitsPage, reviewsPage, threadsPage} {
 		queries[p.operation] = p.query

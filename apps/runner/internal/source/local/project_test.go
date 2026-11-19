@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -328,5 +329,46 @@ func TestLocalRefusesAnEditThatWouldLeaveTheFileUnreadableAndLeavesItAsItWas(t *
 	}
 	if ticket, err := p.Ticket(ctx, 1); err != nil || ticket.Title != "A" {
 		t.Errorf("the Ticket after the refused edit: %+v, %v", ticket, err)
+	}
+}
+
+func TestLocalTicketsAsIsWriteNothingAndAvailableSaysTheFolderIsGone(t *testing.T) {
+	dir := folder(t, map[string]string{
+		"tickets/7-x.md":         "---\nnumber: 7\ntitle: Le panier\n---\nCorps\n",
+		"tickets/a.md":           "---\ntitle: Pas encore numéroté\n---\n",
+		"tickets/milestones.yml": "- title: M1\n",
+	})
+	p := open(t, dir)
+	ctx := context.Background()
+	tickets, milestones, err := p.TicketsAsIs(ctx)
+	if err != nil || len(tickets) != 1 || tickets[0].Number != 7 || len(milestones) != 1 {
+		t.Fatalf("as is: %+v, %+v, %v", tickets, milestones, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "tickets", "a.md")); err != nil {
+		t.Errorf("the file without a number was renamed: %v", err)
+	}
+	var rows int
+	if err := p.db.SQL().QueryRow("SELECT (SELECT count(*) FROM tickets) + (SELECT count(*) FROM projects)").Scan(&rows); err != nil || rows != 0 {
+		t.Errorf("local.db has %d rows, %v", rows, err)
+	}
+	if len(*p.changes) != 0 {
+		t.Errorf("listeners called: %v", *p.changes)
+	}
+	// A scan after it still sees the milestones as new.
+	if _, err := p.Scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(*p.changes, func(c source.Changed) bool { return c.Kind == source.KindMilestone }) {
+		t.Errorf("the scan after missed the milestones: %v", *p.changes)
+	}
+
+	if err := p.Available(ctx); err != nil {
+		t.Errorf("available: %v", err)
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Available(ctx); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("a folder gone: %v", err)
 	}
 }

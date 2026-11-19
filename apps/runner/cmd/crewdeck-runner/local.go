@@ -5,6 +5,7 @@ import (
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/keys"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/session"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/source"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/source/local"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
 )
@@ -64,6 +65,17 @@ func (l *localSources) Project(projectID string) (*local.Project, bool) {
 	}
 	p := local.Open(l.db, l.vault, projectID, path)
 	l.projects[projectID] = p
+	return p, true
+}
+
+// Source is the Local Projet's Source for the Miroir (mirror.LocalSources),
+// a change's branch read in the Runner's clone first.
+func (l *localSources) Source(projectID string) (source.Reader, bool) {
+	p, ok := l.Project(projectID)
+	if !ok {
+		return nil, false
+	}
+	p.SetClone((&local.Origin{Home: l.store.Dir, ProjectID: projectID}).Dir())
 	return p, true
 }
 

@@ -117,6 +117,7 @@ func newRoot(m *machine) *cobra.Command {
 	root.AddCommand(newContratCommand())
 	root.AddCommand(newMCPCommand())
 	root.AddCommand(newHookCommand())
+	root.AddCommand(newMiroirCommand())
 	buildFlags(root)
 	return root
 }

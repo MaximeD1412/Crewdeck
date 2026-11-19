@@ -51,6 +51,8 @@ type Ticket struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	ClosedAt    *time.Time
+	// URL is where the Ticket is: its issue's page, its file's file:// URL.
+	URL string
 }
 
 // Comment is a Ticket's comment.
@@ -126,6 +128,19 @@ type Check struct {
 	Conclusion string
 }
 
+// Commit is a commit of a change.
+type Commit struct {
+	Oid     string
+	Message string // the whole message: its headline, a blank line, its body
+}
+
+// History is a change's branch as it is now: its head and its commits from
+// its base, oldest first.
+type History struct {
+	HeadOid string
+	Commits []Commit
+}
+
 // ErrNotFound: no Ticket, or no change, of that number.
 var ErrNotFound = errors.New("source: not found")
 
@@ -142,6 +157,23 @@ type Reader interface {
 	Change(ctx context.Context, number int) (Change, error)
 	Reviews(ctx context.Context, number int) ([]Review, error)
 	Checks(ctx context.Context, sha string) ([]Check, error)
+	// History is the change's branch now (MIROIR-6's headRefOid and commits).
+	History(ctx context.Context, number int) (History, error)
+}
+
+// Available says whether a Source can be read now: an error wrapping
+// os.ErrNotExist when a Local Projet's folder is gone (PROJET-6), whatever
+// group is read, before any read that would answer from elsewhere.
+type Available interface {
+	Available(ctx context.Context) error
+}
+
+// AsIs reads a Source's Tickets and milestones as they are, writing nothing
+// of its own (a Local Projet's local.db and files untouched): what a
+// rebuild of the Miroir reads (ADR 0012). A Ticket file not numbered yet is
+// left out until a read that numbers it.
+type AsIs interface {
+	TicketsAsIs(ctx context.Context) ([]Ticket, []Milestone, error)
 }
 
 // NewTicket is a Ticket to create.

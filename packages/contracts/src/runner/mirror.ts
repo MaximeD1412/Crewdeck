@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { zErrorCode } from '../api/errors.js';
 import { type InstallationPermissions, zSha } from '../github/index.js';
+import { zSealedItem } from '../keys/sealed.js';
+import { zSourceKind } from '../process/sources.js';
 import { zId, zInstant, zSeq } from '../values.js';
 import { runnerMessage } from './envelope.js';
 
@@ -62,21 +64,32 @@ export type MirrorResync = z.infer<typeof zMirrorResync>;
 export const zMirrorLive = runnerMessage('mirror.live', { seq: zSeq });
 export type MirrorLive = z.infer<typeof zMirrorLive>;
 
-/** One Projet of the Pilote that has a GitHub repository, as the Runner's Miroir keys it. */
+/**
+ * One Projet of the Pilote, as the Runner's Miroir keys it (ADR 0010, ADR
+ * 0012): where each of its groups lives (`sources`), its GitHub repository
+ * when it has one whose access is not lost (else `repository`,
+ * `githubRepoId`, `installationId` and `displayName` are null), and the
+ * Local name sealed under the vault key (PROJET-6, `project:<id>:name`),
+ * which only the Runner opens, null for a Projet without one. The « Miroir »
+ * token and the follower use only the items with a repository.
+ */
 export const zMirrorProject = z.object({
   projectId: zId,
-  repository: zRepositoryName,
-  githubRepoId: z.int().positive(),
-  installationId: z.int().positive(),
-  displayName: z.string().min(1),
+  sources: z.strictObject({ ticket: zSourceKind, code: zSourceKind }),
+  repository: zRepositoryName.nullable(),
+  githubRepoId: z.int().positive().nullable(),
+  installationId: z.int().positive().nullable(),
+  displayName: z.string().min(1).nullable(),
+  nameSealed: zSealedItem.nullable(),
   integrationBranch: z.string().min(1),
 });
 export type MirrorProject = z.infer<typeof zMirrorProject>;
 
 /**
- * Server → Runner: the Pilote's Projets that have a GitHub repository whose
- * access is not lost, before the replay and again after each change of them;
- * a Projet absent from the list is no longer followed.
+ * Server → Runner: every Projet of the Pilote, before the replay and again
+ * after each change of them (a Projet followed or created, its access lost or
+ * back, one of its Sources moved); a Projet absent from the list is no longer
+ * copied.
  */
 export const zMirrorProjects = runnerMessage('mirror.projects', { projects: z.array(zMirrorProject) });
 export type MirrorProjects = z.infer<typeof zMirrorProjects>;

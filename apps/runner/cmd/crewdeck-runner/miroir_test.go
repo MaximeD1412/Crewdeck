@@ -901,16 +901,15 @@ func TestMiroirAGitHubPRClosesALocalTicketByItsBody(t *testing.T) {
 	}
 }
 
-func TestMiroirAPRWhoseHeadMovedThenMergedWhileAwayKeepsItsLastHeadsChecks(t *testing.T) {
-	f := newMiroirFixture(t)
-	dir := githubDir(t)
-	head := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	// While the Runner was away, PR 7 got the head B, its CI failed, and it was merged.
+// mergedWhileAway: while the Runner was away, PR 7 got the head B, its CI
+// failed, and it was merged; mergedPull is `pr list --state merged`'s answer then.
+func (f *miroirFixture) mergedWhileAway(t *testing.T) {
+	t.Helper()
 	f.override(t, "open-pulls.json", func(d map[string]any) { dig(d, "repository", "pullRequests")["nodes"] = []any{} })
 	f.override(t, "object-7.json", func(d map[string]any) {
 		o := dig(d, "repository", "issueOrPullRequest")
 		o["pullState"], o["mergedAt"], o["closedAt"], o["updatedAt"] = "MERGED", "2026-11-12T08:00:00Z", "2026-11-12T08:00:00Z", "2026-11-12T08:00:00Z"
-		o["headRefOid"], o["statusCheckRollup"] = head, map[string]any{"state": "FAILURE"}
+		o["headRefOid"], o["statusCheckRollup"] = headB, map[string]any{"state": "FAILURE"}
 	})
 	f.override(t, "checks-b.json", func(d map[string]any) {
 		dig(d, "repository", "object")["statusCheckRollup"] = map[string]any{"contexts": map[string]any{
@@ -919,14 +918,45 @@ func TestMiroirAPRWhoseHeadMovedThenMergedWhileAwayKeepsItsLastHeadsChecks(t *te
 				"detailsUrl": "https://github.com/acme/atelier/actions/runs/8", "startedAt": "2026-11-11T09:01:00Z", "completedAt": "2026-11-11T09:05:00Z"}},
 		}}
 	})
+}
 
+const headB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+var mergedPull = []any{map[string]any{"number": 7.0, "headRefOid": headB, "checks": []any{map[string]any{"name": "ci", "conclusion": "FAILURE"}}}}
+
+func listMerged(t *testing.T, dir string) (any, string) {
+	t.Helper()
 	out, stderr, err := runMiroir(t, dir, "pr", "list", "--state", "merged", "--json", "number,headRefOid,statusCheckRollup",
 		"--jq", `[.[] | select(.number == 7) | {number, headRefOid, checks: [.statusCheckRollup[] | {name, conclusion}]}]`)
-	if err != nil || stderr != "" {
+	if err != nil {
 		t.Fatalf("pr list --state merged: %v\n%s", err, stderr)
 	}
-	want := []any{map[string]any{"number": 7.0, "headRefOid": head, "checks": []any{map[string]any{"name": "ci", "conclusion": "FAILURE"}}}}
-	if got := jq(t, []byte(out), "."); !reflect.DeepEqual(got, want) {
-		t.Errorf("pr list --state merged = %v, want %v", got, want)
+	return jq(t, []byte(out), "."), stderr
+}
+
+func TestMiroirAPRWhoseHeadMovedThenMergedWhileAwayKeepsItsLastHeadsChecks(t *testing.T) {
+	f := newMiroirFixture(t)
+	f.mergedWhileAway(t)
+
+	if got, stderr := listMerged(t, githubDir(t)); stderr != "" || !reflect.DeepEqual(got, mergedPull) {
+		t.Errorf("pr list --state merged = %v, stderr %q, want %v", got, stderr, mergedPull)
+	}
+}
+
+func TestMiroirChecksThatFailedToReadAfterAMergeAreReadAtTheNextList(t *testing.T) {
+	f := newMiroirFixture(t)
+	f.mergedWhileAway(t)
+	f.fake.Fail("MirrorChecks", githubtest.BadGateway(), 1)
+	dir := githubDir(t)
+
+	got, stderr := listMerged(t, dir)
+	if !strings.HasPrefix(stderr, "Miroir en retard pour Atelier") {
+		t.Errorf("the first list, its checks unread: stderr %q", stderr)
+	}
+	if reflect.DeepEqual(got, mergedPull) {
+		t.Errorf("the first list answered without its checks read: %v", got)
+	}
+	if got, stderr := listMerged(t, dir); stderr != "" || !reflect.DeepEqual(got, mergedPull) {
+		t.Errorf("the next list = %v, stderr %q, want %v", got, stderr, mergedPull)
 	}
 }

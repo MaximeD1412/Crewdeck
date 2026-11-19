@@ -144,22 +144,33 @@ func (m *Mirror) ReconcileOpen(ctx context.Context, repository string) (Result, 
 		if err != nil {
 			return result, err
 		}
-		if err := m.Store.Update(f.put); err != nil {
+		write := f.put
+		// A PR merged or closed meanwhile may have moved its head first: its
+		// last head's checks are read as an open PR's are, before anything is
+		// written, and written with the object in one transaction. A failed
+		// read leaves the PR open in the copy, so the next walk tries again.
+		if p := f.object.Pull; !f.gone && p != nil && p.HeadOid != "" {
+			if c := local[number]; c.headOid != p.HeadOid || !c.checksRead || c.readState != p.ChecksState {
+				checks, err := m.GitHub.FetchChecks(ctx, repository, p.HeadOid)
+				if errors.Is(err, ErrGone) {
+					checks, err = nil, nil
+				}
+				if err != nil {
+					return result, err
+				}
+				write = func(tx *sql.Tx) error {
+					if err := f.put(tx); err != nil {
+						return err
+					}
+					return PutChecks(tx, repository, p.HeadOid, p.ChecksState, checks)
+				}
+				result.Checks++
+			}
+		}
+		if err := m.Store.Update(write); err != nil {
 			return result, err
 		}
 		result.Fetched++
-		if f.gone || !f.object.IsPull || f.object.Pull.HeadOid == "" {
-			continue
-		}
-		// A PR merged or closed meanwhile may have moved its head first: its
-		// last head's checks are read as an open PR's are.
-		p, c := f.object.Pull, local[number]
-		if c.headOid != p.HeadOid || !c.checksRead || c.readState != p.ChecksState {
-			if err := m.refreshChecks(ctx, repository, number, p.HeadOid, p.ChecksState); err != nil {
-				return result, err
-			}
-			result.Checks++
-		}
 	}
 	if err := m.Store.MarkSynced(repository, m.now()); err != nil {
 		return result, err

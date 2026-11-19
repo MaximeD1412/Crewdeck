@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session — Reprise dans ton terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* Session: title and meta wrap rather than cut; the page behind the panel stacks its cards */
+  .session-title b, .session-meta { white-space: normal; }
+  @media (min-width: 1280px) {
+    .shell--with-panel .layout { display: flex; flex-direction: column; }
+    .shell--with-panel .chips { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : contenu de la session, machine, chemin du worktree et identifiant de session fictifs -->
+<ui-app-shell screen="Session" current="a-toi" decisions="4" ideas="4" designs="2" loops="2">
+  <ui-page-header title="À toi" count="4 Décisions">
+    <ui-button variant="primary" icon="plus">Noter une Idée</ui-button>
+  </ui-page-header>
+  <ui-project-filter>
+    <ui-chip selected count="4">Tous les Projets</ui-chip>
+    <ui-chip count="3">Crewdeck</ui-chip>
+    <ui-chip count="1">Personal OS</ui-chip>
+  </ui-project-filter>
+  <div class="layout">
+    <ui-card title="Décisions" count="4" label="À toi / Décisions" flush>
+      <ui-decision-row tone="neutral" icon="terminal" kind="Repris hors Crewdeck" title="#45 Filtre des Projets" meta="Crewdeck · Code · sur atelier-pc · hier">Rendre la main vérifie ton travail contre le Contrat de l’Étape Code ; Rendre à la Boucle la laisse reprendre #45. #46, qui en dépend, attend.<ui-button slot="actions" size="sm">Rendre la main</ui-button><ui-button slot="actions" size="sm">Rendre à la Boucle</ui-button></ui-decision-row>
+      <ui-decision-row tone="halt" icon="block" kind="Ticket bloqué" title="#42 Connexion GitHub" meta="Crewdeck · Code · il y a 4 min">L’agent ne trouve pas comment tester le renouvellement du jeton.<ui-button slot="actions" size="sm">Ouvrir</ui-button></ui-decision-row>
+      <ui-decision-row tone="caution" icon="shield" kind="Permission demandée" title="Code · #44 Liste des Projets" meta="Crewdeck · session · il y a 2 min">Bash : <code>git push origin feat/44-liste-des-projets</code><ui-button slot="actions" size="sm">Ouvrir</ui-button></ui-decision-row>
+      <ui-decision-row tone="accent" icon="info" kind="Question de l’agent" title="Concevoir · Agenda partagé" meta="Personal OS · session · il y a 3 min">Les membres de la famille voient-ils les agendas des autres en lecture seule ?<ui-button slot="actions" size="sm">Répondre</ui-button></ui-decision-row>
+    </ui-card>
+    <div class="layout-aside">
+      <ui-card title="Boucles en cours" count="2" label="À toi / Boucles en cours">
+        <ui-agent-row projet="Personal OS" ticket="#53 Export du planning" step="en review" engine="Codex" since="depuis 6 min"></ui-agent-row>
+        <ui-agent-row tone="caution" projet="Crewdeck" ticket="#44 Liste des Projets" step="attend ta permission" engine="Claude Code" since="depuis 18 min"></ui-agent-row>
+      </ui-card>
+      <ui-card title="Comptes IA" label="À toi / Comptes IA">
+        <ui-usage-meter label="Claude · 5 h" value="100" detail="16:40"></ui-usage-meter>
+        <ui-usage-meter label="Claude · semaine" value="62">Au rythme actuel, la semaine de Claude tient jusqu’à jeudi.</ui-usage-meter>
+
+      </ui-card>
+    </div>
+  </div>
+  <ui-session slot="panel" title="Code · #45 Filtre des Projets" meta="Crewdeck · Boucle · Claude Code" state="handed-off">
+    <ui-message from="agent"><p>Le filtre garde son état dans l’URL, mais le test de bout en bout ne retrouve pas la puce sélectionnée après le rechargement. J’essaie une autre attente.</p></ui-message>
+    <ui-tool-call tool="Bash" target="pnpm exec nx e2e web -- projets.spec.ts" detail="1 échec"></ui-tool-call>
+    <ui-banner tone="neutral" icon="terminal" title="Reprise hors Crewdeck depuis hier, sur atelier-pc">La commande a été copiée hier à 18:12 ; colle-la dans un terminal d’atelier-pc pour reprendre la Session dans son worktree. La Boucle ne reprend pas #45 ; #46, qui en dépend, attend.</ui-banner>
+    <ui-code-block>cd ~/crewdeck/worktrees/crewdeck/feat-45-filtre-des-projets &amp;&amp; claude --resume 4f1c2a</ui-code-block>
+    <ui-card title="Quand tu as fini" label="Session / Rendre">
+      <div class="stack">
+        <p class="text-sm"><b>Rendre la main</b> : le Contrat de l’Étape Code est vérifié de nouveau sur ton travail, puis le Process continue de là.</p>
+        <p class="text-sm"><b>Rendre à la Boucle</b> : la Boucle reprend #45.</p>
+        <div class="cluster"><ui-button variant="primary" size="sm" icon="check">Rendre la main</ui-button><ui-button size="sm" icon="loop">Rendre à la Boucle</ui-button></div>
+      </div>
+    </ui-card>
+    <ui-composer state="disabled" placeholder="Session reprise dans ton terminal"></ui-composer>
+  </ui-session>
+</ui-app-shell>
+</body>
+</html>

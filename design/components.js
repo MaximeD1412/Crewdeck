@@ -227,7 +227,7 @@
   define("ui-button", (el) => {
     const variant = a(el, "variant", "secondary");
     const state = a(el, "state");
-    const b = h("button", { type: "button", class: `button button--${variant}${a(el, "size") === "sm" ? " button--sm" : ""}${a(el, "wide") != null ? " button--wide" : ""}${state ? ` is-${state}` : ""}`, name: `Button/${cap(variant)}` });
+    const b = h("button", { type: "button", class: `button button--${variant}${a(el, "size") === "sm" ? " button--sm" : ""}${a(el, "wide") != null ? " button--wide" : ""}${state ? ` is-${state}` : ""}`, name: `Button/${cap(variant)}`, "aria-label": a(el, "label"), title: a(el, "label") });
     if (state === "disabled" || state === "loading") b.disabled = true;
     if (state === "loading") b.append(h("span", { class: "spinner", "aria-hidden": "true" }));
     else if (a(el, "icon")) b.append(icon(a(el, "icon"), "icon icon--sm"));
@@ -397,6 +397,53 @@
       ...el.childNodes));
   });
 
+  // <ui-away-summary since="depuis 23:40 · il y a 9 h"><ui-away-row projet="Personal OS" merged="3" blocked="0" raised="5" settled="1" spend="2,40 € de Codex" window="1,2 fenêtre de Claude"></ui-away-row>…</ui-away-summary>
+  // « Depuis ta dernière visite » (US-114): one row per Projet, each figure a link to what it counts; « Fermer » closes it.
+  // spend and window are written as shown, each with its Compte IA (« 2,40 € de Codex », « 1,2 fenêtre de Claude »).
+  define("ui-away-summary", (el) => {
+    const th = (t, cls) => h("th", { scope: "col", class: cls, text: t });
+    el.append(h("section", { class: "away", "aria-label": "À toi / Depuis ta dernière visite", name: "AwaySummary/Default" },
+      h("div", { class: "away-head" },
+        h("span", { class: "row-icon" }, icon("clock")),
+        h("div", { class: "away-titles" }, h("h2", { class: "away-title", text: "Depuis ta dernière visite" }), h("span", { class: "away-since", text: a(el, "since") })),
+        h("ui-icon-button", { icon: "x", label: "Fermer « Depuis ta dernière visite »" })),
+      h("table", { class: "away-table" },
+        h("thead", {}, h("tr", {}, th("Projet", "away-projet"), th("Tickets mergés"), th("Tickets bloqués"), th("Décisions levées"), th("Décisions réglées"), th("Dépense", "away-spend"))),
+        h("tbody", {}, ...el.childNodes))));
+  });
+  define("ui-away-row", (el) => {
+    const cell = (n, tone, label) => {
+      const v = a(el, n, "0");
+      return h("td", { class: "away-num", "data-label": label }, v === "0" ? h("span", { class: "away-zero", text: "0" }) : h("a", { href: "#", class: `away-link away-link--${tone}`, text: v }));
+    };
+    const spend = a(el, "spend"), win = a(el, "window");
+    el.append(h("tr", { name: "AwayRow/Default" },
+      h("th", { scope: "row", class: "away-projet", text: a(el, "projet") }),
+      cell("merged", "go", "Tickets mergés"), cell("blocked", "halt", "Tickets bloqués"), cell("raised", "caution", "Décisions levées"), cell("settled", "neutral", "Décisions réglées"),
+      h("td", { class: "away-spend", "data-label": "Dépense" }, spend || win ? h("a", { href: "#", class: "away-link" },
+        spend ? h("span", { text: spend }) : null,
+        win ? h("small", { text: win }) : null) : null)));
+  });
+
+  // <ui-spend-row step="Review" role="Review · Codex · clé API" value="35,20 €" share="98" retours="52"></ui-spend-row>
+  // An Étape's spend over the period (US-115). The bar's length is the Étape's share of its Compte IA's total over the
+  // period (share, in %), so the rows of one Compte compare; inside it, the first passes (accent) and the Retours (caution).
+  define("ui-spend-row", (el) => {
+    const r = el.hasAttribute("retours") ? Number(a(el, "retours")) : 0;
+    const share = Number(a(el, "share", "100"));
+    const first = h("i", { class: "spend-fill" });
+    first.style.width = `${share * (100 - r) / 100}%`;
+    const back = h("i", { class: "spend-fill spend-fill--retours" });
+    back.style.width = `${share * r / 100}%`;
+    const label = `${share} % du total du Compte IA` + (r ? `, dont ${r} % en Retours` : ", sans Retour");
+    el.append(h("div", { class: "spend", name: "SpendRow/Default" },
+      h("div", { class: "spend-text" }, h("b", { class: "spend-step", text: a(el, "step") }), h("span", { class: "spend-role", text: a(el, "role") })),
+      h("span", { class: "spend-value", text: a(el, "value") }),
+      h("div", { class: "spend-bar" },
+        h("div", { class: "spend-track", role: "img", "aria-label": label }, first, r ? back : null),
+        h("span", { class: `spend-retours${r ? " spend-retours--on" : ""}`, text: `${share} %` + (r ? ` · dont Retours ${r} %` : " · sans Retour") }))));
+  });
+
   const CHECK = { passed: ["go", "check"], failed: ["halt", "x"], running: ["accent", null], pending: ["neutral", "clock"] };
   // <ui-check-row name="Tests" state="passed" detail="412 tests · 2 min 10 s"></ui-check-row>
   define("ui-check-row", (el) => {
@@ -469,23 +516,30 @@
   });
 
   // 05 Session (US-9) -------------------------------------------------------------
-  const SESSION = { active: ["go", "active"], waiting: ["caution", "attend ta réponse"], stopped: ["neutral", "arrêtée"], interrupted: ["caution", "interrompue"], failed: ["halt", "échouée"] };
-  // <ui-session title="…" meta="…" state="active|waiting|stopped|interrupted" resume-disabled resume-label="Relancer" resume-icon="refresh">messages… <ui-composer></ui-composer></ui-session>
+  const SESSION = { active: ["go", "active"], waiting: ["caution", "attend ta réponse"], stopped: ["neutral", "arrêtée"], interrupted: ["caution", "interrompue"], failed: ["halt", "échouée"], "handed-off": ["neutral", "reprise hors Crewdeck"] };
+  // <ui-session title="…" meta="…" state="active|waiting|stopped|interrupted|failed|handed-off" resume-disabled resume-label="Relancer" resume-icon="refresh" no-terminal no-resume>messages… <ui-composer></ui-composer></ui-session>
+  // The actions take a row under the title: « Arrêter » or « Reprendre » (none with no-resume, when a Banner of the stream offers the choices:
+  // a Session sans progrès), then « Continuer dans mon terminal » (US-113, on every agent Session; none on a Commande, no-terminal); none once handed off.
   define("ui-session", (el) => {
     const state = a(el, "state", "active");
     const [tone, label] = SESSION[state];
     const composer = [...el.children].filter((c) => c.tagName === "UI-COMPOSER" || c.getAttribute("slot") === "footer");
     const kids = rest(el).filter((n) => !composer.includes(n));
+    const off = el.hasAttribute("resume-disabled") ? "disabled" : null;
+    const ended = state === "stopped" || state === "interrupted" || state === "failed";
+    const actions = state === "handed-off" ? [] : [
+      el.hasAttribute("no-resume") ? null : ended ? h("ui-button", { size: "sm", icon: a(el, "resume-icon", "play"), variant: "secondary", state: off }, a(el, "resume-label", "Reprendre")) : h("ui-button", { size: "sm", icon: "stop", variant: "secondary" }, "Arrêter"),
+      el.hasAttribute("no-terminal") ? null : h("ui-button", { size: "sm", icon: "terminal", class: "session-terminal", state: off }, "Continuer dans mon terminal"),
+    ].filter(Boolean);
     el.append(h("section", { class: `session session--${state}`, "aria-label": "Session / Conversation", name: "Session/Default" },
       h("header", { class: "session-head", "aria-label": "Session / En-tête" },
         h("ui-icon-button", { icon: "arrow-left", label: "Retour", class: "session-back" }),
         h("div", { class: "session-titles" },
           h("div", { class: "session-title" }, h("span", { class: `dot dot--${tone}${state === "active" ? " dot--pulse" : ""}` }), h("b", { text: a(el, "title") })),
           h("div", { class: "session-meta" }, h("span", { text: label }), ` · ${a(el, "meta")}`)),
-        h("div", { class: "session-head-actions" },
-          state === "stopped" || state === "interrupted" || state === "failed" ? h("ui-button", { size: "sm", icon: a(el, "resume-icon", "play"), variant: "secondary", state: el.hasAttribute("resume-disabled") ? "disabled" : null }, a(el, "resume-label", "Reprendre")) : h("ui-button", { size: "sm", icon: "stop", variant: "secondary" }, "Arrêter"),
-          h("ui-icon-button", { icon: "expand", label: "Agrandir", class: "only-wide" }),
-          h("ui-icon-button", { icon: "x", label: "Fermer", class: "only-wide" }))),
+        h("ui-icon-button", { icon: "expand", label: "Agrandir", class: "only-wide" }),
+        h("ui-icon-button", { icon: "x", label: "Fermer", class: "only-wide" }),
+        actions.length ? h("div", { class: "session-head-actions" }, ...actions) : null),
       h("div", { class: "session-crypto" }, icon("lock", "icon icon--sm"), "Chiffrée de bout en bout entre ton Runner et ce navigateur"),
       h("div", { class: "session-stream" }, ...kids),
       ...composer));

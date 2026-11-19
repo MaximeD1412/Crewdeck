@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statistiques — Dépense par Étape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .stats-table thead { display: none; }
+  .stats-table tr { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+  .stats-table tr:last-child { border-bottom: 0; }
+  .stats-table td { display: inline; padding: 0; border: 0; text-align: left; font: var(--font-meta-weight) var(--font-meta-size)/var(--font-meta-line-height) var(--font-meta-family), monospace; color: var(--ink-2); }
+  .stats-table td:first-child { flex-basis: 100%; font: var(--font-title-weight) var(--font-label-size)/var(--font-title-line-height) var(--font-title-family), sans-serif; margin-bottom: var(--space-1); }
+  .stats-table td.num { text-align: left; }
+  .stats-table td[data-label]::before { content: attr(data-label) " "; color: var(--muted); }
+  @media (min-width: 1280px) {
+    .stats-table thead { display: table-header-group; }
+    .stats-table tr { display: table-row; }
+    .stats-table td { display: table-cell; padding: var(--space-3); border-bottom: 1px solid var(--line); }
+    .stats-table tr:last-child td { border-bottom: 0; }
+    .stats-table td.num { text-align: right; }
+    .stats-table td:first-child { margin: 0; }
+    .stats-table td[data-label]::before { content: none; }
+  }
+  .spend-total { margin: 0 0 var(--space-4); color: var(--ink-2); display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); align-items: center; }
+  .spend-total b { color: var(--ink); font-family: var(--font-mono-family), monospace; font-weight: var(--font-label-weight); }
+  .spend-legend { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--muted); }
+  .spend-key { display: inline-block; width: var(--space-3); height: var(--bar); border-radius: var(--radius-full); background: var(--accent); }
+  .spend-key--retours { background: var(--caution); margin-left: var(--space-2); }
+</style>
+</head>
+<body>
+<!-- exemple : tous les chiffres, Projets et périodes sont fictifs -->
+<ui-app-shell screen="Statistiques" current="statistiques" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Statistiques" count="30 derniers jours"></ui-page-header>
+  <ui-project-filter>
+    <ui-chip>Tous les Projets</ui-chip>
+    <ui-chip>Crewdeck</ui-chip>
+    <ui-chip selected>Personal OS</ui-chip>
+    <ui-chip>Site mairie</ui-chip>
+  </ui-project-filter>
+  <ui-tabs>
+    <ui-tab>7 jours</ui-tab>
+    <ui-tab selected>30 jours</ui-tab>
+    <ui-tab>90 jours</ui-tab>
+  </ui-tabs>
+  <section class="grid-4" aria-label="Statistiques / Personal OS" data-name="Statistiques / Personal OS">
+    <ui-stat label="Délai Idée → merge" value="2,9" unit="j" detail="médiane · 22 Tickets"></ui-stat>
+    <ui-stat label="Réussite de la Boucle" value="91" unit="%" detail="mergés sans intervention, sur pris"></ui-stat>
+    <ui-stat label="Tickets bloqués" value="5" unit="%" detail="au moins une fois · 1 sur 22"></ui-stat>
+    <ui-stat label="Coût par Ticket" value="1,60" unit="€" detail="Codex · clé API"><span class="stat-detail">Claude · 0,13 fenêtre</span></ui-stat>
+  </section>
+  <ui-card title="Dépense par Étape" label="Statistiques / Dépense par Étape">
+    <p class="text-sm spend-total"><b>36,04 €</b> sur la clé API de Codex · <b>2,8 fenêtres de 5 h</b> de Claude · <span class="spend-legend"><i class="spend-key"></i>premiers passages <i class="spend-key spend-key--retours"></i>Retours</span></p>
+    <div class="spend-group" role="group" aria-label="Phase Idée">
+      <h3 class="section-label">Idée</h3>
+      <ui-spend-row step="Analyse de l’Idée" role="Idée · Claude Code · Sonnet 5.5" value="0,2 fenêtre" share="7"></ui-spend-row>
+    </div>
+    <div class="spend-group" role="group" aria-label="Phase Conception">
+      <h3 class="section-label">Conception</h3>
+      <ui-spend-row step="PRD" role="Conception · Claude Code · Opus 5.5" value="0,4 fenêtre" share="14" retours="12"></ui-spend-row>
+      <ui-spend-row step="Revue croisée du PRD" role="Review · Codex · clé API" value="0,84 €" share="2"></ui-spend-row>
+      <ui-spend-row step="Maquettes" role="Conception · Claude Code · Opus 5.5" value="0,6 fenêtre" share="21" retours="30"></ui-spend-row>
+      <ui-spend-row step="Conception technique" role="Conception · Claude Code · Opus 5.5" value="0,3 fenêtre" share="11"></ui-spend-row>
+      <ui-spend-row step="Découpage en Tickets" role="Conception · Claude Code · Opus 5.5" value="0,2 fenêtre" share="7"></ui-spend-row>
+    </div>
+    <div class="spend-group" role="group" aria-label="Phase Développement">
+      <h3 class="section-label">Développement · pour chaque Ticket</h3>
+      <ui-spend-row step="Code" role="Code · Claude Code · Opus 5.5" value="1,1 fenêtre" share="39" retours="41"></ui-spend-row>
+      <ui-spend-row step="Review" role="Review · Codex · clé API" value="35,20 €" share="98" retours="52"></ui-spend-row>
+    </div>
+  </ui-card>
+  <p class="text-sm muted">Dépense : en euros pour une clé API ; pour un abonnement, en fenêtres de 5 h utilisées. Chaque barre : la part de l’Étape dans le total de son Compte IA. Retours : la part de la dépense de l’Étape faite après un Retour, comme une Review qui renvoie le Code. Les approbations, les Checks et le Merge n’utilisent pas tes Comptes IA.</p>
+</ui-app-shell>
+</body>
+</html>

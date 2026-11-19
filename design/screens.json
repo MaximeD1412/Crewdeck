@@ -162,7 +162,10 @@
         "US-55",
         "US-68",
         "US-95",
-        "US-105"
+        "US-105",
+        "US-112",
+        "US-113",
+        "US-114"
       ],
       "html": "design/screens/crewdeck/a-toi.html",
       "captures": {
@@ -213,6 +216,15 @@
           "captures": {
             "390": "design/screens/crewdeck/a-toi-process-390.png",
             "1280": "design/screens/crewdeck/a-toi-process-1280.png"
+          }
+        },
+        {
+          "id": "depuis-derniere-visite",
+          "title": "« Depuis ta dernière visite », Session sans progrès et Ticket repris hors Crewdeck",
+          "html": "design/screens/crewdeck/a-toi-depuis-derniere-visite.html",
+          "captures": {
+            "390": "design/screens/crewdeck/a-toi-depuis-derniere-visite-390.png",
+            "1280": "design/screens/crewdeck/a-toi-depuis-derniere-visite-1280.png"
           }
         }
       ]
@@ -334,7 +346,9 @@
         "US-9",
         "US-57",
         "US-60",
-        "US-104"
+        "US-104",
+        "US-112",
+        "US-113"
       ],
       "html": "design/screens/crewdeck/session.html",
       "captures": {
@@ -385,6 +399,24 @@
           "captures": {
             "390": "design/screens/crewdeck/session-commande-390.png",
             "1280": "design/screens/crewdeck/session-commande-1280.png"
+          }
+        },
+        {
+          "id": "sans-progres",
+          "title": "Session sans progrès",
+          "html": "design/screens/crewdeck/session-sans-progres.html",
+          "captures": {
+            "390": "design/screens/crewdeck/session-sans-progres-390.png",
+            "1280": "design/screens/crewdeck/session-sans-progres-1280.png"
+          }
+        },
+        {
+          "id": "terminal",
+          "title": "Reprise dans ton terminal",
+          "html": "design/screens/crewdeck/session-terminal.html",
+          "captures": {
+            "390": "design/screens/crewdeck/session-terminal-390.png",
+            "1280": "design/screens/crewdeck/session-terminal-1280.png"
           }
         }
       ]
@@ -662,13 +694,25 @@
       "title": "Statistiques",
       "prd": "docs/product/prd.md",
       "stories": [
-        "US-61"
+        "US-61",
+        "US-115"
       ],
       "html": "design/screens/crewdeck/statistiques.html",
       "captures": {
         "390": "design/screens/crewdeck/statistiques-390.png",
         "1280": "design/screens/crewdeck/statistiques-1280.png"
-      }
+      },
+      "states": [
+        {
+          "id": "par-etape",
+          "title": "Dépense par Étape d’un Projet",
+          "html": "design/screens/crewdeck/statistiques-par-etape.html",
+          "captures": {
+            "390": "design/screens/crewdeck/statistiques-par-etape-390.png",
+            "1280": "design/screens/crewdeck/statistiques-par-etape-1280.png"
+          }
+        }
+      ]
     },
     {
       "id": "runner",
@@ -714,7 +758,8 @@
         "US-82",
         "US-39",
         "US-18",
-        "US-62"
+        "US-62",
+        "US-112"
       ],
       "html": "design/screens/crewdeck/parametres.html",
       "captures": {
@@ -729,7 +774,8 @@
       "stories": [
         "US-82",
         "US-39",
-        "US-93"
+        "US-93",
+        "US-112"
       ],
       "html": "design/screens/crewdeck/parametres-projet.html",
       "captures": {

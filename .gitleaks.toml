@@ -98,3 +98,21 @@ regexTarget = "secret"
 regexes = [
   '''^ABCDEFGHJKMNPQRSTVWXYZ0120$''',
 ]
+
+[[allowlists]]
+description = "Made-up keys of a Local Projet's report in the tests of local.changed (SOURCE-3)"
+# The key of an unreadable file is the bytes 0 to 15 in base64url (and, too
+# long by one byte, 0 to 16), shared by the tests of the contracts, the page
+# and the server. The wrapped keys of packages/contracts/fixtures/runner/
+# local.changed.json are sealed under the test vault key of
+# fixtures/crypto/item.json by apps/runner/internal/keys/generate_test.go: never
+# a real key. Only these exact values are excepted, not the files.
+regexTarget = "secret"
+regexes = [
+  '''^AAECAwQFBgcICQoLDA0OD(w|xA)$''',
+  '''^9uAOnLoBKi7x9hJ2poPd4x-sjxnkGf75zcYkoJIukCAHkiI-bHZ-tlsX-2uxCciHXB4OgmimK0SwynRx$''',
+  '''^0KomP1kJL2l7guz4VR3QRaPEHM4XRlub9PakLDfq5oXrUSasME7FvBJRn8oc9OdU9NcM8qrMzpTomx0k$''',
+  '''^8WbBXyPW57xCaUe7wKLo8lUE7Gbmegm8icn_M_rbZ1H0On6IlM62o2Qh-gsMADOjmbX1EFzI0bh1P4AM$''',
+  '''^35AiKXomuTA5rYJWaFkb5QVx7vOEoXgadw_287DUNM2h5V9mLzsJFeeXm2NLL6H61VtXURHdz2Q47fhB$''',
+  '''^Rrw8v9I9YnvaFi_9fdhYypVMXhe5gCO3cFeadl-xYmk-YAWDOI0SLNttBqjqPmtMFxwz0RzSCH_zincA$''',
+]

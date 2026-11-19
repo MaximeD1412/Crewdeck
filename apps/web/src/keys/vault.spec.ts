@@ -1,4 +1,4 @@
-import { type VaultKeyWrap, folderCheckedAad, zFolderCheckResult } from '@crewdeck/contracts';
+import { type VaultKeyWrap, folderCheckedAad, stepReportAad, zFolderCheckResult } from '@crewdeck/contracts';
 import { server } from 'vitest/browser';
 import { vaultWrapAad } from '@crewdeck/contracts';
 import { fromBase64Url, toBase64Url, utf8 } from './bytes.js';
@@ -80,6 +80,20 @@ describe('the vault', () => {
       branch: 'main',
       name: 'recettes',
     });
+  });
+
+  it('opens the free text of an Étape’s report the Runner sealed under its StepRun', async () => {
+    const { vault } = await setUp();
+    const { items } = await vectors();
+    await vault.unlockVault();
+    const item = items.find((i) => i.name === 'step-report');
+    if (!item) throw new Error('item.json lacks step-report');
+    const sealed = { key: fromBase64Url(item.key), ciphertext: fromBase64Url(item.ciphertext) };
+
+    const opened = await vault.openItem(sealed, utf8(stepReportAad('019a6f00-0000-7000-8000-0000000000c1')));
+
+    expect(new TextDecoder().decode(opened)).toBe('Les tests du panier passent ; le cas du panier vide reste à écrire.');
+    await expect(vault.openItem(sealed, utf8(stepReportAad('019a6f00-0000-7000-8000-0000000000c2')))).rejects.toThrow();
   });
 
   it('opens an item only with its own additional data', async () => {

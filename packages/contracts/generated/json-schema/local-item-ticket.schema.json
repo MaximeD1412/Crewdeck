@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "blockedBy": {
+      "items": {
+        "exclusiveMinimum": 0,
+        "maximum": 9007199254740991,
+        "type": "integer"
+      },
+      "maxItems": 500,
+      "type": "array"
+    },
+    "branchPrefix": {
+      "enum": [
+        "feat",
+        "fix",
+        "chore"
+      ],
+      "type": "string"
+    },
+    "closedAt": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "contentHash": {
+      "pattern": "^v[1-9][0-9]*\\.[A-Za-z0-9_-]{43}$",
+      "type": "string"
+    },
+    "createdAt": {
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+      "type": "string"
+    },
+    "kind": {
+      "const": "ticket",
+      "type": "string"
+    },
+    "labels": {
+      "items": {
+        "pattern": "^(priority:.+|size:.+|ready-for-agent|needs-human)$",
+        "type": "string"
+      },
+      "maxItems": 100,
+      "type": "array"
+    },
+    "labelsSealed": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "ciphertext": {
+              "pattern": "^[A-Za-z0-9_-]*$",
+              "type": "string"
+            },
+            "key": {
+              "pattern": "^[A-Za-z0-9_-]*$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "ciphertext",
+            "key"
+          ],
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "milestoneRank": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "number": {
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "type": "integer"
+    },
+    "observedAt": {
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+      "type": "string"
+    },
+    "parent": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "readyMark": {
+      "type": "boolean"
+    },
+    "state": {
+      "enum": [
+        "open",
+        "closed"
+      ],
+      "type": "string"
+    },
+    "stateReason": {
+      "anyOf": [
+        {
+          "enum": [
+            "completed",
+            "not_planned"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "titleSealed": {
+      "additionalProperties": false,
+      "properties": {
+        "ciphertext": {
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "key": {
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ciphertext",
+        "key"
+      ],
+      "type": "object"
+    },
+    "updatedAt": {
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+      "type": "string"
+    },
+    "visualReview": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "blockedBy",
+    "branchPrefix",
+    "closedAt",
+    "contentHash",
+    "createdAt",
+    "kind",
+    "labels",
+    "labelsSealed",
+    "milestoneRank",
+    "number",
+    "observedAt",
+    "parent",
+    "readyMark",
+    "state",
+    "stateReason",
+    "titleSealed",
+    "updatedAt",
+    "visualReview"
+  ],
+  "title": "LocalItemTicket",
+  "type": "object"
+}

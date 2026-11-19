@@ -77,6 +77,9 @@ const (
 	TypeMigrationSwitch   = "migration.switch"
 	TypeMigrationFinished = "migration.finished"
 	TypeMigrationFailed   = "migration.failed"
+	// A Local Projet's folder (SOURCE-3, ADR 0012): what changed in it, its
+	// texts sealed under the vault key.
+	TypeLocalChanged = "local.changed"
 )
 
 // Machine is what the Runner says of itself in its hello.
@@ -240,6 +243,19 @@ func NewProjectsFolders(present []string) contracts.RunnerProjectsFolders {
 		present = []string{}
 	}
 	return contracts.RunnerProjectsFolders{Type: TypeProjectsFolders, Id: newID(at), At: at, Present: present}
+}
+
+// NewLocalChanged reports what changed in a Local Projet's folder, every
+// item when full (once per connection).
+func NewLocalChanged(projectID string, full bool, items []contracts.LocalItem, unreadable []contracts.RunnerLocalChangedUnreadableElem) contracts.RunnerLocalChanged {
+	at := now()
+	if items == nil {
+		items = []contracts.LocalItem{}
+	}
+	if unreadable == nil {
+		unreadable = []contracts.RunnerLocalChangedUnreadableElem{}
+	}
+	return contracts.RunnerLocalChanged{Type: TypeLocalChanged, Id: newID(at), At: at, ProjectId: projectID, Full: full, Items: items, Unreadable: unreadable}
 }
 
 // NewCommandStarted says the run's process started.

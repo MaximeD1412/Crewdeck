@@ -6,6 +6,7 @@ import { runnerMessage } from './envelope.js';
 import { zFolderCheckMessage, zFolderChecked, zProjectFolderAttach, zProjectsFolders } from './folders.js';
 import { zHeartbeat, zHeartbeatAck } from './heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './hello.js';
+import { zLocalChanged } from './local.js';
 import { zMcpServers } from './mcp.js';
 import { zMigrationCopy, zMigrationFailed, zMigrationFinish, zMigrationFinished, zMigrationProgress, zMigrationSwitch } from './migration.js';
 import { zSessionAnswered, zSessionResume, zSessionStart, zSessionStateMessage, zSessionStop, zSessionWaiting } from './session.js';
@@ -43,7 +44,7 @@ export const zProtocolError = runnerMessage('error', { code: zErrorCode });
 export type ProtocolError = z.infer<typeof zProtocolError>;
 
 /** Every message the Runner sends. */
-export const zRunnerToServer = z.discriminatedUnion('type', [zHello, zHeartbeat, zCapabilities, zMcpServers, zStepVerdict, zMirrorToken, zSessionStateMessage, zSessionWaiting, zSessionAnswered, zSessionKeys, zRelay, zFolderChecked, zProjectsFolders, zCommandStarted, zCommandVerdict, zCommandKeys, zCommandOutput, zUsage, zMigrationProgress, zMigrationSwitch, zMigrationFinished, zMigrationFailed]);
+export const zRunnerToServer = z.discriminatedUnion('type', [zHello, zHeartbeat, zCapabilities, zMcpServers, zStepVerdict, zMirrorToken, zSessionStateMessage, zSessionWaiting, zSessionAnswered, zSessionKeys, zRelay, zFolderChecked, zProjectsFolders, zCommandStarted, zCommandVerdict, zCommandKeys, zCommandOutput, zUsage, zMigrationProgress, zMigrationSwitch, zMigrationFinished, zMigrationFailed, zLocalChanged]);
 export type RunnerToServer = z.infer<typeof zRunnerToServer>;
 export type RunnerToServerType = RunnerToServer['type'];
 

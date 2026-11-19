@@ -1,0 +1,518 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "at": {
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+      "type": "string"
+    },
+    "full": {
+      "type": "boolean"
+    },
+    "id": {
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "goJSONSchema": {
+          "type": "LocalItem"
+        },
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "blockedBy": {
+                "items": {
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "type": "integer"
+                },
+                "maxItems": 500,
+                "type": "array"
+              },
+              "branchPrefix": {
+                "enum": [
+                  "feat",
+                  "fix",
+                  "chore"
+                ],
+                "type": "string"
+              },
+              "closedAt": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contentHash": {
+                "pattern": "^v[1-9][0-9]*\\.[A-Za-z0-9_-]{43}$",
+                "type": "string"
+              },
+              "createdAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "type": "string"
+              },
+              "kind": {
+                "const": "ticket",
+                "type": "string"
+              },
+              "labels": {
+                "items": {
+                  "pattern": "^(priority:.+|size:.+|ready-for-agent|needs-human)$",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              "labelsSealed": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "ciphertext": {
+                        "pattern": "^[A-Za-z0-9_-]*$",
+                        "type": "string"
+                      },
+                      "key": {
+                        "pattern": "^[A-Za-z0-9_-]*$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "ciphertext",
+                      "key"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "milestoneRank": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "number": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer"
+              },
+              "observedAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "type": "string"
+              },
+              "parent": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "readyMark": {
+                "type": "boolean"
+              },
+              "state": {
+                "enum": [
+                  "open",
+                  "closed"
+                ],
+                "type": "string"
+              },
+              "stateReason": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "completed",
+                      "not_planned"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "titleSealed": {
+                "additionalProperties": false,
+                "properties": {
+                  "ciphertext": {
+                    "pattern": "^[A-Za-z0-9_-]*$",
+                    "type": "string"
+                  },
+                  "key": {
+                    "pattern": "^[A-Za-z0-9_-]*$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ciphertext",
+                  "key"
+                ],
+                "type": "object"
+              },
+              "updatedAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "type": "string"
+              },
+              "visualReview": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "blockedBy",
+              "branchPrefix",
+              "closedAt",
+              "contentHash",
+              "createdAt",
+              "kind",
+              "labels",
+              "labelsSealed",
+              "milestoneRank",
+              "number",
+              "observedAt",
+              "parent",
+              "readyMark",
+              "state",
+              "stateReason",
+              "titleSealed",
+              "updatedAt",
+              "visualReview"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "ticket-removed",
+                "type": "string"
+              },
+              "number": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer"
+              },
+              "observedAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "number",
+              "observedAt"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "dueOn": {
+                "anyOf": [
+                  {
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "goJSONSchema": {
+                  "type": "*string"
+                }
+              },
+              "kind": {
+                "const": "milestone",
+                "type": "string"
+              },
+              "observedAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "type": "string"
+              },
+              "rank": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer"
+              },
+              "titleSealed": {
+                "additionalProperties": false,
+                "properties": {
+                  "ciphertext": {
+                    "pattern": "^[A-Za-z0-9_-]*$",
+                    "type": "string"
+                  },
+                  "key": {
+                    "pattern": "^[A-Za-z0-9_-]*$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ciphertext",
+                  "key"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "dueOn",
+              "kind",
+              "observedAt",
+              "rank",
+              "titleSealed"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "milestone-removed",
+                "type": "string"
+              },
+              "rank": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "kind",
+              "rank"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "baseRef": {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              "closedAt": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "createdAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "type": "string"
+              },
+              "headSha": {
+                "anyOf": [
+                  {
+                    "pattern": "^[0-9a-f]{40}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "kind": {
+                "const": "change",
+                "type": "string"
+              },
+              "mergeSha": {
+                "anyOf": [
+                  {
+                    "pattern": "^[0-9a-f]{40}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "mergedAt": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "number": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer"
+              },
+              "observedAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "draft",
+                  "open",
+                  "merged",
+                  "closed"
+                ],
+                "type": "string"
+              },
+              "ticketNumber": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "titleSealed": {
+                "additionalProperties": false,
+                "properties": {
+                  "ciphertext": {
+                    "pattern": "^[A-Za-z0-9_-]*$",
+                    "type": "string"
+                  },
+                  "key": {
+                    "pattern": "^[A-Za-z0-9_-]*$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ciphertext",
+                  "key"
+                ],
+                "type": "object"
+              },
+              "updatedAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "baseRef",
+              "closedAt",
+              "createdAt",
+              "headSha",
+              "kind",
+              "mergeSha",
+              "mergedAt",
+              "number",
+              "observedAt",
+              "state",
+              "ticketNumber",
+              "titleSealed",
+              "updatedAt"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 20000,
+      "type": "array"
+    },
+    "projectId": {
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+      "type": "string"
+    },
+    "type": {
+      "const": "local.changed",
+      "type": "string"
+    },
+    "unreadable": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "pattern": "^[A-Za-z0-9_-]*$",
+            "type": "string"
+          },
+          "pathSealed": {
+            "additionalProperties": false,
+            "properties": {
+              "ciphertext": {
+                "pattern": "^[A-Za-z0-9_-]*$",
+                "type": "string"
+              },
+              "key": {
+                "pattern": "^[A-Za-z0-9_-]*$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "ciphertext",
+              "key"
+            ],
+            "type": "object"
+          },
+          "reason": {
+            "enum": [
+              "front-matter",
+              "duplicate-number"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "pathSealed",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "maxItems": 20000,
+      "type": "array"
+    }
+  },
+  "required": [
+    "at",
+    "full",
+    "id",
+    "items",
+    "projectId",
+    "type",
+    "unreadable"
+  ],
+  "title": "RunnerLocalChanged",
+  "type": "object"
+}

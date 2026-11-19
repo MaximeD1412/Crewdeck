@@ -21,9 +21,12 @@ import { ListRow } from './list-row.js';
 import { LoopBack } from './loop-back.js';
 import { Menu } from './menu.js';
 import { Message } from './message.js';
+import { NoteIdeaDialog } from './note-idea-dialog.js';
 import { PageAToi } from './page-a-toi.js';
+import { PageIdees } from './page-idees.js';
 import { PageComposants } from './page-composants.js';
 import { PageConnexion } from './page-connexion.js';
+import { PageConnexionLien } from './page-connexion-lien.js';
 import { PageDemarrage } from './page-demarrage.js';
 import { PageParametres } from './page-parametres.js';
 import { PageHeader } from './page-header.js';
@@ -60,6 +63,7 @@ import { Toast } from './toast.js';
 import { Toggle } from './toggle.js';
 import { ToolCall } from './tool-call.js';
 import { ToolChip } from './tool-chip.js';
+import { UsageCard } from './usage-card.js';
 import { UsageMeter } from './usage-meter.js';
 
 export * from './action.js';
@@ -88,9 +92,12 @@ export * from './list-row.js';
 export * from './loop-back.js';
 export * from './menu.js';
 export * from './message.js';
+export * from './note-idea-dialog.js';
 export * from './page-a-toi.js';
+export * from './page-idees.js';
 export * from './page-composants.js';
 export * from './page-connexion.js';
+export * from './page-connexion-lien.js';
 export * from './page-demarrage.js';
 export * from './page-parametres.js';
 export * from './page-header.js';
@@ -129,6 +136,7 @@ export * from './toggle.js';
 export * from './tone.js';
 export * from './tool-call.js';
 export * from './tool-chip.js';
+export * from './usage-card.js';
 export * from './usage-meter.js';
 
 /**
@@ -142,8 +150,10 @@ export const COMPOSANTS = {
   PageHeader,
   ProjectFilter,
   PageAToi,
+  PageIdees,
   PageComposants,
   PageConnexion,
+  PageConnexionLien,
   PageDemarrage,
   PageParametres,
   PageIntrouvable,
@@ -166,6 +176,7 @@ export const COMPOSANTS = {
   SettingRow,
   DecisionRow,
   IdeaRow,
+  NoteIdeaDialog,
   TicketRow,
   AgentRow,
   ProcessTrack,
@@ -176,6 +187,7 @@ export const COMPOSANTS = {
   ToolChip,
   LoopBack,
   UsageMeter,
+  UsageCard,
   Stat,
   CheckRow,
   Capture,

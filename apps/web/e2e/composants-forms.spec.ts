@@ -154,7 +154,8 @@ test.describe('the form Composants and the Dialog in the library (UI-4)', () => 
       await expect(page.getByRole('combobox', { name: 'Composant', exact: true })).toBeHidden();
       const search = page.getByRole('textbox', { name: 'Chercher un Composant' });
       await search.fill('DIALÔG');
-      await expect(catalogue.getByRole('link')).toHaveText(['Dialog']);
+      // Case and accents aside, the name holds the search: « NoteIdeaDialog » (IDEE-1) too.
+      await expect(catalogue.getByRole('link')).toHaveText(['Dialog', 'NoteIdeaDialog']);
       // The core's ConfirmDialog follows the search too, a row without a link (CORE-7).
       await expect(catalogue.getByRole('heading', { level: 2 })).toHaveText([/^Parties de page/, /^Signaux et contrôles/]);
       await expect(catalogue).toContainText('ConfirmDialog');

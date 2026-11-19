@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"sync/atomic"
 	"syscall"
@@ -23,6 +25,10 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/update"
 	"github.com/spf13/cobra"
 )
+
+// sessionsGitHubURL is where the Sessions clone the GitHub repositories
+// from; empty, GitHub. Only the smoke build changes it (smoke.go).
+var sessionsGitHubURL = ""
 
 const notLinked = "Ce Runner n’est relié à aucun compte : relie-le avec la commande que donne Crewdeck, crewdeck-runner link <code>."
 
@@ -47,10 +53,6 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	if err != nil {
 		return err
 	}
-	relay, err := relayKeys(store)
-	if err != nil {
-		return err
-	}
 	if server != "" {
 		linked.Server = server
 	}
@@ -65,6 +67,13 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	}
 	logger := logging.New(cmd.ErrOrStderr())
 	logger.Info("vault.opened", "vaultKeyVersion", vault.Version)
+	// The holders of the Sessions' keys, read again from the server at each wrap.
+	relay, err := relayKeys(store, serverHolders(&http.Client{Timeout: holdersTimeout}, linked.Server, linked.Token), func(err error) {
+		logger.Warn("session.holders", "error", err)
+	})
+	if err != nil {
+		return err
+	}
 	keys, err := accounts.Default()
 	if err != nil {
 		return err
@@ -88,26 +97,33 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	defer closeMirror()
 	// The client of the current connection: a new one after each update attempt.
 	var current atomic.Pointer[protocol.Client]
+	send := func(ctx context.Context, m any) error {
+		client := current.Load()
+		if client == nil {
+			return protocol.ErrNotConnected
+		}
+		return client.Send(ctx, m)
+	}
 	reporter := &accounts.Reporter{
-		Send: func(ctx context.Context, m contracts.RunnerCapabilities) error {
-			client := current.Load()
-			if client == nil {
-				return protocol.ErrNotConnected
-			}
-			return client.Send(ctx, m)
-		},
-		Logger: logger,
+		Send:      func(ctx context.Context, m contracts.RunnerCapabilities) error { return send(ctx, m) },
+		SendUsage: func(ctx context.Context, m contracts.RunnerUsage) error { return send(ctx, m) },
+		Logger:    logger,
+		// The cost of each Session so far and the spends not acked, beside
+		// runner.json: a Session resumed after a restart sends only what it
+		// adds, and no spend is lost.
+		SpentPath: filepath.Join(store.Dir, "spent.json"),
 	}
 	// The adapters, their Sessions watched: a limit or a sign-in they meet
-	// reaches the capabilities. The Sessions (RUNNER-9) start from this registry.
+	// reaches the capabilities, the usage they report reaches the server. The Sessions (RUNNER-9) start from this registry.
 	reporter.Engines = reporter.Watch(runnerEngines(keys))
 	// The Sessions the server asks for, those kept under ~/.crewdeck/sessions
 	// said in each hello: none alive after a restart.
 	sessions, err := session.New(session.Config{
-		Home:    store.Dir,
-		Engines: reporter.Engines,
-		Logger:  logger,
-		Keys:    relay,
+		Home:      store.Dir,
+		Engines:   reporter.Engines,
+		GitHubURL: sessionsGitHubURL,
+		Logger:    logger,
+		Keys:      relay,
 		Send: func(ctx context.Context, m any) error {
 			client := current.Load()
 			if client == nil {
@@ -152,6 +168,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		}
 	}()
 	go reporter.Every(ctx, contracts.CapabilitiesEverySeconds*time.Second)
+	go reporter.UsageEvery(ctx, contracts.UsageEverySeconds*time.Second)
 	updater := &update.Updater{
 		Server: linked.Server,
 		Binary: binary,
@@ -166,9 +183,19 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			Token:   linked.Token,
 			Machine: described,
 			Logger:  logger,
-			// What each Moteur can run (US-38) and the Serveurs MCP (US-73), on each accepted connection.
-			OnConnected: report,
-			Sessions:    sessions.Hello,
+			// What each Moteur can run (US-38) and the Serveurs MCP (US-73), on
+			// each accepted connection, and the usage that waits: a spend not
+			// acked is sent again.
+			OnConnected: func(ctx context.Context) {
+				report(ctx)
+				reporter.FlushUsage(ctx)
+			},
+			Sessions: sessions.Hello,
+		})
+		// A spend is forgotten once stored (usage.ack), not once written.
+		protocol.On(client, protocol.TypeUsageAck, func(_ context.Context, ack contracts.RunnerUsageAck) error {
+			reporter.UsageAcked(ack.UsageId)
+			return nil
 		})
 		sessions.Register(client)
 		current.Store(client)

@@ -1,8 +1,7 @@
 import type { WaitingProject } from '@crewdeck/contracts';
-import { createLinkedRunner } from '../runners.js';
 import { PROJECTS, seedDecisions } from './a-toi.js';
 import { defineScenario, type ScenarioContext } from './define.js';
-import { LAST_SEEN_AT, RUNNER_MACHINE, withAccounts } from './runner.js';
+import { LAST_SEEN_AT, withAccounts } from './runner.js';
 
 /**
  * The work that waits in the mockups (`a-toi-runner-hors-ligne`): #44 of
@@ -31,14 +30,13 @@ const goneOffline = async (ctx: ScenarioContext, pilotId: string): Promise<void>
 /**
  * « À toi » with the Runner offline (`a-toi`, state `runner-hors-ligne`): the
  * nine Décisions of `a-toi`, and « Runner hors ligne » listing three Projets
- * with its banner.
+ * with its banner; the Comptes IA as last measured, at 14:02.
  */
 export const aToiRunnerHorsLigne = defineScenario({
   name: 'a-toi-runner-hors-ligne',
   path: '/a-toi',
   seed: async (ctx) => {
-    const seed = await seedDecisions(ctx);
-    await createLinkedRunner(ctx.prisma, seed.pilotId, { ...RUNNER_MACHINE, lastSeenAt: LAST_SEEN_AT });
+    const { token: _token, ...seed } = await seedDecisions(ctx, LAST_SEEN_AT);
     await goneOffline(ctx, seed.pilotId);
     return seed;
   },

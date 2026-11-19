@@ -41,6 +41,10 @@ type machine struct {
 // adapters are the Moteurs' adapters the Runner registers.
 var adapters = &engine.Registry{}
 
+// buildFlags adds the flags only a tagged build has (smoke.go, `-tags
+// smoke`); a release build has none of them.
+var buildFlags = func(*cobra.Command) {}
+
 func thisMachine() *machine {
 	m := &machine{
 		service: func() (service.Config, error) {
@@ -90,6 +94,7 @@ func newRoot(m *machine) *cobra.Command {
 		},
 	})
 	root.AddCommand(newLinkCommand(&server))
+	root.AddCommand(newDevicesCommand(&server))
 	root.AddCommand(&cobra.Command{
 		Use:   "run",
 		Short: "Connect to the server and stay connected, in the foreground",
@@ -108,6 +113,7 @@ func newRoot(m *machine) *cobra.Command {
 	root.AddCommand(newContratCommand())
 	root.AddCommand(newMCPCommand())
 	root.AddCommand(newHookCommand())
+	buildFlags(root)
 	return root
 }
 

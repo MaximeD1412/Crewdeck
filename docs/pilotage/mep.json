@@ -296,6 +296,33 @@
       "ajouteLe": "2026-11-11"
     },
     {
+      "id": "env-smtp-mail-from",
+      "phase": "env",
+      "source": "#196",
+      "titre": "SMTP_URL et MAIL_FROM dans le .env de la prod et du staging",
+      "pourquoi": "La connexion par lien (CORE-9) envoie ses liens par ce relais SMTP ; le serveur refuse de démarrer sans SMTP_URL et MAIL_FROM en production et en staging. Tant qu'ils manquent, le déploiement de develop au staging qui suit le merge de CORE-9 ne démarre pas. Le compte, le domaine d'envoi authentifié (SPF, DKIM, DMARC) et une clé SMTP par environnement viennent d'INFRA-14 (#199).",
+      "etapes": [
+        "Dans /opt/crewdeck/prod/.env : SMTP_URL=smtps://<identifiant>:<clé SMTP de la prod>@<relais>:465 et MAIL_FROM=Crewdeck <connexion@<domaine>>.",
+        "Dans /opt/crewdeck/staging/.env : la même chose avec la clé SMTP du staging, l'expéditeur sur le domaine du staging ou le même.",
+        "Vérifier après le déploiement suivant : le serveur est healthy, et « Recevoir un lien » sur https://staging.<domaine>/connexion envoie un e-mail qui arrive (pas dans les indésirables) ; son lien connecte."
+      ],
+      "commande": "sudo grep -c '^\\(SMTP_URL\\|MAIL_FROM\\)=.\\+' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
+      "ajouteLe": "2026-11-14"
+    },
+    {
+      "id": "migration-identites",
+      "phase": "db",
+      "source": "#196",
+      "titre": "Migration 20261201000000_identities : les Identités et le nom affiché des Pilotes",
+      "pourquoi": "Elle crée pilot_identities et email_login_tokens, change chaque github_user_id en une Identité github et le login en display_name, et rend github_user_id et login facultatifs. Des déclencheurs gardent la version précédente compatible : un Pilote qu'elle crée (un retour en arrière) reçoit son nom affiché et son Identité github, et l'Identité github que cette version écrit est recopiée dans github_user_id et login, où la version précédente la retrouve. Une sauvegarde d'avant la migration a les colonnes d'avant.",
+      "etapes": [
+        "Avant le merge develop → main : répéter la migration sur la dernière sauvegarde de la prod (ADR 0009) ; elle s'applique au démarrage du serveur.",
+        "Vérifier après le déploiement : chaque Pilote a une Identité github, et une connexion GitHub retrouve le même Pilote et ses installations."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -c \"SELECT count(*) FROM pilots p WHERE NOT EXISTS (SELECT 1 FROM pilot_identities i WHERE i.pilot_id = p.id)\"",
+      "ajouteLe": "2026-11-14"
+    },
+    {
       "id": "migration-account-settings",
       "phase": "db",
       "source": "#53",
@@ -390,6 +417,19 @@
       "ajouteLe": "2026-11-15"
     },
     {
+      "id": "migration-usage",
+      "phase": "db",
+      "source": "#67",
+      "titre": "Migration 20261203000000_usage : les tables usage_measures, spends et fx_rates",
+      "pourquoi": "L’usage des Comptes IA face à leurs limites et la dépense du mois d’une clé API (RUNNER-13, US-55) vivent dans trois nouvelles tables et un type usage_window_id. La migration ne fait qu’ajouter : la version précédente tourne dessus sans les lire.",
+      "etapes": [
+        "Rien à lancer à la main : le déploiement du staging, puis celui de la prod, appliquent la migration.",
+        "Vérifier après chaque déploiement que son journal montre la migration appliquée (20261203000000_usage), puis que GET /api/state contient la tranche usage."
+      ],
+      "commande": "docker compose -p crewdeck-staging --env-file /opt/crewdeck/staging/.env -f docker-compose.yml -f docker-compose.staging.yml run --rm server migrate",
+      "ajouteLe": "2026-11-15"
+    },
+    {
       "id": "migration-mcp-servers",
       "phase": "db",
       "source": "#182",
@@ -400,6 +440,19 @@
         "Vérifier sur chaque base (crewdeck-prod, puis crewdeck-staging) que la commande imprime une date : la migration est appliquée."
       ],
       "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261123000000_mcp_servers'\"",
+      "ajouteLe": "2026-11-14"
+    },
+    {
+      "id": "sortie-https-bce",
+      "phase": "vps",
+      "source": "#67",
+      "titre": "Laisser le serveur de la prod et du staging joindre www.ecb.europa.eu en HTTPS",
+      "pourquoi": "La dépense du mois en euros (US-55) convertit les dollars facturés au cours de référence de la BCE du jour de la dépense (risque BIZ-4) : le serveur lit chaque jour à 16:30, heure de Francfort, et à son démarrage tant qu'aucun cours n'est connu, le fichier quotidien https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml. Sans sortie vers ce domaine, la dépense d'une clé API reste « en attente du cours du jour », puis convertie au dernier cours connu ; le reste fonctionne.",
+      "etapes": [
+        "Si un pare-feu filtre la sortie du VPS ou du réseau Docker, autoriser le HTTPS (443) vers www.ecb.europa.eu pour les conteneurs server de crewdeck-prod et crewdeck-staging.",
+        "Vérifier après le déploiement suivant : le journal du serveur contient « fx rate » avec le jour et le cours, et aucun « fx rates failed »."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec server node -e \"fetch('https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml').then((r) => console.log(r.status))\"",
       "ajouteLe": "2026-11-14"
     },
     {

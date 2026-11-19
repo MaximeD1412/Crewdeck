@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import { zApproveDevice, zDeviceHolders, zPendingDevice } from './api/devices.js';
 import { zErrorEnvelope } from './api/errors.js';
 import { zHealth } from './api/health.js';
 import { zRunnerLatest } from './api/runner.js';
@@ -14,6 +15,7 @@ import { zSessionInputPayload } from './runner/inputs.js';
 import { zRelay, zSessionInput, zSessionKeys, zSessionReplay } from './runner/relay.js';
 import { zStepVerdict } from './runner/step.js';
 import { zProcessSealedPayload } from './process/definition.js';
+import { USAGE_EVERY_SECONDS, zUsage, zUsageAck } from './runner/usage.js';
 import { HEARTBEAT_SECONDS, OFFLINE_AFTER_SECONDS, PROTOCOL_VERSION, RUNNER_WS_CLOSE, zProtocolError, zRunnerEnvelope } from './runner/protocol.js';
 
 /**
@@ -30,6 +32,9 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-link-pairing', schema: zRunnerLinkPairing },
   { name: 'runner-link-status', schema: zRunnerLinkStatus },
   { name: 'runner-latest', schema: zRunnerLatest },
+  { name: 'runner-pending-device', schema: zPendingDevice },
+  { name: 'runner-approve-device', schema: zApproveDevice },
+  { name: 'runner-device-holders', schema: zDeviceHolders },
   { name: 'runner-envelope', schema: zRunnerEnvelope },
   { name: 'runner-hello', schema: zHello },
   { name: 'runner-hello-accepted', schema: zHelloAccepted },
@@ -57,6 +62,8 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-relay', schema: zRelay },
   // The plaintext of a Process version's sealed part, once the Runner opened it (RUNNER-18).
   { name: 'process-sealed', schema: zProcessSealedPayload },
+  { name: 'runner-usage', schema: zUsage },
+  { name: 'runner-usage-ack', schema: zUsageAck },
 ];
 
 /**
@@ -106,4 +113,5 @@ export const goConstants: Readonly<Record<string, number>> = {
   LinkPollSeconds: LINK_POLL_SECONDS,
   LinkAttemptsPerMinute: LINK_ATTEMPTS_PER_MINUTE,
   CapabilitiesEverySeconds: CAPABILITIES_EVERY_SECONDS,
+  UsageEverySeconds: USAGE_EVERY_SECONDS,
 };

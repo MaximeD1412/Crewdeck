@@ -1,6 +1,8 @@
-import { PageAToi, t, type CdActionDetail } from '@crewdeck/sdk';
+import { BREAKPOINT_PX, PageAToi, t, type CdActionDetail, type ComposantData } from '@crewdeck/sdk';
 import { css, html, nothing } from 'lit';
 import { isFilled, PasserelleElement, sharedStyles } from './base.js';
+
+type Action = ComposantData<typeof PageAToi>['decisions'][number]['actions'][number];
 
 /**
  * `cd-page-a-toi`: « À toi » (`design/screens/crewdeck/a-toi.html`). Its
@@ -9,9 +11,13 @@ import { isFilled, PasserelleElement, sharedStyles } from './base.js';
  * 1280 px its Emplacements stand in a column beside the list, below it on a
  * phone; with both empty, the list takes the width. The rows' and chips' own
  * actions stop here: the page emits `open`, `act` and `filter` instead.
+ * Narrower than 1280 px, where a row hides its buttons, a Décision with
+ * buttons of its own (not only « Ouvrir ») opens in place: a `cd-dialog`
+ * with its kind, its meta, its context and its buttons, each one emitting
+ * `act` and closing it. One whose only button is « Ouvrir » emits `open`.
  */
 export class PasserellePageAToi extends PasserelleElement<typeof PageAToi> {
-  static override properties = { filled: { state: true } };
+  static override properties = { filled: { state: true }, opened: { state: true } };
   static override styles = [
     sharedStyles,
     css`
@@ -34,6 +40,16 @@ export class PasserellePageAToi extends PasserelleElement<typeof PageAToi> {
       .aside[hidden] {
         display: none;
       }
+      .opened p {
+        margin: 0;
+      }
+      .opened .kind {
+        color: var(--cd-muted);
+        font-weight: 500;
+      }
+      .opened .context {
+        color: var(--cd-ink);
+      }
       @media (min-width: 1280px) {
         .layout.with-aside {
           display: grid;
@@ -48,10 +64,29 @@ export class PasserellePageAToi extends PasserelleElement<typeof PageAToi> {
   protected readonly composant = PageAToi;
   /** The Emplacements that hold something, by name. */
   declare filled: Readonly<Record<string, boolean>>;
+  /** The Décision opened in place, below 1280 px, by id. */
+  declare opened: string | null;
+
+  private readonly wide = matchMedia(`(min-width: ${BREAKPOINT_PX}px)`);
+  /** From 1280 px the row shows its buttons again: the opened Décision closes. */
+  private readonly onWide = () => {
+    if (this.wide.matches) this.opened = null;
+  };
 
   constructor() {
     super();
     this.filled = {};
+    this.opened = null;
+  }
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this.wide.addEventListener('change', this.onWide);
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.wide.removeEventListener('change', this.onWide);
   }
 
   private slotChanged(event: Event) {
@@ -63,8 +98,51 @@ export class PasserellePageAToi extends PasserelleElement<typeof PageAToi> {
   private relay(event: Event) {
     const { composant, action, payload } = (event as CustomEvent<CdActionDetail>).detail;
     event.stopPropagation();
-    if (composant === 'DecisionRow' && action === 'open') this.emit('open', payload as { id: string });
+    if (composant === 'DecisionRow' && action === 'open') this.openRow((payload as { id: string }).id);
     else if (composant === 'ProjectFilter' && action === 'select') this.emit('filter', payload as { projectId: string | null });
+  }
+
+  /** A row's tap: its own buttons, opened in place, while the row hides them; else the page's `open`. */
+  private openRow(id: string) {
+    const decision = this.data.decisions.find((candidate) => candidate.id === id);
+    const ownButtons = decision?.actions.some((action) => action.id !== 'open') ?? false;
+    if (ownButtons && !this.wide.matches) this.opened = id;
+    else this.emit('open', { id });
+  }
+
+  private act(id: string, action: Action) {
+    if (action.disabledReason !== null) return;
+    this.opened = null;
+    this.emit('act', { id, action: action.id });
+  }
+
+  private button(id: string, action: Action, size: 'sm' | 'md') {
+    return html`<cd-button
+      slot="actions"
+      .data=${{
+        label: action.label,
+        variant: action.primary ? 'primary' : 'secondary',
+        size,
+        ...(action.disabledReason === null ? {} : { state: 'disabled', disabledReason: action.disabledReason }),
+      }}
+      @click=${() => this.act(id, action)}
+    ></cd-button>`;
+  }
+
+  /** The Décision opened in place: `close` (« Fermer », Escape, the scrim) stops here. */
+  private renderOpened() {
+    const decision = this.data.decisions.find((candidate) => candidate.id === this.opened);
+    if (!decision) return nothing;
+    const onClose = (event: Event) => {
+      event.stopPropagation();
+      if ((event as CustomEvent<CdActionDetail>).detail.action === 'close') this.opened = null;
+    };
+    return html`<cd-dialog part="opened" class="opened" .data=${{ open: true, title: decision.title }} @cd-action=${onClose}>
+      <p class="kind">${decision.kind}</p>
+      <p class="meta">${decision.meta}</p>
+      ${decision.context === null ? nothing : html`<p class="context">${decision.context}</p>`}
+      ${decision.actions.map((action) => this.button(decision.id, action, 'md'))}
+    </cd-dialog>`;
   }
 
   protected override render() {
@@ -100,21 +178,7 @@ export class PasserellePageAToi extends PasserelleElement<typeof PageAToi> {
             ? html`<cd-empty .data=${{ icon: 'inbox', title: t('aToi.empty.title') }}>${t('aToi.empty.body')}</cd-empty>`
             : decisions.map(
                 ({ actions, ...row }) =>
-                  html`<cd-decision-row .data=${row}>
-                    ${actions.map(
-                      (action) =>
-                        html`<cd-button
-                          slot="actions"
-                          .data=${{
-                            label: action.label,
-                            variant: action.primary ? 'primary' : 'secondary',
-                            size: 'sm',
-                            ...(action.disabledReason === null ? {} : { state: 'disabled', disabledReason: action.disabledReason }),
-                          }}
-                          @click=${() => action.disabledReason === null && this.emit('act', { id: row.id, action: action.id })}
-                        ></cd-button>`,
-                    )}
-                  </cd-decision-row>`,
+                  html`<cd-decision-row .data=${row}>${actions.map((action) => this.button(row.id, action, 'sm'))}</cd-decision-row>`,
               )}
         </cd-card>
         <div class="aside" ?hidden=${!withAside}>
@@ -122,6 +186,7 @@ export class PasserellePageAToi extends PasserelleElement<typeof PageAToi> {
           <slot name="ai-accounts" @slotchange=${this.slotChanged}></slot>
         </div>
       </div>
+      ${this.renderOpened()}
     `;
   }
 }

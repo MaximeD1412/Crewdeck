@@ -6,6 +6,7 @@ import type {
   Decision,
   Device,
   Event,
+  Idea,
   McpServer,
   Me,
   Milestone,
@@ -19,6 +20,7 @@ import type {
   State,
   StepRun,
   Ticket,
+  UsageAccount,
 } from '@crewdeck/contracts';
 import type { VaultState } from '../keys/vault.js';
 
@@ -61,6 +63,8 @@ export interface Slices {
   readonly repository: ReadonlyMap<string, Repository>;
   /** The open Décisions (ATOI-1), by id, from the snapshot's `decisions`. */
   readonly decision: ReadonlyMap<string, Decision>;
+  /** The Idées (IDEE-1), by id, from the snapshot's `ideas`: every one not merged nor rejected, and those of the last 90 days. */
+  readonly idea: ReadonlyMap<string, Idea>;
   /** The Tickets of every Projet (BOUCLE-1), by id, from the snapshot's `tickets`: the open ones and those closed in the last 30 days. */
   readonly ticket: ReadonlyMap<string, Ticket>;
   /** Their milestones, by id, from the snapshot's `milestones`. */
@@ -70,6 +74,8 @@ export interface Slices {
   /** Their Sessions (RUNNER-9), by id, from the snapshot's `sessions`: those not ended, and those ended in the last 24 h. */
   readonly 'agent-session': ReadonlyMap<string, AgentSession>;
   readonly settings: AccountSettings | null;
+  /** The usage of the Comptes IA (RUNNER-13), by the Compte IA's id, from the snapshot's `usage`. */
+  readonly usage: ReadonlyMap<string, UsageAccount>;
 }
 
 export interface StoreState {

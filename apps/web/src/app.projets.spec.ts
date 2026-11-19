@@ -6,7 +6,7 @@ import type { Client } from './api/client.js';
 import { boot, type App } from './app.js';
 import { createStore } from './store/store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
 const AT = '2026-11-12T09:00:00.000Z';
 const REPOSITORY: Repository = {
   id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a81',
@@ -69,7 +69,7 @@ describe('« Projets » in the page', () => {
   });
 
   it('follows the store: a Projet followed appears in real time', () => {
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [REPOSITORY], decisions: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [REPOSITORY], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, usage: [] });
     store.applyEvent({ seq: 2, type: 'project.upserted', payload: PROJECT, at: AT });
 
     expect(page('cd-page-projets')?.data).toEqual({ projects: [{ id: PROJECT.id, displayName: 'Site de la mairie', fullName: 'octocat/site-mairie' }] });

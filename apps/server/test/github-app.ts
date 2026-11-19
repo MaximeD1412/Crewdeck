@@ -30,3 +30,9 @@ export const authKeysEnv = (): Record<string, string> => ({
   GITHUB_TOKEN_KEY: randomBytes(32).toString('base64'),
   SESSION_SECRET: randomBytes(32).toString('base64'),
 });
+
+/** The mail of the sign-in by email (CORE-9), made up for the tests: a relay nobody answers. */
+export const mailEnv = (): Record<string, string> => ({
+  SMTP_URL: 'smtps://crewdeck:test-password@smtp.mail.invalid:465',
+  MAIL_FROM: 'Crewdeck <connexion@crewdeck.example>',
+});

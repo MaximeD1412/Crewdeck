@@ -26,12 +26,12 @@ export class GitHubInstallations {
    * links it itself.
    */
   async created(facts: InstallationFacts): Promise<void> {
-    const pilot = await this.prisma.unscoped.pilot.findUnique({ where: { githubUserId: BigInt(facts.senderId) }, select: { id: true } });
+    const pilot = await this.pilotOfGitHubUser(facts.senderId);
     const row = {
       accountLogin: facts.accountLogin,
       accountId: BigInt(facts.accountId),
       senderId: BigInt(facts.senderId),
-      pilotId: pilot?.id ?? null,
+      pilotId: pilot,
       suspended: facts.suspended,
     };
     await this.prisma.unscoped.gitHubInstallation.upsert({
@@ -40,8 +40,17 @@ export class GitHubInstallations {
       update: row,
     });
     if (pilot) return;
-    const late = await this.prisma.unscoped.pilot.findUnique({ where: { githubUserId: BigInt(facts.senderId) }, select: { id: true } });
-    if (late) await this.linkPendingTo(late.id, facts.senderId);
+    const late = await this.pilotOfGitHubUser(facts.senderId);
+    if (late) await this.linkPendingTo(late, facts.senderId);
+  }
+
+  /** The Pilote whose `github` Identité is the GitHub user `githubUserId` (ADR 0014), or `null`. */
+  private async pilotOfGitHubUser(githubUserId: number): Promise<string | null> {
+    const identity = await this.prisma.unscoped.pilotIdentity.findUnique({
+      where: { provider_subject: { provider: 'github', subject: String(githubUserId) } },
+      select: { pilotId: true },
+    });
+    return identity?.pilotId ?? null;
   }
 
   /** `installation.deleted`: the installation leaves the index. */

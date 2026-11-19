@@ -12,7 +12,7 @@ import {
 import { Injectable } from '@nestjs/common';
 import { AppError } from '../errors/app-error.js';
 import { MESSAGES } from '../errors/messages.js';
-import { ME, toMe } from '../pilots/me.controller.js';
+import { identitiesOf, ME, toMe } from '../pilots/me.controller.js';
 import { PrismaService, type ScopedPrisma } from '../prisma/prisma.service.js';
 import { EventsWriter } from '../realtime/events.writer.js';
 import type { Tx } from '../realtime/transactions.js';
@@ -150,7 +150,7 @@ export class SettingsService {
     }
     if (after.timeZone !== before.timeZone) {
       const pilot = await tx.pilot.update({ where: { id: pilotId }, data: { timeZone: after.timeZone }, select: ME });
-      await this.events.write(tx, pilotId, 'pilot.upserted', toMe(pilot));
+      await this.events.write(tx, pilotId, 'pilot.upserted', toMe(pilot, await identitiesOf(tx)));
     }
     await this.events.write(tx, pilotId, 'settings.upserted', after);
     return after;

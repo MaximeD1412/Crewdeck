@@ -135,15 +135,52 @@ describe('createEditorActions', () => {
     it('activates the revision with the seq of the dialog, then says « Version 4 active. »', async () => {
       const command = vi.fn(async () => ({ id: 'p1', active: { ...VERSION_3, number: 4 }, draft: null, sources, running: [] }));
       const { ui, actions } = setup({}, { client: { command } as never });
+      actions.activate.confirmation({ revision: 4 }, stateOf({}));
       await actions.activate.run({ revision: 4 }, { seq: 41n });
 
       expect(command).toHaveBeenCalledWith('POST', '/api/projects/p1/process/activate', { revision: 4, seq: 41n }, expect.anything());
       expect(ui.view('p1', {}).toast).toEqual({ tone: 'go', icon: 'check', text: 'Version 4 active.' });
     });
 
+    it('activates the Projet its confirmation named, even when the page moved to another one meanwhile', async () => {
+      const command = vi.fn(async () => ({ id: 'p1', active: { ...VERSION_3, number: 4 }, draft: null, sources, running: [] }));
+      let projectId = 'p1';
+      const ui = createEditorUi();
+      const actions = createEditorActions({ ui, navigate: vi.fn(), current: () => ({ params: { id: projectId }, query: {} }), client: { command } as never });
+
+      expect(actions.activate.confirmation({ revision: 4 }, stateOf({})).title).toBe('Activer la v4 du Process de Site mairie ?');
+      projectId = 'p2';
+      await actions.activate.run({ revision: 4 }, { seq: 41n });
+
+      expect(command).toHaveBeenCalledWith('POST', '/api/projects/p1/process/activate', { revision: 4, seq: 41n }, expect.anything());
+      expect(command).toHaveBeenCalledTimes(1);
+      expect(ui.view('p1', {}).toast).toEqual({ tone: 'go', icon: 'check', text: 'Version 4 active.' });
+      expect(ui.view('p2', {}).toast).toBeNull();
+    });
+
+    it('sends nothing for a run its confirmation did not open', async () => {
+      const command = vi.fn();
+      const { actions } = setup({}, { client: { command } as never });
+      await actions.activate.run({ revision: 4 }, { seq: 41n });
+      expect(command).not.toHaveBeenCalled();
+    });
+
+    it('names a Rôle of the Pilote’s by its name in the list of changes', () => {
+      const draft = structuredClone(PROCESS_CREWDECK);
+      draft.steps.find((step) => step.id === 'st-maquettes')!.tools.push({ kind: 'role', roleId: 'r-abcdefgh' });
+      const state = stateOf({ draft: draftOf(draft) });
+      const settings = { customRoles: [{ id: 'r-abcdefgh', name: 'Designer' }] };
+      const { actions } = setup();
+
+      expect(actions.activate.confirmation({ revision: 4 }, { slices: { ...state.slices, settings } } as never).consequences.items).toEqual([
+        { strong: '', text: 'Rôle « Designer » attaché à « Maquettes ».' },
+      ]);
+    });
+
     it('says a refusal in a halt Toast', async () => {
       const refusal = new ApiError({ status: 422, code: 'process.has-gaps', message: 'Ce brouillon a des Manques : règle-les avant de l’activer.' });
       const { ui, actions } = setup({}, { client: { command: vi.fn(async () => Promise.reject(refusal)) } as never });
+      actions.activate.confirmation({ revision: 4 }, stateOf({}));
       await actions.activate.run({ revision: 4 }, { seq: 41n });
 
       expect(ui.view('p1', {}).toast).toEqual({ tone: 'halt', icon: 'block', text: 'Ce brouillon a des Manques : règle-les avant de l’activer.' });

@@ -57,6 +57,13 @@ export const createEditorActions = ({ ui, navigate, current, client, ideaTitle =
     const match = current();
     return { projectId: match.params['id'] ?? '', query: editorQueryOf(match.query) };
   };
+  /**
+   * The Projet the open confirmation names, kept from its opening to its run:
+   * the page may move to another Projet while the dialog stays open, and the
+   * route must activate the Process the Pilote confirmed (the dispatcher opens
+   * one confirmation at a time).
+   */
+  let confirming: string | null = null;
   return {
     select: ({ target, centre }: Payload<'select'>): void => {
       const { projectId, query } = here();
@@ -79,11 +86,13 @@ export const createEditorActions = ({ ui, navigate, current, client, ideaTitle =
     activate: {
       confirmation: (_payload: Payload<'activate'>, state: Pick<StoreState, 'slices'>): Confirmation => {
         const { projectId } = here();
+        confirming = projectId;
         const view = state.slices.process?.get(projectId);
         const projectName = state.slices.project?.get(projectId)?.displayName ?? '';
         const active = view?.active ?? null;
         const next = (active?.number ?? 0) + 1;
-        const changes = active && view?.draft ? changeLabels(diffDefinitions(active.definition, view.draft.definition)) : [];
+        const roleNames = Object.fromEntries((state.slices.settings?.customRoles ?? []).map((role) => [role.id, role.name]));
+        const changes = active && view?.draft ? changeLabels(diffDefinitions(active.definition, view.draft.definition), roleNames) : [];
         const groups = runningByVersion(view?.running ?? [], [active?.definition, view?.draft?.definition]);
         const list = groups.flatMap(({ versionNumber, kinds }) =>
           kinds.map(({ kind, works }) => t('process.confirm.onVersion', { works: worksPhrase(kind, works, ideaTitle), number: versionNumber })),
@@ -103,8 +112,9 @@ export const createEditorActions = ({ ui, navigate, current, client, ideaTitle =
         };
       },
       run: async ({ revision }: Payload<'activate'>, { seq }: { readonly seq: bigint }): Promise<void> => {
-        const { projectId } = here();
-        if (!client) return;
+        const projectId = confirming;
+        confirming = null;
+        if (!client || projectId === null) return;
         try {
           const view = await activateProcess(client, projectId, { revision, seq });
           ui.toast(projectId, { tone: 'go', icon: 'check', text: t('process.activated', { number: view.active?.number ?? 1 }) });

@@ -3,6 +3,7 @@
 package contracts
 
 import "encoding/json"
+import "errors"
 import "fmt"
 import "reflect"
 import "regexp"
@@ -51,6 +52,9 @@ type RunnerSessionStart struct {
 
 	// Type corresponds to the JSON schema field "type".
 	Type string `json:"type"`
+
+	// WorktreeCommands corresponds to the JSON schema field "worktreeCommands".
+	WorktreeCommands *RunnerSessionStartWorktreeCommands `json:"worktreeCommands"`
 }
 
 type RunnerSessionStartEngine string
@@ -258,6 +262,72 @@ func (j *RunnerSessionStartStep) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+type RunnerSessionStartWorktreeCommands struct {
+	// Ciphertext corresponds to the JSON schema field "ciphertext".
+	Ciphertext string `json:"ciphertext"`
+
+	// Key corresponds to the JSON schema field "key".
+	Key string `json:"key"`
+}
+
+type RunnerSessionStartWorktreeCommands_0 struct {
+	// Ciphertext corresponds to the JSON schema field "ciphertext".
+	Ciphertext string `json:"ciphertext"`
+
+	// Key corresponds to the JSON schema field "key".
+	Key string `json:"key"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerSessionStartWorktreeCommands_0) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["ciphertext"]; raw != nil && !ok {
+		return fmt.Errorf("field ciphertext in RunnerSessionStartWorktreeCommands_0: required")
+	}
+	if _, ok := raw["key"]; raw != nil && !ok {
+		return fmt.Errorf("field key in RunnerSessionStartWorktreeCommands_0: required")
+	}
+	type Plain RunnerSessionStartWorktreeCommands_0
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Ciphertext)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Ciphertext", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Key)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Key", `^[A-Za-z0-9_-]*$`)
+	}
+	*j = RunnerSessionStartWorktreeCommands_0(plain)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerSessionStartWorktreeCommands) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	var runnerSessionStartWorktreeCommands_0 RunnerSessionStartWorktreeCommands_0
+	var errs []error
+	if err := runnerSessionStartWorktreeCommands_0.UnmarshalJSON(value); err != nil {
+		errs = append(errs, err)
+	}
+	if len(errs) == 1 {
+		return fmt.Errorf("all validators failed: %s", errors.Join(errs...))
+	}
+	type Plain RunnerSessionStartWorktreeCommands
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	*j = RunnerSessionStartWorktreeCommands(plain)
+	return nil
+}
+
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *RunnerSessionStart) UnmarshalJSON(value []byte) error {
 	var raw map[string]interface{}
@@ -302,6 +372,9 @@ func (j *RunnerSessionStart) UnmarshalJSON(value []byte) error {
 	}
 	if _, ok := raw["type"]; raw != nil && !ok {
 		return fmt.Errorf("field type in RunnerSessionStart: required")
+	}
+	if _, ok := raw["worktreeCommands"]; raw != nil && !ok {
+		return fmt.Errorf("field worktreeCommands in RunnerSessionStart: required")
 	}
 	type Plain RunnerSessionStart
 	var plain Plain

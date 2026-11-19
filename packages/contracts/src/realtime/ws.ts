@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { zEvent } from '../events/index.js';
 import { zTabFolderCheck, zTabFolderChecked, zTabFolderError } from '../runner/folders.js';
+import { zTabCommandClose, zTabCommandError, zTabCommandKeys, zTabCommandOpen, zTabCommandOutput } from '../runner/command.js';
 import { zTabRelay, zTabSessionClose, zTabSessionError, zTabSessionInput, zTabSessionKeys, zTabSessionOpen } from '../runner/relay.js';
 import { zSeq } from '../values.js';
 
@@ -8,7 +9,8 @@ import { zSeq } from '../values.js';
  * The messages of `/api/ws` (ADR 0007), JSON, each with its `type`. The
  * socket never carries a command that changes the state: those are REST.
  * RUNNER-2 adds the Runner's protocol; SESSION-1 the relay of a Session
- * (`runner/relay.ts`), `session.*` and `relay` both ways.
+ * (`runner/relay.ts`), `session.*` and `relay` both ways; RUNNER-18 the
+ * relay of a Commande's output (`runner/command.ts`), `command.*`.
  */
 
 /**
@@ -24,6 +26,8 @@ export const zClientMessage = z.discriminatedUnion('type', [
   zTabSessionClose,
   zTabSessionInput,
   zTabFolderCheck,
+  zTabCommandOpen,
+  zTabCommandClose,
 ]);
 export type ClientMessage = z.infer<typeof zClientMessage>;
 
@@ -43,6 +47,9 @@ export const zServerMessage = z.discriminatedUnion('type', [
   zTabSessionError,
   zTabFolderChecked,
   zTabFolderError,
+  zTabCommandKeys,
+  zTabCommandOutput,
+  zTabCommandError,
 ]);
 export type ServerMessage = z.infer<typeof zServerMessage>;
 

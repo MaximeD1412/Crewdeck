@@ -408,6 +408,29 @@ describe('what the page tells the server', () => {
     expect(connection.sendFolder({ type: 'folder.check', requestId: REQUEST, sealed })).toBe(false);
   });
 
+  it('carries a Commande’s output: its messages to its listeners only, and its open and close on the open socket', async () => {
+    const RUN = '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6c01';
+    const { connection, socket } = await liveAt(7);
+    const commands = vi.fn();
+    const relayed = vi.fn();
+    connection.onCommand(commands);
+    connection.onRelay(relayed);
+
+    const bytes = (length: number) => 'A'.repeat(Math.ceil((length * 4) / 3));
+    const wrap = { holderId: bytes(32), enc: bytes(32), wrappedKey: bytes(48), tag: bytes(32) };
+    socket.receive({ type: 'command.keys', runId: RUN, wraps: [wrap] });
+    socket.receive({ type: 'command.output', runId: RUN, seq: 1, nonce: bytes(12), ciphertext: bytes(40) });
+    socket.receive({ type: 'command.error', runId: RUN, code: 'command.not-found' });
+    expect(commands.mock.calls.map(([message]) => (message as ServerMessage).type)).toEqual(['command.keys', 'command.output', 'command.error']);
+    expect(relayed).not.toHaveBeenCalled();
+    expect(store.getState().seq).toBe(7n);
+
+    expect(connection.sendCommand({ type: 'command.open', runId: RUN, fromSeq: 1 })).toBe(true);
+    expect(socket.sent).toEqual([{ type: 'command.open', runId: RUN, fromSeq: 1 }]);
+    socket.drop();
+    expect(connection.sendCommand({ type: 'command.close', runId: RUN })).toBe(false);
+  });
+
   it('stop closes the socket, and nothing reconnects nor listens', async () => {
     const { connection, socket } = await liveAt(7);
     connection.stop();

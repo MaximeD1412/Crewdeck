@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { zErrorCode } from '../api/errors.js';
 import { zCapabilities } from './capabilities.js';
+import { zCommandKeys, zCommandOutput, zCommandReplay, zCommandRun, zCommandStarted, zCommandStop, zCommandVerdict } from './command.js';
 import { runnerMessage } from './envelope.js';
 import { zFolderCheckMessage, zFolderChecked, zProjectFolderAttach, zProjectsFolders } from './folders.js';
 import { zHeartbeat, zHeartbeatAck } from './heartbeat.js';
@@ -20,7 +21,8 @@ export { runnerMessage, type RunnerEnvelope, zRunnerEnvelope } from './envelope.
  * (`Authorization: Bearer …`). The server accepts `PROTOCOL_VERSION` and the
  * one before; an older Runner is told to update. Each later ticket adds its
  * messages to the two unions below, and its fixtures to
- * `fixtures/runner/<type>.json` (the relay's in `fixtures/runner/relay/`).
+ * `fixtures/runner/<type>.json` (the relay's in `fixtures/runner/relay/`, the Commandes' in
+ * `fixtures/runner/command/`).
  */
 export const PROTOCOL_VERSION = 1;
 
@@ -39,7 +41,7 @@ export const zProtocolError = runnerMessage('error', { code: zErrorCode });
 export type ProtocolError = z.infer<typeof zProtocolError>;
 
 /** Every message the Runner sends. */
-export const zRunnerToServer = z.discriminatedUnion('type', [zHello, zHeartbeat, zCapabilities, zMcpServers, zStepVerdict, zMirrorToken, zSessionStateMessage, zSessionKeys, zRelay, zFolderChecked, zProjectsFolders, zUsage]);
+export const zRunnerToServer = z.discriminatedUnion('type', [zHello, zHeartbeat, zCapabilities, zMcpServers, zStepVerdict, zMirrorToken, zSessionStateMessage, zSessionKeys, zRelay, zFolderChecked, zProjectsFolders, zCommandStarted, zCommandVerdict, zCommandKeys, zCommandOutput, zUsage]);
 export type RunnerToServer = z.infer<typeof zRunnerToServer>;
 export type RunnerToServerType = RunnerToServer['type'];
 
@@ -62,6 +64,9 @@ export const zServerToRunner = z.discriminatedUnion('type', [
   zSessionInput,
   zFolderCheckMessage,
   zProjectFolderAttach,
+  zCommandRun,
+  zCommandStop,
+  zCommandReplay,
   zUsageAck,
 ]);
 export type ServerToRunner = z.infer<typeof zServerToRunner>;

@@ -20,6 +20,7 @@ interface Opened {
 }
 
 type TabOf<T extends TabMessage['type']> = Extract<TabMessage, { type: T }>;
+type SessionTabMessage = TabOf<'session.open' | 'session.close' | 'session.input'>;
 
 /**
  * The relay of a Session (SESSION-1, ADR 0003 and 0007, `docs/security/e2e.md`
@@ -63,7 +64,7 @@ export class SessionRelay implements OnModuleInit, OnModuleDestroy {
   onModuleInit(): void {
     this.tabs.add({
       types: ['session.open', 'session.close', 'session.input'],
-      handle: (tab, message) => this.serial(tab, () => this.fromTab(tab, message)),
+      handle: (tab, message) => this.serial(tab, () => this.fromTab(tab, message as SessionTabMessage)),
       closed: (tab) => this.forgetTab(tab),
     });
     this.dispatcher.registerRunnerHandler('session.keys', (message, context) => this.fromRunner(context.pilotId, message));
@@ -85,8 +86,8 @@ export class SessionRelay implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  private async fromTab(tab: TabSocket, message: TabMessage): Promise<void> {
-    if (this.closedTabs.has(tab) || message.type === 'folder.check') return;
+  private async fromTab(tab: TabSocket, message: SessionTabMessage): Promise<void> {
+    if (this.closedTabs.has(tab)) return;
     this.logger.debug({ direction: 'in', type: message.type, sessionId: message.sessionId }, 'session relay');
     switch (message.type) {
       case 'session.open':

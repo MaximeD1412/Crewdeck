@@ -103,7 +103,7 @@ export const zProcessSealedPayload = z.strictObject({
   commands: z.record(
     zProcessId,
     z.strictObject({
-      run: z.string().min(1).max(4000),
+      run: z.string().min(1).max(10000),
       where: z.enum(['project', 'worktree']),
       healthUrl: z.url({ protocol: /^https?$/ }).optional(),
     }),

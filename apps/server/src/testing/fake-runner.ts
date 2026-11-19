@@ -1,4 +1,5 @@
 import {
+  type CommandRunReason,
   type EngineCapabilities,
   folderCheckAad,
   folderCheckedAad,
@@ -40,6 +41,12 @@ const ATTACHABLE: ReadonlySet<FolderCheckResult['state']> = new Set(['ready', 'n
 
 const baseName = (path: string): string => path.replace(/\/+$/, '').split('/').pop() ?? '';
 
+/** How the fake Runner's runs of a Commande end: an exit code, or a reason without one. */
+export type FakeCommandEnd = { readonly reason: 'exited'; readonly exitCode: number } | { readonly reason: Exclude<CommandRunReason, 'exited'> };
+
+/** The two chunks of a fake run: opaque bytes, as the server sees a real one's. */
+const fakeChunk = (seq: number) => ({ seq, nonce: Buffer.alloc(12, seq).toString('base64url'), ciphertext: Buffer.alloc(32, 0xf0 + seq).toString('base64url') });
+
 /**
  * The Runner of the scenario's Pilote, for `pnpm dev` and the end-to-end
  * run (`CREWDECK_FAKES=1`): it connects to this server's own `/api/ws` with
@@ -56,7 +63,10 @@ const baseName = (path: string): string => path.replace(/\/+$/, '').split('/').p
  * `folder.check` from the folders seeded (`seedFolder`; any other path is
  * `missing`, a relative one `not-absolute`, another Projet's `taken`), keeps
  * the folder `project.folder.attach` sends when it may, and tells
- * `projects.folders` on connecting and after each change, as the Runner.
+ * `projects.folders` on connecting and after each change, as the Runner. Its Commandes
+ * (RUNNER-18): `command.run` answers `command.started`, two output chunks
+ * (opaque bytes) and the verdict `endCommandsWith` set (by default exited
+ * with 0); `command.replay` sends the tab those two chunks again.
  */
 export class FakeRunner implements Fake {
   private socket: WebSocket | undefined;
@@ -71,6 +81,7 @@ export class FakeRunner implements Fake {
   private readonly folders = new Map<string, SeededFolder>();
   /** The Local Projets' folders it keeps, by Projet id: their path. */
   private readonly projects = new Map<string, string>();
+  private commandsEnd: FakeCommandEnd = { reason: 'exited', exitCode: 0 };
 
   /** Whether its `hello` was accepted and its socket is still open. */
   get connected(): boolean {
@@ -170,6 +181,11 @@ export class FakeRunner implements Fake {
     return true;
   }
 
+  /** How its runs of a Commande end, from now on. */
+  endCommandsWith(end: FakeCommandEnd): void {
+    this.commandsEnd = end;
+  }
+
   /** Connects again as its last `connect`, the Runner relaunched; `false` when it never connected since its reset. */
   async reconnect(): Promise<boolean> {
     if (!this.last) return false;
@@ -193,6 +209,7 @@ export class FakeRunner implements Fake {
     this.vaultKey = undefined;
     this.folders.clear();
     this.projects.clear();
+    this.commandsEnd = { reason: 'exited', exitCode: 0 };
   }
 
   private answer(socket: WebSocket, message: ServerToRunner): void {
@@ -225,6 +242,18 @@ export class FakeRunner implements Fake {
         this.reportFolders(socket);
         return;
       }
+      case 'command.run': {
+        const { runId } = message;
+        this.send(socket, { type: 'command.started', runId });
+        for (const seq of [1, 2]) this.send(socket, { type: 'command.output', runId, ...fakeChunk(seq) });
+        const end = this.commandsEnd;
+        const exitCode = end.reason === 'exited' ? end.exitCode : null;
+        this.send(socket, { type: 'command.verdict', runId, passed: exitCode === 0, exitCode, reason: end.reason, durationMs: 1200 });
+        return;
+      }
+      case 'command.replay':
+        for (const seq of [1, 2]) if (seq >= message.fromSeq) this.send(socket, { type: 'command.output', runId: message.runId, tabId: message.tabId, ...fakeChunk(seq) });
+        return;
       default:
         return;
     }

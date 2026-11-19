@@ -16,6 +16,7 @@ import { zSessionResume, zSessionStart, zSessionStateMessage, zSessionStop } fro
 import { zSessionInputPayload } from './runner/inputs.js';
 import { zRelay, zSessionInput, zSessionKeys, zSessionReplay } from './runner/relay.js';
 import { zStepVerdict } from './runner/step.js';
+import { zCommandKeys, zCommandOutput, zCommandOutputChunk, zCommandReplay, zCommandRun, zCommandStarted, zCommandStop, zCommandVerdict } from './runner/command.js';
 import { zProcessSealedPayload } from './process/definition.js';
 import { USAGE_EVERY_SECONDS, zUsage, zUsageAck } from './runner/usage.js';
 import { HEARTBEAT_SECONDS, OFFLINE_AFTER_SECONDS, PROTOCOL_VERSION, RUNNER_WS_CLOSE, zProtocolError, zRunnerEnvelope } from './runner/protocol.js';
@@ -69,6 +70,15 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   // The plaintexts of a Local Projet's folder, sealed under the vault key (PROJET-6).
   { name: 'folder-check', schema: zFolderCheck },
   { name: 'folder-check-result', schema: zFolderCheckResult },
+  { name: 'runner-command-run', schema: zCommandRun },
+  { name: 'runner-command-stop', schema: zCommandStop },
+  { name: 'runner-command-started', schema: zCommandStarted },
+  { name: 'runner-command-verdict', schema: zCommandVerdict },
+  { name: 'runner-command-replay', schema: zCommandReplay },
+  { name: 'runner-command-keys', schema: zCommandKeys },
+  { name: 'runner-command-output', schema: zCommandOutput },
+  // The plaintext of a chunk of a Commande's output, which the Runner seals.
+  { name: 'command-output-chunk', schema: zCommandOutputChunk },
   // The plaintext of a Process version's sealed part, once the Runner opened it (RUNNER-18).
   { name: 'process-sealed', schema: zProcessSealedPayload },
   { name: 'runner-usage', schema: zUsage },

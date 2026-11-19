@@ -475,6 +475,12 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 				s.cancel()
 			}
 		}
+		// A request answered while another still waits: the Session waits on.
+		s.mu.Lock()
+		if len(s.pending) > 0 {
+			state = contracts.RunnerSessionStateStateWaiting
+		}
+		s.mu.Unlock()
 		m.setState(s, state)
 	}
 	waitErr := run.Wait()

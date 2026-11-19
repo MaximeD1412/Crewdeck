@@ -162,3 +162,33 @@ func TestAnswerAPermissionByEachDecisionReachesTheMoteur(t *testing.T) {
 		}
 	}
 }
+
+func TestASessionStaysWaitingWhileAnotherRequestWaits(t *testing.T) {
+	r := newRelayed(t, permissionRequest("p1"), permissionRequest("p2"), message("fini"))
+	r.engine.Together = true
+	m := r.manager(t)
+	m.Start(start(firstID, "feat/12-panier"))
+	key := r.openKeys(t, r.frame(t).(contracts.RunnerSessionKeys), r.holders[0])
+	r.waiting(t, "p1", contracts.RunnerSessionWaitingKindPermission, 1)
+	r.waiting(t, "p2", contracts.RunnerSessionWaitingKindPermission, 2)
+
+	m.Input(sealInput(t, key, firstID, answerInputID, map[string]any{"kind": "permission", "requestId": "p1", "decision": "allow"}))
+	r.answered(t, "p1")
+	r.noRequest(t)
+	states := r.reports.states(firstID)
+	if last := states[len(states)-1]; last != contracts.RunnerSessionStateStateWaiting {
+		t.Fatalf("states %v, want waiting while p2 waits", states)
+	}
+	for _, state := range states[2:] {
+		if state == contracts.RunnerSessionStateStateActive {
+			t.Fatalf("states %v, active while p2 waits", states)
+		}
+	}
+
+	m.Input(sealInput(t, key, firstID, "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6d06", map[string]any{"kind": "permission", "requestId": "p2", "decision": "deny"}))
+	r.answered(t, "p2")
+	r.reports.await(t, firstID, contracts.RunnerSessionStateStateEnded)
+	if answers := r.answers(t, 2); len(answers) != 2 {
+		t.Fatalf("answers %+v", answers)
+	}
+}

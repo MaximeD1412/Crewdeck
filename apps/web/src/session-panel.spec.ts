@@ -1,7 +1,8 @@
 import type { AgentSession, EngineEvent, Project, Runner } from '@crewdeck/contracts';
-import { Button, Empty, Message, Session, t } from '@crewdeck/sdk';
+import { Button, Composer, Empty, Message, Session, t } from '@crewdeck/sdk';
 import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
+import { fakeSpeech, installFakeSpeech, removeSpeech } from './dictation/fake-speech.js';
 import { createSessionPanel, type SessionPanelOptions } from './session-panel.js';
 import { SessionInputError, type SessionRelay, type SessionSubscription } from './sessions/relay.js';
 import type { SessionRelayError } from '@crewdeck/contracts';
@@ -322,6 +323,88 @@ describe('the Session panel', () => {
     expect(element.data).toMatchObject({ status: 'Claude Code travaille · 6 min' });
     panel.show(null);
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  describe('dictated', () => {
+    const composerOf = (element: Element | null | undefined) =>
+      (element?.querySelector(`:scope > ${Composer.tag}`) as WithData | null)?.data as { value: string; dictation: { available: boolean; state: string; error: string | null } } | undefined;
+
+    beforeEach(() => {
+      installFakeSpeech();
+      localStorage.clear();
+    });
+    afterEach(() => removeSpeech());
+
+    it('the Composer’s transcript fills its field and is never sent; « Arrêter la dictée » keeps it', () => {
+      const { panel, shown, relay } = setup();
+      panel.show(SESSION.id);
+      expect(composerOf(shown())?.dictation).toMatchObject({ available: true, state: 'idle' });
+      panel.dictateStart('Regarde');
+      expect(composerOf(shown())?.dictation).toMatchObject({ state: 'dictating' });
+      fakeSpeech().say('les événements récurrents', false);
+      expect(composerOf(shown())?.value).toBe('Regarde les événements récurrents');
+      fakeSpeech().say('les événements récurrents', true);
+      panel.dictateStop();
+      expect(composerOf(shown())).toMatchObject({ value: 'Regarde les événements récurrents', dictation: { state: 'idle' } });
+      expect(relay.relay.sendInput).not.toHaveBeenCalled();
+    });
+
+    it('sending stops the dictation and empties the field the core set', async () => {
+      const { panel, shown, relay } = setup();
+      panel.show(SESSION.id);
+      panel.dictateStart('');
+      fakeSpeech().say('Pense aux récurrents', false);
+      await panel.send('Pense aux récurrents');
+      expect(fakeSpeech().listening).toBe(false);
+      expect(relay.relay.sendInput).toHaveBeenCalledTimes(1);
+      expect(composerOf(shown())).toMatchObject({ value: '', dictation: { state: 'idle' } });
+    });
+
+    it('a refused microphone says so in the Composer', () => {
+      const { panel, shown } = setup();
+      panel.show(SESSION.id);
+      panel.dictateStart('');
+      fakeSpeech().fail('not-allowed');
+      expect(composerOf(shown())?.dictation).toMatchObject({ state: 'idle', error: t('dictation.error.notAllowed') });
+    });
+
+    it('the Runner gone offline, or another Session opened, stops it and forgets its text', () => {
+      const { panel, shown, store } = setup();
+      panel.show(SESSION.id);
+      panel.dictateStart('');
+      fakeSpeech().say('Pense', false);
+      store.set({ runner: OFFLINE });
+      expect(fakeSpeech().listening).toBe(false);
+      expect(composerOf(shown())).toMatchObject({ value: '', dictation: { state: 'idle' } });
+      store.set({ runner: ONLINE });
+      panel.dictateStart('');
+      panel.show(null);
+      expect(fakeSpeech().listening).toBe(false);
+    });
+
+    it('the Session ended while dictating: the Composer gone, the recognition stops with it', () => {
+      const { panel, shown, store } = setup();
+      panel.show(SESSION.id);
+      panel.dictateStart('');
+      fakeSpeech().say('Pense', false);
+      store.set({ 'agent-session': new Map([[SESSION.id, { ...SESSION, state: 'ended', endedAt: '2026-11-10T10:00:00.000Z' }]]) });
+      expect(composerOf(shown())).toBeUndefined();
+      expect(fakeSpeech().listening).toBe(false);
+    });
+
+    it('a disabled Composer dictates nothing', () => {
+      const { panel } = setup({ runner: OFFLINE });
+      panel.show(SESSION.id);
+      panel.dictateStart('');
+      expect(fakeSpeech().started).toBe(0);
+    });
+
+    it('without the API, the Composer has no mic', () => {
+      removeSpeech();
+      const { panel, shown } = setup();
+      panel.show(SESSION.id);
+      expect(composerOf(shown())?.dictation.available).toBe(false);
+    });
   });
 
   describe('the requests of the agent (SESSION-3)', () => {

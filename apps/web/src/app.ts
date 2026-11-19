@@ -551,6 +551,8 @@ export const boot = async ({
   dispatcher.registerAction(PageIdees, 'open', { run: () => undefined });
   dispatcher.registerAction(NoteIdeaDialog, 'submit', { run: (input) => noteIdea.submit(input) });
   dispatcher.registerAction(NoteIdeaDialog, 'cancel', { run: () => noteIdea.cancel() });
+  dispatcher.registerAction(NoteIdeaDialog, 'dictate-start', { run: (input) => noteIdea.dictateStart(input) });
+  dispatcher.registerAction(NoteIdeaDialog, 'dictate-stop', { run: () => noteIdea.dictateStop() });
   dispatcher.registerAction(PageDemarrage, 'selectSystem', { run: ({ system }) => gettingStarted.selectSystem(system) });
   dispatcher.registerAction(PageDemarrage, 'retry', { run: () => gettingStarted.retry() });
   dispatcher.registerAction(PageDemarrage, 'continue', { run: () => gettingStarted.advance() });
@@ -620,6 +622,8 @@ export const boot = async ({
   // « Agrandir » is not at the MVP: the panel does not offer it.
   dispatcher.registerAction(Session, 'expand', { run: () => undefined });
   dispatcher.registerAction(Composer, 'send', { run: ({ text }) => sessionPanel.send(text) });
+  dispatcher.registerAction(Composer, 'dictate-start', { run: ({ text }) => sessionPanel.dictateStart(text) });
+  dispatcher.registerAction(Composer, 'dictate-stop', { run: () => sessionPanel.dictateStop() });
   // The agent's requests in the panel (SESSION-3): sealed to the Runner, which hands them to the Moteur once.
   dispatcher.registerAction(Question, 'answer', { run: ({ questionId, optionIds }) => sessionPanel.answer(questionId, optionIds) });
   dispatcher.registerAction(PermissionRequest, 'allow', { run: ({ id }) => sessionPanel.permission(id, 'allow') });

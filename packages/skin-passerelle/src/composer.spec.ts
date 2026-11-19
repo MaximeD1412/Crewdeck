@@ -9,7 +9,9 @@ import { actionsOf, defineSkin, inside, render, settle, textOf } from './testing
 beforeAll(defineSkin);
 afterEach(() => document.body.replaceChildren());
 
-const IDLE = { placeholder: 'Écrire à l’agent, ou dicter', hint: null, state: 'idle', value: '', dictation: true } as const;
+const DICTATION = { available: true, state: 'idle', elapsedSeconds: 0, error: null, notice: false } as const;
+const DICTATING = { ...DICTATION, state: 'dictating', elapsedSeconds: 7 } as const;
+const IDLE = { placeholder: 'Écrire à l’agent, ou dicter', hint: null, state: 'idle', value: '', dictation: DICTATION } as const;
 
 const field = (el: Element) => inside<HTMLTextAreaElement>(el, 'textarea');
 
@@ -54,28 +56,45 @@ describe('Composer', () => {
     expect(textOf(inside(hinted, '.hint'))).toBe('Une aide');
   });
 
-  it('has no mic without dictation', async () => {
-    const el = await render(COMPOSANTS.Composer, { ...IDLE, dictation: false });
+  it('has no mic where the browser cannot dictate', async () => {
+    const el = await render(COMPOSANTS.Composer, { ...IDLE, dictation: { ...DICTATION, available: false } });
     expect(el.shadowRoot?.querySelector('button.mic')).toBeNull();
     expect(el.shadowRoot?.querySelector('button.send')).not.toBeNull();
   });
 
-  it('asks to dictate with its mic, « Dicter »', async () => {
+  it('asks to dictate with its mic, « Dicter », after the text typed', async () => {
     const el = await render(COMPOSANTS.Composer, IDLE);
+    field(el).focus();
+    await userEvent.keyboard('Pense');
     const mic = inside(el, 'button.mic');
-    expect(mic.getAttribute('aria-label')).toBe(t('composer.dictate'));
-    expect(await actionsOf(() => mic.click())).toEqual([{ composant: 'Composer', action: 'dictate', payload: {} }]);
+    expect(mic.getAttribute('aria-label')).toBe('Dicter');
+    expect(await actionsOf(() => mic.click())).toEqual([{ composant: 'Composer', action: 'dictate-start', payload: { text: 'Pense' } }]);
   });
 
-  it('while dictating, shows the transcript, says so, and its mic stops the dictation', async () => {
-    const el = await render(COMPOSANTS.Composer, { ...IDLE, state: 'dictating', value: 'Pense aux récurrents' });
+  it('while dictating, shows the transcript and « Dictée en cours · 0:07 », and its mic stops the dictation without sending', async () => {
+    const el = await render(COMPOSANTS.Composer, { ...IDLE, value: 'Pense aux récurrents', dictation: DICTATING });
     expect(field(el).value).toBe('Pense aux récurrents');
-    expect(textOf(inside(el, '.recording'))).toBe(t('composer.dictating'));
+    expect(textOf(inside(el, '.recording'))).toBe('Dictée en cours · 0:07');
+    expect(inside(el, '.recording cd-status-dot')).toMatchObject({ data: { tone: 'halt', pulse: true } });
     expect(el.shadowRoot?.querySelector('.hint')).toBeNull();
+    expect(el.shadowRoot?.querySelector('.notice')).toBeNull();
     const mic = inside(el, 'button.mic');
-    expect(mic.getAttribute('aria-label')).toBe(t('composer.stopDictation'));
+    expect(mic.getAttribute('aria-label')).toBe('Arrêter la dictée');
     expect(mic.getAttribute('aria-pressed')).toBe('true');
-    expect(await actionsOf(() => mic.click())).toEqual([{ composant: 'Composer', action: 'stopDictation', payload: {} }]);
+    expect(await actionsOf(() => mic.click())).toEqual([{ composant: 'Composer', action: 'dictate-stop', payload: {} }]);
+  });
+
+  it('the first dictation of the Appareil says that the browser’s service hears it', async () => {
+    const el = await render(COMPOSANTS.Composer, { ...IDLE, dictation: { ...DICTATING, notice: true } });
+    expect(textOf(inside(el, '.notice'))).toBe(t('dictation.notice'));
+  });
+
+  it('says why the last dictation ended, « Micro refusé », in place of its hint', async () => {
+    const el = await render(COMPOSANTS.Composer, { ...IDLE, dictation: { ...DICTATION, error: t('dictation.error.notAllowed') } });
+    expect(textOf(inside(el, '.dictation-error'))).toBe('Micro refusé : autorise-le dans ton navigateur.');
+    expect(inside(el, '.dictation-error').getAttribute('role')).toBe('alert');
+    expect(el.shadowRoot?.querySelector('.hint')).toBeNull();
+    expect(inside(el, 'button.mic').getAttribute('aria-label')).toBe('Dicter');
   });
 
   it('takes the value the core puts in it, for the Pilote to correct before sending', async () => {

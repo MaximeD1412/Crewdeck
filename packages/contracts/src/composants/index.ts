@@ -88,6 +88,7 @@ export * from './composer.js';
 export * from './decision-row.js';
 export * from './define.js';
 export * from './dialog.js';
+export * from './dictation.js';
 export * from './empty.js';
 export * from './engine-account.js';
 export * from './folder-project-form.js';

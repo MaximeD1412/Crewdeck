@@ -13,6 +13,8 @@ const runDatabaseUrl = inject('databaseUrl');
 const APP_URL = 'https://crewdeck.example';
 const MIGRATIONS = resolve(import.meta.dirname, '../../prisma/migrations');
 const IDENTITIES = '20261201000000_identities';
+/** CORE-11's contract: it drops the columns the triggers below keep in step. */
+const DROP_GITHUB_COLUMNS = '20261208000000_drop_pilot_github_columns';
 const OCTOCAT = { id: 583231, login: 'octocat', avatarUrl: 'https://avatars.example/u/583231' };
 const HUBOT = { id: 9100002, login: 'hubot', avatarUrl: 'https://avatars.example/u/9100002' };
 
@@ -25,7 +27,8 @@ const migrations = readdirSync(MIGRATIONS, { withFileTypes: true })
 /**
  * The migration of the Identités (CORE-9) on a database the version before
  * wrote: a database of its own, migrated up to the one before, given its
- * Pilotes the old way, then migrated to the end.
+ * Pilotes the old way, then migrated up to CORE-11's contract, which the last
+ * test applies.
  */
 describe('the migration of the Identités, against PostgreSQL', () => {
   // The run's database name is up to 63 bytes already, PostgreSQL's limit: its end gives way to the suffix.
@@ -65,7 +68,7 @@ describe('the migration of the Identités, against PostgreSQL', () => {
       oldPilot,
     ]);
     await sql(`INSERT INTO github_installations (installation_id, account_login, account_id, sender_id) VALUES (2, 'hubot', $1, $1)`, [HUBOT.id]);
-    await migrate(migrations.slice(at));
+    await migrate(migrations.slice(at, migrations.indexOf(DROP_GITHUB_COLUMNS)));
 
     const env = parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: databaseUrl, CREWDECK_FAKES: '1', PUBLIC_URL: APP_URL, ...authKeysEnv() });
     ({ app, url } = await startApp(env));
@@ -143,5 +146,22 @@ describe('the migration of the Identités, against PostgreSQL', () => {
       { provider: 'github', subject: String(user.id), login: 'rolled-back' },
     ]);
     expect(await signInWithGitHub(user)).toBe(written);
+  });
+
+  it("drops, by CORE-11's contract, the legacy columns and their triggers, each Pilote keeping its github Identité", async () => {
+    await migrate(migrations.slice(migrations.indexOf(DROP_GITHUB_COLUMNS)));
+
+    const columns = await sql<{ column_name: string }>(`SELECT column_name FROM information_schema.columns WHERE table_name = 'pilots'`);
+    expect(columns.map((column) => column.column_name)).not.toEqual(expect.arrayContaining(['github_user_id']));
+    expect(columns.map((column) => column.column_name)).not.toEqual(expect.arrayContaining(['login']));
+    expect(await sql(`SELECT tgname FROM pg_trigger WHERE tgname LIKE 'pilots_legacy_%'`)).toEqual([]);
+    expect(await sql(`SELECT proname FROM pg_proc WHERE proname LIKE 'pilots_legacy_%'`)).toEqual([]);
+    expect(await signInWithGitHub(OCTOCAT)).toBe(oldPilot);
+    const user = { id: 9100005, login: 'after-the-drop', avatarUrl: 'https://avatars.example/u/9100005' };
+    const pilot = await signInWithGitHub(user);
+    expect(await sql('SELECT display_name FROM pilots WHERE id = $1', [pilot])).toEqual([{ display_name: 'after-the-drop' }]);
+    expect(await sql('SELECT provider, subject, login FROM pilot_identities WHERE pilot_id = $1', [pilot])).toEqual([
+      { provider: 'github', subject: String(user.id), login: 'after-the-drop' },
+    ]);
   });
 });

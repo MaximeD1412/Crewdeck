@@ -1,7 +1,9 @@
 // Package fake is an in-process Engine that replays a list of normalised
 // events, for the tests of the Sessions (RUNNER-9) and the fake Runner. It
 // runs nothing: each run emits Events in order, numbered from 1, waits after
-// a `question` or a `permission-request` until it is answered, and ends after
+// a `question` or a `permission-request` until it is answered (then emits
+// its `answer`; with Together, after the last of requests that follow one
+// another, until each is), and ends after
 // the last one. Interrupt ends it at once with a `result` `interrupted`;
 // cancelling the context given to Start or Resume ends it with nothing more,
 // as a killed Moteur process would, Wait then returning the context's error.
@@ -37,6 +39,10 @@ type Engine struct {
 	Err error
 	// Now gives the instant of each event; nil, time.Now.
 	Now func() time.Time
+	// Together, when set, emits requests that follow one another at once,
+	// several then waiting together (Claude's parallel tool calls), the run
+	// going on once every one is answered; unset, it waits after each.
+	Together bool
 
 	mu   sync.Mutex
 	runs []*Run
@@ -118,6 +124,7 @@ func (e *Engine) start(ctx context.Context, opts engine.StartOptions, sessionID 
 	e.mu.Lock()
 	e.runs = append(e.runs, r)
 	e.mu.Unlock()
+	r.together = e.Together
 	go r.play(ctx, append([]contracts.EngineEvent(nil), e.Events...), e.Err)
 	return r
 }
@@ -133,6 +140,7 @@ type Run struct {
 	opts      engine.StartOptions
 	sessionID string
 	now       func() time.Time
+	together  bool
 
 	events    chan contracts.EngineEvent
 	interrupt chan struct{}
@@ -166,7 +174,8 @@ func (r *Run) play(ctx context.Context, events []contracts.EngineEvent, err erro
 			r.err = ctx.Err()
 		}
 	}
-	for _, event := range events {
+	pending := map[string]bool{}
+	for i, event := range events {
 		next := engine.Stamp(event, seq+1, r.now())
 		for sent := false; !sent; {
 			select {
@@ -183,8 +192,13 @@ func (r *Run) play(ctx context.Context, events []contracts.EngineEvent, err erro
 				req.reply <- engine.ErrNoSuchRequest
 			}
 		}
-		pending := requestID(event)
-		for pending != "" {
+		if id := requestID(event); id != "" {
+			pending[id] = true
+		}
+		if r.together && i+1 < len(events) && requestID(events[i+1]) != "" {
+			continue
+		}
+		for len(pending) > 0 {
 			select {
 			case <-ctx.Done():
 				r.err = ctx.Err()
@@ -193,7 +207,7 @@ func (r *Run) play(ctx context.Context, events []contracts.EngineEvent, err erro
 				interrupted()
 				return
 			case req := <-r.answers:
-				if req.id != pending {
+				if !pending[req.id] {
 					req.reply <- engine.ErrNoSuchRequest
 					continue
 				}
@@ -201,7 +215,14 @@ func (r *Run) play(ctx context.Context, events []contracts.EngineEvent, err erro
 				r.answered = append(r.answered, RecordedAnswer{RequestID: req.id, Answer: req.answer})
 				r.mu.Unlock()
 				req.reply <- nil
-				pending = ""
+				delete(pending, req.id)
+				select {
+				case r.events <- engine.Stamp(engine.AnswerEvent(req.id, req.answer), seq+1, r.now()):
+					seq++
+				case <-ctx.Done():
+					r.err = ctx.Err()
+					return
+				}
 			}
 		}
 	}

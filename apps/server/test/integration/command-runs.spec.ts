@@ -101,7 +101,7 @@ describe('the Commandes run on the Runner, against PostgreSQL', () => {
   /** A Pilote: their cookie and their Runner's token. */
   const pilot = async (login: string): Promise<{ id: string; cookie: string; token: string }> => {
     const id = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, getting_started_step) VALUES ($1, $2, $3, 'Europe/Paris', 'done')`, [
+    await sql(`WITH p AS (INSERT INTO pilots (id, display_name, time_zone, getting_started_step) VALUES ($1, $3, 'Europe/Paris', 'done') RETURNING id) INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) SELECT gen_random_uuid(), id, 'github', $2::text, $3 FROM p`, [
       id,
       Math.floor(Math.random() * 1e9),
       login,

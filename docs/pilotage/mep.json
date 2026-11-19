@@ -494,6 +494,19 @@
       ],
       "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261130000000_agent_sessions'\"",
       "ajouteLe": "2026-11-16"
+    },
+    {
+      "id": "migration-drop-pilot-github-columns",
+      "phase": "db",
+      "source": "#198",
+      "titre": "Migration 20261208000000_drop_pilot_github_columns : retirer pilots.github_user_id et pilots.login",
+      "pourquoi": "Le contrat de la migration 20261201000000_identities (CORE-9) : les colonnes github_user_id et login des Pilotes, leur index et les déclencheurs qui les recopiaient disparaissent, l'Identité github devient la seule trace du compte GitHub. La version de CORE-9 ne lit déjà plus ces colonnes, mais celle d'avant CORE-9 en a besoin : la migration ne part en production qu'après une release qui contient CORE-9. Pas de migration descendante (ADR 0009) : un retour en arrière revient à la version de CORE-9, pas avant.",
+      "etapes": [
+        "Avant le merge develop → main qui contient CORE-11 : vérifier que la production a déjà la migration 20261201000000_identities (la commande imprime une date). Sinon, livrer d'abord une release de develop sans CORE-11, puis celle-ci.",
+        "Répéter la migration sur la dernière sauvegarde de la prod (deploy.sh, rehearse.sh), puis vérifier après le déploiement qu'une connexion GitHub retrouve le même Pilote et ses installations."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261201000000_identities'\"",
+      "ajouteLe": "2026-11-17"
     }
   ]
 }

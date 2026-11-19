@@ -21,6 +21,7 @@ const WAITING: Data = {
   busy: false,
   engines: [],
   usable: false,
+  githubLinked: true,
   picker: { context: 'demarrage', repositories: [], installUrl: null, busy: false },
 };
 const RUNNER = {
@@ -168,6 +169,20 @@ describe('PageDemarrage', () => {
     await settle(el);
     expect(await actionsOf(() => inside(el, 'cd-repository-picker', 'cd-button.follow', 'button').click())).toEqual([
       { composant: 'RepositoryPicker', action: 'follow', payload: { repositoryIds: [EXAMPLE_REPOSITORIES[0].id] } },
+    ]);
+  });
+
+  it('the projects step without GitHub: a caution Banner above the picker, its « Relier GitHub » emits linkGitHub', async () => {
+    const linked = await page({ ...WAITING, step: 'projects', runner: RUNNER });
+    expect(linked.shadowRoot?.querySelector('cd-banner.github')).toBeNull();
+
+    const el = await page({ ...WAITING, step: 'projects', runner: RUNNER, githubLinked: false });
+    const banner = child(el, 'cd-banner.github');
+    expect(banner.data).toMatchObject({ tone: 'caution', title: 'Pour suivre un Dépôt GitHub, relie d’abord ton compte GitHub.' });
+    expect(banner.compareDocumentPosition(inside(el, 'cd-repository-picker')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(child(el, 'cd-button.link-github').data).toMatchObject({ label: 'Relier GitHub', variant: 'secondary' });
+    expect(await actionsOf(() => inside(el, 'cd-button.link-github', 'button').click())).toEqual([
+      { composant: 'PageDemarrage', action: 'linkGitHub', payload: {} },
     ]);
   });
 

@@ -91,9 +91,12 @@ type ResumeOptions struct {
 // `permission-request`, the labels of the options chosen (Options) or a
 // text of their own (Text) for a `question`.
 type Answer struct {
-	Allow   *bool
-	Options []string
-	Text    string
+	Allow *bool
+	// ForSession, with Allow, is the Moteur's own « always allow » for the
+	// tool in this Session; nothing is remembered by Crewdeck.
+	ForSession bool
+	Options    []string
+	Text       string
 }
 
 // ErrRunEnded is what Send, Answer and Interrupt return once the run ended.

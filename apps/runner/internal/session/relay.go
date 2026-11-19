@@ -8,11 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/engine"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/relay"
 )
@@ -30,7 +32,8 @@ import (
 //   - input: the Pilote's, sealed by the tab under
 //     "<sessionId>:input:<inputId>", opened, checked against its schema, and
 //     handed to the Moteur once per inputId, recorded in `sessions/<id>/inputs`
-//     so that a Runner started again does not hand it twice.
+//     so that a Runner started again does not hand it twice. An answer
+//     (SESSION-3) reaches the Moteur only while its request waits.
 
 // RelayKeys are what the relay seals with.
 type RelayKeys = relay.Keys
@@ -314,11 +317,57 @@ func (m *Manager) Input(message contracts.RunnerSessionInput) {
 	}
 	ctx, cancel := m.relayContext()
 	defer cancel()
-	if payload.Message != nil {
-		if err := run.Send(ctx, payload.Message.Text); err != nil {
-			m.cfg.Logger.Warn("session.input", "sessionId", message.SessionId, "inputId", message.InputId, "error", errorKind(err))
+	switch {
+	case payload.Message != nil:
+		err = run.Send(ctx, payload.Message.Text)
+	case payload.Answer != nil, payload.Permission != nil:
+		requestID, answer, ok := answerOf(s, payload)
+		if !ok {
+			// Answered already (from another tab), or not an answer to it.
+			return
+		}
+		if err = run.Answer(ctx, requestID, answer); errors.Is(err, engine.ErrNoSuchRequest) {
+			return
 		}
 	}
+	if err != nil {
+		m.cfg.Logger.Warn("session.input", "sessionId", message.SessionId, "inputId", message.InputId, "error", errorKind(err))
+	}
+}
+
+// answerOf is the Moteur's answer to the request the input answers, false
+// when that request does not wait or the input does not fit it: an option
+// out of its range, several for a question of one, a decision for a
+// question, a choice for a permission.
+func answerOf(s *live, payload contracts.SessionInput) (string, engine.Answer, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if p := payload.Permission; p != nil {
+		if req, ok := s.pending[p.RequestId]; !ok || req.kind != contracts.RunnerSessionWaitingKindPermission {
+			return "", engine.Answer{}, false
+		}
+		allow := p.Decision != contracts.SessionInputPermissionDecisionDeny
+		return p.RequestId, engine.Answer{Allow: &allow, ForSession: p.Decision == contracts.SessionInputPermissionDecisionAllowSession}, true
+	}
+	a := payload.Answer
+	req, ok := s.pending[a.RequestId]
+	if !ok || req.kind != contracts.RunnerSessionWaitingKindQuestion {
+		return "", engine.Answer{}, false
+	}
+	if a.Text != nil {
+		return a.RequestId, engine.Answer{Text: *a.Text}, true
+	}
+	if len(a.OptionIndexes) == 0 || (len(a.OptionIndexes) > 1 && !req.multiple) {
+		return "", engine.Answer{}, false
+	}
+	labels := make([]string, 0, len(a.OptionIndexes))
+	for _, i := range a.OptionIndexes {
+		if i < 0 || i >= len(req.options) || slices.Contains(labels, req.options[i]) {
+			return "", engine.Answer{}, false
+		}
+		labels = append(labels, req.options[i])
+	}
+	return a.RequestId, engine.Answer{Options: labels}, true
 }
 
 func (m *Manager) openInput(message contracts.RunnerSessionInput) (contracts.SessionInput, error) {

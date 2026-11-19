@@ -15,7 +15,7 @@ const RUNNER: Runner = {
   linkedAt: '2026-11-11T14:11:00.000Z',
 };
 const STATE: DemarrageState = {
-  pilot: { displayName: 'octocat', gettingStartedStep: 'runner' },
+  pilot: { displayName: 'octocat', gettingStartedStep: 'runner', githubLinked: true },
   runner: null,
   system: 'linux',
   code: CODE,
@@ -92,11 +92,17 @@ describe('demarrageView', () => {
       busy: false,
       engines: [NOT_CONNECTED('claude-code', 'crewdeck-runner login claude'), NOT_CONNECTED('codex', 'crewdeck-runner login codex')],
       usable: false,
+      githubLinked: true,
     });
   });
 
+  it('says whether the Pilote has GitHub linked, for the Projets’ Banner', () => {
+    const pilot = { displayName: 'ada.lovelace', gettingStartedStep: 'projects', githubLinked: false } as const;
+    expect(valid({ ...STATE, pilot, runner: RUNNER }).githubLinked).toBe(false);
+  });
+
   it('gives both Moteurs, as their Runner reported them or not connected, and usable once a Rôle can run on one', () => {
-    const view = valid({ ...STATE, pilot: { displayName: 'octocat', gettingStartedStep: 'ai-accounts' }, runner: RUNNER, accounts: [CLAUDE] });
+    const view = valid({ ...STATE, pilot: { displayName: 'octocat', gettingStartedStep: 'ai-accounts', githubLinked: true }, runner: RUNNER, accounts: [CLAUDE] });
     expect(view.engines).toEqual([
       {
         engine: 'claude-code',
@@ -133,7 +139,7 @@ describe('demarrageView', () => {
   });
 
   it('reads `done`, the instant before the router leaves, as the last step', () => {
-    expect(valid({ ...STATE, pilot: { displayName: 'octocat', gettingStartedStep: 'done' }, runner: RUNNER, busy: true })).toMatchObject({
+    expect(valid({ ...STATE, pilot: { displayName: 'octocat', gettingStartedStep: 'done', githubLinked: true }, runner: RUNNER, busy: true })).toMatchObject({
       step: 'projects',
       busy: true,
     });

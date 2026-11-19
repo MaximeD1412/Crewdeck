@@ -3,8 +3,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { AppError } from '../errors/app-error.js';
 import { MESSAGES } from '../errors/messages.js';
 import { GITHUB_CLIENT, type GitHubClient } from '../github/github.client.js';
+import { publishMe } from '../pilots/me.controller.js';
 import { PrismaService, type ScopedPrisma } from '../prisma/prisma.service.js';
+import { EventsWriter } from '../realtime/events.writer.js';
+import { Transactions } from '../realtime/transactions.js';
 import { currentPilotId } from '../scope/scope.context.js';
+import { githubNotLinked } from './require-github.js';
 import { TOKEN_KEY_VERSION, TokenCipher, TokenDecryptError } from './token-cipher.js';
 import { WebSessions } from './web-sessions.js';
 
@@ -26,10 +30,13 @@ const encrypted = (cipher: TokenCipher, tokens: UserTokens) => ({
 });
 
 /**
- * The Pilote's GitHub user tokens (ADR 0002): stored encrypted at sign-in,
- * handed to the page (`POST /api/github/token`), refreshed when about to
- * expire. A grant GitHub refuses, or tokens this key no longer opens, sign
- * the Pilote out: every session ends, 401 `auth.github-expired`.
+ * The Pilote's GitHub user tokens (ADR 0002): stored encrypted at sign-in or
+ * at « Relier GitHub », handed to the page (`POST /api/github/token`),
+ * refreshed when about to expire. Without them, 409 `github.not-linked`. A
+ * grant GitHub refuses, or tokens this key no longer opens, are deleted: a
+ * Pilote whose only Identité is GitHub is signed out (every session ends, 401
+ * `auth.github-expired`); one who signs in another way keeps their sessions,
+ * and gets 409 `github.not-linked` and « Reconnecter GitHub » (ADR 0014).
  */
 @Injectable()
 export class GithubTokens {
@@ -41,6 +48,8 @@ export class GithubTokens {
     private readonly cipher: TokenCipher,
     @Inject(GITHUB_CLIENT) private readonly github: GitHubClient,
     private readonly sessions: WebSessions,
+    private readonly transactions: Transactions,
+    private readonly events: EventsWriter,
   ) {}
 
   /** Stores `tokens` as the scope's Pilote's, written by `tx`. */
@@ -69,8 +78,8 @@ export class GithubTokens {
 
   private async read(pilotId: string, now: number): Promise<GithubToken> {
     const row = await this.prisma.scoped.githubUserToken.findUnique({ where: { pilotId } });
-    // No tokens: a sign-out already ended the sessions with them (they are written and deleted together).
-    if (!row) throw githubExpired();
+    // No tokens: GitHub never linked, or its grant refused (a Pilote it signed out has no session left to ask).
+    if (!row) throw githubNotLinked();
     try {
       if (row.accessExpiresAt.getTime() - now > REFRESH_WITHIN_MS) {
         return { accessToken: this.cipher.decrypt(row.accessTokenEnc), expiresAt: row.accessExpiresAt.toISOString() };
@@ -88,23 +97,31 @@ export class GithubTokens {
   }
 
   /**
-   * Signs the scope's Pilote out, their sessions and tokens deleted, unless
-   * the tokens are no longer `read` (the refresh token as read, encrypted
-   * with a random nonce): a sign-in stored new ones meanwhile, which are read
-   * again. The token's delete is conditional and takes its row's lock, the
-   * sessions are deleted only after it in the same transaction: a sign-in
-   * that commits first keeps its session, one that commits after waits. The
-   * sockets of the sessions deleted, and of those only, are closed once it
-   * commits: a sign-in that completes between the commit and the return keeps
-   * its socket.
+   * Deletes the scope's Pilote's tokens, unless they are no longer `read`
+   * (the refresh token as read, encrypted with a random nonce): a sign-in
+   * stored new ones meanwhile, which are read again. A Pilote with another
+   * Identité keeps their sessions: `pilot.upserted` tells their tabs to
+   * reconnect GitHub, 409 `github.not-linked`. One whose only Identité is
+   * GitHub is signed out: the token's delete is conditional and takes its
+   * row's lock, the sessions are deleted only after it in the same
+   * transaction, so a sign-in that commits first keeps its session, one that
+   * commits after waits. The sockets of the sessions deleted, and of those
+   * only, are closed once it commits: a sign-in that completes between the
+   * commit and the return keeps its socket.
    */
   private async expire(read: Uint8Array<ArrayBuffer>, pilotId: string, now: number): Promise<GithubToken> {
-    const deleted = await this.prisma.scoped.$transaction(async (tx) => {
+    const outcome = await this.transactions.run(async (tx) => {
       const { count } = await tx.githubUserToken.deleteMany({ where: { refreshTokenEnc: { equals: read } } });
-      return count === 0 ? undefined : this.sessions.deleteAll(tx);
+      if (count === 0) return 'read-again' as const;
+      if ((await tx.pilotIdentity.count({ where: { provider: { not: 'github' } } })) > 0) {
+        await publishMe(tx, this.events, pilotId);
+        return 'kept' as const;
+      }
+      return this.sessions.deleteAll(tx);
     });
-    if (!deleted) return this.read(pilotId, now);
-    this.sessions.revokeSockets(pilotId, deleted);
+    if (outcome === 'read-again') return this.read(pilotId, now);
+    if (outcome === 'kept') throw githubNotLinked();
+    this.sessions.revokeSockets(pilotId, outcome);
     throw githubExpired();
   }
 }

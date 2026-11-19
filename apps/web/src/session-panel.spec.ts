@@ -406,4 +406,66 @@ describe('the Session panel', () => {
       expect(composerOf(shown())?.dictation.available).toBe(false);
     });
   });
+
+  describe('the requests of the agent (SESSION-3)', () => {
+    const QUESTION: EngineEvent = {
+      kind: 'question',
+      seq: 2,
+      at: '2026-11-11T14:04:30.000Z',
+      requestId: 'toolu-q1',
+      title: 'Qui peut modifier un événement ?',
+      options: [{ label: 'Tous les membres' }, { label: 'Seulement son auteur' }],
+      multiple: false,
+    };
+    const PERMISSION: EngineEvent = { kind: 'permission-request', seq: 2, at: '2026-11-11T14:04:30.000Z', requestId: 'toolu-p1', tool: 'Bash', command: 'git push' };
+    const waiting = { ...SESSION, state: 'waiting' } as const;
+
+    it('« Répondre » sends the options chosen by their index', async () => {
+      const { panel, relay } = setup({ session: waiting });
+      panel.show(SESSION.id);
+      relay.push(agent(1, 'Voici la première.'), QUESTION);
+      await panel.answer('toolu-q1', ['1']);
+      expect(relay.relay.sendInput).toHaveBeenCalledWith(SESSION.id, { kind: 'answer', requestId: 'toolu-q1', optionIndexes: [1] });
+    });
+
+    it('the Composer’s text answers the question waiting, shown only once the Moteur took it', async () => {
+      const { panel, relay, shown } = setup({ session: waiting });
+      panel.show(SESSION.id);
+      relay.push(QUESTION);
+      await panel.send('Tous, sauf les invités.');
+      expect(relay.relay.sendInput).toHaveBeenCalledWith(SESSION.id, { kind: 'answer', requestId: 'toolu-q1', text: 'Tous, sauf les invités.' });
+      expect(textsOf(shown() as Element).map((data) => data.text ?? data.title)).toEqual(['Qui peut modifier un événement ?']);
+      relay.push({ kind: 'answer', seq: 3, at: '2026-11-11T14:04:40.000Z', requestId: 'toolu-q1', text: 'Tous, sauf les invités.' });
+      expect(textsOf(shown() as Element).map((data) => data.text)).toEqual(['Qui peut modifier un événement ?', 'Tu as répondu : Tous, sauf les invités.']);
+    });
+
+    it.each([
+      ['allow', 'allow'],
+      ['allowForSession', 'allow-session'],
+      ['deny', 'deny'],
+    ] as const)('the permission’s « %s » sends its decision %s', async (_button, decision) => {
+      const { panel, relay } = setup({ session: waiting });
+      panel.show(SESSION.id);
+      relay.push(PERMISSION);
+      await panel.permission('toolu-p1', decision);
+      expect(relay.relay.sendInput).toHaveBeenCalledWith(SESSION.id, { kind: 'permission', requestId: 'toolu-p1', decision });
+    });
+
+    it('a question a stop withdrew, the Session resumed: the Composer’s text is a message to the agent, no answer', async () => {
+      const { panel, relay } = setup();
+      panel.show(SESSION.id);
+      relay.push(QUESTION, { kind: 'result', seq: 3, at: '2026-11-11T14:04:35.000Z', status: 'interrupted' }, agent(4, 'Je reprends.'));
+      await panel.send('Tous les membres.');
+      expect(relay.relay.sendInput).toHaveBeenCalledWith(SESSION.id, { kind: 'message', text: 'Tous les membres.' });
+    });
+
+    it('an answer the relay cannot send: why, in the Cadre', async () => {
+      const { panel, relay, shell } = setup({ session: waiting });
+      panel.show(SESSION.id);
+      relay.push(QUESTION);
+      relay.relay.sendInput.mockRejectedValueOnce(new SessionInputError('not-connected'));
+      await panel.answer('toolu-q1', ['0']);
+      expect(shell.showError).toHaveBeenCalledWith(t('session.send.failed'));
+    });
+  });
 });

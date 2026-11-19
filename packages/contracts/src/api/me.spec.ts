@@ -1,7 +1,7 @@
 import { nextGettingStartedStep, zGettingStartedAdvance, zGithubToken, zMe } from '../index.js';
 
 describe('zMe', () => {
-  const me = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: 'https://avatars.example/u/1', timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [{ provider: 'github', label: 'octocat' }] };
+  const me = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: 'https://avatars.example/u/1', timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [{ provider: 'github', label: 'octocat', reconnect: false }], githubLinked: true };
 
   it('accepts the Pilote, with or without an avatar', () => {
     expect(zMe.parse(me)).toEqual(me);
@@ -14,9 +14,16 @@ describe('zMe', () => {
   });
 
   it('lists the Identités by provider, each with its label: the address, or GitHub’s login', () => {
-    const identities = [{ provider: 'email', label: 'pilote@example.com' }, { provider: 'github', label: 'octocat' }];
+    const identities = [{ provider: 'email', label: 'pilote@example.com', reconnect: false }, { provider: 'github', label: 'octocat', reconnect: false }];
     expect(zMe.parse({ ...me, identities })).toMatchObject({ identities });
-    expect(zMe.safeParse({ ...me, identities: [{ provider: 'gitlab', label: 'x' }] }).success).toBe(false);
+    expect(zMe.safeParse({ ...me, identities: [{ provider: 'gitlab', label: 'x', reconnect: false }] }).success).toBe(false);
+  });
+
+  it('says whether GitHub is linked, and which github Identité is to reconnect', () => {
+    const toReconnect = [{ provider: 'email', label: 'pilote@example.com', reconnect: false }, { provider: 'github', label: 'octocat', reconnect: true }];
+    expect(zMe.parse({ ...me, identities: toReconnect, githubLinked: false })).toMatchObject({ identities: toReconnect, githubLinked: false });
+    expect(zMe.safeParse({ ...me, githubLinked: undefined }).success).toBe(false);
+    expect(zMe.safeParse({ ...me, identities: [{ provider: 'github', label: 'octocat' }] }).success).toBe(false);
   });
 
   it('carries the step of « Premiers pas »: runner, ai-accounts, projects or done', () => {

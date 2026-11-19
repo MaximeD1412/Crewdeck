@@ -1,4 +1,4 @@
-import type { AgentSession } from '@crewdeck/contracts';
+import type { AgentSession, PermissionDecision, SessionInputPayload } from '@crewdeck/contracts';
 import { Button, Composer, Empty, Session, t } from '@crewdeck/sdk';
 import type { Client } from './api/client.js';
 import { createDictationField } from './dictation/field.js';
@@ -8,7 +8,7 @@ import { placeNode, type PlacedNode } from './placed.js';
 import type { Shell } from './shell.js';
 import { SessionInputError, type SessionRelay, type SessionSubscription } from './sessions/relay.js';
 import type { Store } from './store/store.js';
-import { sessionNotFoundView, sessionView, type PilotMessage } from './views/session.js';
+import { pendingQuestion, sessionNotFoundView, sessionView, type PilotMessage } from './views/session.js';
 
 export interface SessionPanelOptions {
   readonly store: Pick<Store, 'getState' | 'subscribe'>;
@@ -32,11 +32,19 @@ export interface SessionPanel {
   /** « Arrêter » and « Reprendre »: a refusal is an `ApiError`, the page shows it. */
   stop(): Promise<void>;
   resume(): Promise<void>;
-  /** The Composer's text to the agent; a stopped or interrupted Session resumed first. Why it was not sent, in the Cadre. */
+  /**
+   * The Composer's text to the agent, or the answer to the question waiting
+   * (SESSION-3); a stopped or interrupted Session resumed first. Why it was
+   * not sent, in the Cadre.
+   */
   send(text: string): Promise<void>;
   /** The Composer's mic (IDEE-4): the transcript after `text` in its field, never sent by itself. */
   dictateStart(text: string): void;
   dictateStop(): void;
+  /** « Répondre »: the options chosen (`Question`'s ids, their index) of the question `requestId`. */
+  answer(requestId: string, optionIds: readonly string[]): Promise<void>;
+  /** The Pilote's decision on the permission `requestId`. */
+  permission(requestId: string, decision: PermissionDecision): Promise<void>;
   dispose(): void;
 }
 
@@ -214,6 +222,23 @@ export const createSessionPanel = ({
       check();
     });
 
+  /** Seals `input` to the Session through the relay; false, with why in the Cadre, when it was not sent. */
+  const deliver = async (sessionId: string, input: SessionInputPayload): Promise<boolean> => {
+    try {
+      await relay.sendInput(sessionId, input);
+      return true;
+    } catch (error) {
+      if (!(error instanceof SessionInputError)) throw error;
+      shell.showError(t(SEND_FAILED[error.code]));
+      return false;
+    }
+  };
+
+  /** The answer to a request of the Session shown: the panel shows it once the Moteur took it, the `answer` of the log. */
+  const reply = async (input: SessionInputPayload): Promise<void> => {
+    if (id !== null) await deliver(id, input);
+  };
+
   const unsubscribe = store.subscribe(() => render());
 
   return {
@@ -236,15 +261,12 @@ export const createSessionPanel = ({
       // The Composer empties as it sends: the transcript the core set goes with it.
       dictation.reset();
       render();
+      const question = pendingQuestion(subscription?.value.events() ?? [], session.state);
+      if (question) return void (await deliver(sessionId, { kind: 'answer', requestId: question.requestId, text }));
       if (RESUMABLE.has(session.state)) await resumeSession(client, sessionId);
       if (!(await running(sessionId))) return shell.showError(t('session.send.notResumed'));
       const afterSeq = subscription?.value.events().at(-1)?.seq ?? 0;
-      try {
-        await relay.sendInput(sessionId, { kind: 'message', text });
-      } catch (error) {
-        if (!(error instanceof SessionInputError)) throw error;
-        return shell.showError(t(SEND_FAILED[error.code]));
-      }
+      if (!(await deliver(sessionId, { kind: 'message', text }))) return;
       if (id !== sessionId) return;
       sent = [...sent, { text, at: now().toISOString(), afterSeq }];
       render();
@@ -255,6 +277,8 @@ export const createSessionPanel = ({
       dictation.start(text);
     },
     dictateStop: () => dictation.stop(),
+    answer: (requestId, optionIds) => reply({ kind: 'answer', requestId, optionIndexes: optionIds.map(Number) }),
+    permission: (requestId, decision) => reply({ kind: 'permission', requestId, decision }),
     dispose() {
       unsubscribe();
       reset();

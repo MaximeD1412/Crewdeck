@@ -1,3 +1,4 @@
+import { AccountIdentities } from './account-identities.js';
 import { AgentRow } from './agent-row.js';
 import { Banner } from './banner.js';
 import { Button } from './button.js';
@@ -67,6 +68,7 @@ import { ToolChip } from './tool-chip.js';
 import { UsageCard } from './usage-card.js';
 import { UsageMeter } from './usage-meter.js';
 
+export * from './account-identities.js';
 export * from './action.js';
 export * from './agent-row.js';
 export * from './banner.js';
@@ -171,6 +173,7 @@ export const COMPOSANTS = {
   ListRow,
   RepositoryPicker,
   RoleSettings,
+  AccountIdentities,
   Session,
   Message,
   ToolCall,

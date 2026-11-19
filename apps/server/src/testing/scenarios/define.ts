@@ -1,4 +1,4 @@
-import type { ScenarioDevice, ScenarioRunnerLink } from '@crewdeck/contracts';
+import type { ScenarioDevice, ScenarioRunnerLink, UserTokens } from '@crewdeck/contracts';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { RunnerMachine } from '../fake-runner.js';
 import type { Fakes } from '../fakes.js';
@@ -9,6 +9,8 @@ export interface ScenarioContext {
   readonly fakes: Fakes;
   /** « Runner hors ligne » brought to the seeded state (`RunnerOffline.refresh`): its Décision raised from the fake waiting work. */
   readonly refreshRunnerOffline: (pilotId: string) => Promise<void>;
+  /** Stores `tokens` as the Pilote's GitHub tokens, encrypted as a sign-in does (`GithubTokens.store`). */
+  readonly storeGithubTokens: (pilotId: string, tokens: UserTokens) => Promise<void>;
 }
 
 export interface ScenarioSeed {

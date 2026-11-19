@@ -62,7 +62,7 @@ describe('the Paramètres of a Projet against PostgreSQL', () => {
   const pilot = async (login = 'octocat'): Promise<{ id: string; cookie: string }> => {
     const id = newId();
     // Its vault at version 1, as « Premiers pas » leave it: the Commandes are sealed under it.
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, vault_key_version) VALUES ($1, $2, $3, 'Europe/Paris', 1)`, [id, Math.floor(Math.random() * 1e9), login]);
+    await sql(`WITH p AS (INSERT INTO pilots (id, display_name, time_zone, vault_key_version) VALUES ($1, $3, 'Europe/Paris', 1) RETURNING id) INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) SELECT gen_random_uuid(), id, 'github', $2::text, $3 FROM p`, [id, Math.floor(Math.random() * 1e9), login]);
     const token = await runInPilotScope(id, () => app.get(WebSessions).open(prisma.scoped, id, undefined));
     await createAiAccounts(prisma, id, [CLAUDE_SUBSCRIPTION, CODEX_API_KEY]);
     return { id, cookie: `${SESSION_COOKIE}=${token}` };

@@ -101,10 +101,12 @@ export const ROUTES: readonly Route[] = [
   {
     path: '/parametres',
     composant: PageParametres,
-    slots: (_match, state) => {
+    slots: (match, state) => {
       const { slices } = state;
       return parametresView(slices.settings, timeZones(), {
         accounts: [...(slices['ai-account']?.values() ?? [])],
+        pilot: slices.pilot,
+        erreur: match.query['erreur'],
         projects: [...(slices.project?.values() ?? [])],
         devices: slices.device,
         currentDeviceId: currentDeviceId(),

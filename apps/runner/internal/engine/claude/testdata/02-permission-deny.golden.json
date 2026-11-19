@@ -15,8 +15,14 @@
     "tool": "Bash"
   },
   {
+    "decision": "deny",
+    "kind": "answer",
+    "requestId": "toolu_01FV2sDr1FfkzGVejVJVEHEc",
+    "seq": 3
+  },
+  {
     "kind": "usage",
-    "seq": 3,
+    "seq": 4,
     "windows": [
       {
         "id": "five-hour",
@@ -35,18 +41,18 @@
     "detail": "Refusé par le Pilote après deux heures.",
     "kind": "tool-result",
     "ok": false,
-    "seq": 4
+    "seq": 5
   },
   {
     "final": true,
     "from": "agent",
     "kind": "message",
-    "seq": 5,
+    "seq": 6,
     "text": "The `touch denied.txt` command was refused by the permission system, so I did not create the file. I didn't retry or use any other tool, as you asked. If you want the file created, approve the command or tell me another way to do it."
   },
   {
     "kind": "usage",
-    "seq": 6,
+    "seq": 7,
     "windows": [
       {
         "id": "five-hour",
@@ -65,13 +71,13 @@
     "inputTokens": 40688,
     "kind": "usage",
     "outputTokens": 263,
-    "seq": 7
+    "seq": 8
   },
   {
     "costUsdMicros": 2388,
     "engineSessionId": "ea01200c-a27b-48e0-aa87-0581d4738092",
     "kind": "result",
-    "seq": 8,
+    "seq": 9,
     "status": "ok"
   }
 ]

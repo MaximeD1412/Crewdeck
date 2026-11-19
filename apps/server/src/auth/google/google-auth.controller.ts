@@ -61,7 +61,7 @@ export class GoogleAuthController {
     const state = newState();
     const codeVerifier = newCodeVerifier();
     const nonce = newState();
-    const sealed = sealOauthState(this.secret, { state, timeZone: safeTimeZone(timeZone), next: safeNext(next), codeVerifier, nonce });
+    const sealed = sealOauthState(this.secret, { intent: 'sign-in', state, timeZone: safeTimeZone(timeZone), next: safeNext(next), codeVerifier, nonce });
     response.appendHeader('Set-Cookie', serializeCookie(OAUTH_COOKIE, sealed, { maxAge: OAUTH_TTL_SECONDS, path: GOOGLE_OAUTH_COOKIE_PATH, secure: this.secure }));
     return to(this.google.authorizeUrl({ state, codeChallenge: codeChallengeOf(codeVerifier), nonce, redirectUri: this.callbackUrl }));
   }
@@ -79,7 +79,7 @@ export class GoogleAuthController {
     const sealed = openOauthState(this.secret, readCookie(headerOf(request, 'cookie'), OAUTH_COOKIE));
     response.appendHeader('Set-Cookie', clearCookie(OAUTH_COOKIE, { path: GOOGLE_OAUTH_COOKIE_PATH, secure: this.secure }));
     if (error !== undefined) return failed(error === 'access_denied' ? 'denied' : 'google-unavailable');
-    if (!sealed?.codeVerifier || !sealed.nonce || !code || !state || !sameState(state, sealed.state)) return failed('state-mismatch');
+    if (sealed?.intent !== 'sign-in' || !sealed.codeVerifier || !sealed.nonce || !code || !state || !sameState(state, sealed.state)) return failed('state-mismatch');
     if (!this.google) return failed('google-unavailable');
 
     let identity: GoogleIdentity;

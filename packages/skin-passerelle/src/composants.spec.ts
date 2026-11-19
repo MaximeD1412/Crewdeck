@@ -106,6 +106,7 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     await settle(el);
     inside(el, 'cd-button.dictate', 'button').click();
   },
+  'AccountIdentities.linkGitHub': (el) => inside(el, 'cd-button.link', 'button').click(),
   'PageConnexion.requestLink': (el) => inside(el, 'cd-button.request', 'button').click(),
   'PageConnexion.signInWith': (el) => inside(el, 'cd-button.github', 'button').click(),
   'PageConnexion.changeEmail': async (el) => {
@@ -150,6 +151,11 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     el.data = COMPOSANTS.PageDemarrage.examples[2]?.data;
     await settle(el);
     inside(el, 'cd-button.continue', 'button').click();
+  },
+  'PageDemarrage.linkGitHub': async (el) => {
+    el.data = COMPOSANTS.PageDemarrage.examples.find((example) => example.name === 'Projets sans GitHub')?.data;
+    await settle(el);
+    inside(el, 'cd-button.link-github', 'button').click();
   },
   'PageParametres.change': (el) => {
     const native = inside<HTMLSelectElement>(el.querySelector('cd-select') as Element, 'select');

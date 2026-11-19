@@ -1,14 +1,14 @@
 import { randomBytes } from 'node:crypto';
 import type { EngineEvent } from '@crewdeck/contracts';
 import { publicKeyFor } from '../vault.js';
-import { PROJECTS, seedDecisions } from './a-toi.js';
+import { AGENDA_QUESTION, AGENDA_SESSION_ID, PROJECTS, seedDecisions } from './a-toi.js';
 import { defineScenario, type ScenarioContext, type ScenarioSeed } from './define.js';
 import { seedTrustedDevice } from './idees.js';
 import { seedRepositories } from './projets.js';
 import { LAST_SEEN_AT, RUNNER_MACHINE } from './runner.js';
 
 /** The Session of the mockups, « Concevoir · Agenda partagé » of Personal OS: one id, for the scenarios' path. */
-export const SESSION_ID = '019a6f1e-7c3d-7e4f-9a1b-5e5510000001';
+export const SESSION_ID = AGENDA_SESSION_ID;
 
 /** Where the mockups' Session panel opens: over « À toi », whose Décision « Concevoir · Agenda partagé » leads to it. */
 export const SESSION_PATH = `/a-toi?session=${SESSION_ID}`;
@@ -49,16 +49,69 @@ export const sessionLog = (now: number): EngineEvent[] => {
   ];
 };
 
+/** The request of `session-question`, its `seq` in its log: the first of the agent's three questions. */
+export const QUESTION_REQUEST = AGENDA_QUESTION;
+
+/** The request of `session-permission`, its `seq` in its log: a `git push`. */
+export const PERMISSION_REQUEST = { requestId: 'toolu_01PushAgenda0000000001', seq: 6 } as const;
+
+/**
+ * The log of `session-question`, `packages/contracts/fixtures/runner/sessions/question.jsonl`
+ * (its spec checks they are the same) from `design/screens/crewdeck/session-question.html`:
+ * a search, a message, then the question waiting, 5 s before `now`.
+ */
+export const questionLog = (now: number): EngineEvent[] => {
+  const at = (secondsAgo: number) => new Date(now - secondsAgo * SECOND).toISOString();
+  return [
+    { kind: 'tool-call', seq: 1, at: at(55), callId: 'toolu_01GrepAgenda0000000001', tool: 'Grep', target: 'agenda · apps/web/src' },
+    { kind: 'tool-result', seq: 2, at: at(54), callId: 'toolu_01GrepAgenda0000000001', ok: true, detail: '14 fichiers' },
+    { kind: 'message', seq: 3, at: at(5), from: 'agent', text: 'L’agenda actuel a déjà les événements récurrents. Il manque trois règles ; voici la première.', final: true },
+    {
+      kind: 'question',
+      seq: QUESTION_REQUEST.seq,
+      at: at(0),
+      requestId: QUESTION_REQUEST.requestId,
+      title: 'Qui peut modifier un événement d’un agenda partagé ?',
+      options: [
+        { label: 'Tous les membres de l’agenda', detail: 'Reco : la règle la plus simple, et l’agenda reste à jour quel que soit l’auteur.' },
+        { label: 'Seulement son auteur', detail: 'Les autres membres le voient en lecture seule.' },
+        { label: 'Au choix, pour chaque agenda', detail: 'Chaque agenda dit qui peut modifier ses événements.' },
+      ],
+      multiple: false,
+      index: 1,
+      count: 3,
+    },
+  ];
+};
+
+/**
+ * The log of `session-permission`, `packages/contracts/fixtures/runner/sessions/permission.jsonl`
+ * (its spec checks they are the same) from `design/screens/crewdeck/session-permission.html`:
+ * the PRD written and committed, then the `git push` waiting for the Pilote.
+ */
+export const permissionLog = (now: number): EngineEvent[] => {
+  const at = (secondsAgo: number) => new Date(now - secondsAgo * SECOND).toISOString();
+  return [
+    { kind: 'tool-call', seq: 1, at: at(125), callId: 'toolu_01WritePrd000000000001', tool: 'Write', target: 'docs/product/features/agenda-partage.md' },
+    { kind: 'tool-result', seq: 2, at: at(124), callId: 'toolu_01WritePrd000000000001', ok: true, detail: '142 lignes' },
+    { kind: 'tool-call', seq: 3, at: at(65), callId: 'toolu_01CommitPrd00000000001', tool: 'Bash', target: 'git commit -m "docs(product) : agenda partagé"' },
+    { kind: 'tool-result', seq: 4, at: at(63), callId: 'toolu_01CommitPrd00000000001', ok: true, detail: '1 fichier' },
+    { kind: 'message', seq: 5, at: at(5), from: 'agent', text: 'Le PRD est écrit. J’envoie la branche pour ouvrir la PR de Conception.', final: true },
+    { kind: 'permission-request', seq: PERMISSION_REQUEST.seq, at: at(0), requestId: PERMISSION_REQUEST.requestId, tool: 'Bash', command: 'git push origin design/agenda-partage' },
+  ];
+};
+
 type SessionState = 'starting' | 'stopped' | 'interrupted';
 
 /**
  * The Pilote of « À toi » (its nine Décisions), Personal OS followed, both
  * Comptes IA connected (the Cadre's Runner card names them), a trusted
  * Appareil paired with the Runner, and the Session in `state`, its log held
- * by the fake Runner for that Appareil; `online`, the Runner connects (and
- * starts a `starting` Session, `active` then), else it is offline since 14:02.
+ * by the fake Runner for that Appareil (`log`, the mockup's by default);
+ * `online`, the Runner connects (and starts a `starting` Session, `active`
+ * then, `waiting` when its log ends on a request), else it is offline since 14:02.
  */
-const seedSession = async (ctx: ScenarioContext, state: SessionState, online: boolean): Promise<ScenarioSeed> => {
+const seedSession = async (ctx: ScenarioContext, state: SessionState, online: boolean, log: (now: number) => EngineEvent[] = sessionLog): Promise<ScenarioSeed> => {
   const { token, ...seed } = await seedDecisions(ctx, online ? undefined : LAST_SEEN_AT);
   const { pilotId } = seed;
   await seedRepositories(ctx, pilotId, [{ name: 'personal-os', hasCode: true, project: PROJECTS.personalOs.projectName, projectId: PROJECTS.personalOs.projectId }]);
@@ -85,7 +138,13 @@ const seedSession = async (ctx: ScenarioContext, state: SessionState, online: bo
       endedAt: state === 'stopped' ? STOPPED_AT : null,
     },
   });
-  ctx.fakes.runner.holdSession(SESSION_ID, { runnerPrivateKey, holders: [Buffer.from(device.publicKey, 'base64url')], events: sessionLog(now) });
+  const events = log(now);
+  // A log that holds requests: « À toi »'s requests of this Session are its own (the mockup's question, of `session-question`, or none).
+  const requests = events.flatMap((event) => (event.kind === 'question' || event.kind === 'permission-request' ? [event.requestId] : []));
+  if (requests.length > 0) {
+    await ctx.prisma.unscoped.decision.deleteMany({ where: { pilotId, params: { path: ['sessionId'], equals: SESSION_ID }, subjectId: { notIn: requests } } });
+  }
+  ctx.fakes.runner.holdSession(SESSION_ID, { runnerPrivateKey, holders: [Buffer.from(device.publicKey, 'base64url')], events });
   return { ...seed, device: { ...device, runnerPublicKey: runnerPublicKey.toString('base64url') }, ...(online ? { runnerToken: token, runnerMachine: RUNNER_MACHINE } : {}) };
 };
 
@@ -100,4 +159,22 @@ export const sessionRunnerHorsLigne = defineScenario({
   name: 'session-runner-hors-ligne',
   path: SESSION_PATH,
   seed: (ctx) => seedSession(ctx, 'interrupted', false),
+});
+
+/**
+ * The agent's question waiting (`session`, state `question`, SESSION-3): its
+ * options in the panel, the Composer « Ou réponds avec tes mots », and its
+ * Décision « Question de l’agent » in « À toi », raised by the Runner's `session.waiting`.
+ */
+export const sessionQuestion = defineScenario({
+  name: 'session-question',
+  path: SESSION_PATH,
+  seed: (ctx) => seedSession(ctx, 'starting', true, questionLog),
+});
+
+/** A `git push` waiting for the Pilote's permission (`session`, state `permission`): its three buttons, its Décision « Permission demandée ». */
+export const sessionPermission = defineScenario({
+  name: 'session-permission',
+  path: SESSION_PATH,
+  seed: (ctx) => seedSession(ctx, 'starting', true, permissionLog),
 });

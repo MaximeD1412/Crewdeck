@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { zVaultKeyVersion } from '../keys/pairing.js';
 import { zSealedItem } from '../keys/sealed.js';
 import { withSeq } from './commands.js';
 import { zBuiltinTemplateId } from './phase-runs.js';
@@ -95,19 +96,22 @@ export type FollowProjects = z.infer<typeof zFollowProjects>;
  * is sealed for it (`project:<id>:name`) and the path for the Runner
  * (`project:<id>:folder`) before the server sees them; `hasCode` and
  * `releaseBranch` (the folder's branch, `null` without git) are the check's.
+ * `vaultKeyVersion` is the version of the vault key both were sealed under:
+ * 409 `vault.version-changed` once another holder rotated it.
  */
 export const zCreateLocalProject = z.object({
   id: zId,
   nameSealed: zSealedItem,
   folderSealed: zSealedItem,
+  vaultKeyVersion: zVaultKeyVersion,
   hasCode: z.boolean(),
   releaseBranch: z.string().min(1).max(255).nullable(),
   templateId: zProcessTemplateId,
 });
 export type CreateLocalProject = z.infer<typeof zCreateLocalProject>;
 
-/** `POST /api/projects/:id/folder` (session): choose a Local Projet's folder again, sealed for the Runner. */
-export const zAttachProjectFolder = withSeq(z.object({ folderSealed: zSealedItem }));
+/** `POST /api/projects/:id/folder` (session): choose a Local Projet's folder again, sealed for the Runner under `vaultKeyVersion`. */
+export const zAttachProjectFolder = withSeq(z.object({ folderSealed: zSealedItem, vaultKeyVersion: zVaultKeyVersion }));
 export type AttachProjectFolder = z.infer<typeof zAttachProjectFolder>;
 
 /** Where `GET /api/github/setup` sends the Pilote back from GitHub's installation page: its `state`. */

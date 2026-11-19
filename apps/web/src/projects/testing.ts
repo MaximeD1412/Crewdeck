@@ -1,6 +1,6 @@
 import type { TabFolderClientMessage, TabFolderServerMessage } from '@crewdeck/contracts';
 import { concat, toBase64Url, utf8 } from '../keys/bytes.js';
-import type { SealedItem, Vault } from '../keys/vault.js';
+import type { SealedItem, SealedUnder, Vault } from '../keys/vault.js';
 import type { FolderSocket } from './folder-check.js';
 
 /**
@@ -8,16 +8,30 @@ import type { FolderSocket } from './folder-check.js';
  *
  * A vault for the tests of the folders: an item is its additional data's
  * length, the additional data and the plaintext, in clear; it opens only
- * under the same additional data, as the real one.
+ * under the same additional data, as the real one. It seals under `version`,
+ * which a test moves to play a rotation; `unlocks` counts the unlocks.
  */
-export const fakeVault = (): Pick<Vault, 'sealItem' | 'openItem'> => ({
-  sealItem: async (plaintext, aad) => ({ key: new Uint8Array(60).fill(aad.length), ciphertext: concat(aad, plaintext), vaultKeyVersion: 1 }),
-  openItem: async (item: SealedItem, aad) => {
-    const head = item.ciphertext.subarray(0, aad.length);
-    if (item.key[0] !== aad.length % 256 || head.some((byte, i) => byte !== aad[i])) throw new Error('keys: does not open');
-    return new Uint8Array(item.ciphertext.subarray(aad.length));
-  },
-});
+export const fakeVault = () => {
+  const vault: Pick<Vault, 'sealItem' | 'openItem' | 'unlockVault'> & { version: number; unlocks: number } = {
+    version: 1,
+    unlocks: 0,
+    sealItem: async (plaintext: Uint8Array, aad: Uint8Array): Promise<SealedUnder> => ({
+      key: new Uint8Array(60).fill(aad.length),
+      ciphertext: concat(aad, plaintext),
+      vaultKeyVersion: vault.version,
+    }),
+    openItem: async (item: Pick<SealedItem, 'key' | 'ciphertext'>, aad: Uint8Array) => {
+      const head = item.ciphertext.subarray(0, aad.length);
+      if (item.key[0] !== aad.length % 256 || head.some((byte, i) => byte !== aad[i])) throw new Error('keys: does not open');
+      return new Uint8Array(item.ciphertext.subarray(aad.length));
+    },
+    unlockVault: async () => {
+      vault.unlocks += 1;
+      return 'unlocked' as const;
+    },
+  };
+  return vault;
+};
 
 /** What the fake vault seals `plaintext` into under `aad`, on the wire (base64url). */
 export const fakeSealed = async (plaintext: string, aad: string): Promise<{ key: string; ciphertext: string }> => {

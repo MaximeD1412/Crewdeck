@@ -84,7 +84,7 @@ describe('zFollowProjects', () => {
 });
 
 describe('zCreateLocalProject and zAttachProjectFolder', () => {
-  const CREATE = { id: LOCAL_PROJECT.id, nameSealed: SEALED, folderSealed: SEALED, hasCode: true, releaseBranch: 'main', templateId: 'process-crewdeck' };
+  const CREATE = { id: LOCAL_PROJECT.id, nameSealed: SEALED, folderSealed: SEALED, vaultKeyVersion: 2, hasCode: true, releaseBranch: 'main', templateId: 'process-crewdeck' };
 
   it('creates a Local Projet of an id the page drew, its name and its folder sealed', () => {
     expect(zCreateLocalProject.parse(CREATE)).toEqual(CREATE);
@@ -92,10 +92,14 @@ describe('zCreateLocalProject and zAttachProjectFolder', () => {
     expect(zCreateLocalProject.safeParse({ ...CREATE, id: 'recettes' }).success).toBe(false);
     expect(zCreateLocalProject.safeParse({ ...CREATE, folderSealed: '~/projets/recettes' }).success).toBe(false);
     expect(zCreateLocalProject.safeParse({ ...CREATE, templateId: undefined }).success).toBe(false);
+    // The version of the vault key they were sealed under, always.
+    expect(zCreateLocalProject.safeParse({ ...CREATE, vaultKeyVersion: undefined }).success).toBe(false);
+    expect(zCreateLocalProject.safeParse({ ...CREATE, vaultKeyVersion: 0 }).success).toBe(false);
   });
 
-  it('attaches a folder again, with the seq of the page', () => {
-    expect(zAttachProjectFolder.parse({ folderSealed: SEALED, seq: '3' })).toEqual({ folderSealed: SEALED, seq: 3 });
-    expect(zAttachProjectFolder.safeParse({ folderSealed: SEALED }).success).toBe(false);
+  it('attaches a folder again, with the seq of the page and the version it was sealed under', () => {
+    expect(zAttachProjectFolder.parse({ folderSealed: SEALED, vaultKeyVersion: 2, seq: '3' })).toEqual({ folderSealed: SEALED, vaultKeyVersion: 2, seq: 3 });
+    expect(zAttachProjectFolder.safeParse({ folderSealed: SEALED, vaultKeyVersion: 2 }).success).toBe(false);
+    expect(zAttachProjectFolder.safeParse({ folderSealed: SEALED, seq: '3' }).success).toBe(false);
   });
 });

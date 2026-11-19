@@ -98,7 +98,7 @@ describe('the Local Projets against PostgreSQL', () => {
 
   const pilot = async (login: string): Promise<Pilot> => {
     const id = newId();
-    await sql(`INSERT INTO pilots (id, display_name, time_zone, getting_started_step) VALUES ($1, $2, 'Europe/Paris', 'projects')`, [id, login]);
+    await sql(`INSERT INTO pilots (id, display_name, time_zone, getting_started_step, vault_key_version) VALUES ($1, $2, 'Europe/Paris', 'projects', 1)`, [id, login]);
     const token = await runInPilotScope(id, () => app.get(WebSessions).open(prisma.scoped, id, undefined));
     const runner = await createLinkedRunner(prisma, id);
     return { id, cookie: `${SESSION_COOKIE}=${token}`, token: runner.token };
@@ -133,6 +133,7 @@ describe('the Local Projets against PostgreSQL', () => {
     id,
     nameSealed: sealItem(vaultKey, NAME, projectNameAad(id)),
     folderSealed: sealItem(vaultKey, JSON.stringify({ path: PATH }), projectFolderAad(id)),
+    vaultKeyVersion: 1,
     hasCode: true,
     releaseBranch: 'trunk',
     templateId: 'process-crewdeck',
@@ -240,6 +241,21 @@ describe('the Local Projets against PostgreSQL', () => {
       await expectFields(await call(alice, '/api/projects/local', { ...localProject(), nameSealed: { key: 'x', ciphertext: 'y' } }), ['nameSealed.key', 'nameSealed.ciphertext']);
     });
 
+    it('answers 409 vault.version-changed to a name and a folder sealed before a rotation, and writes nothing; sealed again under the new key, it is created', async () => {
+      const alice = await pilot('alice');
+      const runner = await online(alice);
+      const body = localProject();
+      // Another holder rotated while the page's POST was on its way.
+      await sql('UPDATE pilots SET vault_key_version = 2 WHERE id = $1', [alice.id]);
+
+      await expectEnvelope(await call(alice, '/api/projects/local', body), 409, 'vault.version-changed');
+      expect(await sql('SELECT id FROM projects')).toEqual([]);
+      expect(await eventsOf(alice)).toEqual([]);
+
+      expect((await call(alice, '/api/projects/local', { ...body, vaultKeyVersion: 2 })).status).toBe(201);
+      expect(await runner.expect('project.folder.attach')).toMatchObject({ projectId: body.id });
+    });
+
     it('answers 401 without a session', async () => {
       await expectEnvelope(await call(undefined, '/api/projects/local', localProject()), 401, 'auth.required');
     });
@@ -283,7 +299,7 @@ describe('the Local Projets against PostgreSQL', () => {
 
       const seq = (await state(alice)).seq;
       const folderSealed = sealItem(vaultKey, JSON.stringify({ path: PATH }), projectFolderAad(id));
-      const res = await call(alice, `/api/projects/${id}/folder`, { folderSealed, seq: String(seq) });
+      const res = await call(alice, `/api/projects/${id}/folder`, { folderSealed, vaultKeyVersion: 1, seq: String(seq) });
       expect(res.status).toBe(200);
       expect(zProject.parse(await res.json())).toMatchObject({ id, folder: 'pending' });
       expect(await runner.expect('project.folder.attach')).toMatchObject({ projectId: id, sealed: folderSealed });
@@ -328,7 +344,8 @@ describe('the Local Projets against PostgreSQL', () => {
   });
 
   describe('POST /api/projects/:id/folder', () => {
-    const attach = (who: Pilot, id: string, seq: string) => call(who, `/api/projects/${id}/folder`, { folderSealed: sealItem(vaultKey, JSON.stringify({ path: PATH }), projectFolderAad(id)), seq });
+    const attach = (who: Pilot, id: string, seq: string, vaultKeyVersion = 1) =>
+      call(who, `/api/projects/${id}/folder`, { folderSealed: sealItem(vaultKey, JSON.stringify({ path: PATH }), projectFolderAad(id)), vaultKeyVersion, seq });
 
     it('answers 404 for another Pilote’s Projet, 409 for a stale seq, 422 project.not-local for a GitHub Projet, 422 runner.offline while the Runner is away', async () => {
       const alice = await pilot('alice');
@@ -355,9 +372,29 @@ describe('the Local Projets against PostgreSQL', () => {
       await eventually(async () => expectEnvelope(await attach(alice, body.id, seq), 422, 'runner.offline').then(() => undefined));
     });
 
+    it('answers 409 vault.version-changed to a folder sealed before a rotation, and sends nothing to the Runner', async () => {
+      const alice = await pilot('alice');
+      const runner = await online(alice);
+      const body = localProject();
+      expect((await call(alice, '/api/projects/local', body)).status).toBe(201);
+      await runner.expect('project.folder.attach');
+      runner.send({ type: 'projects.folders', present: [] });
+      await eventually(async () => expect((await projectOf(alice, body.id)).folder).toBe('missing'));
+      await sql('UPDATE pilots SET vault_key_version = 2 WHERE id = $1', [alice.id]);
+      const before = await eventsOf(alice);
+
+      await expectEnvelope(await attach(alice, body.id, String((await state(alice)).seq)), 409, 'vault.version-changed');
+      expect((await projectOf(alice, body.id)).folder).toBe('missing');
+      expect(await eventsOf(alice)).toEqual(before);
+
+      expect((await attach(alice, body.id, String((await state(alice)).seq), 2)).status).toBe(200);
+      // The first message the Runner gets since: the attach sealed under the new key.
+      expect(await runner.expect('project.folder.attach')).toMatchObject({ projectId: body.id });
+    });
+
     it('answers 400 with fields, and 401 without a session', async () => {
       const alice = await pilot('alice');
-      await expectFields(await call(alice, `/api/projects/${newId()}/folder`, { seq: 'x' }), ['folderSealed', 'seq']);
+      await expectFields(await call(alice, `/api/projects/${newId()}/folder`, { seq: 'x' }), ['folderSealed', 'vaultKeyVersion', 'seq']);
       await expectEnvelope(await call(undefined, `/api/projects/${newId()}/folder`, { folderSealed: sealItem(vaultKey, '{}', 'x'), seq: '0' }), 401, 'auth.required');
     });
   });

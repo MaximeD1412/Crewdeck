@@ -14,6 +14,7 @@ import { Transactions } from '../../realtime/transactions.js';
 import { RunnerCommands } from '../../runners/runner-commands.service.js';
 import { RunnerPresence } from '../../runners/runner-presence.service.js';
 import { currentPilotId } from '../../scope/scope.context.js';
+import { assertVaultVersion } from '../../vault/sealed-write.js';
 import { ProjectChanges } from '../project-changes.js';
 import { inventoryStateRow, PROJECT_VIEW, toProject } from '../project.view.js';
 
@@ -56,7 +57,9 @@ export class LocalProjects {
 
   /**
    * 422 `runner.offline` first (the Runner checked the folder and must store
-   * it), 422 `project.id-taken` for an id already a Projet's. One
+   * it), 422 `project.id-taken` for an id already a Projet's, 409
+   * `vault.version-changed` for a name and a folder sealed under another
+   * vault key than the current one. One
    * transaction: the row (folder `pending`), its Sources (every group
    * Local), its Process from `templateId`, `project.upserted`. Then the
    * folder to the Runner; a send that fails leaves it `pending`.
@@ -66,6 +69,9 @@ export class LocalProjects {
     let project: Project;
     try {
       project = await this.transactions.run(async (tx) => {
+        // The Pilote's row held: no rotation moves the vault before the commit.
+        await this.events.lock(tx, pilotId);
+        await assertVaultVersion(tx, pilotId, input.vaultKeyVersion);
         const row = await tx.project.create({
           data: {
             id: input.id,
@@ -100,9 +106,10 @@ export class LocalProjects {
    * The folder of a Local Projet chosen again (its Décision
    * `project.folder-missing`): 404 `project.not-found`, 422
    * `project.not-local` for a GitHub Projet, 422 `runner.offline`, 409
-   * `realtime.stale`; the folder `pending`, then to the Runner.
+   * `realtime.stale`, 409 `vault.version-changed` for a folder sealed under
+   * another vault key; the folder `pending`, then to the Runner.
    */
-  async attach(pilotId: string, id: string, { folderSealed, seq }: AttachProjectFolder): Promise<Project> {
+  async attach(pilotId: string, id: string, { folderSealed, vaultKeyVersion, seq }: AttachProjectFolder): Promise<Project> {
     const found = await this.prisma.scoped.project.findUnique({ where: { id }, select: { folderState: true } });
     if (!found) throw projectNotFound();
     if (found.folderState === null) throw notLocal();
@@ -112,6 +119,7 @@ export class LocalProjects {
       const current = await tx.project.findUnique({ where: { id }, select: { lastSeq: true } });
       if (!current) throw projectNotFound();
       assertFresh(current.lastSeq, BigInt(seq));
+      await assertVaultVersion(tx, pilotId, vaultKeyVersion);
       const view = toProject(await tx.project.update({ where: { id }, data: { folderState: 'pending' }, select: PROJECT_VIEW }));
       const projectSeq = await this.events.write(tx, pilotId, 'project.upserted', view);
       await tx.project.update({ where: { id }, data: { lastSeq: projectSeq } });

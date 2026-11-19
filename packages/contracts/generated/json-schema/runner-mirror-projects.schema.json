@@ -17,22 +17,68 @@
         "additionalProperties": false,
         "properties": {
           "displayName": {
-            "minLength": 1,
-            "type": "string"
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "githubRepoId": {
-            "exclusiveMinimum": 0,
-            "maximum": 9007199254740991,
-            "type": "integer"
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "installationId": {
-            "exclusiveMinimum": 0,
-            "maximum": 9007199254740991,
-            "type": "integer"
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "integrationBranch": {
             "minLength": 1,
             "type": "string"
+          },
+          "nameSealed": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "ciphertext": {
+                    "pattern": "^[A-Za-z0-9_-]*$",
+                    "type": "string"
+                  },
+                  "key": {
+                    "pattern": "^[A-Za-z0-9_-]*$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ciphertext",
+                  "key"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "projectId": {
             "format": "uuid",
@@ -40,8 +86,39 @@
             "type": "string"
           },
           "repository": {
-            "pattern": "^[^/\\s]+\\/[^/\\s]+$",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^[^/\\s]+\\/[^/\\s]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sources": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "enum": [
+                  "local",
+                  "github"
+                ],
+                "type": "string"
+              },
+              "ticket": {
+                "enum": [
+                  "local",
+                  "github"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "ticket"
+            ],
+            "type": "object"
           }
         },
         "required": [
@@ -49,8 +126,10 @@
           "githubRepoId",
           "installationId",
           "integrationBranch",
+          "nameSealed",
           "projectId",
-          "repository"
+          "repository",
+          "sources"
         ],
         "type": "object"
       },

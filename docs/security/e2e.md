@@ -723,7 +723,11 @@ POST /api/vault/rotations (the Runner: /api/runner/vault/rotations)
   and nothing is stored. The page then unlocks the vault again, seals again
   under the new key and sends once more, once. A version the page opened that
   way, before its `vault.upserted`, makes it read the state again, as its own
-  reopening does: the items it holds were rewrapped under the new key. A later writer of a sealed
+  reopening does: the items it holds were rewrapped under the new key. So
+  does a first unlock that opens a newer version than the one of the state
+  read while the vault was locked (a rotation in between): the page compares
+  the version it holds with the one its state was read under, never with the
+  slice an event moved. A later writer of a sealed
   item (the process versions and drafts, an Idée's analysis or reason, the
   Local Sources' texts) does the same, else an item sealed under a key no
   holder keeps any more is stored and never opens.

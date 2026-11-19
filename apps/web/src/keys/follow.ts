@@ -40,7 +40,11 @@ export const followVault = ({ store, vault, unlockVault, rotateVault, refresh, c
   /** The last version reopened, and the last one this page tried to rotate from. */
   let reopened: number | null = null;
   let tried: number | null = null;
-  /** The version the store's items were last read under: the first one opened, then each one moved to. */
+  /**
+   * The version the store's items were last read under: the vault slice's
+   * first one, seen locked or not (the boot's snapshot), then each one the
+   * page moved to and read the state again under.
+   */
   let synced: number | null = null;
 
   const run = (work: () => Promise<boolean>) => {
@@ -66,12 +70,12 @@ export const followVault = ({ store, vault, unlockVault, rotateVault, refresh, c
       void forgetDevice().catch(() => undefined);
       return;
     }
-    if (busy) return;
     const slice = slices.vault;
-    if (!slice || vaultState !== 'unlocked') return;
+    if (slice && synced === null) synced = slice.version;
+    if (busy) return;
+    if (!slice || synced === null || vaultState !== 'unlocked') return;
     const held = vault.version();
     if (held === null) return;
-    if (synced === null) synced = held;
     if (held > synced) {
       synced = held;
       return refresh();

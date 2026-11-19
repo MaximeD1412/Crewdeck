@@ -7,11 +7,11 @@ const SELF = '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a01';
 const AT = '2026-11-19T09:00:00.000Z';
 const device = (state: Device['state']): Device => ({ id: SELF, name: 'Firefox sur Linux', state, approvedAt: AT, revokedAt: null, lastSeenAt: null, current: false });
 
-const setUp = ({ held = 1, outcome = 'rotated' as RotationOutcome } = {}) => {
+const setUp = ({ held = 1, outcome = 'rotated' as RotationOutcome, locked = false } = {}) => {
   const store = createStore();
   store.registerSlice('device', { shape: 'collection', snapshotKey: 'devices' });
   store.registerSlice('vault', { shape: 'single' });
-  let version: number | null = held;
+  let version: number | null = locked ? null : held;
   const unlockVault = vi.fn(async () => {
     version = store.getState().slices.vault?.version ?? version;
     store.setVaultState('unlocked');
@@ -23,7 +23,7 @@ const setUp = ({ held = 1, outcome = 'rotated' as RotationOutcome } = {}) => {
   });
   const refresh = vi.fn<() => void>();
   const forgetDevice = vi.fn(async () => undefined);
-  store.setVaultState('unlocked');
+  store.setVaultState(locked ? 'locked' : 'unlocked');
   const stop = followVault({ store, vault: { version: () => version }, unlockVault, rotateVault, refresh, forgetDevice, currentDeviceId: () => SELF });
   let seq = 1;
   const snapshot = (vault: VaultSlice, state: Device['state'] = 'trusted') =>
@@ -81,6 +81,31 @@ describe('the page following the vault (E2E-4)', () => {
     snapshot({ version: 2, rotationPending: false });
     await Promise.resolve();
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the state again when its first unlock opens a newer version than the snapshot read while locked (a rotation meanwhile)', async () => {
+    const { store, unlockVault, refresh, snapshot, event, adopt } = setUp({ locked: true });
+    snapshot({ version: 1, rotationPending: false });
+    expect(refresh).not.toHaveBeenCalled();
+
+    // The boot's unlock answered with the new version, its vault.upserted later.
+    adopt(2);
+    store.setVaultState('unlocked');
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+
+    event({ version: 2, rotationPending: false });
+    await Promise.resolve();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(unlockVault).not.toHaveBeenCalled();
+  });
+
+  it('reads nothing again when its first unlock opens the version of the snapshot', async () => {
+    const { store, refresh, snapshot, adopt } = setUp({ locked: true });
+    snapshot({ version: 2, rotationPending: false });
+    adopt(2);
+    store.setVaultState('unlocked');
+    await Promise.resolve();
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it('tries one rotation per version: a failure is left to another holder, no loop', async () => {

@@ -14,14 +14,33 @@ export interface VaultItemKind {
   readonly itemType: string;
   /** Its items whose id is after `after`, by id, at most `take`, in the transaction's scope. */
   list(tx: Tx, after: string | null, take: number): Promise<VaultItem[]>;
-  /** Replaces the key of item `itemId`, its ciphertext kept; `false` when it holds none. */
-  replace(tx: Tx, itemId: string, wrappedKey: string): Promise<boolean>;
+  /**
+   * Replaces the key of item `itemId` with `wrappedKey`, its ciphertext kept,
+   * only while its stored key is `previousKey`: `missing` when it holds none,
+   * `changed` when it was written again since the rotating holder read it.
+   */
+  replace(tx: Tx, itemId: string, previousKey: string, wrappedKey: string): Promise<Replaced>;
 }
 
-/** A sealed item stored as received (`{ key, ciphertext }`), its key replaced. */
-const rekeyed = (stored: unknown, wrappedKey: string): Prisma.InputJsonValue | undefined => {
+export type Replaced = 'replaced' | 'missing' | 'changed';
+
+/**
+ * The compare and swap of an item key: `write` updates the row only where
+ * the column still equals `stored` (a conditional UPDATE, which PostgreSQL
+ * evaluates again on the row a concurrent write left), and answers how many
+ * rows it updated.
+ */
+const swap = async (
+  stored: unknown,
+  previousKey: string,
+  wrappedKey: string,
+  write: (stored: Prisma.InputJsonValue, value: Prisma.InputJsonValue) => Promise<number>,
+): Promise<Replaced> => {
   const parsed = zSealedItem.safeParse(stored);
-  return parsed.success ? { key: wrappedKey, ciphertext: parsed.data.ciphertext } : undefined;
+  if (!parsed.success) return 'missing';
+  if (parsed.data.key !== previousKey) return 'changed';
+  const updated = await write(parsed.data, { key: wrappedKey, ciphertext: parsed.data.ciphertext });
+  return updated === 1 ? 'replaced' : 'changed';
 };
 
 const keyOf = (stored: unknown): string | undefined => {
@@ -47,12 +66,11 @@ const ideaKind = (field: IdeaField): VaultItemKind => ({
       return wrappedKey ? [{ itemType: `idea.${field}`, itemId: row.id, aad: ideaItemAad(row.id, field), wrappedKey }] : [];
     });
   },
-  async replace(tx, id, wrappedKey) {
+  async replace(tx, id, previousKey, wrappedKey) {
     const row = await tx.idea.findUnique({ where: { id }, select: { [field]: true } });
-    const value = rekeyed((row as Record<string, unknown> | null)?.[field], wrappedKey);
-    if (!value) return false;
-    await tx.idea.update({ where: { id }, data: { [field]: value } });
-    return true;
+    return swap((row as Record<string, unknown> | null)?.[field], previousKey, wrappedKey, async (stored, value) => {
+      return (await tx.idea.updateMany({ where: { id, [field]: { equals: stored } }, data: { [field]: value } })).count;
+    });
   },
 });
 
@@ -65,13 +83,10 @@ const processVersions: VaultItemKind = {
       return wrappedKey ? [{ itemType: 'process-version.sealed', itemId: id, aad: processSealAad(projectId), wrappedKey }] : [];
     });
   },
-  async replace(tx, id, wrappedKey) {
+  async replace(tx, id, previousKey, wrappedKey) {
     const row = await tx.processVersion.findUnique({ where: { id }, select: { sealed: true } });
-    const value = rekeyed(row?.sealed, wrappedKey);
-    if (!value) return false;
     // The migration's trigger lets only this through: the same ciphertext, every other column the same.
-    await tx.processVersion.update({ where: { id }, data: { sealed: value } });
-    return true;
+    return swap(row?.sealed, previousKey, wrappedKey, async (stored, value) => (await tx.processVersion.updateMany({ where: { id, sealed: { equals: stored } }, data: { sealed: value } })).count);
   },
 };
 
@@ -84,12 +99,9 @@ const processDrafts: VaultItemKind = {
       return wrappedKey ? [{ itemType: 'process-draft.sealed', itemId: id, aad: processSealAad(projectId), wrappedKey }] : [];
     });
   },
-  async replace(tx, id, wrappedKey) {
+  async replace(tx, id, previousKey, wrappedKey) {
     const row = await tx.processDraft.findUnique({ where: { id }, select: { sealed: true } });
-    const value = rekeyed(row?.sealed, wrappedKey);
-    if (!value) return false;
-    await tx.processDraft.update({ where: { id }, data: { sealed: value } });
-    return true;
+    return swap(row?.sealed, previousKey, wrappedKey, async (stored, value) => (await tx.processDraft.updateMany({ where: { id, sealed: { equals: stored } }, data: { sealed: value } })).count);
   },
 };
 
@@ -108,12 +120,11 @@ const worktreeCommands: VaultItemKind = {
       return wrappedKey ? [{ itemType: 'project-settings.worktree-commands', itemId: projectId, aad: worktreeCommandsAad(projectId), wrappedKey }] : [];
     });
   },
-  async replace(tx, projectId, wrappedKey) {
+  async replace(tx, projectId, previousKey, wrappedKey) {
     const row = await tx.projectSettings.findUnique({ where: { projectId }, select: { worktreeCommands: true } });
-    const value = rekeyed(row?.worktreeCommands, wrappedKey);
-    if (!value) return false;
-    await tx.projectSettings.update({ where: { projectId }, data: { worktreeCommands: value } });
-    return true;
+    return swap(row?.worktreeCommands, previousKey, wrappedKey, async (stored, value) => {
+      return (await tx.projectSettings.updateMany({ where: { projectId, worktreeCommands: { equals: stored } }, data: { worktreeCommands: value } })).count;
+    });
   },
 };
 

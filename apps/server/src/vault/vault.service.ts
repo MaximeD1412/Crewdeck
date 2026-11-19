@@ -9,6 +9,7 @@ import { newId } from '../ids.js';
 import { EventsWriter } from '../realtime/events.writer.js';
 import { assertFresh } from '../realtime/freshness.js';
 import { afterCommit, Transactions, type Tx } from '../realtime/transactions.js';
+import { WsRevocations } from '../realtime/ws-revocations.js';
 import { RunnerCommands } from '../runners/runner-commands.service.js';
 import { dropHolders, vaultHoldersOf, vaultStateOf, writeVaultUpserted } from './vault-holders.js';
 import { decodeVaultCursor, encodeVaultCursor, VaultItemsRegistry } from './vault-items.js';
@@ -19,6 +20,8 @@ const ROTATION_TIMEOUT_MS = 120_000;
 const versionChanged = (): AppError => conflict('vault.version-changed', MESSAGES['vault.version-changed']);
 const holdersMissing = (): AppError => unprocessable('vault.holders-missing', MESSAGES['vault.holders-missing']);
 const itemsMissing = (): AppError => unprocessable('vault.items-missing', MESSAGES['vault.items-missing']);
+const itemsChanged = (): AppError => conflict('vault.items-changed', MESSAGES['vault.items-changed']);
+const lastChanged = (): AppError => conflict('devices.last-changed', MESSAGES['devices.last-changed']);
 const cursorInvalid = (): AppError => unprocessable('vault.cursor-invalid', MESSAGES['vault.cursor-invalid'], { cursor: MESSAGES['vault.cursor-invalid'] });
 
 /** Who rotates: a trusted Appareil the page named, or the token's Runner. */
@@ -42,6 +45,7 @@ export class VaultService {
     private readonly clock: DeviceClock,
     private readonly registry: VaultItemsRegistry,
     private readonly runners: RunnerCommands,
+    private readonly sockets: WsRevocations,
   ) {}
 
   /** The `vault` slice, in the snapshot's transaction. */
@@ -92,8 +96,10 @@ export class VaultService {
         const rewrapped = new Map(rotation.items.map((item) => [`${item.itemType}:${item.itemId}`, item]));
         if (rewrapped.size !== rotation.items.length || rewrapped.size !== stored.size || [...rewrapped.keys()].some((key) => !stored.has(key))) throw itemsMissing();
         for (const item of rotation.items) {
-          const replaced = await this.registry.kind(item.itemType)?.replace(tx, item.itemId, item.wrappedKey);
-          if (!replaced) throw itemsMissing();
+          // Each key replaced only while it is the one the rotator unwrapped: a key sealed again since would be lost.
+          const replaced = await this.registry.kind(item.itemType)?.replace(tx, item.itemId, item.previousKey, item.wrappedKey);
+          if (replaced === 'changed') throw itemsChanged();
+          if (replaced !== 'replaced') throw itemsMissing();
         }
 
         const now = this.clock.now();
@@ -119,20 +125,26 @@ export class VaultService {
    * `POST /api/devices/:id/revoke`: the Appareil `revoked`, its wraps
    * deleted, and the rotation pending when it held one, with `device.upserted`
    * and `vault.upserted`; the Runner told when it is connected. An Appareil
-   * already revoked changes nothing. 404 for another Pilote's, 409 stale.
+   * already revoked changes nothing. 404 for another Pilote's, 409 stale;
+   * 409 `devices.last-changed` for the last trusted Appareil without `last`
+   * (the dialog did not warn of it, OPS-1). The sockets that named it close.
    */
-  revokeDevice(pilotId: string, id: string, seq: number): Promise<Device> {
+  revokeDevice(pilotId: string, id: string, { seq, last }: { seq: number; last: boolean }): Promise<Device> {
     const parsed = zId.safeParse(id);
     if (!parsed.success) throw deviceUnknown();
     return this.transactions.run(async (tx) => {
+      // The Pilote first: two revocations at once see each other's (the last trusted Appareil, OPS-1).
+      await this.events.lock(tx, pilotId);
       const device = await tx.device.findUnique({ where: { id: parsed.data }, select: { ...DEVICE_VIEW, lastSeq: true } });
       if (!device) throw deviceUnknown();
       if (device.state === 'revoked') return toDevice(device);
       assertFresh(device.lastSeq, BigInt(seq));
+      if (device.state === 'trusted' && !last && (await tx.device.count({ where: { state: 'trusted', id: { not: parsed.data } } })) === 0) throw lastChanged();
       // A pending Appareil's code dies with it: an approval needs it `pending`.
       const row = await tx.device.update({ where: { id: parsed.data }, data: { state: 'revoked', revokedAt: this.clock.now(), shortId: null }, select: DEVICE_VIEW });
       const revoked = toDevice(row);
       await writeDeviceUpserted(this.events, tx, pilotId, revoked);
+      afterCommit(tx, () => this.sockets.revokeDevice(pilotId, parsed.data));
       if (await dropHolders(this.events, tx, pilotId, 'device', [parsed.data])) afterCommit(tx, () => this.tell(pilotId, { type: 'vault.rotation-pending' }));
       return revoked;
     });

@@ -21,6 +21,10 @@
             "pattern": "^[a-z][a-z-]*\\.[a-z][a-z-]*$",
             "type": "string"
           },
+          "previousKey": {
+            "pattern": "^[A-Za-z0-9_-]*$",
+            "type": "string"
+          },
           "wrappedKey": {
             "pattern": "^[A-Za-z0-9_-]*$",
             "type": "string"
@@ -29,11 +33,12 @@
         "required": [
           "itemId",
           "itemType",
+          "previousKey",
           "wrappedKey"
         ],
         "type": "object"
       },
-      "maxItems": 60000,
+      "maxItems": 30000,
       "type": "array"
     },
     "seq": {

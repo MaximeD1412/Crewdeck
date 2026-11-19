@@ -176,14 +176,15 @@ func (a *approver) call(ctx context.Context, server, token, method, path string,
 }
 
 // serverHolders lists, with the Runner's token, the Appareils an approval
-// vouched for (GET /api/runner/devices/holders).
+// vouched for, and the revoked ones that vouch for others (GET
+// /api/runner/devices/holders).
 func serverHolders(client *http.Client, server, token string) listHolders {
-	return func(ctx context.Context) ([]contracts.RunnerDeviceHoldersHoldersElem, error) {
+	return func(ctx context.Context) (contracts.RunnerDeviceHolders, error) {
 		var answer contracts.RunnerDeviceHolders
 		if err := callServer(ctx, client, strings.TrimRight(server, "/"), token, http.MethodGet, "/api/runner/devices/holders", nil, &answer); err != nil {
-			return nil, err
+			return contracts.RunnerDeviceHolders{}, err
 		}
-		return answer.Holders, nil
+		return answer, nil
 	}
 }
 

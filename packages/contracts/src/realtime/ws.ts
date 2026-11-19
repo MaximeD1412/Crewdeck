@@ -49,5 +49,10 @@ export const zServerMessage = z.discriminatedUnion('type', [
 ]);
 export type ServerMessage = z.infer<typeof zServerMessage>;
 
-/** The close codes of the socket: 4401 no principal, or its session ended (logout, expiry), 4400 a message that is not one of `zClientMessage`, 4408 silent too long. */
-export const WS_CLOSE = { unauthorized: 4401, invalidMessage: 4400, silent: 4408 } as const;
+/**
+ * The close codes of the socket: 4401 no principal, or its session ended
+ * (logout, expiry), 4400 a message that is not one of `zClientMessage`, 4408
+ * silent too long, 4403 the Appareil the tab named (`?device=<id>`) revoked
+ * (E2E-4): the page forgets it, then opens a socket without it.
+ */
+export const WS_CLOSE = { unauthorized: 4401, invalidMessage: 4400, silent: 4408, deviceRevoked: 4403 } as const;

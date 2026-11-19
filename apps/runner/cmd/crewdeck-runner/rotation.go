@@ -31,7 +31,7 @@ const vaultTimeout = time.Minute
 
 // vaultItemsMax is VAULT_ROTATION_ITEMS_MAX: more item keys than a rotation
 // may post, and the Runner does not rotate.
-const vaultItemsMax = 60_000
+const vaultItemsMax = 30_000
 
 // heldVault is the vault the Runner holds, swapped once it rotated or took a
 // new version: the Commandes open with the vault held at each open.
@@ -80,7 +80,7 @@ func (a vaultAPI) rotate(ctx context.Context, rotation contracts.RunnerVaultRota
 	return a.call(ctx, http.MethodPost, "/api/runner/vault/rotations", rotation, nil)
 }
 
-func (a vaultAPI) holders(ctx context.Context) ([]contracts.RunnerDeviceHoldersHoldersElem, error) {
+func (a vaultAPI) holders(ctx context.Context) (contracts.RunnerDeviceHolders, error) {
 	return serverHolders(a.http, a.server, a.token)(ctx)
 }
 
@@ -112,14 +112,15 @@ type rotator struct {
 }
 
 // retried are the refusals after which a rotation is tried once more, from
-// the vault read again: a race (409) or a list that changed under it (422).
+// the vault read again: a race (409), an item sealed again since it was read
+// (409) or a list that changed under it (422).
 func retried(err error) bool {
 	var refused *serverError
 	if !errors.As(err, &refused) {
 		return false
 	}
 	switch refused.Code {
-	case "vault.version-changed", "realtime.stale":
+	case "vault.version-changed", "realtime.stale", "vault.items-changed":
 		return refused.Status == http.StatusConflict
 	case "vault.holders-missing", "vault.items-missing":
 		return refused.Status == http.StatusUnprocessableEntity
@@ -259,7 +260,9 @@ func rotationBody(rotation keys.Rotation, seq int) contracts.RunnerVaultRotation
 		})
 	}
 	for _, item := range rotation.Items {
-		body.Items = append(body.Items, contracts.RunnerVaultRotationItemsElem{ItemType: item.Type, ItemId: item.ID, WrappedKey: b64.EncodeToString(item.WrappedKey)})
+		body.Items = append(body.Items, contracts.RunnerVaultRotationItemsElem{
+			ItemType: item.Type, ItemId: item.ID, PreviousKey: b64.EncodeToString(item.PreviousKey), WrappedKey: b64.EncodeToString(item.WrappedKey),
+		})
 	}
 	return body
 }

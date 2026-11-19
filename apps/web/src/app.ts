@@ -25,7 +25,7 @@ import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatc
 import { createEditorActions } from './actions/process-editor.js';
 import { me as readMe, requestLink as postLinkRequest, verifyLink as postLinkVerify } from './api/auth.js';
 import type { Client } from './api/client.js';
-import { ApiError, currentDeviceId } from './api/request.js';
+import { ApiError, currentDeviceId, deviceRevoked, onDeviceRevoked } from './api/request.js';
 import { updateSettings } from './api/settings.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
 import { confirmProductAction } from './dialogs/confirm.js';
@@ -59,7 +59,7 @@ import { actionsOf, decisionViews } from './views/decisions/registry.js';
 import './views/decisions/loop-back-exhausted.js';
 import './views/decisions/runner-offline.js';
 import { systemOfBrowser } from './views/demarrage.js';
-import { ADD_DEVICE_ID, revokeConfirmation, revokedDeviceOf } from './views/devices.js';
+import { ADD_DEVICE_ID, isLastTrusted, revokeConfirmation, revokedDeviceOf } from './views/devices.js';
 import { ideesQuery, ideesView } from './views/idees.js';
 import { parametresView, timeZones } from './views/parametres.js';
 import { parametresProjetView, type ParametresProjetView } from './views/parametres-projet.js';
@@ -162,16 +162,28 @@ export const boot = async ({
   /**
    * « Retirer » an Appareil (E2E-4): the core's dialog says what happens, then
    * the revocation with the store's `seq`; this browser's own forgets its keys
-   * (the Banner of a browser without an Appareil then shows). A refusal is
-   * shown as any other (`unhandledrejection`).
+   * (the Banner of a browser without an Appareil then shows). The request
+   * says whether the dialog warned of the last trusted Appareil (OPS-1): when
+   * another revocation left it the last meanwhile (409
+   * `devices.last-changed`), the dialog asks again, with the warning. Any
+   * other refusal is shown as any other (`unhandledrejection`).
    */
-  const revokeDevice = async (deviceId: string) => {
+  const revokeDevice = async (deviceId: string, { warned = false } = {}): Promise<void> => {
     const currentId = currentDeviceId();
-    const asked = revokeConfirmation(store.getState().slices.device, deviceId, currentId);
+    const devices = store.getState().slices.device;
+    const last = warned || isLastTrusted(devices, deviceId);
+    const asked = revokeConfirmation(devices, deviceId, currentId, { last });
     if (!asked || !(await confirmProductAction(asked))) return;
-    await client.command('POST', `/api/devices/${encodeURIComponent(deviceId)}/revoke`, {});
+    try {
+      await client.command('POST', `/api/devices/${encodeURIComponent(deviceId)}/revoke`, { last });
+    } catch (error) {
+      if (!last && error instanceof ApiError && error.code === 'devices.last-changed') return revokeDevice(deviceId, { warned: true });
+      throw error;
+    }
     if (deviceId === currentId) await keys.forgetDevice();
   };
+  // This browser's Appareil revoked (a 422 `devices.revoked`, the socket's 4403, its `device.upserted`): its keys forgotten.
+  onDeviceRevoked(() => keys.forgetDevice());
   // The core's buttons in the Appareils' Card: « Ajouter un Appareil » approves another one, « Retirer » revokes one.
   const onOutletClick = (event: MouseEvent) => {
     const ids = event.composedPath().flatMap((target) => (target instanceof HTMLElement && target.id ? [target.id] : []));
@@ -346,6 +358,7 @@ export const boot = async ({
     rotateVault: () => keys.rotateVault(),
     refresh: () => connection.refresh?.(),
     currentDeviceId,
+    forgetDevice: deviceRevoked,
   });
   if (pilot) {
     // The Appareil named before the snapshot, which says which one is `current`.
@@ -442,6 +455,7 @@ export const boot = async ({
   const stop = () => {
     sessionPanel.dispose();
     stopFollowingVault();
+    onDeviceRevoked(null);
     router.stop();
     usageChanges.stop();
     connection.stop();

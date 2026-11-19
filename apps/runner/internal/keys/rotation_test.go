@@ -94,6 +94,9 @@ func TestARotationRewrapsEveryItemKeyAndWrapsTheNewKeyForEachHolderKept(t *testi
 		if item.Type != was.Type || item.ID != was.ID {
 			t.Fatalf("item %d is %s %s, want %s %s", i, item.Type, item.ID, was.Type, was.ID)
 		}
+		if !bytes.Equal(item.PreviousKey, was.WrappedKey) {
+			t.Fatalf("item %s goes back with %x, not the key it was read with", item.ID, item.PreviousKey)
+		}
 		got, err := next.OpenItem(SealedItem{Key: item.WrappedKey, Ciphertext: f.sealed[item.ID].Ciphertext}, was.AAD)
 		if err != nil || string(got) != "le texte de "+item.ID {
 			t.Fatalf("item %s opens %q, %v", item.ID, got, err)

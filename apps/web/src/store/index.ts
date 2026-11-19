@@ -1,6 +1,7 @@
 import { type Idea, type PhaseRun, type StepRun, UNFINISHED_PHASE_RUN_STATES, zState } from '@crewdeck/contracts';
 import { holdsIdea } from './ideas.js';
 import { createClient } from '../api/client.js';
+import { currentDeviceId, deviceRevoked } from '../api/request.js';
 import { createConnection } from './connection.js';
 import { applySettingsEvent } from './settings.js';
 import { createStore } from './store.js';
@@ -39,4 +40,5 @@ export const client = createClient({
   onStale: () => connection.catchUp(),
 });
 
-export const connection = createConnection({ store, snapshot: () => client.query('/api/state', zState) });
+// The tab's Appareil named in its socket (E2E-4): revoked, the server closes it with 4403 and the page forgets it.
+export const connection = createConnection({ store, snapshot: () => client.query('/api/state', zState), device: currentDeviceId, forgetDevice: deviceRevoked });

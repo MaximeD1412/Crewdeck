@@ -217,6 +217,49 @@ describe('a lost socket', () => {
   });
 });
 
+describe('the Appareil the socket names (E2E-4)', () => {
+  const named = (device: () => string | null, forgetDevice: () => Promise<void>) => {
+    const connection = createConnection({ store, snapshot, url: 'ws://crewdeck.test/api/ws', createSocket: (url) => new MockSocket(url), visibility: () => visibility, device, forgetDevice });
+    connection.start();
+    started.push(connection);
+    return connection;
+  };
+
+  it('names the page’s Appareil in each socket’s URL; closed with 4403, forgets it, then opens a socket without it at once', async () => {
+    let device: string | null = 'dev_1';
+    const forgetDevice = vi.fn(async () => {
+      device = null;
+    });
+    named(() => device, forgetDevice);
+    const first = MockSocket.last();
+    expect(first.url).toBe('ws://crewdeck.test/api/ws?device=dev_1');
+    first.open();
+
+    first.drop(WS_CLOSE.deviceRevoked);
+
+    await vi.waitFor(() => expect(MockSocket.all).toHaveLength(2));
+    expect(forgetDevice).toHaveBeenCalledOnce();
+    expect(MockSocket.last().url).toBe('ws://crewdeck.test/api/ws');
+    expect(store.getState().connection).toBe('resync');
+  });
+
+  it('a 4403 whose forgetting left the same Appareil named waits the backoff, never reconnecting in a loop', async () => {
+    const forgetDevice = vi.fn(async () => {
+      throw new Error('IndexedDB refused');
+    });
+    named(() => 'dev_1', forgetDevice);
+    MockSocket.last().open();
+
+    MockSocket.last().drop(WS_CLOSE.deviceRevoked);
+    await vi.waitFor(() => expect(forgetDevice).toHaveBeenCalledOnce());
+    await Promise.resolve();
+
+    expect(MockSocket.all).toHaveLength(1);
+    vi.advanceTimersByTime(1000);
+    expect(MockSocket.all).toHaveLength(2);
+  });
+});
+
 describe('a gap in the seq', () => {
   it('on seq n + 2, switches to resync, applies nothing, and reconnects at once with the seq it has', async () => {
     const { socket } = await liveAt(7);

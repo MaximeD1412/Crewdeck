@@ -172,21 +172,27 @@ export class DeviceApprovals {
     });
   }
 
-  /** The current Pilote's trusted Appareils with a holder wrap, oldest approval first, for the Runner to authenticate. */
+  /**
+   * The current Pilote's trusted Appareils with a holder wrap, oldest approval
+   * first, for the Runner to authenticate; and, as `vouchers`, the revoked
+   * ones that had one (E2E-4): their approvals still vouch for the Appareils
+   * they approved while trusted, for the chain only, never as recipients.
+   */
   holders(): Promise<DeviceHolders> {
     return this.transactions.run(async (tx) => {
-      const rows = await tx.device.findMany({
-        where: { state: 'trusted', approverPublicKey: { not: null }, holderEnc: { not: null }, holderCiphertext: { not: null }, holderTag: { not: null } },
-        orderBy: [{ approvedAt: 'asc' }, { id: 'asc' }],
-        select: { id: true, publicKey: true, approverPublicKey: true, holderEnc: true, holderCiphertext: true, holderTag: true },
-      });
-      return {
-        holders: rows.flatMap(({ id, publicKey, approverPublicKey, holderEnc, holderCiphertext, holderTag }) =>
+      const listed = async (state: 'trusted' | 'revoked') => {
+        const rows = await tx.device.findMany({
+          where: { state, approverPublicKey: { not: null }, holderEnc: { not: null }, holderCiphertext: { not: null }, holderTag: { not: null } },
+          orderBy: [{ approvedAt: 'asc' }, { id: 'asc' }],
+          select: { id: true, publicKey: true, approverPublicKey: true, holderEnc: true, holderCiphertext: true, holderTag: true },
+        });
+        return rows.flatMap(({ id, publicKey, approverPublicKey, holderEnc, holderCiphertext, holderTag }) =>
           approverPublicKey && holderEnc && holderCiphertext && holderTag
             ? [{ deviceId: id, publicKey: textOf(publicKey), approverPublicKey: textOf(approverPublicKey), wrap: wrapOf({ enc: holderEnc, ciphertext: holderCiphertext, tag: holderTag }) }]
             : [],
-        ),
+        );
       };
+      return { holders: await listed('trusted'), vouchers: await listed('revoked') };
     });
   }
 

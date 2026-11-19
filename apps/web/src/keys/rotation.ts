@@ -42,12 +42,12 @@ export interface VaultRotationOptions {
 }
 
 export interface VaultRotationKeys {
-  /** Rotates once, and once more after a refusal that a reload can fix (409, 422). Never throws. */
+  /** Rotates once, and once more after a refusal that a reload can fix (409, 422, an item sealed again). Never throws. */
   rotate(): Promise<RotationOutcome>;
 }
 
-/** What a reload of the vault can fix: another change won the race, or the lists moved meanwhile. */
-const RETRIED: ReadonlySet<string> = new Set(['vault.version-changed', 'realtime.stale', 'vault.holders-missing', 'vault.items-missing']);
+/** What a reload of the vault can fix: another change won the race, or the lists (or an item's key) moved meanwhile. */
+const RETRIED: ReadonlySet<string> = new Set(['vault.version-changed', 'realtime.stale', 'vault.holders-missing', 'vault.items-missing', 'vault.items-changed']);
 
 const codeOf = (error: unknown): string | undefined =>
   typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string' ? error.code : undefined;
@@ -81,7 +81,8 @@ export const createVaultRotation = ({ devices, vault, api }: VaultRotationOption
           throw new Stop('failed');
         }
         try {
-          items.push({ itemType, itemId, wrappedKey: toBase64Url(await aesGcmSeal(newKey, raw, additional)) });
+          // The key read goes back as `previousKey`: the server replaces it only if no one sealed the item again since.
+          items.push({ itemType, itemId, previousKey: wrappedKey, wrappedKey: toBase64Url(await aesGcmSeal(newKey, raw, additional)) });
         } finally {
           raw.fill(0);
         }

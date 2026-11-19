@@ -133,9 +133,17 @@ export type DeviceApproval = z.infer<typeof zDeviceApproval>;
  * The Runner takes one only when its wrap opens from a key it already holds
  * (the first Appareil's, its own, or one taken before): the server can hide
  * one, never add one.
+ *
+ * `vouchers` (E2E-4): the revoked Appareils that had been approved the same
+ * way, for the chain only. A revoked approver's attestation still vouches
+ * for the Appareils it approved while trusted, so the Runner authenticates
+ * them after it is gone; a voucher itself is never a recipient. Absent from
+ * an older server.
  */
+const zDeviceHolder = z.object({ deviceId: zId, publicKey: zBytes32, approverPublicKey: zBytes32, wrap: zWrap });
 export const zDeviceHolders = z.object({
-  holders: z.array(z.object({ deviceId: zId, publicKey: zBytes32, approverPublicKey: zBytes32, wrap: zWrap })),
+  holders: z.array(zDeviceHolder),
+  vouchers: z.array(zDeviceHolder).optional(),
 });
 export type DeviceHolders = z.infer<typeof zDeviceHolders>;
 
@@ -143,6 +151,10 @@ export type DeviceHolders = z.infer<typeof zDeviceHolders>;
  * `POST /api/devices/:id/revoke` (session, E2E-4): the Appareil `revoked`, its
  * wraps deleted and the vault's rotation pending, with the `seq` of its last
  * `device.upserted`. The current Appareil may revoke itself.
+ *
+ * `last`: the dialog warned that it is the last trusted Appareil (OPS-1).
+ * Without it, the server answers 409 `devices.last-changed` when it is, by
+ * then (another revocation committed meanwhile): the page asks again.
  */
-export const zRevokeDevice = withSeq(z.object({}));
+export const zRevokeDevice = withSeq(z.object({ last: z.boolean().default(false) }));
 export type RevokeDevice = z.infer<typeof zRevokeDevice>;

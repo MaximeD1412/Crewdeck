@@ -10,13 +10,14 @@ import type { Client } from './api/client.js';
 import { updateProjectSettings } from './api/project-settings.js';
 import { ApiError } from './api/request.js';
 import { fromBase64Url, toBase64Url, utf8 } from './keys/bytes.js';
+import { sealedWrite } from './keys/sealed-write.js';
 import type { Vault, VaultState } from './keys/vault.js';
 import { NO_PROJECT_SETTINGS_LOCAL, type ProjectSettingsLocal, type WorktreeLocal } from './views/parametres-projet.js';
 
 export interface ProjectSettingsOptions {
   readonly client: Pick<Client, 'command'>;
   /** The vault that opens and seals the worktree Commandes; none, they stay locked. */
-  readonly vault?: Pick<Vault, 'sealItem' | 'openItem'>;
+  readonly vault?: Pick<Vault, 'sealItem' | 'openItem' | 'unlockVault'>;
   /** The store, followed while the page's saves wait for it to hold them, whether the page is shown or not. */
   readonly stored: {
     /**
@@ -200,7 +201,11 @@ export const createProjectSettings = ({ client, vault, stored }: ProjectSettings
     return next;
   };
 
-  /** Seals both Commandes, one changed, as one item; both empty removes them (`null`). */
+  /**
+   * Seals both Commandes, one changed, as one item, with the version of the
+   * vault key (sealed again once under the new one when the vault rotated
+   * meanwhile, E2E-4); both empty removes them (`null`).
+   */
   const changeWorktree = (projectId: string, name: string, text: string): Promise<void> => {
     const opened = localOf(projectId).opened?.worktree;
     if (!vault || !opened || (opened.state !== 'open' && opened.state !== 'unreadable')) return Promise.resolve();
@@ -214,17 +219,18 @@ export const createProjectSettings = ({ client, vault, stored }: ProjectSettings
         // The item this save replaces: the one the save before it stored, once its turn comes.
         const from = localOf(projectId).opened?.from ?? null;
         const commands: WorktreeCommands = { prepare: asCommand(texts.prepare), clean: asCommand(texts.clean) };
-        let worktreeCommands: ProjectSettingsPatch['worktreeCommands'] = null;
-        if (commands.prepare !== null || commands.clean !== null) {
+        const save = async (): Promise<ProjectSettingsUpdated> => {
+          if (commands.prepare === null && commands.clean === null) return updateProjectSettings(client, projectId, { worktreeCommands: null });
           const item = await vault.sealItem(utf8(JSON.stringify(commands)), utf8(worktreeCommandsAad(projectId)));
-          worktreeCommands = { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
-        }
+          const worktreeCommands: ProjectSettingsPatch['worktreeCommands'] = { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
+          return updateProjectSettings(client, projectId, { worktreeCommands, vaultKeyVersion: item.vaultKeyVersion });
+        };
         // Pending from the start: whatever the store holds while it is on its way, the page keeps what it saves.
         const saving: Saving = { seq: null };
         set(projectId, { pending: [...localOf(projectId).pending, saving] });
         let answer: ProjectSettingsUpdated;
         try {
-          answer = await updateProjectSettings(client, projectId, { worktreeCommands });
+          answer = await sealedWrite(vault, save);
         } catch (error) {
           // Refused: it stored nothing, nothing to wait for.
           locals.set(projectId, { ...localOf(projectId), pending: localOf(projectId).pending.filter((entry) => entry !== saving) });

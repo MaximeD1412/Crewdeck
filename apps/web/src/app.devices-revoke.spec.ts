@@ -1,7 +1,7 @@
 import { DEFAULT_ACCOUNT_SETTINGS, type Device, type Me } from '@crewdeck/contracts';
 import { Banner, t } from '@crewdeck/sdk';
 import { createDispatcher } from './actions/dispatcher.js';
-import { setCurrentDevice } from './api/request.js';
+import { ApiError, setCurrentDevice } from './api/request.js';
 import { boot, type App } from './app.js';
 import { CONFIRM_TAG } from './dialogs/confirm.js';
 import type { PageKeys } from './keys/index.js';
@@ -46,7 +46,9 @@ const button = (shadow: ShadowRoot, label: string) => {
   if (!found) throw new Error(`no button ${label}`);
   return found;
 };
-const retirer = () => root.querySelector<HTMLElement>(`cd-page-parametres > cd-card[slot=devices] #${revokeDeviceId(TRUSTED.id)}`) as HTMLElement;
+/** Another Appareil of the Pilote, trusted. */
+const OTHER: Device = { ...TRUSTED, id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a75', name: 'Safari sur iPhone', current: false };
+const retirer = (id = TRUSTED.id) => root.querySelector<HTMLElement>(`cd-page-parametres > cd-card[slot=devices] #${revokeDeviceId(id)}`) as HTMLElement;
 
 // Its own file: a page has one Skin, booted once.
 beforeAll(async () => {
@@ -87,6 +89,27 @@ describe('« Retirer » an Appareil on /parametres (E2E-4)', () => {
     expect(forgetDevice).not.toHaveBeenCalled();
   });
 
+  it('another one, left the last trusted one meanwhile by another page: 409 devices.last-changed, the dialog again with the warning, then sent with it', async () => {
+    store.applyEvent({ seq: 2, type: 'device.upserted', payload: OTHER, at: '2026-11-19T09:00:00.000Z' });
+    command.mockRejectedValueOnce(new ApiError({ status: 409, code: 'devices.last-changed', message: 'C’est maintenant ton dernier Appareil de confiance.' }));
+    await vi.waitFor(() => expect(retirer(OTHER.id)).not.toBeNull());
+    retirer(OTHER.id).click();
+    const first = await confirmation();
+    expect(first.textContent).not.toContain(t('devices.revoke.last'));
+    button(first, t('devices.revoke.confirm')).click();
+    await vi.waitFor(() => expect(command).toHaveBeenCalledTimes(1));
+    expect(command).toHaveBeenLastCalledWith('POST', `/api/devices/${OTHER.id}/revoke`, { last: false });
+
+    await vi.waitFor(async () => expect((await confirmation()).textContent).toContain(t('devices.revoke.last')));
+    button(await confirmation(), t('devices.revoke.confirm')).click();
+    await vi.waitFor(() => expect(command).toHaveBeenCalledTimes(2));
+    expect(command).toHaveBeenLastCalledWith('POST', `/api/devices/${OTHER.id}/revoke`, { last: true });
+    expect(forgetDevice).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(document.querySelector(CONFIRM_TAG)).toBeNull());
+    store.applyEvent({ seq: 3, type: 'device.upserted', payload: { ...OTHER, state: 'revoked' }, at: '2026-11-19T09:00:00.000Z' });
+    command.mockClear();
+  });
+
   it('this browser’s, the last trusted one: the warning first, then the revocation, its keys forgotten and the Banner back', async () => {
     expect(root.querySelector(`${Banner.tag}[slot=banner]`)).toBeNull();
     retirer().click();
@@ -102,7 +125,7 @@ describe('« Retirer » an Appareil on /parametres (E2E-4)', () => {
     button(shadow, t('devices.revoke.confirm')).click();
     await vi.waitFor(() => expect(forgetDevice).toHaveBeenCalledTimes(1));
     // The store's `seq`, `client.command`'s default.
-    expect(command).toHaveBeenCalledExactlyOnceWith('POST', `/api/devices/${TRUSTED.id}/revoke`, {});
+    expect(command).toHaveBeenCalledExactlyOnceWith('POST', `/api/devices/${TRUSTED.id}/revoke`, { last: true });
     expect(store.getState().vaultState).toBe('no-device');
     await vi.waitFor(() => expect(root.querySelector(`${Banner.tag}[slot=banner]`)).not.toBeNull());
   });

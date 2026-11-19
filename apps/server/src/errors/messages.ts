@@ -16,6 +16,7 @@ export const MESSAGES = {
   'decision.not-found': 'Cette Décision n’existe pas.',
   'devices.approval-invalid': 'Cette approbation ne correspond pas à la clé actuelle du coffre : recommence depuis l’Appareil de confiance.',
   'devices.code-unknown': 'Ce code est inconnu ou a expiré : affiche un nouveau code sur le nouvel Appareil.',
+  'devices.last-changed': 'C’est maintenant ton dernier Appareil de confiance : relis l’avertissement avant de le retirer.',
   'devices.not-found': 'Cet Appareil est inconnu.',
   'devices.not-pending': 'Cet Appareil n’attend plus d’approbation : son code a expiré ou a déjà servi.',
   'devices.not-trusted': 'Approuve d’abord cet Appareil depuis un Appareil de confiance.',
@@ -80,6 +81,7 @@ export const MESSAGES = {
   'validation.invalid': 'Certaines valeurs ne sont pas valides.',
   'vault.cursor-invalid': 'Ce curseur ne vient pas de la liste des clés du coffre.',
   'vault.holders-missing': 'Cette rotation ne chiffre pas la nouvelle clé pour chaque détenteur actuel : relis le coffre et recommence.',
+  'vault.items-changed': 'Un élément du coffre a été réécrit pendant la rotation : relis le coffre et recommence.',
   'vault.items-missing': 'Cette rotation ne rechiffre pas chaque élément du coffre : relis le coffre et recommence.',
   'vault.version-changed': 'La clé du coffre a déjà changé : relis le coffre avant de recommencer.',
 } as const satisfies Record<string, string>;

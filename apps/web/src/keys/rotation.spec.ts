@@ -58,6 +58,7 @@ const fakeServer = (holders: ServerVault['holders']) => {
       const named = body.wraps.map((wrap: RotationWrap) => `${wrap.holderType}:${wrap.holderId}`).sort();
       if (named.join() !== state.holders.map((holder) => `${holder.type}:${holder.id}`).sort().join()) throw refused(422, 'vault.holders-missing');
       if (body.items.map((item) => item.itemId).sort().join() !== [...items.keys()].sort().join()) throw refused(422, 'vault.items-missing');
+      if (body.items.some((item) => items.get(item.itemId)?.wrappedKey !== item.previousKey)) throw refused(409, 'vault.items-changed');
       for (const wrap of body.wraps) wraps.set(wrap.holderId, { enc: wrap.enc, ciphertext: wrap.ciphertext, tag: wrap.tag, vaultKeyVersion: body.toVersion });
       for (const item of body.items) items.set(item.itemId, { ...(items.get(item.itemId) as VaultItem), wrappedKey: item.wrappedKey });
       state.version = body.toVersion;
@@ -217,6 +218,32 @@ describe('the rotation of the vault key from a trusted Appareil (E2E-4)', () => 
     expect(fake.posted[1]).toMatchObject({ fromVersion: 1, toVersion: 2, seq: 11 });
     expect(sealed.size).toBe(4);
     await expectItemsOpen({ fake, vault, sealed });
+  });
+
+  it('sends each item key it read as previousKey; an item sealed again meanwhile (409 vault.items-changed), it reads the items again and tries once more', async () => {
+    const { fake, vault, sealed, addItem, rotation } = await setUp();
+    const read = new Map([...fake.items].map(([id, item]) => [id, item.wrappedKey]));
+    let once = true;
+    fake.meanwhile(async () => {
+      if (!once) return;
+      once = false;
+      // The same Idée's text sealed again, under a new item key: the rotation read the older one.
+      await addItem(2);
+    });
+
+    expect(await rotation.rotate()).toBe('rotated');
+    expect(fake.posted).toHaveLength(2);
+    const [first, second] = fake.posted as { items: { itemId: string; previousKey: string }[] }[];
+    expect(new Map(first?.items.map(({ itemId: id, previousKey }) => [id, previousKey]))).toEqual(read);
+    expect(second?.items.find(({ itemId: id }) => id === itemId(2))?.previousKey).not.toBe(read.get(itemId(2)));
+    await expectItemsOpen({ fake, vault, sealed });
+
+    // Changed again on the second try: it stops there.
+    const busy = await setUp();
+    busy.fake.meanwhile(() => busy.addItem(1));
+    expect(await busy.rotation.rotate()).toBe('failed');
+    expect(busy.fake.posted).toHaveLength(2);
+    expect(busy.vault.version()).toBe(1);
   });
 
   it('stops once another holder rotated first, and tries once only', async () => {

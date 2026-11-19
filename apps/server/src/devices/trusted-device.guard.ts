@@ -22,10 +22,12 @@ const namedState = async (prisma: PrismaService, request: AuthRequest): Promise<
 };
 
 /**
- * A route that serves a wrap or a stored ciphertext (E2E-4): a page that
- * names a revoked Appareil gets 422 `devices.revoked` at once, before the
- * rotation. The header is the page's own word: an honest page stops there,
- * the rotation protects against the others.
+ * Every route (`APP_GUARD` of `DevicesModule`, E2E-4): a page that names a
+ * revoked Appareil gets 422 `devices.revoked` at once, before the rotation,
+ * whatever it asks (`/api/state`, the Idées, a Process's sealed text…); the
+ * page then forgets the Appareil and calls again without it. The header is
+ * the page's own word: an honest page stops there, the rotation protects
+ * against the others. A call without the header, or from the Runner, passes.
  */
 @Injectable()
 export class NotRevokedDeviceGuard implements CanActivate {

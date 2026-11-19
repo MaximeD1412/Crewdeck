@@ -29,11 +29,13 @@ type RotationItem struct {
 	WrappedKey []byte
 }
 
-// RotatedItem is an item key rewrapped under the new vault key.
+// RotatedItem is an item key rewrapped under the new vault key, with the
+// wrapped key it was read with: the server replaces only that one.
 type RotatedItem struct {
-	Type       string
-	ID         string
-	WrappedKey []byte
+	Type        string
+	ID          string
+	PreviousKey []byte
+	WrappedKey  []byte
 }
 
 // HolderWrap is the new vault key wrapped for one holder.
@@ -141,7 +143,7 @@ func Rotate(in RotationInput) (Rotation, *Vault, error) {
 		if err != nil {
 			return Rotation{}, nil, err
 		}
-		rotation.Items = append(rotation.Items, RotatedItem{Type: item.Type, ID: item.ID, WrappedKey: rewrapped})
+		rotation.Items = append(rotation.Items, RotatedItem{Type: item.Type, ID: item.ID, PreviousKey: item.WrappedKey, WrappedKey: rewrapped})
 	}
 	for _, h := range in.Holders {
 		w, err := next.WrapFor(in.Rotator, h.PublicKey, h.ID)

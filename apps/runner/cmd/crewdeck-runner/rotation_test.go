@@ -39,10 +39,14 @@ type fakeVaultServer struct {
 	vault    contracts.RunnerVault
 	items    []contracts.RunnerVaultItemsItemsElem
 	holders  []contracts.RunnerDeviceHoldersHoldersElem
+	vouchers []contracts.RunnerDeviceHoldersVouchersElem
 	refusals []contracts.ErrorEnvelope
 	posted   []contracts.RunnerVaultRotation
 	pageSize int
 	tokens   []string
+	// onPost runs at each rotation posted, before it is checked: what
+	// another holder writes meanwhile.
+	onPost func(f *fakeVaultServer)
 }
 
 func (f *fakeVaultServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -68,13 +72,23 @@ func (f *fakeVaultServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		answer(page)
 	case r.Method == http.MethodGet && r.URL.Path == "/api/runner/devices/holders":
-		answer(contracts.RunnerDeviceHolders{Holders: f.holders})
+		answer(contracts.RunnerDeviceHolders{Holders: f.holders, Vouchers: f.vouchers})
 	case r.Method == http.MethodPost && r.URL.Path == "/api/runner/vault/rotations":
 		var rotation contracts.RunnerVaultRotation
 		if err := json.NewDecoder(r.Body).Decode(&rotation); err != nil {
 			f.t.Errorf("rotation body: %v", err)
 		}
 		f.posted = append(f.posted, rotation)
+		if f.onPost != nil {
+			f.onPost(f)
+		}
+		for _, rotated := range rotation.Items {
+			for _, item := range f.items {
+				if item.ItemId == rotated.ItemId && item.WrappedKey != rotated.PreviousKey && len(f.refusals) == 0 {
+					f.refusals = []contracts.ErrorEnvelope{{Status: http.StatusConflict, Code: "vault.items-changed", Message: "Un élément du coffre a été réécrit pendant la rotation."}}
+				}
+			}
+		}
 		if len(f.refusals) > 0 {
 			refusal := f.refusals[0]
 			f.refusals = f.refusals[1:]
@@ -282,8 +296,59 @@ func TestTheRunnerLeavesTheRotationToAnotherHolderWhenAKeyIsNotOneItHolds(t *tes
 	}
 }
 
-// Without a rotation pending, or with a vault already past the Runner's,
-// nothing is posted.
+// The phone, approved by the laptop, approved the tablet, then the phone was
+// revoked (E2E-4): the server lists it as a voucher, and the Runner still
+// rotates for the tablet, never for the phone.
+func TestTheRunnerRotatesForAnAppareilARevokedApproverVouchedFor(t *testing.T) {
+	w := newRotationWorld(t)
+	const tabletID = "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6b03"
+	tablet, err := keys.SealWrap(w.phone, keys.PublicKeyBytes(w.runner), keys.PublicKeyBytes(w.tablet), []byte(keys.InfoDeviceHolder), []byte(tabletID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	phone := w.server.holders[0]
+	w.server.vouchers = []contracts.RunnerDeviceHoldersVouchersElem{{
+		DeviceId: phone.DeviceId, PublicKey: phone.PublicKey, ApproverPublicKey: phone.ApproverPublicKey,
+		Wrap: contracts.RunnerDeviceHoldersVouchersElemWrap{Enc: phone.Wrap.Enc, Ciphertext: phone.Wrap.Ciphertext, Tag: phone.Wrap.Tag},
+	}}
+	w.server.holders = []contracts.RunnerDeviceHoldersHoldersElem{{
+		DeviceId: tabletID, PublicKey: b64url.EncodeToString(keys.PublicKeyBytes(w.tablet)), ApproverPublicKey: b64url.EncodeToString(keys.PublicKeyBytes(w.phone)),
+		Wrap: contracts.RunnerDeviceHoldersHoldersElemWrap{Enc: b64url.EncodeToString(tablet.Enc), Ciphertext: b64url.EncodeToString(tablet.Ciphertext), Tag: b64url.EncodeToString(tablet.Tag)},
+	}}
+	w.server.vault.Holders[2] = contracts.RunnerVaultHoldersElem{Type: contracts.RunnerVaultHoldersElemTypeDevice, Id: tabletID, PublicKey: b64url.EncodeToString(keys.PublicKeyBytes(w.tablet))}
+
+	outcome, err := w.rotator().rotate(context.Background())
+	if err != nil || outcome != rotationDone {
+		t.Fatalf("rotate = %v, %v, want the Runner to rotate", outcome, err)
+	}
+	posted := w.server.rotations()
+	if len(posted) != 1 {
+		t.Fatalf("%d rotations posted", len(posted))
+	}
+	got := map[string]bool{}
+	for _, wrap := range posted[0].Wraps {
+		got[wrap.HolderId] = true
+	}
+	if len(got) != 3 || !got[runnerID] || !got[laptopID] || !got[tabletID] {
+		t.Fatalf("wraps for %v, want the Runner, the laptop and the tablet", got)
+	}
+
+	// The server slipping the phone back among the vault's holders: as a
+	// voucher only, the Runner wraps nothing for it and leaves the rotation.
+	w = newRotationWorld(t)
+	w.server.vouchers = []contracts.RunnerDeviceHoldersVouchersElem{{
+		DeviceId: phone.DeviceId, PublicKey: phone.PublicKey, ApproverPublicKey: phone.ApproverPublicKey,
+		Wrap: contracts.RunnerDeviceHoldersVouchersElemWrap{Enc: phone.Wrap.Enc, Ciphertext: phone.Wrap.Ciphertext, Tag: phone.Wrap.Tag},
+	}}
+	w.server.holders = nil
+	if outcome, err := w.rotator().rotate(context.Background()); err != nil || outcome != rotationLeft {
+		t.Fatalf("rotate = %v, %v, want it left to another holder", outcome, err)
+	}
+	if posted := w.server.rotations(); len(posted) != 0 {
+		t.Fatalf("%d rotations posted", len(posted))
+	}
+}
+
 func TestTheRunnerRotatesOnlyARotationPendingOfItsVersion(t *testing.T) {
 	for name, alter := range map[string]func(v *contracts.RunnerVault){
 		"none pending":       func(v *contracts.RunnerVault) { v.RotationPending = false },
@@ -310,6 +375,7 @@ func TestTheRunnerTriesOnceMoreAfterARotationRefusedForARaceOrAMissingHolderOrIt
 	for _, retried := range []contracts.ErrorEnvelope{
 		refusal(409, "vault.version-changed"), refusal(409, "realtime.stale"),
 		refusal(422, "vault.holders-missing"), refusal(422, "vault.items-missing"),
+		refusal(409, "vault.items-changed"),
 	} {
 		t.Run(retried.Code, func(t *testing.T) {
 			w := newRotationWorld(t)
@@ -336,6 +402,59 @@ func TestTheRunnerTriesOnceMoreAfterARotationRefusedForARaceOrAMissingHolderOrIt
 				t.Fatal("the vault moved")
 			}
 		})
+	}
+}
+
+// Each item goes back with the key the Runner read as its previousKey; an
+// Idée sealed again between the read and the post (409 vault.items-changed)
+// makes it read the items again and try once more, the new key rewrapped.
+func TestTheRunnerSendsTheKeysItReadAndTriesOnceMoreWhenAnItemWasSealedAgain(t *testing.T) {
+	w := newRotationWorld(t)
+	read := map[string]string{}
+	for _, item := range w.server.items {
+		read[item.ItemId] = item.WrappedKey
+	}
+	once := true
+	w.server.onPost = func(f *fakeVaultServer) {
+		if !once {
+			return
+		}
+		once = false
+		item, err := w.held.Load().SealItem([]byte("le texte de "+ideaOne), []byte(ideaOne+":text"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.sealed[ideaOne] = item
+		for i := range f.items {
+			if f.items[i].ItemId == ideaOne {
+				f.items[i].WrappedKey = b64url.EncodeToString(item.Key)
+			}
+		}
+	}
+	outcome, err := w.rotator().rotate(context.Background())
+	posted := w.server.rotations()
+	if err != nil || outcome != rotationDone || len(posted) != 2 {
+		t.Fatalf("rotate = %v, %v, %d posted", outcome, err, len(posted))
+	}
+	for _, item := range posted[0].Items {
+		if item.PreviousKey != read[item.ItemId] {
+			t.Fatalf("the item %s went back with %q, not the key read %q", item.ItemId, item.PreviousKey, read[item.ItemId])
+		}
+	}
+	w.opensEveryItem(t, w.held.Load())
+
+	// Sealed again at each post: refused twice, the vault stays as it was.
+	busy := newRotationWorld(t)
+	busy.server.onPost = func(f *fakeVaultServer) {
+		item, err := busy.held.Load().SealItem([]byte("le texte de "+f.items[0].ItemId), []byte(f.items[0].Aad))
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.items[0].WrappedKey = b64url.EncodeToString(item.Key)
+	}
+	outcome, err = busy.rotator().rotate(context.Background())
+	if err == nil || outcome != rotationNone || len(busy.server.rotations()) != 2 || busy.held.Load().Version != 1 {
+		t.Fatalf("rotate = %v, %v, %d posted", outcome, err, len(busy.server.rotations()))
 	}
 }
 

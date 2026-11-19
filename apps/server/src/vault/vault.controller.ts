@@ -27,7 +27,7 @@ export class DeviceRevocationController {
   @HttpCode(200)
   @ZodResponse({ status: 200, description: 'The Appareil, revoked; the rotation of the vault key pending when it held it.', type: RevokedDeviceDto })
   revoke(@Param('id') id: string, @Body() body: RevokeDeviceDto): Promise<Device> {
-    return this.vault.revokeDevice(currentPilotId(), id, body.seq);
+    return this.vault.revokeDevice(currentPilotId(), id, body);
   }
 }
 

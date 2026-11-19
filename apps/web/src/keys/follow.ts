@@ -12,6 +12,8 @@ export interface VaultFollowOptions {
   readonly refresh: () => void;
   /** This page's Appareil (`X-Crewdeck-Device`). */
   readonly currentDeviceId: () => string | null;
+  /** Forgets this page's Appareil, revoked from another page (`deviceRevoked`). */
+  readonly forgetDevice: () => Promise<void>;
 }
 
 /**
@@ -22,12 +24,16 @@ export interface VaultFollowOptions {
  *   since every item key was rewrapped without an event of its own;
  * - a rotation pending, this Appareil trusted and its vault open at the
  *   current version: it rotates, one at a time, once per version (a failure
- *   leaves it to another holder, never a loop), then reads the state again.
+ *   leaves it to another holder, never a loop), then reads the state again;
+ * - this Appareil revoked from another page (its `device.upserted`): the page
+ *   forgets it, once, its vault open or not.
  *
  * Returns the function that stops.
  */
-export const followVault = ({ store, vault, unlockVault, rotateVault, refresh, currentDeviceId }: VaultFollowOptions): (() => void) => {
+export const followVault = ({ store, vault, unlockVault, rotateVault, refresh, currentDeviceId, forgetDevice }: VaultFollowOptions): (() => void) => {
   let busy = false;
+  /** The Appareil already forgotten: its later events change nothing. */
+  let forgotten: string | null = null;
   /** The last version reopened, and the last one this page tried to rotate from. */
   let reopened: number | null = null;
   let tried: number | null = null;
@@ -46,8 +52,14 @@ export const followVault = ({ store, vault, unlockVault, rotateVault, refresh, c
   };
 
   const check = () => {
-    if (busy) return;
     const { slices, vaultState } = store.getState();
+    const self = currentDeviceId();
+    if (self && self !== forgotten && slices.device?.get(self)?.state === 'revoked') {
+      forgotten = self;
+      void forgetDevice().catch(() => undefined);
+      return;
+    }
+    if (busy) return;
     const slice = slices.vault;
     if (!slice || vaultState !== 'unlocked') return;
     const held = vault.version();

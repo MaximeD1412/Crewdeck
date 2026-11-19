@@ -22,13 +22,15 @@ const setUp = ({ held = 1, outcome = 'rotated' as RotationOutcome } = {}) => {
     return outcome;
   });
   const refresh = vi.fn<() => void>();
+  const forgetDevice = vi.fn(async () => undefined);
   store.setVaultState('unlocked');
-  const stop = followVault({ store, vault: { version: () => version }, unlockVault, rotateVault, refresh, currentDeviceId: () => SELF });
+  const stop = followVault({ store, vault: { version: () => version }, unlockVault, rotateVault, refresh, forgetDevice, currentDeviceId: () => SELF });
   let seq = 1;
   const snapshot = (vault: VaultSlice, state: Device['state'] = 'trusted') =>
     store.applySnapshot({ seq: seq++, devices: [device(state)], vault } as never);
   const event = (vault: VaultSlice) => store.applyEvent({ seq: seq++, type: 'vault.upserted', payload: vault, at: AT });
-  return { store, unlockVault, rotateVault, refresh, stop, snapshot, event };
+  const revoked = () => store.applyEvent({ seq: seq++, type: 'device.upserted', payload: device('revoked'), at: AT });
+  return { store, unlockVault, rotateVault, refresh, forgetDevice, stop, snapshot, event, revoked };
 };
 
 describe('the page following the vault (E2E-4)', () => {
@@ -81,6 +83,24 @@ describe('the page following the vault (E2E-4)', () => {
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(pending.rotateVault).not.toHaveBeenCalled();
     expect(locked.rotateVault).not.toHaveBeenCalled();
+  });
+
+  it('forgets this Appareil once it is revoked from another page, its vault open or not, and once only', async () => {
+    const { forgetDevice, rotateVault, snapshot, revoked } = setUp();
+    snapshot({ version: 1, rotationPending: false });
+    expect(forgetDevice).not.toHaveBeenCalled();
+
+    revoked();
+    await vi.waitFor(() => expect(forgetDevice).toHaveBeenCalledTimes(1));
+    revoked();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(forgetDevice).toHaveBeenCalledTimes(1);
+    expect(rotateVault).not.toHaveBeenCalled();
+
+    const locked = setUp();
+    locked.store.setVaultState('locked');
+    locked.snapshot({ version: 1, rotationPending: true }, 'revoked');
+    await vi.waitFor(() => expect(locked.forgetDevice).toHaveBeenCalledTimes(1));
   });
 
   it('stops following', async () => {

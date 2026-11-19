@@ -32,6 +32,9 @@ type RunnerVaultRotationItemsElem struct {
 	// ItemType corresponds to the JSON schema field "itemType".
 	ItemType string `json:"itemType"`
 
+	// PreviousKey corresponds to the JSON schema field "previousKey".
+	PreviousKey string `json:"previousKey"`
+
 	// WrappedKey corresponds to the JSON schema field "wrappedKey".
 	WrappedKey string `json:"wrappedKey"`
 }
@@ -47,6 +50,9 @@ func (j *RunnerVaultRotationItemsElem) UnmarshalJSON(value []byte) error {
 	}
 	if _, ok := raw["itemType"]; raw != nil && !ok {
 		return fmt.Errorf("field itemType in RunnerVaultRotationItemsElem: required")
+	}
+	if _, ok := raw["previousKey"]; raw != nil && !ok {
+		return fmt.Errorf("field previousKey in RunnerVaultRotationItemsElem: required")
 	}
 	if _, ok := raw["wrappedKey"]; raw != nil && !ok {
 		return fmt.Errorf("field wrappedKey in RunnerVaultRotationItemsElem: required")
@@ -64,6 +70,9 @@ func (j *RunnerVaultRotationItemsElem) UnmarshalJSON(value []byte) error {
 	}
 	if utf8.RuneCountInString(string(plain.ItemType)) > 64 {
 		return fmt.Errorf("field %s length: must be <= %d", "itemType", 64)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.PreviousKey)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "PreviousKey", `^[A-Za-z0-9_-]*$`)
 	}
 	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.WrappedKey)); !matched {
 		return fmt.Errorf("field %s pattern match: must match %s", "WrappedKey", `^[A-Za-z0-9_-]*$`)
@@ -193,8 +202,8 @@ func (j *RunnerVaultRotation) UnmarshalJSON(value []byte) error {
 	if 0 >= plain.FromVersion {
 		return fmt.Errorf("field %s: must be > %v", "fromVersion", 0)
 	}
-	if len(plain.Items) > 60000 {
-		return fmt.Errorf("field %s length: must be <= %d", "items", 60000)
+	if len(plain.Items) > 30000 {
+		return fmt.Errorf("field %s length: must be <= %d", "items", 30000)
 	}
 	if 9007199254740991 < plain.Seq {
 		return fmt.Errorf("field %s: must be <= %v", "seq", 9007199254740991)

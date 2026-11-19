@@ -234,6 +234,8 @@ describe('createProjectSettings, the worktree Commandes', () => {
     expect(JSON.stringify(calls)).not.toMatch(/pnpm|rm -rf/);
     const sent = calls.at(-1)?.body['worktreeCommands'] as SealedItem;
     expect(await sealer(vault).decoded(sent)).toEqual({ prepare: 'pnpm install', clean: 'rm -rf .cache' });
+    // With the version of the vault key it was sealed under (E2E-4).
+    expect(calls.at(-1)?.body['vaultKeyVersion']).toBe(vault.version());
     store.deliver(0);
     store.deliver(1);
     expect(settings.view(PROJECT, store.inStore(), 'unlocked')).toMatchObject({ drafts: {}, worktree: { state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' } });
@@ -244,6 +246,38 @@ describe('createProjectSettings, the worktree Commandes', () => {
     expect(reloaded.view(PROJECT, sent, 'unlocked').worktree).toEqual({ state: 'opening' });
     await opening;
     expect(reloaded.view(PROJECT, sent, 'unlocked').worktree).toEqual({ state: 'open', prepare: 'pnpm install', clean: 'rm -rf .cache' });
+  });
+
+  it('the vault rotated since it was unlocked (409 vault.version-changed): unlocks it again, seals under the new version and saves once more, once (E2E-4)', async () => {
+    const versionChanged = () => new ApiError({ status: 409, code: 'vault.version-changed', message: 'La clé du coffre a déjà changé : relis le coffre avant de recommencer.' });
+    const { client, stored, calls, answer } = fakeClient();
+    const real = await unlockedVault();
+    let held = real.version() ?? 0;
+    const unlockVault = vi.fn(async () => {
+      held += 1;
+      return 'unlocked' as const;
+    });
+    const vault = { ...real, sealItem: async (plaintext: Uint8Array, aad: Uint8Array) => ({ ...(await real.sealItem(plaintext, aad)), vaultKeyVersion: held }), unlockVault };
+    let refusals = 1;
+    answer(async (body) => {
+      if (refusals-- > 0) throw versionChanged();
+      return settingsOf((body['worktreeCommands'] as SealedItem | null | undefined) ?? null);
+    });
+    const settings = createProjectSettings({ client, vault, stored });
+    settings.view(PROJECT, null, 'unlocked');
+
+    await settings.change(PROJECT, 'worktree:prepare', 'pnpm install');
+    expect(unlockVault).toHaveBeenCalledTimes(1);
+    expect(calls.map(({ body }) => body['vaultKeyVersion'])).toEqual([held - 1, held]);
+    expect(calls[0]?.body['worktreeCommands']).not.toEqual(calls[1]?.body['worktreeCommands']);
+    expect(await sealer(real).decoded(calls[1]?.body['worktreeCommands'] as SealedItem)).toEqual({ prepare: 'pnpm install', clean: null });
+    expect(settings.view(PROJECT, null, 'unlocked').errors).toEqual({});
+
+    // Refused again: the refusal on the control, nothing more sent.
+    refusals = 2;
+    await settings.change(PROJECT, 'worktree:clean', 'rm -rf .cache');
+    expect(calls).toHaveLength(4);
+    expect(settings.view(PROJECT, null, 'unlocked').errors).toEqual({ 'worktree:clean': 'La clé du coffre a déjà changé : relis le coffre avant de recommencer.' });
   });
 
   it('removes the item when both are emptied', async () => {

@@ -59,22 +59,28 @@ export const devicesCard = (devices: ReadonlyMap<string, Device> | undefined, cu
   };
 };
 
+/** Whether `deviceId` is the Pilote's last trusted Appareil: its revocation then warns first (OPS-1), and says so to the server. */
+export const isLastTrusted = (devices: ReadonlyMap<string, Device> | undefined, deviceId: string): boolean =>
+  !!devices && devices.get(deviceId)?.state === 'trusted' && [...devices.values()].filter((one) => one.state === 'trusted').length === 1;
+
 /**
  * What « Retirer » asks in the core's dialog (E2E-4, a product's action, not
  * an Action sensible): what happens to the Appareil and to the vault key,
  * that it is this browser's when it is, and, before the last trusted
  * Appareil, that reinstalling the Runner then loses the Idées' text (OPS-1).
- * None for an Appareil the store does not hold or already revoked.
+ * None for an Appareil the store does not hold or already revoked. `last`:
+ * the server said it is the last one by now (409 `devices.last-changed`),
+ * before the store heard of the other revocation.
  */
 export const revokeConfirmation = (
   devices: ReadonlyMap<string, Device> | undefined,
   deviceId: string,
   currentId: string | null,
+  { last: known = false }: { last?: boolean } = {},
 ): ConfirmDialogOptions | null => {
   const device = devices?.get(deviceId);
   if (!devices || !device || device.state === 'revoked') return null;
-  const trusted = [...devices.values()].filter((one) => one.state === 'trusted');
-  const last = device.state === 'trusted' && trusted.length === 1;
+  const last = known || isLastTrusted(devices, deviceId);
   return {
     title: t('devices.revoke.title', { name: device.name }),
     confirmLabel: t('devices.revoke.confirm'),

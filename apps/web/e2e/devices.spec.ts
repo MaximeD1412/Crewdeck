@@ -221,6 +221,8 @@ test('revoking an Appareil: refused at once, the vault key rotated by the truste
   await expectAccessible(page);
   await last.getByRole('button', { name: 'Retirer l’Appareil' }).click();
   await expect(card).toHaveCount(0);
+  // Its socket closed with 4403 (E2E-4): a short Resynchronisation, then live again without it, its Banner alone.
+  await expect(deviceBanner(page)).toHaveCount(1);
   await expect(deviceBanner(page)).toContainText('Cet Appareil ne lit pas encore tes Sessions ni le texte de tes Idées.');
   // Its record of the Appareil gone from IndexedDB.
   const stored = await page.evaluate(

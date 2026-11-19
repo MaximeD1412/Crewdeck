@@ -17,6 +17,11 @@ export interface SealedItem {
   readonly ciphertext: Bytes;
 }
 
+/** An item just sealed, with the version of the vault key it was sealed under: what a sealed write carries (E2E-4). */
+export interface SealedUnder extends SealedItem {
+  readonly vaultKeyVersion: number;
+}
+
 export interface VaultOptions {
   readonly devices: DeviceStore;
   /** `GET /api/devices/:id/vault-key-wrap`; a refusal carries the envelope's `code`. */
@@ -34,7 +39,7 @@ export interface Vault {
    * key, and keeps the vault key in memory as a non-extractable AES-GCM key.
    */
   unlockVault(): Promise<VaultState>;
-  sealItem(plaintext: Uint8Array, aad: Uint8Array): Promise<SealedItem>;
+  sealItem(plaintext: Uint8Array, aad: Uint8Array): Promise<SealedUnder>;
   openItem(item: SealedItem, aad: Uint8Array): Promise<Bytes>;
   /**
    * The vault key's bytes, opened again from the wrap, only to wrap the key
@@ -121,12 +126,12 @@ export const createVault = ({ devices, fetchWrap, onState }: VaultOptions): Vaul
       return set('unlocked');
     },
     async sealItem(plaintext, aad) {
-      const { key: vaultKey } = unlocked();
+      const { key: vaultKey, version } = unlocked();
       const itemKey = await generateAesKey({ extractable: true });
       const raw = await exportAesKey(itemKey);
       try {
         const key = await aesGcmSeal(vaultKey, raw, itemKeyAad(aad));
-        return { key, ciphertext: await aesGcmSeal(itemKey, plaintext, aad) };
+        return { key, ciphertext: await aesGcmSeal(itemKey, plaintext, aad), vaultKeyVersion: version };
       } finally {
         raw.fill(0);
       }

@@ -63,13 +63,17 @@ export type VaultItems = z.infer<typeof zVaultItems>;
 export const zRotationWrap = z.object({ holderType: zVaultHolderType, holderId: zId, enc: zBytes32, ciphertext: zBytes(16, 1024), tag: zBytes32 });
 export type RotationWrap = z.infer<typeof zRotationWrap>;
 
-/** An item key rewrapped under the new vault key, for the same additional data. */
-export const zRotatedItem = z.object({ itemType: zVaultItemType, itemId: zId, wrappedKey: zWrappedItemKey });
+/**
+ * An item key rewrapped under the new vault key, for the same additional
+ * data; `previousKey` is the wrapped key the rotating holder read and
+ * unwrapped, the one the server must still hold to replace it.
+ */
+export const zRotatedItem = z.object({ itemType: zVaultItemType, itemId: zId, previousKey: zWrappedItemKey, wrappedKey: zWrappedItemKey });
 export type RotatedItem = z.infer<typeof zRotatedItem>;
 
-/** The body of a rotation is bounded at 10 MB; an item takes about 150 bytes of it. */
+/** The body of a rotation is bounded at 10 MB; an item takes at most about 320 bytes of it. */
 export const VAULT_ROTATION_BODY_MAX_BYTES = 10 * 1024 * 1024;
-export const VAULT_ROTATION_ITEMS_MAX = 60_000;
+export const VAULT_ROTATION_ITEMS_MAX = 30_000;
 
 /**
  * `POST /api/vault/rotations` (a trusted Appareil) and
@@ -78,7 +82,9 @@ export const VAULT_ROTATION_ITEMS_MAX = 60_000;
  * item key rewrapped, the version moved and the rotation done. 409
  * `vault.version-changed` when `fromVersion` is no longer current; 422
  * `vault.holders-missing` unless `wraps` is exactly the holders, 422
- * `vault.items-missing` unless `items` is exactly the registered items.
+ * `vault.items-missing` unless `items` is exactly the registered items; 409
+ * `vault.items-changed` when an item's stored key is no longer its
+ * `previousKey` (written again since it was read): nothing changes.
  */
 export const zVaultRotation = withSeq(
   z.object({

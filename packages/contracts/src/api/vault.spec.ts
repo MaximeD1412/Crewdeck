@@ -22,15 +22,18 @@ describe('the vault (E2E-4)', () => {
   });
 
   it('rotates to the next version only, with at least one wrap', () => {
-    const rotation = { fromVersion: 1, toVersion: 2, wraps: [WRAP], items: [{ itemType: 'idea.text', itemId: ID, wrappedKey: ITEM_KEY }], seq: 3 };
+    const rotation = { fromVersion: 1, toVersion: 2, wraps: [WRAP], items: [{ itemType: 'idea.text', itemId: ID, previousKey: ITEM_KEY, wrappedKey: ITEM_KEY }], seq: 3 };
     expect(zVaultRotation.parse(rotation)).toEqual(rotation);
     expect(zVaultRotation.safeParse({ ...rotation, toVersion: 3 }).success).toBe(false);
     expect(zVaultRotation.safeParse({ ...rotation, wraps: [] }).success).toBe(false);
     expect(zVaultRotation.safeParse({ ...rotation, seq: undefined }).success).toBe(false);
+    // Each item carries the key it was read with: the server replaces it only if it is still the one stored.
+    expect(zVaultRotation.safeParse({ ...rotation, items: [{ itemType: 'idea.text', itemId: ID, wrappedKey: ITEM_KEY }] }).success).toBe(false);
   });
 
-  it('revokes an Appareil with the seq of its last change', () => {
-    expect(zRevokeDevice.parse({ seq: '4' })).toEqual({ seq: 4 });
+  it('revokes an Appareil with the seq of its last change, and whether the dialog warned it was the last trusted one (absent: not)', () => {
+    expect(zRevokeDevice.parse({ seq: '4' })).toEqual({ seq: 4, last: false });
+    expect(zRevokeDevice.parse({ seq: '4', last: true })).toEqual({ seq: 4, last: true });
     expect(zRevokeDevice.safeParse({}).success).toBe(false);
   });
 });

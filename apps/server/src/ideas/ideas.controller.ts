@@ -1,7 +1,6 @@
 import { type Idea, type IdeaList, zIdea, zIdeaList, zListIdeasQuery, zNoteIdeaInput } from '@crewdeck/contracts';
-import { Body, Controller, Get, Inject, Injectable, type OnModuleInit, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Injectable, type OnModuleInit, Post, Query } from '@nestjs/common';
 import { createZodDto, ZodResponse } from 'nestjs-zod';
-import { NotRevokedDeviceGuard } from '../devices/trusted-device.guard.js';
 import { STATE_CONTRIBUTORS, type StateContributor, type StateContributors } from '../realtime/state-contributors.js';
 import type { Tx } from '../realtime/transactions.js';
 import { currentPilotId } from '../scope/scope.context.js';
@@ -24,7 +23,6 @@ export class IdeasController {
   }
 
   @Get()
-  @UseGuards(NotRevokedDeviceGuard)
   @ZodResponse({ status: 200, description: 'A page of the Pilote’s Idées in these states, the last updated first.', type: IdeaListDto })
   list(@Query() query: ListIdeasQueryDto): Promise<IdeaList> {
     return this.ideas.list(query);

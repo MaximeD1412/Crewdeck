@@ -51,8 +51,9 @@ func openVault(store state.Store) (*keys.Vault, error) {
 // holdersTimeout bounds the read of the holders at a wrap.
 const holdersTimeout = 10 * time.Second
 
-// listHolders reads the Appareils an approval vouched for, from the server.
-type listHolders func(ctx context.Context) ([]contracts.RunnerDeviceHoldersHoldersElem, error)
+// listHolders reads the Appareils an approval vouched for, and the revoked
+// ones that vouch for others (E2E-4), from the server.
+type listHolders func(ctx context.Context) (contracts.RunnerDeviceHolders, error)
 
 // relayKeys are what the relay of the Sessions seals with (SESSION-1): the
 // Runner's key, and as holders, read again at each wrap, the Appareil of

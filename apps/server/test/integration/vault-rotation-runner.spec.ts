@@ -107,7 +107,9 @@ describe('the vault key rotated by the Go Runner (E2E-4)', () => {
 
     // The first Appareil links the Runner (E2E-2) and seals an Idée's text.
     const first = await browser(pilotId, CHROME);
-    const state = async () => zState.parse(await first.call('GET', '/api/state'));
+    // The state as an Appareil reads it: the first, then the phone once the first is revoked.
+    let reader = first;
+    const state = async () => zState.parse(await reader.call('GET', '/api/state'));
     const linkSecret = keys.encodeBase32(crypto.getRandomValues(new Uint8Array(16)));
     const link = zRunnerLinkCodeCreated.parse(await first.call('POST', '/api/runner/link-codes', { pairing: await first.linkKeys.browserPairing() }));
     await first.linkKeys.adoptDevice(link.deviceId);
@@ -149,6 +151,8 @@ describe('the vault key rotated by the Go Runner (E2E-4)', () => {
     // The phone revokes the first Appareil: its wrap refused at once, the rotation pending.
     await phone.call('POST', `/api/devices/${link.deviceId}/revoke`, { seq: (await state()).seq });
     await expect(first.call('GET', `/api/devices/${link.deviceId}/vault-key-wrap`)).rejects.toMatchObject({ status: 422, code: 'devices.revoked' });
+    await expect(first.call('GET', '/api/state')).rejects.toMatchObject({ status: 422, code: 'devices.revoked' });
+    reader = phone;
     expect((await state()).vault).toEqual({ version: 1, rotationPending: true });
 
     // The Runner comes online, the first holder there: it rotates.

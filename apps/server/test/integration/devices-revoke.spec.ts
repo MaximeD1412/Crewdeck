@@ -1,10 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import {
   DEVICE_HEADER,
+  WS_CLOSE,
   PROCESS_CREWDECK,
   PROCESS_CREWDECK_NAME,
   zDevice,
   zDeviceCreated,
+  zDeviceHolders,
   zRunnerLinkStatus,
   zState,
   zVault,
@@ -25,6 +27,7 @@ import { RunnerLinkLimiter } from '../../src/runners/link/link-limiter.js';
 import { RunnerCommands } from '../../src/runners/runner-commands.service.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
 import { approvalProof, newDeviceSide, pairingSides, shapedWrap } from '../fakes/pairing.js';
+import { connect, type WsClient } from '../fakes/ws-client.js';
 import { expectEnvelope, startApp } from '../route-baseline.js';
 
 /**
@@ -126,11 +129,21 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
     return { deviceId: code.deviceId, sides, publicKey: sides.devicePublicKey, runnerId: status.runnerId, runnerPublicKey: sides.runnerPublicKey, token: status.token };
   };
 
-  /** A second Appareil of `tab`, approved by `first` (E2E-3): trusted, with its wrap of version 1. */
-  const approved = async (tab: Tab, first: { deviceId: string; publicKey: string }) => {
+  /**
+   * A second Appareil of `tab`, approved by `first` (E2E-3): trusted, with its
+   * wrap of version 1; with `runnerPublicKey`, the holder wrap that vouches
+   * for it to the Runner too (SESSION-1).
+   */
+  const approved = async (tab: Tab, first: { deviceId: string; publicKey: string }, { runnerPublicKey }: { runnerPublicKey?: string } = {}) => {
     const side = newDeviceSide();
     const created = zDeviceCreated.parse(await (await page(tab, '/api/devices', { body: side.request() })).json());
-    const body = { approver: { type: 'device', id: first.deviceId }, vaultKeyVersion: 1, wrap: shapedWrap(), proof: approvalProof(side.secret, side.publicKey, first.publicKey) };
+    const body = {
+      approver: { type: 'device', id: first.deviceId },
+      vaultKeyVersion: 1,
+      wrap: shapedWrap(),
+      proof: approvalProof(side.secret, side.publicKey, first.publicKey),
+      ...(runnerPublicKey ? { runner: { publicKey: runnerPublicKey, proof: b64(32) }, holder: shapedWrap() } : {}),
+    };
     const res = await page(tab, `/api/devices/${created.id}/approve`, { body, deviceId: first.deviceId });
     expect(res.status).toBe(200);
     return { deviceId: created.id, publicKey: side.publicKey };
@@ -212,7 +225,7 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
     fromVersion: vault.version,
     toVersion: vault.version + 1,
     wraps: vault.holders.map(({ type, id }) => ({ holderType: type, holderId: id, ...shapedWrap() })),
-    items: keys.map(({ itemType, itemId }) => ({ itemType, itemId, wrappedKey: b64(60) })),
+    items: keys.map(({ itemType, itemId, wrappedKey }) => ({ itemType, itemId, previousKey: wrappedKey, wrappedKey: b64(60) })),
     seq: vault.seq,
   });
 
@@ -236,6 +249,25 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
       expect(told).toEqual([expect.objectContaining({ pilotId: alice.id, type: 'vault.rotation-pending' })]);
       // The others still open the old version until the rotation.
       expect((await page(alice, `/api/devices/${first.deviceId}/vault-key-wrap`, { deviceId: first.deviceId })).status).toBe(200);
+    });
+
+    it('lists a revoked approver to the Runner as a voucher, never as a holder, so the Appareil it approved stays authenticated', async () => {
+      const alice = await pilot();
+      const first = await linked(alice);
+      const laptop = await approved(alice, first, { runnerPublicKey: first.runnerPublicKey });
+      const phone = await approved(alice, laptop, { runnerPublicKey: first.runnerPublicKey });
+
+      expect((await page(alice, `/api/devices/${laptop.deviceId}/revoke`, { body: { seq: await seq(alice) }, deviceId: first.deviceId })).status).toBe(200);
+
+      const res = await binary('/api/runner/devices/holders', { token: first.token });
+      expect(res.status).toBe(200);
+      const { holders, vouchers } = zDeviceHolders.parse(await res.json());
+      expect(holders.map(({ deviceId, publicKey, approverPublicKey }) => ({ deviceId, publicKey, approverPublicKey }))).toEqual([
+        { deviceId: phone.deviceId, publicKey: phone.publicKey, approverPublicKey: laptop.publicKey },
+      ]);
+      expect(vouchers?.map(({ deviceId, publicKey, approverPublicKey }) => ({ deviceId, publicKey, approverPublicKey }))).toEqual([
+        { deviceId: laptop.deviceId, publicKey: laptop.publicKey, approverPublicKey: first.publicKey },
+      ]);
     });
 
     it('revokes a pending Appareil without a rotation; an Appareil already revoked changes nothing', async () => {
@@ -274,6 +306,87 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
       await expectEnvelope(await page(undefined, `/api/devices/${second.deviceId}/revoke`, { body: { seq: 0 } }), 401, 'auth.required');
       const [row] = await sql<{ state: string }>('SELECT state FROM devices WHERE id = $1', [second.deviceId]);
       expect(row?.state).toBe('trusted');
+    });
+  });
+
+  describe('what a revoked Appareil still reads (E2E-4)', () => {
+    const sockets: WsClient[] = [];
+    afterEach(async () => {
+      await Promise.all(sockets.splice(0).map((client) => client.close()));
+    });
+    /** A tab's socket naming `device`, answered once open (a pong). */
+    const socket = async (tab: Tab, device?: string): Promise<WsClient> => {
+      const client = await connect(url, { cookie: tab.cookie, origin: ORIGIN, ...(device ? { device } : {}) });
+      sockets.push(client);
+      return client;
+    };
+    const answered = async (client: WsClient): Promise<WsClient> => {
+      client.send({ type: 'ping' });
+      await client.next('pong');
+      return client;
+    };
+
+    it('answers 422 devices.revoked to every route the page calls naming a revoked Appareil, /api/state included; without the header, the state', async () => {
+      const alice = await pilot();
+      const first = await linked(alice);
+      const second = await approved(alice, first);
+      await page(alice, `/api/devices/${second.deviceId}/revoke`, { body: { seq: await seq(alice) }, deviceId: first.deviceId });
+
+      for (const path of ['/api/state', '/api/ideas?states=to-triage', '/api/projects', '/api/me']) {
+        await expectEnvelope(await page(alice, path, { deviceId: second.deviceId }), 422, 'devices.revoked');
+      }
+      expect((await page(alice, '/api/state')).status).toBe(200);
+      expect((await page(alice, '/api/state', { deviceId: first.deviceId })).status).toBe(200);
+    });
+
+    it('closes with 4403 the sockets that name the Appareil revoked, refuses a new one naming it, and keeps the others', async () => {
+      const alice = await pilot();
+      const first = await linked(alice);
+      const second = await approved(alice, first);
+      const revokedTab = await answered(await socket(alice, second.deviceId));
+      const trustedTab = await answered(await socket(alice, first.deviceId));
+      const plainTab = await answered(await socket(alice));
+
+      expect((await page(alice, `/api/devices/${second.deviceId}/revoke`, { body: { seq: await seq(alice) }, deviceId: first.deviceId })).status).toBe(200);
+
+      expect(await revokedTab.closed()).toEqual({ code: WS_CLOSE.deviceRevoked, reason: 'device revoked' });
+      await answered(trustedTab);
+      await answered(plainTab);
+      const late = await socket(alice, second.deviceId);
+      late.send({ type: 'hello', lastSeq: null });
+      expect(await late.closed()).toEqual({ code: WS_CLOSE.deviceRevoked, reason: 'device revoked' });
+      expect(late.collect()).toEqual([]);
+    });
+  });
+
+  describe('the last trusted Appareil (OPS-1)', () => {
+    it('answers 409 devices.last-changed to the revocation of the last trusted Appareil the dialog did not warn of; warned, it is revoked', async () => {
+      const alice = await pilot();
+      const first = await linked(alice);
+      const second = await approved(alice, first);
+
+      expect((await page(alice, `/api/devices/${first.deviceId}/revoke`, { body: { seq: await seq(alice), last: false } })).status).toBe(200);
+      await expectEnvelope(await page(alice, `/api/devices/${second.deviceId}/revoke`, { body: { seq: await seq(alice) } }), 409, 'devices.last-changed');
+      const [row] = await sql<{ state: string }>('SELECT state FROM devices WHERE id = $1', [second.deviceId]);
+      expect(row?.state).toBe('trusted');
+      expect((await page(alice, `/api/devices/${second.deviceId}/revoke`, { body: { seq: await seq(alice), last: true } })).status).toBe(200);
+    });
+
+    it('lets one of two concurrent dialogs, each shown with two trusted Appareils, revoke; the other gets 409 devices.last-changed', async () => {
+      const alice = await pilot();
+      const first = await linked(alice);
+      const second = await approved(alice, first);
+      const at = await seq(alice);
+
+      const answers = await Promise.all(
+        [first, second].map((device) => page(alice, `/api/devices/${device.deviceId}/revoke`, { body: { seq: at, last: false } })),
+      );
+
+      expect(answers.map((res) => res.status).sort()).toEqual([200, 409]);
+      const refused = answers.find((res) => res.status === 409);
+      if (refused) await expectEnvelope(refused, 409, 'devices.last-changed');
+      const rows = await sql<{ state: string }>(`SELECT state FROM devices WHERE pilot_id = $1 AND state = 'trusted'`, [alice.id]);
+      expect(rows).toHaveLength(1);
     });
   });
 
@@ -346,10 +459,45 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
       await expectEnvelope(await rotate({ ...rotation, wraps: [...rotation.wraps, { holderType: 'device', holderId: newId(), ...shapedWrap() }] }), 422, 'vault.holders-missing');
       await expectEnvelope(await rotate({ ...rotation, wraps: [...rotation.wraps.slice(1), rotation.wraps[1]] }), 422, 'vault.holders-missing');
       await expectEnvelope(await rotate({ ...rotation, items: rotation.items.slice(1) }), 422, 'vault.items-missing');
-      await expectEnvelope(await rotate({ ...rotation, items: [...rotation.items.slice(1), { itemType: 'idea.text', itemId: newId(), wrappedKey: b64(60) }] }), 422, 'vault.items-missing');
+      await expectEnvelope(await rotate({ ...rotation, items: [...rotation.items.slice(1), { itemType: 'idea.text', itemId: newId(), previousKey: b64(60), wrappedKey: b64(60) }] }), 422, 'vault.items-missing');
       await expectEnvelope(await rotate({ ...rotation, toVersion: 3 }), 400, 'validation.invalid');
       expect(await wrapsOf(alice.id)).toHaveLength(3);
       expect(zState.parse(await (await page(alice, '/api/state')).json()).vault.version).toBe(1);
+    });
+
+    it('answers 409 vault.items-changed when an item key is no longer the one read (written again since GET items, or a previousKey wrong): nothing changes', async () => {
+      const alice = await pilot();
+      const first = await linked(alice);
+      const second = await approved(alice, first);
+      await page(alice, `/api/devices/${second.deviceId}/revoke`, { body: { seq: await seq(alice) } });
+      const { versionId, ideas } = await items(alice);
+      const vault = zVault.parse(await (await page(alice, '/api/vault', { deviceId: first.deviceId })).json());
+      const keys = await allItems((cursor) => page(alice, `/api/vault/items${cursor ? `?cursor=${cursor}` : ''}`, { deviceId: first.deviceId }));
+      const rotation = rotationOf(vault, keys);
+      const rotate = (body: unknown) => page(alice, '/api/vault/rotations', { body, deviceId: first.deviceId });
+      const stored = async () => ({
+        ideas: await sql('SELECT id, text, analysis FROM ideas ORDER BY id'),
+        versions: await sql('SELECT id, sealed FROM process_versions WHERE id = $1', [versionId]),
+        wraps: await wrapsOf(alice.id),
+        version: zState.parse(await (await page(alice, '/api/state')).json()).vault,
+      });
+
+      // A previousKey that was never the stored one, for one item only.
+      const wrong = rotation.items.map((item) => (item.itemId === versionId ? { ...item, previousKey: b64(60) } : item));
+      const before = await stored();
+      await expectEnvelope(await rotate({ ...rotation, items: wrong }), 409, 'vault.items-changed');
+      expect(await stored()).toEqual(before);
+
+      // The Idée's text sealed again (a new key) between GET items and the rotation.
+      await sql('UPDATE ideas SET text = $2 WHERE id = $1', [ideas[0], JSON.stringify(sealed())]);
+      const written = await stored();
+      await expectEnvelope(await rotate(rotation), 409, 'vault.items-changed');
+      expect(await stored()).toEqual(written);
+      expect(written.version).toEqual({ version: 1, rotationPending: true });
+
+      // Read again, the rotation goes through.
+      const again = rotationOf(vault, await allItems((cursor) => page(alice, `/api/vault/items${cursor ? `?cursor=${cursor}` : ''}`, { deviceId: first.deviceId })));
+      expect((await rotate(again)).status).toBe(200);
     });
 
     it('serves the vault to a trusted Appareil only: 422 devices.not-trusted without the header or for a pending one, devices.revoked for a revoked one; 401 without a session', async () => {

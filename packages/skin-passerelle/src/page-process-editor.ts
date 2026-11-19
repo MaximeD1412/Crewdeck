@@ -1,5 +1,6 @@
-import { BREAKPOINT_PX, PageProcessEditor, t, type CdActionDetail, type ComposantData } from '@crewdeck/sdk';
-import { css, html, nothing, type TemplateResult } from 'lit';
+import { BREAKPOINT_PX, PageProcessEditor, t, type CdActionDetail, type ComposantData, type ComposantPayload } from '@crewdeck/sdk';
+import { css, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
+import { keyed } from 'lit/directives/keyed.js';
 import { PasserelleElement, sharedStyles } from './base.js';
 
 type Data = ComposantData<typeof PageProcessEditor>;
@@ -7,6 +8,14 @@ type Tab = Data['tab'];
 type Step = NonNullable<Data['step']>;
 type Phase = NonNullable<Data['phase']>;
 type Row = Step['tools'][number];
+type SourceRow = Data['sources']['rows'][number];
+type SourceSelect = NonNullable<SourceRow['select']>;
+type ForEach = Phase['repeat'][number]['forEach'];
+type StepKind = ComposantPayload<typeof PageProcessEditor, 'addStep'>['kind'];
+type Control = HTMLElement & { value: string };
+
+/** The radio « Une fois »'s value: a Phase that does not repeat. */
+const ONCE = 'once';
 
 const TABS: readonly Tab[] = ['gaps', 'selection', 'sources'];
 const isTab = (id: unknown): id is Tab => TABS.includes(id as Tab);
@@ -17,8 +26,17 @@ const isTab = (id: unknown): id is Tab => TABS.includes(id as Tab);
  * from 1280 px, the editor taking the height the compact Cadre leaves: the
  * ProcessCanvas, and its panel (`--cd-aside-width`), Tabs « Manques »,
  * « Étape » or « Phase », « Sources », the versions at its foot. Below 1280
- * px the editor is not rendered. The canvas's `select` and `view` become the
- * page's (`centre: false`), a Manque's row a `select` that centres its block.
+ * px the editor is not rendered: the Sources' card only, under the Banner of
+ * a migration of Source running (`process-migration-en-cours.html`). The
+ * canvas's `select` and `view` become the page's (`centre: false`), a
+ * Manque's row a `select` that centres its block; a group's Select changed,
+ * `migrate`, the Select back on its Source until the page says otherwise.
+ *
+ * Editable (`process-catalogue.html`, `process-phase.html`), the header holds
+ * « Phase » and « Étape », the catalogue's Menu under the latter; a refusal
+ * shows as the canvas's Toast; the Étape's panel moves it to another Phase or
+ * removes it, the Phase's renames it, sets « Répéter » and removes it, through
+ * a Dialog when it holds Étapes.
  */
 export class PasserellePageProcessEditor extends PasserelleElement<typeof PageProcessEditor> {
   static override properties = { wide: { state: true } };
@@ -184,6 +202,46 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
       .not-found {
         flex: 1;
       }
+      /* Its label named by the row, hidden as cd-setting-row hides its own, kept as the Select's name. */
+      .item cd-select {
+        width: 7.5rem;
+        --cd-field-label-position: absolute;
+        --cd-field-label-size: var(--cd-stroke);
+        --cd-field-label-overflow: hidden;
+        --cd-field-label-clip: inset(50%);
+        --cd-field-label-white-space: nowrap;
+      }
+      .phone-sources {
+        display: flex;
+        flex-direction: column;
+        gap: var(--cd-space-2);
+      }
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: var(--cd-space-2);
+      }
+      .menu-anchor {
+        position: relative;
+        display: inline-flex;
+      }
+      .menu-anchor > cd-menu {
+        position: absolute;
+        top: calc(100% + var(--cd-space-2));
+        right: 0;
+        z-index: 5;
+        /* Its own width (--cd-menu-width), not the anchor's: it opens leftwards over the panel. */
+        max-width: none;
+        /* Within the window, below the header: a long catalogue scrolls inside it. */
+        max-height: calc(100dvh - 10rem);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+      .radios {
+        display: flex;
+        flex-direction: column;
+        gap: var(--cd-space-1);
+      }
     `,
   ];
 
@@ -208,13 +266,117 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     this.media.removeEventListener('change', this.onMedia);
   }
 
-  /** The canvas's `select` and `view` become the page's. */
+  /** The name typed last sent by Enter, so that the `change` after it does not send it again. */
+  private sentName: string | null = null;
+  /** The last ask to focus the name that was honoured. */
+  private focusedAt: number | null = null;
+  /** Whether the catalogue was open when « Étape » was pressed: the Menu closes itself on that press, its click then opens nothing. A key or that click clears it. */
+  private catalogueWasOpen = false;
+  /** Bumped when a choice in the panel was refused: its controls, keyed on it, show the data again. */
+  private resets = 0;
+
+  protected override updated(changed: PropertyValues): void {
+    super.updated(changed);
+    const at = this.data?.phase?.focusName ?? null;
+    if (at === null || at === this.focusedAt) return;
+    this.focusedAt = at;
+    const field = this.shadowRoot?.querySelector<HTMLElement & { updateComplete: Promise<unknown> }>('cd-text-field.phase-name');
+    void field?.updateComplete.then(() => {
+      const input = field.shadowRoot?.querySelector('input');
+      input?.focus();
+      input?.select();
+    });
+  }
+
+  /** The canvas's `select` and `view` become the page's, its `moveStep` too. */
   private onCanvas(event: Event) {
     const { composant, action, payload } = (event as CustomEvent<CdActionDetail>).detail;
     if (composant !== 'ProcessCanvas') return;
     event.stopPropagation();
     if (action === 'select') this.emit('select', { target: (payload as { target: Data['gaps'][number]['target'] | null }).target, centre: false });
     if (action === 'view') this.emit('view', payload as { zoom: number; pan: { x: number; y: number } });
+    if (action === 'moveStep') this.emit('moveStep', payload as { stepId: string; phaseId: string; col: number; row: number });
+  }
+
+  private onMenu(event: Event) {
+    const { composant, action, payload } = (event as CustomEvent<CdActionDetail>).detail;
+    if (composant !== 'Menu') return;
+    event.stopPropagation();
+    if (action === 'close') this.emit('closeMenu', {});
+    if (action === 'choose') this.emit('addStep', { kind: (payload as { id: StepKind }).id });
+  }
+
+  private onCatalogueButton() {
+    // The press that closed the Menu ends here: the next click, from the keyboard too, opens it again.
+    const closing = this.catalogueWasOpen;
+    this.catalogueWasOpen = false;
+    if (closing) return;
+    this.emit('openCatalogue', {});
+  }
+
+  private onStepPhase(step: Step, event: Event) {
+    const phaseId = (event.currentTarget as Control).value;
+    if (phaseId !== step.phaseId) this.emit('moveStepToPhase', { stepId: step.id, phaseId });
+    void this.resync();
+  }
+
+  /**
+   * After a choice of the panel's controls, once the page's answer is shown:
+   * a control still showing a choice its data does not (refused) is drawn
+   * again from its data, the focus kept on it.
+   */
+  private async resync(): Promise<void> {
+    await this.updateComplete;
+    type Shown = HTMLElement & { value: string; checked?: boolean; data: { value: string; checked?: boolean } };
+    const controls = [...this.renderRoot.querySelectorAll<Shown>('.radios cd-radio, cd-select.step-phase')];
+    const stale = controls.some((control) =>
+      control.localName === 'cd-radio' ? control.checked !== control.data.checked : control.value !== control.data.value,
+    );
+    if (!stale) return;
+    const focused = controls.some((control) => control.matches(':focus-within'));
+    this.resets += 1;
+    this.requestUpdate();
+    await this.updateComplete;
+    if (!focused) return;
+    const again = [...this.renderRoot.querySelectorAll<Shown & { updateComplete: Promise<unknown> }>('.radios cd-radio, cd-select.step-phase')].find(
+      (control) => control.localName !== 'cd-radio' || control.data.checked,
+    );
+    await again?.updateComplete;
+    again?.shadowRoot?.querySelector<HTMLElement>('input, select')?.focus();
+  }
+
+  private rename(phase: Phase, name: string) {
+    if (name === phase.name && !phase.nameError) return;
+    this.emit('renamePhase', { phaseId: phase.id, name });
+  }
+
+  private onNameKey(phase: Phase, event: KeyboardEvent) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const name = (event.currentTarget as Control).value;
+    this.sentName = name;
+    this.rename(phase, name);
+  }
+
+  private onNameChange(phase: Phase, event: Event) {
+    const name = (event.currentTarget as Control).value;
+    const sent = this.sentName;
+    this.sentName = null;
+    if (name !== sent) this.rename(phase, name);
+  }
+
+  private onRepeat(phase: Phase, event: Event) {
+    const value = (event.target as Control).value;
+    const forEach = (value === ONCE ? null : value) as ForEach;
+    this.emit('setForEach', { phaseId: phase.id, forEach });
+    void this.resync();
+  }
+
+  private onDialog(event: Event) {
+    const { composant, action } = (event as CustomEvent<CdActionDetail>).detail;
+    if (composant !== 'Dialog') return;
+    event.stopPropagation();
+    if (action === 'close') this.emit('cancelRemovePhase', {});
   }
 
   private onTabs(event: Event) {
@@ -225,11 +387,52 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     if (isTab(tab)) this.emit('tab', { tab });
   }
 
-  private row({ icon, label, detail }: Row, trailing?: string): TemplateResult {
+  private row({ icon, label, detail }: Row): TemplateResult {
     return html`<div class="item" role="listitem">
-      <cd-icon .data=${{ name: icon, size: 'sm' }}></cd-icon><b>${label}</b>${trailing ? html`<span class="mono">${trailing}</span>` : html`<span></span>`}
+      <cd-icon .data=${{ name: icon, size: 'sm' }}></cd-icon><b>${label}</b><span></span>
       ${detail === null ? nothing : html`<small>${detail}</small>`}
     </div>`;
+  }
+
+  /** A row of the Sources: its value, its group's Select (wide only), or the badge of its migration. */
+  private sourceRow(row: SourceRow): TemplateResult {
+    const { icon, label, detail, value, select, migration } = row;
+    const trailing =
+      migration !== null
+        ? html`<cd-status-badge .data=${{ tone: 'caution', label: migration }}></cd-status-badge>`
+        : select && this.wide
+          ? html`<cd-select
+              data-group=${select.group}
+              .data=${{
+                name: `source.${select.group}`,
+                label: select.label,
+                value: select.value,
+                options: select.options.map((option) => ({ ...option, disabled: false })),
+                help: null,
+                state: select.disabled ? 'disabled' : null,
+              }}
+              @change=${(event: Event) => this.choose(select, event)}
+            ></cd-select>`
+          : html`<span class="mono">${value}</span>`;
+    return html`<div class="item ${migration === null ? '' : 'caution'}" role="listitem">
+      <cd-icon .data=${{ name: icon, size: 'sm' }}></cd-icon><b>${label}</b>${trailing}
+      ${detail === null ? nothing : html`<small>${detail}</small>`}
+    </div>`;
+  }
+
+  /** A group's Select changed: `migrate`, the Select back on what the page says (the choice while it asks, then the Source). */
+  private choose(select: SourceSelect, event: Event) {
+    const control = event.currentTarget as HTMLElement & { value: string; reset(): void };
+    const to = select.options.find((option) => option.value === control.value)?.value;
+    if (to === undefined || to === select.value) return;
+    this.emit('migrate', { group: select.group, to });
+    control.reset();
+  }
+
+  private migrationBanner(): TemplateResult | typeof nothing {
+    const { banner } = this.data.sources;
+    if (!banner) return nothing;
+    return html`<cd-banner class="migration" .data=${{ tone: 'caution', icon: 'refresh', title: banner.title }}>${banner.text}</cd-banner>`;
   }
 
   private gaps(): TemplateResult {
@@ -253,11 +456,43 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
 
   private step(step: Step): TemplateResult {
     const ports = t('process.step.ports');
+    const editable = this.data.canvas.editable;
     return html`<div class="section">
         <div class="cluster">
           <cd-status-badge .data=${{ tone: 'accent', label: step.name }}></cd-status-badge>
           <span class="kind">${step.kindLabel} · ${step.phaseName}</span>
+          ${editable
+            ? html`<cd-button
+                class="remove-step"
+                .data=${{
+                  label: t('process.step.remove'),
+                  variant: 'ghost',
+                  size: 'sm',
+                  icon: 'trash',
+                  ...(step.removeReason === null ? {} : { state: 'disabled' as const }),
+                }}
+                @click=${() => step.removeReason === null && this.emit('removeStep', { stepId: step.id })}
+              ></cd-button>`
+            : nothing}
         </div>
+        ${editable && step.removeReason !== null ? html`<p class="text reason">${step.removeReason}</p>` : nothing}
+        ${editable
+          ? keyed(
+              `${step.id}:${step.phaseId}:${this.resets}`,
+              html`<cd-select
+                class="step-phase"
+                .data=${{
+                  name: 'phaseId',
+                  label: t('process.step.phase'),
+                  value: step.phaseId,
+                  options: step.phases.map((option) => ({ ...option, disabled: false })),
+                  help: null,
+                  state: null,
+                }}
+                @change=${(event: Event) => this.onStepPhase(step, event)}
+              ></cd-select>`,
+            )
+          : nothing}
       </div>
       ${step.loopBack === null
         ? nothing
@@ -295,15 +530,64 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
   }
 
   private phase(phase: Phase): TemplateResult {
+    const editable = this.data.canvas.editable;
+    const title = t('process.phase.repeat.title');
+    const checked = phase.repeat.find((option) => option.checked);
     return html`<div class="section">
         <div class="cluster">
-          <cd-status-badge .data=${{ tone: 'accent', label: phase.name }}></cd-status-badge>
+          <cd-status-badge .data=${{ tone: 'accent', label: t('process.phase.badge') }}></cd-status-badge>
           <span class="kind">${phase.count}</span>
         </div>
+        ${keyed(
+          phase.id,
+          html`<cd-text-field
+            class="phase-name"
+            .data=${{
+              name: 'name',
+              label: t('process.phase.name'),
+              value: phase.name,
+              placeholder: null,
+              help: null,
+              error: phase.nameError,
+              state: editable ? null : 'disabled',
+              multiline: false,
+              maxLength: null,
+            }}
+            @keydown=${(event: KeyboardEvent) => this.onNameKey(phase, event)}
+            @change=${(event: Event) => this.onNameChange(phase, event)}
+          ></cd-text-field>`,
+        )}
       </div>
-      <section class="section repeat">
-        <p class="text">${t('process.phase.repeat', { repeat: phase.repeat })}</p>
-      </section>`;
+      <section class="section repeat" aria-label=${title}>
+        <h2>${title}</h2>
+        ${editable
+          ? keyed(
+              `${phase.id}:${this.resets}`,
+              html`<div class="radios" role="radiogroup" aria-label=${title} @change=${(event: Event) => this.onRepeat(phase, event)}>
+                ${phase.repeat.map(
+                  (option) =>
+                    html`<cd-radio
+                      .data=${{ name: `repeat-${phase.id}`, value: option.forEach ?? ONCE, label: option.label, checked: option.checked }}
+                    ></cd-radio>`,
+                )}
+              </div>`,
+            )
+          : html`<p class="text">${checked?.label ?? ''}</p>`}
+        <p class="text help">${phase.help}</p>
+      </section>
+      ${editable
+        ? html`<cd-button
+            class="remove-phase"
+            .data=${{
+              label: t('process.phase.remove'),
+              variant: 'ghost',
+              size: 'sm',
+              icon: 'trash',
+              ...(phase.removeReason === null ? {} : { state: 'disabled' as const, disabledReason: phase.removeReason }),
+            }}
+            @click=${() => phase.removeReason === null && this.emit('removePhase', { phaseId: phase.id })}
+          ></cd-button>`
+        : nothing}`;
   }
 
   private selection(): TemplateResult {
@@ -315,8 +599,19 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
 
   private sources(): TemplateResult {
     const { lead, rows } = this.data.sources;
-    return html`<p class="lead">${lead}</p>
-      <div class="list" role="list">${rows.map((row) => this.row(row, row.value))}</div>`;
+    return html`${this.migrationBanner()}
+      <p class="lead">${lead}</p>
+      <div class="list" role="list">${rows.map((row) => this.sourceRow(row))}</div>`;
+  }
+
+  /** The phone's Sources: read, a migration's Banner above them (editing stays on the PC). */
+  private phoneSources(): TemplateResult {
+    const { rows } = this.data.sources;
+    return html`${this.migrationBanner()}
+      <section class="phone-sources" aria-labelledby="phone-sources">
+        <h2 id="phone-sources">${t('process.tabs.sources')}</h2>
+        <div class="list" role="list">${rows.map((row) => this.sourceRow(row))}</div>
+      </section>`;
   }
 
   private panel(): TemplateResult {
@@ -341,22 +636,65 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     </aside>`;
   }
 
+  private headerActions(): TemplateResult {
+    const { catalogue } = this.data;
+    return html`<div slot="actions" class="header-actions">
+      <cd-button class="add-phase" .data=${{ label: t('process.header.phase'), variant: 'secondary', size: 'sm', icon: 'plus' }} @click=${() => this.emit('addPhase', {})}></cd-button>
+      <span class="menu-anchor">
+        <cd-button
+          class="add-step"
+          aria-haspopup="menu"
+          aria-expanded=${catalogue ? 'true' : 'false'}
+          .data=${{ label: t('process.header.step'), variant: 'secondary', size: 'sm', icon: 'plus' }}
+          @pointerdown=${() => (this.catalogueWasOpen = this.data.catalogue !== null)}
+          @keydown=${() => (this.catalogueWasOpen = false)}
+          @click=${this.onCatalogueButton}
+        ></cd-button>
+        ${catalogue ? html`<cd-menu .data=${catalogue} @cd-action=${this.onMenu}></cd-menu>` : nothing}
+      </span>
+    </div>`;
+  }
+
+  private removePhaseDialog(): TemplateResult {
+    const removing = this.data.removePhase;
+    return html`<cd-dialog class="remove-phase-dialog" .data=${{ open: removing !== null, title: removing?.title ?? '' }} @cd-action=${this.onDialog}>
+      ${removing ? html`<p class="text">${removing.body}</p>` : nothing}
+      <cd-button
+        slot="actions"
+        class="cancel"
+        .data=${{ label: t('process.phase.remove.cancel'), variant: 'ghost', size: 'md' }}
+        @click=${() => this.emit('cancelRemovePhase', {})}
+      ></cd-button>
+      <cd-button
+        slot="actions"
+        class="confirm"
+        .data=${{ label: t('process.phase.remove'), variant: 'danger', size: 'md', icon: 'trash' }}
+        @click=${() => removing && this.emit('confirmRemovePhase', { phaseId: removing.phaseId })}
+      ></cd-button>
+    </cd-dialog>`;
+  }
+
   protected override render() {
-    const { found, title, hasVersion, canvas } = this.data;
+    const { found, title, hasVersion, canvas, toast } = this.data;
     if (!found) {
       return html`<cd-empty class="not-found" .data=${{ icon: 'folder', title: t('process.notFound') }}
         ><a slot="actions" href="/projets">${t('process.notFound.back')}</a></cd-empty
       >`;
     }
+    const editing = this.wide && canvas.editable;
     return html`<cd-page-header
         .data=${{ title: t('process.title'), count: title.count, back: { label: t('process.back', { projectName: title.projectName }), href: title.backHref } }}
-      ></cd-page-header>
+        >${editing ? this.headerActions() : nothing}</cd-page-header
+      >
       ${hasVersion ? nothing : html`<cd-banner .data=${{ tone: 'caution', icon: 'alert', title: t('process.noVersion') }}></cd-banner>`}
       ${this.wide
         ? html`<div class="editor" aria-label=${t('process.editor.label')} role="region">
-            <cd-process-canvas .data=${canvas} @cd-action=${this.onCanvas}></cd-process-canvas>
+            <cd-process-canvas .data=${canvas} @cd-action=${this.onCanvas}>
+              ${toast ? html`<cd-toast slot="toast" .data=${toast}></cd-toast>` : nothing}
+            </cd-process-canvas>
             ${this.panel()}
           </div>`
-        : nothing}`;
+        : this.phoneSources()}
+      ${canvas.editable ? this.removePhaseDialog() : nothing}`;
   }
 }

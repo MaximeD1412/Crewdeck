@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zVaultKeyWrap } from '../keys/pairing.js';
+import { SOURCE_GROUPS, zSourceGroup } from '../process/sources.js';
 import { zId, zSeq } from '../values.js';
 import { runnerMessage } from './envelope.js';
 import { HELLO_SESSIONS_MAX, zHelloSession } from './session.js';
@@ -18,6 +19,8 @@ export const zRunnerArch = z.enum(RUNNER_ARCH);
  * the server sends it none of the Miroir's messages. A Runner with Sessions
  * says them in `sessions` (RUNNER-9): the server interrupts those it thought
  * live, and starts those it was told to start while the Runner was away.
+ * `migrations` names the groups of Source it can migrate (SOURCE-7): a
+ * Runner without it can migrate none.
  */
 export const zHello = runnerMessage('hello', {
   protocolVersion: z.int().positive(),
@@ -28,6 +31,7 @@ export const zHello = runnerMessage('hello', {
   wsl: z.boolean(),
   mirrorAfter: zSeq.nullable().optional(),
   sessions: z.array(zHelloSession).max(HELLO_SESSIONS_MAX).optional(),
+  migrations: z.array(zSourceGroup).max(SOURCE_GROUPS.length).optional(),
 });
 export type Hello = z.infer<typeof zHello>;
 

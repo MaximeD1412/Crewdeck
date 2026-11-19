@@ -1,0 +1,98 @@
+import { PROCESS_CREWDECK, type PhaseRun, type SourceMigration } from '@crewdeck/contracts';
+import { migrationBanner, migrationConfirmation, migrationMeta, type SourceMigrationReads } from './source-migration.js';
+
+const PROJECT = { id: 'p1', displayName: 'Site mairie', fullName: 'MaximeD1412/site-mairie', hasCode: true };
+
+const MIGRATION: SourceMigration = {
+  id: 'sm1',
+  projectId: 'p1',
+  group: 'ticket',
+  from: 'local',
+  to: 'github',
+  state: 'draining',
+  total: 0,
+  copied: 0,
+  waitingItems: [
+    { itemType: 'ticket', number: 12 },
+    { itemType: 'ticket', number: 14 },
+  ],
+  errorCode: null,
+  attempt: 1,
+  createdAt: '2026-11-19T09:00:00.000Z',
+  switchedAt: null,
+  endedAt: null,
+};
+
+type Run = Pick<PhaseRun, 'projectId' | 'phaseId' | 'state' | 'waitingOn'>;
+const run = (phaseId: string, state: Run['state'] = 'running', waitingOn: Run['waitingOn'] = null): Run => ({ projectId: 'p1', phaseId, state, waitingOn });
+
+const readsOf = (overrides: Partial<SourceMigrationReads> = {}): SourceMigrationReads => ({
+  project: PROJECT,
+  definition: PROCESS_CREWDECK,
+  migrations: [],
+  phaseRuns: [run('ph-dev'), run('ph-dev'), run('ph-dev', 'waiting', 'queue'), run('ph-idee'), { ...run('ph-dev'), projectId: 'p2' }],
+  tickets: [...Array.from({ length: 30 }, () => ({ projectId: 'p1' })), { projectId: 'p2' }],
+  codeChanges: [],
+  machine: 'atelier-pc',
+  ...overrides,
+});
+
+describe('migrationConfirmation', () => {
+  it('asks to move the Tickets: what holds, what is copied, what is archived, and that a type never has two Sources', () => {
+    expect(migrationConfirmation(readsOf(), 'ticket', 'local', 'github')).toEqual({
+      title: 'Passer les Tickets de Site mairie sur GitHub ?',
+      confirmLabel: 'Migrer les Tickets',
+      icon: 'github',
+      tone: 'primary',
+      consequences: {
+        lead: 'Local → GitHub, MaximeD1412/site-mairie.',
+        items: [
+          { strong: '', text: 'Aucun nouveau Ticket ne démarre pendant la migration ; les 2 Tickets en cours finissent sur Local.' },
+          { strong: '', text: 'Puis les 30 Tickets du dossier tickets/ deviennent 30 issues, d’un coup, avec leur état et leur historique.' },
+          { strong: '', text: 'Le dossier tickets/ est archivé, figé : plus rien ne s’y écrit.' },
+        ],
+        note: 'Un Type d’artefact n’a jamais deux Sources, même un instant.',
+      },
+    });
+  });
+
+  it('says there is nothing to copy for a group that holds nothing, and nothing to finish when nothing runs', () => {
+    const dialog = migrationConfirmation(readsOf({ tickets: [], phaseRuns: [] }), 'ticket', 'local', 'github');
+
+    expect(dialog.consequences?.items?.map((item) => item.text)).toEqual([
+      'Aucun nouveau Ticket ne démarre pendant la migration.',
+      'Rien à copier : la Source change tout de suite.',
+      'Le dossier tickets/ est archivé, figé : plus rien ne s’y écrit.',
+    ]);
+  });
+
+  it('asks to move the code to Local, into the Projet’s folder on the Runner’s machine', () => {
+    const dialog = migrationConfirmation(readsOf(), 'code', 'github', 'local');
+
+    expect(dialog.title).toBe('Passer les changements de code de Site mairie sur Local ?');
+    expect(dialog.confirmLabel).toBe('Migrer les changements de code');
+    expect(dialog.icon).toBe('folder');
+    expect(dialog.consequences?.lead).toBe('GitHub → Local, dossier du Projet, sur atelier-pc.');
+    expect(dialog.consequences?.items?.map((item) => item.text)).toEqual([
+      'Aucun nouveau changement de code ne démarre pendant la migration ; les 2 changements de code en cours finissent sur GitHub.',
+      'Puis le code de MaximeD1412/site-mairie passe dans le dossier du Projet, d’un coup, avec son historique.',
+      'Le dépôt MaximeD1412/site-mairie est archivé, figé : plus rien ne s’y écrit.',
+    ]);
+  });
+});
+
+describe('a migration running', () => {
+  it('says what it waits for while it drains, the Tickets it moves from the page’s count', () => {
+    expect(migrationMeta(MIGRATION)).toBe('migration en cours · 2 Tickets à finir sur Local');
+    expect(migrationBanner(MIGRATION, readsOf())).toEqual({
+      title: 'Migration des Tickets vers GitHub',
+      text: 'Aucun nouveau Ticket ne démarre. #12 et #14 finissent sur Local, puis les 30 Tickets passent sur GitHub d’un coup.',
+    });
+  });
+
+  it('follows its states: the copy counted by the Runner, the check, the switch', () => {
+    expect(migrationMeta({ ...MIGRATION, state: 'copying', total: 30, copied: 12, waitingItems: [] })).toBe('copie : 12 sur 30');
+    expect(migrationMeta({ ...MIGRATION, state: 'verifying', waitingItems: [] })).toBe('vérification');
+    expect(migrationMeta({ ...MIGRATION, state: 'switched', waitingItems: [] })).toBe('bascule faite, on archive l’ancienne place');
+  });
+});

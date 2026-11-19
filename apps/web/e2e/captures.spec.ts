@@ -11,6 +11,12 @@ import { linkFirstAppareil } from './runner-link.js';
 import { routeSocket } from './socket.js';
 import { becomeTrustedDevice } from './trusted-device.js';
 
+/** The nav's « Notifications » opened, then back at the top: the full-page shot keeps its sticky columns in place at 1280 px. */
+const openNotifications = async (page: Page) => {
+  await page.getByRole('navigation', { name: 'Paramètres / Sections' }).getByRole('link', { name: 'Notifications' }).click();
+  await page.evaluate(() => window.scrollTo(0, 0));
+};
+
 /** The Paramètres' « Appareils », this browser linked first: its first trusted Appareil (E2E-3). */
 const appareils = async (page: Page) => {
   await linkFirstAppareil(page, undefined);
@@ -83,21 +89,59 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await picker.getByRole('checkbox', { name: /^octocat\/site-mairie\b/ }).check();
     await expect(picker.getByRole('button', { name: 'Suivre 2 Projets' })).toBeEnabled();
   },
+  // The folder tab, a git folder with code checked by the Runner, its name proposed.
+  'demarrage-projets-dossier': async (page) => {
+    await page.locator('cd-page-demarrage').getByRole('tab', { name: 'Dossier sur ta machine' }).click();
+    const form = page.locator('cd-page-demarrage cd-folder-project-form');
+    await form.getByRole('textbox', { name: 'Chemin du dossier' }).fill('~/projets/recettes');
+    await expect(form).toContainText('Dépôt git · déjà du code : un inventaire sera proposé.');
+    await expect(form.getByRole('button', { name: 'Créer le Projet' })).toBeEnabled();
+  },
+  // The Local Projet's name opened by the trusted Appareil, its folder kept by the Runner.
+  'projet-local': async (page) => {
+    await expect(page.locator('cd-page-projet').getByRole('heading', { level: 1, name: 'Recettes' })).toBeVisible();
+    await expect(page.locator('cd-page-projet')).toContainText('sur atelier-pc');
+  },
+  'projets-vide': async (page) => {
+    await expect(page.locator('cd-page-projets')).toContainText('Aucun Projet suivi');
+  },
   // « Gestion du process » once the snapshot drew its canvas (1280 px; the phone's list is PROCESS-11's).
   ...Object.fromEntries(
-    ['process', 'process-manques', 'process-etape', 'process-sources', 'process-local'].map((name) => [
+    ['process', 'process-manques', 'process-etape', 'process-phase', 'process-sources', 'process-local'].map((name) => [
       name,
       async (page: Page, width: number) => {
         if (width >= 1280) await expect(page.locator('cd-page-process-editor cd-process-canvas cd-step-card').first()).toBeVisible();
       },
     ]),
   ),
+  // The catalogue opened under « Étape », « Développement » chosen (1280 px: the header's actions are the editor's).
+  'process-catalogue': async (page, width) => {
+    if (width < 1280) return;
+    const editor = page.locator('cd-page-process-editor');
+    await expect(editor.locator('cd-process-canvas cd-step-card').first()).toBeVisible();
+    await editor.getByRole('button', { name: 'Étape', exact: true }).click();
+    await expect(editor.getByRole('menu', { name: 'Ajouter dans « Développement »' })).toBeVisible();
+  },
   projets: async (page) => {
     await expect(page.locator('cd-page-projets cd-list-row')).toHaveCount(4);
   },
   // « Rôles et modèles » once the snapshot gave the Comptes IA: the Idée on Sonnet, as the mockup.
   parametres: async (page) => {
     await expect(page.getByRole('combobox', { name: 'Moteur et modèle du Rôle Idée' }).filter({ visible: true })).toHaveValue('claude-code:claude-sonnet-5-5');
+  },
+  // « Notifications » (ATOI-4): its section opened, as a link of the nav does (on the phone, the section alone).
+  'parametres-notifications': async (page) => {
+    await openNotifications(page);
+    await expect(page.getByRole('button', { name: 'Activer sur cet appareil' })).toBeVisible();
+  },
+  // A browser without PushManager, an iPhone outside the home-screen app: the help instead of the button.
+  'parametres-notifications-iphone': async (page) => {
+    await page.addInitScript(() => {
+      Reflect.deleteProperty(window, 'PushManager');
+    });
+    await page.reload();
+    await openNotifications(page);
+    await expect(page.getByText('Sur iPhone, ajoute Crewdeck à l’écran d’accueil', { exact: false })).toBeVisible();
   },
   // On the trusted Appareil, the Code on Codex once the snapshot is there; at 1280 px, the worktree Commandes opened.
   'parametres-projet': async (page, width) => {
@@ -182,6 +226,15 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   'session-permission': async (page) => {
     await expect(page.locator('#app > cd-cadre > cd-session[slot=panel] cd-permission-request')).toContainText('git push origin design/agenda-partage');
     await expect(page.locator('cd-page-a-toi cd-decision-row').filter({ hasText: 'Concevoir · Agenda partagé' })).toContainText('Bash : git push');
+  },
+  // The Tickets' Select turned to GitHub (SOURCE-7): the core's confirmation over the Sources, on the PC only.
+  'process-migration-source': async (page, width) => {
+    if (width < 1280) return;
+    await page.locator('cd-page-process-editor').getByRole('combobox', { name: 'Source des Tickets' }).selectOption('github');
+    await expect(page.getByRole('alertdialog', { name: 'Passer les Tickets de Site mairie sur GitHub ?' })).toBeVisible();
+  },
+  'process-migration-en-cours': async (page) => {
+    await expect(page.locator('cd-page-process-editor cd-banner.migration').filter({ visible: true })).toContainText('#12 et #14');
   },
   // « Maximum de Retours atteint » (PROCESS-6) among the nine Décisions of `a-toi`.
   'a-toi-process': async (page) => {

@@ -18,7 +18,7 @@ import type { Vault } from './vault.js';
 type Browser = 'edge' | 'chrome' | 'firefox' | 'safari' | 'other';
 type System = 'windows' | 'android' | 'ios' | 'macos' | 'linux' | 'other';
 
-const browserOf = (ua: string): Browser =>
+export const browserOf = (ua: string): Browser =>
   /Edg\//.test(ua) ? 'edge' : /Firefox\/|FxiOS/.test(ua) ? 'firefox' : /Chrome\/|CriOS/.test(ua) ? 'chrome' : /Safari\//.test(ua) ? 'safari' : 'other';
 
 const systemOf = (ua: string): System =>

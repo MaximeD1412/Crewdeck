@@ -4,6 +4,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -21,8 +23,52 @@ func TestSaveWritesRunnerJsonReadableByThePiloteOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("loaded %+v, want %+v", got, want)
+	}
+}
+
+// The Local Projets' folders (PROJET-6, ADR 0012) stay in runner.json,
+// projectId → absolute path, readable by the Pilote only.
+func TestSaveKeepsTheProjectsFoldersReadableByThePiloteOnly(t *testing.T) {
+	store := Store{Dir: filepath.Join(t.TempDir(), ".crewdeck")}
+	want := State{
+		Server: "https://crewdeck.example", RunnerID: "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6aff", Token: "token-1",
+		Projects: map[string]string{"019a6f00-0000-7000-8000-0000000000a1": "/home/pilote/projets/recettes"},
+	}
+
+	if err := store.Save(want); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	assertMode(t, store.Path(), 0o600)
+	data, _ := os.ReadFile(store.Path())
+	if !strings.Contains(string(data), `"projects"`) {
+		t.Fatalf("runner.json %s lacks its projects", data)
+	}
+	got, err := store.Load()
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("loaded %+v, %v; want %+v", got, err, want)
+	}
+}
+
+// A runner.json of a Runner before PROJET-6 has no projects, and is saved without.
+func TestAStateWithoutProjectsLoadsAndSavesWithout(t *testing.T) {
+	store := Store{Dir: t.TempDir()}
+	if err := os.WriteFile(store.Path(), []byte(`{"server":"https://crewdeck.example","runnerId":"r","token":"t"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := store.Load()
+	if err != nil || got.Projects != nil {
+		t.Fatalf("loaded %+v, %v; want no projects", got, err)
+	}
+	if err := store.Save(got); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(store.Path())
+	if strings.Contains(string(data), "projects") {
+		t.Fatalf("runner.json %s holds projects", data)
 	}
 }
 

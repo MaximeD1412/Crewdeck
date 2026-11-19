@@ -14,6 +14,7 @@ export const SENSITIVE_ACTION_IDS = [
   'schedule.resume',
   'document.approve',
   'inventory.approve',
+  'source.migrate',
 ] as const;
 export const zSensitiveActionId = z.enum(SENSITIVE_ACTION_IDS).meta({ title: 'SensitiveActionId' });
 export type SensitiveActionId = z.infer<typeof zSensitiveActionId>;

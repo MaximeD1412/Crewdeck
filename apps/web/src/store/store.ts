@@ -12,11 +12,13 @@ import type {
   PhaseRun,
   Project,
   ProjectProcess,
+  PushSubscription,
   Repository,
   Resource,
   Runner,
   RunnerLink,
   SettingsState,
+  SourceMigration,
   State,
   StepRun,
   Ticket,
@@ -49,6 +51,8 @@ export interface Slices {
   readonly 'mcp-server': ReadonlyMap<string, McpServer>;
   /** The Pilote's Appareils, by id (E2E-2), from the snapshot's `devices`. */
   readonly device: ReadonlyMap<string, Device>;
+  /** The browsers that receive the Pilote's push notifications, by id (ATOI-4), from the snapshot's `push-subscriptions`. */
+  readonly 'push-subscription': ReadonlyMap<string, PushSubscription>;
   /** The vault key's version and whether a revocation waits for its rotation (E2E-4), from the snapshot's `vault`. */
   readonly vault: VaultSlice | null;
   /** The Pilote's Projets, by id (PROJET-2), from the snapshot's `projects`. */
@@ -80,6 +84,8 @@ export interface Slices {
   readonly settings: SettingsState | null;
   /** The usage of the Comptes IA (RUNNER-13), by the Compte IA's id, from the snapshot's `usage`. */
   readonly usage: ReadonlyMap<string, UsageAccount>;
+  /** The migrations of Source (SOURCE-7), by id, from the snapshot's `sourceMigrations`: those not done, and the last done of each group. */
+  readonly 'source-migration': ReadonlyMap<string, SourceMigration>;
 }
 
 export interface StoreState {

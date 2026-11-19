@@ -25,6 +25,8 @@ export interface NoteIdeaOptions {
   readonly newId?: () => string;
   /** Where the notice on the dictation's service is kept read: `localStorage` by default. */
   readonly storage?: Pick<Storage, 'getItem' | 'setItem'>;
+  /** A Projet's name (`projects.ts`, `projectName`): its `displayName`, else « Projet local », by default. */
+  readonly projectName?: (project: Pick<Project, 'id' | 'displayName' | 'nameSealed'>) => string;
 }
 
 export interface NoteIdea {
@@ -63,7 +65,15 @@ const CLOSED: Local = { open: false, busy: false, error: null, defaultProjectId:
  * comes, and the Idée goes with `dictated: true` when some of its text came
  * from a dictation of this opening.
  */
-export const createNoteIdea = ({ client, vault, store, width = () => innerWidth, newId = () => uuidv7(), storage }: NoteIdeaOptions): NoteIdea => {
+export const createNoteIdea = ({
+  client,
+  vault,
+  store,
+  width = () => innerWidth,
+  newId = () => uuidv7(),
+  projectName = (project) => project.displayName ?? t('projets.local.fallbackName'),
+  storage,
+}: NoteIdeaOptions): NoteIdea => {
   let state = CLOSED;
   const listeners = new Set<() => void>();
   const notify = () => {
@@ -82,12 +92,10 @@ export const createNoteIdea = ({ client, vault, store, width = () => innerWidth,
 
   return {
     view() {
-      const projects: readonly Pick<Project, 'id' | 'displayName'>[] = [...(store.getState().slices.project?.values() ?? [])];
+      const projects: readonly Pick<Project, 'id' | 'displayName' | 'nameSealed'>[] = [...(store.getState().slices.project?.values() ?? [])];
       return {
         ...state,
-        projects: [...projects]
-          .sort((a, b) => a.displayName.localeCompare(b.displayName, 'fr'))
-          .map((project) => ({ id: project.id, name: project.displayName })),
+        projects: projects.map((project) => ({ id: project.id, name: projectName(project) })).sort((a, b) => a.name.localeCompare(b.name, 'fr')),
         locked: locked(),
         value: dictation.text,
         dictation: dictation.view(),

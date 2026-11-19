@@ -1,7 +1,9 @@
-import type { EmailLinkVerified, Me } from '@crewdeck/contracts';
+import { zProcessTemplateId, type EmailLinkVerified, type Me, type Project } from '@crewdeck/contracts';
 import {
   AccountIdentities,
   Cadre,
+  FolderProjectForm,
+  PageAjouterProjet,
   PageAToi,
   PageComposants,
   NoteIdeaDialog,
@@ -12,10 +14,13 @@ import {
   PageParametres,
   PageParametresProjet,
   PageProcessEditor,
+  PageProjet,
   PageProjets,
   PageRunner,
   RepositoryPicker,
+  PushSettings,
   RoleSettings,
+  type ProjectOrigin,
   Composer,
   PermissionRequest,
   Question,
@@ -25,7 +30,7 @@ import {
 } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
-import { createEditorActions } from './actions/process-editor.js';
+import { createEditorActions, createMigrateAction } from './actions/process-editor.js';
 import { me as readMe, requestLink as postLinkRequest, verifyLink as postLinkVerify } from './api/auth.js';
 import type { Client } from './api/client.js';
 import { ApiError, currentDeviceId, deviceRevoked, onDeviceRevoked } from './api/request.js';
@@ -38,18 +43,24 @@ import { createDeadline } from './deadline.js';
 import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
 import { followVault } from './keys/follow.js';
 import { createPageKeys, type PageKeys } from './keys/index.js';
+import { createEditing } from './process/editing.js';
 import { createEditorUi } from './process/editor-ui.js';
 import { createNoteIdea } from './note-idea.js';
 import { createProjectSettings } from './project-settings.js';
-import { createProjects } from './projects.js';
+import { createProjectNames, createProjects } from './projects.js';
+import { createFolderCheck, createFolderChecker, type FolderSocket } from './projects/folder-check.js';
+import { createFolderForm } from './projects/folder-form.js';
+import { attachFolder, createLocalProject } from './projects/local.js';
 import { bootSkin } from './registry.js';
 import { createDeviceStore } from './keys/device-store.js';
+import { createBrowserPush, type PushDevice } from './push.js';
+import { createPushSettings } from './push-settings.js';
 import { createRoleSettings } from './role-settings.js';
 import { createSessionPanel } from './session-panel.js';
 import { createSessionPeek } from './sessions/peek.js';
 import { createSessionRelay, type SessionRelay } from './sessions/relay.js';
 import { routeData, routeSlots, startRouter, type Route, type RouteMatch, type Router } from './router.js';
-import { aToiHref, composantsHref, ideesHref, ROUTES } from './routes.js';
+import { ajouterHref, aToiHref, composantsHref, ideesHref, projetHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
 import { githubLinkHref, HOME_PATH, providerSignInHref, signInGuard } from './sign-in.js';
 import { client as pageClient, connection as pageConnection, store as pageStore } from './store/index.js';
@@ -57,21 +68,22 @@ import type { Connection } from './store/connection.js';
 import { createIdeaPlaintext } from './store/idea-plaintext.js';
 import { createLatencyMeter, type LatencyMeter } from './store/latency.js';
 import type { Store } from './store/store.js';
-import { aToiView } from './views/a-toi.js';
 import { createConnexion } from './views/connexion.js';
 import { createConnexionLien, takeLinkToken } from './views/connexion-lien.js';
+import { aToiView } from './views/a-toi.js';
 import { actionsOf, decisionViews } from './views/decisions/registry.js';
 import './views/decisions/agent-question.js';
 import './views/decisions/loop-back-exhausted.js';
 import './views/decisions/permission-requested.js';
 import './views/decisions/runner-offline.js';
+import './views/decisions/source-migration.js';
 import { systemOfBrowser } from './views/demarrage.js';
 import { ADD_DEVICE_ID, isLastTrusted, revokeConfirmation, revokedDeviceOf } from './views/devices.js';
 import { ideesQuery, ideesView } from './views/idees.js';
 import { parametresView, timeZones } from './views/parametres.js';
 import { parametresProjetView, type ParametresProjetView } from './views/parametres-projet.js';
 import { processEditorView } from './views/process-editor.js';
-import { projetsView } from './views/projets.js';
+import { firstTab, projetsView, projetView } from './views/projets.js';
 import { runnerView } from './views/runner.js';
 import { roleName } from './views/session.js';
 import { usageChangesAt } from './views/usage.js';
@@ -100,6 +112,8 @@ export interface BootOptions {
   /** The page's store and its socket (`store/index.ts`) by default. */
   readonly store?: Store;
   readonly connection?: Pick<Connection, 'start' | 'stop'> & Partial<Pick<Connection, 'refresh'>>;
+  /** The socket the folders' checks go through (PROJET-6): the page's (`store/index.ts`) by default. */
+  readonly folders?: FolderSocket;
   /** The page's queries and commands (`store/index.ts`) by default. */
   readonly client?: Pick<Client, 'command' | 'query'>;
   /** The latency the page measures on its store's live events (CORE-8): started with the socket. */
@@ -110,6 +124,8 @@ export interface BootOptions {
    * (E2E-4): IndexedDB and WebCrypto by default.
    */
   readonly keys?: Pick<PageKeys, 'linkKeys' | 'vault' | 'nameDevice' | 'unlockVault' | 'approval' | 'rotateVault' | 'forgetDevice'>;
+  /** This browser's push (ATOI-4): its service worker's `PushManager` by default. */
+  readonly push?: PushDevice;
   /** The relay of the Sessions (SESSION-1): through the page's socket, with this browser's Appareil, by default. */
   readonly relay?: Pick<SessionRelay, 'openSession' | 'sendInput' | 'closeSession'>;
 }
@@ -141,9 +157,11 @@ export const boot = async ({
   verifyLink = postLinkVerify,
   store = pageStore,
   connection = pageConnection,
+  folders = pageConnection,
   client = pageClient,
   latency = createLatencyMeter({ store }),
   keys = createPageKeys({ store, client, userAgent: navigator.userAgent }),
+  push = createBrowserPush(window),
   relay = createSessionRelay({ socket: pageConnection, devices: createDeviceStore() }),
 }: BootOptions): Promise<App> => {
   // A sign-in link's token leaves the address bar before anything else (ADR 0014).
@@ -235,11 +253,44 @@ export const boot = async ({
       vaultTried = resolve;
     }),
   });
-  const noteIdea = createNoteIdea({ client, vault: keys.vault, store });
+  const names = createProjectNames({ vault: keys.vault, vaultState: () => store.getState().vaultState });
+  const projectName = (project: Pick<Project, 'id' | 'displayName' | 'nameSealed'>) => names.projectName(project);
+  const folderForm = createFolderForm({
+    checker: createFolderChecker({ check: createFolderCheck({ socket: folders, vault: keys.vault }) }),
+    createProject: ({ templateId, ...input }) => createLocalProject({ client, vault: keys.vault }, { ...input, templateId: zProcessTemplateId.parse(templateId) }),
+    attachFolder: (projectId, path) => attachFolder({ client, vault: keys.vault }, projectId, path),
+  });
+  // The Projet just created, shown on its page until its `project.upserted` arrives.
+  let created: Project | null = null;
+  const projectOf = (id: string | undefined): Project | undefined =>
+    id === undefined ? undefined : (store.getState().slices.project?.get(id) ?? (created?.id === id ? created : undefined));
+  /** The Local Projet of `?projet=` on « Ajouter un Projet », whose folder is chosen again. */
+  const repickOf = (query: Readonly<Record<string, string>>) => {
+    const project = projectOf(query['projet']);
+    return project && project.folder !== null ? { projectId: project.id, name: projectName(project) } : null;
+  };
+  // The tab each page opened on, once the Pilote chose one: « Dépôt GitHub » first when they have one.
+  const tabs: { ajouter: ProjectOrigin | null; demarrage: ProjectOrigin | null } = { ajouter: null, demarrage: null };
+  const tabOf = (page: keyof typeof tabs) => tabs[page] ?? firstTab(store.getState().slices.repository?.values() ?? []);
+  // The form forgets its path on another page or for another Projet (after the render that noticed it).
+  let formKey: string | null = null;
+  const folderView = (key: string, context: 'demarrage' | 'projets' | 'repick', name?: string) => {
+    if (formKey !== null && formKey !== key) queueMicrotask(() => folderForm.reset());
+    formKey = key;
+    const { slices, vaultState } = store.getState();
+    return folderForm.view({ context, vaultLocked: vaultState !== 'unlocked', machine: slices.runner?.machine ?? null, ...(name === undefined ? {} : { name }) });
+  };
+  const noteIdea = createNoteIdea({ client, vault: keys.vault, store, projectName });
   const noteDialog = document.createElement(NoteIdeaDialog.tag) as HTMLElement & { data: unknown };
   noteDialog.data = noteIdea.view();
   shell.append(noteDialog);
   const roleSettings = createRoleSettings({ client });
+  const pushSettings = createPushSettings({
+    client,
+    device: push,
+    userAgent: navigator.userAgent,
+    subscriptionOf: (id) => store.getState().slices['push-subscription']?.get(id),
+  });
   /** The page without its `?session=`: the panel closed. */
   const closePanel = () => {
     const url = new URL(location.href);
@@ -268,10 +319,13 @@ export const boot = async ({
       accounts: [...(slices['ai-account']?.values() ?? [])],
       local: projectSettings.view(project.id, own?.worktreeCommands ?? null, vaultState),
       processHref,
+      projectName,
     });
   };
   // « Gestion du process »' own state: its view per Projet, the block to centre (PROCESS-7).
   const editorUi = createEditorUi();
+  // Its edits, each Projet's draft saved behind them (PROCESS-8).
+  const editing = createEditing({ client, stored: (projectId) => store.getState().slices.process?.get(projectId) });
   const signIn = signInGuard(pilot);
   // A Projet the store does not have once the snapshot is there (removed, another Pilote's): the Projets.
   const projectGuard = (match: RouteMatch): string | null => {
@@ -290,7 +344,13 @@ export const boot = async ({
       shell.update(match);
       sessionPanel.show(match.panel.session);
     },
-    guard: (match) => started(match) ?? signIn(match) ?? projectGuard(match),
+    guard: (match) => {
+      const elsewhere = started(match) ?? signIn(match) ?? projectGuard(match);
+      if (elsewhere) return elsewhere;
+      // A Projet the Pilote does not have (removed, another's): the list, once the store knows them.
+      if (match.composant === PageProjet && store.getState().slices.project !== undefined && !projectOf(match.params['id'])) return '/projets';
+      return null;
+    },
     slots: (match) => {
       if (match.composant === PageParametresProjet) return projetParametres(match)?.slots ?? [];
       if (match.composant !== PageParametres) return pageSlots(match);
@@ -298,9 +358,11 @@ export const boot = async ({
       return parametresView(slices.settings, timeZones(), {
         accounts: [...(slices['ai-account']?.values() ?? [])],
         local: roleSettings.view(),
+        push: { subscriptions: [...(slices['push-subscription']?.values() ?? [])], local: pushSettings.view() },
         pilot: slices.pilot,
         erreur: match.query['erreur'],
         projects: [...(slices.project?.values() ?? [])],
+        projectName,
         devices: slices.device,
         currentDeviceId: currentDeviceId(),
       });
@@ -308,29 +370,48 @@ export const boot = async ({
     data: (match) => {
       if (match.composant === PageParametresProjet) {
         const project = store.getState().slices.project?.get(match.params['id'] ?? '');
-        return projetParametres(match)?.data ?? { project: project?.displayName ?? '', changedCount: 0, counts: {} };
+        return projetParametres(match)?.data ?? { project: project ? projectName(project) : '', changedCount: 0, counts: {} };
       }
-      if (match.composant === PageDemarrage) return { ...gettingStarted.view(), picker: projects.picker('demarrage') };
+      if (match.composant === PageDemarrage) {
+        return { ...gettingStarted.view(), projectsTab: tabOf('demarrage'), folder: folderView('demarrage', 'demarrage'), picker: projects.picker('demarrage') };
+      }
       if (match.composant === PageConnexion) return connexion.view(match.query);
       if (match.composant === PageConnexionLien) return connexionLien.view();
-      if (match.composant === RepositoryPicker) return projects.picker('projets');
       const { slices } = store.getState();
+      const machine = slices.runner?.machine ?? null;
+      if (match.composant === PageAjouterProjet) {
+        const repick = repickOf(match.query);
+        return {
+          tab: repick ? 'dossier' : tabOf('ajouter'),
+          folder: repick ? folderView(`repick:${repick.projectId}`, 'repick', repick.name) : folderView('projets', 'projets'),
+          picker: projects.picker('projets'),
+          repick,
+        };
+      }
+      if (match.composant === PageProjets) return projetsView(slices.project?.values() ?? [], { name: projectName, machine });
+      if (match.composant === PageProjet) {
+        const project = projectOf(match.params['id']);
+        return project ? projetView(project, { name: projectName, machine, process: slices.process?.get(project.id) }) : undefined;
+      }
       if (match.composant === PageAToi) {
         return aToiView(slices.decision?.values() ?? [], match.query, {
           runnerOnline: slices.runner?.state === 'online',
           sessionEvent: peek.read,
           roleName: (role) => roleName(role, slices.settings),
+          projectName: (id) => {
+            const project = projectOf(id);
+            return project ? projectName(project) : null;
+          },
         });
       }
-      if (match.composant === PageProjets) return projetsView(slices.project?.values() ?? []);
       if (match.composant === PageProcessEditor) {
         const projectId = match.params['id'] ?? '';
-        return processEditorView(store.getState(), projectId, editorUi.view(projectId, match.query));
+        return processEditorView(store.getState(), projectId, editorUi.view(projectId, match.query), editing.edits(projectId), projectName);
       }
       if (match.composant === PageIdees) {
         // The Idées merged or rejected beyond the slice's 90 days: their first page as the page first shows.
         closedIdeas.ensure();
-        return ideesView(slices, (idea) => plaintext.text(idea), { ...ideesQuery(match.query), closed: closedIdeas.view() });
+        return ideesView(slices, (idea) => plaintext.text(idea), { ...ideesQuery(match.query), closed: closedIdeas.view(), projectName });
       }
       if (match.composant !== PageRunner) return pageData(match);
       return runnerView({
@@ -354,16 +435,24 @@ export const boot = async ({
   let runnerOnline = store.getState().slices.runner?.state === 'online';
   const unsubscribe = [
     store.subscribe(() => {
+      // The path's check follows the Runner: gone, nothing to create from; back, checked again.
+      folderForm.runner(store.getState().slices.runner?.state === 'online');
       const online = store.getState().slices.runner?.state === 'online';
       if (online && !runnerOnline) peek.retry();
       runnerOnline = online;
       gettingStarted.sync();
+      pushSettings.settled(store.getState().slices.settings);
       router.refresh();
       shell.refresh();
       usageChanges.schedule();
       refreshNoteDialog();
     }),
     plaintext.subscribe(() => router.refresh()),
+    names.subscribe(() => {
+      router.refresh();
+      refreshNoteDialog();
+    }),
+    folderForm.subscribe(() => router.refresh()),
     peek.subscribe(() => router.refresh()),
     noteIdea.subscribe(refreshNoteDialog),
     gettingStarted.subscribe(() => router.refresh()),
@@ -372,8 +461,10 @@ export const boot = async ({
     projects.subscribe(() => router.refresh()),
     closedIdeas.subscribe(() => router.refresh()),
     roleSettings.subscribe(() => router.refresh()),
+    pushSettings.subscribe(() => router.refresh()),
     projectSettings.subscribe(() => router.refresh()),
     editorUi.subscribe(() => router.refresh()),
+    editing.subscribe(() => router.refresh()),
   ];
   // The vault's version and rotation (E2E-4): a new version opened, a pending rotation run, the state read again after either.
   const stopFollowingVault = followVault({
@@ -391,6 +482,7 @@ export const boot = async ({
     void keys.unlockVault().finally(vaultTried);
     latency.start();
     connection.start();
+    void pushSettings.sync();
   }
   if (!pilot) vaultTried();
   dispatcher.registerAction(PageConnexion, 'signInWith', {
@@ -413,6 +505,9 @@ export const boot = async ({
   dispatcher.registerAction(RoleSettings, 'add', { run: () => roleSettings.open() });
   dispatcher.registerAction(RoleSettings, 'create', { run: (body) => roleSettings.create(body) });
   dispatcher.registerAction(RoleSettings, 'cancel', { run: () => roleSettings.cancel() });
+  dispatcher.registerAction(PushSettings, 'toggle', { run: ({ push }) => pushSettings.toggle(push) });
+  dispatcher.registerAction(PushSettings, 'subscribe', { run: () => pushSettings.activate() });
+  dispatcher.registerAction(PushSettings, 'remove', { run: ({ id }) => pushSettings.remove(id) });
   dispatcher.registerAction(AccountIdentities, 'linkGitHub', { run: () => leave(githubLinkHref('/parametres')) });
   const currentProject = (): string | null => (router.current.composant === PageParametresProjet ? (router.current.params['id'] ?? null) : null);
   dispatcher.registerAction(PageParametresProjet, 'change', {
@@ -462,15 +557,61 @@ export const boot = async ({
   dispatcher.registerAction(PageDemarrage, 'retry', { run: () => gettingStarted.retry() });
   dispatcher.registerAction(PageDemarrage, 'continue', { run: () => gettingStarted.advance() });
   dispatcher.registerAction(PageDemarrage, 'linkGitHub', { run: () => leave(githubLinkHref('/demarrage')) });
-  const editor = createEditorActions({ ui: editorUi, navigate: (url, options) => router.navigate(url, options), current: () => router.current });
+  dispatcher.registerAction(PageDemarrage, 'selectProjectsTab', {
+    run: ({ id }) => {
+      tabs.demarrage = id;
+      router.refresh();
+    },
+  });
+  const editor = createEditorActions({ ui: editorUi, editing, navigate: (url, options) => router.navigate(url, options), current: () => router.current });
   dispatcher.registerAction(PageProcessEditor, 'select', { run: (payload) => editor.select(payload) });
   dispatcher.registerAction(PageProcessEditor, 'tab', { run: (payload) => editor.tab(payload) });
   dispatcher.registerAction(PageProcessEditor, 'view', { run: (payload) => editor.view(payload) });
-  dispatcher.registerAction(PageProjets, 'add', { run: () => router.navigate('/projets/ajouter') });
+  dispatcher.registerAction(PageProcessEditor, 'migrate', createMigrateAction({ ui: editorUi, client, current: () => router.current }));
+  dispatcher.registerAction(PageProcessEditor, 'addPhase', { run: () => editor.addPhase() });
+  dispatcher.registerAction(PageProcessEditor, 'openCatalogue', { run: () => editor.openCatalogue() });
+  dispatcher.registerAction(PageProcessEditor, 'closeMenu', { run: () => editor.closeMenu() });
+  dispatcher.registerAction(PageProcessEditor, 'addStep', { run: (payload) => editor.addStep(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'moveStep', { run: (payload) => editor.moveStep(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'moveStepToPhase', { run: (payload) => editor.moveStepToPhase(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'removeStep', { run: (payload) => editor.removeStep(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'renamePhase', { run: (payload) => editor.renamePhase(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'setForEach', { run: (payload) => editor.setForEach(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'removePhase', { run: (payload) => editor.removePhase(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'cancelRemovePhase', { run: () => editor.cancelRemovePhase() });
+  dispatcher.registerAction(PageProcessEditor, 'confirmRemovePhase', { run: (payload) => editor.confirmRemovePhase(payload) });
+  dispatcher.registerAction(PageProjets, 'add', { run: () => router.navigate(ajouterHref()) });
+  dispatcher.registerAction(PageAjouterProjet, 'selectTab', {
+    run: ({ id }) => {
+      tabs.ajouter = id;
+      router.refresh();
+    },
+  });
+  dispatcher.registerAction(PageProjet, 'openProcess', {
+    run: () => {
+      const id = router.current.params['id'];
+      if (id) router.navigate(`${projetHref(id)}/process`);
+    },
+  });
+  // Choosing a Projet's folder again, the check names it: its own folder is not another Projet's.
+  dispatcher.registerAction(FolderProjectForm, 'checkPath', {
+    run: ({ path }) => folderForm.checkPath(path, router.current.composant === PageAjouterProjet ? repickOf(router.current.query)?.projectId : undefined),
+  });
+  // A Local Projet created ends « Premiers pas » as a Dépôt GitHub followed does; elsewhere its page shows it.
+  dispatcher.registerAction(FolderProjectForm, 'create', {
+    run: async ({ path, name, templateId }) => {
+      const repick = router.current.composant === PageAjouterProjet ? repickOf(router.current.query) : null;
+      const project = repick ? await folderForm.attach(repick.projectId, path) : await folderForm.create({ path, name, templateId });
+      if (!project) return;
+      if (!repick) created = project;
+      if (router.current.composant === PageDemarrage) await gettingStarted.advance();
+      else router.navigate(projetHref(project.id));
+    },
+  });
   // In « Premiers pas » the Projets followed end it; on `/projets/ajouter` the list shows them.
   dispatcher.registerAction(RepositoryPicker, 'follow', {
-    run: async ({ repositoryIds }) => {
-      await projects.follow(repositoryIds);
+    run: async ({ repositoryIds, templateId }) => {
+      await projects.follow(repositoryIds, templateId);
       if (router.current.composant === PageDemarrage) await gettingStarted.advance();
       else router.navigate('/projets');
     },

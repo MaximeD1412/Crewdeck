@@ -1,8 +1,8 @@
-import { DEFAULT_ACCOUNT_SETTINGS, type AiAccount, type Project, type SettingsState } from '@crewdeck/contracts';
-import { COMPOSANTS, t, type ComposantData, type RoleSettings } from '@crewdeck/sdk';
+import { DEFAULT_ACCOUNT_SETTINGS, type AiAccount, type Project, type PushSubscription, type SettingsState } from '@crewdeck/contracts';
+import { COMPOSANTS, t, type ComposantData, type PushSettings, type RoleSettings } from '@crewdeck/sdk';
 import type { PlacedNode } from '../placed.js';
 import { devicesCard } from './devices.js';
-import { NO_ROLES_LOCAL, parametresView } from './parametres.js';
+import { NO_PUSH_LOCAL, NO_ROLES_LOCAL, parametresView, type PushLocal } from './parametres.js';
 
 const SETTINGS: SettingsState = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Asia/Tokyo', projects: [] };
 const ZONES = ['America/Montreal', 'Asia/Tokyo', 'Europe/Paris'];
@@ -23,7 +23,7 @@ const MODDERS = {
 
 describe('parametresView', () => {
   it('fills « Compte » with the time zone, every IANA zone to pick, and « Pour les Moddeurs »', () => {
-    expect(parametresView(SETTINGS, ZONES).filter((node) => node.slot !== 'roles')).toEqual([
+    expect(parametresView(SETTINGS, ZONES).filter((node) => node.slot === 'account' || node.slot === 'modders')).toEqual([
       {
         tag: 'cd-card',
         slot: 'account',
@@ -87,9 +87,9 @@ describe('parametresView', () => {
       ['dev_1', { id: 'dev_1', name: 'Firefox sur Linux', state: 'trusted', approvedAt: '2026-11-03T09:00:00.000Z', revokedAt: null, lastSeenAt: null, current: true }],
     ] as const);
     const nodes = parametresView(SETTINGS, ZONES, { devices });
-    expect(nodes.map((node) => node.slot)).toEqual(['devices', 'roles', 'account', 'modders']);
+    expect(nodes.map((node) => node.slot)).toEqual(['devices', 'roles', 'notifications', 'account', 'modders']);
     expect(nodes[0]).toEqual(devicesCard(devices));
-    expect(parametresView(SETTINGS, ZONES).map((node) => node.slot)).toEqual(['roles', 'account', 'modders']);
+    expect(parametresView(SETTINGS, ZONES).map((node) => node.slot)).toEqual(['roles', 'notifications', 'account', 'modders']);
   });
 });
 
@@ -193,6 +193,62 @@ describe('parametresView, « Rôles et modèles »', () => {
   });
 });
 
+const IPHONE: PushSubscription = {
+  id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a01',
+  endpoint: 'https://web.push.apple.com/QGx1',
+  label: 'Safari · iPhone',
+  createdAt: '2026-11-03T09:00:00.000Z',
+};
+const LAPTOP: PushSubscription = {
+  id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a02',
+  endpoint: 'https://fcm.googleapis.com/fcm/send/abc',
+  label: 'Chrome · Windows',
+  createdAt: '2026-11-12T09:00:00.000Z',
+};
+const HERE: PushLocal = { ...NO_PUSH_LOCAL, available: true };
+
+const pushOf = (settings: SettingsState, subscriptions: readonly PushSubscription[], local: PushLocal = HERE): ComposantData<typeof PushSettings> => {
+  const node = parametresView(settings, ZONES, { push: { subscriptions, local } }).find((candidate) => candidate.slot === 'notifications');
+  expect(node?.tag).toBe('cd-push-settings');
+  return node?.data as ComposantData<typeof PushSettings>;
+};
+
+describe('parametresView’s « Notifications » (ATOI-4)', () => {
+  it('comes second, after « Rôles et modèles », once the settings are known', () => {
+    expect(parametresView(SETTINGS, ZONES).map((node) => node.slot)).toEqual(['roles', 'notifications', 'account', 'modders']);
+  });
+
+  it('gives the account’s push and every browser that receives it, in the order they were authorized, with its date', () => {
+    expect(pushOf({ ...SETTINGS, notifications: { push: true } }, [LAPTOP, IPHONE])).toEqual({
+      push: true,
+      subscriptions: [
+        { id: IPHONE.id, label: 'Safari · iPhone', meta: 'autorisé le 3 nov.' },
+        { id: LAPTOP.id, label: 'Chrome · Windows', meta: 'autorisé le 12 nov.' },
+      ],
+      device: 'subscribe',
+      busy: false,
+      error: null,
+    });
+    expect(pushOf(SETTINGS, []).push).toBe(SETTINGS.notifications.push);
+  });
+
+  it('says whether this browser receives them: subscribed when its endpoint is listed, unavailable where it cannot push', () => {
+    expect(pushOf(SETTINGS, [IPHONE], { ...HERE, endpoint: IPHONE.endpoint }).device).toBe('subscribed');
+    expect(pushOf(SETTINGS, [IPHONE], { ...HERE, endpoint: LAPTOP.endpoint }).device).toBe('subscribe');
+    expect(pushOf(SETTINGS, [IPHONE], NO_PUSH_LOCAL).device).toBe('unavailable');
+  });
+
+  it('gives the account’s push on its way rather than the store’s, until the store has it', () => {
+    expect(pushOf({ ...SETTINGS, notifications: { push: false } }, [], { ...HERE, pushing: true }).push).toBe(true);
+    expect(pushOf({ ...SETTINGS, notifications: { push: true } }, [], { ...HERE, pushing: null }).push).toBe(true);
+    expect(pushOf({ ...SETTINGS, notifications: { push: true } }, [], { ...HERE, pushing: false }).push).toBe(false);
+  });
+
+  it('gives the page’s own state: busy while subscribing, why it failed', () => {
+    expect(pushOf(SETTINGS, [], { ...HERE, busy: true, error: 'L’activation a échoué : réessaie.' })).toMatchObject({ busy: true, error: 'L’activation a échoué : réessaie.' });
+  });
+});
+
 const project = (id: string, displayName: string, fullName = `dupre/${displayName}`): Project => ({
   id,
   repositoryId: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6c01',
@@ -200,6 +256,8 @@ const project = (id: string, displayName: string, fullName = `dupre/${displayNam
   name: fullName.split('/')[1] ?? displayName,
   fullName,
   displayName,
+  nameSealed: null,
+  folder: null,
   releaseBranch: 'main',
   integrationBranch: 'develop',
   hasCode: true,
@@ -233,7 +291,7 @@ describe('parametresView, « Par Projet »', () => {
   });
 
   it('puts « Par Projet » after « Compte », before « Pour les Moddeurs », and draws none without a Projet', () => {
-    expect(parametresView(SETTINGS, ZONES, { projects: [MAIRIE] }).map((node) => node.slot)).toEqual(['roles', 'account', 'projects', 'modders']);
-    expect(parametresView(SETTINGS, ZONES).map((node) => node.slot)).toEqual(['roles', 'account', 'modders']);
+    expect(parametresView(SETTINGS, ZONES, { projects: [MAIRIE] }).map((node) => node.slot)).toEqual(['roles', 'notifications', 'account', 'projects', 'modders']);
+    expect(parametresView(SETTINGS, ZONES).map((node) => node.slot)).toEqual(['roles', 'notifications', 'account', 'modders']);
   });
 });

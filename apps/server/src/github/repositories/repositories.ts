@@ -33,7 +33,7 @@ type RepositoryRow = Omit<Repository, 'followed'>;
 const toRepository = (row: RepositoryRow, followed: boolean): Repository => ({ ...row, followed });
 
 /** The ids of the rows of `repositories` a Projet follows. */
-const followedIds = async (tx: Pick<Tx, 'project'>): Promise<string[]> => (await tx.project.findMany({ select: { repositoryId: true } })).map((row) => row.repositoryId);
+const followedIds = async (tx: Pick<Tx, 'project'>): Promise<string[]> => (await tx.project.findMany({ where: { repositoryId: { not: null } }, select: { repositoryId: true } })).flatMap((row) => (row.repositoryId === null ? [] : [row.repositoryId]));
 
 /** The Pilote's Dépôts GitHub not followed yet (scoped by `tx`), by name, at most `REPOSITORIES_MAX`. */
 export const listUnfollowedRepositories = async (tx: Pick<Tx, 'project' | 'repository'>): Promise<Repository[]> =>

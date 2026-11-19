@@ -22,6 +22,9 @@ type RunnerHello struct {
 	// Machine corresponds to the JSON schema field "machine".
 	Machine string `json:"machine"`
 
+	// Migrations corresponds to the JSON schema field "migrations".
+	Migrations []RunnerHelloMigrationsElem `json:"migrations,omitempty,omitzero"`
+
 	// MirrorAfter corresponds to the JSON schema field "mirrorAfter".
 	MirrorAfter interface{} `json:"mirrorAfter,omitempty,omitzero"`
 
@@ -71,6 +74,36 @@ func (j *RunnerHelloArch) UnmarshalJSON(value []byte) error {
 		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_RunnerHelloArch, v)
 	}
 	*j = RunnerHelloArch(v)
+	return nil
+}
+
+type RunnerHelloMigrationsElem string
+
+const RunnerHelloMigrationsElemCode RunnerHelloMigrationsElem = "code"
+const RunnerHelloMigrationsElemTicket RunnerHelloMigrationsElem = "ticket"
+
+var enumValues_RunnerHelloMigrationsElem = []interface{}{
+	"ticket",
+	"code",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerHelloMigrationsElem) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_RunnerHelloMigrationsElem {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_RunnerHelloMigrationsElem, v)
+	}
+	*j = RunnerHelloMigrationsElem(v)
 	return nil
 }
 
@@ -181,6 +214,9 @@ func (j *RunnerHello) UnmarshalJSON(value []byte) error {
 	}
 	if utf8.RuneCountInString(string(plain.Machine)) < 1 {
 		return fmt.Errorf("field %s length: must be >= %d", "machine", 1)
+	}
+	if len(plain.Migrations) > 2 {
+		return fmt.Errorf("field %s length: must be <= %d", "migrations", 2)
 	}
 	if 9007199254740991 < plain.ProtocolVersion {
 		return fmt.Errorf("field %s: must be <= %v", "protocolVersion", 9007199254740991)

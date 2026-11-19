@@ -194,7 +194,17 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
       JSON.stringify(sealed()),
       JSON.stringify(sealed()),
     ]);
-    return { projectId, versionId, ideas };
+    // A Local Projet (PROJET-6): its name sealed, rewrapped as the others.
+    const localId = newId();
+    await sql(
+      `INSERT INTO projects (id, pilot_id, name_sealed, folder_state, release_branch, integration_branch, has_code, inventory_state)
+       VALUES ($1, $2, $3, 'present', 'main', 'develop', false, 'not-needed')`,
+      [localId, tab.id, JSON.stringify(sealed())],
+    );
+    await prisma.unscoped.artifactSource.createMany({
+      data: (['ticket', 'code'] as const).map((group) => ({ id: newId(), pilotId: tab.id, projectId: localId, group, source: 'local' as const, since: new Date() })),
+    });
+    return { projectId, versionId, ideas, localId };
   };
 
   const eventsOf = async (pilotId: string, type: string) =>
@@ -461,7 +471,7 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
       const first = await linked(alice);
       const second = await approved(alice, first);
       const third = await approved(alice, first);
-      const { versionId, ideas } = await items(alice);
+      const { versionId, ideas, localId } = await items(alice);
       await page(alice, `/api/devices/${third.deviceId}/revoke`, { body: { seq: await seq(alice) } });
       told.length = 0;
 
@@ -474,7 +484,9 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
       ]);
       const keys = await allItems((cursor) => page(alice, `/api/vault/items${cursor ? `?cursor=${cursor}` : ''}`, { deviceId: first.deviceId }));
       expect(keys.map(({ itemType, aad }) => `${itemType} ${aad}`).sort()).toEqual(
-        [`idea.analysis ${ideas[1]}:analysis`, `idea.text ${ideas[0]}:text`, `idea.text ${ideas[1]}:text`, `process-version.sealed process:${(await sql<{ project_id: string }>('SELECT project_id FROM process_versions'))[0]?.project_id}`].sort(),
+        [`idea.analysis ${ideas[1]}:analysis`, `idea.text ${ideas[0]}:text`, `idea.text ${ideas[1]}:text`, `process-version.sealed process:${(await sql<{ project_id: string }>('SELECT project_id FROM process_versions'))[0]?.project_id}`,
+          `project.name project:${localId}:name`,
+        ].sort(),
       );
       const before = await sql<{ text: { ciphertext: string } }>('SELECT text FROM ideas WHERE id = $1', [ideas[0]]);
       const rotation = rotationOf(vault, keys);
@@ -488,6 +500,8 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
       expect(idea?.text).toEqual({ key: rotation.items.find((item) => item.itemId === ideas[0] && item.itemType === 'idea.text')?.wrappedKey, ciphertext: before[0]?.text.ciphertext });
       const [version] = await sql<{ sealed: { key: string } }>('SELECT sealed FROM process_versions WHERE id = $1', [versionId]);
       expect(version?.sealed.key).toBe(rotation.items.find((item) => item.itemId === versionId)?.wrappedKey);
+      const [local] = await sql<{ name_sealed: { key: string } }>('SELECT name_sealed FROM projects WHERE id = $1', [localId]);
+      expect(local?.name_sealed.key).toBe(rotation.items.find((item) => item.itemId === localId && item.itemType === 'project.name')?.wrappedKey);
       expect((await eventsOf(alice.id, 'vault.upserted')).at(-1)).toEqual({ version: 2, rotationPending: false });
       const runnerWrap = rotation.wraps.find(({ holderType }) => holderType === 'runner');
       expect(told).toEqual([

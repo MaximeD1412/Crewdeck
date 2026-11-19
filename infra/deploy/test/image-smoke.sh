@@ -9,8 +9,9 @@
 # on the host: the Runner binaries and their checksums, `migrate`, then
 # `serve` (health, the page at `/` and `/a-toi`, 404 JSON under `/api` and
 # `/fake-github`, `/api/config` on GitHub.com), and the staging guard. The
-# GitHub App's variables are dummies, the key generated here: nothing calls
-# GitHub. Removes everything it started, whatever the outcome.
+# GitHub App's and the VAPID variables are dummies, the keys generated here:
+# nothing calls GitHub nor a push service. Removes everything it started,
+# whatever the outcome.
 set -euo pipefail
 
 image="${1:?usage: image-smoke.sh <image>}"
@@ -30,6 +31,17 @@ github_app=(
   # The Google client of the sign-in: made up, the server only calls Google once a Pilote signs in with it.
   -e GOOGLE_CLIENT_ID=smoke.apps.googleusercontent.com -e GOOGLE_CLIENT_SECRET=smoke
 )
+# The VAPID key pair of Web Push (ATOI-4), drawn here as `web-push generate-vapid-keys` would: in the SEC1 DER
+# of a P-256 key, the private scalar is the 32 bytes after the first 7, the public point the last 65.
+b64url() { base64 -w0 | tr '+/' '-_' | tr -d '='; }
+vapid_der=$(mktemp)
+openssl ecparam -name prime256v1 -genkey -noout | openssl ec -outform DER -out "$vapid_der" 2>/dev/null
+vapid=(
+  -e VAPID_PUBLIC_KEY="$(tail -c 65 "$vapid_der" | b64url)"
+  -e VAPID_PRIVATE_KEY="$(head -c 39 "$vapid_der" | tail -c 32 | b64url)"
+  -e VAPID_SUBJECT=https://crewdeck.invalid
+)
+rm -f "$vapid_der"
 
 fail() {
   echo "ÉCHEC : $*" >&2
@@ -77,7 +89,7 @@ docker run --rm --network "$network" -e DATABASE_URL="$database_url" "$image" mi
 
 echo "--- serve"
 docker run -d --name "$server" --network "$network" \
-  -e CREWDECK_ENV=production -e PUBLIC_URL=https://crewdeck.invalid -e DATABASE_URL="$database_url" "${github_app[@]}" \
+  -e CREWDECK_ENV=production -e PUBLIC_URL=https://crewdeck.invalid -e DATABASE_URL="$database_url" "${github_app[@]}" "${vapid[@]}" \
   "$image" >/dev/null
 for _ in $(seq 60); do
   [ "$(docker inspect "$server" --format '{{ .State.Health.Status }}')" = healthy ] && break
@@ -132,7 +144,7 @@ echo "--- the staging guard"
 code=0
 output=$(docker run --rm --network "$network" \
   -e CREWDECK_ENV=staging -e PUBLIC_URL=https://crewdeck.invalid -e PROD_PUBLIC_URL=https://crewdeck.invalid \
-  -e PROD_GITHUB_APP_ID=2 -e DATABASE_URL="$database_url" "${github_app[@]}" "$image" 2>&1) || code=$?
+  -e PROD_GITHUB_APP_ID=2 -e DATABASE_URL="$database_url" "${github_app[@]}" "${vapid[@]}" "$image" 2>&1) || code=$?
 echo "$output"
 [ "$code" -ne 0 ] || fail "le staging a démarré avec l'URL de la production"
 echo "$output" | grep -q 'Staging refuse de démarrer avec la configuration de la production : PUBLIC_URL' \

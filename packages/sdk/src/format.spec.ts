@@ -1,4 +1,4 @@
-import { formatDate, formatDay, formatElapsed, formatEuros, formatHour, formatNumber, formatPercent, formatRelative, formatWeekday, sameDay } from './format.js';
+import { formatDate, formatDateOfAnyYear, formatDay, formatElapsed, formatEuros, formatHour, formatNumber, formatPercent, formatRelative, formatWeekday, sameDay } from './format.js';
 
 const NNBSP = ' ';
 const NBSP = ' ';
@@ -58,10 +58,19 @@ describe('formatDay', () => {
   });
 });
 
+describe('formatDateOfAnyYear', () => {
+  it('gives the day of this year, and the year of an older one', () => {
+    expect(formatDateOfAnyYear(local(10, 9), local(20, 12))).toBe('10 nov.');
+    expect(formatDateOfAnyYear(local(10, 9).toISOString(), local(20, 12))).toBe('10 nov.');
+    expect(formatDateOfAnyYear(new Date(2025, 10, 10, 9), local(20, 12))).toBe('10 nov. 2025');
+  });
+});
+
 describe('formatDate', () => {
   it('gives the local day and the short month of an instant', () => {
     expect(formatDate(local(3, 0, 30))).toBe('3 nov.');
     expect(formatDate(local(3, 23, 59).toISOString())).toBe('3 nov.');
+    expect(formatDate(new Date(2025, 10, 3, 9))).toBe('3 nov.');
   });
 });
 

@@ -24,6 +24,7 @@ import { Menu } from './menu.js';
 import { Message } from './message.js';
 import { NoteIdeaDialog } from './note-idea-dialog.js';
 import { PageAToi } from './page-a-toi.js';
+import { PageAjouterProjet } from './page-ajouter-projet.js';
 import { PageIdees } from './page-idees.js';
 import { PageComposants } from './page-composants.js';
 import { PageConnexion } from './page-connexion.js';
@@ -34,6 +35,7 @@ import { PageParametresProjet } from './page-parametres-projet.js';
 import { PageHeader } from './page-header.js';
 import { PageIntrouvable } from './page-introuvable.js';
 import { PageProcessEditor } from './page-process-editor.js';
+import { PageProjet } from './page-projet.js';
 import { PageProjets } from './page-projets.js';
 import { PageRunner } from './page-runner.js';
 import { PermissionRequest } from './permission-request.js';
@@ -43,9 +45,11 @@ import { ProcessCanvas } from './process-canvas.js';
 import { PhaseGroup } from './phase-group.js';
 import { ProcessTrack } from './process-track.js';
 import { ProjectFilter } from './project-filter.js';
+import { PushSettings } from './push-settings.js';
 import { Question } from './question.js';
 import { Radio } from './radio.js';
 import { RepositoryPicker } from './repository-picker.js';
+import { FolderProjectForm } from './folder-project-form.js';
 import { RoleSettings } from './role-settings.js';
 import { Select } from './select.js';
 import { Session } from './session.js';
@@ -87,6 +91,7 @@ export * from './dialog.js';
 export * from './dictation.js';
 export * from './empty.js';
 export * from './engine-account.js';
+export * from './folder-project-form.js';
 export * from './icon-button.js';
 export * from './icon.js';
 export * from './icons.js';
@@ -98,6 +103,7 @@ export * from './menu.js';
 export * from './message.js';
 export * from './note-idea-dialog.js';
 export * from './page-a-toi.js';
+export * from './page-ajouter-projet.js';
 export * from './page-idees.js';
 export * from './page-composants.js';
 export * from './page-connexion.js';
@@ -108,6 +114,7 @@ export * from './page-parametres-projet.js';
 export * from './page-header.js';
 export * from './page-introuvable.js';
 export * from './page-process-editor.js';
+export * from './page-projet.js';
 export * from './page-projets.js';
 export * from './page-runner.js';
 export * from './permission-request.js';
@@ -117,6 +124,7 @@ export * from './process-canvas.js';
 export * from './phase-group.js';
 export * from './process-track.js';
 export * from './project-filter.js';
+export * from './push-settings.js';
 export * from './question.js';
 export * from './radio.js';
 export * from './repository-picker.js';
@@ -155,6 +163,7 @@ export const COMPOSANTS = {
   PageHeader,
   ProjectFilter,
   PageAToi,
+  PageAjouterProjet,
   PageIdees,
   PageComposants,
   PageConnexion,
@@ -163,6 +172,7 @@ export const COMPOSANTS = {
   PageParametres,
   PageParametresProjet,
   PageIntrouvable,
+  PageProjet,
   PageProjets,
   PageProcessEditor,
   PageRunner,
@@ -172,7 +182,9 @@ export const COMPOSANTS = {
   KeyValue,
   ListRow,
   RepositoryPicker,
+  FolderProjectForm,
   RoleSettings,
+  PushSettings,
   AccountIdentities,
   Session,
   Message,

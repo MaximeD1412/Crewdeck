@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zBytes32 } from '../keys/pairing.js';
+import { FOLDER_PATH_MAX } from '../keys/folder.js';
 import { zCapabilities } from '../runner/capabilities.js';
 import { zMcpServers } from '../runner/mcp.js';
 import { zUsage } from '../runner/usage.js';
@@ -106,6 +107,14 @@ export const zTestingMailsQuery = z.object({ to: z.string().trim().toLowerCase()
  */
 export const zTestingRunnerMcpServers = z.object({ servers: zMcpServers.shape.servers });
 export type TestingRunnerMcpServers = z.infer<typeof zTestingRunnerMcpServers>;
+
+/**
+ * `POST /api/testing/runner/folders/remove`, outside production only: the
+ * folder at `path` deleted from the fake Runner's machine, which tells
+ * `projects.folders` at once (PROJET-6). A test's own path, never a Pilote's.
+ */
+export const zTestingRunnerFolder = z.object({ path: z.string().min(1).max(FOLDER_PATH_MAX) });
+export type TestingRunnerFolder = z.infer<typeof zTestingRunnerFolder>;
 
 /**
  * `POST /api/testing/runner/waiting-work`, outside production only: the test

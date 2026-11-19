@@ -19,9 +19,10 @@ import { appareilAApprouver, appareilAApprouverCode, appareils, appareilsAjouter
 import type { Scenario } from './define.js';
 import { idees, ideesDictee, ideesNouvelle, ideesVide } from './idees.js';
 import { menuPlus } from './menu-plus.js';
-import { demarrageProjets, demarrageProjetsSansGithub, projets, projetsVide } from './projets.js';
-import { parametres } from './parametres.js';
+import { demarrageProjets, demarrageProjetsDossier, demarrageProjetsSansGithub, projetLocal, projets, projetsVide } from './projets.js';
+import { parametres, parametresNotifications, parametresNotificationsIphone } from './parametres.js';
 import { parametresProjet } from './parametres-projet.js';
+import { processMigrationScenarios } from './process-migration.js';
 import { processScenarios } from './process.js';
 import { resynchronisation } from './resynchronisation.js';
 import { runner, runnerServeursMcp } from './runner.js';
@@ -55,6 +56,7 @@ const SCENARIOS: readonly Scenario[] = [
   demarrageComptesIa,
   demarrageComptesIaAucun,
   demarrageProjets,
+  demarrageProjetsDossier,
   demarrageProjetsSansGithub,
   idees,
   ideesNouvelle,
@@ -62,7 +64,10 @@ const SCENARIOS: readonly Scenario[] = [
   ideesVide,
   menuPlus,
   parametres,
+  parametresNotifications,
+  parametresNotificationsIphone,
   parametresProjet,
+  projetLocal,
   projets,
   projetsVide,
   resynchronisation,
@@ -85,6 +90,7 @@ const SCENARIOS: readonly Scenario[] = [
   ...composantsProcess,
   ...composantsProcessList,
   ...processScenarios,
+  ...processMigrationScenarios,
 ];
 
 const byName = new Map(SCENARIOS.map((scenario) => [scenario.name, scenario]));

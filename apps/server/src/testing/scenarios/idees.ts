@@ -83,7 +83,7 @@ const seedProjects = async (ctx: ScenarioContext, pilotId: string): Promise<Map<
     { name: 'tennis-manager', hasCode: true, project: 'Tennis Manager' },
   ]);
   const projects = await ctx.prisma.unscoped.project.findMany({ where: { pilotId }, select: { id: true, displayName: true } });
-  return new Map(projects.map((project) => [project.displayName, project.id]));
+  return new Map(projects.flatMap((project) => (project.displayName === null ? [] : [[project.displayName, project.id] as const])));
 };
 
 /**

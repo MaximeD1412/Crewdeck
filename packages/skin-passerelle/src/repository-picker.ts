@@ -16,10 +16,11 @@ const followLabel = (count: number): string =>
 
 /**
  * `cd-repository-picker` (`design/screens/crewdeck/demarrage-projets.html`):
- * on `/projets/ajouter` its PageHeader and its explanation first. The search
+ * on `/projets/ajouter` (the « Dépôt GitHub » tab) its explanation first. The search
  * field (its label read, not shown) filters the list in the page; the flush
  * Card « Tes dépôts GitHub » holds a Checkbox per repository, its meta saying
- * whether it already has code; « Suivre <n> Projets » (`follow`) is disabled
+ * whether it already has code; the Select « Modèle de process » the Projets
+ * start from; « Suivre <n> Projets » (`follow`, with the Select's Modèle) is disabled
  * with its reason at none or past `FOLLOW_PROJECTS_MAX`, « Plus tard »
  * (`later`) under it in « Premiers pas »; the Inventaire's footnote and the
  * link to GitHub's installation page under them. Without any repository, an
@@ -27,7 +28,7 @@ const followLabel = (count: number): string =>
  * search hides it, and leaves once the repository leaves `repositories`.
  */
 export class PasserelleRepositoryPicker extends PasserelleElement<typeof RepositoryPicker> {
-  static override properties = { query: { state: true }, selected: { state: true } };
+  static override properties = { query: { state: true }, selected: { state: true }, template: { state: true } };
   static override styles = [
     sharedStyles,
     css`
@@ -36,11 +37,6 @@ export class PasserelleRepositoryPicker extends PasserelleElement<typeof Reposit
         display: flex;
         flex-direction: column;
         gap: var(--cd-space-5);
-      }
-      .head {
-        display: flex;
-        flex-direction: column;
-        gap: var(--cd-space-2);
       }
       p {
         color: var(--cd-ink-2);
@@ -108,16 +104,24 @@ export class PasserelleRepositoryPicker extends PasserelleElement<typeof Reposit
   protected readonly composant = RepositoryPicker;
   declare query: string;
   declare selected: ReadonlySet<string>;
+  /** The Modèle chosen: `data.templateId`, then the Pilote's choice, until `data.templateId` changes. */
+  declare template: string;
 
   constructor() {
     super();
     this.query = '';
     this.selected = new Set();
+    this.template = '';
+  }
+
+  private get templateId(): string {
+    return this.template || this.data.templateId || (this.data.templates[0]?.id ?? '');
   }
 
   protected override willUpdate(changed: PropertyValues): void {
     super.willUpdate(changed);
     if (!changed.has('data')) return;
+    if ((changed.get('data') as Data | undefined)?.templateId !== this.data.templateId) this.template = this.data.templateId;
     const present = new Set(this.data.repositories.map((repository) => repository.id));
     if ([...this.selected].some((id) => !present.has(id))) this.selected = new Set([...this.selected].filter((id) => present.has(id)));
   }
@@ -136,8 +140,9 @@ export class PasserelleRepositoryPicker extends PasserelleElement<typeof Reposit
 
   private follow() {
     const count = this.selected.size;
-    if (this.data.busy || count === 0 || count > FOLLOW_PROJECTS_MAX) return;
-    this.emit('follow', { repositoryIds: [...this.selected] });
+    const templateId = this.templateId;
+    if (this.data.busy || count === 0 || count > FOLLOW_PROJECTS_MAX || templateId === '') return;
+    this.emit('follow', { repositoryIds: [...this.selected], templateId });
   }
 
   private installLink(primary: boolean): TemplateResult | typeof nothing {
@@ -204,6 +209,20 @@ export class PasserelleRepositoryPicker extends PasserelleElement<typeof Reposit
           ${shown.length === 0 ? html`<p class="no-match muted">${t('projets.picker.noMatch', { query: this.query.trim() })}</p>` : nothing}
         </div>
       </cd-card>
+      <cd-select
+        class="template"
+        .data=${{
+          name: 'templateId',
+          label: t('projets.template'),
+          value: this.templateId,
+          options: this.data.templates.map((template) => ({ value: template.id, label: template.label, disabled: false })),
+          help: null,
+          state: null,
+        }}
+        @input=${(event: Event) => {
+          this.template = (event.currentTarget as HTMLElement & { value: string }).value;
+        }}
+      ></cd-select>
       <div class="actions">
         <cd-button class="follow" .data=${{ label: followLabel(count), variant: 'primary', size: 'md', ...state }} @click=${this.follow}></cd-button>
         ${this.later()}
@@ -223,13 +242,7 @@ export class PasserelleRepositoryPicker extends PasserelleElement<typeof Reposit
 
   protected override render() {
     const { context, repositories } = this.data;
-    const head =
-      context === 'projets'
-        ? html`<div class="head">
-            <cd-page-header .data=${{ title: t('projets.ajouter.title'), back: { label: t('projets.ajouter.back'), href: '/projets' } }}></cd-page-header>
-            <p part="lead">${t('projets.picker.lead')}</p>
-          </div>`
-        : nothing;
+    const head = context === 'projets' ? html`<p part="lead">${t('projets.picker.lead')}</p>` : nothing;
     return html`${head}
       <section aria-label=${t('projets.picker.label')}>${repositories.length === 0 ? this.none() : this.list()}</section>`;
   }

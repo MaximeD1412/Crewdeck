@@ -14,7 +14,16 @@ const PERSONAL_OS = '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a02';
 const TEXT = 'Pouvoir dupliquer une recette';
 const KEY = new Uint8Array(60).fill(7);
 
-const setup = ({ vaultState = 'unlocked' as VaultState, width = 1280, refuse = null as ApiError | null, refusals = [] as ApiError[] } = {}) => {
+type Named = { id: string; displayName: string | null; nameSealed: { key: string; ciphertext: string } | null };
+
+const setup = ({
+  vaultState = 'unlocked' as VaultState,
+  width = 1280,
+  refuse = null as ApiError | null,
+  refusals = [] as ApiError[],
+  extraProjects = [] as [string, Named][],
+  projectName = undefined as ((project: Named) => string) | undefined,
+} = {}) => {
   const calls: { method: string; path: string; body: Record<string, unknown> }[] = [];
   const sealed: { plaintext: string; aad: string }[] = [];
   const client = {
@@ -56,12 +65,13 @@ const setup = ({ vaultState = 'unlocked' as VaultState, width = 1280, refuse = n
       return 'unlocked';
     }),
   };
-  const projects = new Map([
-    [PERSONAL_OS, { id: PERSONAL_OS, displayName: 'Personal OS' }],
-    [CREWDECK, { id: CREWDECK, displayName: 'Crewdeck' }],
+  const projects = new Map<string, Named>([
+    [PERSONAL_OS, { id: PERSONAL_OS, displayName: 'Personal OS', nameSealed: null }],
+    [CREWDECK, { id: CREWDECK, displayName: 'Crewdeck', nameSealed: null }],
+    ...extraProjects,
   ]);
   const store = { getState: () => ({ vaultState, slices: { project: projects } }) as unknown as StoreState };
-  const noteIdea = createNoteIdea({ client, vault, store, width: () => width, newId: () => ID });
+  const noteIdea = createNoteIdea({ client, vault, store, width: () => width, newId: () => ID, ...(projectName ? { projectName } : {}) });
   const changed = vi.fn<() => void>();
   noteIdea.subscribe(changed);
   return { noteIdea, calls, sealed, vault, changed };
@@ -90,6 +100,19 @@ describe('createNoteIdea', () => {
     noteIdea.cancel();
     expect(noteIdea.view().open).toBe(false);
     expect(changed).toHaveBeenCalledTimes(2);
+  });
+
+  it('names a Local Projet by the page’s name for it, « Projet local » by default', () => {
+    const LOCAL = '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a09';
+    const extraProjects: [string, Named][] = [[LOCAL, { id: LOCAL, displayName: null, nameSealed: { key: 'A'.repeat(80), ciphertext: 'B'.repeat(40) } }]];
+
+    expect(setup({ extraProjects }).noteIdea.view().projects.map((project) => project.name)).toEqual(['Crewdeck', 'Personal OS', 'Projet local']);
+    const named = setup({ extraProjects, projectName: (project) => project.displayName ?? 'Atelier' }).noteIdea.view();
+    expect(named.projects).toEqual([
+      { id: LOCAL, name: 'Atelier' },
+      { id: CREWDECK, name: 'Crewdeck' },
+      { id: PERSONAL_OS, name: 'Personal OS' },
+    ]);
   });
 
   it('seals the trimmed text under "<id>:text" and sends only its ciphertext, with the Projet, from the pc', async () => {

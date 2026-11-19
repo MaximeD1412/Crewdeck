@@ -16,6 +16,7 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/accounts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/command"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/folders"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/logging"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/mcp"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/mirror"
@@ -167,11 +168,33 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			logger.Warn("mcp.servers", "error", err)
 		}
 	}
+	// The Local Projets' folders (PROJET-6, ADR 0012): checked and attached
+	// sealed under the vault key, kept in runner.json, said on each
+	// connection, after each attach, and every minute when they changed.
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	projectFolders := folders.New(folders.Config{
+		Checker: folders.Checker{Home: home, StateDir: store.Dir, WSL: described.WSL},
+		Store:   store,
+		Vault:   vault,
+		Logger:  logger,
+		Send: func(ctx context.Context, m any) error {
+			client := current.Load()
+			if client == nil {
+				return protocol.ErrNotConnected
+			}
+			return client.Send(ctx, m)
+		},
+	})
+	go projectFolders.Every(ctx, folders.ReportEvery)
 	report := func(ctx context.Context) {
 		if _, err := reporter.Report(ctx); err != nil && !errors.Is(err, protocol.ErrNotConnected) && ctx.Err() == nil {
 			logger.Warn("capabilities", "error", err)
 		}
 		reportMCP(ctx)
+		projectFolders.Report(ctx)
 	}
 	// `login`, `logout` and `mcp add|remove|test` ask for them again through the socket.
 	refresh := func(ctx context.Context) ([]contracts.EngineCapabilities, error) {
@@ -200,9 +223,9 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			Token:   linked.Token,
 			Machine: described,
 			Logger:  logger,
-			// What each Moteur can run (US-38) and the Serveurs MCP (US-73), on
-			// each accepted connection, and the usage that waits: a spend not
-			// acked is sent again.
+			// What each Moteur can run (US-38), the Serveurs MCP (US-73) and
+			// the Projets' folders (PROJET-6), on each accepted connection, and
+			// the usage that waits: a spend not acked is sent again.
 			OnConnected: func(ctx context.Context) {
 				report(ctx)
 				reporter.FlushUsage(ctx)
@@ -216,6 +239,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			return nil
 		})
 		sessions.Register(client)
+		projectFolders.Register(client)
 		commands.Register(client)
 		rotations.register(ctx, client)
 		current.Store(client)

@@ -16,6 +16,7 @@ export type Instant = Date | string;
 const toDate = (instant: Instant): Date => (typeof instant === 'string' ? new Date(instant) : instant);
 
 const dayMonth = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short' });
+const dayMonthYear = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });
 const dayMonthUtc = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', timeZone: 'UTC' });
 const hourMinute = new Intl.DateTimeFormat(LOCALE, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const weekday = new Intl.DateTimeFormat(LOCALE, { weekday: 'long' });
@@ -51,6 +52,15 @@ export const formatHour = (instant: Instant): string => hourMinute.format(toDate
 
 /** « 3 nov. » for an instant, its day in the browser's time zone. */
 export const formatDate = (instant: Instant): string => dayMonth.format(toDate(instant));
+
+/**
+ * « 10 nov. » for an instant of this year, « 10 nov. 2025 » for an older one,
+ * in the browser's time zone: a date that may be years old (« Suivi depuis »).
+ */
+export const formatDateOfAnyYear = (instant: Instant, now: Date = new Date()): string => {
+  const date = toDate(instant);
+  return date.getFullYear() === now.getFullYear() ? dayMonth.format(date) : dayMonthYear.format(date);
+};
 
 /** « jeudi »: the day of the week of an instant. */
 export const formatWeekday = (instant: Instant): string => weekday.format(toDate(instant));

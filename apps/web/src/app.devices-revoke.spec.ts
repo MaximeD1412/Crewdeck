@@ -75,7 +75,7 @@ beforeAll(async () => {
       forgetDevice,
     },
   });
-  store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [TRUSTED], vault: { version: 1, rotationPending: false }, settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], usage: [] });
+  store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [TRUSTED], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, sourceMigrations: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], usage: [] });
   await vi.waitFor(() => expect(store.getState().vaultState).toBe('unlocked'));
 });
 afterAll(() => app.stop());

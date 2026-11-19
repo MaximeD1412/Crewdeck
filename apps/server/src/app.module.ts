@@ -21,12 +21,14 @@ import { HealthModule } from './health/health.module.js';
 import { IdeasModule } from './ideas/ideas.module.js';
 import { type LogDestination, loggerParams } from './logging/logger.js';
 import { MetricsModule } from './metrics/metrics.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 import { PilotsModule } from './pilots/me.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { RunnersModule } from './runners/runners.module.js';
 import { EngineModule } from './process/engine/engine.module.js';
+import { SourceMigrationsModule } from './process/sources/migrations/source-migrations.module.js';
 import { ScopeModule } from './scope/scope.module.js';
 import { SessionsModule } from './sessions/sessions.module.js';
 import { TicketsModule } from './tickets/tickets.module.js';
@@ -87,12 +89,14 @@ export class AppModule {
         GitHubChangesModule,
         ProjectsModule,
         EngineModule,
+        SourceMigrationsModule,
         TicketsModule,
         DecisionsModule,
         IdeasModule,
         UsageModule.forRoot(env),
         MetricsModule,
         SettingsModule,
+        NotificationsModule,
         WebModule.forRoot(env),
         ...imports,
       ],

@@ -1,4 +1,4 @@
-import type { VaultKeyWrap } from '@crewdeck/contracts';
+import { type VaultKeyWrap, folderCheckedAad, zFolderCheckResult } from '@crewdeck/contracts';
 import { server } from 'vitest/browser';
 import { vaultWrapAad } from '@crewdeck/contracts';
 import { fromBase64Url, toBase64Url, utf8 } from './bytes.js';
@@ -60,6 +60,26 @@ describe('the vault', () => {
       expect(toBase64Url(sealed.key), item.name).toBe(item.key);
       expect(toBase64Url(sealed.ciphertext), item.name).toBe(item.ciphertext);
     }
+  });
+
+  it('opens a folder’s check the Runner sealed, a FolderCheckResult', async () => {
+    const { vault } = await setUp();
+    const { items } = await vectors();
+    await vault.unlockVault();
+    const item = items.find((i) => i.name === 'folder-checked');
+    if (!item) throw new Error('item.json lacks folder-checked');
+
+    const opened = await vault.openItem(
+      { key: fromBase64Url(item.key), ciphertext: fromBase64Url(item.ciphertext) },
+      utf8(folderCheckedAad('019a6f00-0000-7000-8000-0000000000f1')),
+    );
+
+    expect(zFolderCheckResult.parse(JSON.parse(new TextDecoder().decode(opened)))).toEqual({
+      state: 'ready',
+      hasCode: true,
+      branch: 'main',
+      name: 'recettes',
+    });
   });
 
   it('opens an item only with its own additional data', async () => {

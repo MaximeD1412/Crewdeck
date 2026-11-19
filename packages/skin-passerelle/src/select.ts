@@ -43,6 +43,12 @@ export class PasserelleSelect extends PasserelleFormElement<typeof Select> {
     return this.current;
   }
 
+  /** Back to `data.value`, the Pilote's choice dropped: a page whose choice opens a confirmation shows it again once answered. */
+  reset(): void {
+    this.current = this.data.value;
+    this.requestUpdate();
+  }
+
   protected override willUpdate(changed: PropertyValues): void {
     super.willUpdate(changed);
     if (this.dataChanged(changed, 'value')) this.current = this.data.value;

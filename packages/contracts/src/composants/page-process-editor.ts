@@ -1,12 +1,38 @@
 import { z } from 'zod';
+import { zSourceGroup, zSourceKind } from '../process/sources.js';
 import { defineComposant } from './define.js';
+import { zForEach } from '../process/definition.js';
+import { zStepKind } from '../process/catalogue.js';
 import { zIconName } from './icons.js';
+import { Menu } from './menu.js';
 import { ProcessCanvas } from './process-canvas.js';
+import { sensitive } from './sensitive.js';
+import { Toast } from './toast.js';
 
 /** What the panel points at: an Étape, a Phase, or the Sources (`id` the Type d'artefact a Manque names, else `null`). */
 const zTarget = z.object({ kind: z.enum(['step', 'phase', 'sources']), id: z.string().min(1).nullable() });
 const zTab = z.enum(['gaps', 'selection', 'sources']);
 const zRow = z.object({ icon: zIconName, label: z.string().min(1), detail: z.string().nullable() });
+const zId = z.string().min(1);
+/**
+ * A row of the Sources: its value read, or, for a group (`ticket`, `code`),
+ * its Select of the Sources (disabled while the other group migrates); while
+ * its own group migrates, `migration` the caution badge « Local → GitHub »
+ * in place of either, `detail` then saying where the migration is.
+ */
+const zSourceRow = zRow.extend({
+  value: z.string(),
+  select: z
+    .object({
+      group: zSourceGroup,
+      label: z.string().min(1),
+      value: zSourceKind,
+      options: z.array(z.object({ value: zSourceKind, label: z.string().min(1) })),
+      disabled: z.boolean(),
+    })
+    .nullable(),
+  migration: z.string().nullable(),
+});
 
 type Data = z.input<typeof zData>;
 
@@ -21,6 +47,8 @@ const zData = z.object({
   gaps: z.array(z.object({ label: z.string().min(1), meta: z.string(), target: zTarget })),
   step: z
     .object({
+      id: zId,
+      phaseId: zId,
       name: z.string().min(1),
       kindLabel: z.string(),
       phaseName: z.string(),
@@ -29,10 +57,36 @@ const zData = z.object({
       inputs: z.array(z.object({ label: z.string(), from: z.string(), fed: z.boolean() })),
       outputs: z.array(z.object({ label: z.string(), to: z.string() })),
       tools: z.array(zRow),
+      /** The Select « Phase »: every Phase, by id. */
+      phases: z.array(z.object({ value: zId, label: z.string().min(1) })),
+      /** Why « Retirer » is disabled, `null` while it may be removed. */
+      removeReason: z.string().nullable(),
     })
     .nullable(),
-  phase: z.object({ name: z.string().min(1), count: z.string(), repeat: z.string() }).nullable(),
-  sources: z.object({ lead: z.string(), rows: z.array(zRow.extend({ value: z.string() })) }),
+  phase: z
+    .object({
+      id: zId,
+      name: z.string().min(1),
+      count: z.string(),
+      /** « Répéter »: once (`null`) or for each item of a list, the one checked. */
+      repeat: z.array(z.object({ forEach: zForEach.nullable(), label: z.string().min(1), checked: z.boolean() })),
+      help: z.string(),
+      /** Why « Retirer la Phase » is disabled, `null` while it may be removed. */
+      removeReason: z.string().nullable(),
+      /** Why the last name typed was refused. */
+      nameError: z.string().nullable(),
+      /** The page's count of the asks to focus the name: a new one focuses it (a Phase just added). */
+      focusName: z.int().min(0).nullable(),
+    })
+    .nullable(),
+  /** The catalogue's Menu, open under « Étape ». */
+  catalogue: Menu.data.nullable(),
+  /** A refusal, over the canvas. */
+  toast: Toast.data.nullable(),
+  /** The Dialog asking to remove a Phase with its Étapes. */
+  removePhase: z.object({ phaseId: zId, title: z.string().min(1), body: z.string().min(1) }).nullable(),
+  /** `banner`: the caution Banner of a migration of Source running, shown above the Sources, and above the phone's card. */
+  sources: z.object({ lead: z.string(), banner: z.object({ title: z.string().min(1), text: z.string() }).nullable(), rows: z.array(zSourceRow) }),
   footer: z.object({ changes: z.string(), versions: z.string() }),
 });
 
@@ -41,18 +95,49 @@ const crewdeck = ProcessCanvas.examples[0]!.data as Data['canvas'];
 const canvas: Data['canvas'] = { ...crewdeck, editable: false, focus: null };
 const withGap = ProcessCanvas.examples[1]!.data as Data['canvas'];
 
+const OPTIONS: NonNullable<Data['sources']['rows'][number]['select']>['options'] = [
+  { value: 'local', label: 'Local' },
+  { value: 'github', label: 'GitHub' },
+];
+
 const SOURCES: Data['sources'] = {
-  lead: 'Une Source par Type d’artefact : elle gagne toujours.',
+  lead: 'Une Source par Type d’artefact : elle gagne toujours. Changer de Source migre tout ce qu’elle tient. GitHub : MaximeD1412/site-mairie.',
+  banner: null,
   rows: [
-    { icon: 'folder', label: 'Tickets', value: 'Local', detail: 'dossier tickets/ du Projet, sur atelier-pc' },
+    {
+      icon: 'folder',
+      label: 'Tickets',
+      value: 'Local',
+      detail: 'dossier tickets/ du Projet, sur atelier-pc',
+      select: { group: 'ticket', label: 'Source des Tickets', value: 'local', options: OPTIONS, disabled: false },
+      migration: null,
+    },
     {
       icon: 'github',
       label: 'Code et documents',
       value: 'GitHub',
       detail: 'MaximeD1412/site-mairie · Changement de code, Verdict, PRD, Maquettes, Conception technique ; Inventaire non utilisé',
+      select: { group: 'code', label: 'Source du code et des documents', value: 'github', options: OPTIONS, disabled: false },
+      migration: null,
     },
-    { icon: 'bulb', label: 'Idée', value: 'Crewdeck', detail: null },
+    { icon: 'bulb', label: 'Idée', value: 'Crewdeck', detail: null, select: null, migration: null },
   ],
+};
+
+/** The Tickets migrating to GitHub, two of them finishing on Local. */
+const MIGRATING: Data['sources'] = {
+  ...SOURCES,
+  banner: {
+    title: 'Migration des Tickets vers GitHub',
+    text: 'Aucun nouveau Ticket ne démarre. #12 et #14 finissent sur Local, puis les 30 Tickets passent sur GitHub d’un coup.',
+  },
+  rows: SOURCES.rows.map((row) =>
+    row.select?.group === 'ticket'
+      ? { ...row, icon: 'refresh', detail: 'migration en cours · 2 Tickets à finir sur Local', select: null, migration: 'Local → GitHub' }
+      : row.select
+        ? { ...row, select: { ...row.select, disabled: true } }
+        : row,
+  ),
 };
 
 const active: Data = {
@@ -64,11 +149,16 @@ const active: Data = {
   gaps: [],
   step: null,
   phase: null,
+  catalogue: null,
+  toast: null,
+  removePhase: null,
   sources: SOURCES,
   footer: { changes: 'Aucun changement depuis la v3.', versions: 'v3 active depuis le 4 nov.' },
 };
 
 const REVIEW: NonNullable<Data['step']> = {
+  id: 'review',
+  phaseId: 'ph-dev',
   name: 'Review',
   kindLabel: 'Agent',
   phaseName: 'Développement',
@@ -82,7 +172,37 @@ const REVIEW: NonNullable<Data['step']> = {
     { icon: 'user', label: 'Rôle Review', detail: 'Claude Code · Opus 5.5' },
     { icon: 'spark', label: 'Skill review', detail: 'officielle' },
   ],
+  phases: [
+    { value: 'ph-idee', label: 'Idée' },
+    { value: 'ph-conception', label: 'Conception' },
+    { value: 'ph-dev', label: 'Développement' },
+  ],
+  removeReason: 'La Review ne se retire pas : son Rôle se change.',
 };
+
+const DEVELOPMENT: NonNullable<Data['phase']> = {
+  id: 'ph-dev',
+  name: 'Développement',
+  count: '5 Étapes · 2 Retours',
+  repeat: [
+    { forEach: null, label: 'Une fois', checked: false },
+    { forEach: 'idea.noted', label: 'Pour chaque Idée notée', checked: false },
+    { forEach: 'idea.retained', label: 'Pour chaque Idée retenue', checked: false },
+    { forEach: 'ticket.ready', label: 'Pour chaque Ticket prêt', checked: true },
+  ],
+  help: 'Chaque Ticket prêt parcourt la Phase : c’est la Boucle.',
+  removeReason: 'Elle tient la Review et le Merge, qui ne se retirent pas.',
+  nameError: null,
+  focusName: null,
+};
+
+const editable: Data = { ...active, canvas: { ...canvas, editable: true } };
+const withPhase = (data: Data): Data => ({
+  ...data,
+  canvas: { ...data.canvas, phases: data.canvas.phases.map((phase) => ({ ...phase, selected: false, target: phase.id === 'ph-dev' })) },
+  tab: 'selection',
+  phase: DEVELOPMENT,
+});
 
 /**
  * « Gestion du process » (US-92, US-94, US-88, `/projets/:id/process`), read
@@ -93,21 +213,45 @@ const REVIEW: NonNullable<Data['step']> = {
  * its block), « Étape » or « Phase » (the one selected: its Entrées and
  * Sorties, its Retour, its Outils), « Sources » (the two groups of ADR 0012
  * and the Idée), and the versions at its foot. Below 1280 px the editor is
- * not rendered (the phone's list is PROCESS-11's). `select` comes from the
- * canvas (`centre: false`) or a Manque (`centre: true`); `view` is the
- * canvas's.
+ * not rendered (the phone's list is PROCESS-11's); a migration of Source
+ * running shows there its Banner and the Sources' card. `select` comes from
+ * the canvas (`centre: false`) or a Manque (`centre: true`); `view` is the
+ * canvas's; `migrate`, a group's Select changed (SOURCE-7, US-102), the
+ * Action sensible `source.migrate`, the Select back on its Source when the
+ * Pilote cancels.
+ *
+ * Editable (US-93, US-95, PROCESS-8) while `canvas.editable`: « Phase » and
+ * « Étape » in the header, the catalogue's Menu under « Étape » (the canvas's
+ * `menu` Emplacement), a card dropped on a cell (`moveStep`), the Étape's
+ * « Retirer » and Select « Phase », the Phase's name, « Répéter » and
+ * « Retirer la Phase », the Dialog removing a Phase with its Étapes, and the
+ * refusals in a Toast (the canvas's `toast` Emplacement). A disabled button
+ * says why beside it.
  */
 export const PageProcessEditor = defineComposant({
   name: 'PageProcessEditor',
-  version: 1,
+  version: 2,
   tag: 'cd-page-process-editor',
   category: 'page',
-  description: 'La Gestion du process : le canevas du brouillon ou de la version active, ses Manques, l’Étape choisie et les Sources.',
+  description: 'La Gestion du process : le canevas du brouillon ou de la version active, qu’on modifie, ses Manques, l’Étape ou la Phase choisie et les Sources.',
   data: zData,
   actions: {
     select: z.object({ target: zTarget.nullable(), centre: z.boolean() }),
     tab: z.object({ tab: zTab }),
     view: ProcessCanvas.actions.view,
+    migrate: sensitive('source.migrate', z.object({ group: zSourceGroup, to: zSourceKind })),
+    addPhase: z.object({}),
+    openCatalogue: z.object({}),
+    closeMenu: z.object({}),
+    addStep: z.object({ kind: zStepKind }),
+    moveStep: ProcessCanvas.actions.moveStep,
+    moveStepToPhase: z.object({ stepId: zId, phaseId: zId }),
+    removeStep: z.object({ stepId: zId }),
+    renamePhase: z.object({ phaseId: zId, name: z.string() }),
+    setForEach: z.object({ phaseId: zId, forEach: zForEach.nullable() }),
+    removePhase: z.object({ phaseId: zId }),
+    cancelRemovePhase: z.object({}),
+    confirmRemovePhase: z.object({ phaseId: zId }),
   },
   slots: [],
   examples: [
@@ -137,8 +281,54 @@ export const PageProcessEditor = defineComposant({
         step: REVIEW,
       },
     },
-    { name: 'une Phase choisie', data: { ...active, tab: 'selection', phase: { name: 'Développement', count: '5 Étapes · 2 Retours', repeat: 'pour chaque Ticket prêt' } } },
+    { name: 'une Phase choisie', data: withPhase(editable) },
+    {
+      name: 'le catalogue ouvert',
+      data: {
+        ...withPhase(editable),
+        catalogue: {
+          title: 'Ajouter dans « Développement »',
+          groups: [
+            {
+              label: 'Étapes du Modèle de process « Process Crewdeck »',
+              items: [
+                { id: 'idea-analysis', label: 'Analyse de l’Idée', icon: 'spark', detail: 'Idée → Idée', selected: false, disabled: false },
+                { id: 'code', label: 'Code', icon: 'spark', detail: 'Ticket → Changement de code', selected: false, disabled: false },
+              ],
+            },
+            {
+              label: 'Revues',
+              items: [
+                { id: 'cross-review', label: 'Revue croisée', icon: 'spark', detail: 'un document → Verdict', selected: false, disabled: false },
+                { id: 'review', label: 'Review', icon: 'spark', detail: 'sur le Rôle de ton choix → Verdict', selected: false, disabled: false },
+              ],
+            },
+            { label: 'Sur ton Runner', items: [{ id: 'command', label: 'Commande', icon: 'terminal', detail: 'jugée sur son code de sortie', selected: false, disabled: false }] },
+          ],
+        },
+      },
+    },
+    {
+      name: 'un déplacement refusé',
+      data: {
+        ...editable,
+        toast: { tone: 'halt', icon: 'block', text: 'Un Retour reste dans sa Phase : « Code » n’est pas dans « Conception »' },
+      },
+    },
+    {
+      name: 'retirer une Phase',
+      data: {
+        ...withPhase(editable),
+        phase: { ...DEVELOPMENT, removeReason: null },
+        removePhase: {
+          phaseId: 'ph-dev',
+          title: 'Retirer la Phase « Développement » ?',
+          body: 'Ses 2 Étapes partent avec elle : Code, Revue visuelle. Le changement va dans le brouillon.',
+        },
+      },
+    },
     { name: 'les Sources', data: { ...active, tab: 'sources' } },
+    { name: 'une migration de Source en cours', data: { ...active, tab: 'sources', sources: MIGRATING } },
     {
       name: 'sans version active',
       data: {

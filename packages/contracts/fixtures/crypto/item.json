@@ -29,6 +29,14 @@
       "plaintext": "",
       "key": "HfjTOPe3ah3-vUiHA_cI1EBwwe8hnMTdYVRFfIFUTDYjZ77MflLn8kjgEK95ZPCTHrQOkdoiXp_cxHOE",
       "ciphertext": "v-Lzbmdxq9XPYzZjE2H0clLd0uGCE44SUvR1VA"
+    },
+    {
+      "name": "folder-checked",
+      "seed": "Y3Jld2RlY2staXRlbS9mb2xkZXItY2hlY2tlZA",
+      "aad": "Zm9sZGVyLmNoZWNrZWQ6MDE5YTZmMDAtMDAwMC03MDAwLTgwMDAtMDAwMDAwMDAwMGYx",
+      "plaintext": "eyJzdGF0ZSI6InJlYWR5IiwiaGFzQ29kZSI6dHJ1ZSwiYnJhbmNoIjoibWFpbiIsIm5hbWUiOiJyZWNldHRlcyJ9",
+      "key": "y9pORZ4AG4w5l92XkKWg24h_bzALurl8bhL6gX3tiQ7L3B4ENB4yDAr_aJ5pPwuSpWW4pvXDms4lXg7z",
+      "ciphertext": "n44KTOrY-jWOXEgpVGt_xfFqHkax8GeNBAtRCP4MAIEacGlhspaNaSLY0baYT-F85gg9XFWLexjLWztJflKw4EaCA-LjJ1Sa5_zQwa40UhedEGirNKGb2tyAbRdnSA"
     }
   ]
 }

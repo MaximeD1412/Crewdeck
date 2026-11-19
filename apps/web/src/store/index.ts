@@ -20,6 +20,7 @@ store.registerSlice('runner-link', { shape: 'single' });
 store.registerSlice('ai-account', { shape: 'collection' });
 store.registerSlice('mcp-server', { shape: 'collection' });
 store.registerSlice('device', { shape: 'collection', snapshotKey: 'devices' });
+store.registerSlice('push-subscription', { shape: 'collection', snapshotKey: 'push-subscriptions' });
 store.registerSlice('vault', { shape: 'single' });
 store.registerSlice('project', { shape: 'collection', snapshotKey: 'projects' });
 store.registerSlice('process', { shape: 'collection', snapshotKey: 'processes' });
@@ -34,6 +35,7 @@ store.registerSlice('code-change', { shape: 'collection', snapshotKey: 'codeChan
 store.registerSlice('agent-session', { shape: 'collection', snapshotKey: 'sessions' });
 store.registerSlice('settings', { shape: 'single', apply: applySettingsEvent });
 store.registerSlice('usage', { shape: 'collection' });
+store.registerSlice('source-migration', { shape: 'collection', snapshotKey: 'sourceMigrations' });
 
 export const client = createClient({
   seq: () => store.getState().seq,

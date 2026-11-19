@@ -47,6 +47,11 @@ func newHeldVault(v *keys.Vault) *heldVault {
 
 func (h *heldVault) Load() *keys.Vault { return h.current.Load() }
 
+// SealItem seals with the vault held (folders.Vault).
+func (h *heldVault) SealItem(plaintext, aad []byte) (keys.SealedItem, error) {
+	return h.Load().SealItem(plaintext, aad)
+}
+
 // OpenItem opens with the vault held (command.Vault).
 func (h *heldVault) OpenItem(item keys.SealedItem, aad []byte) ([]byte, error) {
 	return h.Load().OpenItem(item, aad)

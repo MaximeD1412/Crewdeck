@@ -1,7 +1,8 @@
 // Package state keeps what the Runner knows of its link to the server, in
 // ~/.crewdeck/ (ADR 0004), readable by the Pilote only: runner.json holds the
-// server, the Runner's id and its token; runner.key its private key; vault.wrap
-// its wrap of the vault key, never the key.
+// server, the Runner's id, its token and the Local Projets' folders (ADR
+// 0012); runner.key its private key; vault.wrap its wrap of the vault key,
+// never the key.
 package state
 
 import (
@@ -31,6 +32,9 @@ type State struct {
 	Server   string `json:"server"`
 	RunnerID string `json:"runnerId"`
 	Token    string `json:"token"`
+	// Projects are the Local Projets' folders, projectId → absolute real
+	// path (ADR 0012): they never leave the machine but sealed.
+	Projects map[string]string `json:"projects,omitempty"`
 }
 
 // Store reads and writes the state in Dir.

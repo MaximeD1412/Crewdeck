@@ -37,6 +37,7 @@
     "rxjs": "catalog:",
     "tslib": "catalog:",
     "uuid": "catalog:",
+    "web-push": "catalog:",
     "ws": "catalog:",
     "zod": "catalog:"
   },
@@ -45,6 +46,7 @@
     "@prisma/get-dmmf": "catalog:",
     "@swc/core": "catalog:",
     "@types/pg": "catalog:",
+    "@types/web-push": "catalog:",
     "@types/ws": "catalog:",
     "msw": "catalog:",
     "unplugin-swc": "catalog:"

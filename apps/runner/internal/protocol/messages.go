@@ -46,6 +46,14 @@ const (
 	TypeSessionInput  = "session.input"
 	TypeSessionKeys   = "session.keys"
 	TypeRelay         = "relay"
+	// A Local Projet's folder (PROJET-6, ADR 0012): the server relays a tab's
+	// check and asks to attach a folder, both sealed under the vault key; the
+	// Runner answers the check sealed and says which Projets' folders exist.
+	TypeFolderCheck         = "folder.check"
+	TypeFolderChecked       = "folder.checked"
+	TypeProjectFolderAttach = "project.folder.attach"
+	TypeProjectsFolders     = "projects.folders"
+
 	// The Commandes (RUNNER-18): the server asks a run, its stop and the
 	// replay of its output; the Runner says it started, its verdict, and
 	// sends its key and its output sealed for the Appareils.
@@ -60,6 +68,15 @@ const (
 	// the Runner its wrap of the new version once a holder rotated.
 	TypeVaultRotationPending = "vault.rotation-pending"
 	TypeVaultRotated         = "vault.rotated"
+	// A migration of Source (SOURCE-7, ADR 0012): the server asks the copy
+	// of a group and its finish, the Runner reports its progress, the switch
+	// it is ready for, and how it ended. The Runner's side is SOURCE-8.
+	TypeMigrationCopy     = "migration.copy"
+	TypeMigrationFinish   = "migration.finish"
+	TypeMigrationProgress = "migration.progress"
+	TypeMigrationSwitch   = "migration.switch"
+	TypeMigrationFinished = "migration.finished"
+	TypeMigrationFailed   = "migration.failed"
 )
 
 // Machine is what the Runner says of itself in its hello.
@@ -204,6 +221,25 @@ func NewRelay(sessionID, tabID string, seq int, nonce, ciphertext string) contra
 		message.TabId = &tabID
 	}
 	return message
+}
+
+// NewFolderChecked answers the tab tabID's folder.check requestID with its
+// result sealed under the vault key (key and ciphertext base64url).
+func NewFolderChecked(requestID, tabID, key, ciphertext string) contracts.RunnerFolderChecked {
+	at := now()
+	return contracts.RunnerFolderChecked{
+		Type: TypeFolderChecked, Id: newID(at), At: at, RequestId: requestID, TabId: tabID,
+		Sealed: contracts.RunnerFolderCheckedSealed{Key: key, Ciphertext: ciphertext},
+	}
+}
+
+// NewProjectsFolders says the Projets whose folder exists on this machine.
+func NewProjectsFolders(present []string) contracts.RunnerProjectsFolders {
+	at := now()
+	if present == nil {
+		present = []string{}
+	}
+	return contracts.RunnerProjectsFolders{Type: TypeProjectsFolders, Id: newID(at), At: at, Present: present}
 }
 
 // NewCommandStarted says the run's process started.

@@ -57,7 +57,7 @@ beforeAll(async () => {
     relay,
     connection: { start: vi.fn<() => void>(), stop: vi.fn<() => void>() },
   });
-  store.applySnapshot({ seq: 3, pilot: PILOT, runner: { state: 'online', lastSeenAt: '2026-11-11T14:04:58.000Z' } as never, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], vault: { version: 1, rotationPending: false }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [SESSION], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
+  store.applySnapshot({ seq: 3, pilot: PILOT, runner: { state: 'online', lastSeenAt: '2026-11-11T14:04:58.000Z' } as never, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, sourceMigrations: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [SESSION], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
   store.markLive();
 });
 

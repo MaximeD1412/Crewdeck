@@ -5,8 +5,8 @@ import { PasserelleElement, sharedStyles } from './base.js';
 /**
  * `cd-page-projets` (`design/screens/crewdeck/projets*.html`): the page's
  * title, its count and « Ajouter un Projet » (`add`), then the flush Card
- * « Prêts pour le Process ? », a ListRow per Projet, its name over its Dépôt
- * GitHub, a link to its page. Without any, the Card holds the Empty and its
+ * « Prêts pour le Process ? », a ListRow per Projet, its name over its `meta`
+ * (its Dépôt GitHub, or where its folder is), a link to its page. Without any, the Card holds the Empty and its
  * « Ajouter un Projet ».
  */
 export class PasserellePageProjets extends PasserelleElement<typeof PageProjets> {
@@ -48,7 +48,7 @@ export class PasserellePageProjets extends PasserelleElement<typeof PageProjets>
       <cd-card .data=${{ title: t('projets.list.title'), label: t('projets.title'), flush: true }}>
         ${projects.map(
           (project) =>
-            html`<cd-list-row data-project=${project.id} .data=${{ title: project.displayName, meta: project.fullName, href: `/projets/${project.id}` }}></cd-list-row>`,
+            html`<cd-list-row data-project=${project.id} .data=${{ title: project.name, meta: project.meta, href: `/projets/${project.id}` }}></cd-list-row>`,
         )}
       </cd-card>`;
   }

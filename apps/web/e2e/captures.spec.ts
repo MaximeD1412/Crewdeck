@@ -103,18 +103,28 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   },
   runner: async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('en ligne');
+    await expect(page.locator('cd-page-runner > cd-usage-card')).toContainText('au rythme actuel');
   },
   'runner-serveurs-mcp': async (page) => {
     await expect(page.locator('cd-page-runner cd-card.mcp cd-list-row')).toHaveCount(2);
   },
   'runner-hors-ligne': async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('hors ligne');
+    await expect(page.locator('cd-page-runner > cd-usage-card')).toContainText('Dernière mesure');
     await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner] cd-code-block')).toContainText('crewdeck-runner restart');
   },
-  // « Runner hors ligne » (ATOI-3): its row among the Décisions, and its banner.
+  // The card « Comptes IA » is filled once the snapshot is there (RUNNER-13).
+  'a-toi': async (page) => {
+    await expect(page.locator('cd-page-a-toi > cd-usage-card')).toContainText('Au rythme actuel');
+  },
+  'a-toi-vide': async (page) => {
+    await expect(page.locator('cd-page-a-toi > cd-usage-card')).toContainText('Au rythme actuel');
+  },
+  // « Runner hors ligne » (ATOI-3): its row among the Décisions, and its banner; the Comptes IA as last measured.
   'a-toi-runner-hors-ligne': async (page) => {
     await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('Ton Runner ne répond plus');
     await expect(page.locator('cd-page-a-toi cd-decision-row')).toHaveCount(10);
+    await expect(page.locator('cd-page-a-toi > cd-usage-card')).toContainText('Dernière mesure');
   },
   // « Maximum de Retours atteint » (PROCESS-6) among the nine Décisions of `a-toi`.
   'a-toi-process': async (page) => {

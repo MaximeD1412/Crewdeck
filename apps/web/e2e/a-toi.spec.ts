@@ -14,6 +14,10 @@ const chip = (page: Page, name: string) => page.locator('cd-page-a-toi cd-projec
 const count = (page: Page) => page.locator('cd-page-a-toi cd-page-header').locator('.count');
 /** The count the Cadre's entry « À toi » shows, at the sidebar's side at 1280, its tab's badge at 390. */
 const aToiEntry = (page: Page) => page.locator('#app > cd-cadre > cd-menu-item').first();
+/** The card « Comptes IA », in the page's Emplacement `ai-accounts` (RUNNER-13). */
+const accounts = (page: Page) => page.locator('cd-page-a-toi > cd-usage-card[slot=ai-accounts]');
+const meter = (page: Page, name: string) => accounts(page).getByRole('meter', { name });
+const DAY = /(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)/.source;
 
 /** From the page: its Origin, as a page's POST carries it. */
 const post = async (page: Page, path: string, data: unknown) => {
@@ -102,4 +106,39 @@ test('« Rien ne t’attend » with nothing waiting; a Décision raised shows wi
   await expect(rows(page)).toHaveCount(0);
   await expect(page.getByText('Rien ne t’attend')).toBeVisible();
   expect(loads).toEqual([]);
+});
+
+/** US-55: « À toi » sums up the Comptes IA, and follows their measures. */
+test('« Comptes IA » shows the windows of Claude and the pace of its week; a measure updates it without a reload', async ({ page, scenario, expectAccessible }) => {
+  await scenario('a-toi-vide');
+  await expect(accounts(page).getByRole('heading', { level: 2, name: 'Comptes IA' })).toBeVisible();
+  await expect(meter(page, 'Claude · 5 h')).toHaveAttribute('aria-valuenow', '100');
+  await expect(meter(page, 'Claude · 5 h')).toHaveAttribute('aria-valuetext', /^100\s%\s·\s\d{2}:\d{2}$/);
+  await expect(meter(page, 'Claude · semaine')).toHaveAttribute('aria-valuenow', '62');
+  await expect(meter(page, 'Claude · semaine')).toHaveAttribute('aria-valuetext', /^62\s%$/);
+  await expect(accounts(page)).toContainText(new RegExp(`Au rythme actuel, la semaine de Claude tient jusqu’à ${DAY}\\.`));
+  await expect(accounts(page)).not.toContainText('Codex');
+  await expectAccessible(page);
+  const loads: string[] = [];
+  page.on('load', () => loads.push(page.url()));
+
+  const now = Date.now();
+  await post(page, '/api/testing/runner/usage', {
+    engine: 'claude-code',
+    accountKind: 'subscription',
+    windows: [{ id: 'five-hour', usedPercent: 4, resetsAt: new Date(now + 5 * 3_600_000).toISOString() }],
+    measuredAt: new Date(now).toISOString(),
+  });
+  await expect(meter(page, 'Claude · 5 h')).toHaveAttribute('aria-valuenow', '4');
+  await expect(meter(page, 'Claude · 5 h')).toHaveAttribute('aria-valuetext', /^4\s%$/);
+  expect(loads).toEqual([]);
+});
+
+test('« Comptes IA » with the Runner offline: the last measures, without the pace, and when they were taken', async ({ page, scenario, expectAccessible }) => {
+  await scenario('a-toi-runner-hors-ligne');
+  await expect(meter(page, 'Claude · 5 h')).toHaveAttribute('aria-valuenow', '100');
+  await expect(meter(page, 'Claude · semaine')).toHaveAttribute('aria-valuenow', '62');
+  await expect(accounts(page)).toContainText('Dernière mesure à 14:02, avant la coupure du Runner.');
+  await expect(accounts(page)).not.toContainText('Au rythme actuel');
+  await expectAccessible(page);
 });

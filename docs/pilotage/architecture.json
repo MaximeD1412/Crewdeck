@@ -294,6 +294,23 @@
           ]
         },
         {
+          "id": "bce",
+          "zone": "externes",
+          "x": 1180,
+          "y": 342,
+          "w": 330,
+          "h": 56,
+          "titre": "BCE",
+          "sous": "cours de référence de l'euro, chaque jour",
+          "desc": "Le fichier quotidien des cours de la Banque centrale européenne : le serveur en garde le cours du dollar de chaque jour pour estimer en euros la dépense d'une clé API. Il n'y envoie rien.",
+          "tickets": [
+            "RUNNER-13"
+          ],
+          "adr": [
+            "0008"
+          ]
+        },
+        {
           "id": "stockage",
           "zone": "externes",
           "x": 1180,
@@ -636,6 +653,21 @@
             ]
           ],
           "label": "notifications"
+        },
+        {
+          "de": "serveur",
+          "vers": "bce",
+          "points": [
+            [
+              540,
+              370
+            ],
+            [
+              1180,
+              370
+            ]
+          ],
+          "label": "cours du jour"
         },
         {
           "de": "runner",

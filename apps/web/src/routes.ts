@@ -1,10 +1,13 @@
-import { type IdeesTab, COMPOSANTS, PageAToi, PageComposants, PageConnexion, PageConnexionLien, PageDemarrage, PageIdees, PageParametres, PageProjets, PageRunner, RepositoryPicker } from '@crewdeck/sdk';
+import { type IdeesTab, COMPOSANTS, PageAToi, PageComposants, PageConnexion, PageConnexionLien, PageDemarrage, PageIdees, PageParametres, PageProjets, PageRunner, RepositoryPicker, UsageCard } from '@crewdeck/sdk';
 import { currentDeviceId } from './api/request.js';
+import type { PlacedNode } from './placed.js';
 import type { Route } from './router.js';
+import type { StoreState } from './store/store.js';
 import { aToiView } from './views/a-toi.js';
 import { composantsView } from './views/composants.js';
 import { connexionView } from './views/connexion.js';
 import { parametresView, timeZones } from './views/parametres.js';
+import { usageCard, usageCardCompact, type UsageCardData, type UsageState } from './views/usage.js';
 
 /** The library of Composants' URL for one of them. */
 export const composantsHref = (name: string): string => `/parametres/composants?c=${encodeURIComponent(name)}`;
@@ -20,6 +23,10 @@ export const ideesHref = (projectId: string | null, tab: IdeesTab): string => {
   const search = query.toString();
   return search ? `/idees?${search}` : '/idees';
 };
+
+const usageOf = (state: StoreState): UsageState => ({ usage: state.slices.usage?.values() ?? [], runner: state.slices.runner ?? null });
+/** The usage card in the Emplacement `slot`, or nothing when there is no usage to show. */
+const usageSlot = (slot: string, data: UsageCardData | null): readonly PlacedNode[] => (data ? [{ tag: UsageCard.tag, slot, data }] : []);
 
 /**
  * The page URLs of ADR 0008 and their page Composant, filled by the page
@@ -37,7 +44,8 @@ export const ideesHref = (projectId: string | null, tab: IdeesTab): string => {
  * `RepositoryPicker`, whose data `app.ts` gives from the store
  * (`views/projets.ts`, `projects.ts`); `/parametres` → `PageParametres`,
  * whose « Rôles et modèles » `app.ts` completes with the page's own state
- * (`role-settings.ts`). The first route that matches wins.
+ * (`role-settings.ts`). The usage of the Comptes IA fills `/runner`'s
+ * Emplacement `usage` and « À toi »'s `ai-accounts` (`views/usage.ts`). The first route that matches wins.
  */
 export const ROUTES: readonly Route[] = [
   {
@@ -45,12 +53,13 @@ export const ROUTES: readonly Route[] = [
     composant: PageAToi,
     data: (match, state) =>
       aToiView(state.slices.decision?.values() ?? [], match.query, { runnerOnline: state.slices.runner?.state === 'online' }),
+    slots: (_match, state) => usageSlot('ai-accounts', usageCardCompact(usageOf(state))),
   },
   { path: '/idees', composant: PageIdees },
   { path: '/connexion', composant: PageConnexion, data: (match) => connexionView(match.query) },
   { path: '/connexion/lien', composant: PageConnexionLien },
   { path: '/demarrage', composant: PageDemarrage },
-  { path: '/runner', composant: PageRunner },
+  { path: '/runner', composant: PageRunner, slots: (_match, state) => usageSlot('usage', usageCard(usageOf(state))) },
   { path: '/projets', composant: PageProjets },
   { path: '/projets/ajouter', composant: RepositoryPicker },
   {

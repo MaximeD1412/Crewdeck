@@ -378,7 +378,7 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 	defer log.close()
 	// The key goes to the tabs before any event of the run.
 	key := m.liveKeys(rec.SessionID)
-	opts := engine.StartOptions{Dir: w.Dir, Model: rec.Model, Role: rec.Role, PermissionMode: engine.PermissionMode(rec.PermissionMode), SessionDir: dir}
+	opts := engine.StartOptions{Dir: w.Dir, Model: rec.Model, Role: rec.Role, PermissionMode: engine.PermissionMode(rec.PermissionMode), SessionDir: dir, SessionID: rec.SessionID}
 	var run engine.Run
 	if rec.EngineSessionID != "" {
 		run, err = adapter.Resume(ctx, engine.ResumeOptions{StartOptions: opts, EngineSessionID: rec.EngineSessionID})

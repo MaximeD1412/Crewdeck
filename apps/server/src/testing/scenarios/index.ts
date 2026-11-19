@@ -38,6 +38,7 @@ const SCENARIOS: readonly Scenario[] = [
   aToiVide,
   aToiProcess,
   aToiRunnerHorsLigne,
+  aToiVide,
   blank,
   composants,
   connexion,

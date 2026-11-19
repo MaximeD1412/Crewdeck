@@ -54,6 +54,20 @@ describe('UsageMeter', () => {
     expect(textOf(inside(el, '.projection'))).toBe('Au rythme actuel, la semaine tient jusqu’à jeudi.');
   });
 
+  it('ticks its bar where the pace leads by the reset, past the fill', async () => {
+    const el = await render(COMPOSANTS.UsageMeter, { label: 'Semaine', value: 62, detail: 'lundi', projection: null, mark: 94, tone: null });
+    const track = inside(el, '[role=meter]').getBoundingClientRect();
+    const mark = inside(el, '.mark').getBoundingClientRect();
+    expect(mark.left - track.left).toBeCloseTo(track.width * 0.94, 0);
+    expect(mark.height).toBeGreaterThan(track.height);
+    expect(inside(el, '.mark').getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('draws no tick without a mark', async () => {
+    const el = await meter(62);
+    expect(el.shadowRoot?.querySelector('.mark')).toBeNull();
+  });
+
   it('has no projection line without one', async () => {
     const el = await render(COMPOSANTS.UsageMeter, { label: 'Fenêtre de 5 h', value: 30, detail: null, projection: null, tone: null });
     expect(textOf(inside(el, '.value'))).toBe('30 %');

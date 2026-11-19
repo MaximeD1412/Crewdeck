@@ -9,6 +9,7 @@ import { zSessionResume, zSessionStart, zSessionStateMessage, zSessionStop } fro
 import { zGitHubChanged, zMirrorLive, zMirrorProjects, zMirrorResync, zMirrorToken, zMirrorTokenFailed, zMirrorTokenIssued } from './mirror.js';
 import { zRelay, zSessionInput, zSessionKeys, zSessionReplay } from './relay.js';
 import { zStepVerdict } from './step.js';
+import { zUsage, zUsageAck } from './usage.js';
 
 export { runnerMessage, type RunnerEnvelope, zRunnerEnvelope } from './envelope.js';
 
@@ -37,7 +38,7 @@ export const zProtocolError = runnerMessage('error', { code: zErrorCode });
 export type ProtocolError = z.infer<typeof zProtocolError>;
 
 /** Every message the Runner sends. */
-export const zRunnerToServer = z.discriminatedUnion('type', [zHello, zHeartbeat, zCapabilities, zMcpServers, zStepVerdict, zMirrorToken, zSessionStateMessage, zSessionKeys, zRelay]);
+export const zRunnerToServer = z.discriminatedUnion('type', [zHello, zHeartbeat, zCapabilities, zMcpServers, zStepVerdict, zMirrorToken, zSessionStateMessage, zSessionKeys, zRelay, zUsage]);
 export type RunnerToServer = z.infer<typeof zRunnerToServer>;
 export type RunnerToServerType = RunnerToServer['type'];
 
@@ -58,6 +59,7 @@ export const zServerToRunner = z.discriminatedUnion('type', [
   zSessionResume,
   zSessionReplay,
   zSessionInput,
+  zUsageAck,
 ]);
 export type ServerToRunner = z.infer<typeof zServerToRunner>;
 export type ServerToRunnerType = ServerToRunner['type'];

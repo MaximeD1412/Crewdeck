@@ -77,7 +77,8 @@ describe('POST /api/testing/decisions against PostgreSQL', () => {
       const resolved = await post(app, '/resolve', { kind: 'ticket-blocked', subjectId: '42', outcome: 'answered' }, cookie);
       expect(resolved.status).toBe(204);
       expect((await state()).decisions).toEqual([]);
-      expect(await sql<{ type: string }>(`SELECT type FROM events ORDER BY seq`)).toEqual([{ type: 'decision.upserted' }, { type: 'decision.removed' }]);
+      // The scenario's Runner connects too: only the Décisions' events here.
+      expect(await sql<{ type: string }>(`SELECT type FROM events WHERE type LIKE 'decision.%' ORDER BY seq`)).toEqual([{ type: 'decision.upserted' }, { type: 'decision.removed' }]);
     });
 
     it('gives 401 auth.required without a session', async () => {

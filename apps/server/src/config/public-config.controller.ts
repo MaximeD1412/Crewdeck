@@ -5,6 +5,7 @@ import { createZodDto, ZodResponse } from 'nestjs-zod';
 import { Public } from '../scope/public.decorator.js';
 import { type Env, usesFakes } from './env.js';
 import { ENV } from './env.module.js';
+import { VAPID, type VapidKeys } from './vapid.js';
 
 /** What the controller reads of Express's request. */
 interface Request {
@@ -25,22 +26,25 @@ const header = (request: Request, name: string): string | undefined => {
  * Where it reads GitHub with the Pilote's token (ADR 0002) and the App's
  * slug, to install it: GitHub's, or with the fakes `<origin>/fake-github`,
  * the origin being the page's (through Vite's proxy in development). The
- * `--server` of the Runner's install command, outside production.
+ * `--server` of the Runner's install command, outside production. The VAPID
+ * public key a browser subscribes to the pushes with (ATOI-4).
  */
 @Public()
 @Controller('config')
 export class PublicConfigController {
-  constructor(@Inject(ENV) private readonly env: Env) {}
+  constructor(
+    @Inject(ENV) private readonly env: Env,
+    @Inject(VAPID) private readonly vapid: VapidKeys,
+  ) {}
 
   @Get()
   @ZodResponse({ status: 200, description: 'Where the page reads GitHub.', type: PublicConfigDto })
   config(@Req() request: Request): PublicConfig {
     const runnerServer = this.env.CREWDECK_ENV === 'production' ? null : this.origin(request);
-    if (!usesFakes(this.env)) {
-      return { githubApiUrl: this.env.GITHUB_API_URL, githubWebUrl: this.env.GITHUB_WEB_URL, appSlug: this.env.GITHUB_APP_SLUG ?? 'crewdeck', runnerServer };
-    }
+    const common = { appSlug: this.env.GITHUB_APP_SLUG ?? 'crewdeck', runnerServer, vapidPublicKey: this.vapid.publicKey };
+    if (!usesFakes(this.env)) return { githubApiUrl: this.env.GITHUB_API_URL, githubWebUrl: this.env.GITHUB_WEB_URL, ...common };
     const fake = `${this.origin(request)}/fake-github`;
-    return { githubApiUrl: fake, githubWebUrl: fake, appSlug: this.env.GITHUB_APP_SLUG ?? 'crewdeck', runnerServer };
+    return { githubApiUrl: fake, githubWebUrl: fake, ...common };
   }
 
   /** The origin the page was served from: `PUBLIC_URL`'s where it is set (always outside development and test), else the proxy's. */

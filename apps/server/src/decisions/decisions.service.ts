@@ -5,7 +5,7 @@ import { MESSAGES } from '../errors/messages.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { newId } from '../ids.js';
 import { EventsWriter } from '../realtime/events.writer.js';
-import type { Tx } from '../realtime/transactions.js';
+import { afterCommit, type Tx } from '../realtime/transactions.js';
 import { currentPilotId } from '../scope/scope.context.js';
 import { DECISION_VIEW, toDecision } from './decision.view.js';
 
@@ -14,6 +14,9 @@ export type RaiseInput = Omit<Decision, 'id' | 'state' | 'outcome' | 'createdAt'
 
 /** The input of `raise`, checked against the Décision's schema (its kind, its bounds, its flat params). */
 const zRaiseInput = zDecision.omit({ id: true, state: true, outcome: true, createdAt: true, resolvedAt: true });
+
+/** Told of a Décision just opened for `pilotId`, once its transaction committed (ATOI-4's push). Must not throw. */
+export type DecisionCreatedListener = (pilotId: string, decision: Decision) => void;
 
 /** A module's call with an input the contracts refuse: its bug, a 500. */
 export class DecisionInputError extends Error {
@@ -31,7 +34,15 @@ export class DecisionInputError extends Error {
  */
 @Injectable()
 export class DecisionsService {
+  private readonly createdListeners = new Set<DecisionCreatedListener>();
+
   constructor(private readonly events: EventsWriter) {}
+
+  /** Calls `listener` for every Décision opened (not updated), after its commit; returns its removal. */
+  onCreated(listener: DecisionCreatedListener): () => void {
+    this.createdListeners.add(listener);
+    return () => this.createdListeners.delete(listener);
+  }
 
   /**
    * Opens the Décision of `(kind, subjectId)`, or updates the open one (its
@@ -40,7 +51,8 @@ export class DecisionsService {
    * (ADR 0003): never free text of the Pilote or an agent. A module that has
    * such text (a question, a blocking reason) leaves it out: the page reads it
    * from GitHub or the Runner. The open one resolved by another transaction
-   * between its read and its update stays resolved: a new one is opened.
+   * between its read and its update stays resolved: a new one is opened. A
+   * Décision opened is told to `onCreated`'s listeners once `tx` commits.
    */
   async raise(tx: Tx, input: RaiseInput): Promise<{ decision: Decision; created: boolean }> {
     const parsed = zRaiseInput.safeParse(input);
@@ -52,7 +64,13 @@ export class DecisionsService {
     const row =
       updated ?? (await tx.decision.create({ data: { id: newId(), pilotId: currentPilotId(), kind, subjectId, ...values }, select: DECISION_VIEW }));
     const decision = toDecision(row);
-    await this.events.write(tx, currentPilotId(), 'decision.upserted', decision);
+    const pilotId = currentPilotId();
+    await this.events.write(tx, pilotId, 'decision.upserted', decision);
+    if (!updated) {
+      afterCommit(tx, () => {
+        for (const listener of this.createdListeners) listener(pilotId, decision);
+      });
+    }
     return { decision, created: !updated };
   }
 

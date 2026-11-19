@@ -28,6 +28,7 @@ const BROWSER_SPECS = [
   'src/page-projets.spec.ts',
   'src/repository-picker.spec.ts',
   'src/role-settings.spec.ts',
+  'src/push-settings.spec.ts',
   'src/page-runner.spec.ts',
   'src/page-parametres.spec.ts',
   'src/page-parametres-projet.spec.ts',

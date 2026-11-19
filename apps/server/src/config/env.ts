@@ -29,6 +29,17 @@ const zBase64Key = (bytes: number, { atLeast = false } = {}) =>
     .transform((value) => Buffer.from(value, 'base64'))
     .refine((key) => (atLeast ? key.length >= bytes : key.length === bytes), `${atLeast ? 'At least ' : ''}${bytes} bytes, in base64`);
 
+/**
+ * A VAPID key as `web-push generate-vapid-keys` prints it: base64url without
+ * padding, of exactly `bytes` (65 for the public P-256 point, 32 for the
+ * private scalar). Kept as its text, what `web-push` takes.
+ */
+const zVapidKey = (bytes: number) =>
+  z
+    .string()
+    .regex(/^[A-Za-z0-9_-]+$/, 'Base64url (web-push generate-vapid-keys)')
+    .refine((key) => Buffer.from(key, 'base64url').length === bytes, `${bytes} bytes, in base64url`);
+
 /** The variables of the GitHub App, required where the server talks to the real GitHub. */
 const GITHUB_APP_KEYS = [
   'GITHUB_APP_ID',
@@ -42,6 +53,8 @@ const GITHUB_APP_KEYS = [
 /** The keys of the sign-in (CORE-4), required where Pilotes sign in for good. */
 const AUTH_KEYS = ['GITHUB_TOKEN_KEY', 'SESSION_SECRET'] as const;
 
+/** The VAPID keys of Web Push (ATOI-4), required where pushes reach real browsers. */
+const VAPID_KEYS = ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'] as const;
 /** The mail of the sign-in by email (CORE-9), required where the links go to real addresses. */
 const MAIL_KEYS = ['SMTP_URL', 'MAIL_FROM'] as const;
 
@@ -94,6 +107,19 @@ export const zEnv = z
     /** At least 32 bytes in base64: signs the sign-in's short-lived cookie. Same rule as GITHUB_TOKEN_KEY. */
     SESSION_SECRET: zBase64Key(32, { atLeast: true }).optional(),
     /**
+     * The VAPID key pair of Web Push (ATOI-4, ADR 0007): the push services
+     * check each push against the public key a browser subscribed with, so
+     * changing it ends every subscription. Required outside development and
+     * test, drawn at each boot there.
+     */
+    VAPID_PUBLIC_KEY: zVapidKey(65).optional(),
+    VAPID_PRIVATE_KEY: zVapidKey(32).optional(),
+    /** Who the push services may write to about this server's pushes: a `mailto:` or an `https:` URL. Same rule. */
+    VAPID_SUBJECT: z
+      .string()
+      .regex(/^(mailto:.+|https:\/\/.+)$/, 'A mailto: or an https: URL')
+      .optional(),
+    /**
      * The SMTP relay the sign-in links leave by (`smtps://user:password@host:465`,
      * INFRA-14). Required outside development and test; unset there, the links
      * stay in the server's memory (`GET /api/testing/mails` with the fakes).
@@ -129,6 +155,7 @@ export const zEnv = z
       require('PUBLIC_URL', 'outside development and test');
       for (const key of GITHUB_APP_KEYS) require(key, 'outside development and test');
       for (const key of AUTH_KEYS) require(key, 'outside development and test');
+      for (const key of VAPID_KEYS) require(key, 'outside development and test');
       for (const key of MAIL_KEYS) require(key, 'outside development and test');
       for (const key of GOOGLE_KEYS) require(key, 'outside development and test');
     }

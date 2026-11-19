@@ -15,6 +15,7 @@ import {
   PageProjets,
   PageRunner,
   RepositoryPicker,
+  PushSettings,
   RoleSettings,
   Composer,
   PermissionRequest,
@@ -38,12 +39,15 @@ import { createDeadline } from './deadline.js';
 import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
 import { followVault } from './keys/follow.js';
 import { createPageKeys, type PageKeys } from './keys/index.js';
+import { createEditing } from './process/editing.js';
 import { createEditorUi } from './process/editor-ui.js';
 import { createNoteIdea } from './note-idea.js';
 import { createProjectSettings } from './project-settings.js';
 import { createProjects } from './projects.js';
 import { bootSkin } from './registry.js';
 import { createDeviceStore } from './keys/device-store.js';
+import { createBrowserPush, type PushDevice } from './push.js';
+import { createPushSettings } from './push-settings.js';
 import { createRoleSettings } from './role-settings.js';
 import { createSessionPanel } from './session-panel.js';
 import { createSessionPeek } from './sessions/peek.js';
@@ -110,6 +114,8 @@ export interface BootOptions {
    * (E2E-4): IndexedDB and WebCrypto by default.
    */
   readonly keys?: Pick<PageKeys, 'linkKeys' | 'vault' | 'nameDevice' | 'unlockVault' | 'approval' | 'rotateVault' | 'forgetDevice'>;
+  /** This browser's push (ATOI-4): its service worker's `PushManager` by default. */
+  readonly push?: PushDevice;
   /** The relay of the Sessions (SESSION-1): through the page's socket, with this browser's Appareil, by default. */
   readonly relay?: Pick<SessionRelay, 'openSession' | 'sendInput' | 'closeSession'>;
 }
@@ -144,6 +150,7 @@ export const boot = async ({
   client = pageClient,
   latency = createLatencyMeter({ store }),
   keys = createPageKeys({ store, client, userAgent: navigator.userAgent }),
+  push = createBrowserPush(window),
   relay = createSessionRelay({ socket: pageConnection, devices: createDeviceStore() }),
 }: BootOptions): Promise<App> => {
   // A sign-in link's token leaves the address bar before anything else (ADR 0014).
@@ -246,6 +253,12 @@ export const boot = async ({
   noteDialog.data = noteIdea.view();
   shell.append(noteDialog);
   const roleSettings = createRoleSettings({ client });
+  const pushSettings = createPushSettings({
+    client,
+    device: push,
+    userAgent: navigator.userAgent,
+    subscriptionOf: (id) => store.getState().slices['push-subscription']?.get(id),
+  });
   /** The page without its `?session=`: the panel closed. */
   const closePanel = () => {
     const url = new URL(location.href);
@@ -278,6 +291,8 @@ export const boot = async ({
   };
   // « Gestion du process »' own state: its view per Projet, the block to centre (PROCESS-7).
   const editorUi = createEditorUi();
+  // Its edits, each Projet's draft saved behind them (PROCESS-8).
+  const editing = createEditing({ client, stored: (projectId) => store.getState().slices.process?.get(projectId) });
   const signIn = signInGuard(pilot);
   // A Projet the store does not have once the snapshot is there (removed, another Pilote's): the Projets.
   const projectGuard = (match: RouteMatch): string | null => {
@@ -304,6 +319,7 @@ export const boot = async ({
       return parametresView(slices.settings, timeZones(), {
         accounts: [...(slices['ai-account']?.values() ?? [])],
         local: roleSettings.view(),
+        push: { subscriptions: [...(slices['push-subscription']?.values() ?? [])], local: pushSettings.view() },
         pilot: slices.pilot,
         erreur: match.query['erreur'],
         projects: [...(slices.project?.values() ?? [])],
@@ -333,7 +349,7 @@ export const boot = async ({
         const projectId = match.params['id'] ?? '';
         // The Idées at work opened ahead: the activation's confirmation names them by their title, read when pressed.
         for (const work of slices.process?.get(projectId)?.running ?? []) if (work.itemType === 'idea') ideaTitle(work.itemId);
-        return processEditorView(store.getState(), projectId, editorUi.view(projectId, match.query));
+        return processEditorView(store.getState(), projectId, editorUi.view(projectId, match.query), editing.edits(projectId));
       }
       if (match.composant === PageIdees) {
         // The Idées merged or rejected beyond the slice's 90 days: their first page as the page first shows.
@@ -366,6 +382,7 @@ export const boot = async ({
       if (online && !runnerOnline) peek.retry();
       runnerOnline = online;
       gettingStarted.sync();
+      pushSettings.settled(store.getState().slices.settings);
       router.refresh();
       shell.refresh();
       usageChanges.schedule();
@@ -380,8 +397,10 @@ export const boot = async ({
     projects.subscribe(() => router.refresh()),
     closedIdeas.subscribe(() => router.refresh()),
     roleSettings.subscribe(() => router.refresh()),
+    pushSettings.subscribe(() => router.refresh()),
     projectSettings.subscribe(() => router.refresh()),
     editorUi.subscribe(() => router.refresh()),
+    editing.subscribe(() => router.refresh()),
   ];
   // The vault's version and rotation (E2E-4): a new version opened, a pending rotation run, the state read again after either.
   const stopFollowingVault = followVault({
@@ -399,6 +418,7 @@ export const boot = async ({
     void keys.unlockVault().finally(vaultTried);
     latency.start();
     connection.start();
+    void pushSettings.sync();
   }
   if (!pilot) vaultTried();
   dispatcher.registerAction(PageConnexion, 'signInWith', {
@@ -421,6 +441,9 @@ export const boot = async ({
   dispatcher.registerAction(RoleSettings, 'add', { run: () => roleSettings.open() });
   dispatcher.registerAction(RoleSettings, 'create', { run: (body) => roleSettings.create(body) });
   dispatcher.registerAction(RoleSettings, 'cancel', { run: () => roleSettings.cancel() });
+  dispatcher.registerAction(PushSettings, 'toggle', { run: ({ push }) => pushSettings.toggle(push) });
+  dispatcher.registerAction(PushSettings, 'subscribe', { run: () => pushSettings.activate() });
+  dispatcher.registerAction(PushSettings, 'remove', { run: ({ id }) => pushSettings.remove(id) });
   dispatcher.registerAction(AccountIdentities, 'linkGitHub', { run: () => leave(githubLinkHref('/parametres')) });
   const currentProject = (): string | null => (router.current.composant === PageParametresProjet ? (router.current.params['id'] ?? null) : null);
   dispatcher.registerAction(PageParametresProjet, 'change', {
@@ -470,6 +493,7 @@ export const boot = async ({
   dispatcher.registerAction(PageDemarrage, 'linkGitHub', { run: () => leave(githubLinkHref('/demarrage')) });
   const editor = createEditorActions({
     ui: editorUi,
+    editing,
     navigate: (url, options) => router.navigate(url, options),
     current: () => router.current,
     client,
@@ -479,6 +503,18 @@ export const boot = async ({
   dispatcher.registerAction(PageProcessEditor, 'tab', { run: (payload) => editor.tab(payload) });
   dispatcher.registerAction(PageProcessEditor, 'view', { run: (payload) => editor.view(payload) });
   dispatcher.registerAction(PageProcessEditor, 'activate', editor.activate);
+  dispatcher.registerAction(PageProcessEditor, 'addPhase', { run: () => editor.addPhase() });
+  dispatcher.registerAction(PageProcessEditor, 'openCatalogue', { run: () => editor.openCatalogue() });
+  dispatcher.registerAction(PageProcessEditor, 'closeMenu', { run: () => editor.closeMenu() });
+  dispatcher.registerAction(PageProcessEditor, 'addStep', { run: (payload) => editor.addStep(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'moveStep', { run: (payload) => editor.moveStep(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'moveStepToPhase', { run: (payload) => editor.moveStepToPhase(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'removeStep', { run: (payload) => editor.removeStep(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'renamePhase', { run: (payload) => editor.renamePhase(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'setForEach', { run: (payload) => editor.setForEach(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'removePhase', { run: (payload) => editor.removePhase(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'cancelRemovePhase', { run: () => editor.cancelRemovePhase() });
+  dispatcher.registerAction(PageProcessEditor, 'confirmRemovePhase', { run: (payload) => editor.confirmRemovePhase(payload) });
   dispatcher.registerAction(PageProjets, 'add', { run: () => router.navigate('/projets/ajouter') });
   // In « Premiers pas » the Projets followed end it; on `/projets/ajouter` the list shows them.
   dispatcher.registerAction(RepositoryPicker, 'follow', {

@@ -8,6 +8,7 @@ import { zMe } from './me.js';
 import { zPhaseRun, zStepRun } from './phase-runs.js';
 import { zProjectProcess } from './process.js';
 import { REPOSITORIES_MAX, zProject, zRepository } from './projects.js';
+import { PUSH_SUBSCRIPTIONS_MAX, zPushSubscription } from './push-subscriptions.js';
 import { zRunner } from './runner.js';
 import { zRunnerLink } from './runner-link.js';
 import { zSettingsState } from './project-settings.js';
@@ -34,6 +35,8 @@ export const STATE_SLICES = {
   'mcp-server': z.array(zMcpServer),
   /** The Pilote's Appareils (E2E-2), newest first; `current` is `false`, each page sets its own. */
   devices: z.array(zDevice),
+  /** The browsers that receive the Pilote's push notifications (ATOI-4), newest first, at most `PUSH_SUBSCRIPTIONS_MAX`. */
+  'push-subscriptions': z.array(zPushSubscription).max(PUSH_SUBSCRIPTIONS_MAX),
   /** The vault key's version and whether a revocation waits for its rotation (E2E-4). */
   vault: zVaultState,
   /** The Pilote's Projets (PROJET-2), by name. */

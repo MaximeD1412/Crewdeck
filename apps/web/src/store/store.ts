@@ -12,6 +12,7 @@ import type {
   PhaseRun,
   Project,
   ProjectProcess,
+  PushSubscription,
   Repository,
   Resource,
   Runner,
@@ -49,6 +50,8 @@ export interface Slices {
   readonly 'mcp-server': ReadonlyMap<string, McpServer>;
   /** The Pilote's Appareils, by id (E2E-2), from the snapshot's `devices`. */
   readonly device: ReadonlyMap<string, Device>;
+  /** The browsers that receive the Pilote's push notifications, by id (ATOI-4), from the snapshot's `push-subscriptions`. */
+  readonly 'push-subscription': ReadonlyMap<string, PushSubscription>;
   /** The vault key's version and whether a revocation waits for its rotation (E2E-4), from the snapshot's `vault`. */
   readonly vault: VaultSlice | null;
   /** The Pilote's Projets, by id (PROJET-2), from the snapshot's `projects`. */

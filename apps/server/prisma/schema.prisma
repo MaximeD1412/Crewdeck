@@ -77,6 +77,7 @@ model Pilot {
   spends               Spend[]
   settings             AccountSettings?
   customRoles          CustomRole[]
+  pushSubscriptions    PushSubscription[]
   agentSessions        AgentSession[]
 
   @@map("pilots")
@@ -338,6 +339,25 @@ model Device {
   @@map("devices")
 }
 
+/// A browser that receives the Pilote's push notifications (ATOI-4, US-18),
+/// not an Appareil of ADR 0003: removing it removes the push only. What its
+/// `pushManager.subscribe` gave (its push service's endpoint, its keys) and
+/// the label the page read from its user agent (« Safari · iPhone »).
+model PushSubscription {
+  id           String    @id @db.Uuid
+  pilotId      String    @map("pilot_id") @db.Uuid
+  endpoint     String    @unique
+  p256dh       String
+  auth         String
+  label        String
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  lastPushedAt DateTime? @map("last_pushed_at") @db.Timestamptz
+  pilot        Pilot     @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@index([pilotId, createdAt])
+  @@map("push_subscriptions")
+}
+
 enum VaultKeyHolderType {
   device
   runner
@@ -475,6 +495,14 @@ model Decision {
   outcome     String?
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
   resolvedAt  DateTime?     @map("resolved_at") @db.Timestamptz
+  /// When the Pilote was told of it (ATOI-4): pushed to their browsers, seen
+  /// on a tab visible again, or its push off. `null` while it waits, what the
+  /// next push sends (`src/notifications/push-delivery.ts`).
+  notifiedAt  DateTime?     @map("notified_at") @db.Timestamptz
+  /// When a push took it, on its way to the browsers: not yet told. Handed
+  /// back (`null`) when no browser got it; a claim older than its lease, a
+  /// push interrupted (a restart, a failed hand back), waits again.
+  pushClaimedAt DateTime?   @map("push_claimed_at") @db.Timestamptz
   pilot       Pilot         @relation(fields: [pilotId], references: [id], onDelete: Cascade)
 
   @@unique([pilotId, kind, subjectId], map: "decisions_pilot_id_kind_subject_id_open_key", where: raw("state = 'open'"))

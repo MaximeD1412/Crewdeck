@@ -2,9 +2,9 @@ import type { ForEach, ProcessChange, Tool } from '@crewdeck/contracts';
 import { t } from '@crewdeck/sdk';
 import { roleName } from './canvas.js';
 
-/** « pour chaque Ticket prêt », or « une fois »: a Phase's repetition as its panel says it. */
+/** « pour chaque Ticket prêt », or « une fois »: a Phase's repetition, inside the change's sentence. */
 const repeatOf = (forEach: ForEach | null): string =>
-  forEach === null ? t('process.phase.repeat.once') : t('process.phase.repeat.forEach', { forEach: t(`process.forEach.${forEach}`) });
+  forEach === null ? t('process.diff.phase.repeat.once') : t('process.diff.phase.repeat.forEach', { forEach: t(`process.forEach.${forEach}`) });
 
 const toolLabel = (verb: 'attached' | 'detached', tool: Tool, step: string, roleNames: Readonly<Record<string, string>>): string => {
   switch (tool.kind) {

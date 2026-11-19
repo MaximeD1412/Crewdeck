@@ -42,6 +42,13 @@ export interface Connection {
    * One `hello` at a time: asked again meanwhile, the next one goes after that `live`, and only its own `live` ends the `resync`.
    */
   catchUp(): void;
+  /**
+   * After a change no event tells (the vault key's rotation rewrapped every
+   * item key, E2E-4): `resync`, `GET /api/state` read again and applied, then
+   * `hello` with its `seq`. A snapshot that cannot be read is owed to the next
+   * socket, which reads it before its `hello`.
+   */
+  refresh(): void;
   /** A message of a Session's relay (SESSION-1) on the open socket; false when none is open. */
   sendRelay(message: TabRelayClientMessage): boolean;
   /** The relay's messages from the server: `session.keys`, `relay`, `session.error`. */
@@ -108,6 +115,8 @@ export const createConnection = ({
   let awaiting = false;
   /** A catch-up asked while one was waiting: its `hello` goes once the server is `live`. */
   let again = false;
+  /** A `refresh` not applied yet: the next socket opened reads the snapshot before its `hello`. */
+  let owed = false;
 
   const relayListeners = new Set<(message: TabRelayServerMessage) => void>();
   const commandListeners = new Set<(message: TabCommandServerMessage) => void>();
@@ -139,6 +148,27 @@ export const createConnection = ({
     socket = null;
     current.onopen = current.onmessage = current.onclose = null;
     current.close();
+  };
+
+  const refresh = () => {
+    if (stopped) return;
+    owed = true;
+    store.markStale();
+    const current = socket;
+    snapshot().then(
+      (state) => {
+        // A socket opened since reads its own.
+        if (stopped || socket !== current) return;
+        owed = false;
+        store.applySnapshot(state);
+        if (current?.readyState !== OPEN) return;
+        if (awaiting) again = true;
+        else hello();
+      },
+      () => {
+        if (!stopped && current && socket === current) lost('later');
+      },
+    );
   };
 
   const scheduleReconnect = (delay: number) => {
@@ -216,7 +246,8 @@ export const createConnection = ({
     const current = createSocket(url);
     socket = current;
     current.onopen = () => {
-      hello();
+      if (owed) refresh();
+      else hello();
       pingTimer = setInterval(ping, PING_INTERVAL_MS);
       for (const listener of openListeners) listener();
     };
@@ -254,6 +285,7 @@ export const createConnection = ({
       if (awaiting) again = true;
       else hello();
     },
+    refresh,
     sendRelay: (message) => send(message),
     onRelay(listener) {
       relayListeners.add(listener);

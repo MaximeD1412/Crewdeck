@@ -34,12 +34,15 @@ export type Hello = z.infer<typeof zHello>;
 /**
  * Server → Runner: the connection is accepted, in `protocolVersion` (the
  * Runner's own, this one or the one before), with the Runner's wrap of the
- * current vault key (none before the first pairing).
+ * current vault key (none before the first pairing), and `rotationPending`
+ * when a revocation waits for the vault key's rotation (E2E-4): the Runner,
+ * first online, rotates it.
  */
 export const zHelloAccepted = runnerMessage('hello.accepted', {
   runnerId: zId,
   protocolVersion: z.int().positive(),
   vaultKeyWrap: zVaultKeyWrap.optional(),
+  rotationPending: z.boolean().optional(),
 });
 export type HelloAccepted = z.infer<typeof zHelloAccepted>;
 

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "holders": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "publicKey": {
+            "pattern": "^[A-Za-z0-9_-]*$",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "device",
+              "runner"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "publicKey",
+          "type"
+        ],
+        "type": "object"
+      },
+      "maxItems": 101,
+      "type": "array"
+    },
+    "rotationPending": {
+      "type": "boolean"
+    },
+    "seq": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "version": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "holders",
+    "rotationPending",
+    "seq",
+    "version"
+  ],
+  "title": "RunnerVault",
+  "type": "object"
+}

@@ -1,10 +1,11 @@
-import { zDevice, zDeviceApproval, zDeviceCreated, zPendingDevice, zVaultKeyWrap } from '@crewdeck/contracts';
+import { zDevice, zDeviceApproval, zDeviceCreated, zPendingDevice, zVault, zVaultItems, zVaultKeyWrap } from '@crewdeck/contracts';
 import type { Client } from '../api/client.js';
 import { setCurrentDevice } from '../api/request.js';
 import type { Store } from '../store/store.js';
 import { createDeviceApproval, type DeviceApprovalKeys } from './approval.js';
 import { createDeviceStore, type DeviceStore } from './device-store.js';
 import { createLinkKeys, type LinkKeys } from './pairing.js';
+import { createVaultRotation, type RotationOutcome } from './rotation.js';
 import { createVault, type Vault, type VaultState } from './vault.js';
 
 /** The page's keys (ADR 0003): this browser's Appareil, the vault, the link's pairing. */
@@ -17,6 +18,10 @@ export interface PageKeys {
   nameDevice(): Promise<void>;
   /** Opens the vault (`no-device` for a browser with no Appareil yet); never throws: what it cannot do leaves it `locked`. */
   unlockVault(): Promise<VaultState>;
+  /** Rotates the vault key once a revocation left it pending (E2E-4); never throws. */
+  rotateVault(): Promise<RotationOutcome>;
+  /** Forgets this browser's Appareil once it was revoked (E2E-4): IndexedDB's record cleared, the vault `no-device`. */
+  forgetDevice(): Promise<void>;
 }
 
 export interface PageKeysOptions {
@@ -46,6 +51,16 @@ export const createPageKeys = ({ store, client, userAgent, devices = createDevic
       approval: (deviceId) => client.query(`/api/devices/${id(deviceId)}/approval`, zDeviceApproval),
     },
   });
+  const rotation = createVaultRotation({
+    devices,
+    vault,
+    api: {
+      vault: () => client.query('/api/vault', zVault),
+      items: (cursor) => client.query(`/api/vault/items${cursor === null ? '' : `?cursor=${id(cursor)}`}`, zVaultItems),
+      // The vault's own `seq`, the one `GET /api/vault` gave, not the store's.
+      rotate: ({ seq, ...body }) => client.command('POST', '/api/vault/rotations', { ...body, seq: BigInt(seq) }),
+    },
+  });
   return {
     linkKeys,
     vault,
@@ -61,6 +76,12 @@ export const createPageKeys = ({ store, client, userAgent, devices = createDevic
         store.setVaultState('locked');
         return 'locked';
       }
+    },
+    rotateVault: () => rotation.rotate(),
+    async forgetDevice() {
+      await devices.clearDevice();
+      setCurrentDevice(null);
+      await vault.unlockVault().catch(() => store.setVaultState('no-device'));
     },
   };
 };

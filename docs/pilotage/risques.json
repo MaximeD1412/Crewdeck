@@ -449,7 +449,7 @@
         {
           "texte": "Avertissement avant de révoquer le dernier détenteur de clé",
           "ref": "ADR 0003",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Inviter à approuver un second Appareil dès les Premiers pas",

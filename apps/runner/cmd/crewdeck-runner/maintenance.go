@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/accounts"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/mcp"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/service"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
@@ -103,6 +105,9 @@ func newUninstallCommand(m *machine) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()
+			if m.holdsTheOnlyKey(cmd.Context()) {
+				fmt.Fprintln(out, noTrustedAppareil)
+			}
 			if !yes {
 				fmt.Fprint(out, "Supprimer le Runner, ses clones et ~/.crewdeck ? (o/N) ")
 				if !accepted(cmd.InOrStdin()) {
@@ -115,6 +120,44 @@ func newUninstallCommand(m *machine) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&yes, "yes", false, "do not ask first")
 	return cmd
+}
+
+// noTrustedAppareil warns before an uninstall that leaves the Runner the only
+// holder of the vault key (risk OPS-1, E2E-4).
+const noTrustedAppareil = "Aucun Appareil de confiance : si tu réinstalles ensuite le Runner, le texte de tes Idées sera perdu."
+
+// uninstallVaultTimeout bounds the question uninstall asks the server.
+const uninstallVaultTimeout = 5 * time.Second
+
+// holdsTheOnlyKey: the server answers that the vault has no Appareil among
+// its holders. A Runner not linked, or a server that does not answer, says
+// nothing.
+func (m *machine) holdsTheOnlyKey(ctx context.Context) bool {
+	store, err := state.Default()
+	if err != nil {
+		return false
+	}
+	linked, err := store.Load()
+	if err != nil || m.vault == nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(ctx, uninstallVaultTimeout)
+	defer cancel()
+	vault, err := m.vault(ctx, linked)
+	if err != nil {
+		return false
+	}
+	for _, h := range vault.Holders {
+		if h.Type == contracts.RunnerVaultHoldersElemTypeDevice {
+			return false
+		}
+	}
+	return true
+}
+
+// serverVault reads GET /api/runner/vault with the Runner's token.
+func serverVault(ctx context.Context, linked state.State) (contracts.RunnerVault, error) {
+	return vaultAPI{http: &http.Client{Timeout: uninstallVaultTimeout}, server: linked.Server, token: linked.Token}.vault(ctx)
 }
 
 // accepted reads a yes (o, oui, y, yes); anything else is a no.

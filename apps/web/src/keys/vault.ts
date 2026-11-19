@@ -1,6 +1,6 @@
 import { vaultWrapAad, type VaultKeyWrap } from '@crewdeck/contracts';
 import { type Bytes, concat, fromBase64Url, utf8 } from './bytes.js';
-import { INFO, aesGcmOpen, aesGcmSeal, exportAesKey, generateAesKey, importAesKey, openWrap } from './crypto.js';
+import { INFO, aesGcmOpen, aesGcmSeal, constantTimeEqual as sameBytes, exportAesKey, generateAesKey, importAesKey, openWrap } from './crypto.js';
 import type { DeviceStore } from './device-store.js';
 
 /**
@@ -45,7 +45,8 @@ export interface Vault {
 
 /** An item key under the vault key is sealed under this label ‖ the item's additional data: it never opens as an item. */
 const ITEM_KEY_AAD = utf8('crewdeck/v1/item-key');
-const itemKeyAad = (aad: Uint8Array): Bytes => {
+/** The additional data of an item key under the vault key: the label ‖ the item's own (the rotation's too, E2E-4). */
+export const itemKeyAad = (aad: Uint8Array): Bytes => {
   // The item's own additional data binds it to its place (an Idée's id and field), as the Runner's.
   if (aad.length === 0) throw new Error('keys: the additional data is empty');
   return concat(ITEM_KEY_AAD, aad);
@@ -83,7 +84,7 @@ export const createVault = ({ devices, fetchWrap, onState }: VaultOptions): Vaul
     async unlockVault() {
       const device = await devices.getDevice();
       if (!device?.deviceId) return set('no-device');
-      const { deviceId, privateKey, publicKey, senderPublicKey } = device;
+      const { deviceId, privateKey, publicKey, senderPublicKey, runnerPublicKey } = device;
       let wrap: VaultKeyWrap;
       try {
         wrap = await fetchWrap(deviceId);
@@ -91,21 +92,29 @@ export const createVault = ({ devices, fetchWrap, onState }: VaultOptions): Vaul
         const code = codeOf(error);
         return set(code === 'devices.not-found' || code === 'devices.revoked' ? 'no-device' : 'locked');
       }
-      // The first Appareil wrapped the key for itself; an approved one keeps its approver's key (E2E-3).
-      const open = () =>
-        openWrap(
-          privateKey,
-          senderPublicKey ?? publicKey,
-          { enc: fromBase64Url(wrap.enc), ciphertext: fromBase64Url(wrap.ciphertext), tag: fromBase64Url(wrap.tag) },
-          INFO.vaultWrap,
-          utf8(vaultWrapAad(deviceId, wrap.vaultKeyVersion)),
-        );
-      let raw: Bytes;
-      try {
-        raw = await open();
-      } catch {
-        return set('locked');
+      // The keys this Appareil authenticated, the likeliest sender first: the
+      // first Appareil sealed its own wrap, an approved one holds its
+      // approver's (E2E-3), and after a rotation (E2E-4) the rotating holder
+      // was this Appareil itself or the Runner.
+      const senders = [senderPublicKey ?? publicKey, publicKey, runnerPublicKey].filter(
+        (key, index, keys): key is Bytes => key !== undefined && keys.findIndex((other) => other !== undefined && sameBytes(other, key)) === index,
+      );
+      const sealed = { enc: fromBase64Url(wrap.enc), ciphertext: fromBase64Url(wrap.ciphertext), tag: fromBase64Url(wrap.tag) };
+      const aad = utf8(vaultWrapAad(deviceId, wrap.vaultKeyVersion));
+      let raw: Bytes | null = null;
+      let sender: Bytes | null = null;
+      for (const candidate of senders) {
+        try {
+          raw = await openWrap(privateKey, candidate, sealed, INFO.vaultWrap, aad);
+          sender = candidate;
+          break;
+        } catch {
+          // Not this sender's: the next one.
+        }
       }
+      if (!raw || !sender) return set('locked');
+      const from = sender;
+      const open = () => openWrap(privateKey, from, sealed, INFO.vaultWrap, aad);
       const key = await importAesKey(raw);
       raw.fill(0);
       held = { key, version: wrap.vaultKeyVersion, open };

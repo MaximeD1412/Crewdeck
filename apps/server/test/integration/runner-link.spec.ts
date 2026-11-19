@@ -483,7 +483,7 @@ describe('linking a Runner against PostgreSQL', () => {
       expect((await state(alice)).devices.map((device) => device.id).sort()).toEqual([first.deviceId, otherKey.deviceId].sort());
     });
 
-    it('relinks from a trusted Appareil: the same vault key wrapped for the new Runner, its version unchanged', async () => {
+    it('relinks from a trusted Appareil: the same vault key wrapped for the new Runner, its version unchanged; the old Runner revoked loses its wrap, the rotation pending (E2E-4)', async () => {
       const alice = await pilot();
       const first = await link(alice);
 
@@ -492,9 +492,10 @@ describe('linking a Runner against PostgreSQL', () => {
       expect(second.code.deviceId).toBe(first.code.deviceId);
       expect(await wrapsOf(alice.id)).toEqual([
         { holder_type: 'device', holder_id: first.code.deviceId, vault_key_version: 1 },
-        { holder_type: 'runner', holder_id: first.runner.id, vault_key_version: 1 },
         { holder_type: 'runner', holder_id: second.runner.id, vault_key_version: 1 },
       ]);
+      const [pending] = await sql<{ vault_rotation_pending: boolean }>('SELECT vault_rotation_pending FROM pilots WHERE id = $1', [alice.id]);
+      expect(pending?.vault_rotation_pending).toBe(true);
       expect(second.status.pairing?.vaultKeyVersion).toBe(1);
       const [pilotRow] = await sql<{ vault_key_version: number }>('SELECT vault_key_version FROM pilots WHERE id = $1', [alice.id]);
       expect(pilotRow?.vault_key_version).toBe(1);

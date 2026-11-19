@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { DEVICE_NAME_MAX_LENGTH, zBytes32, zVaultKeyVersion, zWrap } from '../keys/pairing.js';
 import { zId, zInstant } from '../values.js';
+import { withSeq } from './commands.js';
 import { zShortId } from './runner-link.js';
 
 /**
@@ -137,3 +138,11 @@ export const zDeviceHolders = z.object({
   holders: z.array(z.object({ deviceId: zId, publicKey: zBytes32, approverPublicKey: zBytes32, wrap: zWrap })),
 });
 export type DeviceHolders = z.infer<typeof zDeviceHolders>;
+
+/**
+ * `POST /api/devices/:id/revoke` (session, E2E-4): the Appareil `revoked`, its
+ * wraps deleted and the vault's rotation pending, with the `seq` of its last
+ * `device.upserted`. The current Appareil may revoke itself.
+ */
+export const zRevokeDevice = withSeq(z.object({}));
+export type RevokeDevice = z.infer<typeof zRevokeDevice>;

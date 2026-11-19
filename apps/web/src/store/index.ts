@@ -19,6 +19,7 @@ store.registerSlice('runner-link', { shape: 'single' });
 store.registerSlice('ai-account', { shape: 'collection' });
 store.registerSlice('mcp-server', { shape: 'collection' });
 store.registerSlice('device', { shape: 'collection', snapshotKey: 'devices' });
+store.registerSlice('vault', { shape: 'single' });
 store.registerSlice('project', { shape: 'collection', snapshotKey: 'projects' });
 store.registerSlice('process', { shape: 'collection', snapshotKey: 'processes' });
 // As `GET /api/state`: the unfinished PhaseRuns and their StepRuns, a finished one dropped with its StepRuns (PROCESS-4).

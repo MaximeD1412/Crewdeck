@@ -216,7 +216,7 @@ func callServer(ctx context.Context, client *http.Client, server, token, method,
 	if err != nil {
 		return err
 	}
-	if response.StatusCode == http.StatusOK {
+	if response.StatusCode >= 200 && response.StatusCode < 300 {
 		if into == nil {
 			return nil
 		}
@@ -225,9 +225,20 @@ func callServer(ctx context.Context, client *http.Client, server, token, method,
 		}
 		return nil
 	}
+	refused := &serverError{Status: response.StatusCode, Message: fmt.Sprintf("Le serveur a répondu %d.", response.StatusCode)}
 	var envelope contracts.ErrorEnvelope
-	if err := json.Unmarshal(data, &envelope); err != nil || envelope.Message == "" {
-		return fmt.Errorf("Le serveur a répondu %d.", response.StatusCode)
+	if err := json.Unmarshal(data, &envelope); err == nil && envelope.Message != "" {
+		refused.Code, refused.Message = envelope.Code, envelope.Message
 	}
-	return errors.New(envelope.Message)
+	return refused
 }
+
+// serverError is a refusal of the server: its status, the code of its
+// envelope, and its message, what the Runner says.
+type serverError struct {
+	Status  int
+	Code    string
+	Message string
+}
+
+func (e *serverError) Error() string { return e.Message }

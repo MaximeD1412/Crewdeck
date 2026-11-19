@@ -43,6 +43,7 @@ import { Public } from '../scope/public.decorator.js';
 import { DeviceApprovals } from './device-approvals.service.js';
 import { deviceIdOf, Devices } from './devices.service.js';
 import { type RunnerRequest, RunnerTokenGuard } from './runner-token.guard.js';
+import { NotRevokedDeviceGuard } from './trusted-device.guard.js';
 
 export class DeviceListDto extends createZodDto(zDeviceList) {}
 export class VaultKeyWrapDto extends createZodDto(zVaultKeyWrap) {}
@@ -101,6 +102,7 @@ export class DevicesController {
   }
 
   @Get(':id/vault-key-wrap')
+  @UseGuards(NotRevokedDeviceGuard)
   @ZodResponse({ status: 200, description: 'The Appareil’s wrap of the current vault key.', type: VaultKeyWrapDto })
   vaultKeyWrap(@Param('id') id: string): Promise<VaultKeyWrap> {
     return this.devices.vaultKeyWrap(id);

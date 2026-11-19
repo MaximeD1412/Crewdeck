@@ -21,7 +21,7 @@ import { drawShortId, newId } from '../ids.js';
 import { EventsWriter } from '../realtime/events.writer.js';
 import { Transactions, type Tx } from '../realtime/transactions.js';
 import { DeviceClock } from './device-clock.js';
-import { bytesOf, DEVICE_VIEW, textOf, toDevice, wrapColumns, wrapOf } from './device.view.js';
+import { bytesOf, DEVICE_VIEW, textOf, toDevice, wrapColumns, wrapOf, writeDeviceUpserted } from './device.view.js';
 import { deviceNotTrusted, deviceUnknown } from './devices.service.js';
 
 const SHORT_ID_TRIES = 5;
@@ -83,7 +83,7 @@ export class DeviceApprovals {
             },
             select: { ...DEVICE_VIEW, shortId: true, expiresAt: true },
           });
-          await this.events.write(tx, pilotId, 'device.upserted', toDevice(row));
+          await writeDeviceUpserted(this.events, tx, pilotId, toDevice(row));
           return { id: row.id, shortId: row.shortId ?? '', expiresAt: row.expiresAt?.toISOString() ?? '' };
         });
       } catch (error) {
@@ -149,7 +149,7 @@ export class DeviceApprovals {
       });
       const row = await tx.device.findUniqueOrThrow({ where: { id: parsed.data }, select: DEVICE_VIEW });
       const approved = toDevice(row);
-      await this.events.write(tx, pilotId, 'device.upserted', approved);
+      await writeDeviceUpserted(this.events, tx, pilotId, approved);
       return approved;
     });
   }

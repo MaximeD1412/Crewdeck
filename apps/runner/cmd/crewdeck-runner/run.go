@@ -50,10 +50,12 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		return err
 	}
 	// The vault opens at start: a Runner that cannot open it does not run.
-	vault, err := openVault(store)
+	opened, err := openVault(store)
 	if err != nil {
 		return err
 	}
+	// The vault held, swapped by a rotation (E2E-4).
+	vault := newHeldVault(opened)
 	if server != "" {
 		linked.Server = server
 	}
@@ -67,7 +69,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		return err
 	}
 	logger := logging.New(cmd.ErrOrStderr())
-	logger.Info("vault.opened", "vaultKeyVersion", vault.Version)
+	logger.Info("vault.opened", "vaultKeyVersion", opened.Version)
 	// The holders of the Sessions' keys, read again from the server at each wrap.
 	relay, err := relayKeys(store, serverHolders(&http.Client{Timeout: holdersTimeout}, linked.Server, linked.Token), func(err error) {
 		logger.Warn("session.holders", "error", err)
@@ -89,6 +91,9 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	}
 	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// The vault key's rotation (E2E-4): the Runner rotates when it is the
+	// first holder online, and takes the new version a holder rotated to.
+	rotations := &rotator{store: store, held: vault, api: vaultAPI{http: &http.Client{Timeout: vaultTimeout}, server: linked.Server, token: linked.Token}, logger: logger}
 	// The Miroir (ADR 0010): the copy of the Projets' GitHub, its follower its
 	// only writer, fed by the server's envelopes on each connection.
 	follower, closeMirror, err := followMirror(ctx, logger)
@@ -199,7 +204,8 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 				report(ctx)
 				reporter.FlushUsage(ctx)
 			},
-			Sessions: sessions.Hello,
+			Sessions:   sessions.Hello,
+			OnAccepted: rotations.accepted(ctx),
 		})
 		// A spend is forgotten once stored (usage.ack), not once written.
 		protocol.On(client, protocol.TypeUsageAck, func(_ context.Context, ack contracts.RunnerUsageAck) error {
@@ -208,6 +214,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		})
 		sessions.Register(client)
 		commands.Register(client)
+		rotations.register(ctx, client)
 		current.Store(client)
 		err := client.Run(ctx)
 		var required *protocol.UpdateRequiredError

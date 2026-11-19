@@ -78,6 +78,10 @@ export const MESSAGES = {
   'ticket.cursor-invalid': 'Ce curseur ne vient pas de la liste des Tickets.',
   'ticket.not-found': 'Ce Ticket n’existe pas.',
   'validation.invalid': 'Certaines valeurs ne sont pas valides.',
+  'vault.cursor-invalid': 'Ce curseur ne vient pas de la liste des clés du coffre.',
+  'vault.holders-missing': 'Cette rotation ne chiffre pas la nouvelle clé pour chaque détenteur actuel : relis le coffre et recommence.',
+  'vault.items-missing': 'Cette rotation ne rechiffre pas chaque élément du coffre : relis le coffre et recommence.',
+  'vault.version-changed': 'La clé du coffre a déjà changé : relis le coffre avant de recommencer.',
 } as const satisfies Record<string, string>;
 
 export type MessageCode = keyof typeof MESSAGES;

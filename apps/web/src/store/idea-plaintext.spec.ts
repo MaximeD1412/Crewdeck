@@ -50,6 +50,16 @@ describe('createIdeaPlaintext', () => {
     expect(plaintext.text(moved)).toEqual({ status: 'unreadable' });
   });
 
+  it('opens again a text whose item key was rewrapped, its ciphertext the same (the vault key rotated, E2E-4)', async () => {
+    const { plaintext, vault, changed } = setup();
+    plaintext.text({ id: ID, text: sealedOf('Même texte') });
+    await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+    const rewrapped = { id: ID, text: { ...sealedOf('Même texte'), key: toBase64Url(utf8('new key')) } };
+    expect(plaintext.text(rewrapped)).toEqual({ status: 'opening' });
+    await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(2));
+    expect(vault.openItem).toHaveBeenCalledTimes(2);
+  });
+
   it('opens again a text whose ciphertext changed', async () => {
     const { plaintext, changed } = setup();
     plaintext.text({ id: ID, text: sealedOf('Avant') });

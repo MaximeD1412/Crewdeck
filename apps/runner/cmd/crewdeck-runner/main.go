@@ -15,6 +15,7 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/engine"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/service"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -36,6 +37,8 @@ type machine struct {
 	engines func(context.Context) []contracts.EngineCapabilities
 	// restart starts the Runner again on the build at binary, once updated.
 	restart func(ctx context.Context, binary string) error
+	// vault reads the vault's holders from the server the Runner is linked to.
+	vault func(ctx context.Context, linked state.State) (contracts.RunnerVault, error)
 }
 
 // adapters are the Moteurs' adapters the Runner registers.
@@ -64,6 +67,7 @@ func thisMachine() *machine {
 		engines: func(ctx context.Context) []contracts.EngineCapabilities {
 			return capabilities(ctx, adapters, exec.LookPath)
 		},
+		vault: serverVault,
 	}
 	m.restart = m.restartOn
 	return m

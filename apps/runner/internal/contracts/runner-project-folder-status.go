@@ -6,6 +6,7 @@ import "encoding/json"
 import "fmt"
 import "regexp"
 import "time"
+import "unicode/utf8"
 
 type RunnerProjectFolderStatus struct {
 	// At corresponds to the JSON schema field "at".
@@ -14,8 +15,14 @@ type RunnerProjectFolderStatus struct {
 	// Id corresponds to the JSON schema field "id".
 	Id string `json:"id"`
 
+	// IntegrationBranch corresponds to the JSON schema field "integrationBranch".
+	IntegrationBranch string `json:"integrationBranch"`
+
 	// ProjectId corresponds to the JSON schema field "projectId".
 	ProjectId string `json:"projectId"`
+
+	// ReleaseBranch corresponds to the JSON schema field "releaseBranch".
+	ReleaseBranch string `json:"releaseBranch"`
 
 	// Type corresponds to the JSON schema field "type".
 	Type string `json:"type"`
@@ -33,8 +40,14 @@ func (j *RunnerProjectFolderStatus) UnmarshalJSON(value []byte) error {
 	if _, ok := raw["id"]; raw != nil && !ok {
 		return fmt.Errorf("field id in RunnerProjectFolderStatus: required")
 	}
+	if _, ok := raw["integrationBranch"]; raw != nil && !ok {
+		return fmt.Errorf("field integrationBranch in RunnerProjectFolderStatus: required")
+	}
 	if _, ok := raw["projectId"]; raw != nil && !ok {
 		return fmt.Errorf("field projectId in RunnerProjectFolderStatus: required")
+	}
+	if _, ok := raw["releaseBranch"]; raw != nil && !ok {
+		return fmt.Errorf("field releaseBranch in RunnerProjectFolderStatus: required")
 	}
 	if _, ok := raw["type"]; raw != nil && !ok {
 		return fmt.Errorf("field type in RunnerProjectFolderStatus: required")
@@ -47,8 +60,20 @@ func (j *RunnerProjectFolderStatus) UnmarshalJSON(value []byte) error {
 	if matched, _ := regexp.MatchString(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`, string(plain.Id)); !matched {
 		return fmt.Errorf("field %s pattern match: must match %s", "Id", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
 	}
+	if utf8.RuneCountInString(string(plain.IntegrationBranch)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "integrationBranch", 1)
+	}
+	if utf8.RuneCountInString(string(plain.IntegrationBranch)) > 255 {
+		return fmt.Errorf("field %s length: must be <= %d", "integrationBranch", 255)
+	}
 	if matched, _ := regexp.MatchString(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`, string(plain.ProjectId)); !matched {
 		return fmt.Errorf("field %s pattern match: must match %s", "ProjectId", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
+	}
+	if utf8.RuneCountInString(string(plain.ReleaseBranch)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "releaseBranch", 1)
+	}
+	if utf8.RuneCountInString(string(plain.ReleaseBranch)) > 255 {
+		return fmt.Errorf("field %s length: must be <= %d", "releaseBranch", 255)
 	}
 	if plain.Type != "project.folder.status" {
 		return fmt.Errorf("field %s: must be equal to %s", "type", "project.folder.status")

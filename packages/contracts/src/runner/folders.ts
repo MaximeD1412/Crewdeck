@@ -65,14 +65,15 @@ export type TabFolderServerMessage = z.infer<typeof zTabFolderServerMessage>;
  * - Runner → server: `project.folder.state` (after each status and each prepare), `project.folder.prepared`.
  */
 
-/** Server → Runner: say where the Projet's folder stands (`project.folder.state`). */
-export const zProjectFolderStatus = runnerMessage('project.folder.status', { projectId: zId });
+const zBranchName = z.string().min(1).max(255);
+const branchesShape = { releaseBranch: zBranchName, integrationBranch: zBranchName };
+
+/** Server → Runner: say where the Projet's folder stands (`project.folder.state`), its branches by these names. */
+export const zProjectFolderStatus = runnerMessage('project.folder.status', { projectId: zId, ...branchesShape });
 export type ProjectFolderStatus = z.infer<typeof zProjectFolderStatus>;
 
-const zBranchName = z.string().min(1).max(255);
-
 /** Server → Runner: prepare the Projet's folder, from its release and its integration branches; answered by `project.folder.prepared` for `requestId`. */
-export const zProjectFolderPrepare = runnerMessage('project.folder.prepare', { requestId: zId, projectId: zId, releaseBranch: zBranchName, integrationBranch: zBranchName });
+export const zProjectFolderPrepare = runnerMessage('project.folder.prepare', { requestId: zId, projectId: zId, ...branchesShape });
 export type ProjectFolderPrepare = z.infer<typeof zProjectFolderPrepare>;
 
 /**

@@ -69,7 +69,7 @@ export class LocalChangedHandler implements OnModuleInit {
     const codeLocal = !(await this.sources.isGithub(projectId, 'code'));
     const items = sorted(message);
     const dropped = (ticketsLocal ? 0 : items.tickets.length + items.ticketsRemoved.length + items.milestones.length + items.milestonesRemoved.length + message.unreadable.length) + (codeLocal ? 0 : items.changes.length);
-    if (dropped > 0) this.logger.info({ projectId, dropped, ticketsLocal, codeLocal }, 'local items of a group on GitHub dropped');
+    if (dropped > 0) this.logger.info({ projectId, dropped, ticketsLocal, codeLocal }, 'local.not-local');
 
     await this.transactions.run(async (tx) => {
       await this.events.lock(tx, pilotId);

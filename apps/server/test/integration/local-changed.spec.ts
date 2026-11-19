@@ -305,6 +305,8 @@ describe('a Local Projet’s folder followed, against PostgreSQL', () => {
     expect(await tickets(projectId)).toEqual([]);
     expect(await sql('SELECT number FROM milestones WHERE project_id = $1', [projectId])).toEqual([]);
     expect(await openUnreadable(alice)).toEqual([]);
+    const dropped = lines.filter((line) => line.includes('local.not-local')).map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(dropped).toEqual([expect.objectContaining({ projectId, dropped: 3, ticketsLocal: false, codeLocal: true })]);
   });
 
   it('raises « Fichier de Ticket illisible » once per unreadable file, its path sealed, and resolves it once the file reads', async () => {

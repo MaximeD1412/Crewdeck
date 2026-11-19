@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { DecisionsModule } from '../decisions/decisions.module.js';
 import { ProjectsModule } from '../projects/projects.module.js';
 import { RunnersModule } from '../runners/runners.module.js';
-import { LocalChangedHandler } from './local/local-changed.js';
+import { LocalChangedHandler } from './local/local-changed.handler.js';
 import { TicketActivity } from './ticket-activity.js';
 import { TicketsController } from './tickets.controller.js';
 import { TicketsQueue } from './tickets.queue.js';

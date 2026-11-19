@@ -24,6 +24,8 @@ func TestEveryFixtureOfTheProtocolDecodesIntoItsGeneratedType(t *testing.T) {
 		TypeHeartbeatAck:         decodeInto[contracts.RunnerHeartbeatAck],
 		TypeError:                decodeInto[contracts.RunnerError],
 		TypeStepVerdict:          decodeInto[contracts.RunnerStepVerdict],
+		TypeStepStarted:          decodeInto[contracts.RunnerStepStarted],
+		TypeStepReport:           decodeInto[contracts.RunnerStepReport],
 		TypeCapabilities:         decodeInto[contracts.RunnerCapabilities],
 		TypeMcpServers:           decodeInto[contracts.RunnerMcpServers],
 		TypeGitHubChanged:        decodeInto[contracts.RunnerGithubChanged],

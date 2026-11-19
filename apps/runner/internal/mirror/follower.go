@@ -60,6 +60,12 @@ type FollowerConfig struct {
 	Clock Clock
 	// Backoff defaults to FollowBackoff.
 	Backoff protocol.Backoff
+	// Locals are the Local Projets' Sources (SOURCE-2); nil: no Local key is filled.
+	Locals LocalSources
+	// Folders are the Local Projets' folders in the Runner's state (projectId → path).
+	Folders func() map[string]string
+	// Vault opens a Local Projet's sealed name; nil: its key names it.
+	Vault func() NameOpener
 }
 
 // Follower keeps the copy live from the server's envelopes (ADR 0010,
@@ -77,6 +83,8 @@ type FollowerConfig struct {
 type Follower struct {
 	store   *Store
 	mirror  *Mirror
+	folders func() map[string]string
+	vault   func() NameOpener
 	logger  *slog.Logger
 	clock   Clock
 	backoff protocol.Backoff
@@ -165,6 +173,8 @@ func NewFollower(cfg FollowerConfig) (*Follower, error) {
 	}
 	f := &Follower{
 		store:     cfg.Store,
+		folders:   cfg.Folders,
+		vault:     cfg.Vault,
 		logger:    cfg.Logger,
 		clock:     cfg.Clock,
 		backoff:   cfg.Backoff,
@@ -181,7 +191,7 @@ func NewFollower(cfg FollowerConfig) (*Follower, error) {
 	if cfg.GitHub.Now == nil {
 		cfg.GitHub.Now = f.clock.Now
 	}
-	f.mirror = &Mirror{Store: cfg.Store, GitHub: cfg.GitHub, Logger: f.logger, Now: f.clock.Now}
+	f.mirror = &Mirror{Store: cfg.Store, GitHub: cfg.GitHub, Locals: cfg.Locals, Logger: f.logger, Now: f.clock.Now}
 	cursor, err := cfg.Store.Cursor()
 	if err != nil {
 		return nil, err
@@ -327,13 +337,17 @@ func (f *Follower) closed() {
 // unfilled and gets its reconciliation; one no longer a Projet stops, its
 // rows deleted and its queued envelopes counted as applied. Then the tokens.
 func (f *Follower) projectsChanged(_ context.Context, m contracts.RunnerMirrorProjects) error {
-	projects := make([]Project, 0, len(m.Projects))
+	var folders map[string]string
+	if f.folders != nil {
+		folders = f.folders()
+	}
+	var vault NameOpener
+	if f.vault != nil {
+		vault = f.vault()
+	}
+	projects := ProjectsOf(m.Projects, folders, vault)
 	kept := map[string]bool{}
-	for _, p := range m.Projects {
-		projects = append(projects, Project{
-			Repository: p.Repository, ProjectID: p.ProjectId, GitHubRepoID: int64(p.GithubRepoId),
-			InstallationID: int64(p.InstallationId), DisplayName: p.DisplayName, IntegrationBranch: p.IntegrationBranch,
-		})
+	for _, p := range projects {
 		kept[key(p.Repository)] = true
 	}
 	f.mu.Lock()
@@ -371,6 +385,11 @@ func (f *Follower) projectsChanged(_ context.Context, m contracts.RunnerMirrorPr
 	for _, p := range projects {
 		if current, ok := f.projects[key(p.Repository)]; ok {
 			current.project = p
+			if p.Source == SourceLocal {
+				// Its Source may have moved its folder or its groups: read again.
+				current.wanted++
+				wake(current)
+			}
 			continue
 		}
 		added := newFollowed(p, marks[p.Repository])
@@ -448,6 +467,9 @@ func (f *Follower) resynced(context.Context, contracts.RunnerMirrorResync) error
 	f.ahead = map[int64]bool{}
 	r := &resync{need: map[string]uint64{}}
 	for k, p := range f.projects {
+		if p.project.Source == SourceLocal {
+			continue // no envelope names a Local key
+		}
 		p.queue = nil
 		p.wanted++
 		r.need[k] = p.wanted
@@ -623,8 +645,9 @@ type job struct {
 func (f *Follower) next(p *followed) (job, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	local := p.project.Source == SourceLocal
 	switch {
-	case !f.tokensReady:
+	case !f.tokensReady && !local: // a Local key never waits on a network
 		return job{}, false
 	case p.done < p.wanted:
 		return job{repository: p.project.Repository, reconcile: true, generation: p.wanted}, true
@@ -703,6 +726,9 @@ func acquire(ctx context.Context, slots chan struct{}) bool {
 
 // reconcileProject runs p's reconciliation, one Projet at a time.
 func (f *Follower) reconcileProject(ctx context.Context, p *followed, repository string, generation uint64) error {
+	if IsLocal(repository) {
+		return f.reconcileLocal(ctx, p, repository, generation)
+	}
 	if !acquire(ctx, f.reconcile) {
 		return ctx.Err()
 	}
@@ -727,6 +753,27 @@ func (f *Follower) reconcileProject(ctx context.Context, p *followed, repository
 	p.done, p.filled, p.synced = max(p.done, generation), m.filled, m.synced
 	f.mu.Unlock()
 	return f.finishResync()
+}
+
+// reconcileLocal reads a Local key's whole Source: its folder is on the disk,
+// it never holds a GitHub reconciliation's turn.
+func (f *Follower) reconcileLocal(ctx context.Context, p *followed, repository string, generation uint64) error {
+	_, err := f.mirror.ReconcileLocal(ctx, repository)
+	if err != nil {
+		if ctx.Err() == nil {
+			f.logger.Warn("mirror local reconcile failed", "repository", repository, "class", errorClass(err), "error", err.Error())
+		}
+		return err
+	}
+	marks, err := f.store.marks()
+	if err != nil {
+		return err
+	}
+	f.mu.Lock()
+	m := marks[repository]
+	p.done, p.filled, p.synced = max(p.done, generation), m.filled, m.synced
+	f.mu.Unlock()
+	return nil
 }
 
 // apply fetches what the envelope c names and commits it with the cursor.

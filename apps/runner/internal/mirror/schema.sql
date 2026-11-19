@@ -2,7 +2,8 @@
 -- Written only from what GitHub answers; enums as GitHub's GraphQL spells
 -- them (OPEN, MERGED, NOT_PLANNED, CONFLICTING…), as `gh --json` prints them;
 -- dates as GitHub gives them (ISO 8601, UTC), null when GitHub has none.
--- A `repository` is `<owner>/<name>`.
+-- A `repository` is a key of `projects`: `<owner>/<name>`, or
+-- `local/<projectId>` for a Local Projet's Tickets and changes (ADR 0012).
 
 -- The Runner's own values: `mirror_after`, the last github_changes.seq applied.
 CREATE TABLE meta (
@@ -10,14 +11,20 @@ CREATE TABLE meta (
   value TEXT NOT NULL
 );
 
--- The Pilote's Projets, as the server names them (mirror.projects).
+-- The copy's keys (MIROIR-6): one per place a Projet's groups live, as the
+-- server names the Projets (mirror.projects). A GitHub key is the repository
+-- `<owner>/<name>`, a Local one `local/<projectId>`; a Projet with its Tickets
+-- on one Source and its code on the other has two keys.
 CREATE TABLE projects (
   repository         TEXT PRIMARY KEY,
   project_id         TEXT NOT NULL,
-  github_repo_id     INTEGER NOT NULL,
-  installation_id    INTEGER NOT NULL,
-  display_name       TEXT NOT NULL,
+  source             TEXT NOT NULL, -- github, local
+  groups             TEXT NOT NULL, -- ticket, code, ticket,code
+  github_repo_id     INTEGER,       -- null for a Local key
+  installation_id    INTEGER,       -- null for a Local key
+  display_name       TEXT NOT NULL, -- a Local key's opened on the Runner, never sent back
   integration_branch TEXT NOT NULL,
+  folder             TEXT,          -- a Local key's folder, from the Runner's state
   filled_at          TEXT, -- the end of its first complete reconciliation
   synced_at          TEXT  -- its last applied envelope or reconciliation
 );

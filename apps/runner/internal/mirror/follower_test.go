@@ -253,7 +253,8 @@ func mirrorProjects(projects ...Project) any {
 	list := []any{}
 	for _, p := range projects {
 		list = append(list, map[string]any{"projectId": p.ProjectID, "repository": p.Repository, "githubRepoId": p.GitHubRepoID,
-			"installationId": p.InstallationID, "displayName": p.DisplayName, "integrationBranch": p.IntegrationBranch})
+			"installationId": p.InstallationID, "displayName": p.DisplayName, "integrationBranch": p.IntegrationBranch,
+			"sources": map[string]any{"ticket": "github", "code": "github"}, "nameSealed": nil})
 	}
 	return stamp(protocol.TypeMirrorProjects, map[string]any{"projects": list})
 }

@@ -73,6 +73,7 @@ type Project struct {
 	folder string
 
 	mu         sync.Mutex
+	clone      string // the Runner's clone of the folder, "" when unknown
 	listeners  []func(source.Changed)
 	milestones *string // milestones.yml as last seen; nil before the first scan
 }
@@ -95,6 +96,14 @@ func (p *Project) ID() string { return p.id }
 
 // Folder is the Projet's folder.
 func (p *Project) Folder() string { return p.folder }
+
+// SetClone names the Runner's clone of the folder (Origin.Dir), where a
+// change's branch is read first: a Session commits there before it pushes.
+func (p *Project) SetClone(dir string) {
+	p.mu.Lock()
+	p.clone = dir
+	p.mu.Unlock()
+}
 
 // OnChange registers fn, called after every write and every change a scan
 // finds (SOURCE-3 reports them to the server), outside the Projet's lock.
@@ -306,7 +315,7 @@ func (p *Project) record(ctx context.Context, tx *sql.Tx, f file, milestones []s
 	ticket := source.Ticket{
 		Number: f.file.Number, Title: f.file.Title, Body: f.file.Body, State: f.file.State, StateReason: f.file.StateReason,
 		Ready: f.file.Ready, Labels: nonNil(f.file.Labels), BlockedBy: nonNil(f.file.BlockedBy), Parent: f.file.Parent,
-		CreatedAt: parseTime(created), UpdatedAt: updated,
+		CreatedAt: parseTime(created), UpdatedAt: updated, URL: fileURL(filepath.Join(p.folder, filepath.FromSlash(f.path))),
 	}
 	if closedAt.Valid {
 		t := parseTime(closedAt.String)

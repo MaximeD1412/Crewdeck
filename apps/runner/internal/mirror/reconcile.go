@@ -22,6 +22,8 @@ var ErrNotAProject = errors.New("mirror: not a Projet of the copy")
 type Mirror struct {
 	Store  *Store
 	GitHub *Client
+	// Locals are the Local Projets' Sources, for the Local keys (MIROIR-6).
+	Locals LocalSources
 	Logger *slog.Logger
 	// Now is time.Now unless a test fixes it.
 	Now func() time.Time

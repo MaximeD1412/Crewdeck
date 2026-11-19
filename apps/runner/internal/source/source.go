@@ -51,6 +51,8 @@ type Ticket struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	ClosedAt    *time.Time
+	// URL is where the Ticket is: its issue's page, its file's file:// URL.
+	URL string
 }
 
 // Comment is a Ticket's comment.
@@ -126,6 +128,19 @@ type Check struct {
 	Conclusion string
 }
 
+// Commit is a commit of a change.
+type Commit struct {
+	Oid     string
+	Message string // the whole message: its headline, a blank line, its body
+}
+
+// History is a change's branch as it is now: its head and its commits from
+// its base, oldest first.
+type History struct {
+	HeadOid string
+	Commits []Commit
+}
+
 // ErrNotFound: no Ticket, or no change, of that number.
 var ErrNotFound = errors.New("source: not found")
 
@@ -142,6 +157,8 @@ type Reader interface {
 	Change(ctx context.Context, number int) (Change, error)
 	Reviews(ctx context.Context, number int) ([]Review, error)
 	Checks(ctx context.Context, sha string) ([]Check, error)
+	// History is the change's branch now (MIROIR-6's headRefOid and commits).
+	History(ctx context.Context, number int) (History, error)
 }
 
 // NewTicket is a Ticket to create.

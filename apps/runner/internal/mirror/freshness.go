@@ -36,6 +36,9 @@ func (f *Follower) State(repository string) (Freshness, error) {
 	switch {
 	case !p.filled:
 		state = FreshnessFilling
+	case p.project.Source == SourceLocal:
+		// Its Source is the disk: live once filled, while the Runner runs.
+		state = FreshnessLive
 	case f.connected && f.live && f.resync == nil && len(p.queue) == 0:
 		state = FreshnessLive
 	}

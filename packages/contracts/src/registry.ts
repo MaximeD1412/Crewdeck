@@ -18,7 +18,7 @@ import { zSessionAnswered, zSessionResume, zSessionStart, zSessionStateMessage, 
 import { zSessionInputPayload } from './runner/inputs.js';
 import { zOriginUnion } from './runner/origin.js';
 import { zRelay, zSessionInput, zSessionKeys, zSessionReplay } from './runner/relay.js';
-import { zStepVerdict } from './runner/step.js';
+import { zStepReport, zStepStarted, zStepVerdict } from './runner/step.js';
 import { zLocalChanged, zLocalItemUnion } from './runner/local.js';
 import { zCommandKeys, zCommandOutput, zCommandOutputChunk, zCommandReplay, zCommandRun, zCommandStarted, zCommandStop, zCommandVerdict } from './runner/command.js';
 import { zProcessSealedPayload } from './process/definition.js';
@@ -51,6 +51,8 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-heartbeat', schema: zHeartbeat },
   { name: 'runner-heartbeat-ack', schema: zHeartbeatAck },
   { name: 'runner-error', schema: zProtocolError },
+  { name: 'runner-step-started', schema: zStepStarted },
+  { name: 'runner-step-report', schema: zStepReport },
   { name: 'runner-step-verdict', schema: zStepVerdict },
   { name: 'runner-capabilities', schema: zCapabilities },
   { name: 'runner-mcp-servers', schema: zMcpServers },

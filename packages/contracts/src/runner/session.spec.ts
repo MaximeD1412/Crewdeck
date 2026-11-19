@@ -23,6 +23,29 @@ describe('the Sessions of the Runner protocol', () => {
     expect(zSessionStart.safeParse({ ...start, step: { stepRunId: start.sessionId, stepKind: 'deploy' } }).success).toBe(false);
   });
 
+  it('carries the StepRun’s Skill, Contrat and Entrées as references only, an absent Entrée as null', () => {
+    const start = fixture<{ step: { inputs: Record<string, unknown>[] } & Record<string, unknown> }>('session.start');
+    const { step } = zSessionStart.parse(start);
+    expect(step).toMatchObject({ skill: 'code', contractId: null });
+    expect(step?.inputs.map((input) => input.ref)).toEqual([{ id: '12', number: 12 }, { id: 'docs/conception.md', sha: '4b825dc642cb6eb9a060e54bf8d69288fbee4904' }, null]);
+    expect(zSessionStart.safeParse({ ...start, step: { ...start.step, skill: 'Code Review' } }).success).toBe(false);
+    expect(zSessionStart.safeParse({ ...start, step: { ...start.step, inputs: [{ portId: 'ticket', type: 'ticket', ref: { id: '12', body: 'le texte' } }] } }).success).toBe(true);
+    expect(zSessionStart.parse({ ...start, step: { ...start.step, inputs: [{ portId: 'ticket', type: 'ticket', ref: { id: '12', body: 'le texte' } }] } }).step?.inputs[0]?.ref).toEqual({ id: '12' });
+    expect(zSessionStart.safeParse({ ...start, step: { ...start.step, inputs: [{ portId: 'ticket', type: 'ticket' }] } }).success).toBe(false);
+    const withoutContract = { ...start.step };
+    delete withoutContract.contractId;
+    expect(zSessionStart.safeParse({ ...start, step: withoutContract }).success).toBe(false);
+  });
+
+  it('names the Serveurs MCP of the Étape, none as []', () => {
+    const start = fixture('session.start');
+    expect(zSessionStart.parse(start).mcpServers).toEqual(['stitch', 'figma']);
+    expect(zSessionStart.parse({ ...start, mcpServers: [] }).mcpServers).toEqual([]);
+    const withoutThem = { ...start };
+    delete withoutThem.mcpServers;
+    expect(zSessionStart.safeParse(withoutThem).success).toBe(false);
+  });
+
   it('carries the Projet’s worktree Commandes sealed as stored, or null when the Pilote set neither, never in the clear', () => {
     const start = fixture('session.start');
     expect(zSessionStart.parse(start).worktreeCommands).toEqual(start.worktreeCommands);

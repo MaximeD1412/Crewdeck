@@ -5,11 +5,14 @@ import {
   OFFLINE_AFTER_SECONDS,
   PROTOCOL_VERSION,
   RUNNER_WS_CLOSE,
+  STEP_REPORT_FIGURES_MAX,
+  stepReportAad,
   zHello,
   zHelloRejected,
   zMcpServers,
   zRunnerToServer,
   zServerToRunner,
+  zStepReport,
 } from '../index.js';
 
 const FIXTURES = join(import.meta.dirname, '../../fixtures/runner');
@@ -80,6 +83,21 @@ describe('the Runner protocol', () => {
     delete withoutStepRun.stepRunId;
     expect(zRunnerToServer.safeParse(withoutStepRun).success).toBe(false);
     expect(zRunnerToServer.safeParse({ ...message, verdict: { ...message.verdict, status: 'failed' } }).success).toBe(false);
+  });
+
+  it('sends step.started and step.report to the server, the report’s free text only sealed', () => {
+    for (const type of ['step.started', 'step.report']) {
+      expect(zRunnerToServer.parse(fixture(type))).toEqual(fixture(type));
+      expect(zServerToRunner.safeParse(fixture(type)).success).toBe(false);
+    }
+    const report = fixture('step.report') as Record<string, unknown>;
+    const withoutSealed = { ...report };
+    delete withoutSealed.sealed;
+    expect(zStepReport.parse(withoutSealed).sealed).toBeUndefined();
+    expect(zStepReport.safeParse({ ...report, sealed: 'du texte en clair' }).success).toBe(false);
+    expect(zStepReport.safeParse({ ...report, figures: [1, 2] }).success).toBe(false);
+    expect(zStepReport.safeParse({ ...report, figures: { text: 'x'.repeat(STEP_REPORT_FIGURES_MAX) } }).success).toBe(false);
+    expect(stepReportAad('019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a41')).toBe('step.report:019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a41');
   });
 
   it('refuses an mcp.servers with a name outside the regex, an unknown transport, or more than 100 servers', () => {

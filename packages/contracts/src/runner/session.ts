@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { zStepId } from '../contrats/define.js';
+import { zSha } from '../github/index.js';
 import { zSealedItem } from '../keys/sealed.js';
+import { zArtifactType } from '../process/artifact-types.js';
+import { zProcessId } from '../process/definition.js';
 import { AGENT_ROLES, zId } from '../values.js';
 import { ENGINE_IDS } from './engines.js';
 import { runnerMessage } from './envelope.js';
@@ -36,12 +39,43 @@ export const SESSION_PERMISSION_MODES = ['auto', 'bypass'] as const;
 export const zSessionPermissionMode = z.enum(SESSION_PERMISSION_MODES);
 export type SessionPermissionMode = z.infer<typeof zSessionPermissionMode>;
 
+/** A Skill's id: the folder of `apps/runner/skills/` the Runner mounts (`code`, `product-design`). */
+export const zSkillId = z.string().min(1).max(60).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+
 /**
- * The Étape a Session runs: the Runner builds its first message from its
- * embedded template for the StepRun (RUNNER-12 completes it). A Session
- * without one starts with no message (the Pilote writes first).
+ * An Artefact an Entrée of the StepRun took, by reference only (ADR 0003,
+ * ADR 0011): its `id` (an Idée's or a Ticket's id, a document's path, a
+ * change's number), its `number` when the id is one (a Ticket, a change of
+ * code), its SHA when it lives in git. The Skill reads its content through
+ * the Miroir; `ref: null` is the Entrée « absente », which the Skill and the
+ * Contrat say the meaning of.
  */
-export const zSessionStep = z.object({ stepRunId: zId, stepKind: zStepId });
+export const zSessionStepInput = z.object({
+  portId: zProcessId,
+  type: zArtifactType,
+  ref: z.object({ id: z.string().min(1).max(200), number: z.int().positive().optional(), sha: zSha.optional() }).nullable(),
+});
+export type SessionStepInput = z.infer<typeof zSessionStepInput>;
+
+/** How many references the Entrées of one StepRun carry at most. */
+export const SESSION_STEP_INPUTS_MAX = 200;
+
+/**
+ * The Étape a Session runs (RUNNER-12): its StepRun and kind, the Skill the
+ * Runner mounts (the Étape's `skill` Outil, else its kind's default), the id
+ * of its Contrat checked at the Session's end (`null`: none, the Session's
+ * end is the Étape's), and its Entrées as references. The Runner builds the
+ * first message from its embedded template; `crewdeck-runner etape start`
+ * prints the rest to the Skill. A Session without one starts with no
+ * message (the Pilote writes first).
+ */
+export const zSessionStep = z.object({
+  stepRunId: zId,
+  stepKind: zStepId,
+  skill: zSkillId,
+  contractId: z.string().min(1).max(60).nullable(),
+  inputs: z.array(zSessionStepInput).max(SESSION_STEP_INPUTS_MAX),
+});
 export type SessionStep = z.infer<typeof zSessionStep>;
 
 /**
@@ -62,11 +96,21 @@ export const zSessionTitle = z.string().min(1).max(300);
 export const zWorktreeCommandsSealed = zSealedItem.nullable();
 
 /**
+ * A Serveur MCP the Session's Étape holds as an Outil (`{ kind: 'mcp', name }`),
+ * by its name as the definition spells it; RUNNER-17 mounts it, by that name.
+ */
+export const zSessionMcpServer = z.string().trim().min(1).max(60);
+
+/** The most Serveurs MCP one Session names: an Étape's Outils are 10 at most. */
+export const SESSION_MCP_SERVERS_MAX = 10;
+
+/**
  * Server → Runner: start the Session `sessionId` (RUNNER-9) in a worktree of
  * `branch` (from `origin/<branch>` when it exists, else from `origin/<base>`),
  * with the Moteur `engine` on `model`, as the Rôle `role`, the worktree
  * prepared by `worktreeCommands` before the Moteur starts and cleaned by them
- * before it is removed. The Runner reports it with `session.state`; a Session
+ * before it is removed, the Serveurs MCP of its Étape named in `mcpServers`
+ * (`[]` when none). The Runner reports it with `session.state`; a Session
  * it already knows is not started twice.
  */
 export const zSessionStart = runnerMessage('session.start', {
@@ -83,6 +127,7 @@ export const zSessionStart = runnerMessage('session.start', {
   step: zSessionStep.optional(),
   title: zSessionTitle.nullable(),
   worktreeCommands: zWorktreeCommandsSealed,
+  mcpServers: z.array(zSessionMcpServer).max(SESSION_MCP_SERVERS_MAX),
 });
 export type SessionStart = z.infer<typeof zSessionStart>;
 

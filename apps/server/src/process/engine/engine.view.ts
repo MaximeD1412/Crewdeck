@@ -10,6 +10,7 @@ import {
   zPhaseRunWaitingOn,
   zStepKind,
   zStepRunInput,
+  zVerdict,
 } from '@crewdeck/contracts';
 import { z } from 'zod';
 import type { PhaseRunState, StepRunState, StepVerdict } from '../../generated/prisma/client.js';
@@ -48,6 +49,7 @@ export const STEP_RUN_VIEW = {
   failure: true,
   reason: true,
   sessionId: true,
+  contratVerdict: true,
   startedAt: true,
   endedAt: true,
 } as const;
@@ -85,6 +87,7 @@ export interface StepRunRow {
   readonly failure: string | null;
   readonly reason: string | null;
   readonly sessionId: string | null;
+  readonly contratVerdict: unknown;
   readonly startedAt: Date;
   readonly endedAt: Date | null;
 }
@@ -120,6 +123,7 @@ export const toStepRun = (row: StepRunRow, definition: ProcessDefinition): StepR
   failure: row.failure,
   reason: row.reason,
   sessionId: row.sessionId,
+  contratVerdict: row.contratVerdict === null ? null : zVerdict.parse(row.contratVerdict),
   canAskChanges: canAskChanges(definition, row.stepId),
   startedAt: row.startedAt.toISOString(),
   endedAt: row.endedAt?.toISOString() ?? null,

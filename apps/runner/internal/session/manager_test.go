@@ -190,7 +190,7 @@ func start(id, branch string) contracts.RunnerSessionStart {
 		At:             time.Now().UTC(),
 		SessionId:      id,
 		ProjectId:      projectID,
-		Origin:         contracts.RunnerSessionStartOrigin{Kind: contracts.RunnerSessionStartOriginKindGithub, Owner: "acme", Name: "shop"},
+		Origin:         contracts.Origin{Github: &contracts.OriginGithub{Owner: "acme", Name: "shop"}},
 		Branch:         branch,
 		Base:           "develop",
 		Engine:         contracts.RunnerSessionStartEngineClaudeCode,
@@ -382,7 +382,7 @@ func TestACloneThatFailsEndsTheSessionWithCloneFailed(t *testing.T) {
 	s := newSetup(t, result("eng-1"))
 	m := s.manager(t)
 	message := start(firstID, "feat/12-panier")
-	message.Origin.Name = "missing"
+	message.Origin.Github.Name = "missing"
 	m.Start(message)
 	ended := s.reports.await(t, firstID, contracts.RunnerSessionStateStateEnded)
 	if ended.Error == nil || *ended.Error != contracts.RunnerSessionStateErrorCloneFailed {
@@ -917,7 +917,7 @@ func TestAStopAsARunGivesItsWorktreeBackCancelsTheResumeThatWaitedForIt(t *testi
 
 	// A Commande's run holds the stopped Session's worktree, as it is.
 	dir := s.worktree("feat/12-panier")
-	place, err := m.TicketWorktree(context.Background(), projectID, "acme", "shop", "feat/12-panier", git(t, dir, "rev-parse", "HEAD"), session.Preparation{})
+	place, err := m.TicketWorktree(context.Background(), projectID, contracts.Origin{Github: &contracts.OriginGithub{Owner: "acme", Name: "shop"}}, "feat/12-panier", git(t, dir, "rev-parse", "HEAD"), session.Preparation{})
 	if err != nil {
 		t.Fatal(err)
 	}

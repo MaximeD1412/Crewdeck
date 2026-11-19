@@ -30,7 +30,7 @@ type RunnerSessionStart struct {
 	Model string `json:"model"`
 
 	// Origin corresponds to the JSON schema field "origin".
-	Origin RunnerSessionStartOrigin `json:"origin"`
+	Origin Origin `json:"origin"`
 
 	// PermissionMode corresponds to the JSON schema field "permissionMode".
 	PermissionMode RunnerSessionStartPermissionMode `json:"permissionMode"`
@@ -48,7 +48,7 @@ type RunnerSessionStart struct {
 	Step *RunnerSessionStartStep `json:"step,omitempty,omitzero"`
 
 	// Title corresponds to the JSON schema field "title".
-	Title string `json:"title"`
+	Title interface{} `json:"title"`
 
 	// Type corresponds to the JSON schema field "type".
 	Type string `json:"type"`
@@ -84,75 +84,6 @@ func (j *RunnerSessionStartEngine) UnmarshalJSON(value []byte) error {
 		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_RunnerSessionStartEngine, v)
 	}
 	*j = RunnerSessionStartEngine(v)
-	return nil
-}
-
-type RunnerSessionStartOrigin struct {
-	// Kind corresponds to the JSON schema field "kind".
-	Kind RunnerSessionStartOriginKind `json:"kind"`
-
-	// Name corresponds to the JSON schema field "name".
-	Name string `json:"name"`
-
-	// Owner corresponds to the JSON schema field "owner".
-	Owner string `json:"owner"`
-}
-
-type RunnerSessionStartOriginKind string
-
-const RunnerSessionStartOriginKindGithub RunnerSessionStartOriginKind = "github"
-
-var enumValues_RunnerSessionStartOriginKind = []interface{}{
-	"github",
-}
-
-// UnmarshalJSON implements json.Unmarshaler.
-func (j *RunnerSessionStartOriginKind) UnmarshalJSON(value []byte) error {
-	var v string
-	if err := json.Unmarshal(value, &v); err != nil {
-		return err
-	}
-	var ok bool
-	for _, expected := range enumValues_RunnerSessionStartOriginKind {
-		if reflect.DeepEqual(v, expected) {
-			ok = true
-			break
-		}
-	}
-	if !ok {
-		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_RunnerSessionStartOriginKind, v)
-	}
-	*j = RunnerSessionStartOriginKind(v)
-	return nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler.
-func (j *RunnerSessionStartOrigin) UnmarshalJSON(value []byte) error {
-	var raw map[string]interface{}
-	if err := json.Unmarshal(value, &raw); err != nil {
-		return err
-	}
-	if _, ok := raw["kind"]; raw != nil && !ok {
-		return fmt.Errorf("field kind in RunnerSessionStartOrigin: required")
-	}
-	if _, ok := raw["name"]; raw != nil && !ok {
-		return fmt.Errorf("field name in RunnerSessionStartOrigin: required")
-	}
-	if _, ok := raw["owner"]; raw != nil && !ok {
-		return fmt.Errorf("field owner in RunnerSessionStartOrigin: required")
-	}
-	type Plain RunnerSessionStartOrigin
-	var plain Plain
-	if err := json.Unmarshal(value, &plain); err != nil {
-		return err
-	}
-	if matched, _ := regexp.MatchString(`^[A-Za-z0-9._-]{1,100}$`, string(plain.Name)); !matched {
-		return fmt.Errorf("field %s pattern match: must match %s", "Name", `^[A-Za-z0-9._-]{1,100}$`)
-	}
-	if matched, _ := regexp.MatchString(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$`, string(plain.Owner)); !matched {
-		return fmt.Errorf("field %s pattern match: must match %s", "Owner", `^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$`)
-	}
-	*j = RunnerSessionStartOrigin(plain)
 	return nil
 }
 
@@ -261,6 +192,8 @@ func (j *RunnerSessionStartStep) UnmarshalJSON(value []byte) error {
 	*j = RunnerSessionStartStep(plain)
 	return nil
 }
+
+type RunnerSessionStartTitle_0 *string
 
 type RunnerSessionStartWorktreeCommands struct {
 	// Ciphertext corresponds to the JSON schema field "ciphertext".
@@ -416,12 +349,6 @@ func (j *RunnerSessionStart) UnmarshalJSON(value []byte) error {
 	}
 	if matched, _ := regexp.MatchString(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`, string(plain.SessionId)); !matched {
 		return fmt.Errorf("field %s pattern match: must match %s", "SessionId", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
-	}
-	if utf8.RuneCountInString(string(plain.Title)) < 1 {
-		return fmt.Errorf("field %s length: must be >= %d", "title", 1)
-	}
-	if utf8.RuneCountInString(string(plain.Title)) > 300 {
-		return fmt.Errorf("field %s length: must be <= %d", "title", 300)
 	}
 	if plain.Type != "session.start" {
 		return fmt.Errorf("field %s: must be equal to %s", "type", "session.start")

@@ -199,19 +199,18 @@ func text(value any) string {
 // its SHA, or the Projet's integration checkout. An origin the Runner has
 // no clone for, or a Ticket without its branch and SHA, has none.
 func (r *Runner) place(ctx context.Context, message contracts.RunnerCommandRun, where contracts.ProcessSealedCommandsValueWhere, prep session.Preparation) (*session.Place, error) {
-	if r.cfg.Places == nil || message.Origin.Kind != contracts.RunnerCommandRunOriginKindGithub {
+	if r.cfg.Places == nil || message.Origin.Value() == nil {
 		return nil, session.ErrPlaceUnavailable
 	}
-	owner, name := message.Origin.Owner, message.Origin.Name
 	sha := text(message.Ref.Sha)
 	if where == contracts.ProcessSealedCommandsValueWhereProject {
-		return r.cfg.Places.IntegrationCheckout(ctx, message.ProjectId, owner, name, message.IntegrationBranch, sha)
+		return r.cfg.Places.IntegrationCheckout(ctx, message.ProjectId, message.Origin, message.IntegrationBranch, sha)
 	}
 	branch := text(message.Ref.Branch)
 	if branch == "" || sha == "" {
 		return nil, session.ErrPlaceUnavailable
 	}
-	return r.cfg.Places.TicketWorktree(ctx, message.ProjectId, owner, name, branch, sha, prep)
+	return r.cfg.Places.TicketWorktree(ctx, message.ProjectId, message.Origin, branch, sha, prep)
 }
 
 // worktreeSealed is the run's worktree Commandes as the message gave them,

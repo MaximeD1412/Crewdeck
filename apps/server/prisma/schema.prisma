@@ -1399,7 +1399,12 @@ model AgentSession {
   role              String
   engine            EngineId
   model             String
-  title             String
+  /// Readable when the artifact it works on is on GitHub; null when it is Local, its title then `titleSealed` (SOURCE-2, ADR 0012).
+  title             String?
+  /// The Ticket's or Conception's title sealed under the vault key as the server holds it, a `SealedItem`: a Local artifact's.
+  titleSealed       Json?                          @map("title_sealed")
+  /// The additional data `titleSealed` was sealed under (its artifact's), with which the page opens it and a rotation rewraps it.
+  titleAad          String?                        @map("title_aad")
   branch            String
   /// The branch the worktree starts from when `branch` is not on the remote.
   base              String

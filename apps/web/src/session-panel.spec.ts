@@ -19,6 +19,7 @@ const SESSION: AgentSession = {
   engine: 'claude-code',
   model: 'claude-opus-5-5',
   title: 'Concevoir · Agenda partagé',
+  titleSealed: null,
   state: 'active',
   interruptedReason: null,
   outcome: null,

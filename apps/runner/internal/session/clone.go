@@ -12,16 +12,47 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/github"
 )
 
 // Origin is where a Session's code comes from (ADR 0012): Clone makes its
 // clone once, fetches it before each Session, and gives its folder and the
 // environment git needs to read it (a partial clone fetches the worktree's
-// files at its checkout), never kept in the clone. The GitHub one is here;
-// SOURCE-2 adds the Local one.
+// files at its checkout), never kept in the clone; Dir is the clone's
+// folder, made or not. The GitHub one is here, the Local one is
+// source/local's (SOURCE-2), given by Config.LocalOrigin.
 type Origin interface {
+	Dir() string
 	Clone(ctx context.Context) (dir string, auth []string, err error)
+}
+
+// errNoOrigin: a message's origin the Runner cannot clone (a Local one with
+// no LocalOrigin configured, or of no kind).
+var errNoOrigin = errors.New("session: no origin")
+
+// originOf is the Origin of a message's origin for the Projet: GitHub's, or
+// the Local one, whose Clone holds the clone's lock as GitHub's does.
+func (m *Manager) originOf(projectID string, origin contracts.Origin) (Origin, error) {
+	switch {
+	case origin.Github != nil:
+		return &GitHubOrigin{Home: m.cfg.Home, URL: m.cfg.GitHubURL, Owner: origin.Github.Owner, Name: origin.Github.Name, Tokens: m.cfg.Tokens, locks: &m.locks}, nil
+	case origin.Local != nil && m.cfg.LocalOrigin != nil:
+		return &lockedOrigin{Origin: m.cfg.LocalOrigin(projectID), locks: &m.locks}, nil
+	}
+	return nil, errNoOrigin
+}
+
+// lockedOrigin serialises an Origin's Clone with what else changes its clone.
+type lockedOrigin struct {
+	Origin
+	locks *locks
+}
+
+func (o *lockedOrigin) Clone(ctx context.Context) (string, []string, error) {
+	unlock := o.locks.lock(o.Dir())
+	defer unlock()
+	return o.Origin.Clone(ctx)
 }
 
 // DefaultGitHubURL is where the GitHub repositories are cloned from.
@@ -48,7 +79,8 @@ type GitHubOrigin struct {
 	locks *locks
 }
 
-func (o *GitHubOrigin) dir() string {
+// Dir is the clone's folder.
+func (o *GitHubOrigin) Dir() string {
 	return filepath.Join(o.Home, "repos", "github", o.Owner, o.Name)
 }
 
@@ -60,7 +92,7 @@ func (o *GitHubOrigin) Clone(ctx context.Context) (string, []string, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	dir := o.dir()
+	dir := o.Dir()
 	unlock := o.locks.lock(dir)
 	defer unlock()
 	if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {

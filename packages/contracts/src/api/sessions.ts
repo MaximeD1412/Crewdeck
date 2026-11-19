@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { zSealedItem } from '../keys/sealed.js';
 import { zEngineId } from '../runner/engines.js';
 import { zGitBranch, zSessionError, zSessionOutcome, zSessionState, zSessionTitle } from '../runner/session.js';
 import { zCursorPage, zId, zInstant } from '../values.js';
@@ -11,10 +12,21 @@ export const zSessionInterruptedReason = z.enum(SESSION_INTERRUPTED_REASONS);
 export type SessionInterruptedReason = z.infer<typeof zSessionInterruptedReason>;
 
 /**
+ * The sealed title of a Session, a copy of the title of the artifact it works
+ * on when that artifact is Local (ADR 0012): its item, and the additional data
+ * that artifact sealed it under, which the page opens it with and a rotation
+ * rewraps it with (`agent-session.title`).
+ */
+export const zSealedSessionTitle = zSealedItem.extend({ aad: z.string().min(1).max(200) });
+export type SealedSessionTitle = z.infer<typeof zSealedSessionTitle>;
+
+/**
  * A Session (RUNNER-9): one conversation of an agent in one Rôle, on the
  * Runner, with one Moteur, on its `branch`. What the server may read (ADR
- * 0003): its state and how it ended, its readable title; never its content,
- * which stays in the Runner's log (SESSION-1 relays it). `GET
+ * 0003): its state and how it ended, its readable title (that of an artifact
+ * on GitHub) or `titleSealed` (that of a Local one, which the page opens, ADR
+ * 0012), one of the two, whatever the Source of the code it clones; never its
+ * content, which stays in the Runner's log (SESSION-1 relays it). `GET
  * /api/sessions`, the `sessions` slice of `GET /api/state` and the payload
  * of `agent-session.upserted`.
  */
@@ -24,7 +36,8 @@ export const zAgentSession = z.object({
   role: zRoleId,
   engine: zEngineId,
   model: z.string().min(1),
-  title: zSessionTitle,
+  title: zSessionTitle.nullable(),
+  titleSealed: zSealedSessionTitle.nullable(),
   state: zSessionState,
   interruptedReason: zSessionInterruptedReason.nullable(),
   outcome: zSessionOutcome.nullable(),

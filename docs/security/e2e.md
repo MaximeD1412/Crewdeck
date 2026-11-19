@@ -695,7 +695,9 @@ POST /api/vault/rotations (the Runner: /api/runner/vault/rotations)
   `idea.reason` (`"<ideaId>:<field>"`), `process-version.sealed` and
   `process-draft.sealed` (`"process:<projectId>"`), `project-settings.worktree-commands`
   (`"settings:<projectId>"`), `project.name` (`"project:<projectId>:name"`,
-  a Local Projet's name). A ticket that stores a new kind of item
+  a Local Projet's name), `agent-session.title` (a Session's title when its
+  artifact is Local, under the additional data of that artifact, which the
+  row keeps). A ticket that stores a new kind of item
   registers it.
 - The server takes the rotation in one transaction, or nothing: 409
   `vault.version-changed` when `fromVersion` is no longer the current one,

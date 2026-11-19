@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "github",
+      "type": "string"
+    },
+    "name": {
+      "pattern": "^[A-Za-z0-9._-]{1,100}$",
+      "type": "string"
+    },
+    "owner": {
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "name",
+    "owner"
+  ],
+  "title": "OriginGithub",
+  "type": "object"
+}

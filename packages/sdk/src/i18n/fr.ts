@@ -1328,6 +1328,7 @@ export const fr = {
   'session.engineError': 'Erreur du Moteur : {message}',
   'session.expand': 'Agrandir',
   'session.log': 'Conversation',
+  'session.title.local': 'Session d’un Projet local',
   'session.meta': '{project} · {role} · {engine}',
   'session.meta.offline': 'Runner hors ligne · {meta}',
   'session.notFound.body': 'Elle n’existe pas, ou elle n’est pas à toi.',

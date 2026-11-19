@@ -165,6 +165,15 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await expect(page.locator('#app > cd-cadre > cd-session[slot=panel] cd-permission-request')).toContainText('git push origin design/agenda-partage');
     await expect(page.locator('cd-page-a-toi cd-decision-row').filter({ hasText: 'Concevoir · Agenda partagé' })).toContainText('Bash : git push');
   },
+  // The Tickets' Select turned to GitHub (SOURCE-7): the core's confirmation over the Sources, on the PC only.
+  'process-migration-source': async (page, width) => {
+    if (width < 1280) return;
+    await page.locator('cd-page-process-editor').getByRole('combobox', { name: 'Source des Tickets' }).selectOption('github');
+    await expect(page.getByRole('alertdialog', { name: 'Passer les Tickets de Site mairie sur GitHub ?' })).toBeVisible();
+  },
+  'process-migration-en-cours': async (page) => {
+    await expect(page.locator('cd-page-process-editor cd-banner.migration').filter({ visible: true })).toContainText('#12 et #14');
+  },
   // « Maximum de Retours atteint » (PROCESS-6) among the nine Décisions of `a-toi`.
   'a-toi-process': async (page) => {
     await expect(page.locator('cd-page-a-toi cd-decision-row')).toHaveCount(10);

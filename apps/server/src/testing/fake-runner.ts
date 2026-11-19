@@ -134,6 +134,8 @@ export class FakeRunner implements Fake {
           protocolVersion: PROTOCOL_VERSION,
           ...machine,
           sessions: [...this.sessions.keys()].map((sessionId) => ({ sessionId, alive: false })),
+          // It can copy both groups (SOURCE-7): a migration it is asked for drains, then waits for its copy (SOURCE-8, SOURCE-9).
+          migrations: ['ticket', 'code'],
         }),
       );
       socket.on('message', (data: WebSocket.RawData) => {

@@ -22,6 +22,7 @@ import { menuPlus } from './menu-plus.js';
 import { demarrageProjets, demarrageProjetsSansGithub, projets, projetsVide } from './projets.js';
 import { parametres } from './parametres.js';
 import { parametresProjet } from './parametres-projet.js';
+import { processMigrationScenarios } from './process-migration.js';
 import { processScenarios } from './process.js';
 import { resynchronisation } from './resynchronisation.js';
 import { runner, runnerServeursMcp } from './runner.js';
@@ -84,6 +85,7 @@ const SCENARIOS: readonly Scenario[] = [
   ...composantsProcess,
   ...composantsProcessList,
   ...processScenarios,
+  ...processMigrationScenarios,
 ];
 
 const byName = new Map(SCENARIOS.map((scenario) => [scenario.name, scenario]));

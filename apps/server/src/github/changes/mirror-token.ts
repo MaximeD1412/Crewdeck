@@ -6,7 +6,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { RunnerDispatcher } from '../../runners/runner-dispatcher.js';
 import type { OutgoingRunnerMessage } from '../../runners/runner-connections.js';
 import { GITHUB_CLIENT, type GitHubClient } from '../github.client.js';
-import { mirrorProjectsOf } from './mirror-projects.js';
+import { hasRepository, mirrorProjectsOf } from './mirror-projects.js';
 
 /** The answer to a `mirror.token`: every installation's token, or the failure of one. */
 export type MirrorTokenAnswer = Extract<OutgoingRunnerMessage, { type: 'mirror.token.issued' | 'mirror.token.failed' }>;
@@ -18,9 +18,10 @@ interface InstallationRepositories {
   readonly repositories: string[];
 }
 
+/** The Projets with a repository, by installation; a Projet without one (Local, or its access lost) needs no token. */
 const byInstallation = (projects: readonly MirrorProject[]): InstallationRepositories[] => {
   const groups = new Map<number, InstallationRepositories>();
-  for (const project of projects) {
+  for (const project of projects.filter(hasRepository)) {
     const group = groups.get(project.installationId) ?? { installationId: project.installationId, repositoryIds: [], repositories: [] };
     group.repositoryIds.push(project.githubRepoId);
     group.repositories.push(project.repository);
@@ -42,9 +43,10 @@ class TokenRefused extends Error {
 /**
  * The « Miroir » tokens of `projects` (ADR 0010, risk SEC-6): one
  * installation token per installation, restricted to the repositories of its
- * Projets and to `MIRROR_TOKEN_PERMISSIONS`, read only, 1 h. One installation
- * refused is `mirror.token.failed` for the whole request: the Runner asks
- * again. No Projet, no call to GitHub: `tokens: []`.
+ * Projets and to `MIRROR_TOKEN_PERMISSIONS`, read only, 1 h; a Projet
+ * without a repository is in none. One installation refused is
+ * `mirror.token.failed` for the whole request: the Runner asks again. No
+ * repository, no call to GitHub: `tokens: []`.
  */
 export const mirrorTokens = async (
   github: GitHubClient,

@@ -1,5 +1,6 @@
-import { MIRROR_TOKEN_PERMISSIONS, type MirrorProject, type ServerToRunner, zProjectList, zState } from '@crewdeck/contracts';
+import { MIRROR_TOKEN_PERMISSIONS, type MirrorProject, projectFolderAad, projectNameAad, type ServerToRunner, zProjectList, zState } from '@crewdeck/contracts';
 import type { INestApplication } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { inject } from 'vitest';
 import { SESSION_COOKIE } from '../../src/auth/cookies.js';
@@ -13,6 +14,7 @@ import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
 import { FAKES, type Fakes } from '../../src/testing/fakes.js';
 import { createLinkedRunner } from '../../src/testing/runners.js';
+import { sealItem } from '../../src/testing/vault.js';
 import { deliverWebhook, TEST_WEBHOOK_SECRET, webhookFixture } from '../fakes/github.js';
 import { connectRunner, type FakeRunnerClient } from '../fakes/runner.js';
 import { authKeysEnv } from '../github-app.js';
@@ -129,6 +131,26 @@ describe('the envelopes of GitHub’s changes for the Runner’s Miroir, against
     const res = await call('/api/projects', { repositoryIds: [repository?.id], templateId: 'process-crewdeck', seq: String((await state()).seq) });
     expect(res.status).toBe(201);
     return zProjectList.parse(await res.json()).items[0]?.id ?? '';
+  };
+
+  const vaultKey = randomBytes(32);
+
+  /** A Local Projet created as the page does (PROJET-6), the Runner online; its id and its sealed name. */
+  const createLocal = async () => {
+    await sql('UPDATE pilots SET vault_key_version = 1 WHERE id = $1', [pilotId]);
+    const id = newId();
+    const nameSealed = sealItem(vaultKey, 'Recettes secrètes', projectNameAad(id));
+    const res = await call('/api/projects/local', {
+      id,
+      nameSealed,
+      folderSealed: sealItem(vaultKey, JSON.stringify({ path: '/projets/recettes' }), projectFolderAad(id)),
+      vaultKeyVersion: 1,
+      hasCode: false,
+      releaseBranch: null,
+      templateId: 'process-crewdeck',
+    });
+    expect(res.status).toBe(201);
+    return { id, nameSealed };
   };
 
   const rows = (): Promise<ChangeRow[]> => sql<ChangeRow>('SELECT * FROM github_changes WHERE pilot_id = $1 ORDER BY seq', [pilotId]);
@@ -355,8 +377,67 @@ describe('the envelopes of GitHub’s changes for the Runner’s Miroir, against
 
       const [message] = mirrorOf(socket);
       expect(message?.type === 'mirror.projects' && message.projects).toEqual([
-        { projectId, repository: FULL_NAME, githubRepoId: APP_REPO.id, installationId: INSTALLATION_ID, displayName: expect.any(String), integrationBranch: expect.any(String) },
+        {
+          projectId,
+          sources: { ticket: 'github', code: 'github' },
+          repository: FULL_NAME,
+          githubRepoId: APP_REPO.id,
+          installationId: INSTALLATION_ID,
+          displayName: expect.any(String),
+          nameSealed: null,
+          integrationBranch: expect.any(String),
+        },
       ]);
+    });
+
+    it('lists a Local Projet with its Sources Local, its sealed name and no repository, once created', async () => {
+      const socket = await runner(0);
+      await mirrorLines(socket, 2);
+      const local = await createLocal();
+
+      expect(await mirrorLines(socket, 3)).toEqual(['projects', 'live 0', 'projects']);
+      const created = mirrorOf(socket)[2];
+      expect(created?.type === 'mirror.projects' && created.projects).toEqual([
+        expect.objectContaining({ projectId, sources: { ticket: 'github', code: 'github' }, repository: FULL_NAME, nameSealed: null }),
+        {
+          projectId: local.id,
+          sources: { ticket: 'local', code: 'local' },
+          repository: null,
+          githubRepoId: null,
+          installationId: null,
+          displayName: null,
+          nameSealed: local.nameSealed,
+          integrationBranch: 'develop',
+        },
+      ]);
+    });
+
+    it('keeps a Projet with a group Local whose repository is unreachable, without its repository', async () => {
+      await sql(`UPDATE artifact_sources SET source = 'local' WHERE project_id = $1 AND "group" = 'ticket'`, [projectId]);
+      await sql('UPDATE projects SET access_lost = true WHERE id = $1', [projectId]);
+      const socket = await runner(0);
+      await mirrorLines(socket, 2);
+
+      const [message] = mirrorOf(socket);
+      expect(message?.type === 'mirror.projects' && message.projects).toEqual([
+        { projectId, sources: { ticket: 'local', code: 'github' }, repository: null, githubRepoId: null, installationId: null, displayName: null, nameSealed: null, integrationBranch: expect.any(String) },
+      ]);
+    });
+
+    it('sends them again when one of a Projet’s Sources moves', async () => {
+      // A GitHub Projet whose Tickets are Local, as the mockups show; it holds no Ticket, so its switch is at once.
+      await sql(`UPDATE artifact_sources SET source = 'local' WHERE project_id = $1 AND "group" = 'ticket'`, [projectId]);
+      const socket = await runner(0);
+      await mirrorLines(socket, 2);
+      const [before] = mirrorOf(socket);
+      expect(before?.type === 'mirror.projects' && before.projects.map((project: MirrorProject) => project.sources)).toEqual([{ ticket: 'local', code: 'github' }]);
+
+      const res = await call(`/api/projects/${projectId}/sources/ticket/migrate`, { to: 'github', seq: String((await state()).seq) });
+      expect(res.status).toBe(201);
+
+      expect(await mirrorLines(socket, 3)).toEqual(['projects', 'live 0', 'projects']);
+      const moved = mirrorOf(socket)[2];
+      expect(moved?.type === 'mirror.projects' && moved.projects.map((project: MirrorProject) => project.sources)).toEqual([{ ticket: 'github', code: 'github' }]);
     });
 
     it('sends them again when a Projet is followed, or its access lost', async () => {
@@ -445,6 +526,17 @@ describe('the envelopes of GitHub’s changes for the Runner’s Miroir, against
       await sql('UPDATE projects SET access_lost = true WHERE id = $1', [projectId]);
       expect(await ask(socket)).toMatchObject({ type: 'mirror.token.issued', tokens: [] });
       expect(tokenCalls()).toHaveLength(1);
+    });
+
+    it('covers only the repositories when the Pilote also has a Local Projet', async () => {
+      const socket = await runner(0);
+      await createLocal();
+      await mirrorLines(socket, 3);
+
+      const answer = await ask(socket);
+      expect(answer).toMatchObject({ type: 'mirror.token.issued', tokens: [{ installationId: INSTALLATION_ID, repositories: [FULL_NAME] }] });
+      expect(answer?.type === 'mirror.token.issued' && answer.tokens).toHaveLength(1);
+      expect(tokenCalls()).toEqual([[INSTALLATION_ID, { repositoryIds: [APP_REPO.id], permissions: MIRROR_TOKEN_PERMISSIONS }]]);
     });
 
     it('answers mirror.token.failed with github.unavailable when GitHub refuses one installation', async () => {

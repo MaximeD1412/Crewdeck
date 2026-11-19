@@ -93,4 +93,44 @@ describe('createSessionPeek', () => {
     expect(slow.read(SESSION, 6)).toEqual({ state: 'unavailable', reason: 'timeout' });
     expect(late.calls).toEqual([`open ${SESSION} 6`, `close ${SESSION}`]);
   });
+
+  it('a read unavailable, the Runner back: `retry` opens the Session again, and the event is read', () => {
+    const fake = fakeRelay();
+    const peek = createSessionPeek({ relay: fake.relay });
+    peek.read(SESSION, 4);
+    fake.emit([], 'session.runner-offline');
+    expect(peek.read(SESSION, 4)).toEqual({ state: 'unavailable', reason: 'session.runner-offline' });
+
+    peek.retry();
+    fake.emit([]);
+    expect(peek.read(SESSION, 4)).toEqual({ state: 'reading' });
+    fake.emit([question]);
+    expect(peek.read(SESSION, 4)).toEqual({ state: 'read', event: question });
+    expect(fake.calls).toEqual([`open ${SESSION} 4`, `close ${SESSION}`, `open ${SESSION} 4`, `close ${SESSION}`]);
+  });
+
+  it('a read that timed out is tried again once `retryMs` passed, its subscribers told; a read that came is never read again', async () => {
+    vi.useFakeTimers();
+    const fake = fakeRelay();
+    const peek = createSessionPeek({ relay: fake.relay, timeoutMs: 1000, retryMs: 5000 });
+    const changed = vi.fn();
+    peek.subscribe(changed);
+    peek.read(SESSION, 4);
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+    expect(changed).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(4999);
+    expect(peek.read(SESSION, 4)).toEqual({ state: 'unavailable', reason: 'timeout' });
+    vi.advanceTimersByTime(1);
+    expect(changed).toHaveBeenCalledTimes(2);
+    expect(peek.read(SESSION, 4)).toEqual({ state: 'reading' });
+    fake.emit([question]);
+    expect(peek.read(SESSION, 4)).toEqual({ state: 'read', event: question });
+    peek.retry();
+    vi.advanceTimersByTime(60_000);
+    expect(peek.read(SESSION, 4)).toEqual({ state: 'read', event: question });
+    expect(fake.calls.filter((call) => call.startsWith('open'))).toHaveLength(2);
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });

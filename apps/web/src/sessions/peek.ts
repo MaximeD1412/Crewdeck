@@ -8,9 +8,11 @@ export type SessionEventRead =
   | { readonly state: 'unavailable'; readonly reason: SessionRelayError | 'timeout' };
 
 export interface SessionPeek {
-  /** The event `seq` of the Session: read once, through the relay, then kept in memory. */
+  /** The event `seq` of the Session: read once, through the relay, then kept in memory; unavailable, read again after `retryMs`. */
   read(sessionId: string, seq: number): SessionEventRead;
-  /** Called after each read that comes, or fails, never during `read`. */
+  /** Forgets every unavailable read, the next `read` opening the Session again: the Runner is back. */
+  retry(): void;
+  /** Called after each read that comes, or fails, or may be tried again, never during `read`. */
   subscribe(listener: () => void): () => void;
 }
 
@@ -18,6 +20,8 @@ export interface SessionPeekOptions {
   readonly relay: Pick<SessionRelay, 'openSession' | 'closeSession'>;
   /** How long a read waits for its event; 15 s by default. */
   readonly timeoutMs?: number;
+  /** How long an unavailable read is kept before it may be tried again; 30 s by default. */
+  readonly retryMs?: number;
 }
 
 /**
@@ -25,11 +29,23 @@ export interface SessionPeekOptions {
  * question or the command of a permission request, which only the Runner
  * holds (ADR 0003). The peek opens the Session from the event's `seq`, keeps
  * that event and closes it; a refusal of the relay or no event in time makes
- * it unavailable. What it read stays in this tab's memory, never stored.
+ * it unavailable, for a while only: a Runner away or slow comes back, and
+ * the read is tried again once `retryMs` passed, or at once on `retry`. What
+ * it read stays in this tab's memory, never stored.
  */
-export const createSessionPeek = ({ relay, timeoutMs = 15_000 }: SessionPeekOptions): SessionPeek => {
+export const createSessionPeek = ({ relay, timeoutMs = 15_000, retryMs = 30_000 }: SessionPeekOptions): SessionPeek => {
   const reads = new Map<string, SessionEventRead>();
   const listeners = new Set<() => void>();
+  const notify = () => {
+    for (const listener of listeners) listener();
+  };
+  /** The unavailable reads, each with the timer that forgets it. */
+  const failed = new Map<string, ReturnType<typeof setTimeout>>();
+  const forget = (key: string) => {
+    clearTimeout(failed.get(key));
+    failed.delete(key);
+    reads.delete(key);
+  };
 
   const start = (key: string, sessionId: string, seq: number) => {
     const subscription = relay.openSession(sessionId, seq);
@@ -41,10 +57,17 @@ export const createSessionPeek = ({ relay, timeoutMs = 15_000 }: SessionPeekOpti
       stop();
       reads.set(key, read);
       relay.closeSession(sessionId);
+      if (read.state === 'unavailable') {
+        failed.set(
+          key,
+          setTimeout(() => {
+            forget(key);
+            notify();
+          }, retryMs),
+        );
+      }
       // Later: a read may come while the page computes its data, which a subscriber recomputes.
-      queueMicrotask(() => {
-        for (const listener of listeners) listener();
-      });
+      queueMicrotask(notify);
     };
     const look = () => {
       const event = subscription.events().find((candidate) => candidate.seq === seq);
@@ -65,6 +88,9 @@ export const createSessionPeek = ({ relay, timeoutMs = 15_000 }: SessionPeekOpti
       reads.set(key, { state: 'reading' });
       start(key, sessionId, seq);
       return reads.get(key) as SessionEventRead;
+    },
+    retry() {
+      for (const key of [...failed.keys()]) forget(key);
     },
     subscribe(listener) {
       listeners.add(listener);

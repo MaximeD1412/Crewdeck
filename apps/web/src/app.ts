@@ -313,8 +313,13 @@ export const boot = async ({
   const refreshNoteDialog = () => {
     noteDialog.data = noteIdea.view();
   };
+  // The Runner back: the reads of « À toi » it failed are tried again.
+  let runnerOnline = store.getState().slices.runner?.state === 'online';
   const unsubscribe = [
     store.subscribe(() => {
+      const online = store.getState().slices.runner?.state === 'online';
+      if (online && !runnerOnline) peek.retry();
+      runnerOnline = online;
       gettingStarted.sync();
       router.refresh();
       shell.refresh();

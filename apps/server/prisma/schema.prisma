@@ -1066,7 +1066,9 @@ model ProcessVersion {
 
 /// The Brouillon of a Projet's Process, one at most, saved whole on every
 /// change of the canvas: `revision` counts its saves, `baseVersion` is the
-/// version it was drawn from (`0` while the Projet has none).
+/// version it was drawn from (`0` while the Projet has none), `lastSeq` the
+/// seq of the last `process.upserted` written while it exists, which the
+/// Action sensible `process.activate` is checked against.
 model ProcessDraft {
   id          String   @id @db.Uuid
   pilotId     String   @map("pilot_id") @db.Uuid
@@ -1076,6 +1078,7 @@ model ProcessDraft {
   revision    Int
   baseVersion Int      @map("base_version")
   updatedAt   DateTime @map("updated_at") @db.Timestamptz
+  lastSeq     BigInt   @default(0) @map("last_seq")
   project     Project  @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
 
   /// The one-to-one key of its Projet, with their Pilote.

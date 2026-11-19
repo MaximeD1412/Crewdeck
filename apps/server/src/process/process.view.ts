@@ -1,4 +1,14 @@
-import { type ProcessDraft, type ProcessVersion, type ProjectProcess, type ProjectProcessSources, type SealedItem, zProcessDefinition, zSealedItem } from '@crewdeck/contracts';
+import {
+  type ProcessDraft,
+  type ProcessRunningWork,
+  type ProcessVersion,
+  type ProjectProcess,
+  type ProjectProcessSources,
+  type SealedItem,
+  zArtifactType,
+  zProcessDefinition,
+  zSealedItem,
+} from '@crewdeck/contracts';
 import type { ProcessActivation } from '../generated/prisma/client.js';
 
 /** What of a `process_versions` row the view reads. */
@@ -41,6 +51,40 @@ export interface ProcessDraftRow {
   readonly updatedAt: Date;
 }
 
+/** What of a `phase_runs` row at work the view reads: its version's number, and its Ticket's when it carries one. */
+export const RUNNING_WORK_VIEW = {
+  id: true,
+  projectId: true,
+  phaseId: true,
+  itemType: true,
+  itemId: true,
+  processVersion: { select: { number: true } },
+} as const;
+
+export interface RunningWorkRow {
+  readonly id: string;
+  readonly projectId: string | null;
+  readonly phaseId: string;
+  readonly itemType: string;
+  readonly itemId: string;
+  readonly processVersion: { readonly number: number } | null;
+}
+
+/** A PhaseRun at work as the view lists it; `ticketNumbers` maps a Ticket's id to its number. */
+export const toRunningWork = (row: RunningWorkRow, ticketNumbers: ReadonlyMap<string, number>): ProcessRunningWork[] =>
+  row.processVersion === null
+    ? []
+    : [
+        {
+          phaseRunId: row.id,
+          versionNumber: row.processVersion.number,
+          phaseId: row.phaseId,
+          itemType: zArtifactType.parse(row.itemType),
+          itemId: row.itemId,
+          ticketNumber: row.itemType === 'ticket' ? (ticketNumbers.get(row.itemId) ?? null) : null,
+        },
+      ];
+
 /** The sealed part as stored: `null`, or the item received, never opened. */
 const sealedOf = (value: unknown): SealedItem | null => (value === null || value === undefined ? null : zSealedItem.parse(value));
 
@@ -64,16 +108,19 @@ export const toProcessDraft = (row: ProcessDraftRow): ProcessDraft => ({
 /**
  * A Projet's whole Process (`GET /api/projects/:id/process`, the `processes`
  * slice, `process.upserted`): its active version, the highest number, its
- * draft, and the Sources of its groups; keyed by the Projet's id.
+ * draft, the Sources of its groups, and its work running on a version;
+ * keyed by the Projet's id.
  */
 export const toProjectProcess = (
   projectId: string,
   version: ProcessVersionRow | null,
   draft: ProcessDraftRow | null,
   sources: ProjectProcessSources,
+  running: readonly ProcessRunningWork[],
 ): ProjectProcess => ({
   id: projectId,
   active: version ? toProcessVersion(version) : null,
   draft: draft ? toProcessDraft(draft) : null,
   sources,
+  running: [...running],
 });

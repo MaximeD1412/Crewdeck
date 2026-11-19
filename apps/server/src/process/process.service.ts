@@ -1,11 +1,17 @@
 import {
+  type ActivateProcessInput,
   BUILTIN_TEMPLATES,
+  diffDefinitions,
   findGaps,
   PROCESS_CREWDECK_NAME,
   type ProcessDraftInput,
+  type ProcessRunningWork,
+  processSourcesOf,
   type ProjectProcess,
   type SealedItem,
+  UNFINISHED_PHASE_RUN_STATES,
   validateDefinition,
+  zId,
 } from '@crewdeck/contracts';
 import { Injectable } from '@nestjs/common';
 import { conflict, notFound, unprocessable } from '../errors/app-error.js';
@@ -15,7 +21,8 @@ import { newId } from '../ids.js';
 import { EventsWriter } from '../realtime/events.writer.js';
 import { Transactions, type Tx } from '../realtime/transactions.js';
 import { currentPilotId } from '../scope/scope.context.js';
-import { PROCESS_DRAFT_VIEW, PROCESS_VERSION_VIEW, type ProcessVersionRow, toProjectProcess } from './process.view.js';
+import { SensitiveActionsService } from '../sensitive-actions/sensitive-actions.service.js';
+import { PROCESS_DRAFT_VIEW, PROCESS_VERSION_VIEW, type ProcessVersionRow, RUNNING_WORK_VIEW, toProjectProcess, toRunningWork } from './process.view.js';
 import { readProjectProcessSources, readSourceRows } from './sources/sources.service.js';
 import { toProcessSources } from './sources/sources.view.js';
 
@@ -27,22 +34,65 @@ export interface InitialProcess {
 /** The names of the built-in Modèles, as the version keeps them. */
 const TEMPLATE_NAMES: Readonly<Record<keyof typeof BUILTIN_TEMPLATES, string>> = { 'process-crewdeck': PROCESS_CREWDECK_NAME };
 
-/** The part of a transaction the Process reads and writes; its view holds the Projet's Sources. */
-export type ProcessTx = Pick<Tx, 'project' | 'processVersion' | 'processDraft' | 'artifactSource'>;
+/** The part of a transaction the Process reads and writes; its view holds the Projet's Sources and its work running. */
+export type ProcessTx = Pick<Tx, 'project' | 'processVersion' | 'processDraft' | 'artifactSource' | 'phaseRun' | 'ticket'>;
 
 const json = (value: SealedItem | null): typeof Prisma.DbNull | Prisma.InputJsonValue => (value === null ? Prisma.DbNull : (value as unknown as Prisma.InputJsonValue));
 
 const projectNotFound = () => notFound('project.not-found', MESSAGES['project.not-found']);
 const stale = () => conflict('process.draft-stale', MESSAGES['process.draft-stale']);
 
-/** A Projet's whole Process, in the current Pilote's scope: its highest version, its draft and its Sources. */
+/** The fields of a refusal: each target with its first label. */
+const fieldsOf = (refusals: readonly { target: string; label: string }[]): Record<string, string> => {
+  const fields: Record<string, string> = {};
+  for (const refusal of refusals) fields[refusal.target] ??= refusal.label;
+  return fields;
+};
+
+/**
+ * The PhaseRuns at work (`running` or `waiting`) of the Pilote's Projets
+ * (scoped by `tx`), or of one, oldest first, by Projet: each with its
+ * version's number, a Ticket's with its number.
+ */
+export const readRunningWork = async (tx: Pick<Tx, 'phaseRun' | 'ticket'>, projectId?: string): Promise<Map<string, ProcessRunningWork[]>> => {
+  const rows = await tx.phaseRun.findMany({
+    where: { projectId: projectId ?? { not: null }, state: { in: [...UNFINISHED_PHASE_RUN_STATES] } },
+    select: RUNNING_WORK_VIEW,
+    orderBy: [{ startedAt: 'asc' }, { id: 'asc' }],
+  });
+  // A Ticket's item is its id; one that is not (a test's « 42 ») has no number.
+  const ticketIds = [...new Set(rows.filter((row) => row.itemType === 'ticket' && zId.safeParse(row.itemId).success).map((row) => row.itemId))];
+  const tickets = ticketIds.length === 0 ? [] : await tx.ticket.findMany({ where: { id: { in: ticketIds } }, select: { id: true, number: true } });
+  const numbers = new Map(tickets.map((ticket) => [ticket.id, ticket.number]));
+  const byProject = new Map<string, ProcessRunningWork[]>();
+  for (const row of rows) {
+    if (row.projectId === null) continue;
+    byProject.set(row.projectId, [...(byProject.get(row.projectId) ?? []), ...toRunningWork(row, numbers)]);
+  }
+  return byProject;
+};
+
+/** A Projet's whole Process, in the current Pilote's scope: its highest version, its draft, its Sources and its work running. */
 export const readProjectProcess = async (tx: ProcessTx, projectId: string): Promise<ProjectProcess> => {
-  const [version, draft, sources] = await Promise.all([
+  const [version, draft, sources, running] = await Promise.all([
     tx.processVersion.findFirst({ where: { projectId }, orderBy: { number: 'desc' }, select: PROCESS_VERSION_VIEW }),
     tx.processDraft.findUnique({ where: { projectId }, select: PROCESS_DRAFT_VIEW }),
     readProjectProcessSources(tx, projectId),
+    readRunningWork(tx, projectId),
   ]);
-  return toProjectProcess(projectId, version, draft, sources);
+  return toProjectProcess(projectId, version, draft, sources, running.get(projectId) ?? []);
+};
+
+/**
+ * Writes the Projet's whole Process as `process.upserted`, in `tx` (ADR
+ * 0007); its draft keeps the event's `seq`, which `process.activate` is
+ * checked against.
+ */
+export const publishProcess = async (tx: Tx, events: EventsWriter, pilotId: string, projectId: string): Promise<ProjectProcess> => {
+  const view = await readProjectProcess(tx, projectId);
+  const seq = await events.write(tx, pilotId, 'process.upserted', view);
+  if (view.draft) await tx.processDraft.update({ where: { projectId }, data: { lastSeq: seq }, select: { id: true } });
+  return view;
 };
 
 /** The active version of each of the Pilote's Projets (scoped by `tx`): each one's highest number. */
@@ -62,6 +112,7 @@ export class ProcessService {
   constructor(
     private readonly transactions: Transactions,
     private readonly events: EventsWriter,
+    private readonly sensitive: SensitiveActionsService,
   ) {}
 
   /**
@@ -89,9 +140,7 @@ export class ProcessService {
         select: { id: true },
       });
     }
-    const view = await readProjectProcess(tx, projectId);
-    await this.events.write(tx, pilotId, 'process.upserted', view);
-    return view;
+    return publishProcess(tx, this.events, pilotId, projectId);
   }
 
   /**
@@ -115,11 +164,7 @@ export class ProcessService {
       if (input.revision !== (current.draft?.revision ?? 0)) throw stale();
 
       const refusals = validateDefinition(input.definition);
-      if (refusals.length > 0) {
-        const fields: Record<string, string> = {};
-        for (const refusal of refusals) fields[refusal.target] ??= refusal.label;
-        throw unprocessable('process.invalid', MESSAGES['process.invalid'], fields);
-      }
+      if (refusals.length > 0) throw unprocessable('process.invalid', MESSAGES['process.invalid'], fieldsOf(refusals));
 
       const draft = {
         definition: input.definition as unknown as Prisma.InputJsonValue,
@@ -129,9 +174,61 @@ export class ProcessService {
         updatedAt: new Date(),
       };
       await tx.processDraft.upsert({ where: { projectId }, create: { id: newId(), pilotId, projectId, ...draft }, update: draft, select: { id: true } });
-      const view = await readProjectProcess(tx, projectId);
-      await this.events.write(tx, pilotId, 'process.upserted', view);
-      return view;
+      return publishProcess(tx, this.events, pilotId, projectId);
+    });
+  }
+
+  /**
+   * `POST /api/projects/:id/process/activate`, the Action sensible
+   * `process.activate` (ADR 0011): the Projet's row locked so that two
+   * activations at once are ordered, the second finding no draft. 404
+   * `project.not-found`; 409 `process.no-draft`, `process.draft-stale` for
+   * another `revision` than the one confirmed, `sensitive-action.stale` for a
+   * change since the dialog's `seq`; 422 `process.invalid`, `process.has-gaps`
+   * (the same `findGaps` as the page, on the Projet's Sources),
+   * `process.no-change` when the draft is the active version. Then version
+   * n+1 (1 without an active one), the draft deleted and `process.upserted`,
+   * in one transaction. A PhaseRun already running keeps its version: the
+   * engine pins the active one when a PhaseRun starts.
+   */
+  activate(projectId: string, { revision, seq }: ActivateProcessInput): Promise<ProjectProcess> {
+    const pilotId = currentPilotId();
+    return this.transactions.run(async (tx) => {
+      await this.events.lock(tx, pilotId);
+      const locked = await tx.project.updateMany({ where: { id: projectId }, data: { lastSeq: { increment: 0 } } });
+      if (locked.count === 0) throw projectNotFound();
+
+      const row = await tx.processDraft.findUnique({ where: { projectId }, select: { revision: true, lastSeq: true } });
+      if (!row) throw conflict('process.no-draft', MESSAGES['process.no-draft']);
+      if (row.revision !== revision) throw stale();
+      this.sensitive.assertFresh(row.lastSeq, BigInt(seq));
+
+      const { active, draft, ...view } = await readProjectProcess(tx, projectId);
+      if (!draft) throw conflict('process.no-draft', MESSAGES['process.no-draft']);
+      const refusals = validateDefinition(draft.definition);
+      if (refusals.length > 0) throw unprocessable('process.invalid', MESSAGES['process.invalid'], fieldsOf(refusals));
+      const gaps = findGaps(draft.definition, processSourcesOf(view));
+      if (gaps.length > 0) throw unprocessable('process.has-gaps', MESSAGES['process.has-gaps'], fieldsOf(gaps));
+      if (active && diffDefinitions(active.definition, draft.definition).length === 0) {
+        throw unprocessable('process.no-change', MESSAGES['process.no-change'].replace('{number}', String(active.number)));
+      }
+
+      await tx.processVersion.create({
+        data: {
+          id: newId(),
+          pilotId,
+          projectId,
+          number: (active?.number ?? 0) + 1,
+          definition: draft.definition as unknown as Prisma.InputJsonValue,
+          sealed: json(draft.sealed),
+          activatedAt: new Date(),
+          activatedBy: 'pilot',
+          templateName: null,
+        },
+        select: { id: true },
+      });
+      await tx.processDraft.delete({ where: { projectId }, select: { id: true } });
+      return publishProcess(tx, this.events, pilotId, projectId);
     });
   }
 }

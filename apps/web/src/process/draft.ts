@@ -10,6 +10,8 @@ export interface DraftSaver {
   view(): ProjectProcess | undefined;
   /** Applies `change` to the shown definition; accepted and new, it is shown at once and saved. */
   edit(change: (definition: ProcessDefinition) => EditResult): EditResult;
+  /** Whether an edit is shown that the server has not confirmed yet: in flight, or left to send. */
+  saving(): boolean;
   /** Resolves once nothing is in flight nor left to send. */
   settled(): Promise<void>;
   /** Calls `listener` each time what `view` shows changes; returns the function that stops. */
@@ -134,6 +136,7 @@ export const createDraftSaver = ({ projectId, client, stored, onFailure }: Draft
       flush();
       return result;
     },
+    saving: () => local !== null || inFlight !== null,
     async settled() {
       while (inFlight) await inFlight;
     },

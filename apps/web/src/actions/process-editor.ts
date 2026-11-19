@@ -1,12 +1,18 @@
-import type { ProcessDefinition } from '@crewdeck/contracts';
-import type { ComposantAction, ComposantParsedPayload, PageProcessEditor } from '@crewdeck/sdk';
+import { diffDefinitions, type ProcessDefinition, type ProcessRunningWork, type Project } from '@crewdeck/contracts';
+import { t, type ComposantAction, type ComposantParsedPayload, type MessageKey, type MessageParams, type PageProcessEditor } from '@crewdeck/sdk';
 import type { Client } from '../api/client.js';
+import { activateProcess } from '../api/process.js';
+import { ApiError } from '../api/request.js';
 import { migrateSource } from '../api/source-migrations.js';
+import type { ConfirmOptions } from '../dialogs/confirm.js';
 import { targetPhaseOf } from '../process/canvas.js';
+import { changeLabels } from '../process/diff-labels.js';
 import { addPhase, addStep, moveStep, moveStepToPhase, removePhase, removeStep, renamePhase, setForEach, type EditResult } from '../process/edit.js';
 import type { Editing } from '../process/editing.js';
 import { editorQueryOf, processHref, type EditorUiState } from '../process/editor-ui.js';
+import { runningByVersion, type WorkKind } from '../process/running-work.js';
 import type { RouteMatch } from '../router.js';
+import type { StoreState } from '../store/store.js';
 import { sourceReadsOf, type ProcessEditorState } from '../views/process-editor.js';
 import { migrationConfirmation } from '../views/source-migration.js';
 import type { SensitiveActionHandler } from './dispatcher.js';
@@ -20,7 +26,37 @@ export interface EditorActionsOptions {
   readonly navigate: (url: string, options?: { replace?: boolean }) => void;
   /** The page's match: its Projet's id, its query. */
   readonly current: () => Pick<RouteMatch, 'params' | 'query'>;
+  /** The API, for `process.activate`. */
+  readonly client?: Pick<Client, 'command'>;
+  /** An Idée's title, when the page holds it opened (its first line); else `null`, and it is counted. */
+  readonly ideaTitle?: (ideaId: string) => string | null;
+  /** A Projet's name: a Local Projet's is sealed, the page opens it (PROJET-6); else its `displayName`. */
+  readonly projectName?: (project: Project) => string;
 }
+
+type Confirmation = Omit<ConfirmOptions, 'action'>;
+
+/** `key.one` or `key.other` for `count`, its `{count}` filled. */
+const counted = (key: string, count: number, params: MessageParams = {}): string =>
+  t(`${key}.${count === 1 ? 'one' : 'other'}` as MessageKey, { ...params, count });
+
+const and = (parts: readonly string[]): string => new Intl.ListFormat('fr', { type: 'conjunction' }).format(parts);
+
+/**
+ * The work of a kind at work on a version, as the note says it: named when
+ * each one is (« les Tickets #53 et #57 », « la Conception « Actualités » »),
+ * else counted (« 1 Conception »).
+ */
+const worksPhrase = (kind: WorkKind, works: readonly ProcessRunningWork[], ideaTitle: (ideaId: string) => string | null): string => {
+  const names = works.map((work) => {
+    if (kind === 'ticket') return work.ticketNumber === null ? null : t('process.confirm.ticketName', { number: work.ticketNumber });
+    if (kind === 'other') return null;
+    const title = ideaTitle(work.itemId);
+    return title ? t('process.confirm.ideaName', { title }) : null;
+  });
+  if (kind !== 'other' && names.every((name) => name !== null)) return counted(`process.confirm.work.${kind}.named`, works.length, { names: and(names as string[]) });
+  return counted(`process.confirm.work.${kind}.counted`, works.length);
+};
 
 /** The id of the block an accepted edit added: in `after`, not in `before`. */
 const addedId = (before: ProcessDefinition, after: ProcessDefinition, blocks: 'phases' | 'steps'): string | undefined => {
@@ -37,11 +73,19 @@ const addedId = (before: ProcessDefinition, after: ProcessDefinition, blocks: 'p
  * or Phase added selected, a Phase's name focused; a Phase with Étapes
  * removed once the Dialog confirms.
  */
-export const createEditorActions = ({ ui, editing, navigate, current }: EditorActionsOptions) => {
+export const createEditorActions = ({ ui, editing, navigate, current, client, ideaTitle = () => null, projectName: nameOf = (project) => project.displayName ?? '' }: EditorActionsOptions) => {
   const here = () => {
     const match = current();
     return { projectId: match.params['id'] ?? '', query: editorQueryOf(match.query) };
   };
+  /**
+   * The Projet the open confirmation names, kept from its opening to its run:
+   * the page may move to another Projet while the dialog stays open, and the
+   * route must activate the Process the Pilote confirmed (the dispatcher opens
+   * one confirmation at a time). With it, whether an edit was being saved:
+   * the draft confirmed was then not one the server holds.
+   */
+  let confirming: { readonly projectId: string; readonly saving: boolean } | null = null;
   const selectBlock = (projectId: string, kind: 'step' | 'phase', id: string): void =>
     navigate(processHref(projectId, { selection: { kind, id }, tab: 'selection' }), { replace: true });
   const unselect = (projectId: string): void => navigate(processHref(projectId, { selection: null, tab: 'gaps' }), { replace: true });
@@ -69,6 +113,64 @@ export const createEditorActions = ({ ui, editing, navigate, current }: EditorAc
       navigate(processHref(projectId, { selection: query.selection, tab }), { replace: true });
     },
     view: (view: Payload<'view'>): void => ui.setView(here().projectId, view),
+    /**
+     * « Activer la v{n+1} », the Action sensible `process.activate` (US-96,
+     * ADR 0011): its confirmation lists the page's diff since the active
+     * version and the work staying on its version; once confirmed, the route,
+     * then a Toast says the version active, or the refusal.
+     */
+    activate: {
+      confirmation: (_payload: Payload<'activate'>, state: Pick<StoreState, 'slices'>): Confirmation => {
+        const { projectId } = here();
+        const edits = editing.edits(projectId);
+        confirming = { projectId, saving: edits.saving ?? false };
+        // What the page shows (PROCESS-8): its edits not saved yet included.
+        const view = edits.shown ?? state.slices.process?.get(projectId);
+        const project = state.slices.project?.get(projectId);
+        const projectName = project ? nameOf(project) : '';
+        const active = view?.active ?? null;
+        const next = (active?.number ?? 0) + 1;
+        const roleNames = Object.fromEntries((state.slices.settings?.customRoles ?? []).map((role) => [role.id, role.name]));
+        const changes = active && view?.draft ? changeLabels(diffDefinitions(active.definition, view.draft.definition), roleNames) : [];
+        const groups = runningByVersion(view?.running ?? [], [active?.definition, view?.draft?.definition]);
+        const list = groups.flatMap(({ versionNumber, kinds }) =>
+          kinds.map(({ kind, works }) => t('process.confirm.onVersion', { works: worksPhrase(kind, works, ideaTitle), number: versionNumber })),
+        );
+        const note = list.length === 0 ? t('process.confirm.note.none', { number: next }) : t('process.confirm.note', { number: next, list: list.join(', ') });
+        return {
+          title: t('process.confirm.title', { number: next, projectName }),
+          confirmLabel: t('process.activate', { number: next }),
+          icon: 'check',
+          consequences: active
+            ? {
+                lead: counted('process.confirm.lead', changes.length, { number: active.number }),
+                items: changes.map((label, index) => ({ strong: '', text: `${label}${index === changes.length - 1 ? '.' : ' ;'}` })),
+                note,
+              }
+            : { lead: t('process.confirm.firstLead', { projectName }), note },
+        };
+      },
+      run: async ({ revision }: Payload<'activate'>, { seq }: { readonly seq: bigint }): Promise<void> => {
+        const confirmed = confirming;
+        confirming = null;
+        if (!client || confirmed === null) return;
+        const { projectId } = confirmed;
+        const unsaved = confirmed.saving || (editing.edits(projectId).saving ?? false);
+        // An edit still being saved lands first: its new revision then refuses the one confirmed (409).
+        await editing.settled();
+        // The draft confirmed was being saved: saved, its revision is not the one sent; refused, the server holds another draft.
+        if (unsaved) {
+          ui.toast(projectId, { tone: 'halt', icon: 'block', text: t('process.activate.unsaved') });
+          return;
+        }
+        try {
+          const view = await activateProcess(client, projectId, { revision, seq });
+          ui.toast(projectId, { tone: 'go', icon: 'check', text: t('process.activated', { number: view.active?.number ?? 1 }) });
+        } catch (error) {
+          ui.toast(projectId, { tone: 'halt', icon: 'block', text: error instanceof ApiError ? error.message : t('process.activate.failed') });
+        }
+      },
+    },
     addPhase: (): void => {
       const { projectId } = here();
       const before = editing.definition(projectId);

@@ -81,13 +81,19 @@ const zData = z.object({
     .nullable(),
   /** The catalogue's Menu, open under « Étape ». */
   catalogue: Menu.data.nullable(),
-  /** A refusal, over the canvas. */
+  /** The Toast over the canvas (a refusal, an activation), the core's to remove. */
   toast: Toast.data.nullable(),
   /** The Dialog asking to remove a Phase with its Étapes. */
   removePhase: z.object({ phaseId: zId, title: z.string().min(1), body: z.string().min(1) }).nullable(),
   /** `banner`: the caution Banner of a migration of Source running, shown above the Sources, and above the phone's card. */
   sources: z.object({ lead: z.string(), banner: z.object({ title: z.string().min(1), text: z.string() }).nullable(), rows: z.array(zSourceRow) }),
   footer: z.object({ changes: z.string(), versions: z.string() }),
+  /**
+   * The header's « Activer la v{n+1} »: the draft's `revision` it activates
+   * (`null` without a draft), and why it is disabled (`null`: it is not);
+   * `null` without a Projet.
+   */
+  activate: z.object({ label: z.string().min(1), revision: z.int().min(1).nullable(), disabledReason: z.string().min(1).nullable() }).nullable(),
 });
 
 // The examples: « Process Crewdeck » as the canvas's first example draws it, read only.
@@ -154,6 +160,7 @@ const active: Data = {
   removePhase: null,
   sources: SOURCES,
   footer: { changes: 'Aucun changement depuis la v3.', versions: 'v3 active depuis le 4 nov.' },
+  activate: { label: 'Activer la v4', revision: null, disabledReason: 'Aucun changement' },
 };
 
 const REVIEW: NonNullable<Data['step']> = {
@@ -216,9 +223,10 @@ const withPhase = (data: Data): Data => ({
  * not rendered (the phone's list is PROCESS-11's); a migration of Source
  * running shows there its Banner and the Sources' card. `select` comes from
  * the canvas (`centre: false`) or a Manque (`centre: true`); `view` is the
- * canvas's; `migrate`, a group's Select changed (SOURCE-7, US-102), the
- * Action sensible `source.migrate`, the Select back on its Source when the
- * Pilote cancels.
+ * canvas's; `activate`, the header's primary, is the Action sensible
+ * `process.activate` (PROCESS-10), confirmed by the core; `migrate`, a
+ * group's Select changed (SOURCE-7, US-102), the Action sensible
+ * `source.migrate`, the Select back on its Source when the Pilote cancels.
  *
  * Editable (US-93, US-95, PROCESS-8) while `canvas.editable`: « Phase » and
  * « Étape » in the header, the catalogue's Menu under « Étape » (the canvas's
@@ -239,6 +247,7 @@ export const PageProcessEditor = defineComposant({
     select: z.object({ target: zTarget.nullable(), centre: z.boolean() }),
     tab: z.object({ tab: zTab }),
     view: ProcessCanvas.actions.view,
+    activate: sensitive('process.activate', z.object({ revision: z.int().min(1) })),
     migrate: sensitive('source.migrate', z.object({ group: zSourceGroup, to: zSourceKind })),
     addPhase: z.object({}),
     openCatalogue: z.object({}),
@@ -269,7 +278,8 @@ export const PageProcessEditor = defineComposant({
             target: { kind: 'step', id: 'inventaire' },
           },
         ],
-        footer: { changes: 'Brouillon en cours sur la v3.', versions: 'v3 active depuis le 4 nov.' },
+        footer: { changes: '1 changement depuis la v3 : Étape « Inventaire » ajoutée à « Idée ».', versions: 'v3 active depuis le 4 nov. · aucun travail en cours' },
+        activate: { label: 'Activer la v4', revision: 2, disabledReason: 'Règle les Manques pour activer.' },
       },
     },
     {
@@ -333,11 +343,26 @@ export const PageProcessEditor = defineComposant({
       name: 'sans version active',
       data: {
         ...active,
-        title: { ...active.title, count: 'brouillon · pas encore de version active' },
+        title: { ...active.title, count: 'brouillon · première version' },
         hasVersion: false,
         footer: { changes: 'Ce brouillon deviendra la v1.', versions: 'aucune version active' },
+        activate: { label: 'Activer la v1', revision: 1, disabledReason: null },
       },
     },
-    { name: 'Projet introuvable', data: { ...active, found: false } },
+    { name: 'Projet introuvable', data: { ...active, found: false, activate: null } },
+    {
+      name: 'un brouillon à activer',
+      data: {
+        ...active,
+        title: { ...active.title, count: 'brouillon · 3 changements' },
+        footer: {
+          changes:
+            '3 changements depuis la v3 : Serveur MCP « Stitch » attaché à « Maquettes » ; Serveur MCP « Figma » attaché à « Maquettes » ; Retour de « Review » vers « Code » : 5 fois au plus, au lieu de 3.',
+          versions: 'v3 active depuis le 4 nov. · 2 Tickets en cours finissent sur la v3 · 1 Conception en cours finit sur la v2',
+        },
+        activate: { label: 'Activer la v4', revision: 4, disabledReason: null },
+      },
+    },
+    { name: 'la v4 activée', data: { ...active, title: { ...active.title, count: 'v4 active' }, toast: { tone: 'go', icon: 'check', text: 'Version 4 active.' } } },
   ],
 });

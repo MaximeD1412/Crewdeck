@@ -92,9 +92,9 @@ export const createEditing = ({ client, stored, setTimer = (run, ms) => setTimeo
   return {
     edits: (projectId) => {
       const entry = kept.get(projectId);
-      if (!entry) return { catalogue: false, removingPhase: null, toast: null, nameError: null, focusName: null };
+      if (!entry) return { saving: false, catalogue: false, removingPhase: null, toast: null, nameError: null, focusName: null };
       const { saver, catalogue, removingPhase, toast, nameError, focusName } = entry;
-      return { shown: saver.view(), catalogue, removingPhase, toast, nameError, focusName };
+      return { shown: saver.view(), saving: saver.saving(), catalogue, removingPhase, toast, nameError, focusName };
     },
     definition: (projectId) => {
       const view = kept.get(projectId)?.saver.view() ?? stored(projectId);

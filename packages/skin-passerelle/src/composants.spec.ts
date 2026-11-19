@@ -168,6 +168,11 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     pointer('pointerdown', handle, centreOf(handle));
   },
   'Phase.select': (el) => inside(el, 'header').click(),
+  'PageProcessEditor.activate': async (el) => {
+    el.data = { ...(el.data as object), activate: { label: 'Activer la v4', revision: 4, disabledReason: null } };
+    await settle(el);
+    inside(el, 'cd-button.activate', 'button').click();
+  },
   'PageProcessEditor.select': (el) => atPc(el, () => inside(el, 'cd-process-canvas', 'cd-step-card[data-step=analyse]', 'article').click()),
   'PageProcessEditor.tab': (el) => atPc(el, () => inside(el, 'cd-tabs', 'button[role=tab]:nth-of-type(3)').click()),
   'PageProcessEditor.migrate': async (el) => {
@@ -311,7 +316,8 @@ describe('the Passerelle Skin', () => {
           const detail = zCdActionDetail.parse(details[0]);
           expect(detail).toMatchObject({ composant: declaration.name, action });
           const declared: Record<string, ActionDeclaration> = declaration.actions;
-          expect(actionSchema(declared[action]!).safeParse(detail.payload).success).toBe(true);
+          const schema = declared[action];
+          expect(schema && actionSchema(schema).safeParse(detail.payload).success).toBe(true);
         },
       );
     },

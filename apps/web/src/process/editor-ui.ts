@@ -1,5 +1,8 @@
 import type { SourceGroup, SourceKind } from '@crewdeck/contracts';
+import type { ComposantData, Toast } from '@crewdeck/sdk';
 import type { Selection } from './canvas.js';
+
+export type EditorToast = ComposantData<typeof Toast>;
 
 /** The panel's tabs: the Manques, the selected Étape or Phase, the Sources. */
 export type EditorTab = 'gaps' | 'selection' | 'sources';
@@ -15,9 +18,10 @@ export interface EditorView {
   readonly pan: { readonly x: number; readonly y: number };
 }
 
-/** The page's own state for one Projet: its URL's, its view, the block the canvas is asked to centre. */
+/** The page's own state for one Projet: its URL's, its view, the block the canvas is asked to centre, its Toast. */
 export interface EditorUi extends EditorQuery, EditorView {
   readonly focus: { readonly id: string; readonly at: number } | null;
+  readonly toast: EditorToast | null;
   /** The Source chosen in a group's Select while its confirmation is open: the Select shows it, then goes back. */
   readonly choice?: SourceChoice | null;
 }
@@ -56,6 +60,9 @@ export const processHref = (projectId: string, { selection, tab }: EditorQuery):
 /** The zoom a Projet's canvas opens at. */
 export const DEFAULT_ZOOM = 90;
 
+/** How long a Toast stays over the canvas: the core removes it (the Toast never does). */
+export const TOAST_MS = 5000;
+
 interface Kept {
   view: EditorView;
   choice: SourceChoice | null;
@@ -63,6 +70,9 @@ interface Kept {
   focus: EditorUi['focus'];
   /** How many centrings were asked, so that each has its own `at`. */
   asked: number;
+  toast: EditorToast | null;
+  /** The removal of the Toast shown. */
+  timer: ReturnType<typeof setTimeout> | null;
 }
 
 export interface EditorUiState {
@@ -74,6 +84,8 @@ export interface EditorUiState {
   setView(projectId: string, view: EditorView): void;
   /** Asks the canvas to centre the block `id` (a Manque chosen). */
   centre(projectId: string, id: string): void;
+  /** Shows a Toast over the Projet's canvas for `TOAST_MS`, replacing the one shown. */
+  toast(projectId: string, toast: EditorToast): void;
   subscribe(listener: () => void): () => void;
 }
 
@@ -88,7 +100,7 @@ export const createEditorUi = (): EditorUiState => {
     let entry = kept.get(projectId);
     if (!entry) {
       const id = query?.selection?.id ?? null;
-      entry = { view: { zoom: DEFAULT_ZOOM, pan: { x: 0, y: 0 } }, choice: null, focus: id === null || query?.selection?.kind === 'sources' ? null : { id, at: 0 }, asked: 0 };
+      entry = { view: { zoom: DEFAULT_ZOOM, pan: { x: 0, y: 0 } }, choice: null, focus: id === null || query?.selection?.kind === 'sources' ? null : { id, at: 0 }, asked: 0, toast: null, timer: null };
       kept.set(projectId, entry);
     }
     return entry;
@@ -96,8 +108,8 @@ export const createEditorUi = (): EditorUiState => {
   return {
     view: (projectId, query) => {
       const parsed = editorQueryOf(query);
-      const { view, focus, choice } = keptOf(projectId, parsed);
-      return { ...parsed, zoom: view.zoom, pan: { ...view.pan }, focus, choice };
+      const { view, focus, toast, choice } = keptOf(projectId, parsed);
+      return { ...parsed, zoom: view.zoom, pan: { ...view.pan }, focus, toast, choice };
     },
     choose: (projectId, choice) => {
       keptOf(projectId, null).choice = choice;
@@ -113,6 +125,17 @@ export const createEditorUi = (): EditorUiState => {
       const entry = keptOf(projectId, null);
       entry.asked += 1;
       entry.focus = { id, at: entry.asked };
+      notify();
+    },
+    toast: (projectId, toast) => {
+      const entry = keptOf(projectId, null);
+      if (entry.timer !== null) clearTimeout(entry.timer);
+      entry.toast = toast;
+      entry.timer = setTimeout(() => {
+        entry.toast = null;
+        entry.timer = null;
+        notify();
+      }, TOAST_MS);
       notify();
     },
     subscribe: (listener) => {

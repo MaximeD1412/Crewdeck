@@ -1,8 +1,10 @@
 import { z } from 'zod';
+import { zArtifactType } from '../process/artifact-types.js';
 import { zSealedItem } from '../keys/sealed.js';
-import { zProcessDefinition } from '../process/definition.js';
+import { zProcessDefinition, zProcessId } from '../process/definition.js';
 import { type ProcessSources, zSourceKind } from '../process/sources.js';
 import { zId, zInstant } from '../values.js';
+import { withSeq } from './commands.js';
 
 /**
  * A Projet's Process (ADR 0011, « A version is one immutable document »,
@@ -54,9 +56,26 @@ export const zProjectProcessSources = z.object({ ticket: zProjectSource, code: z
 export type ProjectProcessSources = z.infer<typeof zProjectProcessSources>;
 
 /**
+ * A PhaseRun of the Projet still at work (`running` or `waiting`), and the
+ * version it finishes on: what the activation's confirmation lists as
+ * staying on its version (ADR 0011): its Phase, its item, and
+ * `ticketNumber` naming a Ticket's (`null` for another item).
+ */
+export const zProcessRunningWork = z.object({
+  phaseRunId: zId,
+  versionNumber: z.int().min(1),
+  phaseId: zProcessId,
+  itemType: zArtifactType,
+  itemId: z.string().min(1).max(200),
+  ticketNumber: z.int().min(1).nullable(),
+});
+export type ProcessRunningWork = z.infer<typeof zProcessRunningWork>;
+
+/**
  * The whole Process of a Projet, keyed by the Projet's id: its active
- * version (`null` until a first one is activated), its draft, and the
- * Sources of its groups, which the canvas and its Manques read. The answer
+ * version (`null` until a first one is activated), its draft, the Sources
+ * of its groups, which the canvas and its Manques read, and the work still
+ * running on a version, oldest first. The answer
  * of `GET /api/projects/:id/process` and `PUT …/process/draft`, the payload
  * of `process.upserted`, an item of the `processes` slice of `GET /api/state`.
  */
@@ -65,6 +84,7 @@ export const zProjectProcess = z.object({
   active: zProcessVersion.nullable(),
   draft: zProcessDraft.nullable(),
   sources: zProjectProcessSources,
+  running: z.array(zProcessRunningWork),
 });
 export type ProjectProcess = z.infer<typeof zProjectProcess>;
 
@@ -97,3 +117,11 @@ export const zProcessDraftInput = z
     }
   });
 export type ProcessDraftInput = z.infer<typeof zProcessDraftInput>;
+
+/**
+ * `POST /api/projects/:id/process/activate` (session), the Action sensible
+ * `process.activate`: the draft's `revision` the Pilote confirmed (another
+ * one: 409 `process.draft-stale`), and the `seq` of the dialog.
+ */
+export const zActivateProcessInput = withSeq(z.object({ revision: z.int().min(1) }));
+export type ActivateProcessInput = z.infer<typeof zActivateProcessInput>;

@@ -6,10 +6,12 @@ import {
   type ProcessDefinition,
   type ProcessGap,
   type Project,
+  type ProcessRunningWork,
   type ProjectProcess,
   type Runner,
   type SourceMigration,
 } from '@crewdeck/contracts';
+import { PageProcessEditor, t } from '@crewdeck/sdk';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createEditorUi } from '../process/editor-ui.js';
@@ -55,7 +57,27 @@ const VERSION_3: NonNullable<ProjectProcess['active']> = {
 const github = { source: 'github', since: SINCE } as const;
 const local = { source: 'local', since: SINCE } as const;
 
-const PROCESS: ProjectProcess = { id: ID, active: VERSION_3, draft: null, sources: { ticket: github, code: github } };
+const PROCESS: ProjectProcess = { id: ID, active: VERSION_3, draft: null, sources: { ticket: github, code: github }, running: [] };
+
+/** A PhaseRun still at work: a Ticket of « Développement », or an Idée of another Phase. */
+const work = (n: number, versionNumber: number, phaseId: string, ticketNumber: number | null): ProcessRunningWork => ({
+  phaseRunId: `019a6f00-0000-7000-8000-0000000001${String(n).padStart(2, '0')}`,
+  versionNumber,
+  phaseId,
+  itemType: ticketNumber === null ? 'idea' : 'ticket',
+  itemId: `019a6f00-0000-7000-8000-0000000002${String(n).padStart(2, '0')}`,
+  ticketNumber,
+});
+/** Tickets #53 and #57 on the v3, a Conception on the v2: what the mockup shows. */
+const RUNNING = [work(1, 2, 'ph-conception', null), work(2, 3, 'ph-dev', 53), work(3, 3, 'ph-dev', 57)];
+
+/** « Process Crewdeck » with Stitch and Figma attached to « Maquettes », and the Review's Retour at 5. */
+const THREE_CHANGES: ProcessDefinition = (() => {
+  const draft = structuredClone(PROCESS_CREWDECK);
+  draft.steps.find((step) => step.id === 'st-maquettes')!.tools.push({ kind: 'mcp', name: 'Stitch' }, { kind: 'mcp', name: 'Figma' });
+  draft.loopBacks.find((loopBack) => loopBack.from === 'st-review')!.max = 5;
+  return draft;
+})();
 
 const draftOf = (definition: ProcessDefinition, baseVersion = 3): NonNullable<ProjectProcess['draft']> => ({
   definition,
@@ -90,6 +112,7 @@ const RUNNER: Runner = {
 };
 
 const stateOf = (process: ProjectProcess | null = PROCESS, project: Project | null = PROJECT): ProcessEditorState => ({
+  connection: 'live',
   slices: {
     project: new Map(project ? [[project.id, project]] : []),
     process: new Map(process ? [[process.id, process]] : []),
@@ -146,7 +169,43 @@ describe('processEditorView', () => {
     expect(data.gaps).toEqual([]);
     expect(data.step).toBeNull();
     expect(data.phase).toBeNull();
-    expect(data.footer).toEqual({ changes: 'Aucun changement depuis la v3.', versions: 'v3 active depuis le 4 nov.' });
+    expect(data.footer).toEqual({ changes: 'Aucun changement depuis la v3.', versions: 'v3 active depuis le 4 nov. · aucun travail en cours' });
+    expect(data.activate).toEqual({ label: 'Activer la v4', revision: null, disabledReason: 'Aucun changement' });
+    expect(data.toast).toBeNull();
+  });
+
+  it('counts the draft’s changes in the header, lists them at the foot with the work in progress by version, and lets activate it as the v4', () => {
+    const data = view(stateOf({ ...PROCESS, draft: draftOf(THREE_CHANGES), running: RUNNING }));
+
+    expect(data.title.count).toBe('brouillon · 3 changements');
+    expect(data.footer).toEqual({
+      changes:
+        '3 changements depuis la v3 : Serveur MCP « Stitch » attaché à « Maquettes » ; Serveur MCP « Figma » attaché à « Maquettes » ; Retour de « Review » vers « Code » : 5 fois au plus, au lieu de 3.',
+      versions: 'v3 active depuis le 4 nov. · 2 Tickets en cours finissent sur la v3 · 1 Conception en cours finit sur la v2',
+    });
+    expect(data.activate).toEqual({ label: 'Activer la v4', revision: 2, disabledReason: null });
+  });
+
+  it('names the work in progress by its kind: a Ticket, an Idée, a Conception, another item', () => {
+    const running = [work(1, 3, 'ph-dev', 53), work(2, 3, 'ph-idee', null), work(3, 3, 'ph-idee', null), work(4, 3, 'ph-gone', null)];
+    expect(view(stateOf({ ...PROCESS, running })).footer.versions).toBe(
+      'v3 active depuis le 4 nov. · 1 Ticket en cours finit sur la v3 · 2 Idées en cours finissent sur la v3 · 1 autre travail en cours finit sur la v3',
+    );
+  });
+
+  it('disables « Activer » for a draft that changes nothing, and during the Resynchronisation', () => {
+    const unchanged = view(stateOf({ ...PROCESS, draft: draftOf(PROCESS_CREWDECK) }));
+    expect(unchanged.footer.changes).toBe('Aucun changement depuis la v3.');
+    expect(unchanged.activate).toEqual({ label: 'Activer la v4', revision: 2, disabledReason: 'Aucun changement' });
+
+    const resync = view({ ...stateOf({ ...PROCESS, draft: draftOf(THREE_CHANGES) }), connection: 'resync' });
+    expect(resync.activate).toEqual({ label: 'Activer la v4', revision: 2, disabledReason: t('resync.sensitiveUnavailable') });
+  });
+
+  it('shows the Toast of the page’s own state', () => {
+    const ui = createEditorUi();
+    ui.toast(ID, { tone: 'go', icon: 'check', text: 'Version 4 active.' });
+    expect(processEditorView(stateOf(), ID, ui.view(ID, {})).toast).toEqual({ tone: 'go', icon: 'check', text: 'Version 4 active.' });
   });
 
   it('shows the draft when there is one, its Manques listed with their meta and block, counted in the header', () => {
@@ -154,7 +213,8 @@ describe('processEditorView', () => {
     const data = view(stateOf({ ...PROCESS, draft: draftOf(definition) }));
 
     expect(stepsOf(data).map((step) => step.id)).toContain('st-e2e');
-    expect(data.title.count).toBe('brouillon · 5 Manques');
+    expect(data.title.count).toBe('brouillon · 3 changements · 5 Manques');
+    expect(data.activate).toEqual({ label: 'Activer la v4', revision: 2, disabledReason: 'Règle les Manques pour activer.' });
     expect(data.gaps).toEqual([
       { label: gaps[0]!.label, meta: 'Analyse de l’Idée · Idée', target: { kind: 'step', id: 'st-analyse' } },
       { label: gaps[1]!.label, meta: 'Merge · Développement', target: { kind: 'step', id: 'st-merge' } },
@@ -164,10 +224,10 @@ describe('processEditorView', () => {
     ]);
     expect(data.canvas.phases.map((phase) => phase.gaps)).toEqual([1, 0, 4]);
     expect(stepsOf(data).find((step) => step.id === 'st-merge')?.ports.find((port) => port.id === 'v-review')?.state).toBe('unfed');
-    expect(data.footer).toEqual({ changes: 'Brouillon en cours sur la v3.', versions: 'v3 active depuis le 4 nov.' });
+    expect(data.footer.versions).toBe('v3 active depuis le 4 nov. · aucun travail en cours');
   });
 
-  it('says « brouillon » for a draft without Manque', () => {
+  it('says « brouillon » for a draft without Manque nor change', () => {
     expect(view(stateOf({ ...PROCESS, draft: draftOf(PROCESS_CREWDECK) })).title.count).toBe('brouillon');
   });
 
@@ -385,9 +445,14 @@ describe('processEditorView', () => {
     const data = view(stateOf({ ...PROCESS, active: null, draft: draftOf(PROCESS_CREWDECK, 0), sources: { ticket: local, code: local } }));
 
     expect(data.hasVersion).toBe(false);
-    expect(data.title.count).toBe('brouillon · pas encore de version active');
+    expect(data.title.count).toBe('brouillon · première version · 1 Manque');
     expect(data.gaps.map((gap) => gap.target)).toEqual([{ kind: 'step', id: 'st-checks' }]);
     expect(data.footer).toEqual({ changes: 'Ce brouillon deviendra la v1.', versions: 'aucune version active' });
+    expect(data.activate).toEqual({ label: 'Activer la v1', revision: 2, disabledReason: 'Règle les Manques pour activer.' });
+
+    const fixed = view(stateOf({ ...PROCESS, active: null, draft: draftOf(PROCESS_CREWDECK, 0) }));
+    expect(fixed.title.count).toBe('brouillon · première version');
+    expect(fixed.activate).toEqual({ label: 'Activer la v1', revision: 2, disabledReason: null });
   });
 
   it('says « Ce Projet n’existe pas » of a Projet the Pilote has not, once the snapshot came', () => {
@@ -417,7 +482,19 @@ describe('processEditorView, editing (PROCESS-8)', () => {
     definition.phases[2]!.name = 'Livraison';
     const data = view(stateOf(), {}, { shown: { ...PROCESS, draft: draftOf(definition) } });
     expect(data.canvas.phases.map((phase) => phase.name)).toEqual(['Idée', 'Conception', 'Livraison']);
-    expect(data.title.count).toBe('brouillon');
+    // PROCESS-10: the header counts the changes since the active version, the edits shown included.
+    expect(data.title.count).toBe('brouillon · 1 changement');
+  });
+
+  it('disables « Activer » without a revision while an edit is being saved, the first one of a Projet without a draft included', () => {
+    const definition = structuredClone(PROCESS_CREWDECK);
+    definition.phases[2]!.name = 'Livraison';
+    // The first edit of a Process without a draft: shown at once on revision 0, its PUT in flight.
+    const data = view(stateOf(), {}, { shown: { ...PROCESS, draft: { ...draftOf(definition), revision: 0 } }, saving: true });
+    expect(data.activate).toEqual({ label: 'Activer la v4', revision: null, disabledReason: 'Enregistrement du brouillon…' });
+    expect(PageProcessEditor.data.safeParse(data).success).toBe(true);
+
+    expect(view(stateOf(), {}, { shown: { ...PROCESS, draft: draftOf(definition) }, saving: false }).activate).toEqual({ label: 'Activer la v4', revision: 2, disabledReason: null });
   });
 
   it('outlines the target Phase: the selected one, else the selected Étape’s, else the last one', () => {

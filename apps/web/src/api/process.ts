@@ -14,3 +14,14 @@ export const getProcess = (client: Pick<Client, 'query'>, projectId: string): Pr
  */
 export const saveDraft = (client: Pick<Client, 'command'>, projectId: string, input: ProcessDraftInput): Promise<ProjectProcess> =>
   client.command('PUT', `/api/projects/${encodeURIComponent(projectId)}/process/draft`, input, zProjectProcess);
+
+/**
+ * `POST /api/projects/:id/process/activate`, the Action sensible
+ * `process.activate` (ADR 0011): the draft's `revision` the dialog showed, and
+ * its `seq`; answers the view, its new version active and no draft. A refusal
+ * is an `ApiError`: 409 `process.no-draft`, `process.draft-stale` or
+ * `sensitive-action.stale`, 422 `process.has-gaps`, `process.invalid` or
+ * `process.no-change`.
+ */
+export const activateProcess = (client: Pick<Client, 'command'>, projectId: string, input: { readonly revision: number; readonly seq: bigint }): Promise<ProjectProcess> =>
+  client.command('POST', `/api/projects/${encodeURIComponent(projectId)}/process/activate`, input, zProjectProcess);

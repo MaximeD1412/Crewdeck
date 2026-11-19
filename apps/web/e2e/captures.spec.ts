@@ -114,6 +114,12 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
       },
     ]),
   ),
+  // « Activer la v4 » pressed: its confirmation open over the canvas, the three changes and the work by version (PROCESS-10).
+  'process-activation': async (page, width) => {
+    if (width < 1280) return;
+    await page.locator('cd-page-process-editor cd-page-header').getByRole('button', { name: 'Activer la v4' }).click();
+    await expect(page.getByRole('alertdialog', { name: 'Activer la v4 du Process de Site mairie ?' })).toContainText('la Conception « Actualités » sur la v2');
+  },
   // The catalogue opened under « Étape », « Développement » chosen (1280 px: the header's actions are the editor's).
   'process-catalogue': async (page, width) => {
     if (width < 1280) return;
@@ -243,7 +249,7 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
 };
 
 /** The scenarios whose capture is the screen, not the whole page: a modal over it. */
-const SCREEN_ONLY: ReadonlySet<string> = new Set(['confirm-dialog', 'appareil-a-approuver-code', 'appareils-ajouter', 'idees-nouvelle', 'idees-dictee']);
+const SCREEN_ONLY: ReadonlySet<string> = new Set(['confirm-dialog', 'appareil-a-approuver-code', 'appareils-ajouter', 'idees-nouvelle', 'idees-dictee', 'process-activation']);
 
 const names = (process.env['CAPTURES_SCENARIOS'] ?? '')
   .split(',')

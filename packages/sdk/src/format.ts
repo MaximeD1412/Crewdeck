@@ -75,3 +75,9 @@ export const formatPercent = (ratio: number): string => `${integer.format(ratio 
 
 /** « 1,80 € » for 180 cents, after a no-break space. */
 export const formatEuros = (cents: number): string => `${twoDecimals.format(cents / 100)}${NBSP}€`;
+
+/** Minutes and seconds since a start, « 0:07 », « 1:05 »: a dictation's time. */
+export const formatElapsed = (seconds: number): string => {
+  const whole = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+};

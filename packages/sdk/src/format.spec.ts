@@ -1,4 +1,4 @@
-import { formatDate, formatDay, formatEuros, formatHour, formatNumber, formatPercent, formatRelative, formatWeekday, sameDay } from './format.js';
+import { formatDate, formatDay, formatElapsed, formatEuros, formatHour, formatNumber, formatPercent, formatRelative, formatWeekday, sameDay } from './format.js';
 
 const NNBSP = ' ';
 const NBSP = ' ';
@@ -84,5 +84,17 @@ describe('formatEuros', () => {
     expect(formatEuros(180)).toBe(`1,80${NBSP}€`);
     expect(formatEuros(123456)).toBe(`1${NNBSP}234,56${NBSP}€`);
     expect(formatEuros(0)).toBe(`0,00${NBSP}€`);
+  });
+});
+
+describe('formatElapsed', () => {
+  it.each([
+    [0, '0:00'],
+    [7, '0:07'],
+    [59, '0:59'],
+    [60, '1:00'],
+    [125, '2:05'],
+  ])('%i s is « %s »', (seconds, text) => {
+    expect(formatElapsed(seconds)).toBe(text);
   });
 });

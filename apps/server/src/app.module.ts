@@ -3,6 +3,7 @@ import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod';
 import { AuthModule } from './auth/auth.module.js';
+import { CommandsModule } from './commands/commands.module.js';
 import { GoogleModule } from './auth/google/google.module.js';
 import { MailModule } from './auth/mail/mail.module.js';
 import { type Env, usesFakes } from './config/env.js';
@@ -29,6 +30,7 @@ import { EngineModule } from './process/engine/engine.module.js';
 import { ScopeModule } from './scope/scope.module.js';
 import { SessionsModule } from './sessions/sessions.module.js';
 import { TicketsModule } from './tickets/tickets.module.js';
+import { UsageModule } from './usage/usage.module.js';
 import { SensitiveActionsModule } from './sensitive-actions/sensitive-actions.module.js';
 import { SettingsModule } from './settings/settings.module.js';
 import { WebModule } from './web/web.module.js';
@@ -78,6 +80,7 @@ export class AppModule {
         DevicesModule,
         RunnersModule,
         SessionsModule,
+        CommandsModule,
         RepositoriesModule,
         GitHubChangesModule,
         ProjectsModule,
@@ -85,6 +88,7 @@ export class AppModule {
         TicketsModule,
         DecisionsModule,
         IdeasModule,
+        UsageModule.forRoot(env),
         MetricsModule,
         SettingsModule,
         WebModule.forRoot(env),

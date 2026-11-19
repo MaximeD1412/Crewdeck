@@ -161,6 +161,7 @@ const SNAPSHOT: State = {
   codeChanges: [CHANGE],
   sessions: [SESSION],
   settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' },
+  usage: [],
 };
 
 describe('the page’s store', () => {

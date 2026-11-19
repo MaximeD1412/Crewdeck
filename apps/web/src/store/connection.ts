@@ -3,6 +3,8 @@ import {
   zServerMessage,
   type ServerMessage,
   type State,
+  type TabCommandClientMessage,
+  type TabCommandServerMessage,
   type TabRelayClientMessage,
   type TabRelayServerMessage,
   type zClientMessage,
@@ -44,7 +46,11 @@ export interface Connection {
   sendRelay(message: TabRelayClientMessage): boolean;
   /** The relay's messages from the server: `session.keys`, `relay`, `session.error`. */
   onRelay(listener: (message: TabRelayServerMessage) => void): () => void;
-  /** Each socket opened, after its `hello`: the relay opens its Sessions again on it. */
+  /** A message of a Commande's output (RUNNER-18) on the open socket; false when none is open. */
+  sendCommand(message: TabCommandClientMessage): boolean;
+  /** Its messages from the server: `command.keys`, `command.output`, `command.error`. */
+  onCommand(listener: (message: TabCommandServerMessage) => void): () => void;
+  /** Each socket opened, after its `hello`: the relays open their Sessions and runs again on it. */
   onOpen(listener: () => void): () => void;
 }
 
@@ -104,6 +110,7 @@ export const createConnection = ({
   let again = false;
 
   const relayListeners = new Set<(message: TabRelayServerMessage) => void>();
+  const commandListeners = new Set<(message: TabCommandServerMessage) => void>();
   const openListeners = new Set<() => void>();
 
   const send = (message: Outgoing): boolean => {
@@ -188,6 +195,11 @@ export const createConnection = ({
       case 'session.error':
         for (const listener of relayListeners) listener(message);
         return;
+      case 'command.keys':
+      case 'command.output':
+      case 'command.error':
+        for (const listener of commandListeners) listener(message);
+        return;
     }
   };
 
@@ -246,6 +258,11 @@ export const createConnection = ({
     onRelay(listener) {
       relayListeners.add(listener);
       return () => relayListeners.delete(listener);
+    },
+    sendCommand: (message) => send(message),
+    onCommand(listener) {
+      commandListeners.add(listener);
+      return () => commandListeners.delete(listener);
     },
     onOpen(listener) {
       openListeners.add(listener);

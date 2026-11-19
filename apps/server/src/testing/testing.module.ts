@@ -4,6 +4,7 @@ import { MAILER } from '../auth/mail/mailer.js';
 import { RunnersModule } from '../runners/runners.module.js';
 import { GITHUB_CLIENT } from '../github/github.client.js';
 import { GOOGLE_CLIENT } from '../auth/google/google.client.js';
+import { FX_SOURCE } from '../usage/fx-source.js';
 import { FakeGitHubController } from './fake-github.controller.js';
 import { FakeGoogleController } from './fake-google.controller.js';
 import { createFakes, FAKES, type Fakes } from './fakes.js';
@@ -30,7 +31,8 @@ import { TestingWaitingWorkController } from './testing-waiting-work.controller.
  * loaded, and `/api/testing/*`, `/fake-github/*` and `/fake-google/*` give 404.
  *
  * Global: `GITHUB_CLIENT` is the fake GitHub, `MAILER` the fake mail,
- * `GOOGLE_CLIENT` the fake Google, wherever a module injects them.
+ * `GOOGLE_CLIENT` the fake Google, `FX_SOURCE` the fake ECB, wherever a
+ * module injects them.
  */
 @Global()
 @Module({})
@@ -44,10 +46,11 @@ export class TestingModule {
         ScenariosService,
         { provide: FAKES, useFactory: createFakes },
         { provide: GITHUB_CLIENT, inject: [FAKES], useFactory: (fakes: Fakes) => fakes.github },
+        { provide: FX_SOURCE, inject: [FAKES], useFactory: (fakes: Fakes) => fakes.fx },
         { provide: MAILER, inject: [FAKES], useFactory: (fakes: Fakes) => fakes.mail },
         { provide: GOOGLE_CLIENT, inject: [FAKES], useFactory: (fakes: Fakes) => fakes.google },
       ],
-      exports: [FAKES, GITHUB_CLIENT, MAILER, GOOGLE_CLIENT],
+      exports: [FAKES, GITHUB_CLIENT, MAILER, GOOGLE_CLIENT, FX_SOURCE],
     };
   }
 }

@@ -1,3 +1,4 @@
+import { FakeFx } from './fake-fx.js';
 import { FakeGitHub } from './fake-github.js';
 import { FakeGoogle } from './fake-google.js';
 import { FakeMailer } from './fake-mailer.js';
@@ -16,7 +17,7 @@ export interface Fake {
  * build them add their entry here and in `createFakes`: the fake GitHub
  * (CORE-3), the fake Runner (RUNNER-2), the work waiting for it (ATOI-3), the
  * page's side of the smoke test (RUNNER-14), the fake mail (CORE-9), the
- * fake Google (CORE-10).
+ * fake Google (CORE-10), the fake ECB (RUNNER-13).
  */
 export interface Fakes {
   /** Registered with `RunnerWaitingWork` by `ScenariosService`; reset before the Runner, so its disconnection finds none. */
@@ -25,6 +26,8 @@ export interface Fakes {
   readonly github: FakeGitHub;
   /** Connected by `ScenariosService` when the scenario links a Runner (`ScenarioSeed.runnerToken`). */
   readonly runner: FakeRunner;
+  /** Bound to `FX_SOURCE`: the ECB's daily file. */
+  readonly fx: FakeFx;
   /** The link the scenario `smoke` drew, for `/api/testing/smoke/*`. */
   readonly smoke: FakeSmoke;
   /** Bound to `MAILER`: the sign-in links, read back on `GET /api/testing/mails`. */
@@ -43,6 +46,7 @@ export const createFakes = (): Fakes => ({
   smoke: new FakeSmoke(),
   mail: new FakeMailer(),
   google: new FakeGoogle(),
+  fx: new FakeFx(),
 });
 
 export const resetFakes = async (fakes: Fakes): Promise<void> => {

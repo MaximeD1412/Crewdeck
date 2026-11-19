@@ -242,7 +242,7 @@ func TestASessionClonesOnceFetchesBeforeTheNextAndRemovesItsWorktreeOnceEnded(t 
 		t.Fatalf("%d runs, want 1", len(runs))
 	}
 	opts := runs[0].Options()
-	if opts.Dir != s.worktree("feat/12-panier") || opts.PermissionMode != engine.PermissionBypass || opts.Model != "claude-opus-5-5" || opts.Role != "code" {
+	if opts.Dir != s.worktree("feat/12-panier") || opts.PermissionMode != engine.PermissionBypass || opts.Model != "claude-opus-5-5" || opts.Role != "code" || opts.SessionID != firstID {
 		t.Fatalf("options %+v", opts)
 	}
 	if !strings.Contains(opts.InitialPrompt, "Run the Étape code for the StepRun "+stepRunID+".") {
@@ -418,7 +418,7 @@ func TestStopThenResumeContinuesTheSameMoteurSessionAndTheLogsSeq(t *testing.T) 
 	s.reports.await(t, firstID, contracts.RunnerSessionStateStateActive)
 	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
 	runs := s.engine.Runs()
-	if len(runs) != 2 || runs[1].EngineSessionID() != "eng-1" || runs[1].Options().Dir != s.worktree("feat/12-panier") {
+	if len(runs) != 2 || runs[1].EngineSessionID() != "eng-1" || runs[1].Options().Dir != s.worktree("feat/12-panier") || runs[1].Options().SessionID != firstID {
 		t.Fatalf("runs %d, the second resuming %q", len(runs), runs[len(runs)-1].EngineSessionID())
 	}
 	waitForSeq(t, s.home, firstID, 5)
@@ -792,5 +792,44 @@ func TestTheWorktreeOfAPrivateRepositoryFetchesItsFilesWithTheToken(t *testing.T
 	}
 	if strings.Contains(string(config), "secret") || strings.Contains(string(config), "extraHeader") || strings.Contains(string(config), "extraheader") {
 		t.Fatal("the token is in the clone's configuration")
+	}
+}
+
+func TestAStopAsARunGivesItsWorktreeBackCancelsTheResumeThatWaitedForIt(t *testing.T) {
+	s := newSetup(t, result("eng-1"), question("q1"))
+	m := s.manager(t)
+	m.Start(start(firstID, "feat/12-panier"))
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	waitForSeq(t, s.home, firstID, 2)
+	m.Stop(firstID)
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateStopped)
+
+	// A Commande's run holds the stopped Session's worktree, as it is.
+	dir := s.worktree("feat/12-panier")
+	place, err := m.TicketWorktree(context.Background(), projectID, "acme", "shop", "feat/12-panier", git(t, dir, "rev-parse", "HEAD"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.Resume(firstID)
+	// The Pilote's stop comes while the run gives the worktree back.
+	session.SetAfterUnhold(m, func() { m.Stop(firstID) })
+	before := len(s.reports.states(firstID))
+	place.Release()
+
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		states := s.reports.states(firstID)
+		last := states[len(states)-1]
+		if last == contracts.RunnerSessionStateStateStopped && len(states) > before {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("states %v, want the Session stopped after the stop", states)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if states := s.reports.states(firstID); states[len(states)-1] != contracts.RunnerSessionStateStateStopped {
+		t.Fatalf("states %v, want the Session stopped after the stop", states)
 	}
 }

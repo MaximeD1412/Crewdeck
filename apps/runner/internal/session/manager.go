@@ -9,7 +9,8 @@
 // The Runner's folder (~/.crewdeck):
 //
 //	repos/github/<owner>/<name>              the clones, one per repository
-//	worktrees/<projectId>/<branch, / as __>  one worktree per live Session
+//	worktrees/<projectId>/<branch, / as __>  one worktree per live Session or Commande's run
+//	worktrees/<projectId>/integration        the integration checkout of the Commandes `project`
 //	sessions/<id>/                           session.json, log.jsonl, key (the relay's), the Moteur's socket
 package session
 
@@ -20,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sync"
 	"time"
 
@@ -65,6 +67,14 @@ type Manager struct {
 	mu       sync.Mutex
 	closed   bool
 	sessions map[string]*live
+	// held are the folders a Commande's run holds (place.go).
+	held map[string]bool
+	// waiting are the stopped Sessions whose resume waits for a run to
+	// release their worktree, by folder.
+	waiting map[string][]*live
+	// afterUnhold, for the tests, runs as unhold releases m.mu, before the
+	// resumes it took start.
+	afterUnhold func()
 
 	relayMu sync.Mutex
 	relay   relayState
@@ -222,8 +232,11 @@ func (m *Manager) Start(message contracts.RunnerSessionStart) {
 }
 
 // busy: another Session not ended holds the worktree (a stopped one keeps
-// it for its resume). Called with m.mu held.
+// it for its resume), or a Commande's run does. Called with m.mu held.
 func (m *Manager) busy(s *live) bool {
+	if m.held[s.rec.Worktree] {
+		return true
+	}
 	for id, other := range m.sessions {
 		if id == s.rec.SessionID {
 			continue
@@ -259,30 +272,57 @@ func (m *Manager) Resume(id string) {
 
 // revive reports an alive or ended Session again, and resumes the others;
 // one still stopping is resumed once its Moteur stopped (the server took the
-// stop at once, then the Pilote's resume).
+// stop at once, then the Pilote's resume); one whose worktree a Commande's
+// run holds, once the run released it (unhold). Deciding the resume and
+// arming it happen under m.mu, as the run's hold does: never both at once.
 func (m *Manager) revive(s *live) {
+	m.mu.Lock()
+	then := m.reviveLocked(s)
+	m.mu.Unlock()
+	then()
+}
+
+// reviveLocked decides revive's step and arms the resume, with m.mu held;
+// what it gives is called once m.mu is released.
+func (m *Manager) reviveLocked(s *live) func() {
 	s.mu.Lock()
-	if s.alive && s.stopping {
+	defer s.mu.Unlock()
+	switch {
+	case s.alive && s.stopping:
 		s.resume = true
-		s.mu.Unlock()
-		return
+		return func() {}
+	case s.alive || s.rec.State == contracts.RunnerSessionStateStateEnded:
+		return func() { m.report(s) }
+	case m.closed:
+		return func() {}
 	}
-	if s.alive || s.rec.State == contracts.RunnerSessionStateStateEnded {
-		s.mu.Unlock()
-		m.report(s)
-		return
+	if dir := s.rec.Worktree; dir != "" && m.held[dir] {
+		if !slices.Contains(m.waiting[dir], s) {
+			if m.waiting == nil {
+				m.waiting = map[string][]*live{}
+			}
+			m.waiting[dir] = append(m.waiting[dir], s)
+		}
+		return func() {}
 	}
-	run := m.arm(s, false)
-	s.mu.Unlock()
-	run()
+	return m.arm(s, false)
 }
 
 // Stop stops the Session's Moteur: interrupted, then killed once its turn
-// ended or after StopGrace. The Session keeps its worktree and its Moteur's
-// id.
+// ended or after StopGrace; a resume of it still waiting for a run is
+// cancelled. The Session keeps its worktree and its Moteur's id.
 func (m *Manager) Stop(id string) {
 	m.mu.Lock()
 	s, known := m.sessions[id]
+	if known {
+		// The stop came after a resume still waiting for a run to release
+		// the worktree: that resume is cancelled.
+		for dir, waiting := range m.waiting {
+			if i := slices.Index(waiting, s); i >= 0 {
+				m.waiting[dir] = slices.Delete(waiting, i, i+1)
+			}
+		}
+	}
 	m.mu.Unlock()
 	if !known {
 		return
@@ -378,7 +418,7 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 	defer log.close()
 	// The key goes to the tabs before any event of the run.
 	key := m.liveKeys(rec.SessionID)
-	opts := engine.StartOptions{Dir: w.Dir, Model: rec.Model, Role: rec.Role, PermissionMode: engine.PermissionMode(rec.PermissionMode), SessionDir: dir}
+	opts := engine.StartOptions{Dir: w.Dir, Model: rec.Model, Role: rec.Role, PermissionMode: engine.PermissionMode(rec.PermissionMode), SessionDir: dir, SessionID: rec.SessionID}
 	var run engine.Run
 	if rec.EngineSessionID != "" {
 		run, err = adapter.Resume(ctx, engine.ResumeOptions{StartOptions: opts, EngineSessionID: rec.EngineSessionID})

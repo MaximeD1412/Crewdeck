@@ -204,6 +204,13 @@ The work that turns a retained **Idée** into **Tickets**: a PRD, mockups and
 a technical design, each one approved by the **Pilote**.
 _Avoid_: spec, cadrage
 
+**Amendement** (`Amendment`):
+A change to a text document of a **Projet** (the PRD, the glossary, an ADR,
+the technical design) that an agent proposes when a **Ticket** contradicts
+it, joined to its « Ticket bloqué »; approving it is an **Action sensible**,
+and the **Ticket** starts again on the new version.
+_Avoid_: correctif, patch de spec, révision
+
 **Ticket** (`Ticket`):
 One unit of work an agent implements in one reviewed change of code (a PR
 on GitHub, a branch on a local **Projet**), kept at the **Source** of the
@@ -224,12 +231,16 @@ One conversation of an agent in one **Rôle**, on the **Runner**, with one
 gate of the **Pilote**'s does not), the **Boucle**'s included,
 and the **Pilote** can read and drive any of them. Its content stays between
 the **Runner** and the **Appareils**; while the **Runner** is « hors ligne »
-only its title and state are shown.
+only its title and state are shown. A **Session** with no progress is
+interrupted (« Session sans progrès »); one the **Pilote** continues in their
+terminal is « repris hors Crewdeck », its work left alone by the **Boucle**
+until they give it back.
 _Avoid_: conversation, run, exécution, job, chat
 
 **Décision** (`Decision`):
 Something that waits for the **Pilote** (a blocked **Ticket**, a document to
-review, a visual review, an interrupted **Ticket**, « Runner hors ligne »);
+review, a visual review, an interrupted **Ticket**, a « Session sans
+progrès », « Runner hors ligne »);
 every **Décision** is in « À toi ».
 _Avoid_: tâche, alerte, notification
 
@@ -252,7 +263,8 @@ _Avoid_: budget, limite (a **Compte IA** has limits, a **Projet** has a
 
 **Journal des Décisions** (`DecisionLog`):
 Every **Décision** the **Pilote** took (approval, refusal, answer), with its
-reason and date, kept and searchable.
+reason and date, kept and searchable; kept by Crewdeck, and written as a
+**Copie** in the folder of a **Local** **Projet**.
 _Avoid_: historique, audit log
 
 **Lien de suivi** (`ShareLink`):
@@ -377,7 +389,8 @@ _Avoid_: skin, style, palette
 **Action sensible** (`SensitiveAction`):
 An action a **Skin** may ask for but that the product always confirms in its
 own dialog: merge, start the **Boucle**, approve a document of a
-**Conception** (PRD, mockups, technical design, Tickets), approve the
+**Conception** (PRD, mockups, technical design, Tickets) or an
+**Amendement**, approve the
 inventory of an existing repository, activate a changed **Process**, move a
 **Type d'artefact** to another **Source** (and later release). Starting the
 **Boucle**, or creating or resuming its **Planification**, also

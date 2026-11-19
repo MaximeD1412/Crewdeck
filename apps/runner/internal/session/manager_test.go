@@ -85,16 +85,24 @@ type reports struct {
 	all    []contracts.RunnerSessionState
 	next   chan contracts.RunnerSessionState
 	frames chan any
+	// requests are the session.waiting and session.answered (answer_test.go).
+	requests chan any
 }
 
 func newReports() *reports {
-	return &reports{next: make(chan contracts.RunnerSessionState, 100), frames: make(chan any, 1000)}
+	return &reports{next: make(chan contracts.RunnerSessionState, 100), frames: make(chan any, 1000), requests: make(chan any, 100)}
 }
 
 func (r *reports) send(_ context.Context, message any) error {
 	switch message.(type) {
 	case contracts.RunnerSessionKeys, contracts.RunnerRelay:
 		r.frames <- message
+		return nil
+	case contracts.RunnerSessionWaiting, contracts.RunnerSessionAnswered:
+		select {
+		case r.requests <- message: // read by answer_test.go only
+		default:
+		}
 		return nil
 	}
 	state, ok := message.(contracts.RunnerSessionState)

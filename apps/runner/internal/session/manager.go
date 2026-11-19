@@ -90,6 +90,16 @@ type live struct {
 	resume bool
 	cancel context.CancelFunc
 	run    engine.Run
+	// pending are the requests of the run that wait for the Pilote.
+	pending map[string]request
+}
+
+// request is a `question` or a `permission-request` that waits: what an
+// answer to it is checked against.
+type request struct {
+	kind     contracts.RunnerSessionWaitingKind
+	options  []string
+	multiple bool
 }
 
 var uuid = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
@@ -436,6 +446,7 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 	}
 	s.mu.Lock()
 	s.run = run
+	s.pending = map[string]request{}
 	s.mu.Unlock()
 	m.setState(s, contracts.RunnerSessionStateStateActive)
 
@@ -445,6 +456,7 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 			m.cfg.Logger.Warn("session.log", "sessionId", rec.SessionID, "error", err)
 		} else {
 			m.relayLive(key, rec.SessionID, stamped)
+			m.track(s, stamped)
 		}
 		state := contracts.RunnerSessionStateStateActive
 		switch {
@@ -468,6 +480,7 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 	waitErr := run.Wait()
 	s.mu.Lock()
 	s.run = nil
+	s.pending = nil
 	stopping := s.stopping
 	s.mu.Unlock()
 	switch {
@@ -554,6 +567,35 @@ func (m *Manager) drop(s *live) {
 	m.save(s)
 }
 
+// track keeps the requests of the run that wait, and tells the server when
+// one waits (with the seq of its logged event) and when it was answered.
+func (m *Manager) track(s *live, event contracts.EngineEvent) {
+	s.mu.Lock()
+	id := s.rec.SessionID
+	var message any
+	switch {
+	case event.Question != nil:
+		q := event.Question
+		options := make([]string, len(q.Options))
+		for i, o := range q.Options {
+			options[i] = o.Label
+		}
+		s.pending[q.RequestId] = request{kind: contracts.RunnerSessionWaitingKindQuestion, options: options, multiple: q.Multiple}
+		message = protocol.NewSessionWaiting(id, q.RequestId, contracts.RunnerSessionWaitingKindQuestion, q.Seq)
+	case event.PermissionRequest != nil:
+		p := event.PermissionRequest
+		s.pending[p.RequestId] = request{kind: contracts.RunnerSessionWaitingKindPermission}
+		message = protocol.NewSessionWaiting(id, p.RequestId, contracts.RunnerSessionWaitingKindPermission, p.Seq)
+	case event.Answer != nil:
+		delete(s.pending, event.Answer.RequestId)
+		message = protocol.NewSessionAnswered(id, event.Answer.RequestId)
+	}
+	s.mu.Unlock()
+	if message != nil {
+		m.sendMessage(id, message)
+	}
+}
+
 // setState records and reports a new state; the same state again is not
 // reported.
 func (m *Manager) setState(s *live, state contracts.RunnerSessionStateState) {
@@ -585,13 +627,17 @@ func (m *Manager) report(s *live) {
 }
 
 func (m *Manager) send(message contracts.RunnerSessionState) {
+	m.sendMessage(message.SessionId, message)
+}
+
+func (m *Manager) sendMessage(sessionID string, message any) {
 	if m.cfg.Send == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(m.ctx, 10*time.Second)
 	defer cancel()
 	if err := m.cfg.Send(ctx, message); err != nil && !errors.Is(err, protocol.ErrNotConnected) && m.ctx.Err() == nil {
-		m.cfg.Logger.Warn("session.state", "sessionId", message.SessionId, "error", err)
+		m.cfg.Logger.Warn("session.state", "sessionId", sessionID, "error", err)
 	}
 }
 

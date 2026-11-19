@@ -643,7 +643,9 @@ func (r *run) handle(conn net.Conn) {
 		if !ok {
 			return
 		}
+		r.emit(engine.AnswerEvent(id, answer))
 		reply.Allow = answer.Allow != nil && *answer.Allow
+		reply.ForSession = reply.Allow && answer.ForSession
 		if !reply.Allow {
 			reply.Message = answer.Text
 			if reply.Message == "" {
@@ -676,6 +678,10 @@ func (r *run) handle(conn net.Conn) {
 				id = fmt.Sprintf("%s#%d", id, i+1)
 			}
 			question := &contracts.EngineEventQuestion{Kind: contracts.EngineEventKindQuestion, RequestId: id, Title: q.Question, Multiple: q.MultiSelect, Options: []contracts.EngineEventQuestionOptionsElem{}, Raw: raw}
+			if count := len(input.Questions); count > 1 {
+				index := i + 1
+				question.Index, question.Count = &index, &count
+			}
 			for _, o := range q.Options {
 				option := contracts.EngineEventQuestionOptionsElem{Label: o.Label}
 				if o.Description != "" {
@@ -688,6 +694,7 @@ func (r *run) handle(conn net.Conn) {
 			if !ok {
 				return
 			}
+			r.emit(engine.AnswerEvent(id, answer))
 			text := answer.Text
 			if len(answer.Options) > 0 {
 				text = strings.Join(answer.Options, ", ")

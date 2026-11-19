@@ -1,7 +1,8 @@
 // Package fake is an in-process Engine that replays a list of normalised
 // events, for the tests of the Sessions (RUNNER-9) and the fake Runner. It
 // runs nothing: each run emits Events in order, numbered from 1, waits after
-// a `question` or a `permission-request` until it is answered, and ends after
+// a `question` or a `permission-request` until it is answered (then emits
+// its `answer`), and ends after
 // the last one. Interrupt ends it at once with a `result` `interrupted`;
 // cancelling the context given to Start or Resume ends it with nothing more,
 // as a killed Moteur process would, Wait then returning the context's error.
@@ -202,6 +203,13 @@ func (r *Run) play(ctx context.Context, events []contracts.EngineEvent, err erro
 				r.mu.Unlock()
 				req.reply <- nil
 				pending = ""
+				select {
+				case r.events <- engine.Stamp(engine.AnswerEvent(req.id, req.answer), seq+1, r.now()):
+					seq++
+				case <-ctx.Done():
+					r.err = ctx.Err()
+					return
+				}
 			}
 		}
 	}

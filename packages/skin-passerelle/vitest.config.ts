@@ -13,6 +13,7 @@ const BROWSER_SPECS = [
   'src/ticket-tree.spec.ts',
   'src/timeline.spec.ts',
   'src/usage-meter.spec.ts',
+  'src/usage-card.spec.ts',
   'src/text-field.spec.ts',
   'src/controls.spec.ts',
   'src/dialog.spec.ts',

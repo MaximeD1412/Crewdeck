@@ -9,7 +9,8 @@ import (
 
 // Watch gives the adapters of `registry` with every Run they start watched
 // by the Reporter: a `limit-reached` or an `auth-required` of a Session
-// is recorded, and reaches the next capabilities. The Runner drives its
+// is recorded, and reaches the next capabilities; their usage reaches the
+// server (usage.go). The Runner drives its
 // Sessions through this registry (run.go), and the Reporter asks it too.
 func (r *Reporter) Watch(registry *engine.Registry) *engine.Registry {
 	var watched engine.Registry
@@ -29,7 +30,7 @@ func (w watchedEngine) Start(ctx context.Context, opts engine.StartOptions) (eng
 	if err != nil {
 		return nil, err
 	}
-	return w.watch(ctx, run, opts.Model), nil
+	return w.watch(ctx, run, opts), nil
 }
 
 func (w watchedEngine) Resume(ctx context.Context, opts engine.ResumeOptions) (engine.Run, error) {
@@ -37,22 +38,27 @@ func (w watchedEngine) Resume(ctx context.Context, opts engine.ResumeOptions) (e
 	if err != nil {
 		return nil, err
 	}
-	return w.watch(ctx, run, opts.Model), nil
+	return w.watch(ctx, run, opts.StartOptions), nil
 }
 
 // watch passes the run's events on, in order. A `limit-reached` is recorded
 // before it is passed on, so the limits keep the order of the stream; the
 // capabilities it calls for are sent beside, never in the way. Once ctx ends,
 // the events nobody reads any more are dropped, still recorded, and the
-// relay ends with the adapter's stream.
-func (w watchedEngine) watch(ctx context.Context, run engine.Run, model string) engine.Run {
+// relay ends with the adapter's stream. Its spends are of the Session
+// opts.SessionID.
+func (w watchedEngine) watch(ctx context.Context, run engine.Run, opts engine.StartOptions) engine.Run {
 	events := make(chan contracts.EngineEvent)
 	go func() {
 		defer close(events)
 		reading := true
+		spent := 0 // the run's cost so far, as its Moteur reports it
 		for event := range run.Events() {
-			if w.reporter.record(w.ID(), model, event) {
+			if w.reporter.record(w.ID(), opts.Model, event) {
 				go w.reporter.report(context.WithoutCancel(ctx))
+			}
+			if usage := w.reporter.observeUsage(w.ID(), opts.SessionID, event, &spent); usage != nil {
+				go w.reporter.sendUsage(context.WithoutCancel(ctx), []contracts.RunnerUsage{*usage})
 			}
 			if !reading {
 				continue

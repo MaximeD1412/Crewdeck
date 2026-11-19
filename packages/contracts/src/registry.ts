@@ -17,6 +17,7 @@ import { zSessionInputPayload } from './runner/inputs.js';
 import { zRelay, zSessionInput, zSessionKeys, zSessionReplay } from './runner/relay.js';
 import { zStepVerdict } from './runner/step.js';
 import { zProcessSealedPayload } from './process/definition.js';
+import { USAGE_EVERY_SECONDS, zUsage, zUsageAck } from './runner/usage.js';
 import { HEARTBEAT_SECONDS, OFFLINE_AFTER_SECONDS, PROTOCOL_VERSION, RUNNER_WS_CLOSE, zProtocolError, zRunnerEnvelope } from './runner/protocol.js';
 
 /**
@@ -70,6 +71,8 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'folder-check-result', schema: zFolderCheckResult },
   // The plaintext of a Process version's sealed part, once the Runner opened it (RUNNER-18).
   { name: 'process-sealed', schema: zProcessSealedPayload },
+  { name: 'runner-usage', schema: zUsage },
+  { name: 'runner-usage-ack', schema: zUsageAck },
 ];
 
 /**
@@ -119,4 +122,5 @@ export const goConstants: Readonly<Record<string, number>> = {
   LinkPollSeconds: LINK_POLL_SECONDS,
   LinkAttemptsPerMinute: LINK_ATTEMPTS_PER_MINUTE,
   CapabilitiesEverySeconds: CAPABILITIES_EVERY_SECONDS,
+  UsageEverySeconds: USAGE_EVERY_SECONDS,
 };

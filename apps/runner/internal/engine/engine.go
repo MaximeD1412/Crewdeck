@@ -72,6 +72,10 @@ type StartOptions struct {
 	// RUNNER-9), where the adapter keeps its side channels; empty, a
 	// temporary folder removed at the end of the run.
 	SessionDir string
+	// SessionID is Crewdeck's id of the Session (RUNNER-9), empty for a run
+	// outside one. The adapters do not read it: the Reporter names the
+	// spends of the run with it (accounts/usage.go).
+	SessionID string
 	// BinaryPath is the Moteur's executable; empty, the adapter's own (found
 	// on PATH). The tests set the fake binary here.
 	BinaryPath string

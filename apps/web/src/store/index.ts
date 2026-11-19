@@ -30,6 +30,7 @@ store.registerSlice('milestone', { shape: 'collection', snapshotKey: 'milestones
 store.registerSlice('code-change', { shape: 'collection', snapshotKey: 'codeChanges' });
 store.registerSlice('agent-session', { shape: 'collection', snapshotKey: 'sessions' });
 store.registerSlice('settings', { shape: 'single' });
+store.registerSlice('usage', { shape: 'collection' });
 
 export const client = createClient({
   seq: () => store.getState().seq,

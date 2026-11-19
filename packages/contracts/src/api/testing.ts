@@ -3,6 +3,7 @@ import { zBytes32 } from '../keys/pairing.js';
 import { FOLDER_PATH_MAX } from '../keys/folder.js';
 import { zCapabilities } from '../runner/capabilities.js';
 import { zMcpServers } from '../runner/mcp.js';
+import { zUsage } from '../runner/usage.js';
 import { zLinkCode } from './runner-link.js';
 import { zDecision, zDecisionKind } from './decisions.js';
 import { zWaitingProject } from './runner-offline.js';
@@ -120,6 +121,15 @@ export type TestingRunnerFolder = z.infer<typeof zTestingRunnerFolder>;
  */
 export const zTestingWaitingWork = z.object({ projects: z.array(zWaitingProject) });
 export type TestingWaitingWork = z.infer<typeof zTestingWaitingWork>;
+
+/**
+ * `POST /api/testing/runner/usage`, outside production only: the fake
+ * Runner of the scenario sends this `usage` message (RUNNER-13), as a Runner
+ * whose Moteur just reported its windows or a Session's cost. The end-to-end
+ * tests see the usage card change without a reload.
+ */
+export const zTestingRunnerUsage = zUsage.omit({ type: true, id: true, at: true });
+export type TestingRunnerUsage = z.infer<typeof zTestingRunnerUsage>;
 
 /**
  * `POST /api/testing/smoke/confirm` and `POST /api/testing/smoke/sessions`,

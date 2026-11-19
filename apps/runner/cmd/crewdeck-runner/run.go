@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"sync/atomic"
 	"syscall"
@@ -97,18 +98,24 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	defer closeMirror()
 	// The client of the current connection: a new one after each update attempt.
 	var current atomic.Pointer[protocol.Client]
+	send := func(ctx context.Context, m any) error {
+		client := current.Load()
+		if client == nil {
+			return protocol.ErrNotConnected
+		}
+		return client.Send(ctx, m)
+	}
 	reporter := &accounts.Reporter{
-		Send: func(ctx context.Context, m contracts.RunnerCapabilities) error {
-			client := current.Load()
-			if client == nil {
-				return protocol.ErrNotConnected
-			}
-			return client.Send(ctx, m)
-		},
-		Logger: logger,
+		Send:      func(ctx context.Context, m contracts.RunnerCapabilities) error { return send(ctx, m) },
+		SendUsage: func(ctx context.Context, m contracts.RunnerUsage) error { return send(ctx, m) },
+		Logger:    logger,
+		// The cost of each Session so far and the spends not acked, beside
+		// runner.json: a Session resumed after a restart sends only what it
+		// adds, and no spend is lost.
+		SpentPath: filepath.Join(store.Dir, "spent.json"),
 	}
 	// The adapters, their Sessions watched: a limit or a sign-in they meet
-	// reaches the capabilities. The Sessions (RUNNER-9) start from this registry.
+	// reaches the capabilities, the usage they report reaches the server. The Sessions (RUNNER-9) start from this registry.
 	reporter.Engines = reporter.Watch(runnerEngines(keys))
 	// The Sessions the server asks for, those kept under ~/.crewdeck/sessions
 	// said in each hello: none alive after a restart.
@@ -184,6 +191,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		}
 	}()
 	go reporter.Every(ctx, contracts.CapabilitiesEverySeconds*time.Second)
+	go reporter.UsageEvery(ctx, contracts.UsageEverySeconds*time.Second)
 	updater := &update.Updater{
 		Server: linked.Server,
 		Binary: binary,
@@ -199,9 +207,18 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			Machine: described,
 			Logger:  logger,
 			// What each Moteur can run (US-38), the Serveurs MCP (US-73) and
-			// the Projets' folders (PROJET-6), on each accepted connection.
-			OnConnected: report,
-			Sessions:    sessions.Hello,
+			// the Projets' folders (PROJET-6), on each accepted connection, and
+			// the usage that waits: a spend not acked is sent again.
+			OnConnected: func(ctx context.Context) {
+				report(ctx)
+				reporter.FlushUsage(ctx)
+			},
+			Sessions: sessions.Hello,
+		})
+		// A spend is forgotten once stored (usage.ack), not once written.
+		protocol.On(client, protocol.TypeUsageAck, func(_ context.Context, ack contracts.RunnerUsageAck) error {
+			reporter.UsageAcked(ack.UsageId)
+			return nil
 		})
 		sessions.Register(client)
 		projectFolders.Register(client)

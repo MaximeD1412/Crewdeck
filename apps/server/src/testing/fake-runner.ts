@@ -13,6 +13,7 @@ import {
   type ServerToRunner,
   type SealedItem,
   type SessionOutcome,
+  type TestingRunnerUsage,
   zFolderCheck,
   zServerToRunner,
 } from '@crewdeck/contracts';
@@ -45,7 +46,8 @@ const baseName = (path: string): string => path.replace(/\/+$/, '').split('/').p
  * the scenario's token (`ScenarioSeed.runnerToken`), says `hello`, then
  * heartbeats every `HEARTBEAT_SECONDS`, so that the page sees it « en
  * ligne »; `report` sends its Moteurs' `capabilities` (RUNNER-7),
- * `reportMcpServers` its Serveurs MCP (RUNNER-16). Its Sessions (RUNNER-9):
+ * `reportMcpServers` its Serveurs MCP (RUNNER-16), `sendUsage` a Moteur's
+ * `usage` (RUNNER-13). Its Sessions (RUNNER-9):
  * `session.start` and `session.resume` answer `active` on the Session's own
  * Moteur id, then `ended` with the outcome `endSessionsWith` set (none: they
  * stay `active`); `session.stop` answers `stopped`; its `hello` tells the
@@ -130,6 +132,13 @@ export class FakeRunner implements Fake {
   reportMcpServers(servers: McpServers['servers']): boolean {
     if (!this.socket || !this.connected) return false;
     this.send(this.socket, { type: 'mcp.servers', servers: [...servers] });
+    return true;
+  }
+
+  /** Sends `usage` in a `usage` message; `false` while not connected. */
+  sendUsage(usage: TestingRunnerUsage): boolean {
+    if (!this.socket || !this.connected) return false;
+    this.send(this.socket, { type: 'usage', ...usage });
     return true;
   }
 

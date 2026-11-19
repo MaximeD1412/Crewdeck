@@ -19,6 +19,7 @@ const dayMonth = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short
 const dayMonthYear = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });
 const dayMonthUtc = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', timeZone: 'UTC' });
 const hourMinute = new Intl.DateTimeFormat(LOCALE, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const weekday = new Intl.DateTimeFormat(LOCALE, { weekday: 'long' });
 const decimal = new Intl.NumberFormat(LOCALE);
 const twoDecimals = new Intl.NumberFormat(LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const integer = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 });
@@ -53,6 +54,15 @@ export const formatHour = (instant: Instant): string => hourMinute.format(toDate
 export const formatDate = (instant: Instant, now: Date = new Date()): string => {
   const date = toDate(instant);
   return date.getFullYear() === now.getFullYear() ? dayMonth.format(date) : dayMonthYear.format(date);
+};
+
+/** « jeudi »: the day of the week of an instant. */
+export const formatWeekday = (instant: Instant): string => weekday.format(toDate(instant));
+
+/** Whether two instants fall on the same day, in the browser's time zone. */
+export const sameDay = (a: Instant, b: Instant): boolean => {
+  const [x, y] = [toDate(a), toDate(b)];
+  return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate();
 };
 
 /** « 12 nov. » for a `YYYY-MM-DD` day (`zDay`), never shifted by the time zone. */

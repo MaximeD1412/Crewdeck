@@ -28,6 +28,7 @@ import { updateSettings } from './api/settings.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
 import { browserScanner, openApproveDevice, openNewDevice } from './dialogs/device-approval.js';
 import { createClosedIdeas } from './closed-ideas.js';
+import { createDeadline } from './deadline.js';
 import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
 import { createPageKeys, type PageKeys } from './keys/index.js';
 import { createNoteIdea } from './note-idea.js';
@@ -58,6 +59,7 @@ import { ideesQuery, ideesView } from './views/idees.js';
 import { parametresView, timeZones } from './views/parametres.js';
 import { firstTab, projetsView, projetView } from './views/projets.js';
 import { runnerView } from './views/runner.js';
+import { usageChangesAt } from './views/usage.js';
 
 /** The Skins the page knows, by id: at the MVP, the default one. */
 const SKINS: Readonly<Record<string, Skin>> = { passerelle };
@@ -225,8 +227,8 @@ export const boot = async ({
   const router = startRouter({
     routes,
     outlet: shell.outlet,
+    state: () => store.getState(),
     onRoute: shell.update,
-    state: store.getState,
     guard: (match) => {
       const elsewhere = started(match) ?? signIn(match);
       if (elsewhere) return elsewhere;
@@ -288,6 +290,12 @@ export const boot = async ({
       });
     },
   });
+  // The usage of the Comptes IA changes at a window's reset and a month's end, a new measure or not.
+  const usageChanges = createDeadline(
+    (now) => usageChangesAt(store.getState().slices.usage?.values() ?? [], now),
+    () => router.refresh(),
+  );
+  usageChanges.schedule();
   // The Cadre and the page follow the store: a change made elsewhere shows without a reload.
   const refreshNoteDialog = () => {
     noteDialog.data = noteIdea.view();
@@ -299,6 +307,7 @@ export const boot = async ({
       gettingStarted.sync();
       router.refresh();
       shell.refresh();
+      usageChanges.schedule();
       refreshNoteDialog();
     }),
     plaintext.subscribe(() => router.refresh()),
@@ -419,6 +428,7 @@ export const boot = async ({
   });
   const stop = () => {
     router.stop();
+    usageChanges.stop();
     connection.stop();
     latency.stop();
     for (const stopListening of unsubscribe) stopListening();

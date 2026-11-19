@@ -54,6 +54,7 @@ describe('COMPOSANTS', () => {
         'Timeline',
         'ToolCall',
         'ToolChip',
+        'UsageCard',
         'UsageMeter',
       ],
     ],

@@ -43,6 +43,7 @@ const PROJECT: Project = {
   inventoryState: 'approved',
   accessLost: false,
   followedAt: SINCE,
+  readiness: null,
 };
 
 const VERSION_3: NonNullable<ProjectProcess['active']> = {

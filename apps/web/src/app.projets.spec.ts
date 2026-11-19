@@ -37,6 +37,7 @@ const PROJECT: Project = {
   inventoryState: 'pending',
   accessLost: false,
   followedAt: AT,
+  readiness: null,
 };
 const RUNNER: Runner = {
   id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a71',
@@ -135,8 +136,8 @@ describe('« Projets » in the page', () => {
     await vi.waitFor(() =>
       expect(page('cd-page-projets')?.data).toEqual({
         projects: [
-          { id: LOCAL_ID, name: 'Atelier', meta: 'Local · sur atelier-pc' },
-          { id: PROJECT.id, name: 'Site de la mairie', meta: 'octocat/site-mairie' },
+          { id: LOCAL_ID, name: 'Atelier', meta: 'Local · sur atelier-pc', tone: 'neutral', badge: 'en cours' },
+          { id: PROJECT.id, name: 'Site de la mairie', meta: 'octocat/site-mairie', tone: 'neutral', badge: 'en cours' },
         ],
       }),
     );
@@ -185,7 +186,7 @@ describe('« Projets » in the page', () => {
     expect(new TextDecoder().decode(fromBase64Url((sent?.body['nameSealed'] as { ciphertext: string }).ciphertext))).toBe(`${projectNameAad(id)}Recettes`);
     expect(location.pathname).toBe(`/projets/${id}`);
     await vi.waitFor(() =>
-      expect(page('cd-page-projet')?.data).toEqual({ id, name: 'Recettes', fullName: null, folder: { state: 'pending', machine: 'atelier-pc' }, connectors: [], followedAt: AT }),
+      expect(page('cd-page-projet')?.data).toEqual({ id, name: 'Recettes', fullName: null, folder: { state: 'pending', machine: 'atelier-pc' }, connectors: [], followedAt: AT, readiness: { count: 'en attente', blocked: null, rows: [], fixing: null } }),
     );
 
     await act('PageProjet', 'openProcess', {});

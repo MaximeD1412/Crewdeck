@@ -1,4 +1,4 @@
-import { zProcessTemplateId, type EmailLinkVerified, type Me, type Project } from '@crewdeck/contracts';
+import { zProcessTemplateId, type EmailLinkVerified, type Me, type Project, type ReadinessFixId } from '@crewdeck/contracts';
 import {
   AccountIdentities,
   Cadre,
@@ -34,6 +34,7 @@ import { createEditorActions, createMigrateAction } from './actions/process-edit
 import { me as readMe, requestLink as postLinkRequest, verifyLink as postLinkVerify } from './api/auth.js';
 import type { Client } from './api/client.js';
 import { ApiError, currentDeviceId, deviceRevoked, onDeviceRevoked } from './api/request.js';
+import { postProjectFix } from './api/projects.js';
 import { updateSettings } from './api/settings.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
 import { confirmProductAction } from './dialogs/confirm.js';
@@ -277,6 +278,8 @@ export const boot = async ({
   };
   // The tab each page opened on, once the Pilote chose one: « Dépôt GitHub » first when they have one.
   const tabs: { ajouter: ProjectOrigin | null; demarrage: ProjectOrigin | null } = { ajouter: null, demarrage: null };
+  /** The « Corriger » running (PROJET-3): its button busy until the server answers. */
+  let fixing: { readonly projectId: string; readonly checkId: ReadinessFixId } | null = null;
   const tabOf = (page: keyof typeof tabs) => tabs[page] ?? firstTab(store.getState().slices.repository?.values() ?? []);
   // The form forgets its path on another page or for another Projet (after the render that noticed it).
   let formKey: string | null = null;
@@ -397,7 +400,15 @@ export const boot = async ({
       if (match.composant === PageProjets) return projetsView(slices.project?.values() ?? [], { name: projectName, machine });
       if (match.composant === PageProjet) {
         const project = projectOf(match.params['id']);
-        return project ? projetView(project, { name: projectName, machine, process: slices.process?.get(project.id) }) : undefined;
+        return project
+          ? projetView(project, {
+              name: projectName,
+              machine,
+              process: slices.process?.get(project.id),
+              roleName: (role) => roleName(role, slices.settings),
+              fixing: fixing?.projectId === project.id ? fixing.checkId : null,
+            })
+          : undefined;
       }
       if (match.composant === PageAToi) {
         return aToiView(slices.decision?.values() ?? [], match.query, {
@@ -608,6 +619,27 @@ export const boot = async ({
     run: () => {
       const id = router.current.params['id'];
       if (id) router.navigate(`${projetHref(id)}/process`);
+    },
+  });
+  dispatcher.registerAction(PageProjet, 'openSettings', {
+    run: () => {
+      const id = router.current.params['id'];
+      if (id) router.navigate(`${projetHref(id)}/parametres`);
+    },
+  });
+  // The fixed Projet comes back by its event; a refusal says why (`onUnhandled`).
+  dispatcher.registerAction(PageProjet, 'fix', {
+    run: async ({ checkId }) => {
+      const projectId = router.current.params['id'];
+      if (!projectId || fixing) return;
+      fixing = { projectId, checkId };
+      router.refresh();
+      try {
+        await postProjectFix(client, projectId, checkId);
+      } finally {
+        fixing = null;
+        router.refresh();
+      }
     },
   });
   // Choosing a Projet's folder again, the check names it: its own folder is not another Projet's.

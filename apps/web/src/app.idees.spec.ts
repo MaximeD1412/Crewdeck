@@ -29,6 +29,7 @@ const project: Project = {
   inventoryState: 'not-needed',
   accessLost: false,
   followedAt: AT,
+  readiness: null,
 };
 
 /** The fake vault seals a text as itself: what the page shows is what it sealed. */

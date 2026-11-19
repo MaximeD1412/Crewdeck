@@ -39,6 +39,7 @@ const PROJECT: Project = {
   inventoryState: 'approved',
   accessLost: false,
   followedAt: '2026-11-11T08:30:00.000Z',
+  readiness: null,
 };
 
 const ACCOUNT: SettingsState = { ...DEFAULT_ACCOUNT_SETTINGS, notifications: { push: true }, timeZone: 'Europe/Paris', projects: [] };

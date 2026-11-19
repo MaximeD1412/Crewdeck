@@ -104,6 +104,9 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
   },
   'PageAjouterProjet.selectTab': (el) => inside(el, 'cd-tabs', 'button[role=tab]:nth-of-type(2)').click(),
   'PageProjet.openProcess': (el) => inside(el, 'cd-button.process', 'button').click(),
+  'PageProjet.openSettings': (el) => inside(el, 'cd-button.settings', 'button').click(),
+  // The GitHub example's first point is fixed on one click.
+  'PageProjet.fix': (el) => inside(el, 'cd-list-row cd-button', 'button').click(),
   'PageDemarrage.selectProjectsTab': async (el) => {
     el.data = COMPOSANTS.PageDemarrage.examples.find((example) => example.name === 'Projets')?.data;
     await settle(el);

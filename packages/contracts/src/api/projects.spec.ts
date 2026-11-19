@@ -28,6 +28,7 @@ const PROJECT = {
   nameSealed: null,
   folder: null,
   followedAt: '2026-11-12T08:30:00.000Z',
+  readiness: null,
 };
 
 /** A Local Projet: no repository, its name sealed, its folder on the Runner. */
@@ -57,6 +58,17 @@ describe('zRepository and zProject', () => {
     expect(eventPayloadSchema('project.upserted')?.parse(LOCAL_PROJECT)).toEqual(LOCAL_PROJECT);
     expect(zProject.safeParse({ ...LOCAL_PROJECT, folder: 'gone' }).success).toBe(false);
     expect(zProject.safeParse({ ...LOCAL_PROJECT, nameSealed: { key: 'x', ciphertext: 'y' } }).success).toBe(false);
+  });
+
+  it('carries its readiness once computed: each check with its state, its facts and its fix', () => {
+    const readiness = {
+      ready: false,
+      computedAt: '2026-11-12T08:31:00.000Z',
+      checks: [{ id: 'branches', state: 'missing', facts: { release: 'main', integration: 'develop', releaseExists: true }, fix: 'auto' }],
+    };
+    expect(zProject.parse({ ...PROJECT, readiness })).toEqual({ ...PROJECT, readiness });
+    expect(zProject.safeParse({ ...PROJECT, readiness: { ...readiness, checks: [{ ...readiness.checks[0], id: 'coffee' }] } }).success).toBe(false);
+    expect(zProject.safeParse({ ...PROJECT, readiness: undefined }).success).toBe(false);
   });
 
   it('keeps an Inventaire in one of its states', () => {

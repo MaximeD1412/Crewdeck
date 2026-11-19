@@ -40,6 +40,7 @@ const setup = (refused = 0) => {
         inventoryState: 'pending',
         accessLost: false,
         followedAt: AT,
+        readiness: null,
       };
       return schema?.parse(project);
     }) as Client['command'],

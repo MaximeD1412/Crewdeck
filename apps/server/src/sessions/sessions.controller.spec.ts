@@ -34,7 +34,11 @@ describe('/api/sessions, without a database', () => {
     await expectEnvelope(await call('POST', `/api/sessions/${id}/resume`, { seq: '1' }), 401, 'auth.required');
   });
 
-  it('is in the OpenAPI document: the list, one Session, stop and resume with their body', async () => {
+  it('answers 401 runner.token-invalid on the Runner’s route of a Session’s GitHub token without a Runner token', async () => {
+    await expectEnvelope(await fetch(`${url}/api/runner/sessions/${newId()}/github-token`, { method: 'POST' }), 401, 'runner.token-invalid');
+  });
+
+  it('is in the OpenAPI document: the list, one Session, stop and resume with their body, the Runner’s GitHub token', async () => {
     const doc = (await (await fetch(`${url}/api/docs.json`)).json()) as {
       paths: Record<string, { get?: { responses: Record<string, unknown> }; post?: { responses: Record<string, unknown>; requestBody?: unknown } }>;
     };
@@ -45,6 +49,7 @@ describe('/api/sessions, without a database', () => {
       expect(doc.paths[`/api/sessions/{id}/${action}`]?.post?.responses).toHaveProperty('200');
       expect(doc.paths[`/api/sessions/{id}/${action}`]?.post?.requestBody).toBeDefined();
     }
+    expect(doc.paths['/api/runner/sessions/{id}/github-token']?.post?.responses).toHaveProperty('200');
   });
 });
 

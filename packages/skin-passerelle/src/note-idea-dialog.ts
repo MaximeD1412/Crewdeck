@@ -1,4 +1,4 @@
-import { NoteIdeaDialog, t, type CdActionDetail } from '@crewdeck/sdk';
+import { formatElapsed, NoteIdeaDialog, t, type CdActionDetail } from '@crewdeck/sdk';
 import { css, html, nothing } from 'lit';
 import { PasserelleElement, sharedStyles } from './base.js';
 
@@ -17,6 +17,11 @@ const TEXT_MAX = NoteIdeaDialog.actions.submit.shape.text.maxLength;
  * open). `locked`: no field, the reason and a link to « Paramètres », which
  * emits `cancel` as it leads there. The
  * text goes as typed: the core trims, refuses an empty one and seals it.
+ * Where the browser can dictate, « Dicter » under the text
+ * (`design/screens/crewdeck/idees-dictee.html`); while it dictates, « Dictée
+ * en cours · 0:07 » above, its dot `halt`, the transcript in the field, the
+ * help under it, the notice on the browser's service the first time, and
+ * « Arrêter la dictée »; the note on the analysis gives them its room.
  */
 export class PasserelleNoteIdeaDialog extends PasserelleElement<typeof NoteIdeaDialog> {
   static override styles = [
@@ -30,6 +35,26 @@ export class PasserelleNoteIdeaDialog extends PasserelleElement<typeof NoteIdeaD
       }
       .locked {
         margin: 0;
+      }
+      .rec {
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: var(--cd-space-2);
+        color: var(--cd-halt);
+        font: var(--cd-font-label-weight) var(--cd-font-label-size) / var(--cd-font-label-line-height) var(--cd-font-label-family), sans-serif;
+      }
+      .dictation {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--cd-space-2);
+      }
+      .dictation-error {
+        margin: 0;
+        color: var(--cd-halt);
+        font: var(--cd-font-body-sm-weight) var(--cd-font-body-sm-size) / var(--cd-font-body-sm-line-height) var(--cd-font-body-sm-family),
+          sans-serif;
       }
     `,
   ];
@@ -49,9 +74,18 @@ export class PasserelleNoteIdeaDialog extends PasserelleElement<typeof NoteIdeaD
     const { busy, locked } = this.data;
     if (busy || locked) return;
     const root = this.shadowRoot;
-    const text = root?.querySelector<Control>('cd-text-field.text')?.value ?? '';
+    const text = this.text();
     const project = root?.querySelector<Control>('cd-select.project')?.value ?? '';
     this.emit('submit', { text, projectId: project === '' ? null : project });
+  }
+
+  private text(): string {
+    return this.shadowRoot?.querySelector<Control>('cd-text-field.text')?.value ?? '';
+  }
+
+  private onDictate() {
+    if (this.data.dictation.state === 'dictating') this.emit('dictate-stop', {});
+    else this.emit('dictate-start', { text: this.text() });
   }
 
   private onTextKey(event: KeyboardEvent) {
@@ -60,17 +94,41 @@ export class PasserelleNoteIdeaDialog extends PasserelleElement<typeof NoteIdeaD
     this.submit();
   }
 
+  private dictationControls() {
+    const { available, state, error } = this.data.dictation;
+    if (!available) return nothing;
+    const dictating = state === 'dictating';
+    return html`<div class="dictation">
+      <cd-button
+        class="dictate"
+        .data=${dictating
+          ? { label: t('dictation.stop'), variant: 'secondary', size: 'sm', icon: 'stop' }
+          : { label: t('dictation.start'), variant: 'secondary', size: 'sm', icon: 'mic' }}
+        @click=${this.onDictate}
+      ></cd-button>
+      ${error ? html`<p class="dictation-error" role="alert">${error}</p>` : nothing}
+    </div>`;
+  }
+
   private fields() {
-    const { projects, defaultProjectId, error } = this.data;
+    const { projects, defaultProjectId, error, value, dictation } = this.data;
     const chosen = projects.some((project) => project.id === defaultProjectId) ? (defaultProjectId ?? '') : '';
-    return html`<cd-text-field
+    const dictating = dictation.available && dictation.state === 'dictating';
+    return html`${dictating
+        ? html`<p class="rec" role="status">
+              <cd-status-dot .data=${{ tone: 'halt', pulse: true, label: t('dictation.dictating') }}></cd-status-dot
+              ><span aria-hidden="true">${t('dictation.elapsed', { elapsed: formatElapsed(dictation.elapsedSeconds) })}</span>
+            </p>
+            ${dictation.notice ? html`<p class="note notice">${t('dictation.notice')}</p>` : nothing}`
+        : nothing}
+      <cd-text-field
         class="text"
         .data=${{
           name: 'text',
           label: t('idees.dialog.text'),
-          value: '',
+          value,
           placeholder: null,
-          help: null,
+          help: dictating ? t('dictation.help') : null,
           error,
           state: null,
           multiline: true,
@@ -78,6 +136,7 @@ export class PasserelleNoteIdeaDialog extends PasserelleElement<typeof NoteIdeaD
         }}
         @keydown=${this.onTextKey}
       ></cd-text-field>
+      ${this.dictationControls()}
       <cd-select
         class="project"
         .data=${{
@@ -92,7 +151,7 @@ export class PasserelleNoteIdeaDialog extends PasserelleElement<typeof NoteIdeaD
           state: null,
         }}
       ></cd-select>
-      <p class="note">${t('idees.dialog.note')}</p>`;
+      ${dictating ? nothing : html`<p class="note">${t('idees.dialog.note')}</p>`}`;
   }
 
   private locked() {

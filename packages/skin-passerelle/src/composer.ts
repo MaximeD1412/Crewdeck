@@ -1,4 +1,4 @@
-import { Composer, t } from '@crewdeck/sdk';
+import { Composer, formatElapsed, t } from '@crewdeck/sdk';
 import { css, html, nothing, type PropertyValues } from 'lit';
 import { live } from 'lit/directives/live.js';
 import { PasserelleElement, sharedStyles } from './base.js';
@@ -6,9 +6,12 @@ import { PasserelleElement, sharedStyles } from './base.js';
 /**
  * `cd-composer`: a textarea named by its placeholder. Enter sends its text
  * (trimmed, nothing when blank) and clears it, Shift+Enter breaks a line, as
- * does Enter while an input method composes. Its mic, only with `dictation`,
- * asks to dictate or to stop; the core puts the transcript in `value`, which
- * replaces the field's text each time it changes.
+ * does Enter while an input method composes. Its mic, only where the browser
+ * can dictate, asks to dictate after the text typed, or to stop; the core puts
+ * the transcript in `value`, which replaces the field's text each time it
+ * changes, and never sends it. While it dictates, « Dictée en cours · 0:07 »
+ * in place of the hint, the notice on the browser's service above the field
+ * the first time; why the last dictation ended, in place of the hint.
  */
 export class PasserelleComposer extends PasserelleElement<typeof Composer> {
   static override properties = { text: { state: true } };
@@ -75,8 +78,20 @@ export class PasserelleComposer extends PasserelleElement<typeof Composer> {
         font: var(--cd-font-caption-weight) var(--cd-font-caption-size) / var(--cd-font-caption-line-height)
           var(--cd-font-caption-family), sans-serif;
       }
-      .recording {
+      .recording,
+      .dictation-error {
         color: var(--cd-halt);
+      }
+      .dictation-error {
+        margin-right: auto;
+        font: var(--cd-font-caption-weight) var(--cd-font-caption-size) / var(--cd-font-caption-line-height)
+          var(--cd-font-caption-family), sans-serif;
+      }
+      .notice {
+        margin: 0;
+        color: var(--cd-muted);
+        font: var(--cd-font-caption-weight) var(--cd-font-caption-size) / var(--cd-font-caption-line-height)
+          var(--cd-font-caption-family), sans-serif;
       }
       .tools button {
         display: grid;
@@ -144,12 +159,25 @@ export class PasserelleComposer extends PasserelleElement<typeof Composer> {
     this.send();
   }
 
+  private hintOrStatus(dictating: boolean) {
+    const { hint, dictation } = this.data;
+    if (dictating) {
+      return html`<span class="recording" role="status"
+        ><cd-status-dot .data=${{ tone: 'halt', pulse: true, label: t('dictation.dictating') }}></cd-status-dot
+        ><span aria-hidden="true">${t('dictation.elapsed', { elapsed: formatElapsed(dictation.elapsedSeconds) })}</span></span
+      >`;
+    }
+    if (dictation.available && dictation.error) return html`<span class="dictation-error" role="alert">${dictation.error}</span>`;
+    return html`<span class="hint">${hint ?? t('composer.hint')}</span>`;
+  }
+
   protected override render() {
-    const { placeholder, hint, state, dictation } = this.data;
-    const dictating = state === 'dictating';
+    const { placeholder, state, dictation } = this.data;
     const disabled = state === 'disabled';
-    return html`<div part="composer" class="composer ${state}">
+    const dictating = dictation.available && dictation.state === 'dictating';
+    return html`<div part="composer" class="composer ${state} ${dictating ? 'dictating' : ''}">
       <div class="box">
+        ${dictating && dictation.notice ? html`<p class="notice">${t('dictation.notice')}</p>` : nothing}
         <textarea
           rows="1"
           placeholder=${placeholder}
@@ -160,20 +188,15 @@ export class PasserelleComposer extends PasserelleElement<typeof Composer> {
           @keydown=${(event: KeyboardEvent) => this.onKeydown(event)}
         ></textarea>
         <div class="tools">
-          ${dictating
-            ? html`<span class="recording" role="status"
-                ><cd-status-dot .data=${{ tone: 'halt', pulse: true, label: t('composer.dictating') }}></cd-status-dot
-                ><span aria-hidden="true">${t('composer.dictating')}</span></span
-              >`
-            : html`<span class="hint">${hint ?? t('composer.hint')}</span>`}
-          ${dictation
+          ${this.hintOrStatus(dictating)}
+          ${dictation.available
             ? html`<button
                 type="button"
                 class="mic"
-                aria-label=${dictating ? t('composer.stopDictation') : t('composer.dictate')}
+                aria-label=${dictating ? t('dictation.stop') : t('dictation.start')}
                 aria-pressed=${dictating ? 'true' : 'false'}
                 ?disabled=${disabled}
-                @click=${() => (dictating ? this.emit('stopDictation', {}) : this.emit('dictate', {}))}
+                @click=${() => (dictating ? this.emit('dictate-stop', {}) : this.emit('dictate-start', { text: this.text }))}
               >
                 <cd-icon .data=${{ name: dictating ? 'stop' : 'mic', size: 'md' }}></cd-icon>
               </button>`

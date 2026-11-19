@@ -57,9 +57,10 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     await settle(el);
     inside(el, 'button.send').click();
   },
-  'Composer.dictate': (el) => inside(el, 'button.mic').click(),
-  'Composer.stopDictation': async (el) => {
-    el.data = { ...(el.data as object), state: 'dictating' };
+  'Composer.dictate-start': (el) => inside(el, 'button.mic').click(),
+  'Composer.dictate-stop': async (el) => {
+    const data = el.data as { dictation: object };
+    el.data = { ...data, dictation: { ...data.dictation, state: 'dictating' } };
     await settle(el);
     inside(el, 'button.mic').click();
   },
@@ -98,6 +99,13 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     inside(el, 'cd-button.submit', 'button').click();
   },
   'NoteIdeaDialog.cancel': (el) => inside(el, 'cd-button.cancel', 'button').click(),
+  'NoteIdeaDialog.dictate-start': (el) => inside(el, 'cd-button.dictate', 'button').click(),
+  'NoteIdeaDialog.dictate-stop': async (el) => {
+    const data = el.data as { dictation: object };
+    el.data = { ...data, dictation: { ...data.dictation, state: 'dictating' } };
+    await settle(el);
+    inside(el, 'cd-button.dictate', 'button').click();
+  },
   'PageConnexion.requestLink': (el) => inside(el, 'cd-button.request', 'button').click(),
   'PageConnexion.signInWith': (el) => inside(el, 'cd-button.github', 'button').click(),
   'PageConnexion.changeEmail': async (el) => {

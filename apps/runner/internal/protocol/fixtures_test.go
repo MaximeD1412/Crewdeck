@@ -43,6 +43,12 @@ func TestEveryFixtureOfTheProtocolDecodesIntoItsGeneratedType(t *testing.T) {
 		TypeVaultRotated:         decodeInto[contracts.RunnerVaultRotated],
 		TypeSessionWaiting:       decodeInto[contracts.RunnerSessionWaiting],
 		TypeSessionAnswered:      decodeInto[contracts.RunnerSessionAnswered],
+		TypeMigrationCopy:        decodeInto[contracts.RunnerMigrationCopy],
+		TypeMigrationFinish:      decodeInto[contracts.RunnerMigrationFinish],
+		TypeMigrationProgress:    decodeInto[contracts.RunnerMigrationProgress],
+		TypeMigrationSwitch:      decodeInto[contracts.RunnerMigrationSwitch],
+		TypeMigrationFinished:    decodeInto[contracts.RunnerMigrationFinished],
+		TypeMigrationFailed:      decodeInto[contracts.RunnerMigrationFailed],
 	}
 	entries, err := os.ReadDir(fixturesDir)
 	if err != nil {

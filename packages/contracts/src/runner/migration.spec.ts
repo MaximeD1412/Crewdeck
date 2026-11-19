@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { zHello, zMigrationCopy, zMigrationFailed, zMigrationFinish, zMigrationProgress, zMigrationSwitch, zRunnerToServer, zServerToRunner } from '../index.js';
 
 const FIXTURES = join(import.meta.dirname, '../../fixtures/runner');
-const fixture = <T = Record<string, unknown>>(type: string): T => JSON.parse(readFileSync(join(FIXTURES, `${type}.json`), 'utf8')) as T;
+const fixture = (type: string): Record<string, unknown> => JSON.parse(readFileSync(join(FIXTURES, `${type}.json`), 'utf8')) as Record<string, unknown>;
 
 describe('the messages of a migration of Source', () => {
   it('sends copy and finish to the Runner, and takes progress, switch, finished and failed from it', () => {
@@ -31,7 +31,7 @@ describe('the messages of a migration of Source', () => {
   it('carries content-free fingerprints: a key, a state, a sha-256, nothing else', () => {
     const [fingerprint] = zMigrationSwitch.parse(fixture('migration.switch')).fingerprints;
     expect(Object.keys(fingerprint ?? {}).sort()).toEqual(['contentHash', 'key', 'state']);
-    const switched = fixture<{ fingerprints: Record<string, unknown>[] }>('migration.switch');
+    const switched = fixture('migration.switch');
     expect(zMigrationSwitch.safeParse({ ...switched, fingerprints: [{ ...fingerprint, title: 'Connexion' }] }).success).toBe(false);
     expect(zMigrationSwitch.safeParse({ ...switched, fingerprints: [{ ...fingerprint, contentHash: 'abc' }] }).success).toBe(false);
     expect(zMigrationFinish.parse(fixture('migration.finish')).fingerprints).toHaveLength(2);

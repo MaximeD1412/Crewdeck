@@ -60,6 +60,15 @@ const (
 	// the Runner its wrap of the new version once a holder rotated.
 	TypeVaultRotationPending = "vault.rotation-pending"
 	TypeVaultRotated         = "vault.rotated"
+	// A migration of Source (SOURCE-7, ADR 0012): the server asks the copy
+	// of a group and its finish, the Runner reports its progress, the switch
+	// it is ready for, and how it ended. The Runner's side is SOURCE-8.
+	TypeMigrationCopy     = "migration.copy"
+	TypeMigrationFinish   = "migration.finish"
+	TypeMigrationProgress = "migration.progress"
+	TypeMigrationSwitch   = "migration.switch"
+	TypeMigrationFinished = "migration.finished"
+	TypeMigrationFailed   = "migration.failed"
 )
 
 // Machine is what the Runner says of itself in its hello.

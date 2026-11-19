@@ -30,7 +30,7 @@ import { RunnerPresence } from '../../../runners/runner-presence.service.js';
 import { currentPilotId, runInPilotScope } from '../../../scope/scope.context.js';
 import { SensitiveActionsService } from '../../../sensitive-actions/sensitive-actions.service.js';
 import { Engine } from '../../engine/engine.js';
-import { readProjectProcess } from '../../process.service.js';
+import { publishProcess } from '../../process.service.js';
 import { toProject, PROJECT_VIEW } from '../../../projects/project.view.js';
 import { decodeMigrationCursor, encodeMigrationCursor } from './migration-cursor.js';
 import { SOURCE_MIGRATION_VIEW, type SourceMigrationRow, toSourceMigration, waitingItemsOf } from './source-migration.view.js';
@@ -425,7 +425,8 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
     const migration = toSourceMigration(updated);
     for (const hook of this.hooks.get(row.group) ?? []) await hook(tx, migration, message);
     await this.publish(tx, updated);
-    await this.events.write(tx, pilotId, 'process.upserted', await readProjectProcess(tx, row.projectId));
+    // Through `publishProcess`: the draft keeps this event's seq, so an activation confirmed before the switch is stale.
+    await publishProcess(tx, this.events, pilotId, row.projectId);
     const project = toProject(await tx.project.findUniqueOrThrow({ where: { id: row.projectId }, select: PROJECT_VIEW }));
     const projectSeq = await this.events.write(tx, pilotId, 'project.upserted', project);
     await tx.project.update({ where: { id: row.projectId }, data: { lastSeq: projectSeq } });

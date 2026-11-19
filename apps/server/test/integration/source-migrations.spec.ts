@@ -1,4 +1,4 @@
-import { CATALOGUE, PROCESS_CREWDECK, type ProcessDefinition, type SourceMigration, type StepKind, zDecision, zProjectList, zSourceMigration, zSourceMigrationPage, zState } from '@crewdeck/contracts';
+import { CATALOGUE, PROCESS_CREWDECK, type ProcessDefinition, type SourceMigration, type StepKind, zDecision, zProjectList, zProjectProcess, zSourceMigration, zSourceMigrationPage, zState } from '@crewdeck/contracts';
 import { type INestApplication, Inject, Module, type OnModuleInit } from '@nestjs/common';
 import pg from 'pg';
 import { inject } from 'vitest';
@@ -108,7 +108,7 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
     await app.close();
   });
 
-  const call = (method: 'GET' | 'POST', path: string, body?: unknown, cookie = alice.cookie): Promise<Response> =>
+  const call = (method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown, cookie = alice.cookie): Promise<Response> =>
     fetch(`${url}${path}`, {
       method,
       headers: { ...(cookie ? { cookie } : {}), origin: ORIGIN, 'content-type': 'application/json' },
@@ -379,6 +379,25 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
       socket.send({ type: 'migration.finished', migrationId: migration.id });
       await vi.waitFor(async () => expect((await row(migration.id))?.state).toBe('done'));
       expect(await phaseRun(held.id)).toEqual({ state: 'running', waiting_on: null });
+    });
+
+    it('refuses an activation confirmed before the switch (sensitive-action.stale): the Process it showed changed', async () => {
+      const { migration, socket } = await copying();
+      const now = zProjectProcess.parse(await (await call('GET', `/api/projects/${projectId}/process`)).json());
+      const definition = structuredClone(now.active!.definition);
+      definition.loopBacks[0]!.max += 2;
+      const saved = await call('PUT', `/api/projects/${projectId}/process/draft`, { definition, sealed: null, revision: 0, baseVersion: now.active!.number });
+      const { revision } = zProjectProcess.parse(await saved.json()).draft!;
+      // The dialog opens here: the seq the page holds.
+      const confirmed = await lastSeq();
+
+      socket.send({ type: 'migration.switch', migrationId: migration.id, fingerprints: [FINGERPRINT], renumbering: [] });
+      await expect(socket.expect('migration.finish')).resolves.toMatchObject({ migrationId: migration.id });
+
+      await expectEnvelope(await call('POST', `/api/projects/${projectId}/process/activate`, { revision, seq: confirmed }), 409, 'sensitive-action.stale');
+      const after = zProjectProcess.parse(await (await call('GET', `/api/projects/${projectId}/process`)).json());
+      expect(after.active?.number).toBe(now.active!.number);
+      expect(after.draft?.revision).toBe(revision);
     });
 
     it('rolls the whole switch back when a hook throws, then fails the migration on the old Source (switch-failed)', async () => {

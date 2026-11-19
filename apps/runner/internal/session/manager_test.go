@@ -906,7 +906,7 @@ func TestAStopAsARunGivesItsWorktreeBackCancelsTheResumeThatWaitedForIt(t *testi
 
 	// A Commande's run holds the stopped Session's worktree, as it is.
 	dir := s.worktree("feat/12-panier")
-	place, err := m.TicketWorktree(context.Background(), projectID, "acme", "shop", "feat/12-panier", git(t, dir, "rev-parse", "HEAD"))
+	place, err := m.TicketWorktree(context.Background(), projectID, "acme", "shop", "feat/12-panier", git(t, dir, "rev-parse", "HEAD"), session.Preparation{})
 	if err != nil {
 		t.Fatal(err)
 	}

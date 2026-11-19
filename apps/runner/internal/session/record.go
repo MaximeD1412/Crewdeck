@@ -30,6 +30,10 @@ type record struct {
 	State           contracts.RunnerSessionStateState          `json:"state"`
 	Outcome         contracts.RunnerSessionStateOutcome        `json:"outcome,omitempty"`
 	Error           contracts.RunnerSessionStateError          `json:"error,omitempty"`
+	// WorktreeCommands are the Projet's sealed worktree Commandes the
+	// session.start gave, kept for the worktree a resume makes again and
+	// for its cleaning; nil for none.
+	WorktreeCommands *SealedCommands `json:"worktreeCommands,omitempty"`
 }
 
 const recordFile = "session.json"

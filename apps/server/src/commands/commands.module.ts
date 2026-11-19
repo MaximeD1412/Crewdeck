@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { RunnersModule } from '../runners/runners.module.js';
+import { SettingsModule } from '../settings/settings.module.js';
 import { CommandRunHooks } from './command-run-hooks.js';
 import { COMMAND_RUN_OWNERS, CommandRuns } from './command-runs.service.js';
 import { CommandOutputRelay } from './relay/command-output-relay.js';
@@ -12,7 +13,7 @@ import { CommandOutputRelay } from './relay/command-output-relay.js';
  * PROCESS-12's.
  */
 @Module({
-  imports: [RunnersModule],
+  imports: [RunnersModule, SettingsModule],
   providers: [CommandRuns, CommandRunHooks, CommandOutputRelay, { provide: COMMAND_RUN_OWNERS, useExisting: CommandRuns }],
   exports: [CommandRuns, CommandRunHooks, COMMAND_RUN_OWNERS],
 })

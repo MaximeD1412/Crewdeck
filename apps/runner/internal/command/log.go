@@ -108,6 +108,24 @@ func (o *output) handOver(service *os.File, line string) {
 	o.service = service
 }
 
+// takeBack makes the run's log, reopened, where the streams go again, its
+// chunks numbered on and relayed: once a service ended, what cleans its
+// worktree belongs to the run. Its service's log stays as it was.
+func (o *output) takeBack() error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.service == nil {
+		return nil
+	}
+	file, err := os.OpenFile(logPath(o.r.cfg.Home, o.runID), os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	_ = o.service.Close()
+	o.service, o.file = nil, file
+	return nil
+}
+
 // emit logs one chunk, then relays it; once handed over, it goes to the
 // service's log.
 func (o *output) emit(name contracts.CommandOutputChunkStream, text []byte) {

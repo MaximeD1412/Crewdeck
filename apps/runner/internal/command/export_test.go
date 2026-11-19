@@ -44,3 +44,11 @@ func SlowPoll(d time.Duration) (restore func()) {
 		hooks.Unlock()
 	}
 }
+
+// SetPrepareBound replaces the 15 min of « Préparer le worktree », until
+// restore.
+func SetPrepareBound(d time.Duration) (restore func()) {
+	previous := prepareBound
+	prepareBound = d
+	return func() { prepareBound = previous }
+}

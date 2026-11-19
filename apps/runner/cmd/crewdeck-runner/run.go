@@ -131,6 +131,9 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		Logger:    logger,
 		Keys:      relay,
 		Send:      send,
+		// The Projet's « Préparer le worktree » and « Nettoyer le
+		// worktree » (RUNNER-20), around every worktree it makes.
+		Hooks: command.WorktreeHooks(vault),
 	})
 	if err != nil {
 		return err

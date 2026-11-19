@@ -6,7 +6,7 @@ import { zId, zInstant } from '../values.js';
 import { runnerMessage } from './envelope.js';
 import { zOrigin } from './origin.js';
 import { SESSION_KEY_WRAPS_MAX, zNonce, zRelaySeq, zSessionKeyWrap } from './relay.js';
-import { zGitBranch } from './session.js';
+import { zGitBranch, zWorktreeCommandsSealed } from './session.js';
 
 /**
  * The Commandes on the Runner (RUNNER-18, ADR 0013, ADR 0011 « What the
@@ -75,7 +75,9 @@ export type CommandRunRef = z.infer<typeof zCommandRunRef>;
 
 /**
  * Server → Runner: run the Commande `commandId` of the sealed part for the
- * Projet. The Runner answers `command.started` once its process started,
+ * Projet; a `worktree` one that makes the Ticket's worktree prepares it
+ * first with the Projet's `worktreeCommands`, and cleans it before removing
+ * it, as a Session's (RUNNER-20). The Runner answers `command.started` once its process started,
  * then `command.verdict`; a second run of the same Commande while one runs
  * gets `busy`.
  */
@@ -87,6 +89,7 @@ export const zCommandRun = runnerMessage('command.run', {
   origin: zOrigin,
   integrationBranch: zGitBranch,
   ref: zCommandRunRef,
+  worktreeCommands: zWorktreeCommandsSealed,
 });
 export type CommandRun = z.infer<typeof zCommandRun>;
 
@@ -107,9 +110,22 @@ export type CommandStarted = z.infer<typeof zCommandStarted>;
  * it never started: the same Commande already running (`busy`), a sealed part
  * that does not open for this Projet or holds no such Commande
  * (`sealed-invalid`), its place not available (`place-unavailable`), its
- * shell that could not start (`spawn-failed`).
+ * shell that could not start (`spawn-failed`), the preparation of the
+ * worktree it made that failed (`setup-failed`: « Préparer le worktree »
+ * exited non-zero, timed out, or did not open; the Commande did not run).
  */
-export const COMMAND_RUN_REASONS = ['exited', 'healthy', 'timeout', 'health-timeout', 'stopped', 'busy', 'sealed-invalid', 'place-unavailable', 'spawn-failed'] as const;
+export const COMMAND_RUN_REASONS = [
+  'exited',
+  'healthy',
+  'timeout',
+  'health-timeout',
+  'stopped',
+  'busy',
+  'sealed-invalid',
+  'place-unavailable',
+  'spawn-failed',
+  'setup-failed',
+] as const;
 export const zCommandRunReason = z.enum(COMMAND_RUN_REASONS);
 export type CommandRunReason = z.infer<typeof zCommandRunReason>;
 

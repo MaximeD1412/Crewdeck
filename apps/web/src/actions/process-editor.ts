@@ -1,6 +1,11 @@
 import type { ComposantAction, ComposantParsedPayload, PageProcessEditor } from '@crewdeck/sdk';
+import type { Client } from '../api/client.js';
+import { migrateSource } from '../api/source-migrations.js';
 import { editorQueryOf, processHref, type EditorUiState } from '../process/editor-ui.js';
 import type { RouteMatch } from '../router.js';
+import { sourceReadsOf, type ProcessEditorState } from '../views/process-editor.js';
+import { migrationConfirmation } from '../views/source-migration.js';
+import type { SensitiveActionHandler } from './dispatcher.js';
 
 type Payload<A extends ComposantAction<typeof PageProcessEditor>> = ComposantParsedPayload<typeof PageProcessEditor, A>;
 
@@ -38,3 +43,41 @@ export const createEditorActions = ({ ui, navigate, current }: EditorActionsOpti
 };
 
 export type EditorActions = ReturnType<typeof createEditorActions>;
+
+export interface MigrateActionOptions {
+  readonly ui: Pick<EditorUiState, 'choose'>;
+  readonly client: Pick<Client, 'command'>;
+  /** The page's match: its Projet's id. */
+  readonly current: () => Pick<RouteMatch, 'params'>;
+}
+
+/**
+ * « Migrer » a group of the Sources (SOURCE-7, US-102), the Action sensible
+ * `source.migrate`: the core's dialog says what the migration holds, copies
+ * and archives; the group's Select shows the choice while it is open and
+ * goes back once answered; confirmed, the migration is asked with the `seq`
+ * seen when the dialog opened, and the store shows it running, live. A
+ * refusal is an `ApiError`, which the page shows.
+ */
+export const createMigrateAction = ({ ui, client, current }: MigrateActionOptions): SensitiveActionHandler<Payload<'migrate'>> => {
+  const projectId = () => current().params['id'] ?? '';
+  return {
+    confirmation: ({ group, to }, state) => {
+      const slices = state.slices as ProcessEditorState['slices'];
+      const project = slices.project?.get(projectId());
+      const view = slices.process?.get(projectId());
+      const definition = view?.active?.definition ?? view?.draft?.definition ?? null;
+      const from = view?.sources[group].source ?? (to === 'github' ? 'local' : 'github');
+      if (!project) throw new Error(`Projet ${projectId()} absent du store`);
+      return migrationConfirmation(sourceReadsOf(state as ProcessEditorState, project, definition), group, from, to);
+    },
+    pending: (choice) => {
+      const id = projectId();
+      ui.choose(id, choice);
+      return () => ui.choose(id, null);
+    },
+    run: async ({ group, to }, { seq }) => {
+      await migrateSource(client, projectId(), group, to, seq);
+    },
+  };
+};

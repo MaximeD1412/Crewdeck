@@ -23,6 +23,8 @@ const ICONS: Readonly<Record<DecisionKind, IconName>> = {
   'step-failed': 'alert',
   'runner-offline': 'server',
   'ideas-to-triage': 'bulb',
+  'source-migration.failed': 'refresh',
+  'source-migration.unfinished': 'folder',
 };
 
 export interface AToiOptions {

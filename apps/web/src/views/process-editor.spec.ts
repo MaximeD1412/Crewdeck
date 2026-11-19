@@ -8,6 +8,7 @@ import {
   type Project,
   type ProjectProcess,
   type Runner,
+  type SourceMigration,
 } from '@crewdeck/contracts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -95,6 +96,34 @@ const stateOf = (process: ProjectProcess | null = PROCESS, project: Project | nu
     'ai-account': new Map([[CLAUDE.id, CLAUDE]]),
   },
 });
+
+const KINDS = [
+  { value: 'local', label: 'Local' },
+  { value: 'github', label: 'GitHub' },
+];
+
+const MIGRATION: SourceMigration = {
+  id: '019a6f00-0000-7000-8000-000000000031',
+  projectId: ID,
+  group: 'ticket',
+  from: 'local',
+  to: 'github',
+  state: 'draining',
+  total: 0,
+  copied: 0,
+  waitingItems: [
+    { itemType: 'ticket', number: 12 },
+    { itemType: 'ticket', number: 14 },
+  ],
+  errorCode: null,
+  attempt: 1,
+  createdAt: '2026-11-19T09:00:00.000Z',
+  switchedAt: null,
+  endedAt: null,
+};
+
+const withSlices = (state: ProcessEditorState, slices: Record<string, unknown>): ProcessEditorState =>
+  ({ slices: { ...state.slices, ...slices } }) as ProcessEditorState;
 
 const view = (state: ProcessEditorState, query: Record<string, string> = {}) => processEditorView(state, ID, createEditorUi().view(ID, query));
 const stepsOf = (data: ReturnType<typeof view>) => data.canvas.phases.flatMap((phase) => phase.steps);
@@ -219,18 +248,71 @@ describe('processEditorView', () => {
 
     expect(data.tab).toBe('sources');
     expect(data.sources).toEqual({
-      lead: 'Une Source par Type d’artefact : elle gagne toujours.',
+      lead: 'Une Source par Type d’artefact : elle gagne toujours. Changer de Source migre tout ce qu’elle tient. GitHub : MaximeD1412/site-mairie.',
+      banner: null,
       rows: [
-        { icon: 'folder', label: 'Tickets', value: 'Local', detail: 'dossier tickets/ du Projet, sur atelier-pc' },
+        {
+          icon: 'folder',
+          label: 'Tickets',
+          value: 'Local',
+          detail: 'dossier tickets/ du Projet, sur atelier-pc',
+          select: { group: 'ticket', label: 'Source des Tickets', value: 'local', options: KINDS, disabled: false },
+          migration: null,
+        },
         {
           icon: 'github',
           label: 'Code et documents',
           value: 'GitHub',
           detail: 'MaximeD1412/site-mairie · Changement de code, Verdict, PRD, Maquettes, Conception technique ; Inventaire non utilisé',
+          select: { group: 'code', label: 'Source du code et des documents', value: 'github', options: KINDS, disabled: false },
+          migration: null,
         },
-        { icon: 'bulb', label: 'Idée', value: 'Crewdeck', detail: null },
+        { icon: 'bulb', label: 'Idée', value: 'Crewdeck', detail: null, select: null, migration: null },
       ],
     });
+  });
+
+  it('shows the Source the Pilote picked in its Select while its migration is asked', () => {
+    const ui = createEditorUi();
+    ui.choose(ID, { group: 'ticket', to: 'github' });
+    const data = processEditorView(stateOf({ ...PROCESS, sources: { ticket: local, code: github } }), ID, ui.view(ID, { onglet: 'sources' }));
+
+    expect(data.sources.rows.map((row) => row.select?.value ?? null)).toEqual(['github', 'github', null]);
+    expect(data.sources.rows[0]?.value).toBe('Local');
+  });
+
+  it('shows a migration draining: its Banner, the group’s badge and meta in place of its Select, the other Select disabled', () => {
+    const state = withSlices(stateOf({ ...PROCESS, sources: { ticket: local, code: github } }), {
+      'source-migration': new Map([[MIGRATION.id, MIGRATION]]),
+      ticket: new Map(Array.from({ length: 30 }, (_, i) => [`t${i}`, { projectId: ID }] as const)),
+    });
+    const data = view(state, { onglet: 'sources' });
+
+    expect(data.sources.banner).toEqual({
+      title: 'Migration des Tickets vers GitHub',
+      text: 'Aucun nouveau Ticket ne démarre. #12 et #14 finissent sur Local, puis les 30 Tickets passent sur GitHub d’un coup.',
+    });
+    expect(data.sources.rows[0]).toEqual({
+      icon: 'refresh',
+      label: 'Tickets',
+      value: 'Local',
+      detail: 'migration en cours · 2 Tickets à finir sur Local',
+      select: null,
+      migration: 'Local → GitHub',
+    });
+    expect(data.sources.rows[1]?.select?.disabled).toBe(true);
+  });
+
+  it('follows the migration as it goes: copying with the Runner’s count, then done, its group saying where it came from', () => {
+    const copying = { ...MIGRATION, state: 'copying', total: 30, copied: 12, waitingItems: [] } as const;
+    const running = view(withSlices(stateOf({ ...PROCESS, sources: { ticket: local, code: github } }), { 'source-migration': new Map([[MIGRATION.id, copying]]) }), { onglet: 'sources' });
+    expect(running.sources.rows[0]?.detail).toBe('copie : 12 sur 30');
+
+    const done = { ...copying, state: 'done', copied: 30, switchedAt: '2026-11-19T10:00:00.000Z', endedAt: '2026-11-19T10:05:00.000Z' } as const;
+    const after = view(withSlices(stateOf({ ...PROCESS, sources: { ticket: github, code: github } }), { 'source-migration': new Map([[MIGRATION.id, done]]) }), { onglet: 'sources' });
+    expect(after.sources.banner).toBeNull();
+    expect(after.sources.rows[0]).toMatchObject({ icon: 'github', value: 'GitHub', migration: null, select: { value: 'github', disabled: false } });
+    expect(after.sources.rows[0]?.detail).toMatch(/^MaximeD1412\/site-mairie · depuis le .+ \(migré de Local\)$/);
   });
 
   it('shows a Local Projet Local for both groups, without GitHub, and the Livraison its Phase passes', () => {

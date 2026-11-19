@@ -43,6 +43,7 @@ describe('createEditorUi', () => {
       zoom: 90,
       pan: { x: 0, y: 0 },
       focus: { id: 'st-review', at: 0 },
+      choice: null,
     });
     expect(ui.view('p2', {}).focus).toBeNull();
   });
@@ -85,6 +86,19 @@ describe('createEditorUi', () => {
     stop();
     ui.setView('p1', { zoom: 70, pan: { x: 0, y: 0 } });
 
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
+
+  it('holds the Source the Pilote picked while its migration is asked, for its Projet only, and tells its listeners', () => {
+    const ui = createEditorUi();
+    const listener = vi.fn();
+    ui.subscribe(listener);
+    ui.choose('p1', { group: 'ticket', to: 'github' });
+
+    expect(ui.view('p1', { onglet: 'sources' }).choice).toEqual({ group: 'ticket', to: 'github' });
+    expect(ui.view('p2', { onglet: 'sources' }).choice).toBeNull();
+    ui.choose('p1', null);
+    expect(ui.view('p1', { onglet: 'sources' }).choice).toBeNull();
     expect(listener).toHaveBeenCalledTimes(2);
   });
 });

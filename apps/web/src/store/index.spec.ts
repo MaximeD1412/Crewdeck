@@ -9,6 +9,7 @@ import {
   PROCESS_CREWDECK,
   PROCESS_CREWDECK_NAME,
   type ProjectProcess,
+  type SourceMigration,
   type State,
   type StepRun,
   type Idea,
@@ -142,6 +143,23 @@ const STEP_RUN: StepRun = {
   endedAt: null,
 };
 
+const MIGRATION: SourceMigration = {
+  id: 'sm1',
+  projectId: 'p1',
+  group: 'ticket',
+  from: 'local',
+  to: 'github',
+  state: 'draining',
+  total: 0,
+  copied: 0,
+  waitingItems: [{ itemType: 'ticket', number: 12 }],
+  errorCode: null,
+  attempt: 1,
+  createdAt: AT,
+  switchedAt: null,
+  endedAt: null,
+};
+
 const SNAPSHOT: State = {
   seq: 1,
   pilot: PILOT,
@@ -151,6 +169,7 @@ const SNAPSHOT: State = {
   'mcp-server': [],
   devices: [],
   vault: { version: 1, rotationPending: false },
+  sourceMigrations: [MIGRATION],
   projects: [],
   processes: [PROCESS],
   phaseRuns: [PHASE_RUN],
@@ -290,6 +309,16 @@ describe('the page’s store', () => {
     store.applyEvent({ seq: 2, type: 'agent-session.upserted', payload: interrupted, at: AT });
 
     expect(store.getState().slices['agent-session']?.get(SESSION.id)).toEqual(interrupted);
+  });
+
+  it('holds the migrations of Source by id (SOURCE-7), from the snapshot then source-migration.upserted', () => {
+    store.applySnapshot(SNAPSHOT);
+    expect([...(store.getState().slices['source-migration']?.values() ?? [])]).toEqual([MIGRATION]);
+
+    const copying: SourceMigration = { ...MIGRATION, state: 'copying', total: 30, waitingItems: [] };
+    store.applyEvent({ seq: 2, type: 'source-migration.upserted', payload: copying, at: AT });
+
+    expect(store.getState().slices['source-migration']?.get(MIGRATION.id)).toEqual(copying);
   });
 
   it('holds the vault’s version and its rotation pending (E2E-4), from the snapshot then vault.upserted', () => {

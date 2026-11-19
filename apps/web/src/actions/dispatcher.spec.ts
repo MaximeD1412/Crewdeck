@@ -153,6 +153,26 @@ describe('the dispatcher, for an Action sensible', () => {
     expect(run).toHaveBeenCalledWith({ id: '#12' }, { seq: 7n });
   });
 
+  it('shows the action pending while it is asked, and puts the page back once cancelled or run', async () => {
+    const other = createDispatcher({ declarations: { Porte }, state: () => state, confirm, announce });
+    const settled = vi.fn();
+    const pending = vi.fn(() => settled);
+    other.registerAction(Porte, 'merge', { run, confirmation, pending });
+    stop();
+    stop = other.listen(document);
+
+    emit();
+    expect(pending).toHaveBeenCalledWith({ id: '#12' });
+    expect(settled).not.toHaveBeenCalled();
+    answer(false);
+    await vi.waitFor(() => expect(settled).toHaveBeenCalledTimes(1));
+
+    emit();
+    answer(true);
+    await vi.waitFor(() => expect(settled).toHaveBeenCalledTimes(2));
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
   it('during the Resynchronisation, opens no dialog, runs nothing and announces why', () => {
     state = { ...live, connection: 'resync' };
     emit();

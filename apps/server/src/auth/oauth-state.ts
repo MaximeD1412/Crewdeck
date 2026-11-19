@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 
 /** What a sign-in carries from `start` to the callback, in the `crewdeck_oauth` cookie. */
@@ -9,16 +9,33 @@ export interface OauthState {
   readonly timeZone: string;
   /** The page to land on once signed in. */
   readonly next: string;
+  /** Google's (PKCE): only its S256 challenge goes to Google, the token request proves it. */
+  readonly codeVerifier?: string;
+  /** Google's: the `nonce` its `id_token` must carry back. */
+  readonly nonce?: string;
 }
 
 /** A sign-in has 10 minutes to come back. */
 export const OAUTH_TTL_SECONDS = 600;
 
-const zSigned = z.object({ state: z.string().min(1), timeZone: z.string(), next: z.string(), exp: z.number() });
+const zSigned = z.object({
+  state: z.string().min(1),
+  timeZone: z.string(),
+  next: z.string(),
+  codeVerifier: z.string().min(1).optional(),
+  nonce: z.string().min(1).optional(),
+  exp: z.number(),
+});
 
 const sign = (secret: Buffer, body: string): Buffer => createHmac('sha256', secret).update(body).digest();
 
 export const newState = (): string => randomBytes(32).toString('base64url');
+
+/** A PKCE verifier (RFC 7636): 32 random bytes in base64url, 43 characters. */
+export const newCodeVerifier = (): string => randomBytes(32).toString('base64url');
+
+/** The S256 challenge of `verifier`: its SHA-256 in base64url. */
+export const codeChallengeOf = (verifier: string): string => createHash('sha256').update(verifier).digest('base64url');
 
 /** `base64url(JSON) . base64url(HMAC-SHA256)` with `SESSION_SECRET`, valid 10 minutes from `now`. */
 export const sealOauthState = (secret: Buffer, value: OauthState, now = Date.now()): string => {
@@ -41,8 +58,8 @@ export const openOauthState = (secret: Buffer, cookie: string | undefined, now =
   }
   const parsed = zSigned.safeParse(json);
   if (!parsed.success || parsed.data.exp <= now) return undefined;
-  const { state, timeZone, next } = parsed.data;
-  return { state, timeZone, next };
+  const { state, timeZone, next, codeVerifier, nonce } = parsed.data;
+  return { state, timeZone, next, ...(codeVerifier === undefined ? {} : { codeVerifier }), ...(nonce === undefined ? {} : { nonce }) };
 };
 
 /** Two states, compared in constant time. */

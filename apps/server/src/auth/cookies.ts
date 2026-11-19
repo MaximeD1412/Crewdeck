@@ -1,8 +1,10 @@
 /** The signed-in browser's cookie (`WebSession`): 32 random bytes in base64url. */
 export const SESSION_COOKIE = 'crewdeck_session';
-/** The cookie of a sign-in in progress (`oauth-state.ts`), sent back only to the callback. */
+/** The cookie of a sign-in in progress (`oauth-state.ts`), sent back only to its provider's callback. */
 export const OAUTH_COOKIE = 'crewdeck_oauth';
 export const OAUTH_COOKIE_PATH = '/api/auth/github';
+/** Its own path: a sign-in with GitHub begun in another tab does not erase one with Google. */
+export const GOOGLE_OAUTH_COOKIE_PATH = '/api/auth/google';
 
 export interface CookieOptions {
   /** Seconds; 0 clears it. */

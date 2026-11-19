@@ -4,6 +4,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod';
 import { AuthModule } from './auth/auth.module.js';
 import { CommandsModule } from './commands/commands.module.js';
+import { GoogleModule } from './auth/google/google.module.js';
 import { MailModule } from './auth/mail/mail.module.js';
 import { type Env, usesFakes } from './config/env.js';
 import { EnvModule } from './config/env.module.js';
@@ -70,6 +71,7 @@ export class AppModule {
         PublicConfigModule,
         GitHubModule.forRoot(env),
         MailModule.forRoot(env),
+        GoogleModule.forRoot(env),
         WebhooksModule,
         ReconciliationModule,
         ...fakes(env),

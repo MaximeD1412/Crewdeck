@@ -294,10 +294,28 @@
           ]
         },
         {
+          "id": "google",
+          "zone": "externes",
+          "x": 1180,
+          "y": 344,
+          "w": 330,
+          "h": 56,
+          "titre": "Google",
+          "sous": "connexion OpenID Connect",
+          "desc": "Une des façons de se connecter : Google dit seulement qui se connecte (une adresse vérifiée). Crewdeck ne garde aucun jeton Google.",
+          "tickets": [
+            "CORE-10",
+            "INFRA-15"
+          ],
+          "adr": [
+            "0014"
+          ]
+        },
+        {
           "id": "bce",
           "zone": "externes",
           "x": 1180,
-          "y": 342,
+          "y": 490,
           "w": 330,
           "h": 56,
           "titre": "BCE",
@@ -656,15 +674,38 @@
         },
         {
           "de": "serveur",
+          "vers": "google",
+          "points": [
+            [
+              540,
+              360
+            ],
+            [
+              1180,
+              360
+            ]
+          ],
+          "label": "connexion"
+        },
+        {
+          "de": "serveur",
           "vers": "bce",
           "points": [
             [
               540,
-              370
+              384
+            ],
+            [
+              1160,
+              384
+            ],
+            [
+              1160,
+              518
             ],
             [
               1180,
-              370
+              518
             ]
           ],
           "label": "cours du jour"

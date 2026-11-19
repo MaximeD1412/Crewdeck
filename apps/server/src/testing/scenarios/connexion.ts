@@ -3,23 +3,34 @@ import { EMAIL_LINK_TTL_SECONDS } from '@crewdeck/contracts';
 import { hashOf, LINK_PATH } from '../../auth/email/email-links.js';
 import { newId } from '../../ids.js';
 import { defineScenario } from './define.js';
-import { seedGitHubUser } from './sign-in.js';
+import { GOOGLE_ACCOUNT, seedSignIn } from './sign-in.js';
 
-/** The address of the scenarios' sign-in links. */
-export const LINK_ADDRESS = 'pilote@example.com';
+/** The address of the scenarios' sign-in links, the fake Google account's too. */
+export const LINK_ADDRESS = GOOGLE_ACCOUNT.email;
 
-/** The sign-in page (`design/screens.json`: `connexion`), nobody signed in: its email field, and « Continuer avec GitHub », which signs the fake user in. */
+/**
+ * The sign-in page (`design/screens.json`: `connexion`), nobody signed in:
+ * its email field, « Continuer avec Google » and « Continuer avec GitHub »,
+ * which sign the fake accounts in.
+ */
 export const connexion = defineScenario({
   name: 'connexion',
   path: '/connexion',
-  seed: seedGitHubUser,
+  seed: (ctx) => seedSignIn(ctx),
+});
+
+/** The sign-in page whose fake Google account has an address Google has not verified: « Continuer avec Google » comes back with its halt Banner. */
+export const connexionGoogleNonVerifiee = defineScenario({
+  name: 'connexion-google-non-verifiee',
+  path: '/connexion',
+  seed: (ctx) => seedSignIn(ctx, { emailVerified: false }),
 });
 
 /** The sign-in page after a callback whose `state` did not match (`connexion`, state `erreur`, a design gap): its halt Banner. */
 export const connexionErreur = defineScenario({
   name: 'connexion-erreur',
   path: '/connexion?erreur=state-mismatch',
-  seed: seedGitHubUser,
+  seed: (ctx) => seedSignIn(ctx),
 });
 
 /**
@@ -31,7 +42,7 @@ export const connexionErreur = defineScenario({
 export const connexionLienEnvoye = defineScenario({
   name: 'connexion-lien-envoye',
   path: '/connexion',
-  seed: seedGitHubUser,
+  seed: (ctx) => seedSignIn(ctx),
 });
 
 /**

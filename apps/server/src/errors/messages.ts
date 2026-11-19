@@ -5,6 +5,7 @@
  */
 export const MESSAGES = {
   'auth.github-expired': 'Ta connexion GitHub a expiré, reconnecte-toi.',
+  'auth.google-unavailable': 'Google ne répond pas, réessaie dans un instant.',
   'auth.link-invalid': 'Ce lien de connexion n’est plus valable : demande-en un nouveau.',
   'auth.mail-unavailable': 'L’e-mail n’a pas pu partir, réessaie dans un instant.',
   'auth.origin': 'Cette requête ne vient pas de la page de Crewdeck.',
@@ -21,6 +22,7 @@ export const MESSAGES = {
   'devices.revoked': 'Cet Appareil a été révoqué.',
   'devices.too-many-pending': 'Trois Appareils attendent déjà leur approbation : approuve-les ou attends que leur code expire.',
   'fake-github.not-found': 'Ce fichier n’existe pas sur le faux GitHub.',
+  'fake-google.not-found': 'Cette page n’existe pas sur le faux Google.',
   'getting-started.no-usable-engine': 'Connecte au moins un Compte IA utilisable.',
   'getting-started.runner-not-linked': 'Relie d’abord un Runner à ton compte.',
   'github.bad-signature': 'La signature de ce webhook GitHub n’est pas valide.',

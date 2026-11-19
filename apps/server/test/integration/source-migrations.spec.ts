@@ -488,11 +488,11 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
     await expect(again.expect('migration.copy')).resolves.toMatchObject({ migrationId: migration.id, group: 'ticket' });
   });
 
-  it('lists the Projet’s migrations, the newest first, by state, 404 for another Pilote’s Projet', async () => {
+  it('lists the Projet’s migrations, the newest first, by state, 404 for another Pilote’s Projet; the Tickets go back Local to the folder they left', async () => {
     const first = await migrated('ticket', 'github');
     await migrations.idle();
-    // The code Local: the Projet's folder, where the Tickets go back.
-    await sql(`UPDATE artifact_sources SET source = 'local' WHERE project_id = $1 AND "group" = 'code'`, [projectId]);
+    // No group Local any more, the code on GitHub: the folder the Tickets left is still the Projet's.
+    expect(await sql('SELECT "group", source FROM artifact_sources WHERE project_id = $1 ORDER BY "group"::text', [projectId])).toEqual([{ group: 'code', source: 'github' }, { group: 'ticket', source: 'github' }]);
     const second = await migrated('ticket', 'local');
     await migrations.idle();
     const page = zSourceMigrationPage.parse(await (await call('GET', `/api/projects/${projectId}/source-migrations?limit=1`)).json());

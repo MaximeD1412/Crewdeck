@@ -503,12 +503,15 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
    * Whether `to` has a place for the group: GitHub, the Projet's Dépôt
    * (PROJET-2) while its access holds; Local, the Projet's folder on the
    * Runner's machine, declared once one of its groups is Local (a Local
-   * Projet, or Tickets in its `tickets/`). The Runner's clone of a GitHub
-   * Projet is not one; SOURCE-9 lets the Pilote pick a folder.
+   * Projet, or Tickets in its `tickets/`), and still there once that group
+   * left it: a migration from Local only archives its sub-folder (ADR 0012),
+   * so its row proves the folder. The Runner's clone of a GitHub Projet is
+   * not one; SOURCE-9 lets the Pilote pick a folder.
    */
-  private async hasPlace(tx: Pick<Tx, 'artifactSource'>, projectId: string, to: SourceKind, accessLost: boolean): Promise<boolean> {
+  private async hasPlace(tx: Pick<Tx, 'artifactSource' | 'sourceMigration'>, projectId: string, to: SourceKind, accessLost: boolean): Promise<boolean> {
     if (to === 'github') return !accessLost;
-    return (await tx.artifactSource.count({ where: { projectId, source: 'local' } })) > 0;
+    if ((await tx.artifactSource.count({ where: { projectId, source: 'local' } })) > 0) return true;
+    return (await tx.sourceMigration.count({ where: { projectId, from: 'local' } })) > 0;
   }
 
   /** Whether the group has something to copy: `ticket` a Ticket of the Projet; `code` its code or a change of code. */

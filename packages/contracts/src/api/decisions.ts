@@ -21,6 +21,7 @@ export const DECISION_KINDS = [
   'runner-offline',
   'ideas-to-triage',
   'loop-back.exhausted',
+  'project.folder-missing',
   'source-migration.failed',
   'source-migration.unfinished',
 ] as const;

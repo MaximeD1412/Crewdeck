@@ -61,7 +61,7 @@ describe('the snapshot and the retention against PostgreSQL', () => {
 
       expect(res.status).toBe(200);
       const body = zState.parse(await res.json());
-      expect(body).toEqual({ seq: 12, pilot: { id: alice.id, displayName: 'alice', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [], githubLinked: false }, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [], sourceMigrations: [], vault: { version: 0, rotationPending: false } });
+      expect(body).toEqual({ seq: 12, pilot: { id: alice.id, displayName: 'alice', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [], githubLinked: false }, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [], sourceMigrations: [], vault: { version: 0, rotationPending: false } });
     });
 
     it('answers 401 without a session', async () => {

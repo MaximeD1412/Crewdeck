@@ -6,6 +6,8 @@ import { zRunnerLatest } from './api/runner.js';
 import { LINK_ATTEMPTS_PER_MINUTE, LINK_CODE_TTL_SECONDS, LINK_POLL_SECONDS, zRunnerLinkAccepted, zRunnerLinkPairing, zRunnerLinkRequest, zRunnerLinkStatus } from './api/runner-link.js';
 import { CAPABILITIES_EVERY_SECONDS, zCapabilities } from './runner/capabilities.js';
 import { zEngineEvent } from './runner/events.js';
+import { zFolderCheckMessage, zFolderChecked, zProjectFolderAttach, zProjectsFolders } from './runner/folders.js';
+import { zFolderCheck, zFolderCheckResult } from './keys/folder.js';
 import { zHeartbeat, zHeartbeatAck } from './runner/heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './runner/hello.js';
 import { zMcpServers } from './runner/mcp.js';
@@ -66,6 +68,13 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-session-input', schema: zSessionInput },
   { name: 'runner-session-keys', schema: zSessionKeys },
   { name: 'runner-relay', schema: zRelay },
+  { name: 'runner-folder-check', schema: zFolderCheckMessage },
+  { name: 'runner-folder-checked', schema: zFolderChecked },
+  { name: 'runner-project-folder-attach', schema: zProjectFolderAttach },
+  { name: 'runner-projects-folders', schema: zProjectsFolders },
+  // The plaintexts of a Local Projet's folder, sealed under the vault key (PROJET-6).
+  { name: 'folder-check', schema: zFolderCheck },
+  { name: 'folder-check-result', schema: zFolderCheckResult },
   { name: 'runner-command-run', schema: zCommandRun },
   { name: 'runner-command-stop', schema: zCommandStop },
   { name: 'runner-command-started', schema: zCommandStarted },

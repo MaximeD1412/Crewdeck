@@ -71,11 +71,16 @@ const projectNotFound = (): AppError => notFound('project.not-found', MESSAGES['
 const sameItems = (a: readonly SourceMigrationWaitingItem[], b: readonly SourceMigrationWaitingItem[]): boolean =>
   a.length === b.length && a.every((item, index) => item.itemType === b[index]?.itemType && item.number === b[index]?.number);
 
+/** A Décision's label: the group « de » the Projet, the group alone for a Local Projet (its name sealed). */
+const labelOf = (group: SourceGroup, projectName: string | null): string =>
+  projectName === null ? GROUP_LABEL[group] : cut(`${GROUP_LABEL[group]} de ${projectName}`, LABEL_MAX);
+
 interface MigratingProject {
   readonly id: string;
-  readonly displayName: string;
-  readonly owner: string;
-  readonly name: string;
+  /** `null` for a Local Projet (PROJET-6): its name is sealed, the page names it. */
+  readonly displayName: string | null;
+  readonly owner: string | null;
+  readonly name: string | null;
   readonly hasCode: boolean;
 }
 
@@ -161,14 +166,14 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
     const pilotId = currentPilotId();
     return this.transactions.run(async (tx) => {
       await this.events.lock(tx, pilotId);
-      const project = await tx.project.findFirst({ where: { id: projectId }, select: { id: true, lastSeq: true, accessLost: true, hasCode: true } });
+      const project = await tx.project.findFirst({ where: { id: projectId }, select: { id: true, lastSeq: true, accessLost: true, hasCode: true, repositoryId: true } });
       if (!project) throw projectNotFound();
       this.sensitive.assertFresh(project.lastSeq, BigInt(seq));
       const source = await tx.artifactSource.findFirstOrThrow({ where: { projectId, group }, select: { source: true } });
       if (source.source === to) throw unprocessable('source.same', MESSAGES['source.same']);
       const running = await tx.sourceMigration.count({ where: { projectId, state: { in: [...RUNNING_SOURCE_MIGRATION_STATES] } } });
       if (running > 0) throw unprocessable('source.migration-running', MESSAGES['source.migration-running']);
-      if (!(await this.hasPlace(tx, projectId, to, project.accessLost))) throw unprocessable('source.target-missing', MESSAGES['source.target-missing']);
+      if (!(await this.hasPlace(tx, projectId, to, project.repositoryId === null || project.accessLost))) throw unprocessable('source.target-missing', MESSAGES['source.target-missing']);
       if ((await this.holdsSomething(tx, projectId, group, project.hasCode)) && this.runnerLacks(pilotId, group)) {
         throw unprocessable('source.runner-cannot-migrate', MESSAGES['source.runner-cannot-migrate']);
       }
@@ -443,7 +448,7 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
       projectName: project.displayName,
       subjectType: 'source-migration',
       subjectId: row.id,
-      label: cut(`${GROUP_LABEL[row.group]} de ${project.displayName}`, LABEL_MAX),
+      label: labelOf(row.group, project.displayName),
       metaParts: ['Sources'],
       tone: 'halt',
       link: `/projets/${project.id}/process?onglet=sources`,
@@ -469,7 +474,7 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
       projectName: project.displayName,
       subjectType: 'source-migration',
       subjectId: row.id,
-      label: cut(`${GROUP_LABEL[row.group]} de ${project.displayName}`, LABEL_MAX),
+      label: labelOf(row.group, project.displayName),
       metaParts: [OLD_PLACE[row.group][row.from]],
       tone: 'caution',
       link: `/projets/${project.id}/process?onglet=sources`,
@@ -501,15 +506,15 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Whether `to` has a place for the group: GitHub, the Projet's Dépôt
-   * (PROJET-2) while its access holds; Local, the Projet's folder on the
+   * (PROJET-2) while its access holds, none for a Local Projet (PROJET-6); Local, the Projet's folder on the
    * Runner's machine, declared once one of its groups is Local (a Local
    * Projet, or Tickets in its `tickets/`), and still there once that group
    * left it: a migration from Local only archives its sub-folder (ADR 0012),
    * so its row proves the folder. The Runner's clone of a GitHub Projet is
    * not one; SOURCE-9 lets the Pilote pick a folder.
    */
-  private async hasPlace(tx: Pick<Tx, 'artifactSource' | 'sourceMigration'>, projectId: string, to: SourceKind, accessLost: boolean): Promise<boolean> {
-    if (to === 'github') return !accessLost;
+  private async hasPlace(tx: Pick<Tx, 'artifactSource' | 'sourceMigration'>, projectId: string, to: SourceKind, noRepository: boolean): Promise<boolean> {
+    if (to === 'github') return !noRepository;
     if ((await tx.artifactSource.count({ where: { projectId, source: 'local' } })) > 0) return true;
     return (await tx.sourceMigration.count({ where: { projectId, from: 'local' } })) > 0;
   }
@@ -529,7 +534,7 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
       group: row.group,
       from: row.from,
       to: row.to,
-      ...(row.from === 'github' || row.to === 'github' ? { repository: { owner: project.owner, name: project.name } } : {}),
+      ...((row.from === 'github' || row.to === 'github') && project.owner !== null && project.name !== null ? { repository: { owner: project.owner, name: project.name } } : {}),
     };
   }
 

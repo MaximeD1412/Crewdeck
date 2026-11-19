@@ -143,7 +143,7 @@ describe('the Process of a Projet against PostgreSQL', () => {
     expect(res.status).toBe(202);
     await dispatcher.settled();
     const { seq, repositories } = await state(tab);
-    const followed = await call(tab, 'POST', '/api/projects', { repositoryIds: repositories.map((repository) => repository.id), seq: String(seq) });
+    const followed = await call(tab, 'POST', '/api/projects', { repositoryIds: repositories.map((repository) => repository.id), templateId: 'process-crewdeck', seq: String(seq) });
     expect(followed.status).toBe(201);
     const [project] = zProjectList.parse(await followed.json()).items;
     return project?.id ?? '';

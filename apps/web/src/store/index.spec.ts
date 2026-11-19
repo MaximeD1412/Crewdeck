@@ -168,6 +168,7 @@ const SNAPSHOT: State = {
   'ai-account': [],
   'mcp-server': [],
   devices: [],
+  'push-subscriptions': [],
   vault: { version: 1, rotationPending: false },
   sourceMigrations: [MIGRATION],
   projects: [],

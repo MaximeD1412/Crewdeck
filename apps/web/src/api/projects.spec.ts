@@ -9,6 +9,8 @@ const PROJECT = {
   name: 'personal-os',
   fullName: 'maxime/personal-os',
   displayName: 'personal-os',
+  nameSealed: null,
+  folder: null,
   releaseBranch: 'main',
   integrationBranch: 'develop',
   hasCode: true,
@@ -27,8 +29,8 @@ describe('followProjects', () => {
       }) as Client['command'],
     };
 
-    await expect(followProjects(client, [PROJECT.repositoryId])).resolves.toEqual([PROJECT]);
-    expect(calls).toEqual([{ method: 'POST', path: '/api/projects', body: { repositoryIds: [PROJECT.repositoryId] } }]);
+    await expect(followProjects(client, [PROJECT.repositoryId], 'process-crewdeck')).resolves.toEqual([PROJECT]);
+    expect(calls).toEqual([{ method: 'POST', path: '/api/projects', body: { repositoryIds: [PROJECT.repositoryId], templateId: 'process-crewdeck' } }]);
   });
 });
 

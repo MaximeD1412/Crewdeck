@@ -85,7 +85,7 @@ describe('« Runner et Comptes IA » in the page', () => {
   });
 
   it('follows the store: the Runner and the Comptes IA it reports, in real time', () => {
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: RUNNER, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], vault: { version: 1, rotationPending: false }, sourceMigrations: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: RUNNER, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, sourceMigrations: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
     expect(page()?.data).toMatchObject({ runner: { machine: 'atelier-pc', state: 'online' } });
 
     store.applyEvent({ seq: 2, type: 'ai-account.upserted', payload: CLAUDE, at: AT });

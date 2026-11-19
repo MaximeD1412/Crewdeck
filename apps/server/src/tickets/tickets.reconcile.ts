@@ -11,6 +11,7 @@ import { botLoginOf, codeChangeOfPullRequest, milestoneOfGitHub, ticketOfIssue }
 import { TicketsQueue } from './tickets.queue.js';
 import { RECENTLY_CLOSED_DAYS } from './tickets.state.js';
 import { type WebhookProject, TicketsWebhooks } from './tickets.webhooks.js';
+import { githubNamesOf } from '../projects/project.view.js';
 import { type CheckInput, TicketsWriter } from './tickets.writer.js';
 
 const LIVE: readonly CodeChangeState[] = ['open', 'draft'];
@@ -92,7 +93,10 @@ export class TicketsReconcile implements OnModuleInit {
       select: { id: true, owner: true, name: true, fullName: true, githubRepoId: true },
       orderBy: { followedAt: 'asc' },
     });
-    return rows.map((row) => ({ id: row.id, repo: { owner: row.owner, name: row.name, id: Number(row.githubRepoId) }, fullName: row.fullName }));
+    return rows.map((row) => {
+      const { owner, name, fullName } = githubNamesOf(row);
+      return { id: row.id, repo: { owner, name, id: Number(row.githubRepoId) }, fullName };
+    });
   }
 
   private async reconcileProject(project: WebhookProject): Promise<void> {

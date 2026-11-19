@@ -136,7 +136,7 @@ describe('the Dépôts GitHub and the Projets against PostgreSQL', () => {
   };
 
   const follow = async (tab: Tab, repositoryIds: string[], seq?: number): Promise<Response> =>
-    call(tab, '/api/projects', { repositoryIds, seq: String(seq ?? (await state(tab)).seq) });
+    call(tab, '/api/projects', { repositoryIds, templateId: 'process-crewdeck', seq: String(seq ?? (await state(tab)).seq) });
 
   describe('the webhooks', () => {
     it('installation.created makes every repository a Dépôt GitHub within 2 s, with or without code, as repository.upserted from GitHub', async () => {
@@ -333,13 +333,24 @@ describe('the Dépôts GitHub and the Projets against PostgreSQL', () => {
       expect(zProject.parse(await (await call(alice, `/api/projects/${items[0]?.id}`)).json())).toEqual(items[0]);
     });
 
-    it('answers 400 with fields for no repository, or an id that is not one', async () => {
-      await expectFields(await call(alice, '/api/projects', { repositoryIds: [], seq: '0' }), ['repositoryIds']);
-      await expectFields(await call(alice, '/api/projects', { repositoryIds: ['nope'], seq: '0' }), ['repositoryIds.0']);
+    it('answers 400 with fields for no repository, an id that is not one, or no Modèle de process of the catalogue', async () => {
+      await expectFields(await call(alice, '/api/projects', { repositoryIds: [], templateId: 'process-crewdeck', seq: '0' }), ['repositoryIds']);
+      await expectFields(await call(alice, '/api/projects', { repositoryIds: ['nope'], templateId: 'process-crewdeck', seq: '0' }), ['repositoryIds.0']);
+      await expectFields(await call(alice, '/api/projects', { repositoryIds: [newId()], seq: '0' }), ['templateId']);
+      await expectFields(await call(alice, '/api/projects', { repositoryIds: [newId()], templateId: 'process-maison', seq: '0' }), ['templateId']);
+    });
+
+    it('starts each Projet from the Modèle de process the Pilote chose', async () => {
+      const repositories = await install();
+      const res = await follow(alice, [repositories[0]?.id ?? '']);
+      expect(res.status).toBe(201);
+      const [project] = zProjectList.parse(await res.json()).items;
+      const versions = await sql<{ template_name: string }>('SELECT template_name FROM process_versions WHERE project_id = $1', [project?.id]);
+      expect(versions).toEqual([{ template_name: 'Process Crewdeck' }]);
     });
 
     it('answers 401 without a session', async () => {
-      await expectEnvelope(await call(undefined, '/api/projects', { repositoryIds: [newId()], seq: '0' }), 401, 'auth.required');
+      await expectEnvelope(await call(undefined, '/api/projects', { repositoryIds: [newId()], templateId: 'process-crewdeck', seq: '0' }), 401, 'auth.required');
       await expectEnvelope(await call(undefined, '/api/projects'), 401, 'auth.required');
     });
 

@@ -54,6 +54,8 @@ export interface ParametresProjetInput {
   readonly local?: ProjectSettingsLocal;
   /** The Gestion du process of the Projet, once a route draws it (PROCESS-7): `null` until then, the row shown without its link. */
   readonly processHref?: string | null;
+  /** Its name: a Local Projet's opened by the page (PROJET-6, `projects.ts`); its `displayName` by default. */
+  readonly projectName?: (project: Project) => string;
 }
 
 export interface ParametresProjetView {
@@ -229,6 +231,7 @@ export const parametresProjetView = ({
   accounts,
   local = NO_PROJECT_SETTINGS_LOCAL,
   processHref = null,
+  projectName = (named) => named.displayName ?? '',
 }: ParametresProjetInput): ParametresProjetView => {
   const own = settings.projects.find((candidate) => candidate.projectId === project.id);
   const rolesCard = roles(settings, own, accounts, local);
@@ -238,7 +241,7 @@ export const parametresProjetView = ({
     ...(notificationsCard.changed > 0 ? { notifications: notificationsCard.changed } : {}),
   };
   return {
-    data: { project: project.displayName, changedCount: rolesCard.changed + notificationsCard.changed, counts },
+    data: { project: projectName(project), changedCount: rolesCard.changed + notificationsCard.changed, counts },
     slots: [
       rolesCard.node,
       steps(processHref),

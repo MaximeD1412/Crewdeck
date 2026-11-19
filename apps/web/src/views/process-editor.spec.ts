@@ -13,7 +13,7 @@ import {
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createEditorUi } from '../process/editor-ui.js';
-import { gapRowOf, processEditorView, type ProcessEditorState } from './process-editor.js';
+import { gapRowOf, NO_EDITS, processEditorView, type EditorEdits, type ProcessEditorState } from './process-editor.js';
 
 const FIXTURES = join(import.meta.dirname, '../../../../packages/contracts/fixtures/process');
 /** A case of the canvas's rules (PROCESS-2), as the server's tests read it. */
@@ -33,6 +33,8 @@ const PROJECT: Project = {
   name: 'site-mairie',
   fullName: 'MaximeD1412/site-mairie',
   displayName: 'Site mairie',
+  nameSealed: null,
+  folder: null,
   releaseBranch: 'main',
   integrationBranch: 'develop',
   hasCode: true,
@@ -125,7 +127,8 @@ const MIGRATION: SourceMigration = {
 const withSlices = (state: ProcessEditorState, slices: Record<string, unknown>): ProcessEditorState =>
   ({ slices: { ...state.slices, ...slices } }) as ProcessEditorState;
 
-const view = (state: ProcessEditorState, query: Record<string, string> = {}) => processEditorView(state, ID, createEditorUi().view(ID, query));
+const view = (state: ProcessEditorState, query: Record<string, string> = {}, edits: Partial<EditorEdits> = {}) =>
+  processEditorView(state, ID, createEditorUi().view(ID, query), { ...NO_EDITS, ...edits });
 const stepsOf = (data: ReturnType<typeof view>) => data.canvas.phases.flatMap((phase) => phase.steps);
 
 describe('processEditorView', () => {
@@ -138,7 +141,7 @@ describe('processEditorView', () => {
     expect(data.canvas.phases.map((phase) => phase.name)).toEqual(['Idée', 'Conception', 'Développement']);
     expect(stepsOf(data)).toHaveLength(17);
     expect(data.canvas.arrows).toHaveLength(25);
-    expect(data.canvas).toMatchObject({ editable: false, zoom: 90, pan: { x: 0, y: 0 }, focus: null });
+    expect(data.canvas).toMatchObject({ editable: true, zoom: 90, pan: { x: 0, y: 0 }, focus: null });
     expect(data.tab).toBe('gaps');
     expect(data.gaps).toEqual([]);
     expect(data.step).toBeNull();
@@ -175,6 +178,8 @@ describe('processEditorView', () => {
     expect(stepsOf(data).filter((step) => step.selected).map((step) => step.id)).toEqual(['st-review']);
     expect(data.canvas.focus).toEqual({ id: 'st-review', at: 0 });
     expect(data.step).toEqual({
+      id: 'st-review',
+      phaseId: 'ph-dev',
       name: 'Review',
       kindLabel: 'Agent',
       phaseName: 'Développement',
@@ -188,6 +193,12 @@ describe('processEditorView', () => {
         { icon: 'user', label: 'Rôle Review', detail: 'Claude Code · Opus 5.5' },
         { icon: 'spark', label: 'Skill review', detail: 'officielle' },
       ],
+      phases: [
+        { value: 'ph-idee', label: 'Idée' },
+        { value: 'ph-conception', label: 'Conception' },
+        { value: 'ph-dev', label: 'Développement' },
+      ],
+      removeReason: 'La Review ne se retire pas : son Rôle se change.',
     });
     expect(data.phase).toBeNull();
   });
@@ -225,16 +236,34 @@ describe('processEditorView', () => {
     expect(view(withRole, { etape: 'st-code' }).step?.tools[0]).toMatchObject({ icon: 'user', label: 'Rôle Front' });
   });
 
-  it('shows the Phase chosen: its Étapes, its Retours, what it repeats for', () => {
+  it('shows the Phase chosen: its name, its Étapes, its Retours, « Répéter » and its help, why it does not go', () => {
     const dev = view(stateOf(), { phase: 'ph-dev' });
     expect(dev.tab).toBe('selection');
     expect(dev.step).toBeNull();
-    expect(dev.phase).toEqual({ name: 'Développement', count: '5 Étapes · 2 Retours', repeat: 'pour chaque Ticket prêt' });
-    expect(dev.canvas.phases.map((phase) => phase.selected)).toEqual([false, false, true]);
+    expect(dev.phase).toEqual({
+      id: 'ph-dev',
+      name: 'Développement',
+      count: '5 Étapes · 2 Retours',
+      repeat: [
+        { forEach: null, label: 'Une fois', checked: false },
+        { forEach: 'idea.noted', label: 'Pour chaque Idée notée', checked: false },
+        { forEach: 'idea.retained', label: 'Pour chaque Idée retenue', checked: false },
+        { forEach: 'ticket.ready', label: 'Pour chaque Ticket prêt', checked: true },
+      ],
+      help: 'Chaque Ticket prêt parcourt la Phase : c’est la Boucle.',
+      removeReason: 'Elle tient la Review et le Merge, qui ne se retirent pas.',
+      nameError: null,
+      focusName: null,
+    });
+    expect(dev.canvas.phases.map((phase) => [phase.target, phase.selected])).toEqual([[false, false], [false, false], [true, false]]);
 
     const definition = structuredClone(PROCESS_CREWDECK);
     definition.phases.find((phase) => phase.id === 'ph-dev')!.forEach = null;
-    expect(view(stateOf({ ...PROCESS, draft: draftOf(definition) }), { phase: 'ph-dev' }).phase?.repeat).toBe('une fois');
+    const once = view(stateOf({ ...PROCESS, draft: draftOf(definition) }), { phase: 'ph-dev' }).phase;
+    expect(once?.repeat.filter((choice) => choice.checked).map((choice) => choice.label)).toEqual(['Une fois']);
+    expect(once?.help).toBe('La Phase tourne à chaque Artefact reçu par ses premières Entrées, un à la fois, dans l’ordre.');
+    expect(view(stateOf(), { phase: 'ph-conception' }).phase).toMatchObject({ help: 'Chaque Idée retenue parcourt la Phase : c’est sa Conception.', removeReason: null });
+    expect(view(stateOf(), { phase: 'ph-idee' }).phase?.help).toBe('Chaque Idée notée parcourt la Phase.');
   });
 
   it('forgets a selection the definition does not have', () => {
@@ -280,6 +309,15 @@ describe('processEditorView', () => {
     expect(data.sources.rows.map((row) => row.select?.value ?? null)).toEqual(['github', 'github', null]);
     expect(data.sources.rows[0]?.value).toBe('Local');
     expect(data.sources.rows[0]?.detail).toBe('choisi : GitHub, à confirmer');
+  });
+
+  it('reads a Local Projet’s Sources without a Select: it has no Dépôt GitHub to migrate to (PROJET-6)', () => {
+    const folder = { ...PROJECT, repositoryId: null, owner: null, name: null, fullName: null, displayName: null };
+    const data = view(stateOf({ ...PROCESS, sources: { ticket: local, code: local } }, folder), { onglet: 'sources' });
+
+    expect(data.sources.rows.map((row) => row.select)).toEqual([null, null, null]);
+    expect(data.sources.rows.slice(0, 2).map((row) => row.value)).toEqual(['Local', 'Local']);
+    expect(data.sources.lead).toBe('Une Source par Type d’artefact : elle gagne toujours.');
   });
 
   it('shows a migration draining: its Banner, the group’s badge and meta in place of its Select, the other Select disabled', () => {
@@ -370,5 +408,67 @@ describe('gapRowOf', () => {
     expect(gapRowOf({ kind: 'source.missing', target: 'sources.ticket', label: 'Ticket : aucune Source' }, shown).meta).toBe(
       'Sources · produit par « Découpage en Tickets »',
     );
+  });
+});
+
+describe('processEditorView, editing (PROCESS-8)', () => {
+  it('shows the edits’ view in place of the store’s', () => {
+    const definition = structuredClone(PROCESS_CREWDECK);
+    definition.phases[2]!.name = 'Livraison';
+    const data = view(stateOf(), {}, { shown: { ...PROCESS, draft: draftOf(definition) } });
+    expect(data.canvas.phases.map((phase) => phase.name)).toEqual(['Idée', 'Conception', 'Livraison']);
+    expect(data.title.count).toBe('brouillon');
+  });
+
+  it('outlines the target Phase: the selected one, else the selected Étape’s, else the last one', () => {
+    const targets = (query: Record<string, string>) => view(stateOf(), query).canvas.phases.filter((phase) => phase.target).map((phase) => phase.id);
+    expect(targets({ phase: 'ph-idee' })).toEqual(['ph-idee']);
+    expect(targets({ etape: 'st-prd' })).toEqual(['ph-conception']);
+    expect(targets({})).toEqual(['ph-dev']);
+  });
+
+  it('opens the catalogue on the target Phase', () => {
+    expect(view(stateOf(), { phase: 'ph-dev' }).catalogue).toBeNull();
+    const catalogue = view(stateOf(), { phase: 'ph-dev' }, { catalogue: true }).catalogue;
+    expect(catalogue?.title).toBe('Ajouter dans « Développement »');
+    expect(catalogue?.groups).toHaveLength(3);
+  });
+
+  it('says why the Checks and the Merge do not go, and lets an added Review go', () => {
+    expect(view(stateOf(), { etape: 'st-checks' }).step?.removeReason).toBe('Les Checks ne se retirent pas : leurs Outils se changent.');
+    expect(view(stateOf(), { etape: 'st-merge' }).step?.removeReason).toBe('Le Merge ne se retire pas : c’est une Étape du produit.');
+    expect(view(stateOf(), { etape: 'st-code' }).step?.removeReason).toBeNull();
+    const definition = structuredClone(PROCESS_CREWDECK);
+    definition.steps.push({ ...definition.steps.find((step) => step.id === 'st-review')!, id: 'st-review-2', col: 5, row: 1 });
+    expect(view(stateOf({ ...PROCESS, draft: draftOf(definition) }), { etape: 'st-review' }).step?.removeReason).toBeNull();
+  });
+
+  it('names the Checks alone held by a Phase, plural', () => {
+    const definition = structuredClone(PROCESS_CREWDECK);
+    definition.phases.push({ id: 'ph-ci', name: 'CI', col: 1, row: 4, forEach: null });
+    definition.steps.find((step) => step.id === 'st-checks')!.phaseId = 'ph-ci';
+    expect(view(stateOf({ ...PROCESS, draft: draftOf(definition) }), { phase: 'ph-ci' }).phase?.removeReason).toBe(
+      'Elle tient les Checks, qui ne se retirent pas.',
+    );
+  });
+
+  it('shows a refusal in a halt Toast', () => {
+    expect(view(stateOf()).toast).toBeNull();
+    expect(view(stateOf(), {}, { toast: 'Refusé.' }).toast).toEqual({ tone: 'halt', icon: 'block', text: 'Refusé.' });
+  });
+
+  it('asks the Dialog naming the Étapes of the Phase to remove', () => {
+    expect(view(stateOf(), { phase: 'ph-idee' }, { removingPhase: 'ph-idee' }).removePhase).toEqual({
+      phaseId: 'ph-idee',
+      title: 'Retirer la Phase « Idée » ?',
+      body: 'Ses 2 Étapes partent avec elle : Analyse de l’Idée, Tri de l’Idée. Le changement va dans le brouillon.',
+    });
+    expect(view(stateOf(), {}, { removingPhase: 'ph-ailleurs' }).removePhase).toBeNull();
+  });
+
+  it('gives the Phase its name’s refusal and the ask to focus it', () => {
+    const phase = view(stateOf(), { phase: 'ph-dev' }, { nameError: { phaseId: 'ph-dev', text: 'Une Phase porte déjà ce nom.' }, focusName: { phaseId: 'ph-dev', at: 2 } }).phase;
+    expect(phase).toMatchObject({ nameError: 'Une Phase porte déjà ce nom.', focusName: 2 });
+    expect(view(stateOf(), { phase: 'ph-idee' }, { nameError: { phaseId: 'ph-dev', text: 'x' } }).phase).toMatchObject({ nameError: null, focusName: null });
   });
 });

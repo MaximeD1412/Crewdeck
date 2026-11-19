@@ -49,7 +49,7 @@ export const lastDoneOf = (migrations: Iterable<SourceMigration>, projectId: str
 
 /** Where a group lives on a Source: the repository on GitHub, the Projet's folder on the Runner's machine. */
 export const placeOf = (group: SourceGroup, kind: SourceKind, project: Pick<Project, 'fullName'>, machine: string): string =>
-  kind === 'github' ? project.fullName : t(`process.sources.${group}.local`, { machine });
+  kind === 'github' ? (project.fullName ?? '') : t(`process.sources.${group}.local`, { machine });
 
 const count = <T>(items: Iterable<T>, keep: (item: T) => boolean): number => {
   let n = 0;
@@ -162,7 +162,7 @@ const ICON: Readonly<Record<SourceKind, IconName>> = { github: 'github', local: 
  */
 export const migrationConfirmation = (reads: SourceMigrationReads, group: SourceGroup, from: SourceKind, to: SourceKind): ConfirmDialogOptions => {
   const { project, machine } = reads;
-  const repository = project.fullName;
+  const repository = project.fullName ?? '';
   const noun = t(`process.sources.migration.${group}.noun`);
   const running = inProgressOf(reads, group);
   const fromLabel = sourceLabel(from);
@@ -181,7 +181,7 @@ export const migrationConfirmation = (reads: SourceMigrationReads, group: Source
           from: fromLabel,
         });
   return {
-    title: t(`process.sources.migration.confirm.${group}.title`, { project: project.displayName, to: sourceLabel(to) }),
+    title: t(`process.sources.migration.confirm.${group}.title`, { project: project.displayName ?? '', to: sourceLabel(to) }),
     confirmLabel: t(`process.sources.migration.confirm.${group}.label`),
     icon: ICON[to],
     tone: 'primary',

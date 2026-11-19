@@ -21,6 +21,8 @@ const project: Project = {
   name: 'personal-os',
   fullName: 'maxime/personal-os',
   displayName: 'Personal OS',
+  nameSealed: null,
+  folder: null,
   releaseBranch: 'main',
   integrationBranch: 'develop',
   hasCode: true,
@@ -152,7 +154,7 @@ describe('« Idées » follows the store', () => {
   });
 
   it('then lists the snapshot’s Idées in clear, the Cadre counting those to triage', async () => {
-    store.applySnapshot({ seq: 3, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], vault: { version: 1, rotationPending: false }, sourceMigrations: [], projects: [project], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [idea(63, 'Exporter le planning'), idea(50, 'Ancienne', { state: 'retained' })], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
+    store.applySnapshot({ seq: 3, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, sourceMigrations: [], projects: [project], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [idea(63, 'Exporter le planning'), idea(50, 'Ancienne', { state: 'retained' })], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
     store.markLive();
     await vi.waitFor(() => expect(pageData().ideas.map((row) => row.title)).toEqual(['Exporter le planning']));
     expect(pageData()).toMatchObject({ empty: false, toTriage: 1 });

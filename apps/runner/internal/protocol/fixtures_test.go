@@ -49,6 +49,10 @@ func TestEveryFixtureOfTheProtocolDecodesIntoItsGeneratedType(t *testing.T) {
 		TypeMigrationSwitch:      decodeInto[contracts.RunnerMigrationSwitch],
 		TypeMigrationFinished:    decodeInto[contracts.RunnerMigrationFinished],
 		TypeMigrationFailed:      decodeInto[contracts.RunnerMigrationFailed],
+		TypeFolderCheck:          decodeInto[contracts.RunnerFolderCheck],
+		TypeFolderChecked:        decodeInto[contracts.RunnerFolderChecked],
+		TypeProjectFolderAttach:  decodeInto[contracts.RunnerProjectFolderAttach],
+		TypeProjectsFolders:      decodeInto[contracts.RunnerProjectsFolders],
 	}
 	entries, err := os.ReadDir(fixturesDir)
 	if err != nil {
@@ -201,6 +205,31 @@ func TestTheRelaysFramesMatchTheirSchemaWithOrWithoutTheirTab(t *testing.T) {
 		if strings.Contains(string(data), `"tabId":""`) {
 			t.Errorf("%s: an empty tabId", data)
 		}
+	}
+}
+
+// The folders' messages (PROJET-6) the Runner sends match their schema; an
+// empty set of present folders is a list, never null.
+func TestTheFoldersMessagesMatchTheirSchema(t *testing.T) {
+	const requestID, tabID = "019a6f00-0000-7000-8000-0000000000f1", "019a6f00-0000-7000-8000-0000000000f2"
+	checked := NewFolderChecked(requestID, tabID, strings.Repeat("K", 80), strings.Repeat("C", 22))
+	data, err := json.Marshal(checked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back contracts.RunnerFolderChecked
+	if err := json.Unmarshal(data, &back); err != nil {
+		t.Fatalf("decode %s: %v", data, err)
+	}
+	if back.RequestId != requestID || back.TabId != tabID || back.Type != TypeFolderChecked {
+		t.Fatalf("folder.checked %+v", back)
+	}
+	data, err = json.Marshal(NewProjectsFolders(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := decodeInto[contracts.RunnerProjectsFolders](data); err != nil || !strings.Contains(string(data), `"present":[]`) {
+		t.Fatalf("projects.folders %s: %v", data, err)
 	}
 }
 

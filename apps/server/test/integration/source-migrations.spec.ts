@@ -134,7 +134,7 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
     expect((await deliverWebhook(url, { event: 'installation', payload: created })).status).toBe(202);
     await app.get(WebhookDispatcher).settled();
     const { seq, repositories } = await state();
-    const followed = await call('POST', '/api/projects', { repositoryIds: repositories.map((repository) => repository.id), seq: String(seq) });
+    const followed = await call('POST', '/api/projects', { repositoryIds: repositories.map((repository) => repository.id), templateId: 'process-crewdeck', seq: String(seq) });
     expect(followed.status).toBe(201);
     projectId = zProjectList.parse(await followed.json()).items[0]?.id ?? '';
     // The scenario of the mockups: a GitHub Projet whose Tickets are Local.
@@ -247,7 +247,7 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
       expect(await sql('SELECT id FROM source_migrations')).toEqual([]);
     });
 
-    it('answers 422 source.same, source.migration-running, source.target-missing and source.runner-cannot-migrate', async () => {
+    it('answers 422 source.same, source.migration-running, source.target-missing (a Local Projet to GitHub too) and source.runner-cannot-migrate', async () => {
       await expectEnvelope(await migrate('ticket', 'local'), 422, 'source.same');
       // Both groups on GitHub: no folder of the Projet declared, even for a group that holds nothing.
       await sql(`UPDATE artifact_sources SET source = 'github' WHERE project_id = $1`, [projectId]);
@@ -258,6 +258,11 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
       await sql('UPDATE projects SET access_lost = true WHERE id = $1', [projectId]);
       await expectEnvelope(await migrate('ticket', 'github'), 422, 'source.target-missing');
       await sql('UPDATE projects SET access_lost = false WHERE id = $1', [projectId]);
+      // A Local Projet (PROJET-6) has no Dépôt GitHub to go to.
+      const [project] = await sql<{ repository_id: string }>('SELECT repository_id FROM projects WHERE id = $1', [projectId]);
+      await sql(`UPDATE projects SET repository_id = NULL, name_sealed = '{}', folder_state = 'present' WHERE id = $1`, [projectId]);
+      await expectEnvelope(await migrate('ticket', 'github'), 422, 'source.target-missing');
+      await sql('UPDATE projects SET repository_id = $2, name_sealed = NULL, folder_state = NULL WHERE id = $1', [projectId, project?.repository_id]);
       await tickets(12);
       await online(['code']);
       await expectEnvelope(await migrate('ticket', 'github'), 422, 'source.runner-cannot-migrate');

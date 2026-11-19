@@ -22,6 +22,8 @@ export interface NoteIdeaOptions {
   readonly width?: () => number;
   /** A new Idée's id: a UUIDv7 drawn here by default. */
   readonly newId?: () => string;
+  /** A Projet's name (`projects.ts`, `projectName`): its `displayName`, else « Projet local », by default. */
+  readonly projectName?: (project: Pick<Project, 'id' | 'displayName' | 'nameSealed'>) => string;
 }
 
 export interface NoteIdea {
@@ -54,7 +56,14 @@ const CLOSED: Local = { open: false, busy: false, error: null, defaultProjectId:
  * Dialog closes once the server noted it; the store shows it through
  * `idea.upserted`.
  */
-export const createNoteIdea = ({ client, vault, store, width = () => innerWidth, newId = () => uuidv7() }: NoteIdeaOptions): NoteIdea => {
+export const createNoteIdea = ({
+  client,
+  vault,
+  store,
+  width = () => innerWidth,
+  newId = () => uuidv7(),
+  projectName = (project) => project.displayName ?? t('projets.local.fallbackName'),
+}: NoteIdeaOptions): NoteIdea => {
   let state = CLOSED;
   const listeners = new Set<() => void>();
   const set = (next: Partial<Local>) => {
@@ -65,12 +74,10 @@ export const createNoteIdea = ({ client, vault, store, width = () => innerWidth,
 
   return {
     view() {
-      const projects: readonly Pick<Project, 'id' | 'displayName'>[] = [...(store.getState().slices.project?.values() ?? [])];
+      const projects: readonly Pick<Project, 'id' | 'displayName' | 'nameSealed'>[] = [...(store.getState().slices.project?.values() ?? [])];
       return {
         ...state,
-        projects: [...projects]
-          .sort((a, b) => a.displayName.localeCompare(b.displayName, 'fr'))
-          .map((project) => ({ id: project.id, name: project.displayName })),
+        projects: projects.map((project) => ({ id: project.id, name: projectName(project) })).sort((a, b) => a.name.localeCompare(b.name, 'fr')),
         locked: locked(),
       };
     },

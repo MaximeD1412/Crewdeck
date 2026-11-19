@@ -52,4 +52,26 @@ describe('the production build', () => {
     const code = await buildKeys(['testing']);
     expect(code).toContain('crewdeck/test/random');
   }, 60_000);
+
+  it('puts the service worker at the root, one classic script, beside the manifest and its icons (ATOI-4)', async () => {
+    const output = await build({
+      configFile: join(import.meta.dirname, '../vite.config.ts'),
+      mode: 'production',
+      logLevel: 'silent',
+      build: { write: false },
+    });
+    const files = (Array.isArray(output) ? output : [output]) as Rolldown.RolldownOutput[];
+    const emitted = files.flatMap((o) => o.output);
+    const worker = emitted.find((file) => file.fileName === 'sw.js');
+    expect(worker?.type).toBe('chunk');
+    const code = worker?.type === 'chunk' ? worker.code : '';
+    expect(code).toContain('showNotification');
+    expect(code).toContain('notificationclick');
+    expect(code).not.toMatch(/^\s*(import|export)\b/m);
+    const html = emitted.find((file) => file.fileName === 'index.html');
+    const source = html?.type === 'asset' ? String(html.source) : '';
+    expect(source).toContain('<link rel="manifest" href="/manifest.webmanifest"');
+    expect(source).toContain('<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"');
+    expect(source).not.toContain('sw.js');
+  }, 60_000);
 });

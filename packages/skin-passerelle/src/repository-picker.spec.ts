@@ -10,7 +10,18 @@ type Data = ComposantData<typeof RepositoryPicker>;
 type WithData = HTMLElement & { data: Record<string, unknown> };
 
 const INSTALL_URL = 'https://github.com/apps/crewdeck/installations/new?state=projets';
-const PICKER: Data = { context: 'projets', repositories: [...EXAMPLE_REPOSITORIES], installUrl: INSTALL_URL, busy: false };
+const TEMPLATES = [
+  { id: 'process-crewdeck', label: 'Process Crewdeck' },
+  { id: 'process-court', label: 'Process court' },
+];
+const PICKER: Data = {
+  context: 'projets',
+  repositories: [...EXAMPLE_REPOSITORIES],
+  installUrl: INSTALL_URL,
+  busy: false,
+  templates: TEMPLATES,
+  templateId: 'process-crewdeck',
+};
 
 const picker = (data: Data) => render(COMPOSANTS.RepositoryPicker, data);
 const child = (el: Element, selector: string) => inside<WithData>(el, selector);
@@ -43,9 +54,9 @@ describe('RepositoryPicker', () => {
     expect(textOf(inside(el, 'a.install'))).toBe('Choisir d’autres dépôts sur GitHub');
   });
 
-  it('on /projets/ajouter, under its own title back to the Projets and its explanation; no « Plus tard »', async () => {
+  it('on /projets/ajouter, under its explanation (the page holds the title); no « Plus tard »', async () => {
     const el = await picker(PICKER);
-    expect(child(el, 'cd-page-header').data).toEqual({ title: 'Ajouter un Projet', back: { label: 'Projets', href: '/projets' } });
+    expect(el.shadowRoot?.querySelector('cd-page-header')).toBeNull();
     expect(textOf(inside(el, 'p[part=lead]'))).toBe(t('projets.picker.lead'));
     expect(el.shadowRoot?.querySelector('cd-button.later')).toBeNull();
   });
@@ -60,10 +71,33 @@ describe('RepositoryPicker', () => {
     expect(child(el, 'cd-button.follow').data).toMatchObject({ label: 'Suivre 2 Projets' });
     expect(child(el, 'cd-button.follow').data).not.toHaveProperty('state');
     expect(await actionsOf(() => follow(el).click())).toEqual([
-      { composant: 'RepositoryPicker', action: 'follow', payload: { repositoryIds: [EXAMPLE_REPOSITORIES[0].id, EXAMPLE_REPOSITORIES[3].id] } },
+      {
+        composant: 'RepositoryPicker',
+        action: 'follow',
+        payload: { repositoryIds: [EXAMPLE_REPOSITORIES[0].id, EXAMPLE_REPOSITORIES[3].id], templateId: 'process-crewdeck' },
+      },
     ]);
     await check(el, EXAMPLE_REPOSITORIES[0].id);
     expect(child(el, 'cd-button.follow').data).toMatchObject({ label: 'Suivre 1 Projet' });
+  });
+
+  it('the Select « Modèle de process » lists the templates; follow carries the one chosen', async () => {
+    const el = await picker(PICKER);
+    expect(child(el, 'cd-select.template').data).toMatchObject({
+      label: 'Modèle de process',
+      value: 'process-crewdeck',
+      options: [
+        { value: 'process-crewdeck', label: 'Process Crewdeck', disabled: false },
+        { value: 'process-court', label: 'Process court', disabled: false },
+      ],
+    });
+    const native = inside<HTMLSelectElement>(el, 'cd-select.template', 'select');
+    native.value = 'process-court';
+    native.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    await check(el, EXAMPLE_REPOSITORIES[0].id);
+    expect(await actionsOf(() => follow(el).click())).toEqual([
+      { composant: 'RepositoryPicker', action: 'follow', payload: { repositoryIds: [EXAMPLE_REPOSITORIES[0].id], templateId: 'process-court' } },
+    ]);
   });
 
   it('refuses more than FOLLOW_PROJECTS_MAX at once', async () => {

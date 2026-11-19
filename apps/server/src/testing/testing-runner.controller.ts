@@ -1,4 +1,4 @@
-import { zTestingRunnerCapabilities, zTestingRunnerMcpServers, zTestingRunnerUsage } from '@crewdeck/contracts';
+import { zTestingRunnerCapabilities, zTestingRunnerFolder, zTestingRunnerMcpServers, zTestingRunnerUsage } from '@crewdeck/contracts';
 import { Body, Controller, HttpCode, Inject, Post } from '@nestjs/common';
 import { createZodDto } from 'nestjs-zod';
 import { conflict } from '../errors/app-error.js';
@@ -7,6 +7,7 @@ import { FAKES, type Fakes } from './fakes.js';
 
 export class TestingRunnerCapabilitiesDto extends createZodDto(zTestingRunnerCapabilities) {}
 export class TestingRunnerMcpServersDto extends createZodDto(zTestingRunnerMcpServers) {}
+export class TestingRunnerFolderDto extends createZodDto(zTestingRunnerFolder) {}
 export class TestingRunnerUsageDto extends createZodDto(zTestingRunnerUsage) {}
 
 const noRunner = () => conflict('testing.no-runner', 'Aucun Runner de test connecté : lance d’abord un scénario qui en relie un.');
@@ -23,7 +24,8 @@ const noRunner = () => conflict('testing.no-runner', 'Aucun Runner de test conne
  * `POST /api/testing/runner/disconnect` stops it, as a Runner whose machine
  * went to sleep (204); `/reconnect` connects it again, as the Pilote who
  * relaunches it (204; 409 `testing.no-runner` when no scenario connected
- * one). Mounted
+ * one). `POST /api/testing/runner/folders/remove` (body `{ path }`) deletes
+ * a folder of its machine, which it tells at once (204). Mounted
  * outside production only (`TestingModule`); public, as the scenarios: the
  * fake Runner is the server's own.
  */
@@ -42,6 +44,12 @@ export class TestingRunnerController {
   @HttpCode(204)
   reportMcpServers(@Body() { servers }: TestingRunnerMcpServersDto): void {
     if (!this.fakes.runner.reportMcpServers(servers)) throw noRunner();
+  }
+
+  @Post('folders/remove')
+  @HttpCode(204)
+  removeFolder(@Body() { path }: TestingRunnerFolderDto): void {
+    if (!this.fakes.runner.removeFolder(path)) throw noRunner();
   }
 
   @Post('usage')

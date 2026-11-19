@@ -1,5 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { zPublicConfig } from '@crewdeck/contracts';
+import { vapidEnv } from '../../test/github-app.js';
 import { startApp } from '../../test/route-baseline.js';
 import { parseEnv } from './env.js';
 
@@ -25,6 +26,7 @@ describe('GET /api/config', () => {
       githubWebUrl: 'https://github.com',
       appSlug: 'crewdeck-staging',
       runnerServer: started.url,
+      vapidPublicKey: expect.stringMatching(/^[A-Za-z0-9_-]{87}$/),
     });
   });
 
@@ -51,7 +53,21 @@ describe('GET /api/config', () => {
       githubWebUrl: `${started.url}/fake-github`,
       appSlug: 'crewdeck',
       runnerServer: started.url,
+      vapidPublicKey: expect.stringMatching(/^[A-Za-z0-9_-]{87}$/),
     });
+  });
+
+  it('gives the VAPID public key of VAPID_PUBLIC_KEY, the same at each call of a server that drew its own', async () => {
+    const vapid = vapidEnv();
+    const started = await boot(vapid);
+    app = started.app;
+    expect(await (await fetch(`${started.url}/api/config`)).json()).toMatchObject({ vapidPublicKey: vapid['VAPID_PUBLIC_KEY'] });
+    await app.close();
+
+    const drawing = await boot({});
+    app = drawing.app;
+    const first = ((await (await fetch(`${drawing.url}/api/config`)).json()) as { vapidPublicKey: string }).vapidPublicKey;
+    expect(await (await fetch(`${drawing.url}/api/config`)).json()).toMatchObject({ vapidPublicKey: first });
   });
 
   it('gives the fake GitHub at the origin of the page behind the development proxy', async () => {

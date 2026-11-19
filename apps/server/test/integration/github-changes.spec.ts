@@ -126,7 +126,7 @@ describe('the envelopes of GitHub’s changes for the Runner’s Miroir, against
   /** Follows the repository of the fake GitHub named `name`; its Projet's id. */
   const follow = async (name: string): Promise<string> => {
     const repository = (await state()).repositories.find((item) => item.name === name);
-    const res = await call('/api/projects', { repositoryIds: [repository?.id], seq: String((await state()).seq) });
+    const res = await call('/api/projects', { repositoryIds: [repository?.id], templateId: 'process-crewdeck', seq: String((await state()).seq) });
     expect(res.status).toBe(201);
     return zProjectList.parse(await res.json()).items[0]?.id ?? '';
   };

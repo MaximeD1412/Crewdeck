@@ -4,20 +4,23 @@ import { defineComposant } from './define.js';
 /**
  * A setting of the Paramètres: its label, its help, where its value comes
  * from (`compte`: inherited from the account, `projet`: changed for this
- * Projet), and its control in the default Emplacement.
+ * Projet), and its control in the default Emplacement. Version 2 (PARAM-3):
+ * a setting changed for a Projet, given its `name`, has « Revenir au compte »,
+ * which emits `revert` with that name.
  */
 export const SettingRow = defineComposant({
   name: 'SettingRow',
-  version: 1,
+  version: 2,
   tag: 'cd-setting-row',
   category: 'partie',
-  description: 'Un réglage des Paramètres : son libellé, son aide, d’où vient sa valeur, et son contrôle.',
+  description: 'Un réglage des Paramètres : son libellé, son aide, d’où vient sa valeur, son contrôle, et le retour au compte d’un réglage modifié pour un Projet.',
   data: z.object({
     label: z.string(),
     help: z.string().nullable(),
     origin: z.enum(['compte', 'projet']).nullable(),
+    name: z.string().min(1).optional(),
   }),
-  actions: {},
+  actions: { revert: z.object({ name: z.string().min(1) }) },
   slots: ['default'],
   examples: [
     {
@@ -29,9 +32,9 @@ export const SettingRow = defineComposant({
     },
     {
       name: 'modifié pour ce Projet',
-      data: { label: 'Revue visuelle', help: 'Étape optionnelle', origin: 'projet' },
+      data: { label: 'Notifications push', help: 'Activées ou non pour ce Projet.', origin: 'projet', name: 'push' },
       slots: {
-        default: `<cd-toggle data='{"name":"visualReview","label":"Activée","checked":true,"help":null,"state":null}'></cd-toggle>`,
+        default: `<cd-toggle data='{"name":"push","label":"Notifications push","checked":false,"help":null,"state":null}'></cd-toggle>`,
       },
     },
     {

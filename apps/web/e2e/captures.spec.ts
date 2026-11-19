@@ -8,6 +8,7 @@ import { openConfirm } from './confirm.js';
 import { expect, test } from './fixtures.js';
 import { linkFirstAppareil } from './runner-link.js';
 import { routeSocket } from './socket.js';
+import { becomeTrustedDevice } from './trusted-device.js';
 
 /** The Paramètres' « Appareils », this browser linked first: its first trusted Appareil (E2E-3). */
 const appareils = async (page: Page) => {
@@ -96,6 +97,12 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   // « Rôles et modèles » once the snapshot gave the Comptes IA: the Idée on Sonnet, as the mockup.
   parametres: async (page) => {
     await expect(page.getByRole('combobox', { name: 'Moteur et modèle du Rôle Idée' }).filter({ visible: true })).toHaveValue('claude-code:claude-sonnet-5-5');
+  },
+  // On the trusted Appareil, the Code on Codex once the snapshot is there; at 1280 px, the worktree Commandes opened.
+  'parametres-projet': async (page, width) => {
+    await becomeTrustedDevice(page);
+    await expect(page.getByRole('combobox', { name: 'Moteur et modèle du Rôle Code' }).filter({ visible: true })).toHaveValue('codex:gpt-5.5');
+    if (width >= 1280) await expect(page.getByRole('textbox', { name: 'Préparer le worktree' })).toHaveValue('pnpm install --frozen-lockfile');
   },
   // The Idées opened by the trusted Appareil the scenario installs.
   idees: async (page) => {

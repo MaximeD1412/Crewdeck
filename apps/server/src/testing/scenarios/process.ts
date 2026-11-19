@@ -108,7 +108,6 @@ const mairie = async (ctx: ScenarioContext, process: Omit<ProjectProcess, 'versi
     data: {
       pilotId,
       roles: { ...DEFAULT_ACCOUNT_SETTINGS.roles, review: { engine: 'claude-code', model: 'claude-opus-5-5' } },
-      optionalSteps: DEFAULT_ACCOUNT_SETTINGS.optionalSteps,
     },
   });
   await seedRepositories(ctx, pilotId, [{ name: 'site-mairie', hasCode: true, project: 'Site mairie', projectId: PROCESS_SCENARIO_PROJECTS.mairie }]);

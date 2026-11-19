@@ -2,6 +2,7 @@ import { type Idea, type PhaseRun, type StepRun, UNFINISHED_PHASE_RUN_STATES, zS
 import { holdsIdea } from './ideas.js';
 import { createClient } from '../api/client.js';
 import { createConnection } from './connection.js';
+import { applySettingsEvent } from './settings.js';
 import { createStore } from './store.js';
 
 /**
@@ -29,7 +30,7 @@ store.registerSlice('ticket', { shape: 'collection', snapshotKey: 'tickets' });
 store.registerSlice('milestone', { shape: 'collection', snapshotKey: 'milestones' });
 store.registerSlice('code-change', { shape: 'collection', snapshotKey: 'codeChanges' });
 store.registerSlice('agent-session', { shape: 'collection', snapshotKey: 'sessions' });
-store.registerSlice('settings', { shape: 'single' });
+store.registerSlice('settings', { shape: 'single', apply: applySettingsEvent });
 store.registerSlice('usage', { shape: 'collection' });
 
 export const client = createClient({

@@ -16,7 +16,7 @@ describe('the page’s Paramètres', () => {
     store.registerSlice('pilot', { shape: 'single' });
     store.registerSlice('settings', { shape: 'single' });
     store.registerSlice('ai-account', { shape: 'collection' });
-    const settings = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' };
+    const settings = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] };
     const command = vi.fn<(...args: unknown[]) => Promise<never>>(async () => settings as never);
     const app = await boot({
       root,

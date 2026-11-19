@@ -66,6 +66,7 @@ export const MESSAGES = {
   'sessions.not-found': 'Cette Session est introuvable.',
   'sessions.not-resumable': 'Cette Session ne peut pas être reprise.',
   'sessions.not-running': 'Cette Session ne tourne pas.',
+  'settings.branches-same': 'La branche d’intégration et la branche de release sont deux branches.',
   'settings.engine-unusable': 'Ce modèle n’est pas utilisable sur ton Runner.',
   'settings.role-choice-required': 'Un Rôle que tu as ajouté a toujours son modèle.',
   'step-run.no-loop-back': 'Cette Étape n’a pas de Retour : elle ne peut pas demander de changements.',

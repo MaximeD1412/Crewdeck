@@ -28,7 +28,7 @@ import { type OutgoingRunnerMessage, type RunnerLink, RunnerConnections } from '
 import { RunnerDispatcher } from '../runners/runner-dispatcher.js';
 import { RunnerPresence } from '../runners/runner-presence.service.js';
 import { currentPilotId, runInPilotScope } from '../scope/scope.context.js';
-import { raiseRequest, resolveRequest, resolveRequestsOfEnded } from './requests.js';
+import { raiseRequest, resolveOpenRequests, resolveRequest } from './requests.js';
 import { SessionHooks } from './session-hooks.js';
 import { SESSION_ROW, type SessionRow, startMessageOf, stored, toAgentSession } from './session.view.js';
 
@@ -186,6 +186,8 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
         if (!RESUMABLE.includes(row.state)) throw unprocessable('sessions.not-resumable', MESSAGES['sessions.not-resumable']);
         if (!this.presence.isOnline(pilotId)) throw unprocessable('runner.offline', MESSAGES['runner.offline']);
         const resumed = await this.change(tx, pilotId, id, { state: 'starting', interruptedReason: null, endedAt: null });
+        // The requests of the turn the stop cut: kept open while stopped, withdrawn as the new run starts (SESSION-3).
+        await resolveOpenRequests(tx, this.decisions, id, 'withdrawn');
         const message: OutgoingRunnerMessage = resumed.engineSessionId === null ? startMessageOf(resumed) : { type: 'session.resume', sessionId: id };
         afterCommit(tx, () => this.trySend(pilotId, message));
         return toAgentSession(resumed);
@@ -216,7 +218,7 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
             engineSessionId,
             endedAt: this.clock.now(),
           });
-          await resolveRequestsOfEnded(tx, this.decisions, message.sessionId);
+          await resolveOpenRequests(tx, this.decisions, message.sessionId, 'ended');
           await this.hooks.ended(tx, toAgentSession(ended));
           return;
         }

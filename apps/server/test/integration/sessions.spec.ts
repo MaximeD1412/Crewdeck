@@ -429,6 +429,26 @@ describe('the Sessions against PostgreSQL', () => {
       );
       expect(await decisions(session.id)).toEqual([expect.objectContaining({ state: 'resolved', outcome: 'ended' })]);
     });
+
+    it('keeps the Décisions of a stopped Session open, and resolves them withdrawn once it resumes: the new run never takes them', async () => {
+      const alice = await pilot();
+      const projectId = await project(alice);
+      const socket = await online(alice);
+      const session = await start(alice, input(projectId, { step: undefined }));
+      report(socket, { sessionId: session.id, state: 'active', engineSessionId: 'eng-1' });
+      socket.send({ type: 'session.waiting', sessionId: session.id, requestId: 'toolu_q1', kind: 'question', seq: 2 });
+      await settle(session.id, 'waiting');
+
+      const stopped = await call(alice, 'POST', `/api/sessions/${session.id}/stop`, { seq: (await row(session.id))?.last_seq ?? '0' });
+      expect(stopped.status).toBe(200);
+      expect((await decisions(session.id)).map((d) => d.state)).toEqual(['open']);
+
+      const resumed = await call(alice, 'POST', `/api/sessions/${session.id}/resume`, { seq: (await row(session.id))?.last_seq ?? '0' });
+      expect(resumed.status).toBe(200);
+      expect(await decisions(session.id)).toEqual([expect.objectContaining({ subject_id: 'toolu_q1', state: 'resolved', outcome: 'withdrawn' })]);
+      const state = zState.parse(await (await call(alice, 'GET', '/api/state')).json());
+      expect(state.decisions.filter((decision) => decision.kind === 'agent-question')).toEqual([]);
+    });
   });
 
   describe('the Runner away and back', () => {

@@ -58,7 +58,11 @@ export const resolveRequest = async (tx: Tx, decisions: Pick<DecisionsService, '
   return (await openRequests(tx, sessionId)).length > 0;
 };
 
-/** Resolves the Décisions of every request of a Session that ended: no Moteur is left to take their answer. */
-export const resolveRequestsOfEnded = async (tx: Tx, decisions: Pick<DecisionsService, 'resolve'>, sessionId: string): Promise<void> => {
-  for (const { kind, subjectId } of await openRequests(tx, sessionId)) await decisions.resolve(tx, kind as DecisionKind, subjectId, 'ended');
+/**
+ * Resolves the Décisions of every request of a Session left open: `ended`, it
+ * ended and no Moteur is left to take their answer; `withdrawn`, it resumed,
+ * and the new run never takes the requests of the turn a stop cut.
+ */
+export const resolveOpenRequests = async (tx: Tx, decisions: Pick<DecisionsService, 'resolve'>, sessionId: string, outcome: 'ended' | 'withdrawn'): Promise<void> => {
+  for (const { kind, subjectId } of await openRequests(tx, sessionId)) await decisions.resolve(tx, kind as DecisionKind, subjectId, outcome);
 };

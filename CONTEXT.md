@@ -14,14 +14,42 @@ exists in English); each gives its code identifier, in English.
 ### People
 
 **Pilote** (`Pilot`):
-The person who has an account and drives their **Projets** and their agents
-through the **Process**; one account is one **Pilote**.
+The person who owns a **Projet**, its **Runner** and its **Comptes IA**, and
+drives it and its agents through the **Process**. One account is one
+person: the **Pilote** of their own **Projets**, and possibly a **Membre**
+of someone else's.
 _Avoid_: utilisateur, client, propriétaire, owner
 
 **Identité** (`PilotIdentity`):
-A way a **Pilote** signs in: an email address, a Google account or a GitHub
-account; a **Pilote** has one or more.
-_Avoid_: compte (the account is the **Pilote**), login, provider
+A way a person (a **Pilote**, a **Membre**) signs in: an email address, a
+Google account or a GitHub account; an account has one or more.
+_Avoid_: compte (the account is the person), login, provider
+
+**Membre** (`Member`):
+A person a **Pilote** invites onto one of their **Projets**, by email, with
+an **Accès**; needs no **Runner** nor **Compte IA**. A **Pilote** is not a
+**Membre** of their own **Projets**.
+_Avoid_: invité, collaborateur, utilisateur, client (a client is a
+**Membre** with the **Accès** « Relecteur »)
+
+**Accès** (`AccessProfile`):
+A named set of **Droits** given to a **Membre** on a **Projet**. Four by
+default, which never change: « Relecteur » (reads what is submitted to
+them, comments, gives an **Avis**), « Contributeur » (notes and triages
+**Idées**, comments, reads the **Sessions**), « Co-pilote » (also drives
+**Sessions** and the **Boucle**, approves, settles **Décisions**),
+« Administrateur » (also manages the **Membres** and changes the
+**Process**). A **Pilote** creates their own by duplicating one; defined
+once in their account.
+_Avoid_: rôle (a **Rôle** is an agent's), permission, profil
+
+**Droit** (`Permission`):
+One thing an **Accès** allows on a **Projet** (read the **Sessions**, give
+an **Avis**, approve, manage the **Membres**…). Deleting or transferring the
+**Projet**, and the **Pilote**'s own **Runner** and **Comptes IA**, are
+never a **Droit**: they stay the **Pilote**'s. No one grants a **Droit** they
+do not hold.
+_Avoid_: permission, autorisation
 
 **Visiteur** (`Visitor`):
 Someone who discovers Crewdeck before signing up, on the demonstration
@@ -77,6 +105,12 @@ folder of the **Runner**'s machine or in a repository of a code host (GitHub
 at the MVP), its other artefacts at the **Sources** its **Process** names; a
 **Pilote** has one or more **Projets**.
 _Avoid_: repo, dépôt (in the UI, for a followed one), app
+
+**Projet d'équipe** (`TeamProject`):
+A **Projet** where someone other than its **Pilote** may drive the agents (a
+**Membre** with that **Droit**); its agents run on API keys only, a
+subscription being personal.
+_Avoid_: espace, workspace, organisation
 
 **Dépôt GitHub** (`Repository`):
 A repository of the **Pilote**'s code host that the product does not follow
@@ -262,10 +296,38 @@ _Avoid_: budget, limite (a **Compte IA** has limits, a **Projet** has a
 **Plafond**)
 
 **Journal des Décisions** (`DecisionLog`):
-Every **Décision** the **Pilote** took (approval, refusal, answer), with its
-reason and date, kept and searchable; kept by Crewdeck, and written as a
+Every **Décision** taken (approval, refusal, answer), with its reason, its
+date and who took it, kept and searchable; kept by Crewdeck, and written as a
 **Copie** in the folder of a **Local** **Projet**.
 _Avoid_: historique, audit log
+
+**Version soumise** (`Submission`):
+A fixed copy of a document of a **Conception**, of mockups or of the
+captures of a visual review that a **Pilote** submits to Relecteurs; stored
+encrypted, readable with every machine off and without access to its
+**Source**. A new version is submitted again; each **Avis** stays with its
+version.
+_Avoid_: partage, snapshot, envoi
+
+**Avis** (`ReviewOpinion`):
+What a **Membre** answers on a **Version soumise**: « approuvé » or
+« changements demandés », with their comments. It informs the **Décision**
+of the review, never settles it.
+_Avoid_: approbation (that is the **Pilote**'s gate), vote, verdict (a
+**Contrat**'s or a **Review**'s)
+
+**Commentaire** (`Comment`):
+A remark of a person on a passage of a document or a zone of a mockup or a
+capture. It reaches an agent only as part of a **Retour**, when the person
+who asks for changes keeps it.
+_Avoid_: note, annotation
+
+**Historique** (`ActivityLog`):
+Every action of a person on a **Projet** (an invitation, an **Avis**, an
+approval, a merge, a change of the **Process**…), and every action of an
+agent credited to whoever started it, with who, what and when; kept as long
+as the **Projet**. The reasons are the **Journal des Décisions**'s.
+_Avoid_: journal (that is the **Journal des Décisions**), audit, logs
 
 **Lien de suivi** (`ShareLink`):
 A read-only, revocable address a **Pilote** gives a client to follow a
@@ -276,15 +338,23 @@ _Avoid_: portail client, lien public
 
 **Runner** (`Runner`):
 The program installed on the **Pilote**'s machine, linked to their account,
-that runs the agents on the **Pilote**'s **Comptes IA**. A **Pilote** has
-one **Runner** (linking another replaces it); it is online or « hors
-ligne ».
+that runs the agents on the **Pilote**'s **Comptes IA**. A person has one
+**Runner** of their own (linking another replaces it); a **Projet** may
+also have a **Runner partagé**. A **Runner** is online or « hors ligne ».
 _Avoid_: agent (it runs agents), daemon, worker
 
+**Runner partagé** (`SharedRunner`):
+A **Runner** on a server, linked to one **Projet** rather than to a person,
+carrying API keys only, where the **Membres** allowed to drive the agents
+run their **Sessions** and the **Boucle**; it may hold the folder of a
+**Local** **Projet**. A **Projet** has at most one.
+_Avoid_: serveur d'équipe, runner cloud (the hosted **Runner** is `later`)
+
 **Appareil** (`Device`):
-A browser the **Pilote** trusts to read what travels encrypted end to end
-(**Sessions**, the text of the **Idées**); the first one is linked with the
-**Runner**, each next one is approved from a trusted one.
+A browser a person trusts to read what travels encrypted end to end
+(**Sessions**, the text of the **Idées**); a **Pilote**'s first one is linked
+with the **Runner**, a **Membre**'s first one by their invitation, each next
+one is approved from a trusted one.
 _Avoid_: navigateur (when trust is meant), device, client
 
 **Moteur** (`Engine`):
@@ -404,6 +474,14 @@ and says so until it is sure again.
 _Avoid_: rechargement, refresh
 
 ## Flagged ambiguities
+
+- « rôle » of a person clashed with the **Rôle** of an agent: a person on a
+  **Projet** has an **Accès**, made of **Droits**.
+- « client » meant both the **Pilote**'s customer and a reader of the
+  product: in the product, a client is a **Membre** with the **Accès**
+  « Relecteur ».
+- « approuver » by a client: a Relecteur gives an **Avis**; approving stays
+  the gate of the **Pilote** or of a **Membre** allowed to.
 
 - « grandes étapes » (Conception, Développement) clashed with **Étape**: the
   large blocks are **Phases**; an **Étape** stays the finer piece of work.

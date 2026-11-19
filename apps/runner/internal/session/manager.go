@@ -79,7 +79,6 @@ type Manager struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 	once   sync.Once
-	locks  locks
 
 	mu       sync.Mutex
 	closed   bool
@@ -451,7 +450,7 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 			m.fail(s, w, false, contracts.RunnerSessionStateErrorCloneFailed, "clone", err)
 			return
 		}
-		unlock := m.locks.lock(w.Clone)
+		unlock := LockClone(w.Clone)
 		err = addWorktree(ctx, w.Clone, auth, w.Dir, rec.Branch, rec.Base)
 		unlock()
 		if err != nil {
@@ -632,7 +631,7 @@ func (m *Manager) remove(w Worktree) {
 			m.cfg.Logger.Warn(step, "sessionId", w.SessionID, "projectId", w.ProjectID, "error", errorKind(err))
 		}
 	}
-	unlock := m.locks.lock(w.Clone)
+	unlock := LockClone(w.Clone)
 	removeWorktree(ctx, w.Clone, w.Dir)
 	unlock()
 }

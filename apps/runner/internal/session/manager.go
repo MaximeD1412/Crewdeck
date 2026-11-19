@@ -202,6 +202,9 @@ func (m *Manager) Start(message contracts.RunnerSessionStart) {
 		Step:           message.Step,
 		State:          contracts.RunnerSessionStateStateStarting,
 	}}
+	if sealed := message.WorktreeCommands; sealed != nil {
+		s.rec.WorktreeCommands = &SealedCommands{Key: sealed.Key, Ciphertext: sealed.Ciphertext}
+	}
 	if !uuid.MatchString(message.SessionId) {
 		m.mu.Unlock()
 		return // nothing to name it by, nor a folder to keep it in
@@ -381,7 +384,12 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 	s.mu.Lock()
 	rec := s.rec
 	s.mu.Unlock()
-	w := Worktree{SessionID: rec.SessionID, ProjectID: rec.ProjectID, Dir: rec.Worktree, Branch: rec.Branch}
+	output := prepareLog{path: filepath.Join(sessionDir(m.cfg.Home, rec.SessionID), PrepareLogFile)}
+	w := Worktree{SessionID: rec.SessionID, ProjectID: rec.ProjectID, Dir: rec.Worktree, Branch: rec.Branch, Preparation: Preparation{
+		Commands: rec.WorktreeCommands,
+		Stdout:   output,
+		Stderr:   output,
+	}}
 	origin := &GitHubOrigin{Home: m.cfg.Home, URL: m.cfg.GitHubURL, Owner: rec.Origin.Owner, Name: rec.Origin.Name, Tokens: m.cfg.Tokens, locks: &m.locks}
 	w.Clone = origin.dir()
 
@@ -398,8 +406,8 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 			m.fail(s, w, true, contracts.RunnerSessionStateErrorSetupFailed, "worktree", err)
 			return
 		}
-		if err := m.cfg.Hooks.prepare(ctx, w); err != nil {
-			m.fail(s, w, true, contracts.RunnerSessionStateErrorSetupFailed, "prepare", err)
+		if err := m.cfg.Hooks.prepare(ctx, withEnv(ctx, w)); err != nil {
+			m.failPrepare(s, w, err)
 			return
 		}
 	}
@@ -501,18 +509,97 @@ func (m *Manager) fail(s *live, w Worktree, made bool, failure contracts.RunnerS
 	}
 }
 
+// failPrepare ends a Session whose worktree's preparation failed: its log
+// gets the `error` event that says why, relayed live, then it ends in
+// `setup-failed`, its worktree cleaned and removed. A Session stopped while
+// its worktree was being prepared, or a Runner that stops, removes the
+// worktree half prepared too: its resume makes it again, and prepares it.
+func (m *Manager) failPrepare(s *live, w Worktree, err error) {
+	s.mu.Lock()
+	stopping := s.stopping
+	s.mu.Unlock()
+	if stopping || m.ctx.Err() != nil {
+		m.remove(w)
+		m.fail(s, w, false, contracts.RunnerSessionStateErrorSetupFailed, "prepare", err)
+		return
+	}
+	m.logSetupError(w.SessionID, setupFailed(err))
+	m.fail(s, w, true, contracts.RunnerSessionStateErrorSetupFailed, "prepare", err)
+}
+
+// logSetupError appends to the Session's log one `error` event
+// `setup-failed` with the preparation's message, and relays it live.
+func (m *Manager) logSetupError(sessionID string, setup *SetupError) {
+	log, err := openLog(sessionDir(m.cfg.Home, sessionID))
+	if err != nil {
+		m.cfg.Logger.Warn("session.log", "sessionId", sessionID, "error", errorKind(err))
+		return
+	}
+	defer log.close()
+	key := m.liveKeys(sessionID)
+	event := contracts.EngineEvent{Error: &contracts.EngineEventError{Kind: contracts.EngineEventKindError, Seq: 1, At: time.Now().UTC(), Code: string(contracts.RunnerSessionStateErrorSetupFailed), Message: setup.Message()}}
+	stamped, err := log.append(event, log.lastSeq)
+	if err != nil {
+		m.cfg.Logger.Warn("session.log", "sessionId", sessionID, "error", errorKind(err))
+		return
+	}
+	m.relayLive(key, sessionID, stamped)
+}
+
+// remove cleans the worktree (the Hooks' Clean), then removes it: with
+// contexts of their own, the Session's or the run's may be gone. The
+// cleaning's failure is logged, and the worktree removed anyway.
+func (m *Manager) remove(w Worktree) {
+	ctx, cancel := context.WithTimeout(context.Background(), cleanBound)
+	defer cancel()
+	if err := m.cfg.Hooks.clean(ctx, withEnv(ctx, w)); err != nil {
+		step := "session.clean"
+		if w.SessionID == "" {
+			step = "command.clean"
+		}
+		var clean *CleanError
+		if errors.As(err, &clean) {
+			attrs := []any{"sessionId", w.SessionID, "projectId", w.ProjectID, "error", clean.Reason}
+			if clean.ExitCode != nil {
+				attrs = append(attrs, "exitCode", *clean.ExitCode)
+			}
+			m.cfg.Logger.Warn(step, attrs...)
+		} else {
+			m.cfg.Logger.Warn(step, "sessionId", w.SessionID, "projectId", w.ProjectID, "error", errorKind(err))
+		}
+	}
+	unlock := m.locks.lock(w.Clone)
+	removeWorktree(ctx, w.Clone, w.Dir)
+	unlock()
+}
+
+// cleanBound is how long a worktree's cleaning and removal last at most:
+// « Nettoyer le worktree »'s own 10 min, and git's removal after it.
+const cleanBound = 11 * time.Minute
+
+// withEnv is w with the CREWDECK_* variables of a Commande (command.run),
+// those of a Session when w has none: its Projet, its branch, the
+// worktree's HEAD; no Étape nor Ticket, which a Session's message does not
+// name.
+func withEnv(ctx context.Context, w Worktree) Worktree {
+	if w.Env != nil {
+		return w
+	}
+	head, _ := gitOutput(ctx, w.Dir, "rev-parse", "HEAD")
+	w.Env = []string{
+		"CREWDECK_PROJECT=" + w.ProjectID,
+		"CREWDECK_STEP=",
+		"CREWDECK_TICKET=",
+		"CREWDECK_BRANCH=" + w.Branch,
+		"CREWDECK_SHA=" + head,
+	}
+	return w
+}
+
 // finish ends the Session for good: Clean, then the worktree removed.
 func (m *Manager) finish(s *live, w Worktree, made bool, outcome contracts.RunnerSessionStateOutcome, failure contracts.RunnerSessionStateError) {
 	if made {
-		// The Session's own context may be gone; the cleaning has its own.
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		if err := m.cfg.Hooks.clean(ctx, w); err != nil {
-			m.cfg.Logger.Warn("session.clean", "sessionId", w.SessionID, "error", errorKind(err))
-		}
-		unlock := m.locks.lock(w.Clone)
-		removeWorktree(ctx, w.Clone, w.Dir)
-		unlock()
-		cancel()
+		m.remove(w)
 	}
 	m.end(s, outcome, failure)
 }

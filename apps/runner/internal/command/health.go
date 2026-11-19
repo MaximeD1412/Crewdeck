@@ -155,9 +155,10 @@ func (r *Runner) keep(message contracts.RunnerCommandRun, proc *leader, out *out
 		after: r.cfg.After,
 		ended: make(chan struct{}),
 		release: func() {
+			// Released first: what cleans its worktree goes in its log.
+			place.Release()
 			out.flush()
 			out.close()
-			place.Release()
 			r.untrack(key, message.RunId)
 		},
 	}

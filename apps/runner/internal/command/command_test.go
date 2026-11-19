@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -207,16 +208,21 @@ func (s *sent) startedAny(id string) bool {
 // harness is a Runner's runner of Commandes and its manager of Sessions,
 // against the remote, with a vault and the Appareil it wraps the relay for.
 type harness struct {
-	home    string
-	remote  *remote
-	vault   *keys.Vault
-	runner  *ecdh.PrivateKey
-	device  *ecdh.PrivateKey
-	clock   *clock
-	sent    *sent
-	engine  *fake.Engine
-	hooks   session.Hooks
-	relayed bool
+	home   string
+	remote *remote
+	vault  *keys.Vault
+	runner *ecdh.PrivateKey
+	device *ecdh.PrivateKey
+	clock  *clock
+	sent   *sent
+	engine *fake.Engine
+	hooks  session.Hooks
+	// probe, when set, is told each start of the fake Moteur, before it runs.
+	probe func(engine.StartOptions)
+	// worktreeCommands are what each Session and run gets as the Projet's.
+	worktreeCommands *session.SealedCommands
+	logs             *logBuffer
+	relayed          bool
 	// gate, when set, holds each opening of a sealed part until it closes.
 	gate chan struct{}
 	// marks is a folder outside the places, for what the runs write.
@@ -258,8 +264,14 @@ func newHarness(t *testing.T) *harness {
 func (h *harness) start(t *testing.T) *harness {
 	t.Helper()
 	var engines engine.Registry
-	engines.Register(h.engine)
-	m, err := session.New(session.Config{Home: h.home, Engines: &engines, GitHubURL: h.remote.url(), Hooks: h.hooks, Send: h.sent.send})
+	if h.probe != nil {
+		engines.Register(probed{Engine: h.engine, probe: h.probe})
+	} else {
+		engines.Register(h.engine)
+	}
+	h.logs = &logBuffer{}
+	logger := slog.New(slog.NewJSONHandler(h.logs, nil))
+	m, err := session.New(session.Config{Home: h.home, Engines: &engines, GitHubURL: h.remote.url(), Hooks: h.hooks, Send: h.sent.send, Logger: logger})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +280,7 @@ func (h *harness) start(t *testing.T) *harness {
 	if h.gate != nil {
 		vault = gatedVault{inner: h.vault, gate: h.gate}
 	}
-	cfg := command.Config{Home: h.home, Vault: vault, Places: m, Send: h.sent.send, After: h.clock.After}
+	cfg := command.Config{Home: h.home, Vault: vault, Places: m, Send: h.sent.send, After: h.clock.After, Logger: logger}
 	if h.relayed {
 		cfg.Keys = &relay.Keys{Runner: h.runner, Holders: func() ([][]byte, error) { return [][]byte{keys.PublicKeyBytes(h.device)}, nil }}
 	}
@@ -337,7 +349,22 @@ func (h *harness) run(t *testing.T, id, text, where, sha string) contracts.Runne
 		Origin:            contracts.RunnerCommandRunOrigin{Kind: contracts.RunnerCommandRunOriginKindGithub, Owner: "acme", Name: "shop"},
 		IntegrationBranch: "develop",
 		Ref:               contracts.RunnerCommandRunRef{StepId: "tests", Ticket: float64(12), Branch: branch, Sha: sha},
+		WorktreeCommands:  runWorktreeCommands(h.worktreeCommands),
 	}
+}
+
+func runWorktreeCommands(sealed *session.SealedCommands) *contracts.RunnerCommandRunWorktreeCommands {
+	if sealed == nil {
+		return nil
+	}
+	return &contracts.RunnerCommandRunWorktreeCommands{Key: sealed.Key, Ciphertext: sealed.Ciphertext}
+}
+
+func sessionWorktreeCommands(sealed *session.SealedCommands) *contracts.RunnerSessionStartWorktreeCommands {
+	if sealed == nil {
+		return nil
+	}
+	return &contracts.RunnerSessionStartWorktreeCommands{Key: sealed.Key, Ciphertext: sealed.Ciphertext}
 }
 
 // mark is the path of a marker file, outside the places.
@@ -557,6 +584,7 @@ func (h *harness) startSession(t *testing.T) {
 		Origin: contracts.RunnerSessionStartOrigin{Kind: contracts.RunnerSessionStartOriginKindGithub, Owner: "acme", Name: "shop"},
 		Branch: branch, Base: "develop", Engine: contracts.RunnerSessionStartEngineClaudeCode, Model: "claude-opus-5-5", Role: "code",
 		PermissionMode: contracts.RunnerSessionStartPermissionModeBypass, Title: "Le panier",
+		WorktreeCommands: sessionWorktreeCommands(h.worktreeCommands),
 	})
 	h.sent.await(t, "the Session waiting", func(m any) bool {
 		s, ok := m.(contracts.RunnerSessionState)

@@ -109,11 +109,12 @@ test.describe('« Gestion du process » (US-92, US-94, US-88)', () => {
     expect(Math.abs((await offCentre(card(page, 'st-review'), viewport)) - moved)).toBeLessThan(4);
   });
 
-  test('a Phase chosen: its Étapes and Retours counted, « Répéter : » once', async ({ page, scenario }) => {
+  test('a Phase chosen: « Répéter » on « Pour chaque Ticket prêt », its help', async ({ page, scenario }) => {
     await scenario('process');
     await page.goto(`${new URL(page.url()).pathname}?phase=ph-dev`);
 
-    await expect(panel(page).locator('section.repeat p')).toHaveText('Répéter : pour chaque Ticket prêt');
+    await expect(panel(page).getByRole('radio', { name: 'Pour chaque Ticket prêt' })).toBeChecked();
+    await expect(panel(page).locator('section.repeat .help')).toHaveText('Chaque Ticket prêt parcourt la Phase : c’est la Boucle.');
   });
 
   test('« Sources »: the Tickets Local on the Runner’s machine, the code and documents on GitHub, the Idée in Crewdeck, no Select', async ({

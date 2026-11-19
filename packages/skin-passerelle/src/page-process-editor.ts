@@ -247,6 +247,8 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
   private focusedAt: number | null = null;
   /** Whether the catalogue was open when « Étape » was pressed: the Menu closes itself on that press. */
   private catalogueWasOpen = false;
+  /** Bumped when a choice in the panel was refused: its controls, keyed on it, show the data again. */
+  private resets = 0;
 
   protected override updated(changed: PropertyValues): void {
     super.updated(changed);
@@ -287,6 +289,32 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
   private onStepPhase(step: Step, event: Event) {
     const phaseId = (event.currentTarget as Control).value;
     if (phaseId !== step.phaseId) this.emit('moveStepToPhase', { stepId: step.id, phaseId });
+    void this.resync();
+  }
+
+  /**
+   * After a choice of the panel's controls, once the page's answer is shown:
+   * a control still showing a choice its data does not (refused) is drawn
+   * again from its data, the focus kept on it.
+   */
+  private async resync(): Promise<void> {
+    await this.updateComplete;
+    type Shown = HTMLElement & { value: string; checked?: boolean; data: { value: string; checked?: boolean } };
+    const controls = [...this.renderRoot.querySelectorAll<Shown>('.radios cd-radio, cd-select.step-phase')];
+    const stale = controls.some((control) =>
+      control.localName === 'cd-radio' ? control.checked !== control.data.checked : control.value !== control.data.value,
+    );
+    if (!stale) return;
+    const focused = controls.some((control) => control.matches(':focus-within'));
+    this.resets += 1;
+    this.requestUpdate();
+    await this.updateComplete;
+    if (!focused) return;
+    const again = [...this.renderRoot.querySelectorAll<Shown & { updateComplete: Promise<unknown> }>('.radios cd-radio, cd-select.step-phase')].find(
+      (control) => control.localName !== 'cd-radio' || control.data.checked,
+    );
+    await again?.updateComplete;
+    again?.shadowRoot?.querySelector<HTMLElement>('input, select')?.focus();
   }
 
   private rename(phase: Phase, name: string) {
@@ -313,6 +341,7 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     const value = (event.target as Control).value;
     const forEach = (value === ONCE ? null : value) as ForEach;
     this.emit('setForEach', { phaseId: phase.id, forEach });
+    void this.resync();
   }
 
   private onDialog(event: Event) {
@@ -380,7 +409,7 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
         ${editable && step.removeReason !== null ? html`<p class="text reason">${step.removeReason}</p>` : nothing}
         ${editable
           ? keyed(
-              `${step.id}:${step.phaseId}:${this.data.toast?.text ?? ''}`,
+              `${step.id}:${step.phaseId}:${this.resets}`,
               html`<cd-select
                 class="step-phase"
                 .data=${{
@@ -463,14 +492,17 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
       <section class="section repeat" aria-label=${title}>
         <h2>${title}</h2>
         ${editable
-          ? html`<div class="radios" role="radiogroup" aria-label=${title} @change=${(event: Event) => this.onRepeat(phase, event)}>
-              ${phase.repeat.map(
-                (option) =>
-                  html`<cd-radio
-                    .data=${{ name: `repeat-${phase.id}`, value: option.forEach ?? ONCE, label: option.label, checked: option.checked }}
-                  ></cd-radio>`,
-              )}
-            </div>`
+          ? keyed(
+              `${phase.id}:${this.resets}`,
+              html`<div class="radios" role="radiogroup" aria-label=${title} @change=${(event: Event) => this.onRepeat(phase, event)}>
+                ${phase.repeat.map(
+                  (option) =>
+                    html`<cd-radio
+                      .data=${{ name: `repeat-${phase.id}`, value: option.forEach ?? ONCE, label: option.label, checked: option.checked }}
+                    ></cd-radio>`,
+                )}
+              </div>`,
+            )
           : html`<p class="text">${checked?.label ?? ''}</p>`}
         <p class="text help">${phase.help}</p>
       </section>

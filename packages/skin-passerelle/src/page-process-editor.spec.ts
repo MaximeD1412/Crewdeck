@@ -363,6 +363,24 @@ describe('PageProcessEditor', () => {
       ]);
     });
 
+    it('draws a refused choice again from the data: the radio the Phase holds checked and focused, the Select on the Étape’s Phase', async () => {
+      const el = await show(phase);
+      const first = native<HTMLInputElement>(panel(el).querySelector('cd-radio')!, 'input');
+      first.focus();
+      first.click();
+      await vi.waitFor(() => {
+        const radios = [...panel(el).querySelectorAll('cd-radio')] as (HTMLElement & { checked: boolean; data: { checked: boolean } })[];
+        expect(radios.map((radio) => radio.checked)).toEqual(radios.map((radio) => radio.data.checked));
+        expect(radios.find((radio) => radio.data.checked)?.shadowRoot?.activeElement?.localName).toBe('input');
+      });
+
+      const other = await show(editable({ ...review, step: { ...review.step!, removeReason: null } }));
+      const select = native<HTMLSelectElement>(panel(other), 'cd-select.step-phase', 'select');
+      type(select, 'ph-idee');
+      select.dispatchEvent(new Event('change'));
+      await vi.waitFor(() => expect(native<HTMLSelectElement>(panel(other), 'cd-select.step-phase', 'select').value).toBe('ph-dev'));
+    });
+
     it('relays « Retirer la Phase » when it may go', async () => {
       const el = await show({ ...phase, phase: { ...phase.phase!, removeReason: null } });
       const details = await actionsOf(() => native<HTMLButtonElement>(panel(el), 'cd-button.remove-phase', 'button').click());

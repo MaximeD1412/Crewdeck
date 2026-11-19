@@ -1,6 +1,7 @@
 import { projectNameAad, type Project, type Repository } from '@crewdeck/contracts';
 import type { z } from 'zod';
 import type { Client } from './api/client.js';
+import { toBase64Url } from './keys/bytes.js';
 import type { VaultState } from './keys/vault.js';
 import { createProjectNames, createProjects } from './projects.js';
 import { fakeSealed, fakeVault } from './projects/testing.js';
@@ -157,5 +158,20 @@ describe('createProjectNames', () => {
     names.projectName(other);
     await settle();
     expect(names.projectName(other)).toBe('Projet local');
+  });
+
+  it('opens again a name whose item key was rewrapped by a rotation, its ciphertext the same (E2E-4)', async () => {
+    const { names } = setupNames();
+    const rewrapped = await local('Recettes');
+    // The state read before the rotation: the key wrapped under the old vault key, which the vault opened since no longer opens.
+    const stale = { ...rewrapped, nameSealed: { key: toBase64Url(new Uint8Array(60)), ciphertext: rewrapped.nameSealed?.ciphertext ?? '' } };
+    names.projectName(stale);
+    await settle();
+    expect(names.projectName(stale)).toBe('Projet local');
+
+    // The Resynchronisation brings the rewrapped key.
+    expect(names.projectName(rewrapped)).toBe('Projet local');
+    await settle();
+    expect(names.projectName(rewrapped)).toBe('Recettes');
   });
 });

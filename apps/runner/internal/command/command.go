@@ -6,7 +6,9 @@
 // that runs.
 //
 // A run is `$SHELL -lc '<run>'` as the Pilote, in its own process group, one
-// per Projet and Commande, killed after 30 min or on `command.stop`. Its
+// per Projet and Commande, killed after 30 min or on `command.stop`; one
+// with a health address is judged by it instead, and may run on as a
+// service of the Runner (health.go, services.go). Its
 // output is logged in `~/.crewdeck/commands/<runId>.log` for 30 days and
 // relayed sealed for the Appareils as a Session's, chunk by chunk as it is
 // read; its verdict carries figures only. It runs in the Ticket's worktree,
@@ -18,6 +20,7 @@
 //
 //	commands/<runId>.log  the run's output, one JSON line per chunk (mode 600)
 //	commands/<runId>.key  the run's relay key (mode 600)
+//	services/             the services (services.go)
 package command
 
 import (
@@ -89,6 +92,10 @@ type Runner struct {
 	// busy are the Commandes running, by Projet and Commande.
 	busy map[string]bool
 	runs map[string]*live
+
+	// svcMu guards the services this Runner started, and their pid files.
+	svcMu    sync.Mutex
+	services map[serviceKey]*tracked
 }
 
 // live is a run under way.
@@ -110,7 +117,8 @@ func (l *live) halt() {
 var uuid = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 // New is the runner of the Commandes kept under cfg.Home; it removes the
-// logs past LogAge now, then every 24 h until Close.
+// pid files of the services gone, and the logs past LogAge now, then every
+// 24 h until Close.
 func New(cfg Config) (*Runner, error) {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
@@ -129,7 +137,8 @@ func New(cfg Config) (*Runner, error) {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	r := &Runner{cfg: cfg, ctx: ctx, cancel: cancel, busy: map[string]bool{}, runs: map[string]*live{}}
+	r := &Runner{cfg: cfg, ctx: ctx, cancel: cancel, busy: map[string]bool{}, runs: map[string]*live{}, services: map[serviceKey]*tracked{}}
+	r.pruneServices()
 	r.Sweep()
 	r.wg.Add(1)
 	go func() {
@@ -166,6 +175,8 @@ func (r *Runner) Register(client *protocol.Client) {
 }
 
 // Close stops the runs under way, their groups killed, and waits for them.
+// The services run on: the next run of their Commande, or the uninstall,
+// stops them (under systemd or launchd, the Runner's stop stops them too).
 func (r *Runner) Close() {
 	r.once.Do(func() {
 		r.mu.Lock()

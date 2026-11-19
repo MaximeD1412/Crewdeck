@@ -273,4 +273,13 @@ func TestEveryFixtureOfTheCommandesDecodesIntoItsGeneratedType(t *testing.T) {
 	if passed := NewCommandVerdict(run, contracts.RunnerCommandVerdictReasonExited, &zero, 0); !passed.Passed {
 		t.Error("an exit code 0 does not pass")
 	}
+	if service := NewCommandVerdict(run, contracts.RunnerCommandVerdictReasonHealthy, nil, 0); !service.Passed || service.ExitCode != nil {
+		t.Errorf("a healthy service: %+v, want passed without an exit code", service)
+	}
+	if daemon := NewCommandVerdict(run, contracts.RunnerCommandVerdictReasonHealthy, &zero, 0); !daemon.Passed || daemon.ExitCode != 0 {
+		t.Errorf("a healthy run that exited 0: %+v, want passed, 0", daemon)
+	}
+	if late := NewCommandVerdict(run, contracts.RunnerCommandVerdictReasonHealthTimeout, nil, 0); late.Passed {
+		t.Error("a health-timeout passes")
+	}
 }

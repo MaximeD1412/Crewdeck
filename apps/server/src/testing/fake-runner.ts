@@ -180,7 +180,7 @@ export class FakeRunner implements Fake {
         for (const seq of [1, 2]) this.send(socket, { type: 'command.output', runId, ...fakeChunk(seq) });
         const end = this.commandsEnd;
         const exitCode = end.reason === 'exited' ? end.exitCode : null;
-        this.send(socket, { type: 'command.verdict', runId, passed: exitCode === 0, exitCode, reason: end.reason, durationMs: 1200 });
+        this.send(socket, { type: 'command.verdict', runId, passed: exitCode === 0 || end.reason === 'healthy', exitCode, reason: end.reason, durationMs: 1200 });
         return;
       }
       case 'command.replay':

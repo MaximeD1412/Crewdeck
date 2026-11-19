@@ -1131,13 +1131,13 @@
       "categorie": "ops",
       "gravite": "faible",
       "titre": "Un service lancé par une Commande reste actif et occupe la machine",
-      "statut": "solution choisie",
-      "statutDepuis": "2026-11-14",
+      "statut": "implémenté",
+      "statutDepuis": "2026-11-19",
       "solutions": [
         {
           "texte": "Services suivis par le Runner, arrêtés avant la relance de leur Commande et à la désinstallation",
           "ref": "ADR 0013",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

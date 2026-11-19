@@ -82,9 +82,15 @@ export interface MilestoneInput {
   readonly closedAt: string | null;
 }
 
-/** A change of code as its Source has it; `mergedBy` undefined keeps what is stored (GitHub's list of PRs does not say it). */
+/**
+ * A change of code as its Source has it; `mergedBy` undefined keeps what is
+ * stored (GitHub's list of PRs does not say it). `ticketNumber` undefined is
+ * read from `headRef` (GitHub's); a Local change's comes from the Runner, its
+ * branch's name never sent.
+ */
 export interface CodeChangeInput {
   readonly number: number;
+  readonly ticketNumber?: number | null;
   readonly title: string | null;
   readonly titleSealed: SealedItem | null;
   readonly state: CodeChangeState;
@@ -139,7 +145,8 @@ const unchanged = (row: Record<string, unknown>, data: Record<string, unknown>):
 export class TicketsWriter {
   constructor(private readonly events: EventsWriter) {}
 
-  async upsertTickets(tx: Tx, projectId: string, source: TicketSource, items: readonly TicketInput[], origin: WriteOrigin = {}): Promise<Ticket[]> {
+  /** `origin` may be per Ticket's number (a Runner's report, each item observed at its own time); a dependant gets its own number's. */
+  async upsertTickets(tx: Tx, projectId: string, source: TicketSource, items: readonly TicketInput[], origin: WriteOrigin | ((number: number) => WriteOrigin) = {}): Promise<Ticket[]> {
     const byNumber = new Map(items.map((item) => [item.number, item]));
     return this.writeTickets(tx, projectId, source, (number, row) => {
       const item = byNumber.get(number);
@@ -199,6 +206,14 @@ export class TicketsWriter {
     await this.events.write(tx, currentPilotId(), 'milestone.removed', { id: row.id }, origin);
   }
 
+  /** Deletes a change of code, its checks with it: `code-change.removed`. */
+  async removeCodeChange(tx: Tx, projectId: string, number: number, origin: WriteOrigin = {}): Promise<void> {
+    const row = await tx.codeChange.findFirst({ where: { projectId, number }, select: { id: true } });
+    if (!row) return;
+    await tx.codeChange.delete({ where: { id: row.id } });
+    await this.events.write(tx, currentPilotId(), 'code-change.removed', { id: row.id }, origin);
+  }
+
   /**
    * Writes changes of code: the Ticket each delivers from its head branch,
    * and, when its head moves, the `checks` of the new head from the rows
@@ -209,7 +224,7 @@ export class TicketsWriter {
     for (const item of items) {
       const row = await tx.codeChange.findFirst({ where: { projectId, number: item.number }, select: CODE_CHANGE_VIEW });
       const data = {
-        ticketNumber: item.headRef === null ? null : ticketNumberOfBranch(item.headRef),
+        ticketNumber: item.ticketNumber !== undefined ? item.ticketNumber : item.headRef === null ? null : ticketNumberOfBranch(item.headRef),
         title: item.title,
         titleSealed: item.titleSealed,
         state: item.state,
@@ -303,8 +318,9 @@ export class TicketsWriter {
     source: TicketSource | null,
     next: (number: number, row: TicketRow | undefined) => TicketData | undefined,
     numbers: readonly number[],
-    origin: WriteOrigin,
+    origin: WriteOrigin | ((number: number) => WriteOrigin),
   ): Promise<Ticket[]> {
+    const originOf = typeof origin === 'function' ? origin : () => origin;
     const rows = await tx.ticket.findMany({ where: { projectId }, select: TICKET_VIEW });
     const byNumber = new Map<number, TicketRow>(rows.map((row) => [row.number, row]));
     const changes = new Map<number, TicketData>();
@@ -328,13 +344,13 @@ export class TicketsWriter {
       const saved = row
         ? await tx.ticket.update({ where: { id: row.id }, data: write, select: TICKET_VIEW })
         : await tx.ticket.create({ data: { id: newId(), pilotId: currentPilotId(), projectId, number, source: source ?? 'github', ...write }, select: TICKET_VIEW });
-      written.push(await this.emit(tx, saved, origin));
+      written.push(await this.emit(tx, saved, originOf(number)));
     }
     for (const row of dependants) {
       const ready = isReady(row, states);
       if (ready === row.ready) continue;
       const saved = await tx.ticket.update({ where: { id: row.id }, data: { ready }, select: TICKET_VIEW });
-      written.push(await this.emit(tx, saved, origin));
+      written.push(await this.emit(tx, saved, originOf(row.number)));
     }
     return written;
   }

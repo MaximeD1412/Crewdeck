@@ -1085,18 +1085,18 @@
       "categorie": "ops",
       "gravite": "moyenne",
       "titre": "Une modification faite à la main dans un dossier Local met plus de 2 s à s'afficher",
-      "statut": "solution choisie",
-      "statutDepuis": "2026-11-14",
+      "statut": "implémenté",
+      "statutDepuis": "2026-11-19",
       "solutions": [
         {
           "texte": "Surveillance du dossier, plus un parcours complet toutes les 60 s",
           "ref": "ADR 0012",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Parcours toutes les 2 s pour un dossier sur un disque Windows sous WSL (pas d'inotify)",
           "ref": "ADR 0012",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

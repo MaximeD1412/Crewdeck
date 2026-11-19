@@ -224,9 +224,12 @@ func decodeWrap(t *testing.T, enc, ciphertext, tag string) keys.Wrap {
 func TestTheRunnerRotatesForTheHoldersItAuthenticatedAndKeepsItsNewWrap(t *testing.T) {
 	w := newRotationWorld(t)
 
-	outcome, err := w.rotator().rotate(context.Background())
-	if err != nil || outcome != rotationDone {
-		t.Fatalf("rotate = %v, %v", outcome, err)
+	r := w.rotator()
+	moved := 0
+	r.moved = func() { moved++ }
+	outcome, err := r.rotate(context.Background())
+	if err != nil || outcome != rotationDone || moved != 1 {
+		t.Fatalf("rotate = %v, %v, told %d times", outcome, err, moved)
 	}
 	posted := w.server.rotations()
 	if len(posted) != 1 {
@@ -284,15 +287,18 @@ func TestTheRunnerLeavesTheRotationToAnotherHolderWhenAKeyIsNotOneItHolds(t *tes
 		Type: contracts.RunnerVaultHoldersElemTypeDevice, Id: "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6b03", PublicKey: b64url.EncodeToString(keys.PublicKeyBytes(w.tablet)),
 	})
 
-	outcome, err := w.rotator().rotate(context.Background())
+	r := w.rotator()
+	moved := 0
+	r.moved = func() { moved++ }
+	outcome, err := r.rotate(context.Background())
 	if err != nil || outcome != rotationLeft {
 		t.Fatalf("rotate = %v, %v, want it left to another holder", outcome, err)
 	}
 	if posted := w.server.rotations(); len(posted) != 0 {
 		t.Fatalf("%d rotations posted", len(posted))
 	}
-	if w.held.Load().Version != 1 {
-		t.Fatal("the vault moved")
+	if w.held.Load().Version != 1 || moved != 0 {
+		t.Fatalf("the vault moved (told %d times)", moved)
 	}
 }
 
@@ -486,6 +492,8 @@ func TestTheRunnerAdoptsTheWrapOfANewVersionFromTheHolderThatRotated(t *testing.
 		return vaultKeyWrap{Version: version, Enc: b64url.EncodeToString(wrap.Enc), Ciphertext: b64url.EncodeToString(wrap.Ciphertext), Tag: b64url.EncodeToString(wrap.Tag)}
 	}
 	r := w.rotator()
+	moved := 0
+	r.moved = func() { moved++ }
 
 	if adopted, err := r.adopt(context.Background(), sealFor(w.tablet, 2)); adopted || err == nil {
 		t.Fatalf("a wrap of the revoked tablet: %v, %v", adopted, err)
@@ -493,16 +501,17 @@ func TestTheRunnerAdoptsTheWrapOfANewVersionFromTheHolderThatRotated(t *testing.
 	if adopted, err := r.adopt(context.Background(), sealFor(w.phone, 1)); adopted || err != nil {
 		t.Fatalf("a wrap of the version held: %v, %v", adopted, err)
 	}
-	if w.held.Load().Version != 1 {
-		t.Fatal("the vault moved")
+	if w.held.Load().Version != 1 || moved != 0 {
+		t.Fatalf("the vault moved (told %d times)", moved)
 	}
 
 	adopted, err := r.adopt(context.Background(), sealFor(w.phone, 2))
 	if !adopted || err != nil {
 		t.Fatalf("adopt = %v, %v", adopted, err)
 	}
-	if w.held.Load().Version != 2 {
-		t.Fatalf("held version %d", w.held.Load().Version)
+	// What the Runner sealed under version 1 goes again under 2 (the Local Projets' full reports).
+	if w.held.Load().Version != 2 || moved != 1 {
+		t.Fatalf("held version %d, told %d times", w.held.Load().Version, moved)
 	}
 	saved, err := w.store.LoadVaultWrap()
 	if err != nil || saved.VaultKeyVersion != 2 || !bytes.Equal(saved.SenderPublicKey, keys.PublicKeyBytes(w.phone)) || !bytes.Equal(saved.DevicePublicKey, keys.PublicKeyBytes(w.laptop)) {

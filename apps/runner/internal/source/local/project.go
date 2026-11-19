@@ -72,6 +72,8 @@ type Project struct {
 	id     string
 	folder string
 
+	reporting sync.Mutex // one report at a time (report.go)
+
 	mu         sync.Mutex
 	clone      string // the Runner's clone of the folder, "" when unknown
 	listeners  []func(source.Changed)

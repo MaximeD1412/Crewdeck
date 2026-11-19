@@ -48,6 +48,7 @@ import { createEditorUi } from './process/editor-ui.js';
 import { createNoteIdea } from './note-idea.js';
 import { createProjectSettings } from './project-settings.js';
 import { createProjectNames, createProjects } from './projects.js';
+import { createLocalTexts } from './sources/local-sealed.js';
 import { createFolderCheck, createFolderChecker, type FolderSocket } from './projects/folder-check.js';
 import { createFolderForm } from './projects/folder-form.js';
 import { attachFolder, createLocalProject } from './projects/local.js';
@@ -73,6 +74,7 @@ import { createConnexionLien, takeLinkToken } from './views/connexion-lien.js';
 import { aToiView } from './views/a-toi.js';
 import { actionsOf, decisionViews } from './views/decisions/registry.js';
 import './views/decisions/agent-question.js';
+import './views/decisions/local-unreadable.js';
 import './views/decisions/loop-back-exhausted.js';
 import './views/decisions/permission-requested.js';
 import './views/decisions/runner-offline.js';
@@ -261,6 +263,7 @@ export const boot = async ({
   };
   const names = createProjectNames({ vault: keys.vault, vaultState: () => store.getState().vaultState });
   const projectName = (project: Pick<Project, 'id' | 'displayName' | 'nameSealed'>) => names.projectName(project);
+  const localTexts = createLocalTexts({ vault: keys.vault, vaultState: () => store.getState().vaultState });
   const folderForm = createFolderForm({
     checker: createFolderChecker({ check: createFolderCheck({ socket: folders, vault: keys.vault }) }),
     createProject: ({ templateId, ...input }) => createLocalProject({ client, vault: keys.vault }, { ...input, templateId: zProcessTemplateId.parse(templateId) }),
@@ -404,6 +407,7 @@ export const boot = async ({
           runnerOnline: slices.runner?.state === 'online',
           sessionEvent: peek.read,
           roleName: (role) => roleName(role, slices.settings),
+          localText: localTexts.openLocalText,
           projectName: (id) => {
             const project = projectOf(id);
             return project ? projectName(project) : null;
@@ -456,6 +460,7 @@ export const boot = async ({
       refreshNoteDialog();
     }),
     plaintext.subscribe(() => router.refresh()),
+    localTexts.subscribe(() => router.refresh()),
     names.subscribe(() => {
       router.refresh();
       refreshNoteDialog();

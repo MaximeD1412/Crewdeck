@@ -22,6 +22,7 @@ export const KIND_LABELS: Record<DecisionKind, string> = {
   'ticket-blocked': 'Ticket bloqué',
   'ticket-draft': 'Ticket à valider',
   'ticket-interrupted': 'Ticket interrompu',
+  'ticket.local-unreadable': 'Fichier de Ticket illisible',
   'visual-review': 'Revue visuelle',
 };
 

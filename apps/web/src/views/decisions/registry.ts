@@ -1,4 +1,4 @@
-import type { Decision, DecisionKind } from '@crewdeck/contracts';
+import type { Decision, DecisionKind, SealedItem } from '@crewdeck/contracts';
 import { t, type MessageKey } from '@crewdeck/sdk';
 import type { Client } from '../../api/client.js';
 import type { SessionEventRead } from '../../sessions/peek.js';
@@ -30,6 +30,8 @@ export interface DecisionReads {
   sessionEvent(sessionId: string, seq: number): SessionEventRead;
   /** The name of a Rôle, a custom one's as the Pilote named it. */
   roleName(role: string): string;
+  /** A Local Projet's text its Runner sealed, opened with the vault (`sources/local-sealed.ts`); « … » until then. */
+  localText(projectId: string, sealed: SealedItem, place: string): string;
 }
 
 /** How « À toi » shows a kind of Décision: its module's ticket registers it. */

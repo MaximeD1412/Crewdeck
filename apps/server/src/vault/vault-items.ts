@@ -1,4 +1,4 @@
-import { ideaItemAad, processSealAad, projectNameAad, type VaultItem, worktreeCommandsAad, zSealedItem } from '@crewdeck/contracts';
+import { ideaItemAad, localSealedOfParam, localSealedParam, localTextAad, processSealAad, projectNameAad, type VaultItem, worktreeCommandsAad, zSealedItem } from '@crewdeck/contracts';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import type { Tx } from '../realtime/transactions.js';
@@ -171,8 +171,114 @@ const sessionTitles: VaultItemKind = {
   },
 };
 
+/** How a kind of a Local Projet's rows (SOURCE-3) reads and swaps its sealed text, the row's `number` naming its place. */
+interface LocalRows {
+  find(tx: Tx, after: string | null, take: number): Promise<{ id: string; projectId: string; number: number; sealed: unknown }[]>;
+  read(tx: Tx, id: string): Promise<unknown>;
+  write(tx: Tx, id: string, stored: Prisma.InputJsonValue, value: Prisma.InputJsonValue): Promise<number>;
+}
+
+/** A text the Runner sealed for a Local Projet's row, under `local:<projectId>:<place>` (`localTextAad`). */
+const localText = (itemType: string, place: (number: number) => string, rows: LocalRows): VaultItemKind => ({
+  itemType,
+  async list(tx, from, take) {
+    return (await rows.find(tx, from, take)).flatMap(({ id, projectId, number, sealed }) => {
+      const wrappedKey = keyOf(sealed);
+      return wrappedKey ? [{ itemType, itemId: id, aad: localTextAad(projectId, place(number)), wrappedKey }] : [];
+    });
+  },
+  async replace(tx, id, previousKey, wrappedKey) {
+    return swap(await rows.read(tx, id), previousKey, wrappedKey, (stored, value) => rows.write(tx, id, stored, value));
+  },
+});
+
+const ticketTitles = localText('ticket.title', (number) => `ticket:${number}:title`, {
+  find: async (tx, from, take) =>
+    (await tx.ticket.findMany({ where: { ...after(from), titleSealed: { not: Prisma.DbNull } }, orderBy: { id: 'asc' }, take, select: { id: true, projectId: true, number: true, titleSealed: true } })).map(
+      ({ titleSealed, ...row }) => ({ ...row, sealed: titleSealed }),
+    ),
+  read: async (tx, id) => (await tx.ticket.findUnique({ where: { id }, select: { titleSealed: true } }))?.titleSealed,
+  write: async (tx, id, stored, value) => (await tx.ticket.updateMany({ where: { id, titleSealed: { equals: stored } }, data: { titleSealed: value } })).count,
+});
+
+const ticketLabels = localText('ticket.labels', (number) => `ticket:${number}:labels`, {
+  find: async (tx, from, take) =>
+    (await tx.ticket.findMany({ where: { ...after(from), labelsSealed: { not: Prisma.DbNull } }, orderBy: { id: 'asc' }, take, select: { id: true, projectId: true, number: true, labelsSealed: true } })).map(
+      ({ labelsSealed, ...row }) => ({ ...row, sealed: labelsSealed }),
+    ),
+  read: async (tx, id) => (await tx.ticket.findUnique({ where: { id }, select: { labelsSealed: true } }))?.labelsSealed,
+  write: async (tx, id, stored, value) => (await tx.ticket.updateMany({ where: { id, labelsSealed: { equals: stored } }, data: { labelsSealed: value } })).count,
+});
+
+/** A Local milestone's title, its number its rank. */
+const milestoneTitles = localText('milestone.title', (number) => `milestone:${number}:title`, {
+  find: async (tx, from, take) =>
+    (await tx.milestone.findMany({ where: { ...after(from), titleSealed: { not: Prisma.DbNull } }, orderBy: { id: 'asc' }, take, select: { id: true, projectId: true, number: true, titleSealed: true } })).map(
+      ({ titleSealed, ...row }) => ({ ...row, sealed: titleSealed }),
+    ),
+  read: async (tx, id) => (await tx.milestone.findUnique({ where: { id }, select: { titleSealed: true } }))?.titleSealed,
+  write: async (tx, id, stored, value) => (await tx.milestone.updateMany({ where: { id, titleSealed: { equals: stored } }, data: { titleSealed: value } })).count,
+});
+
+const changeTitles = localText('code-change.title', (number) => `change:${number}:title`, {
+  find: async (tx, from, take) =>
+    (await tx.codeChange.findMany({ where: { ...after(from), titleSealed: { not: Prisma.DbNull } }, orderBy: { id: 'asc' }, take, select: { id: true, projectId: true, number: true, titleSealed: true } })).map(
+      ({ titleSealed, ...row }) => ({ ...row, sealed: titleSealed }),
+    ),
+  read: async (tx, id) => (await tx.codeChange.findUnique({ where: { id }, select: { titleSealed: true } }))?.titleSealed,
+  write: async (tx, id, stored, value) => (await tx.codeChange.updateMany({ where: { id, titleSealed: { equals: stored } }, data: { titleSealed: value } })).count,
+});
+
+const UNREADABLE = 'ticket.local-unreadable';
+
+/**
+ * The path of a Local Projet's unreadable file in its Décision (SOURCE-3),
+ * open or resolved: one flat param `<key>.<ciphertext>` (`localSealedParam`),
+ * sealed under `unreadable:<key>:path`, its key the end of the subject.
+ */
+const unreadablePaths: VaultItemKind = {
+  itemType: 'decision.local-unreadable-path',
+  async list(tx, from, take) {
+    const rows = await tx.decision.findMany({
+      where: { ...after(from), kind: UNREADABLE, projectId: { not: null }, params: { path: ['pathSealed'], string_contains: '.' } },
+      orderBy: { id: 'asc' },
+      take,
+      select: { id: true, projectId: true, subjectId: true, params: true },
+    });
+    return rows.flatMap(({ id, projectId, subjectId, params }) => {
+      const sealed = localSealedOfParam((params as Record<string, unknown>)['pathSealed']);
+      const prefix = `${projectId}:`;
+      if (!sealed || projectId === null || !subjectId.startsWith(prefix)) return [];
+      return [{ itemType: 'decision.local-unreadable-path', itemId: id, aad: localTextAad(projectId, `unreadable:${subjectId.slice(prefix.length)}:path`), wrappedKey: sealed.key }];
+    });
+  },
+  async replace(tx, id, previousKey, wrappedKey) {
+    const row = await tx.decision.findFirst({ where: { id, kind: UNREADABLE }, select: { params: true } });
+    const params = (row?.params ?? {}) as Record<string, Prisma.InputJsonValue>;
+    const sealed = localSealedOfParam(params['pathSealed']);
+    if (!sealed) return 'missing';
+    if (sealed.key !== previousKey) return 'changed';
+    const value = { ...params, pathSealed: localSealedParam({ key: wrappedKey, ciphertext: sealed.ciphertext }) };
+    return (await tx.decision.updateMany({ where: { id, params: { equals: params } }, data: { params: value } })).count === 1 ? 'replaced' : 'changed';
+  },
+};
+
 /** The kinds of every sealed item the server stores today. */
-export const VAULT_ITEM_KINDS: readonly VaultItemKind[] = [ideaKind('text'), ideaKind('analysis'), ideaKind('reason'), processVersions, processDrafts, worktreeCommands, projectNames, sessionTitles];
+export const VAULT_ITEM_KINDS: readonly VaultItemKind[] = [
+  ideaKind('text'),
+  ideaKind('analysis'),
+  ideaKind('reason'),
+  processVersions,
+  processDrafts,
+  worktreeCommands,
+  projectNames,
+  sessionTitles,
+  ticketTitles,
+  ticketLabels,
+  milestoneTitles,
+  changeTitles,
+  unreadablePaths,
+];
 
 /** Where a page of items starts: the kind's index and the last id read. */
 export interface VaultItemsCursor {

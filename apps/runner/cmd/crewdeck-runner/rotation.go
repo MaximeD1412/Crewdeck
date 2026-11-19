@@ -117,8 +117,20 @@ type rotator struct {
 	held   *heldVault
 	api    vaultAPI
 	logger *slog.Logger
+	// moved, when set, is told each time the vault held moves to a new
+	// version: what the Runner sealed under the older one goes again (each
+	// Local Projet's full report, SOURCE-3).
+	moved func()
 
 	mu sync.Mutex
+}
+
+// swap holds next from now on, and says so.
+func (r *rotator) swap(next *keys.Vault) {
+	r.held.current.Store(next)
+	if r.moved != nil {
+		r.moved()
+	}
 }
 
 // retried are the refusals after which a rotation is tried once more, from
@@ -214,7 +226,7 @@ func (r *rotator) rotateOnce(ctx context.Context) (rotationOutcome, error) {
 	}
 	own, _ := rotation.WrapOf(w.RunnerID)
 	// The server holds the new version: the vault held moves even if the file fails, the next hello hands the wrap again.
-	r.held.current.Store(next)
+	r.swap(next)
 	if err := r.store.SaveVaultWrap(state.VaultWrap{
 		RunnerID: w.RunnerID, VaultKeyVersion: next.Version, DevicePublicKey: w.DevicePublicKey, SenderPublicKey: keys.PublicKeyBytes(runner),
 		Enc: own.Enc, Ciphertext: own.Ciphertext, Tag: own.Tag,
@@ -325,7 +337,7 @@ func (r *rotator) adopt(ctx context.Context, wrap vaultKeyWrap) (bool, error) {
 			return false, fmt.Errorf("vault: the wrap of version %d opens from no key the Runner holds", wrap.Version)
 		}
 	}
-	r.held.current.Store(next)
+	r.swap(next)
 	if err := r.store.SaveVaultWrap(state.VaultWrap{
 		RunnerID: w.RunnerID, VaultKeyVersion: wrap.Version, DevicePublicKey: w.DevicePublicKey, SenderPublicKey: sender,
 		Enc: enc, Ciphertext: ciphertext, Tag: tag,

@@ -24,6 +24,7 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/service"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/session"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/source/local"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/update"
 	"github.com/spf13/cobra"
@@ -124,6 +125,8 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		return err
 	}
 	defer locals.Close()
+	// A new vault version: each Local Projet's texts go again, sealed under it.
+	rotations.moved = locals.full
 	// The Miroir (ADR 0010, ADR 0012): the copy of every Projet's Sources,
 	// its follower its only writer, fed by the server's envelopes on each
 	// connection and by the Local Projets' folders.
@@ -221,6 +224,15 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			logger.Warn("runner socket", "error", err)
 		}
 	}()
+	// The Local Projets' folders followed (SOURCE-3, ADR 0012): what changed
+	// in them reaches the server as local.changed, every item again on each
+	// accepted connection.
+	go locals.watch(ctx, local.WatchConfig{
+		Send:   func(ctx context.Context, m contracts.RunnerLocalChanged) error { return send(ctx, m) },
+		Logger: logger,
+		// A ref moved: nothing follows it yet (the documentation index, SOURCE-5).
+		OnRefsMoved: func(projectID string) { logger.Debug("local.refs.moved", "projectId", projectID) },
+	})
 	go reporter.Every(ctx, contracts.CapabilitiesEverySeconds*time.Second)
 	go reporter.UsageEvery(ctx, contracts.UsageEverySeconds*time.Second)
 	updater := &update.Updater{
@@ -243,6 +255,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			OnConnected: func(ctx context.Context) {
 				report(ctx)
 				reporter.FlushUsage(ctx)
+				locals.full()
 			},
 			Sessions:   sessions.Hello,
 			OnAccepted: rotations.accepted(ctx),

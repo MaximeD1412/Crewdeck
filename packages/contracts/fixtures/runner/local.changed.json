@@ -1,0 +1,89 @@
+{
+  "type": "local.changed",
+  "id": "019a6f00-0000-7000-8000-0000000000c1",
+  "at": "2026-11-19T09:00:01.000Z",
+  "projectId": "019a6f00-0000-7000-8000-0000000000b1",
+  "vaultKeyVersion": 1,
+  "full": false,
+  "items": [
+    {
+      "kind": "ticket",
+      "number": 12,
+      "state": "open",
+      "stateReason": null,
+      "readyMark": true,
+      "labels": [
+        "priority:P1",
+        "size:S",
+        "ready-for-agent"
+      ],
+      "labelsSealed": {
+        "key": "9uAOnLoBKi7x9hJ2poPd4x-sjxnkGf75zcYkoJIukCAHkiI-bHZ-tlsX-2uxCciHXB4OgmimK0SwynRx",
+        "ciphertext": "Ka8lBR4j5MF94Q7WkApWaFRZopYDnY4ZbUwB_FOSX9n5RLc3cx2xSlFdtKkebZVV6MFh-O4hsnGs"
+      },
+      "branchPrefix": "fix",
+      "visualReview": true,
+      "titleSealed": {
+        "key": "0KomP1kJL2l7guz4VR3QRaPEHM4XRlub9PakLDfq5oXrUSasME7FvBJRn8oc9OdU9NcM8qrMzpTomx0k",
+        "ciphertext": "1MJ-LZtQaN9DnWm5QcKG8yXrqmqSOQkbCBe8Sh8v7tdxJePFJU2h1MwpXQ"
+      },
+      "milestoneRank": 1,
+      "blockedBy": [
+        7
+      ],
+      "parent": null,
+      "contentHash": "v1.Z0kq3eL1yP9cX2mVb7nQ4rT8sW5uA6dF0hJ3kL9pO1M",
+      "createdAt": "2026-11-18T14:02:00.000Z",
+      "updatedAt": "2026-11-19T09:00:00.000Z",
+      "closedAt": null,
+      "observedAt": "2026-11-19T09:00:00.000Z"
+    },
+    {
+      "kind": "ticket-removed",
+      "number": 7,
+      "observedAt": "2026-11-19T09:00:00.500Z"
+    },
+    {
+      "kind": "milestone",
+      "rank": 1,
+      "titleSealed": {
+        "key": "8WbBXyPW57xCaUe7wKLo8lUE7Gbmegm8icn_M_rbZ1H0On6IlM62o2Qh-gsMADOjmbX1EFzI0bh1P4AM",
+        "ciphertext": "48uHt6wT68ZeDR8XCoLqVDgopYROxRFgGIcm3NRAdioK"
+      },
+      "dueOn": "2026-12-15",
+      "observedAt": "2026-11-19T09:00:00.000Z"
+    },
+    {
+      "kind": "milestone-removed",
+      "rank": 3
+    },
+    {
+      "kind": "change",
+      "number": 31,
+      "ticketNumber": 12,
+      "titleSealed": {
+        "key": "35AiKXomuTA5rYJWaFkb5QVx7vOEoXgadw_287DUNM2h5V9mLzsJFeeXm2NLL6H61VtXURHdz2Q47fhB",
+        "ciphertext": "awHAA7C2oC0-3_hYk8HHqyisz-JDUx7O-_m6SVq8j6y08fZ1erqqgyhaFA"
+      },
+      "state": "open",
+      "baseRef": "main",
+      "headSha": "3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a",
+      "mergeSha": null,
+      "createdAt": "2026-11-19T08:30:00.000Z",
+      "updatedAt": "2026-11-19T08:45:00.000Z",
+      "mergedAt": null,
+      "closedAt": null,
+      "observedAt": "2026-11-19T08:45:00.000Z"
+    }
+  ],
+  "unreadable": [
+    {
+      "key": "AAECAwQFBgcICQoLDA0ODw",
+      "reason": "front-matter",
+      "pathSealed": {
+        "key": "Rrw8v9I9YnvaFi_9fdhYypVMXhe5gCO3cFeadl-xYmk-YAWDOI0SLNttBqjqPmtMFxwz0RzSCH_zincA",
+        "ciphertext": "sYDNw-AUmuqSpk3dBNMVHgm7DgqrX5BmDfLnrr3cBzXYTdcFllwYHfCH3QMhl4Hq"
+      }
+    }
+  ]
+}

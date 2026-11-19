@@ -697,8 +697,12 @@ POST /api/vault/rotations (the Runner: /api/runner/vault/rotations)
   (`"settings:<projectId>"`), `project.name` (`"project:<projectId>:name"`,
   a Local Projet's name), `agent-session.title` (a Session's title when its
   artifact is Local, under the additional data of that artifact, which the
-  row keeps). A ticket that stores a new kind of item
-  registers it.
+  row keeps), and a Local Projet's texts the Runner sealed (SOURCE-3) under
+  `"local:<projectId>:<place>"`: `ticket.title`, `ticket.labels`,
+  `milestone.title`, `code-change.title` and
+  `decision.local-unreadable-path` (the path in the params of « Fichier de
+  Ticket illisible », `<key>.<ciphertext>`). A ticket that stores a new kind
+  of item registers it.
 - The server takes the rotation in one transaction, or nothing: 409
   `vault.version-changed` when `fromVersion` is no longer the current one,
   409 `realtime.stale` when the vault changed since `seq`, 422
@@ -733,7 +737,11 @@ POST /api/vault/rotations (the Runner: /api/runner/vault/rotations)
   slice an event moved. A later writer of a sealed
   item (the process versions and drafts, an Idée's analysis or reason, the
   Local Sources' texts) does the same, else an item sealed under a key no
-  holder keeps any more is stored and never opens.
+  holder keeps any more is stored and never opens. A `local.changed` names
+  its `vaultKeyVersion`; the server compares it under the Pilote's lock,
+  writes nothing of a report of another version (`local.vault-stale` in
+  the logs) and closes nothing: the Runner sends a full report of each
+  Local Projet as soon as its held vault moves to a new version.
 - The Runner's wrap of the new version reaches it in `vault.rotated`
   while it is connected, else in its next `hello.accepted`; it opens it from
   the key of the holder that rotated (one it holds), keeps it as

@@ -55,6 +55,7 @@ const sql = async <T extends pg.QueryResultRow>(text: string, values: unknown[] 
 
 const b64 = (bytes: number): string => randomBytes(bytes).toString('base64url');
 const sealed = () => ({ key: b64(60), ciphertext: b64(64) });
+const UNREADABLE_KEY = 'AAECAwQFBgcICQoLDA0ODw';
 
 interface Tab {
   id: string;
@@ -211,7 +212,30 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
        VALUES ($1, $2, $3, 'code', 'claude-code', 'claude-opus-5-5', $4, $5, 'feat/3-panier', 'develop', 'bypass', 'ended', now())`,
       [sessionId, tab.id, localId, JSON.stringify(sealed()), `ticket:${localId}:3:title`],
     );
-    return { projectId, versionId, ideas, localId, sessionId };
+    // Its Ticket, milestone, change of code and unreadable file (SOURCE-3): their texts sealed by the Runner under `local:<id>:<place>`.
+    const local = { ticketId: newId(), milestoneId: newId(), changeId: newId(), decisionId: newId() };
+    await sql(
+      `INSERT INTO tickets (id, pilot_id, project_id, source, number, state, ready_mark, ready, branch_prefix, visual_review, title_sealed, labels_sealed, source_created_at, source_updated_at, updated_at)
+       VALUES ($1, $2, $3, 'local', 3, 'open', true, true, 'feat', false, $4, $5, now(), now(), now())`,
+      [local.ticketId, tab.id, localId, JSON.stringify(sealed()), JSON.stringify(sealed())],
+    );
+    await sql(
+      `INSERT INTO milestones (id, pilot_id, project_id, source, number, rank, state, open_count, closed_count, title_sealed, updated_at)
+       VALUES ($1, $2, $3, 'local', 1, 1, 'open', 1, 0, $4, now())`,
+      [local.milestoneId, tab.id, localId, JSON.stringify(sealed())],
+    );
+    await sql(
+      `INSERT INTO code_changes (id, pilot_id, project_id, source, number, state, base_ref, title_sealed, source_created_at, updated_at)
+       VALUES ($1, $2, $3, 'local', 31, 'open', 'develop', $4, now(), now())`,
+      [local.changeId, tab.id, localId, JSON.stringify(sealed())],
+    );
+    const path = sealed();
+    await sql(
+      `INSERT INTO decisions (id, pilot_id, kind, project_id, subject_type, subject_id, label, meta_parts, tone, link, params)
+       VALUES ($1, $2, 'ticket.local-unreadable', $3, 'project', $4, 'Fichier de Ticket illisible', '{front matter illisible}', 'caution', $5, $6)`,
+      [local.decisionId, tab.id, localId, `${localId}:${UNREADABLE_KEY}`, `/projets/${localId}`, JSON.stringify({ pathSealed: `${path.key}.${path.ciphertext}`, reason: 'front-matter' })],
+    );
+    return { projectId, versionId, ideas, localId, sessionId, local };
   };
 
   const eventsOf = async (pilotId: string, type: string) =>
@@ -478,7 +502,7 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
       const first = await linked(alice);
       const second = await approved(alice, first);
       const third = await approved(alice, first);
-      const { versionId, ideas, localId, sessionId } = await items(alice);
+      const { versionId, ideas, localId, sessionId, local: localRows } = await items(alice);
       await page(alice, `/api/devices/${third.deviceId}/revoke`, { body: { seq: await seq(alice) } });
       told.length = 0;
 
@@ -494,9 +518,29 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
         [`idea.analysis ${ideas[1]}:analysis`, `idea.text ${ideas[0]}:text`, `idea.text ${ideas[1]}:text`, `process-version.sealed process:${(await sql<{ project_id: string }>('SELECT project_id FROM process_versions'))[0]?.project_id}`,
           `project.name project:${localId}:name`,
           `agent-session.title ticket:${localId}:3:title`,
+          `ticket.title local:${localId}:ticket:3:title`,
+          `ticket.labels local:${localId}:ticket:3:labels`,
+          `milestone.title local:${localId}:milestone:1:title`,
+          `code-change.title local:${localId}:change:31:title`,
+          `decision.local-unreadable-path local:${localId}:unreadable:${UNREADABLE_KEY}:path`,
         ].sort(),
       );
       const before = await sql<{ text: { ciphertext: string } }>('SELECT text FROM ideas WHERE id = $1', [ideas[0]]);
+      const localSealed = async () => {
+        const [ticket] = await sql<{ title_sealed: unknown; labels_sealed: unknown }>('SELECT title_sealed, labels_sealed FROM tickets WHERE id = $1', [localRows.ticketId]);
+        const [milestone] = await sql<{ title_sealed: unknown }>('SELECT title_sealed FROM milestones WHERE id = $1', [localRows.milestoneId]);
+        const [change] = await sql<{ title_sealed: unknown }>('SELECT title_sealed FROM code_changes WHERE id = $1', [localRows.changeId]);
+        const [decision] = await sql<{ params: { pathSealed: string; reason: string } }>('SELECT params FROM decisions WHERE id = $1', [localRows.decisionId]);
+        const [key, ciphertext] = (decision?.params.pathSealed ?? '').split('.');
+        return {
+          'ticket.title': ticket?.title_sealed,
+          'ticket.labels': ticket?.labels_sealed,
+          'milestone.title': milestone?.title_sealed,
+          'code-change.title': change?.title_sealed,
+          'decision.local-unreadable-path': { key, ciphertext, reason: decision?.params.reason },
+        } as Record<string, { key: string; ciphertext: string; reason?: string }>;
+      };
+      const localBefore = await localSealed();
       const rotation = rotationOf(vault, keys);
 
       const res = await page(alice, '/api/vault/rotations', { body: rotation, deviceId: first.deviceId });
@@ -515,6 +559,13 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
       expect(session?.title_sealed.key).toBe(rotation.items.find((item) => item.itemId === sessionId && item.itemType === 'agent-session.title')?.wrappedKey);
       expect(session?.title_sealed.key).not.toBe(sessionBefore?.wrappedKey);
       expect(session?.title_aad).toBe(`ticket:${localId}:3:title`);
+      // A Local Projet's texts keep their ciphertext under the new item key (the Décision its reason).
+      const localAfter = await localSealed();
+      for (const [itemType, stored] of Object.entries(localBefore)) {
+        const wrappedKey = rotation.items.find((item) => item.itemType === itemType)?.wrappedKey;
+        expect(wrappedKey).toBeDefined();
+        expect(localAfter[itemType]).toEqual({ ...stored, key: wrappedKey });
+      }
       expect((await eventsOf(alice.id, 'vault.upserted')).at(-1)).toEqual({ version: 2, rotationPending: false });
       const runnerWrap = rotation.wraps.find(({ holderType }) => holderType === 'runner');
       expect(told).toEqual([

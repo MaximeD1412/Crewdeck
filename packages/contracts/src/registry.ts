@@ -18,6 +18,7 @@ import { zSessionInputPayload } from './runner/inputs.js';
 import { zOriginUnion } from './runner/origin.js';
 import { zRelay, zSessionInput, zSessionKeys, zSessionReplay } from './runner/relay.js';
 import { zStepVerdict } from './runner/step.js';
+import { zLocalChanged, zLocalItemUnion } from './runner/local.js';
 import { zCommandKeys, zCommandOutput, zCommandOutputChunk, zCommandReplay, zCommandRun, zCommandStarted, zCommandStop, zCommandVerdict } from './runner/command.js';
 import { zProcessSealedPayload } from './process/definition.js';
 import { USAGE_EVERY_SECONDS, zUsage, zUsageAck } from './runner/usage.js';
@@ -103,6 +104,8 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-migration-finish', schema: zMigrationFinish },
   { name: 'runner-migration-finished', schema: zMigrationFinished },
   { name: 'runner-migration-failed', schema: zMigrationFailed },
+  // A Local Projet's folder followed (SOURCE-3).
+  { name: 'runner-local-changed', schema: zLocalChanged },
 ];
 
 /**
@@ -130,6 +133,7 @@ const goUnion = <D extends string>(
 
 export const goUnions: readonly GoUnion[] = [goUnion('engine-event', 'kind', zEngineEvent), goUnion('session-input', 'kind', zSessionInputPayload),
   goUnion('origin', 'kind', zOriginUnion),
+  goUnion('local-item', 'kind', zLocalItemUnion),
 ];
 
 /** Every schema written as JSON Schema and Go: the registry, then each option of the unions. */

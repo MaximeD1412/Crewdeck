@@ -19,8 +19,12 @@ export const PHASE_RUN_STATES = ['running', 'waiting', 'done', 'stopped', 'faile
 export const zPhaseRunState = z.enum(PHASE_RUN_STATES);
 export type PhaseRunState = z.infer<typeof zPhaseRunState>;
 
-/** What a `waiting` PhaseRun waits for: its turn in a Phase without `forEach` (PROCESS-5), a Décision (PROCESS-6). */
-export const PHASE_RUN_WAITING_ON = ['queue', 'decision'] as const;
+/**
+ * What a `waiting` PhaseRun waits for: its turn in a Phase without `forEach`
+ * (PROCESS-5), a Décision (PROCESS-6), the migration of a group of Source
+ * its Phase touches (SOURCE-7).
+ */
+export const PHASE_RUN_WAITING_ON = ['queue', 'decision', 'source-migration'] as const;
 export const zPhaseRunWaitingOn = z.enum(PHASE_RUN_WAITING_ON);
 export type PhaseRunWaitingOn = z.infer<typeof zPhaseRunWaitingOn>;
 

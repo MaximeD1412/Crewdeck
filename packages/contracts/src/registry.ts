@@ -11,6 +11,7 @@ import { zFolderCheck, zFolderCheckResult } from './keys/folder.js';
 import { zHeartbeat, zHeartbeatAck } from './runner/heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './runner/hello.js';
 import { zMcpServers } from './runner/mcp.js';
+import { zMigrationCopy, zMigrationFailed, zMigrationFinish, zMigrationFinished, zMigrationProgress, zMigrationSwitch } from './runner/migration.js';
 import { zGitHubChanged, zMirrorLive, zMirrorProjects, zMirrorResync, zMirrorToken, zMirrorTokenFailed, zMirrorTokenIssued } from './runner/mirror.js';
 import { zSessionAnswered, zSessionResume, zSessionStart, zSessionStateMessage, zSessionStop, zSessionWaiting } from './runner/session.js';
 import { zSessionInputPayload } from './runner/inputs.js';
@@ -94,6 +95,13 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-vault-items', schema: zVaultItems },
   { name: 'runner-vault-rotation', schema: zVaultRotation },
   { name: 'runner-vault-state', schema: zVaultState },
+  // The migration of a Source (SOURCE-7).
+  { name: 'runner-migration-copy', schema: zMigrationCopy },
+  { name: 'runner-migration-progress', schema: zMigrationProgress },
+  { name: 'runner-migration-switch', schema: zMigrationSwitch },
+  { name: 'runner-migration-finish', schema: zMigrationFinish },
+  { name: 'runner-migration-finished', schema: zMigrationFinished },
+  { name: 'runner-migration-failed', schema: zMigrationFailed },
 ];
 
 /**

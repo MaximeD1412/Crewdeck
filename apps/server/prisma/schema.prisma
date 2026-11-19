@@ -753,6 +753,7 @@ model Project {
   phaseRuns         PhaseRun[]
   stepRuns          StepRun[]
   artifactSources   ArtifactSource[]
+  sourceMigrations  SourceMigration[]
   settings          ProjectSettings?
   ideas             Idea[]           @relation("IdeaProject")
   targetedIdeas     Idea[]           @relation("IdeaTarget")
@@ -1239,6 +1240,53 @@ model ArtifactSource {
   @@unique([projectId, group])
   @@index([pilotId, projectId])
   @@map("artifact_sources")
+}
+
+/// A migration of one group of a Projet to the other Source (SOURCE-7, ADR 0012, « Moving a Source »).
+enum SourceMigrationState {
+  draining
+  copying
+  verifying
+  switched
+  done
+  failed
+
+  @@map("source_migration_state")
+}
+
+/// One group of a Projet moved from one Source to the other: the server
+/// orchestrates its states, the Runner copies and archives. `fingerprints`
+/// are content-free (keys, states, content hashes): the proof of what was
+/// moved, kept after `done`. `finishTries` counts the failed archivings,
+/// `nextFinishAt` when `migration.finish` is sent again. One per Projet at a
+/// time, while it is not `done` nor `failed`.
+model SourceMigration {
+  id           String               @id @db.Uuid
+  pilotId      String               @map("pilot_id") @db.Uuid
+  projectId    String               @map("project_id") @db.Uuid
+  group        SourceGroup
+  from         SourceKind
+  to           SourceKind
+  state        SourceMigrationState
+  total        Int                  @default(0)
+  copied       Int                  @default(0)
+  attempt      Int                  @default(1)
+  fingerprints Json                 @default("[]")
+  /// The items the draining waits for (`zSourceMigrationWaitingItem`), as last counted.
+  waitingItems Json                 @default("[]") @map("waiting_items")
+  errorCode    String?              @map("error_code")
+  finishTries  Int                  @default(0) @map("finish_tries")
+  nextFinishAt DateTime?            @map("next_finish_at") @db.Timestamptz
+  lastSeq      BigInt               @default(0) @map("last_seq")
+  createdAt    DateTime             @map("created_at") @db.Timestamptz
+  switchedAt   DateTime?            @map("switched_at") @db.Timestamptz
+  endedAt      DateTime?            @map("ended_at") @db.Timestamptz
+  project      Project              @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+
+  @@unique([projectId], map: "source_migrations_project_id_running_key", where: raw("state IN ('draining', 'copying', 'verifying', 'switched')"))
+  @@index([pilotId, projectId, createdAt])
+  @@index([state, nextFinishAt])
+  @@map("source_migrations")
 }
 
 enum IdeaState {

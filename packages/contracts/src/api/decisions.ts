@@ -22,6 +22,8 @@ export const DECISION_KINDS = [
   'ideas-to-triage',
   'loop-back.exhausted',
   'project.folder-missing',
+  'source-migration.failed',
+  'source-migration.unfinished',
 ] as const;
 export const zDecisionKind = z.enum(DECISION_KINDS);
 export type DecisionKind = z.infer<typeof zDecisionKind>;

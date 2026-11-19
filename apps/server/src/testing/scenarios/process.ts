@@ -61,7 +61,7 @@ export const LOCAL_DRAFT: ProcessDefinition = crewdeck((draft) => {
 
 const json = (definition: ProcessDefinition) => definition as unknown as Prisma.InputJsonValue;
 
-interface ProjectProcess {
+export interface ProjectProcess {
   /** The versions activated, oldest first, by their day; the last is the active one. */
   readonly versions: readonly Date[];
   readonly draft?: ProcessDefinition;
@@ -102,7 +102,7 @@ const MAIRIE_VERSIONS = [new Date('2026-10-12T09:00:00.000Z'), new Date('2026-10
  * Review on Claude Code · Opus 5.5 in their Paramètres (as the mockup), and
  * « Site mairie » (GitHub) with `process`.
  */
-const mairie = async (ctx: ScenarioContext, process: Omit<ProjectProcess, 'versions'> = {}): Promise<ScenarioSeed> => {
+export const mairie = async (ctx: ScenarioContext, process: Omit<ProjectProcess, 'versions'> = {}): Promise<ScenarioSeed> => {
   const { token, pilotId, ...seed } = await withAccounts(ctx);
   await ctx.prisma.unscoped.accountSettings.create({
     data: {
@@ -115,7 +115,7 @@ const mairie = async (ctx: ScenarioContext, process: Omit<ProjectProcess, 'versi
   return { ...seed, runnerToken: token, runnerMachine: RUNNER_MACHINE };
 };
 
-const MAIRIE_PATH = `/projets/${PROCESS_SCENARIO_PROJECTS.mairie}/process`;
+export const MAIRIE_PATH = `/projets/${PROCESS_SCENARIO_PROJECTS.mairie}/process`;
 
 /** « Gestion du process » (`design/screens.json`: `process`): « Site mairie », its v3 active, no draft, no Manque. */
 export const processScenario = defineScenario({ name: 'process', path: MAIRIE_PATH, seed: (ctx) => mairie(ctx) });

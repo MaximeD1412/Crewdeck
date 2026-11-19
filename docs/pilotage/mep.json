@@ -1,12 +1,40 @@
 {
   "phases": [
-    { "id": "acc", "titre": "Comptes et fournisseurs", "description": "À ouvrir en premier : le domaine, le VPS OVH, les deux GitHub Apps, le stockage des sauvegardes." },
-    { "id": "env", "titre": "Variables et secrets", "description": "Le .env du serveur de prod et de staging sur le VPS, les environnements GitHub staging et production. Une variable changée ne s'applique qu'au déploiement suivant." },
-    { "id": "vps", "titre": "Machine et services", "description": "Gestes sur le VPS : provisionnement, Caddy, Compose, clés de déploiement, restic." },
-    { "id": "db", "titre": "Base de données", "description": "Migrations Prisma, toujours compatibles avec la version précédente, répétées sur la dernière sauvegarde avant de migrer (ADR 0009)." },
-    { "id": "dep", "titre": "Livraison", "description": "La PR develop → main, faite à la main et mergée par un commit de merge : la prod promeut l'image du staging." },
-    { "id": "chk", "titre": "Vérifications en production", "description": "Sur le vrai site, avec son propre compte et son propre Runner." },
-    { "id": "doc", "titre": "Suivi", "description": "Ce qui doit être noté ou décidé ailleurs." }
+    {
+      "id": "acc",
+      "titre": "Comptes et fournisseurs",
+      "description": "À ouvrir en premier : le domaine, le VPS OVH, les deux GitHub Apps, le stockage des sauvegardes."
+    },
+    {
+      "id": "env",
+      "titre": "Variables et secrets",
+      "description": "Le .env du serveur de prod et de staging sur le VPS, les environnements GitHub staging et production. Une variable changée ne s'applique qu'au déploiement suivant."
+    },
+    {
+      "id": "vps",
+      "titre": "Machine et services",
+      "description": "Gestes sur le VPS : provisionnement, Caddy, Compose, clés de déploiement, restic."
+    },
+    {
+      "id": "db",
+      "titre": "Base de données",
+      "description": "Migrations Prisma, toujours compatibles avec la version précédente, répétées sur la dernière sauvegarde avant de migrer (ADR 0009)."
+    },
+    {
+      "id": "dep",
+      "titre": "Livraison",
+      "description": "La PR develop → main, faite à la main et mergée par un commit de merge : la prod promeut l'image du staging."
+    },
+    {
+      "id": "chk",
+      "titre": "Vérifications en production",
+      "description": "Sur le vrai site, avec son propre compte et son propre Runner."
+    },
+    {
+      "id": "doc",
+      "titre": "Suivi",
+      "description": "Ce qui doit être noté ou décidé ailleurs."
+    }
   ],
   "elements": [
     {
@@ -587,6 +615,19 @@
       ],
       "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261210000000_local_projects'\"",
       "ajouteLe": "2026-11-17"
+    },
+    {
+      "id": "migration-source-migrations",
+      "phase": "db",
+      "source": "#211",
+      "titre": "Appliquer la migration 20261211000000_source_migrations en staging puis en production",
+      "pourquoi": "La table source_migrations suit chaque migration d'un Type d'artefact vers une autre Source (SOURCE-7) : son état (vidange, copie, vérification, bascule), ce qu'elle attend et son erreur. Sans elle, la liste des migrations, POST /api/projects/:id/sources/:group/migrate et le moteur du Process échouent. La migration ne fait qu'ajouter : la version précédente du serveur tourne sur la base migrée.",
+      "etapes": [
+        "Rien à lancer à la main : deploy.sh répète la migration sur la dernière sauvegarde (rehearse.sh), puis l'applique au déploiement du staging, puis à celui de la production.",
+        "Vérifier sur chaque base (crewdeck-prod, puis crewdeck-staging) que la commande imprime une date : la migration est appliquée."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261211000000_source_migrations'\"",
+      "ajouteLe": "2026-11-19"
     }
   ]
 }

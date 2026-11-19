@@ -16,6 +16,8 @@ export const KIND_LABELS: Record<DecisionKind, string> = {
   'permission-requested': 'Permission demandée',
   'project.folder-missing': 'Dossier du Projet introuvable',
   'runner-offline': 'Runner hors ligne',
+  'source-migration.failed': 'Migration de Source échouée',
+  'source-migration.unfinished': 'Ancienne Source pas encore figée',
   'step-failed': 'Étape échouée',
   'ticket-blocked': 'Ticket bloqué',
   'ticket-draft': 'Ticket à valider',

@@ -1,3 +1,4 @@
+import type { SourceGroup, SourceKind } from '@crewdeck/contracts';
 import type { Selection } from './canvas.js';
 
 /** The panel's tabs: the Manques, the selected Étape or Phase, the Sources. */
@@ -17,6 +18,14 @@ export interface EditorView {
 /** The page's own state for one Projet: its URL's, its view, the block the canvas is asked to centre. */
 export interface EditorUi extends EditorQuery, EditorView {
   readonly focus: { readonly id: string; readonly at: number } | null;
+  /** The Source chosen in a group's Select while its confirmation is open: the Select shows it, then goes back. */
+  readonly choice?: SourceChoice | null;
+}
+
+/** A group's Select changed, not yet confirmed. */
+export interface SourceChoice {
+  readonly group: SourceGroup;
+  readonly to: SourceKind;
 }
 
 /** The query's words for each tab (French, as the page URLs are). */
@@ -49,6 +58,7 @@ export const DEFAULT_ZOOM = 90;
 
 interface Kept {
   view: EditorView;
+  choice: SourceChoice | null;
   /** The centring asked and not yet done: the canvas's next `view` says it is. */
   focus: EditorUi['focus'];
   /** How many centrings were asked, so that each has its own `at`. */
@@ -58,6 +68,8 @@ interface Kept {
 export interface EditorUiState {
   /** The page's state for a Projet: from its URL, and its view kept in memory, opened centred on the URL's block. */
   view(projectId: string, query: Readonly<Record<string, string>>): EditorUi;
+  /** The Source chosen in a group's Select, its confirmation open; `null` once answered. */
+  choose(projectId: string, choice: SourceChoice | null): void;
   /** The canvas's view at the end of a gesture or of a centring, which it ends: a canvas made again keeps that view. */
   setView(projectId: string, view: EditorView): void;
   /** Asks the canvas to centre the block `id` (a Manque chosen). */
@@ -76,7 +88,7 @@ export const createEditorUi = (): EditorUiState => {
     let entry = kept.get(projectId);
     if (!entry) {
       const id = query?.selection?.id ?? null;
-      entry = { view: { zoom: DEFAULT_ZOOM, pan: { x: 0, y: 0 } }, focus: id === null || query?.selection?.kind === 'sources' ? null : { id, at: 0 }, asked: 0 };
+      entry = { view: { zoom: DEFAULT_ZOOM, pan: { x: 0, y: 0 } }, choice: null, focus: id === null || query?.selection?.kind === 'sources' ? null : { id, at: 0 }, asked: 0 };
       kept.set(projectId, entry);
     }
     return entry;
@@ -84,8 +96,12 @@ export const createEditorUi = (): EditorUiState => {
   return {
     view: (projectId, query) => {
       const parsed = editorQueryOf(query);
-      const { view, focus } = keptOf(projectId, parsed);
-      return { ...parsed, zoom: view.zoom, pan: { ...view.pan }, focus };
+      const { view, focus, choice } = keptOf(projectId, parsed);
+      return { ...parsed, zoom: view.zoom, pan: { ...view.pan }, focus, choice };
+    },
+    choose: (projectId, choice) => {
+      keptOf(projectId, null).choice = choice;
+      notify();
     },
     setView: (projectId, view) => {
       const entry = keptOf(projectId, null);

@@ -1057,7 +1057,7 @@
         {
           "texte": "Vidange : aucun nouveau travail du type pendant la migration",
           "ref": "ADR 0012",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Copie idempotente, chaque copie marquée de son origine",
@@ -1072,7 +1072,7 @@
         {
           "texte": "Bascule en une transaction, point de non-retour : avant, l'ancienne Source le reste ; après, la nouvelle",
           "ref": "ADR 0012",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

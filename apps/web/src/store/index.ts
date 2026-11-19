@@ -35,6 +35,7 @@ store.registerSlice('code-change', { shape: 'collection', snapshotKey: 'codeChan
 store.registerSlice('agent-session', { shape: 'collection', snapshotKey: 'sessions' });
 store.registerSlice('settings', { shape: 'single', apply: applySettingsEvent });
 store.registerSlice('usage', { shape: 'collection' });
+store.registerSlice('source-migration', { shape: 'collection', snapshotKey: 'sourceMigrations' });
 
 export const client = createClient({
   seq: () => store.getState().seq,

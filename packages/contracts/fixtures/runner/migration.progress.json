@@ -1,0 +1,9 @@
+{
+  "type": "migration.progress",
+  "id": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a71",
+  "at": "2026-11-11T09:00:05.000Z",
+  "migrationId": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6b01",
+  "total": 30,
+  "copied": 12,
+  "state": "copying"
+}

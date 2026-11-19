@@ -30,7 +30,7 @@ import {
 } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
-import { createEditorActions } from './actions/process-editor.js';
+import { createEditorActions, createMigrateAction } from './actions/process-editor.js';
 import { me as readMe, requestLink as postLinkRequest, verifyLink as postLinkVerify } from './api/auth.js';
 import type { Client } from './api/client.js';
 import { ApiError, currentDeviceId, deviceRevoked, onDeviceRevoked } from './api/request.js';
@@ -76,6 +76,7 @@ import './views/decisions/agent-question.js';
 import './views/decisions/loop-back-exhausted.js';
 import './views/decisions/permission-requested.js';
 import './views/decisions/runner-offline.js';
+import './views/decisions/source-migration.js';
 import { systemOfBrowser } from './views/demarrage.js';
 import { ADD_DEVICE_ID, isLastTrusted, revokeConfirmation, revokedDeviceOf } from './views/devices.js';
 import { ideesQuery, ideesView } from './views/idees.js';
@@ -564,6 +565,7 @@ export const boot = async ({
   dispatcher.registerAction(PageProcessEditor, 'select', { run: (payload) => editor.select(payload) });
   dispatcher.registerAction(PageProcessEditor, 'tab', { run: (payload) => editor.tab(payload) });
   dispatcher.registerAction(PageProcessEditor, 'view', { run: (payload) => editor.view(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'migrate', createMigrateAction({ ui: editorUi, client, current: () => router.current }));
   dispatcher.registerAction(PageProcessEditor, 'addPhase', { run: () => editor.addPhase() });
   dispatcher.registerAction(PageProcessEditor, 'openCatalogue', { run: () => editor.openCatalogue() });
   dispatcher.registerAction(PageProcessEditor, 'closeMenu', { run: () => editor.closeMenu() });

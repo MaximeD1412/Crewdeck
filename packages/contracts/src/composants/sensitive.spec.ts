@@ -16,7 +16,7 @@ const Probe = defineComposant({
 });
 
 describe('zSensitiveActionId', () => {
-  it('names the six Actions sensibles, nothing else', () => {
+  it('names the seven Actions sensibles, nothing else', () => {
     expect(zSensitiveActionId.options).toEqual([
       'merge',
       'loop.start',
@@ -24,6 +24,7 @@ describe('zSensitiveActionId', () => {
       'schedule.resume',
       'document.approve',
       'inventory.approve',
+      'source.migrate',
     ]);
     expect(zSensitiveActionId.safeParse('loop.stop').success).toBe(false);
   });

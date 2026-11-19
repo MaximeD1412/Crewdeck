@@ -32,6 +32,7 @@ import { newId } from '../../ids.js';
 import { EventsWriter } from '../../realtime/events.writer.js';
 import type { Tx } from '../../realtime/transactions.js';
 import { currentPilotId } from '../../scope/scope.context.js';
+import { heldByMigration } from '../sources/migrations/draining.js';
 import { type Ancestor, crossingArrows, currentStepRuns, isFirstEntry, reachedFrom, readySteps, resolveInputs } from './feeding.js';
 import { PHASE_ITEMS, type PhaseItemHandlers } from './items.js';
 import { ancestors, findParent } from './lineage.js';
@@ -63,6 +64,9 @@ export interface PhaseItem {
 
 /** Asked before each StepRun of a PhaseRun of its `forEach` starts; `false` leaves the Étape ready, unstarted, until `startQueued`. */
 export type StartGuard = (tx: Tx, request: { projectId: string | null; phaseRun: PhaseRun; stepId: string; kind: StepKind }) => Promise<boolean>;
+
+/** Called in the transaction where a PhaseRun of a Projet became `done`, `stopped` or `failed`. */
+export type PhaseRunEndedListener = (tx: Tx, ended: { projectId: string; phaseRunId: string }) => Promise<void>;
 
 /** The `reason` of a StepRun a Retour started. */
 export const LOOP_BACK = 'loop-back';
@@ -137,6 +141,7 @@ const nextIteration = (stepRuns: readonly StepRun[], stepId: string): number =>
 @Injectable()
 export class Engine {
   private readonly guards = new Map<ForEach, StartGuard>();
+  private readonly endedListeners = new Set<PhaseRunEndedListener>();
   /** The definitions of the versions read, by id: a version is immutable. */
   private readonly definitions = new Map<string, ProcessDefinition>();
 
@@ -151,6 +156,12 @@ export class Engine {
   registerStartGuard(forEach: ForEach, guard: StartGuard): void {
     if (this.guards.has(forEach)) throw new DuplicateStartGuardError(forEach);
     this.guards.set(forEach, guard);
+  }
+
+  /** For a module that follows the end of the work (SOURCE-7's draining), in its `onModuleInit`; returns its removal. */
+  onPhaseRunEnded(listener: PhaseRunEndedListener): () => void {
+    this.endedListeners.add(listener);
+    return () => this.endedListeners.delete(listener);
   }
 
   /** The id of the active version's Phase that repeats for `forEach`, `null` when the Projet has no version or no such Phase. */
@@ -172,6 +183,11 @@ export class Engine {
    * written by hand). Without a Projet, only an Idée enters, into the
    * `idea.noted` Phase of the release's « Process Crewdeck », the PhaseRun on
    * that definition with no version; any other is `EngineInputError`.
+   *
+   * While a migration of Source runs on a group its Phase reads or writes
+   * (SOURCE-7), the PhaseRun is created `waiting` on `source-migration`,
+   * none of its Étapes started: `releaseHeld` starts it once the migration
+   * is `done` or `failed`.
    */
   async admit(
     tx: Tx,
@@ -193,6 +209,7 @@ export class Engine {
     if (projectId === null && phase.forEach !== 'idea.noted') throw new EngineInputError(`Without a Projet, only a noted Idée enters a Phase: not ${phaseId}.`);
 
     const parent = parentPhaseRunId ?? (await findParent(tx, projectId, item));
+    const held = projectId !== null && (await heldByMigration(tx, projectId, definition, phaseId));
     const row = await tx.phaseRun.create({
       data: {
         id: newId(),
@@ -204,12 +221,14 @@ export class Engine {
         phaseId,
         itemType: item.type,
         itemId: item.id,
-        state: 'running',
+        state: held ? 'waiting' : 'running',
+        waitingOn: held ? 'source-migration' : null,
         startedAt: new Date(),
       },
       select: PHASE_RUN_VIEW,
     });
-    await this.publishPhaseRun(tx, row);
+    const published = await this.publishPhaseRun(tx, row);
+    if (held) return published;
     return (await this.advanceLoaded(tx, await this.load(tx, row.id))).phaseRun;
   }
 
@@ -475,6 +494,40 @@ export class Engine {
   }
 
   /**
+   * Once a migration of Source of the Projet is `switched`, `done` or `failed`
+   * (SOURCE-7): each PhaseRun `waiting` on `source-migration`, the oldest
+   * first, starts on the group's Source of now, unless another migration
+   * holds it still. One of a Phase without `forEach` waits on `queue`
+   * instead while another holds the Phase's turn.
+   */
+  async releaseHeld(tx: Tx, projectId: string): Promise<void> {
+    await this.events.lock(tx, currentPilotId());
+    const held = await tx.phaseRun.findMany({
+      where: { projectId, state: 'waiting', waitingOn: 'source-migration' },
+      select: { id: true },
+      orderBy: [{ startedAt: 'asc' }, { id: 'asc' }],
+    });
+    for (const { id } of held) {
+      const loaded = await this.lockAndLoad(tx, id);
+      if (loaded.row.state !== 'waiting' || loaded.row.waitingOn !== 'source-migration') continue;
+      if (await heldByMigration(tx, projectId, loaded.definition, loaded.row.phaseId)) continue;
+      const phase = loaded.definition.phases.find((candidate) => candidate.id === loaded.row.phaseId);
+      if (phase?.forEach === null) {
+        const turn = await tx.phaseRun.findFirst({
+          where: { projectId, phaseId: loaded.row.phaseId, id: { not: id }, state: { in: [...HOLDING] }, NOT: { waitingOn: { in: ['queue', 'source-migration'] } } },
+          select: { id: true },
+        });
+        if (turn) {
+          await this.publishPhaseRun(tx, await tx.phaseRun.update({ where: { id }, data: { waitingOn: 'queue' }, select: PHASE_RUN_VIEW }));
+          continue;
+        }
+      }
+      await this.publishPhaseRun(tx, await tx.phaseRun.update({ where: { id }, data: { state: 'running', waitingOn: null }, select: PHASE_RUN_VIEW }));
+      await this.advanceLoaded(tx, await this.load(tx, id));
+    }
+  }
+
+  /**
    * Starts each ready Étape of a `running` PhaseRun (its StepRun written with
    * its inputs, then its handler's `start`; a kind without a handler makes it
    * `failed`, `no-handler`), then says whether the PhaseRun is over: `done`
@@ -551,8 +604,9 @@ export class Engine {
   /**
    * A PhaseRun of a Phase without `forEach` for `item`, pinned to the active
    * version: `running` and advanced when no other PhaseRun of that Phase in
-   * the Projet holds the turn or waits for it, else `waiting` on `queue`.
-   * Nothing when one of the same item is unfinished.
+   * the Projet holds the turn or waits for it, else `waiting` on `queue`;
+   * `waiting` on `source-migration` while a group its Phase touches is
+   * migrated. Nothing when one of the same item is unfinished.
    */
   private async startInTurn(
     tx: Tx,
@@ -561,6 +615,7 @@ export class Engine {
     const unfinished = await tx.phaseRun.findFirst({ where: { projectId, phaseId, itemType: item.type, itemId: item.id, state: { in: UNFINISHED } }, select: { id: true } });
     if (unfinished) return;
     const turn = await tx.phaseRun.findFirst({ where: { projectId, phaseId, state: { in: [...HOLDING] } }, select: { id: true } });
+    const held = !turn && (await heldByMigration(tx, projectId, await this.definitionOf(tx, version.id), phaseId));
     const row = await tx.phaseRun.create({
       data: {
         id: newId(),
@@ -571,21 +626,22 @@ export class Engine {
         phaseId,
         itemType: item.type,
         itemId: item.id,
-        state: turn ? 'waiting' : 'running',
-        waitingOn: turn ? 'queue' : null,
+        state: turn || held ? 'waiting' : 'running',
+        waitingOn: turn ? 'queue' : held ? 'source-migration' : null,
         startedAt: new Date(),
       },
       select: PHASE_RUN_VIEW,
     });
     await this.publishPhaseRun(tx, row);
-    if (!turn) await this.advanceLoaded(tx, await this.load(tx, row.id));
+    if (!turn && !held) await this.advanceLoaded(tx, await this.load(tx, row.id));
   }
 
   /**
    * Once a PhaseRun of a Phase without `forEach` is `done` or `stopped`: the
    * oldest PhaseRun of that Phase and Projet `waiting` on `queue` starts,
    * unless another still holds the turn (a `failed` one, until `retry` or
-   * `stop`).
+   * `stop`); while a group of the Phase is migrated, it takes the turn
+   * `waiting` on `source-migration` instead.
    */
   private async passTurn(tx: Tx, finished: Loaded): Promise<void> {
     const { projectId, phaseId } = finished.row;
@@ -599,6 +655,12 @@ export class Engine {
     if (others.some((other) => other.state !== 'waiting' || other.waitingOn !== 'queue')) return;
     const next = others[0];
     if (!next) return;
+    // The next one may be pinned to another version than the finished one: its own Phase says what it touches.
+    const pinned = await this.definitionFor(tx, await tx.phaseRun.findUniqueOrThrow({ where: { id: next.id }, select: { processVersionId: true, builtinTemplate: true } }));
+    if (await heldByMigration(tx, projectId, pinned, phaseId)) {
+      await this.publishPhaseRun(tx, await tx.phaseRun.update({ where: { id: next.id }, data: { waitingOn: 'source-migration' }, select: PHASE_RUN_VIEW }));
+      return;
+    }
     await this.publishPhaseRun(tx, await tx.phaseRun.update({ where: { id: next.id }, data: { state: 'running', waitingOn: null, startedAt: new Date() }, select: PHASE_RUN_VIEW }));
     await this.advanceLoaded(tx, await this.load(tx, next.id));
   }
@@ -688,7 +750,10 @@ export class Engine {
   private async setPhaseRunState(tx: Tx, id: string, state: 'running' | 'done' | 'stopped' | 'failed'): Promise<PhaseRun> {
     const finished = state !== 'running';
     const row = await tx.phaseRun.update({ where: { id }, data: { state, waitingOn: null, endedAt: finished ? new Date() : null }, select: PHASE_RUN_VIEW });
-    return this.publishPhaseRun(tx, row);
+    const view = await this.publishPhaseRun(tx, row);
+    const projectId = row.projectId;
+    if (finished && projectId !== null) for (const listener of [...this.endedListeners]) await listener(tx, { projectId, phaseRunId: id });
+    return view;
   }
 
   private async publishPhaseRun(tx: Tx, row: PhaseRunRow): Promise<PhaseRun> {

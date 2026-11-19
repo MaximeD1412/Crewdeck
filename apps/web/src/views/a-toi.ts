@@ -24,6 +24,8 @@ const ICONS: Readonly<Record<DecisionKind, IconName>> = {
   'runner-offline': 'server',
   'ideas-to-triage': 'bulb',
   'project.folder-missing': 'folder',
+  'source-migration.failed': 'refresh',
+  'source-migration.unfinished': 'folder',
 };
 
 export interface AToiOptions {

@@ -13,6 +13,7 @@ import { zRunner } from './runner.js';
 import { zRunnerLink } from './runner-link.js';
 import { zSettingsState } from './project-settings.js';
 import { zAgentSession } from './sessions.js';
+import { zSourceMigration } from './source-migrations.js';
 import { zCodeChange, zMilestone, zTicket } from './tickets.js';
 import { zUsageAccount } from './usage.js';
 import { zVaultState } from './vault.js';
@@ -65,6 +66,8 @@ export const STATE_SLICES = {
   settings: zSettingsState,
   /** The usage of the Pilote's Comptes IA that have one (RUNNER-13). */
   usage: z.array(zUsageAccount),
+  /** The migrations of Source not `done`, and the last `done` of each group of each Projet (SOURCE-7). */
+  sourceMigrations: z.array(zSourceMigration),
 } as const;
 export type StateKey = keyof typeof STATE_SLICES;
 

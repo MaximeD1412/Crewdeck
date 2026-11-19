@@ -8,6 +8,13 @@ import { openConfirm } from './confirm.js';
 import { expect, test } from './fixtures.js';
 import { linkFirstAppareil } from './runner-link.js';
 import { routeSocket } from './socket.js';
+import { becomeTrustedDevice } from './trusted-device.js';
+
+/** The nav's « Notifications » opened, then back at the top: the full-page shot keeps its sticky columns in place at 1280 px. */
+const openNotifications = async (page: Page) => {
+  await page.getByRole('navigation', { name: 'Paramètres / Sections' }).getByRole('link', { name: 'Notifications' }).click();
+  await page.evaluate(() => window.scrollTo(0, 0));
+};
 
 /** The Paramètres' « Appareils », this browser linked first: its first trusted Appareil (E2E-3). */
 const appareils = async (page: Page) => {
@@ -97,12 +104,41 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   'projets-vide': async (page) => {
     await expect(page.locator('cd-page-projets')).toContainText('Aucun Projet suivi');
   },
+  // « Gestion du process » once the snapshot drew its canvas (1280 px; the phone's list is PROCESS-11's).
+  ...Object.fromEntries(
+    ['process', 'process-manques', 'process-etape', 'process-sources', 'process-local'].map((name) => [
+      name,
+      async (page: Page, width: number) => {
+        if (width >= 1280) await expect(page.locator('cd-page-process-editor cd-process-canvas cd-step-card').first()).toBeVisible();
+      },
+    ]),
+  ),
   projets: async (page) => {
     await expect(page.locator('cd-page-projets cd-list-row')).toHaveCount(4);
   },
   // « Rôles et modèles » once the snapshot gave the Comptes IA: the Idée on Sonnet, as the mockup.
   parametres: async (page) => {
     await expect(page.getByRole('combobox', { name: 'Moteur et modèle du Rôle Idée' }).filter({ visible: true })).toHaveValue('claude-code:claude-sonnet-5-5');
+  },
+  // « Notifications » (ATOI-4): its section opened, as a link of the nav does (on the phone, the section alone).
+  'parametres-notifications': async (page) => {
+    await openNotifications(page);
+    await expect(page.getByRole('button', { name: 'Activer sur cet appareil' })).toBeVisible();
+  },
+  // A browser without PushManager, an iPhone outside the home-screen app: the help instead of the button.
+  'parametres-notifications-iphone': async (page) => {
+    await page.addInitScript(() => {
+      Reflect.deleteProperty(window, 'PushManager');
+    });
+    await page.reload();
+    await openNotifications(page);
+    await expect(page.getByText('Sur iPhone, ajoute Crewdeck à l’écran d’accueil', { exact: false })).toBeVisible();
+  },
+  // On the trusted Appareil, the Code on Codex once the snapshot is there; at 1280 px, the worktree Commandes opened.
+  'parametres-projet': async (page, width) => {
+    await becomeTrustedDevice(page);
+    await expect(page.getByRole('combobox', { name: 'Moteur et modèle du Rôle Code' }).filter({ visible: true })).toHaveValue('codex:gpt-5.5');
+    if (width >= 1280) await expect(page.getByRole('textbox', { name: 'Préparer le worktree' })).toHaveValue('pnpm install --frozen-lockfile');
   },
   // The Idées opened by the trusted Appareil the scenario installs.
   idees: async (page) => {
@@ -141,6 +177,29 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('Ton Runner ne répond plus');
     await expect(page.locator('cd-page-a-toi cd-decision-row')).toHaveCount(10);
     await expect(page.locator('cd-page-a-toi > cd-usage-card')).toContainText('Dernière mesure');
+  },
+  // The Session panel over « À toi » (SESSION-2): the conversation the fake Runner relays, opened by the scenario's Appareil.
+  session: async (page) => {
+    await expect(page.locator('#app > cd-cadre > cd-session[slot=panel]')).toContainText('96 lignes');
+  },
+  'session-arretee': async (page) => {
+    await expect(page.locator('#app > cd-cadre > cd-session[slot=panel]')).toContainText('96 lignes');
+    await expect(page.locator('#app > cd-cadre > cd-session[slot=panel]')).toContainText('Session arrêtée par toi à 15:12');
+  },
+  'session-runner-hors-ligne': async (page) => {
+    await expect(page.locator('#app > cd-cadre > cd-session[slot=panel]')).toContainText('Conversation sur ton Runner');
+    await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('Les sessions reprendront');
+  },
+  // A question of the agent (SESSION-3), its first option chosen as the mockup shows it.
+  'session-question': async (page) => {
+    const question = page.locator('#app > cd-cadre > cd-session[slot=panel] cd-question');
+    await expect(question).toContainText('Qui peut modifier un événement');
+    await question.getByRole('radio', { name: 'Tous les membres de l’agenda' }).check();
+  },
+  // A `git push` waiting for the Pilote's permission (SESSION-3), its Décision's command read under the panel.
+  'session-permission': async (page) => {
+    await expect(page.locator('#app > cd-cadre > cd-session[slot=panel] cd-permission-request')).toContainText('git push origin design/agenda-partage');
+    await expect(page.locator('cd-page-a-toi cd-decision-row').filter({ hasText: 'Concevoir · Agenda partagé' })).toContainText('Bash : git push');
   },
   // « Maximum de Retours atteint » (PROCESS-6) among the nine Décisions of `a-toi`.
   'a-toi-process': async (page) => {

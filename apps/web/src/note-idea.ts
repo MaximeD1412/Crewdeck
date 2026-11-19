@@ -5,6 +5,7 @@ import { noteIdea } from './api/ideas.js';
 import { ApiError } from './api/request.js';
 import { uuidv7 } from './ids.js';
 import { toBase64Url, utf8 } from './keys/bytes.js';
+import { sealedWrite } from './keys/sealed-write.js';
 import type { Vault } from './keys/vault.js';
 import type { Store } from './store/store.js';
 
@@ -15,7 +16,7 @@ export const DESKTOP_MIN_WIDTH = 1280;
 
 export interface NoteIdeaOptions {
   readonly client: Pick<Client, 'command'>;
-  readonly vault: Pick<Vault, 'sealItem'>;
+  readonly vault: Pick<Vault, 'sealItem' | 'unlockVault'>;
   readonly store: Pick<Store, 'getState'>;
   /** The page's width: `innerWidth` by default. */
   readonly width?: () => number;
@@ -50,8 +51,10 @@ const CLOSED: Local = { open: false, busy: false, error: null, defaultProjectId:
  * « À toi »: the text trimmed, an empty one refused before anything; the
  * Idée's id drawn here, its text sealed under the vault key with the
  * additional data `"<id>:text"` (ADR 0003), never sent in clear; `notedFrom`
- * `telephone` below 1280 px. The Dialog closes once the server noted it;
- * the store shows it through `idea.upserted`.
+ * `telephone` below 1280 px, with the version of the vault key (sealed again
+ * once under the new one when the vault rotated meanwhile, E2E-4). The
+ * Dialog closes once the server noted it; the store shows it through
+ * `idea.upserted`.
  */
 export const createNoteIdea = ({
   client,
@@ -91,13 +94,16 @@ export const createNoteIdea = ({
       const id = newId();
       const notedFrom: IdeaNotedFrom = width() < DESKTOP_MIN_WIDTH ? 'telephone' : 'pc';
       try {
-        const sealed = await vault.sealItem(utf8(trimmed), utf8(ideaItemAad(id, 'text')));
-        await noteIdea(client, {
-          id,
-          text: { key: toBase64Url(sealed.key), ciphertext: toBase64Url(sealed.ciphertext) },
-          projectId,
-          notedFrom,
-          dictated: false,
+        await sealedWrite(vault, async () => {
+          const sealed = await vault.sealItem(utf8(trimmed), utf8(ideaItemAad(id, 'text')));
+          await noteIdea(client, {
+            id,
+            text: { key: toBase64Url(sealed.key), ciphertext: toBase64Url(sealed.ciphertext) },
+            vaultKeyVersion: sealed.vaultKeyVersion,
+            projectId,
+            notedFrom,
+            dictated: false,
+          });
         });
         set(CLOSED);
       } catch (error) {

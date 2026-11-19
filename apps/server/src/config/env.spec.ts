@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { authKeysEnv, githubAppEnv, mailEnv, testPrivateKey } from '../../test/github-app.js';
+import { authKeysEnv, githubAppEnv, googleEnv, mailEnv, testPrivateKey, vapidEnv } from '../../test/github-app.js';
 import { appOrigin, loadEnv, parseEnv, usesFakes } from './env.js';
 
 const DATABASE_URL = 'postgresql://crewdeck:crewdeck@localhost:5432/crewdeck';
@@ -19,6 +19,7 @@ describe('parseEnv', () => {
 
   it('reads the given values', () => {
     const keys = authKeysEnv();
+    const vapid = vapidEnv();
     expect(
       parseEnv({
         NODE_ENV: 'production',
@@ -31,7 +32,8 @@ describe('parseEnv', () => {
         RUNNER_DIST_DIR: '/app/runner',
         ...githubAppEnv(),
         ...keys,
-        ...mailEnv(),
+        ...vapid,
+        ...mailEnv(), ...googleEnv(),
         GITHUB_API_URL: 'https://ghe.example/api/v3',
         GITHUB_WEB_URL: 'https://ghe.example',
       }),
@@ -47,7 +49,8 @@ describe('parseEnv', () => {
       ...githubAppEnv(),
       GITHUB_TOKEN_KEY: Buffer.from(keys.GITHUB_TOKEN_KEY, 'base64'),
       SESSION_SECRET: Buffer.from(keys.SESSION_SECRET, 'base64'),
-      ...mailEnv(),
+      ...vapid,
+      ...mailEnv(), ...googleEnv(),
       GITHUB_API_URL: 'https://ghe.example/api/v3',
       GITHUB_WEB_URL: 'https://ghe.example',
     });
@@ -65,7 +68,7 @@ describe('parseEnv', () => {
 
   it.each(['production', 'staging'])('requires PUBLIC_URL in %s', (CREWDECK_ENV) => {
     expect(() =>
-      parseEnv({ CREWDECK_ENV, DATABASE_URL, PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1', ...githubAppEnv(), ...authKeysEnv(), ...mailEnv() }),
+      parseEnv({ CREWDECK_ENV, DATABASE_URL, PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1', ...githubAppEnv(), ...authKeysEnv(), ...vapidEnv(), ...mailEnv(), ...googleEnv() }),
     ).toThrow(expect.objectContaining({ keys: ['PUBLIC_URL'] }));
   });
 
@@ -75,7 +78,7 @@ describe('parseEnv', () => {
 
   it('requires the production values in staging', () => {
     expect(() =>
-      parseEnv({ CREWDECK_ENV: 'staging', PUBLIC_URL: 'https://staging.crewdeck.example', DATABASE_URL, ...githubAppEnv(), ...authKeysEnv(), ...mailEnv() }),
+      parseEnv({ CREWDECK_ENV: 'staging', PUBLIC_URL: 'https://staging.crewdeck.example', DATABASE_URL, ...githubAppEnv(), ...authKeysEnv(), ...vapidEnv(), ...mailEnv(), ...googleEnv() }),
     ).toThrow(expect.objectContaining({ keys: ['PROD_PUBLIC_URL', 'PROD_GITHUB_APP_ID'] }));
   });
 
@@ -88,14 +91,14 @@ describe('parseEnv', () => {
         PROD_GITHUB_APP_ID: '1',
         DATABASE_URL,
         ...githubAppEnv(),
-        ...authKeysEnv(), ...mailEnv(),
+        ...authKeysEnv(), ...vapidEnv(), ...mailEnv(), ...googleEnv(),
       }),
     ).toMatchObject({ PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1' });
   });
 });
 
 describe('the GitHub App', () => {
-  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...authKeysEnv(), ...mailEnv() };
+  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...authKeysEnv(), ...vapidEnv(), ...mailEnv(), ...googleEnv() };
 
   it.each(['production', 'staging'])('is required in %s', (CREWDECK_ENV) => {
     expect(() =>
@@ -147,7 +150,7 @@ describe('CREWDECK_FAKES', () => {
 
   it.each(['production', 'staging'])('is refused on the %s server', (CREWDECK_ENV) => {
     const values = { CREWDECK_ENV, PUBLIC_URL: 'https://x.crewdeck.example', PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1', DATABASE_URL };
-    expect(() => parseEnv({ ...values, ...githubAppEnv(), ...authKeysEnv(), ...mailEnv(), NODE_ENV: 'development', CREWDECK_FAKES: '1' })).toThrow(
+    expect(() => parseEnv({ ...values, ...githubAppEnv(), ...authKeysEnv(), ...vapidEnv(), ...mailEnv(), ...googleEnv(), NODE_ENV: 'development', CREWDECK_FAKES: '1' })).toThrow(
       expect.objectContaining({ keys: ['CREWDECK_FAKES'] }),
     );
   });
@@ -176,7 +179,7 @@ describe('loadEnv', () => {
 });
 
 describe('the sign-in keys', () => {
-  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...githubAppEnv(), ...mailEnv() };
+  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...githubAppEnv(), ...vapidEnv(), ...mailEnv(), ...googleEnv() };
 
   it.each(['production', 'staging'])('are required in %s', (CREWDECK_ENV) => {
     expect(() => parseEnv({ ...production, CREWDECK_ENV, PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1' })).toThrow(
@@ -204,12 +207,12 @@ describe('the sign-in keys', () => {
     ['GITHUB_TOKEN_KEY', 'not base64!'],
     ['SESSION_SECRET', randomBytes(16).toString('base64')],
   ])('refuses %s=%s', (key, value) => {
-    expect(() => parseEnv({ ...production, ...authKeysEnv(), ...mailEnv(), [key]: value })).toThrow(expect.objectContaining({ keys: [key] }));
+    expect(() => parseEnv({ ...production, ...authKeysEnv(), ...mailEnv(), ...googleEnv(), [key]: value })).toThrow(expect.objectContaining({ keys: [key] }));
   });
 });
 
 describe('the mail', () => {
-  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...githubAppEnv(), ...authKeysEnv() };
+  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...githubAppEnv(), ...authKeysEnv(), ...vapidEnv(), ...googleEnv() };
 
   it.each(['production', 'staging'])('is required in %s', (CREWDECK_ENV) => {
     expect(() => parseEnv({ ...production, CREWDECK_ENV, PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1' })).toThrow(
@@ -233,6 +236,58 @@ describe('the mail', () => {
 
   it.each(['https://relay.example', 'relay.example:587'])('refuses SMTP_URL=%s', (SMTP_URL) => {
     expect(() => parseEnv({ ...production, ...mailEnv(), SMTP_URL })).toThrow(expect.objectContaining({ keys: ['SMTP_URL'] }));
+  });
+});
+
+describe('the VAPID keys', () => {
+  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...githubAppEnv(), ...authKeysEnv(), ...mailEnv(), ...googleEnv() };
+
+  it.each(['production', 'staging'])('are required in %s', (CREWDECK_ENV) => {
+    expect(() => parseEnv({ ...production, CREWDECK_ENV, PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1' })).toThrow(
+      expect.objectContaining({ keys: ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'] }),
+    );
+  });
+
+  it.each(['development', 'test'])('are optional in %s', (CREWDECK_ENV) => {
+    expect(parseEnv({ CREWDECK_ENV, DATABASE_URL })).not.toHaveProperty('VAPID_PUBLIC_KEY');
+  });
+
+  it('accepts a mailto: subject', () => {
+    expect(parseEnv({ ...production, ...vapidEnv(), VAPID_SUBJECT: 'mailto:ops@crewdeck.invalid' }).VAPID_SUBJECT).toBe('mailto:ops@crewdeck.invalid');
+  });
+
+  it.each([
+    ['VAPID_PUBLIC_KEY', randomBytes(64).toString('base64url')],
+    ['VAPID_PUBLIC_KEY', `${randomBytes(65).toString('base64')}`],
+    ['VAPID_PRIVATE_KEY', randomBytes(31).toString('base64url')],
+    ['VAPID_SUBJECT', 'http://crewdeck.invalid'],
+    ['VAPID_SUBJECT', 'ops'],
+  ])('refuses %s=%s', (key, value) => {
+    expect(() => parseEnv({ ...production, ...vapidEnv(), [key]: value })).toThrow(expect.objectContaining({ keys: [key] }));
+  });
+});
+
+describe('the Google client', () => {
+  const production = { CREWDECK_ENV: 'production', PUBLIC_URL: 'https://crewdeck.example', DATABASE_URL, ...githubAppEnv(), ...authKeysEnv(), ...mailEnv(), ...vapidEnv() };
+
+  it.each(['production', 'staging'])('is required in %s', (CREWDECK_ENV) => {
+    expect(() => parseEnv({ ...production, CREWDECK_ENV, PROD_PUBLIC_URL: 'https://crewdeck.example', PROD_GITHUB_APP_ID: '1' })).toThrow(
+      expect.objectContaining({ keys: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'] }),
+    );
+  });
+
+  it.each(['development', 'test'])('is optional in %s', (CREWDECK_ENV) => {
+    expect(parseEnv({ CREWDECK_ENV, DATABASE_URL })).not.toHaveProperty('GOOGLE_CLIENT_ID');
+  });
+
+  it('requires GOOGLE_CLIENT_SECRET with GOOGLE_CLIENT_ID', () => {
+    expect(() => parseEnv({ CREWDECK_ENV: 'development', DATABASE_URL, GOOGLE_CLIENT_ID: 'x.apps.googleusercontent.com' })).toThrow(
+      expect.objectContaining({ keys: ['GOOGLE_CLIENT_SECRET'] }),
+    );
+  });
+
+  it('reads both keys', () => {
+    expect(parseEnv({ ...production, ...googleEnv() })).toMatchObject(googleEnv());
   });
 });
 

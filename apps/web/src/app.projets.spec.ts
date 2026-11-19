@@ -9,7 +9,7 @@ import type { PageKeys } from './keys/index.js';
 import { fakeFolderSocket, fakeSealed, fakeVault } from './projects/testing.js';
 import { createStore } from './store/store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [], githubLinked: false };
 const AT = '2026-11-12T09:00:00.000Z';
 const LOCAL_ID = '019a6f00-0000-7000-8000-000000000021';
 const REPOSITORY: Repository = {
@@ -95,6 +95,8 @@ describe('« Projets » in the page', () => {
       return 'unlocked' as const;
     },
     approval: { register: vi.fn(), adopt: vi.fn(), check: vi.fn(), approve: vi.fn() },
+    rotateVault: async () => 'not-pending' as const,
+    forgetDevice: async () => undefined,
   };
   const page = (tag: string) => root.querySelector<WithData>(tag);
   const act = (composant: string, action: string, payload: unknown) => app.dispatcher.dispatch({ composant, action, payload });
@@ -126,7 +128,7 @@ describe('« Projets » in the page', () => {
   });
 
   it('follows the store: a Projet appears in real time, a Local one by its name opened, on the Runner’s machine', async () => {
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: RUNNER, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [REPOSITORY], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, usage: [] });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: RUNNER, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [REPOSITORY], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
     store.applyEvent({ seq: 2, type: 'project.upserted', payload: PROJECT, at: AT });
     store.applyEvent({ seq: 3, type: 'project.upserted', payload: await localProject(LOCAL_ID, 'Atelier'), at: AT });
 

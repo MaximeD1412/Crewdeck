@@ -48,15 +48,34 @@ type recording struct {
 	opts   []enginetest.Option
 	sends  []string // sent after each `result`, in order
 	resume string
+	// answers, in order, to its requests (else enginetest's default): the
+	// answers its own test gives, which the `answer` events of its golden say.
+	answers []engine.Answer
+}
+
+var allow, deny = true, false
+
+// answerInOrder gives the answers one per request, the last one again after.
+func answerInOrder(answers ...engine.Answer) enginetest.Option {
+	var mu sync.Mutex
+	return enginetest.WithAnswer(func(contracts.EngineEvent) engine.Answer {
+		mu.Lock()
+		defer mu.Unlock()
+		answer := answers[0]
+		if len(answers) > 1 {
+			answers = answers[1:]
+		}
+		return answer
+	})
 }
 
 var recordings = []recording{
 	{name: "01-plain-turn"},
-	{name: "02-permission-allow", sends: []string{"Now use the Bash tool to run exactly `touch second.txt`, then say done."}},
-	{name: "02-permission-deny"},
+	{name: "02-permission-allow", sends: []string{"Now use the Bash tool to run exactly `touch second.txt`, then say done."}, answers: []engine.Answer{{Allow: &allow}, {Allow: &deny, Text: "Pas maintenant."}}},
+	{name: "02-permission-deny", answers: []engine.Answer{{Allow: &deny}}},
 	{name: "02-permission-idle-timeout"},
 	{name: "02-permission-idle-timeout-off"},
-	{name: "03-a-updated-input"},
+	{name: "03-a-updated-input", answers: []engine.Answer{{Options: []string{"Bleu"}}}},
 	{name: "03-b-deny-reason"},
 	{name: "03-c-held-2h"},
 	{name: "04-interrupt"},
@@ -92,6 +111,9 @@ func TestEveryRecordingReplaysToItsGolden(t *testing.T) {
 		t.Run(r.name, func(t *testing.T) {
 			t.Parallel()
 			opts := append([]enginetest.Option{enginetest.WithDirectives(directives(t, r.name)...)}, r.opts...)
+			if len(r.answers) > 0 {
+				opts = append(opts, answerInOrder(r.answers...))
+			}
 			if len(r.sends) > 0 {
 				opts = append(opts, sendAfterEachResult(r.sends...))
 			}
@@ -107,18 +129,10 @@ func TestEveryRecordingReplaysToItsGolden(t *testing.T) {
 }
 
 func TestAPermissionAllowedLetsTheToolRunAndADeniedOneGivesClaudeTheRefusal(t *testing.T) {
-	answers := []bool{true, false}
-	var mu sync.Mutex
 	replayed := enginetest.Replay(t, newEngine(), "02-permission-allow", "02-permission-allow",
 		enginetest.WithDirectives(directives(t, "02-permission-allow")...),
 		sendAfterEachResult("Now use the Bash tool to run exactly `touch second.txt`, then say done."),
-		enginetest.WithAnswer(func(contracts.EngineEvent) engine.Answer {
-			mu.Lock()
-			defer mu.Unlock()
-			allow := answers[0]
-			answers = answers[1:]
-			return engine.Answer{Allow: &allow, Text: "Pas maintenant."}
-		}),
+		answerInOrder(engine.Answer{Allow: &allow, Text: "Pas maintenant."}, engine.Answer{Allow: &deny, Text: "Pas maintenant."}),
 	)
 	requests := kinds(replayed.Events, contracts.EngineEventKindPermissionRequest)
 	if len(requests) != 2 || requests[0].PermissionRequest.Tool != "Bash" || requests[0].PermissionRequest.Command != "touch allowed.txt" || requests[0].PermissionRequest.RequestId != "toolu_012qFBgnEYDhQujmDHZwgJDs" {

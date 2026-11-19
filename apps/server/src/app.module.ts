@@ -4,6 +4,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod';
 import { AuthModule } from './auth/auth.module.js';
 import { CommandsModule } from './commands/commands.module.js';
+import { GoogleModule } from './auth/google/google.module.js';
 import { MailModule } from './auth/mail/mail.module.js';
 import { type Env, usesFakes } from './config/env.js';
 import { EnvModule } from './config/env.module.js';
@@ -20,6 +21,7 @@ import { HealthModule } from './health/health.module.js';
 import { IdeasModule } from './ideas/ideas.module.js';
 import { type LogDestination, loggerParams } from './logging/logger.js';
 import { MetricsModule } from './metrics/metrics.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 import { PilotsModule } from './pilots/me.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
@@ -32,6 +34,7 @@ import { TicketsModule } from './tickets/tickets.module.js';
 import { UsageModule } from './usage/usage.module.js';
 import { SensitiveActionsModule } from './sensitive-actions/sensitive-actions.module.js';
 import { SettingsModule } from './settings/settings.module.js';
+import { VaultModule } from './vault/vault.module.js';
 import { WebModule } from './web/web.module.js';
 
 export interface AppModuleOptions {
@@ -70,6 +73,7 @@ export class AppModule {
         PublicConfigModule,
         GitHubModule.forRoot(env),
         MailModule.forRoot(env),
+        GoogleModule.forRoot(env),
         WebhooksModule,
         ReconciliationModule,
         ...fakes(env),
@@ -77,6 +81,7 @@ export class AppModule {
         PilotsModule,
         DevicesModule,
         RunnersModule,
+        VaultModule,
         SessionsModule,
         CommandsModule,
         RepositoriesModule,
@@ -89,6 +94,7 @@ export class AppModule {
         UsageModule.forRoot(env),
         MetricsModule,
         SettingsModule,
+        NotificationsModule,
         WebModule.forRoot(env),
         ...imports,
       ],

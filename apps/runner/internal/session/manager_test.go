@@ -85,16 +85,24 @@ type reports struct {
 	all    []contracts.RunnerSessionState
 	next   chan contracts.RunnerSessionState
 	frames chan any
+	// requests are the session.waiting and session.answered (answer_test.go).
+	requests chan any
 }
 
 func newReports() *reports {
-	return &reports{next: make(chan contracts.RunnerSessionState, 100), frames: make(chan any, 1000)}
+	return &reports{next: make(chan contracts.RunnerSessionState, 100), frames: make(chan any, 1000), requests: make(chan any, 100)}
 }
 
 func (r *reports) send(_ context.Context, message any) error {
 	switch message.(type) {
 	case contracts.RunnerSessionKeys, contracts.RunnerRelay:
 		r.frames <- message
+		return nil
+	case contracts.RunnerSessionWaiting, contracts.RunnerSessionAnswered:
+		select {
+		case r.requests <- message: // read by answer_test.go only
+		default:
+		}
 		return nil
 	}
 	state, ok := message.(contracts.RunnerSessionState)
@@ -729,6 +737,109 @@ func TestAResumeAfterAHalfWrittenLastLineRepairsTheLogAndItsSeqContinues(t *test
 	}
 }
 
+func TestAResumeAfterARunnerKilledMidMessageEndsItsTurnInterruptedFirst(t *testing.T) {
+	for name, tail := range map[string]string{
+		"its last event a delta":              "",
+		"a usage report after its last delta": `{"kind":"usage","seq":5,"at":"2026-11-17T14:02:01Z","outputTokens":12}` + "\n",
+		// SESSION-3: a request no answer reached, withdrawn, the resumed run never taking it.
+		"a request still waiting at its end": `{"kind":"message","seq":5,"at":"2026-11-17T14:02:01Z","from":"agent","text":"Les nuages.","final":true}` + "\n" +
+			`{"kind":"permission-request","seq":6,"at":"2026-11-17T14:02:02Z","requestId":"toolu_left","tool":"Bash","command":"ls"}` + "\n",
+	} {
+		t.Run(name, func(t *testing.T) { resumeAfterACutMessage(t, tail) })
+	}
+}
+
+// resumeAfterACutMessage: a delta then tail (usage reports) left at the end
+// of the log by a killed Runner, then a resume.
+func resumeAfterACutMessage(t *testing.T, tail string) {
+	t.Helper()
+	s := newSetup(t, result("eng-1"), question("q1"))
+	m := s.manager(t)
+	m.Start(start(firstID, "feat/12-panier"))
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	waitForSeq(t, s.home, firstID, 2)
+	m.Stop(firstID)
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateStopped)
+	waitForSeq(t, s.home, firstID, 3)
+	// A Runner killed while the agent's message streamed: a delta, no end of its turn.
+	logPath := filepath.Join(s.home, "sessions", firstID, "log.jsonl")
+	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.WriteString(`{"kind":"message","seq":4,"at":"2026-11-17T14:02:00Z","from":"agent","text":"Les nuages flottent","final":false}` + "\n" + tail); err != nil {
+		t.Fatal(err)
+	}
+	file.Close()
+
+	before := 4 + strings.Count(tail, "\n")
+	m.Resume(firstID)
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	waitForSeq(t, s.home, firstID, before+3)
+
+	var events []contracts.EngineEvent
+	for event, err := range session.Replay(s.home, firstID, 0) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		events = append(events, event)
+	}
+	if len(events) != before+3 {
+		t.Fatalf("%d events in the log, want %d", len(events), before+3)
+	}
+	// The cut turn ends interrupted before the resumed run's first event, its seq following.
+	cut := events[before].Result
+	if cut == nil || cut.Seq != before+1 || cut.Status != contracts.EngineEventResultStatusInterrupted || cut.At.IsZero() {
+		t.Fatalf("event %d %+v, want the interrupted result of the cut turn", before+1, events[before])
+	}
+	resumed := events[before+1:]
+	if resumed[0].Result == nil || resumed[0].Result.Seq != before+2 || resumed[1].Question == nil || resumed[1].Question.Seq != before+3 {
+		t.Fatalf("the resumed run's events %+v, want its result and question after the cut's end", resumed)
+	}
+}
+
+func TestAResumeAfterATurnThatEndedAddsNothingToTheLog(t *testing.T) {
+	s := newSetup(t, result("eng-1"), question("q1"))
+	m := s.manager(t)
+	m.Start(start(firstID, "feat/12-panier"))
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	waitForSeq(t, s.home, firstID, 2)
+	m.Stop(firstID)
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateStopped)
+	waitForSeq(t, s.home, firstID, 3)
+	// A whole message last: its turn was not cut mid-stream.
+	logPath := filepath.Join(s.home, "sessions", firstID, "log.jsonl")
+	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.WriteString(`{"kind":"message","seq":4,"at":"2026-11-17T14:02:00Z","from":"agent","text":"Les nuages flottent.","final":true}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	file.Close()
+
+	m.Resume(firstID)
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	waitForSeq(t, s.home, firstID, 6)
+	var kinds []string
+	for event, err := range session.Replay(s.home, firstID, 3) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch {
+		case event.Message != nil:
+			kinds = append(kinds, "message")
+		case event.Result != nil:
+			kinds = append(kinds, string(event.Result.Status))
+		case event.Question != nil:
+			kinds = append(kinds, "question")
+		}
+	}
+	if want := []string{"message", "ok", "question"}; len(kinds) != 3 || kinds[0] != want[0] || kinds[1] != want[1] || kinds[2] != want[2] {
+		t.Fatalf("the log after seq 3: %v, want %v", kinds, want)
+	}
+}
+
 // staticToken is a TokenSource that always gives the same token.
 type staticToken string
 
@@ -806,7 +917,7 @@ func TestAStopAsARunGivesItsWorktreeBackCancelsTheResumeThatWaitedForIt(t *testi
 
 	// A Commande's run holds the stopped Session's worktree, as it is.
 	dir := s.worktree("feat/12-panier")
-	place, err := m.TicketWorktree(context.Background(), projectID, "acme", "shop", "feat/12-panier", git(t, dir, "rev-parse", "HEAD"))
+	place, err := m.TicketWorktree(context.Background(), projectID, "acme", "shop", "feat/12-panier", git(t, dir, "rev-parse", "HEAD"), session.Preparation{})
 	if err != nil {
 		t.Fatal(err)
 	}

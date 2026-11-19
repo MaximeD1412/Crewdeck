@@ -43,7 +43,8 @@ const track = ({ step, failure, runner }: Data): { label: string; meta: null; st
  * the caution Banner above them and « Continuer » disabled. The Projets: the
  * Tabs « Dossier sur ta machine » and « Dépôt GitHub » (`selectProjectsTab`),
  * then the FolderProjectForm of `folder` or the RepositoryPicker of `picker`,
- * whose « Plus tard » is the page's `continue`.
+ * whose « Plus tard » is the page's `continue`; without GitHub, the caution
+ * Banner above the Tabs and « Relier GitHub » (`linkGitHub`).
  */
 export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarrage> {
   static override styles = [
@@ -266,10 +267,21 @@ export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarr
    * The Projets: the Tabs, then the FolderProjectForm of `folder` or the
    * RepositoryPicker of `picker`, under the step's title and its explanation;
    * both stay mounted, the other tab's hidden, keeping what the Pilote typed.
+   * Without GitHub, « Relier GitHub » above the Tabs, whichever is open.
    */
   private projectsStep(): TemplateResult {
-    const { projectsTab, folder, picker, busy } = this.data;
+    const { projectsTab, folder, picker, busy, githubLinked } = this.data;
     return html`${this.head(t('demarrage.projects.title'), t('demarrage.projects.lead'))}
+      ${githubLinked
+        ? nothing
+        : html`<cd-banner part="github" class="github" .data=${{ tone: 'caution', icon: 'github', title: t('demarrage.github.title') }}>
+            <cd-button
+              slot="actions"
+              class="link-github"
+              .data=${{ label: t('demarrage.github.link'), variant: 'secondary', size: 'sm', icon: 'github' }}
+              @click=${() => this.emit('linkGitHub', {})}
+            ></cd-button>
+          </cd-banner>`}
       <cd-tabs
         class="projects-tabs"
         .data=${{ tabs: PROJECT_ORIGINS.map((id) => ({ id, label: t(`projets.ajouter.tab.${id}`), selected: id === projectsTab })) }}

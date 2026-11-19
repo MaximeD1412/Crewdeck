@@ -162,7 +162,7 @@ describe('the Tickets and changes of code against PostgreSQL', () => {
 
   const pilot = async (githubUserId: number, login: string): Promise<Tab> => {
     const id = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, getting_started_step) VALUES ($1, $2, $3, 'Europe/Paris', 'projects')`, [id, githubUserId, login]);
+    await sql(`WITH p AS (INSERT INTO pilots (id, display_name, time_zone, getting_started_step) VALUES ($1, $3, 'Europe/Paris', 'projects') RETURNING id) INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) SELECT gen_random_uuid(), id, 'github', $2::text, $3 FROM p`, [id, githubUserId, login]);
     const token = await runInPilotScope(id, () => app.get(WebSessions).open(prisma.scoped, id, undefined));
     return { id, cookie: `${SESSION_COOKIE}=${token}` };
   };

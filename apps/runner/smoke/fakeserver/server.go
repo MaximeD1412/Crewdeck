@@ -274,6 +274,9 @@ func (s *server) startSession(w http.ResponseWriter, r *http.Request) {
 	start["id"], start["at"], start["sessionId"], start["projectId"] = newID(), now(), id, newID()
 	start["origin"] = map[string]string{"kind": "github", "owner": projectOwner, "name": projectName}
 	start["branch"], start["base"], start["permissionMode"], start["title"] = "smoke/session", baseBranch, "auto", "Smoke test"
+	// A Projet without « Préparer le worktree » nor « Nettoyer le worktree »:
+	// the fixture's are bytes the Runner's vault does not open.
+	start["worktreeCommands"] = nil
 	sc.sessions[id] = &session{ID: id, State: "starting"}
 	sc.pending = append(sc.pending, start)
 	s.flush(r.Context(), sc)

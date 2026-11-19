@@ -9,6 +9,7 @@ import (
 
 // EngineEvent is one of the types below, told apart by "kind": exactly one field is set.
 type EngineEvent struct {
+	Answer            *EngineEventAnswer
 	AuthRequired      *EngineEventAuthRequired
 	Error             *EngineEventError
 	LimitReached      *EngineEventLimitReached
@@ -23,6 +24,7 @@ type EngineEvent struct {
 
 // The values of "kind" in EngineEvent.
 const (
+	EngineEventKindAnswer            = "answer"
 	EngineEventKindAuthRequired      = "auth-required"
 	EngineEventKindError             = "error"
 	EngineEventKindLimitReached      = "limit-reached"
@@ -38,6 +40,8 @@ const (
 // Kind is the "kind" of the type set, "" when none is.
 func (u EngineEvent) Kind() string {
 	switch {
+	case u.Answer != nil:
+		return EngineEventKindAnswer
 	case u.AuthRequired != nil:
 		return EngineEventKindAuthRequired
 	case u.Error != nil:
@@ -65,6 +69,8 @@ func (u EngineEvent) Kind() string {
 // Value is the type set, as a pointer, nil when none is.
 func (u EngineEvent) Value() any {
 	switch {
+	case u.Answer != nil:
+		return u.Answer
 	case u.AuthRequired != nil:
 		return u.AuthRequired
 	case u.Error != nil:
@@ -92,6 +98,10 @@ func (u EngineEvent) Value() any {
 // MarshalJSON implements json.Marshaler: the type set, its "kind" filled in.
 func (u EngineEvent) MarshalJSON() ([]byte, error) {
 	switch {
+	case u.Answer != nil:
+		v := *u.Answer
+		v.Kind = EngineEventKindAnswer
+		return json.Marshal(v)
 	case u.AuthRequired != nil:
 		v := *u.AuthRequired
 		v.Kind = EngineEventKindAuthRequired
@@ -146,6 +156,9 @@ func (u *EngineEvent) UnmarshalJSON(data []byte) error {
 	}
 	*u = EngineEvent{}
 	switch head.Kind {
+	case EngineEventKindAnswer:
+		u.Answer = new(EngineEventAnswer)
+		return json.Unmarshal(data, u.Answer)
 	case EngineEventKindAuthRequired:
 		u.AuthRequired = new(EngineEventAuthRequired)
 		return json.Unmarshal(data, u.AuthRequired)

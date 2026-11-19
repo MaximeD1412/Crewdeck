@@ -16,6 +16,8 @@ export const RESOURCES = [
   'ai-account',
   'mcp-server',
   'device',
+  'push-subscription',
+  'vault',
   'project',
   'process',
   'repository',

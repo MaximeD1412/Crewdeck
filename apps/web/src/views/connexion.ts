@@ -15,7 +15,7 @@ const OPENED: FormState = { error: undefined, sentTo: null, emailError: null, bu
 
 /**
  * The sign-in page's data: the form's state, and before any request the
- * error of `?erreur=<case>` of a failed GitHub callback (an unknown case read
+ * error of `?erreur=<case>` of a failed GitHub or Google callback (an unknown case read
  * as none).
  */
 export const connexionView = (query: Readonly<Record<string, string>>, form: FormState = OPENED): ConnexionView => ({

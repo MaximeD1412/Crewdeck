@@ -15,8 +15,14 @@
     "tool": "Bash"
   },
   {
+    "decision": "allow",
+    "kind": "answer",
+    "requestId": "toolu_017qGQh38pfwuA2LqYvPTayz",
+    "seq": 3
+  },
+  {
     "kind": "usage",
-    "seq": 3,
+    "seq": 4,
     "windows": [
       {
         "id": "five-hour",
@@ -35,18 +41,18 @@
     "detail": "(Bash completed with no output)",
     "kind": "tool-result",
     "ok": true,
-    "seq": 4
+    "seq": 5
   },
   {
     "final": true,
     "from": "agent",
     "kind": "message",
-    "seq": 5,
+    "seq": 6,
     "text": "Done."
   },
   {
     "kind": "usage",
-    "seq": 6,
+    "seq": 7,
     "windows": [
       {
         "id": "five-hour",
@@ -65,13 +71,13 @@
     "inputTokens": 40676,
     "kind": "usage",
     "outputTokens": 88,
-    "seq": 7
+    "seq": 8
   },
   {
     "costUsdMicros": 2298,
     "engineSessionId": "38de0f97-7920-49cf-aa1c-218965144a7f",
     "kind": "result",
-    "seq": 8,
+    "seq": 9,
     "status": "ok"
   }
 ]

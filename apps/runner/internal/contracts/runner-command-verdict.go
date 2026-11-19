@@ -40,20 +40,26 @@ type RunnerCommandVerdictReason string
 
 const RunnerCommandVerdictReasonBusy RunnerCommandVerdictReason = "busy"
 const RunnerCommandVerdictReasonExited RunnerCommandVerdictReason = "exited"
+const RunnerCommandVerdictReasonHealthTimeout RunnerCommandVerdictReason = "health-timeout"
+const RunnerCommandVerdictReasonHealthy RunnerCommandVerdictReason = "healthy"
 const RunnerCommandVerdictReasonPlaceUnavailable RunnerCommandVerdictReason = "place-unavailable"
 const RunnerCommandVerdictReasonSealedInvalid RunnerCommandVerdictReason = "sealed-invalid"
+const RunnerCommandVerdictReasonSetupFailed RunnerCommandVerdictReason = "setup-failed"
 const RunnerCommandVerdictReasonSpawnFailed RunnerCommandVerdictReason = "spawn-failed"
 const RunnerCommandVerdictReasonStopped RunnerCommandVerdictReason = "stopped"
 const RunnerCommandVerdictReasonTimeout RunnerCommandVerdictReason = "timeout"
 
 var enumValues_RunnerCommandVerdictReason = []interface{}{
 	"exited",
+	"healthy",
 	"timeout",
+	"health-timeout",
 	"stopped",
 	"busy",
 	"sealed-invalid",
 	"place-unavailable",
 	"spawn-failed",
+	"setup-failed",
 }
 
 // UnmarshalJSON implements json.Unmarshaler.

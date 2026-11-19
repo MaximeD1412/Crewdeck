@@ -8,7 +8,7 @@ import { AppError } from '../../errors/app-error.js';
 import { MESSAGES } from '../../errors/messages.js';
 import { newId } from '../../ids.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { displayNameOf, isUniqueViolation, PilotIdentities } from '../identities.js';
+import { isUniqueViolation, PilotIdentities } from '../identities.js';
 import { MAILER, type Mailer } from '../mail/mailer.js';
 import { signInLinkMail } from '../mail/sign-in-link.js';
 import { safeNext, safeTimeZone } from '../oauth-state.js';
@@ -111,16 +111,7 @@ export class EmailLinks {
       const { count } = await tx.emailLoginToken.updateMany({ where: { tokenHash, usedAt: null, expiresAt: { gt: now } }, data: { usedAt: now } });
       if (count !== 1) throw linkInvalid();
       const link = await tx.emailLoginToken.findUniqueOrThrow({ where: { tokenHash }, select: { email: true, next: true } });
-      const pilotId =
-        (await this.identities.pilotOf('email', link.email, tx)) ??
-        (await this.identities.signUp(tx, {
-          provider: 'email',
-          subject: link.email,
-          email: link.email,
-          login: null,
-          displayName: displayNameOf(link.email),
-          timeZone: safeTimeZone(timeZone),
-        }));
+      const pilotId = await this.identities.signInByAddress(tx, { provider: 'email', subject: link.email, email: link.email }, safeTimeZone(timeZone));
       return { sessionToken: await this.sessions.open(tx, pilotId, userAgent, now), next: link.next };
     });
   }

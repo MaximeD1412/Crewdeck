@@ -1,6 +1,8 @@
 import { type VaultKeyWrap, folderCheckedAad, zFolderCheckResult } from '@crewdeck/contracts';
 import { server } from 'vitest/browser';
+import { vaultWrapAad } from '@crewdeck/contracts';
 import { fromBase64Url, toBase64Url, utf8 } from './bytes.js';
+import { INFO, generateKeyPair, publicKeyOf, sealWrap } from './crypto.js';
 import { memoryDeviceStore, withDeterministicRandom, x25519FromPrivateKey } from './testing.js';
 import { type VaultState, createVault } from './vault.js';
 
@@ -121,6 +123,23 @@ describe('the vault', () => {
     expect(states).toEqual(['no-device', 'no-device', 'locked', 'locked']);
   });
 
+  it('forgets for good: an unlock asked before, answered after, publishes no key nor state (E2E-4)', async () => {
+    const { vault, states, answer } = await setUp();
+    const { vault: expected } = await vectors();
+    let release: (() => void) | undefined;
+    answer(() => new Promise((done) => (release = () => done({ ...expected.wrap, vaultKeyVersion: expected.vaultKeyVersion }))));
+    const unlocking = vault.unlockVault();
+    await vi.waitFor(() => expect(release).toBeDefined());
+
+    vault.forget();
+    release?.();
+
+    expect(await unlocking).toBe('no-device');
+    expect(vault.state()).toBe('no-device');
+    expect(vault.version()).toBeNull();
+    expect(states).toEqual(['no-device']);
+  });
+
   it('stays locked on a wrap it did not seal, and seals nothing then', async () => {
     const { vault, answer } = await setUp();
     const { vault: expected } = await vectors();
@@ -133,5 +152,45 @@ describe('the vault', () => {
     expect(await vault.unlockVault()).toBe('locked');
     expect(vault.version()).toBeNull();
     await expect(vault.sealItem(utf8('x'), utf8('a'))).rejects.toThrow(/locked/);
+  });
+
+  it('opens a wrap of a new version from whichever key it holds sealed it: the approver’s, its own, the Runner’s (E2E-4)', async () => {
+    const { vault: expected } = await vectors();
+    const { privateKey, publicKey } = await x25519FromPrivateKey(fromBase64Url(expected.devicePrivateKey));
+    const approver = await generateKeyPair();
+    const runner = await generateKeyPair();
+    const stranger = await generateKeyPair();
+    const devices = memoryDeviceStore({
+      deviceId: expected.deviceId,
+      privateKey,
+      publicKey,
+      senderPublicKey: await publicKeyOf(approver.privateKey),
+      runnerPublicKey: await publicKeyOf(runner.privateKey),
+    });
+    const key = crypto.getRandomValues(new Uint8Array(32));
+    let sender = approver.privateKey;
+    let version = 1;
+    const vault = createVault({
+      devices,
+      fetchWrap: async () => {
+        const wrap = await sealWrap(sender, publicKey, key, INFO.vaultWrap, utf8(vaultWrapAad(expected.deviceId, version)));
+        return { enc: toBase64Url(wrap.enc), ciphertext: toBase64Url(wrap.ciphertext), tag: toBase64Url(wrap.tag), vaultKeyVersion: version };
+      },
+    });
+    for (const [from, at] of [
+      [approver.privateKey, 1],
+      [privateKey, 2],
+      [runner.privateKey, 3],
+    ] as const) {
+      sender = from;
+      version = at;
+      expect(await vault.unlockVault(), `version ${at}`).toBe('unlocked');
+      expect(vault.version()).toBe(at);
+      expect(await vault.rawVaultKeyForWrap()).toEqual(key);
+    }
+    // A key it never authenticated: nothing opens.
+    sender = stranger.privateKey;
+    version = 4;
+    expect(await vault.unlockVault()).toBe('locked');
   });
 });

@@ -8,7 +8,7 @@ import type { PageKeys } from './keys/index.js';
 import { fakeFolderSocket, fakeSealed, fakeVault } from './projects/testing.js';
 import { createStore } from './store/store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [] };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [{ provider: 'github', label: 'octocat', reconnect: false }], githubLinked: true };
 const LINK_ID = '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a70';
 const AT = '2026-11-11T14:12:00.000Z';
 const DEVICE_ID = '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a74';
@@ -82,16 +82,19 @@ describe('« Premiers pas » in the page', () => {
       return 'no-device' as const;
     },
     approval: { register: vi.fn(), adopt: vi.fn(), check: vi.fn(), approve: vi.fn() },
+    rotateVault: async () => 'not-pending' as const,
+    forgetDevice: async () => undefined,
   };
   const page = () => root.querySelector<WithData>('cd-page-demarrage');
   const socket = fakeFolderSocket();
   const act = (composant: string, action: string, payload: unknown) => app.dispatcher.dispatch({ composant, action, payload });
+  const leave = vi.fn<(url: string) => void>();
 
   beforeAll(async () => {
     history.replaceState(null, '', '/a-toi');
     root = document.createElement('div');
     document.body.append(root);
-    app = await boot({ root, dispatcher: createDispatcher(), me: async () => PILOT, store, client, keys, folders: socket, connection: { start: vi.fn<() => void>(), stop: vi.fn<() => void>() } });
+    app = await boot({ root, dispatcher: createDispatcher(), me: async () => PILOT, store, client, keys, leave, folders: socket, connection: { start: vi.fn<() => void>(), stop: vi.fn<() => void>() } });
   });
 
   afterAll(() => app.stop());
@@ -107,7 +110,7 @@ describe('« Premiers pas » in the page', () => {
   });
 
   it('draws its code once the snapshot is there and shows its command', async () => {
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, usage: [] });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
     await vi.waitFor(() => expect(page()?.data).toMatchObject({ shortId: '7KQ4' }));
     expect(page()?.data['command']).toMatch(/--link 7KQ4-[0-9A-HJKMNP-TV-Z]{26}$/);
     expect(paths).toEqual(['/api/runner/link-codes']);
@@ -117,6 +120,12 @@ describe('« Premiers pas » in the page', () => {
   it('switches the system tab through the page’s action', () => {
     emitAction(page() as HTMLElement, PageDemarrage, 'selectSystem', { system: 'wsl' });
     expect(page()?.data).toMatchObject({ system: 'wsl', shortId: '7KQ4' });
+  });
+
+  it('gives the page whether GitHub is linked; « Relier GitHub » leaves for the link, back to /demarrage', () => {
+    expect(page()?.data).toMatchObject({ githubLinked: true });
+    emitAction(page() as HTMLElement, PageDemarrage, 'linkGitHub', {});
+    expect(leave).toHaveBeenCalledWith('/api/auth/github/link?next=%2Fdemarrage');
   });
 
   it('once linked, « Continuer » moves the Pilote on', async () => {

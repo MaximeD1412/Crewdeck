@@ -2,7 +2,7 @@ import { DEFAULT_ACCOUNT_SETTINGS, WS_CLOSE, type ClientMessage, type Me, type S
 import { createConnection, PONG_TIMEOUT_MS, type Connection, type SocketLike } from './connection.js';
 import { createStore, type Store } from './store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [], githubLinked: false };
 const AT = '2026-11-11T08:00:00.000Z';
 const LOST = new Date('2026-11-11T14:12:00.000Z');
 
@@ -74,7 +74,7 @@ const connect = () => {
 
 /** A connection already live at `seq`, its first socket opened. */
 const liveAt = async (seq: number) => {
-  snapshot.mockResolvedValueOnce({ seq, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, usage: [] });
+  snapshot.mockResolvedValueOnce({ seq, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
   const connection = connect();
   const socket = MockSocket.last();
   socket.open();
@@ -102,7 +102,7 @@ afterEach(() => {
 
 describe('the boot of the connection', () => {
   it('goes connecting → snapshot → live: hello without seq, GET /api/state applied, hello with its seq, then live', async () => {
-    snapshot.mockResolvedValueOnce({ seq: 7, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, usage: [] });
+    snapshot.mockResolvedValueOnce({ seq: 7, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
     connect();
     const socket = MockSocket.last();
     expect(socket.url).toBe('ws://crewdeck.test/api/ws');
@@ -217,6 +217,49 @@ describe('a lost socket', () => {
   });
 });
 
+describe('the Appareil the socket names (E2E-4)', () => {
+  const named = (device: () => string | null, forgetDevice: () => Promise<void>) => {
+    const connection = createConnection({ store, snapshot, url: 'ws://crewdeck.test/api/ws', createSocket: (url) => new MockSocket(url), visibility: () => visibility, device, forgetDevice });
+    connection.start();
+    started.push(connection);
+    return connection;
+  };
+
+  it('names the page’s Appareil in each socket’s URL; closed with 4403, forgets it, then opens a socket without it at once', async () => {
+    let device: string | null = 'dev_1';
+    const forgetDevice = vi.fn(async () => {
+      device = null;
+    });
+    named(() => device, forgetDevice);
+    const first = MockSocket.last();
+    expect(first.url).toBe('ws://crewdeck.test/api/ws?device=dev_1');
+    first.open();
+
+    first.drop(WS_CLOSE.deviceRevoked);
+
+    await vi.waitFor(() => expect(MockSocket.all).toHaveLength(2));
+    expect(forgetDevice).toHaveBeenCalledOnce();
+    expect(MockSocket.last().url).toBe('ws://crewdeck.test/api/ws');
+    expect(store.getState().connection).toBe('resync');
+  });
+
+  it('a 4403 whose forgetting left the same Appareil named waits the backoff, never reconnecting in a loop', async () => {
+    const forgetDevice = vi.fn(async () => {
+      throw new Error('IndexedDB refused');
+    });
+    named(() => 'dev_1', forgetDevice);
+    MockSocket.last().open();
+
+    MockSocket.last().drop(WS_CLOSE.deviceRevoked);
+    await vi.waitFor(() => expect(forgetDevice).toHaveBeenCalledOnce());
+    await Promise.resolve();
+
+    expect(MockSocket.all).toHaveLength(1);
+    vi.advanceTimersByTime(1000);
+    expect(MockSocket.all).toHaveLength(2);
+  });
+});
+
 describe('a gap in the seq', () => {
   it('on seq n + 2, switches to resync, applies nothing, and reconnects at once with the seq it has', async () => {
     const { socket } = await liveAt(7);
@@ -326,7 +369,7 @@ describe('what the page tells the server', () => {
   });
 
   it('a catchUp before the boot is live is the same: the boot’s live is followed by its hello', async () => {
-    snapshot.mockResolvedValueOnce({ seq: 7, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, usage: [] });
+    snapshot.mockResolvedValueOnce({ seq: 7, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
     const connection = connect();
     const socket = MockSocket.last();
     socket.open();
@@ -346,7 +389,7 @@ describe('what the page tells the server', () => {
     const { connection, socket } = await liveAt(7);
     connection.catchUp();
     socket.sent.length = 0;
-    snapshot.mockResolvedValueOnce({ seq: 20, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' }, usage: [], pilot: { ...PILOT, displayName: 'snapshot' } });
+    snapshot.mockResolvedValueOnce({ seq: 20, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [], pilot: { ...PILOT, displayName: 'snapshot' } });
     socket.receive({ type: 'snapshot-required' });
     await vi.waitFor(() => expect(store.getState().seq).toBe(20n));
     expect(store.getState().connection).toBe('resync');
@@ -354,6 +397,36 @@ describe('what the page tells the server', () => {
 
     socket.receive({ type: 'live' });
     expect(store.getState()).toMatchObject({ connection: 'live', slices: { pilot: { displayName: 'snapshot' } } });
+  });
+
+  it('refresh reads GET /api/state again (a change no event told, the vault key rotated): resync until it is applied and the server says live', async () => {
+    const { connection, socket } = await liveAt(7);
+    snapshot.mockResolvedValueOnce({ seq: 9, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 2, rotationPending: false }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [], pilot: { ...PILOT, displayName: 'rewrapped' } });
+    connection.refresh();
+    expect(store.getState().connection).toBe('resync');
+    await vi.waitFor(() => expect(store.getState().seq).toBe(9n));
+    expect(store.getState().slices.pilot?.displayName).toBe('rewrapped');
+    expect(socket.sent).toEqual([
+      { type: 'hello', lastSeq: '9' },
+      { type: 'visibility', visible: true },
+    ]);
+    socket.receive({ type: 'live' });
+    expect(store.getState().connection).toBe('live');
+  });
+
+  it('a refresh whose snapshot cannot be read is owed to the next socket: it reads it before its hello', async () => {
+    const { connection, socket } = await liveAt(7);
+    snapshot.mockRejectedValueOnce(new Error('offline'));
+    connection.refresh();
+    await vi.waitFor(() => expect(socket.readyState).toBe(3));
+    snapshot.mockResolvedValueOnce({ seq: 9, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 2, rotationPending: false }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [], pilot: PILOT });
+    await vi.advanceTimersByTimeAsync(1000);
+    const next = MockSocket.last();
+    expect(next).not.toBe(socket);
+    next.open();
+    expect(next.sent).toEqual([]);
+    await vi.waitFor(() => expect(store.getState().seq).toBe(9n));
+    expect(next.sent[0]).toEqual({ type: 'hello', lastSeq: '9' });
   });
 
   it('carries a Session’s relay: its messages to the relay, the relay’s on the open socket, and each socket opened again', async () => {

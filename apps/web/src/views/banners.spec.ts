@@ -51,6 +51,16 @@ describe('bannersView', () => {
     expect(bannersView({ ...live, vaultState: 'locked', slices: { device: devices(TRUSTED) } }, null)).toEqual([]);
   });
 
+  it('the last trusted Appareil revoked, the Runner linked still holds the vault: the same offer, to approve from its machine (E2E-4)', () => {
+    const live = { connection: 'live', lostAt: null } as const;
+    const revoked = devices({ ...TRUSTED, state: 'revoked' });
+    const vault = { version: 2, rotationPending: true };
+    expect(bannersView({ ...live, vaultState: 'no-device', runner: { state: 'offline' }, slices: { device: revoked, vault } }, null).map(({ key }) => key)).toEqual(['device']);
+    // No vault at all (version 0), a Runner or not: nothing to approve from.
+    expect(bannersView({ ...live, vaultState: 'no-device', runner: { state: 'offline' }, slices: { device: revoked, vault: { version: 0, rotationPending: false } } }, null)).toEqual([]);
+    expect(bannersView({ ...live, vaultState: 'no-device', runner: { state: 'online' }, slices: {} }, null)).toEqual([]);
+  });
+
   describe('« Runner hors ligne »', () => {
     const SINCE = '2026-11-11T13:02:00.000Z';
     const PROJECTS: WaitingProject[] = [
@@ -105,6 +115,23 @@ describe('bannersView', () => {
       );
       expect(bannersView({ ...live, path: '/runner', runner: { state: 'online' }, decisions: [OFFLINE] }, null)).toEqual([]);
       expect(bannersView({ ...live, path: '/runner', runner: null }, null)).toEqual([]);
+    });
+
+    it('over a Session panel while it is offline, on any page: since when it was last seen, the Sessions resume with it, « Voir le Runner »', () => {
+      const SEEN = '2026-11-11T13:02:30.000Z';
+      for (const path of ['/a-toi', '/idees', '/runner']) {
+        const banners = bannersView({ ...live, path, session: true, runner: { state: 'offline', lastSeenAt: SEEN }, decisions: [OFFLINE] }, null);
+        expect(banners).toEqual([
+          {
+            key: 'runner-offline',
+            data: { tone: 'halt', title: 'Runner hors ligne', icon: 'server' },
+            text: `Ton Runner ne répond plus depuis ${formatHour(SEEN)}. Les sessions reprendront quand il sera de nouveau en ligne. Relance-le sur ta machine.`,
+            action: { kind: 'button', data: { label: 'Voir le Runner', variant: 'secondary', size: 'sm', icon: 'server' }, href: '/runner' },
+          },
+        ]);
+      }
+      expect(bannersView({ ...live, path: '/idees', session: true, runner: { state: 'online', lastSeenAt: SEEN } }, null)).toEqual([]);
+      expect(bannersView({ ...live, path: '/idees', session: true, runner: null }, null)).toEqual([]);
     });
 
     it('after the Resynchronisation’s, before the error', () => {

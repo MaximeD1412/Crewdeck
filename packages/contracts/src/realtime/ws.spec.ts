@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { DEFAULT_ACCOUNT_SETTINGS, withSeq, zClientMessage, zServerMessage, zState, STATE_SLICES } from '../index.js';
 
-const PILOT = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
+const PILOT = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [], githubLinked: false };
 
 describe('zClientMessage', () => {
   it('accepts hello with a seq or null, ping, visibility', () => {
@@ -46,7 +46,7 @@ describe('withSeq', () => {
 
 describe('zState', () => {
   it('is the seq it reflects and one slice per registered key', () => {
-    const settings = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' };
+    const settings = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] };
     expect(Object.keys(STATE_SLICES)).toEqual([
       'pilot',
       'runner',
@@ -54,6 +54,8 @@ describe('zState', () => {
       'ai-account',
       'mcp-server',
       'devices',
+      'push-subscriptions',
+      'vault',
       'projects',
       'processes',
       'phaseRuns',
@@ -76,6 +78,8 @@ describe('zState', () => {
       'ai-account': [],
       'mcp-server': [],
       devices: [],
+      'push-subscriptions': [],
+      vault: { version: 1, rotationPending: false },
       projects: [],
       processes: [],
       phaseRuns: [],

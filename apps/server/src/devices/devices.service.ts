@@ -9,7 +9,7 @@ import { EventsWriter } from '../realtime/events.writer.js';
 import { Transactions, type Tx } from '../realtime/transactions.js';
 import { runInPilotScope } from '../scope/scope.context.js';
 import { DeviceClock } from './device-clock.js';
-import { bytesOf, DEVICE_VIEW, toDevice, wrapColumns, wrapOf } from './device.view.js';
+import { bytesOf, DEVICE_VIEW, toDevice, wrapColumns, wrapOf, writeDeviceUpserted } from './device.view.js';
 
 /** `lastSeenAt` moves at most once in this time. */
 export const DEVICE_SEEN_EVERY_MS = 60 * 60 * 1000;
@@ -54,7 +54,7 @@ export class Devices {
       if (named && named.state !== 'revoked' && Buffer.from(named.publicKey).equals(publicKey)) return namedId;
     }
     const row = await tx.device.create({ data: { id: newId(), pilotId, name: pairing.deviceName.trim(), publicKey, createdAt: this.clock.now() }, select: DEVICE_VIEW });
-    await this.events.write(tx, pilotId, 'device.upserted', toDevice(row));
+    await writeDeviceUpserted(this.events, tx, pilotId, toDevice(row));
     return row.id;
   }
 
@@ -80,7 +80,7 @@ export class Devices {
       });
       await tx.pilot.update({ where: { id: pilotId }, data: { vaultKeyVersion: 1 } });
       const row = await tx.device.update({ where: { id: deviceId }, data: { state: 'trusted', approvedAt: now }, select: DEVICE_VIEW });
-      await this.events.write(tx, pilotId, 'device.upserted', toDevice(row));
+      await writeDeviceUpserted(this.events, tx, pilotId, toDevice(row));
       return 'created';
     }
     if (device.state !== 'trusted') return 'not-trusted';
@@ -128,31 +128,41 @@ export class Devices {
     });
   }
 
-  /** A Runner's wrap of its Pilote's current vault key, for its `hello.accepted`; none before the first pairing. */
-  runnerWrap(pilotId: string, runnerId: string): Promise<VaultKeyWrap | undefined> {
+  /**
+   * For a Runner's `hello.accepted`: its wrap of its Pilote's current vault
+   * key (none before the first pairing), and whether a rotation waits for a
+   * holder (E2E-4).
+   */
+  runnerVault(pilotId: string, runnerId: string): Promise<{ vaultKeyWrap?: VaultKeyWrap; rotationPending: boolean }> {
     return runInPilotScope(pilotId, async () => {
-      const pilot = await this.prisma.scoped.pilot.findUniqueOrThrow({ where: { id: pilotId }, select: { vaultKeyVersion: true } });
-      if (pilot.vaultKeyVersion === 0) return undefined;
+      const pilot = await this.prisma.scoped.pilot.findUniqueOrThrow({ where: { id: pilotId }, select: { vaultKeyVersion: true, vaultRotationPending: true } });
+      const rotationPending = pilot.vaultRotationPending;
+      if (pilot.vaultKeyVersion === 0) return { rotationPending };
       const wrap = await this.prisma.scoped.vaultKeyWrap.findFirst({
         where: { holderType: 'runner', holderId: runnerId, vaultKeyVersion: pilot.vaultKeyVersion },
         select: { enc: true, ciphertext: true, tag: true },
       });
-      return wrap ? { vaultKeyVersion: pilot.vaultKeyVersion, ...wrapOf(wrap) } : undefined;
+      return wrap ? { vaultKeyWrap: { vaultKeyVersion: pilot.vaultKeyVersion, ...wrapOf(wrap) }, rotationPending } : { rotationPending };
     });
   }
 
-  /** The page of the current Pilote named its Appareil: `lastSeenAt` now, if the last one is an hour old or more. */
+  /**
+   * The page of the current Pilote named its Appareil: `lastSeenAt` now, if
+   * the last one is an hour old or more. Read first without a lock: most
+   * calls change nothing. A change locks the Pilote before the Appareil, as
+   * every writer of an Appareil does (a revocation at once, E2E-4).
+   */
   async seen(pilotId: string, id: string): Promise<void> {
     const now = this.clock.now();
     await runInPilotScope(pilotId, () => this.transactions.run(async (tx) => {
       const before = new Date(now.getTime() - DEVICE_SEEN_EVERY_MS);
-      const { count } = await tx.device.updateMany({
-        where: { id, state: { not: 'revoked' }, OR: [{ lastSeenAt: null }, { lastSeenAt: { lte: before } }] },
-        data: { lastSeenAt: now },
-      });
+      const due = { id, state: { not: 'revoked' as const }, OR: [{ lastSeenAt: null }, { lastSeenAt: { lte: before } }] };
+      if (!(await tx.device.findFirst({ where: due, select: { id: true } }))) return;
+      await this.events.lock(tx, pilotId);
+      const { count } = await tx.device.updateMany({ where: due, data: { lastSeenAt: now } });
       if (count === 0) return;
       const row = await tx.device.findUniqueOrThrow({ where: { id }, select: DEVICE_VIEW });
-      await this.events.write(tx, pilotId, 'device.upserted', toDevice(row));
+      await writeDeviceUpserted(this.events, tx, pilotId, toDevice(row));
     }));
   }
 }

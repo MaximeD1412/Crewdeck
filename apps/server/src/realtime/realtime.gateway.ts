@@ -1,19 +1,20 @@
 import type { IncomingMessage } from 'node:http';
-import { type ClientMessage, type Event, type ServerMessage, WS_CLOSE, zClientMessage } from '@crewdeck/contracts';
+import { type ClientMessage, type Event, type ServerMessage, WS_CLOSE, zClientMessage, zId } from '@crewdeck/contracts';
 import { Inject } from '@nestjs/common';
 import { type OnGatewayConnection, WebSocketGateway } from '@nestjs/websockets';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import type { RawData, WebSocket } from 'ws';
 import { newId } from '../ids.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 import type { Principal } from '../scope/principal.js';
-import { withPilotScope } from '../scope/scope.context.js';
+import { runInPilotScope, withPilotScope } from '../scope/scope.context.js';
 import { EventsBus } from './events.bus.js';
 import { EventsReplay } from './events.replay.js';
 import { RealtimeTiming } from './realtime.timing.js';
 import { TabPresence } from './tab-presence.js';
 import { WS_AUTHENTICATORS, type WsAuthenticators, type WsCredential, type WsIdentity } from './ws-authenticators.js';
 import { WS_CLIENTS, type WsClientHandlers, wsClientOf } from './ws-clients.js';
-import { WsRevocations } from './ws-revocations.js';
+import { type WsRevoked, WsRevocations } from './ws-revocations.js';
 import { type TabMessage, type TabSocket, WS_TABS, type WsTabHandlers } from './ws-tabs.js';
 
 /** The close code of a server fault (RFC 6455). */
@@ -26,6 +27,15 @@ const bytesOf = (data: RawData): number =>
   Array.isArray(data) ? data.reduce((total, part) => total + part.length, 0) : data instanceof ArrayBuffer ? data.byteLength : data.length;
 
 const textOf = (data: RawData): string => (Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data as ArrayBuffer)).toString('utf8');
+
+/** The Appareil a tab's socket names (`?device=<id>`, E2E-4), `undefined` for none or not an id. */
+const wsDeviceOf = (request: IncomingMessage): string | undefined => {
+  const parsed = zId.safeParse(new URL(request.url ?? '/', 'http://localhost').searchParams.get('device'));
+  return parsed.success ? parsed.data : undefined;
+};
+
+/** Whether `pilotId`'s Appareil `id` is revoked. */
+type DeviceRevoked = (pilotId: string, id: string) => Promise<boolean>;
 
 /** A message of the client, `undefined` when it is not one of `zClientMessage`. */
 const parse = (data: RawData): ClientMessage | undefined => {
@@ -58,6 +68,9 @@ const loggedType = (message: ClientMessage | undefined): string => message?.type
  *   type and size only, never its content.
  * - The credential the socket was opened with keeps it open: revoked (a
  *   logout, `WsRevocations`) or expired, the socket is closed with 4401.
+ * - A tab's socket that names its Appareil (`?device=<id>`, E2E-4) is
+ *   closed with 4403 once that Appareil is revoked, and refused with 4403
+ *   when it already is: nothing more is sent to it, replay included.
  *
  * A socket opened with `?client=<name>` is not a tab's: it goes to the
  * `WS_CLIENTS` handler of that name (the Runner's, `src/runners/`), or is
@@ -74,8 +87,14 @@ export class RealtimeGateway implements OnGatewayConnection {
     private readonly presence: TabPresence,
     private readonly timing: RealtimeTiming,
     private readonly revocations: WsRevocations,
+    private readonly prisma: PrismaService,
     @InjectPinoLogger(RealtimeGateway.name) private readonly logger: PinoLogger,
   ) {}
+
+  private readonly deviceRevoked: DeviceRevoked = async (pilotId, id) => {
+    const device = await runInPilotScope(pilotId, () => this.prisma.scoped.device.findUnique({ where: { id }, select: { state: true } }));
+    return device?.state === 'revoked';
+  };
 
   /** Called as the socket opens: its listeners are set at once, the messages sent before its principal is known wait for it. */
   handleConnection(socket: WebSocket, request: IncomingMessage): void {
@@ -85,7 +104,10 @@ export class RealtimeGateway implements OnGatewayConnection {
       if (handler) return handler.handleConnection(socket, request);
       return socket.close(WS_CLOSE.invalidMessage, 'unknown client');
     }
-    new Connection(socket, this.tabs, this.replay, this.bus, this.presence, this.timing, this.revocations, this.logger).start(this.authenticate(request));
+    new Connection(socket, this.tabs, this.replay, this.bus, this.presence, this.timing, this.revocations, this.deviceRevoked, this.logger).start(
+      this.authenticate(request),
+      wsDeviceOf(request),
+    );
   }
 
   private async authenticate(request: IncomingMessage): Promise<WsIdentity | null> {
@@ -119,10 +141,11 @@ class Connection {
     private readonly presence: TabPresence,
     private readonly timing: RealtimeTiming,
     private readonly revocations: WsRevocations,
+    private readonly deviceRevoked: DeviceRevoked,
     private readonly logger: PinoLogger,
   ) {}
 
-  start(identity: Promise<WsIdentity | null>): void {
+  start(identity: Promise<WsIdentity | null>, named: string | undefined): void {
     this.socket.on('message', (data: RawData) => this.receive(data));
     this.socket.on('close', () => this.cleanUp());
     this.armSilence();
@@ -131,10 +154,14 @@ class Connection {
         if (this.closed) return;
         if (!found) return this.close(WS_CLOSE.unauthorized, 'unauthorized');
         const { principal, credential } = found;
-        this.untrack = this.revocations.track(principal.pilotId, credential, () => this.close(WS_CLOSE.unauthorized, 'revoked'));
+        const device = principal.kind === 'pilot' ? named : undefined;
+        const end = (why: WsRevoked) => (why === 'device' ? this.close(WS_CLOSE.deviceRevoked, 'device revoked') : this.close(WS_CLOSE.unauthorized, 'revoked'));
+        this.untrack = this.revocations.track(principal.pilotId, credential, end, device);
         // Checked again before anything is sent: a revocation committed while the
         // socket was authenticated found nothing to close. Messages wait meanwhile.
         if (!(await this.checkCredential(credential))) return;
+        if (device && (await this.deviceRevoked(principal.pilotId, device))) return this.close(WS_CLOSE.deviceRevoked, 'device revoked');
+        if (this.closed) return;
         this.principal = principal;
         if (principal.kind === 'pilot') {
           this.presence.open(principal.pilotId, this.socket);

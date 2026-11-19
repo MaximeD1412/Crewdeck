@@ -3,6 +3,7 @@
 package contracts
 
 import "encoding/json"
+import "errors"
 import "fmt"
 import "reflect"
 import "regexp"
@@ -39,6 +40,9 @@ type RunnerCommandRun struct {
 
 	// Type corresponds to the JSON schema field "type".
 	Type string `json:"type"`
+
+	// WorktreeCommands corresponds to the JSON schema field "worktreeCommands".
+	WorktreeCommands *RunnerCommandRunWorktreeCommands `json:"worktreeCommands"`
 }
 
 type RunnerCommandRunOrigin struct {
@@ -201,6 +205,72 @@ func (j *RunnerCommandRunSealed) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+type RunnerCommandRunWorktreeCommands struct {
+	// Ciphertext corresponds to the JSON schema field "ciphertext".
+	Ciphertext string `json:"ciphertext"`
+
+	// Key corresponds to the JSON schema field "key".
+	Key string `json:"key"`
+}
+
+type RunnerCommandRunWorktreeCommands_0 struct {
+	// Ciphertext corresponds to the JSON schema field "ciphertext".
+	Ciphertext string `json:"ciphertext"`
+
+	// Key corresponds to the JSON schema field "key".
+	Key string `json:"key"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerCommandRunWorktreeCommands_0) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["ciphertext"]; raw != nil && !ok {
+		return fmt.Errorf("field ciphertext in RunnerCommandRunWorktreeCommands_0: required")
+	}
+	if _, ok := raw["key"]; raw != nil && !ok {
+		return fmt.Errorf("field key in RunnerCommandRunWorktreeCommands_0: required")
+	}
+	type Plain RunnerCommandRunWorktreeCommands_0
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Ciphertext)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Ciphertext", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Key)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Key", `^[A-Za-z0-9_-]*$`)
+	}
+	*j = RunnerCommandRunWorktreeCommands_0(plain)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerCommandRunWorktreeCommands) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	var runnerCommandRunWorktreeCommands_0 RunnerCommandRunWorktreeCommands_0
+	var errs []error
+	if err := runnerCommandRunWorktreeCommands_0.UnmarshalJSON(value); err != nil {
+		errs = append(errs, err)
+	}
+	if len(errs) == 1 {
+		return fmt.Errorf("all validators failed: %s", errors.Join(errs...))
+	}
+	type Plain RunnerCommandRunWorktreeCommands
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	*j = RunnerCommandRunWorktreeCommands(plain)
+	return nil
+}
+
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *RunnerCommandRun) UnmarshalJSON(value []byte) error {
 	var raw map[string]interface{}
@@ -236,6 +306,9 @@ func (j *RunnerCommandRun) UnmarshalJSON(value []byte) error {
 	}
 	if _, ok := raw["type"]; raw != nil && !ok {
 		return fmt.Errorf("field type in RunnerCommandRun: required")
+	}
+	if _, ok := raw["worktreeCommands"]; raw != nil && !ok {
+		return fmt.Errorf("field worktreeCommands in RunnerCommandRun: required")
 	}
 	type Plain RunnerCommandRun
 	var plain Plain

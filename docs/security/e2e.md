@@ -580,11 +580,186 @@ proof_A = txJX8MrtUMCD9-qgPpWAKf61I4PBvdBhEq27LOMt5mE
 | The routes: their schemas, 401, another Pilote's Appareil, 409, 422 | `test/integration/devices-approval.spec.ts` |
 | The secret in no request | `approval.spec.ts`; `devices-runner.spec.ts` |
 
-## Revocation (E2E-4)
+## Revocation and rotation (E2E-4)
 
-To be written by E2E-4: the rotation of the vault key, the rewrap of the item
-keys. The wraps of the new version are [authenticated wraps](#authenticated-wraps);
-a holder refuses one whose sender it knows as revoked.
+Revoking a key holder cuts it off at once, through the server; the vault
+key's rotation, done by the first trusted holder online, makes what is sealed
+afterwards unreadable to it even if it kept the old key.
+
+### Revoking
+
+- **An Appareil**, from « Paramètres », « Appareils », « Retirer » (the
+  product's dialog `crewdeck-confirm`, not an Action sensible): `POST
+  /api/devices/:id/revoke { seq }`. In one transaction the Appareil becomes
+  `revoked` (`revokedAt`), its wraps of every version are deleted, and, when
+  it was trusted, `pilots.vault_rotation_pending` is set; `device.upserted`
+  and `vault.upserted { version, rotationPending }` go with it. A pending
+  Appareil (a code not approved yet) is revoked the same way, its code dead,
+  without a rotation: it held no wrap. Revoking an Appareil already revoked
+  changes nothing. The current Appareil may revoke itself: its page then
+  clears `crewdeck-keys` and shows the banner of a browser without an
+  Appareil (E2E-3).
+- **A Runner** that a new link replaced (RUNNER-3): the same transaction that
+  revokes it deletes its wraps and sets the rotation pending.
+- **At once**: every route refuses a request whose `X-Crewdeck-Device`
+  names a revoked Appareil, 422 `devices.revoked` (`NotRevokedDeviceGuard`,
+  global: `/api/state`, the Idées, a Process's sealed text, the wrap, the
+  vault's routes…). A tab's socket names its Appareil (`/api/ws?device=<id>`):
+  the revocation closes it with 4403 once committed, and a new socket naming
+  a revoked Appareil is closed with 4403 before any event or replay. The
+  header and the parameter are the page's own word: they stop an honest page
+  at once, and the rotation is what protects against a page that keeps the
+  old key.
+- **The page forgets it**, wherever it was revoked from: on a 422
+  `devices.revoked` (the call is then made once more without the header), on
+  the socket's 4403 (a socket without it is opened at once), and on its own
+  `device.upserted` `revoked`. Every tab of the browser does the same, each
+  on its own next call or socket. Forgetting is final: the vault key is
+  dropped at once, and an unlock asked before, whose wrap arrives after,
+  publishes neither the key nor a state.
+- **Lock order**: every writer of an Appareil's row (its revocation, its
+  approval, its `lastSeenAt`) locks the Pilote's row first, then the
+  Appareil's, so that two of them at once wait for each other instead of
+  deadlocking. `lastSeenAt` is read first without a lock, since most calls
+  change nothing.
+- The page asks before the last trusted Appareil: « C'est ton dernier
+  Appareil de confiance : si tu réinstalles ensuite le Runner, le texte de tes
+  Idées sera perdu. »; `crewdeck-runner uninstall` prints the same warning
+  when the Pilote has no trusted Appareil left (risk OPS-1). The request
+  says whether the dialog warned (`last`); the server, the Pilote's row
+  locked, answers 409 `devices.last-changed` when the Appareil is the last
+  trusted one by then without it (two dialogs opened at once), and the page
+  asks again with the warning.
+
+### Who rotates
+
+The **holders** are the trusted Appareils and the current Runner (`GET
+/api/vault`, `GET /api/runner/vault`: `{ version, rotationPending, holders:
+[{ type, id, publicKey }], seq }`). A holder rotates when it sees
+`rotationPending`: a trusted, unlocked page through the `vault` slice of its
+state, the Runner through `hello.accepted { rotationPending }` or
+`vault.rotation-pending` while it is connected. The first one wins; the
+others get 409 and see the rotation done. Until it happens the old version
+keeps working for every holder kept.
+
+**A holder only seals the new key for public keys it authenticated itself**,
+never for the server's list as such: a server that slipped its own key into
+`holders` would otherwise receive the new vault key. The rotating holder
+checks that every listed holder's key is one it holds, else it does not
+rotate and leaves it to another holder:
+
+| Rotating holder | The public keys it holds |
+|---|---|
+| An Appareil | its own, its approver's (`senderPublicKey`), the Runner's (`runnerPublicKey`, from its pairing or handed on with `proof_R`) |
+| The Runner | its own, the first Appareil's (`vault.wrap`), and every Appareil an approval vouched for (`GET /api/runner/devices/holders`, [E2E-3](#new-appareil-e2e-3)) |
+
+So the Runner can rotate for every Appareil, and an Appareil rotates when the
+holders kept are itself and the Runner (a laptop and a phone, one revoked);
+with more Appareils, the Runner rotates. An Appareil holds its approver's key
+only to open the wraps that approver sealed, not to rotate for it. The server can hide a
+holder (it then refuses the rotation, below) but never add one.
+
+A revoked approver's attestation still vouches for the Appareils it approved
+while trusted: the server lists the revoked Appareils that had a holder wrap
+apart, as `vouchers` of `GET /api/runner/devices/holders`, and the Runner
+authenticates them the same way to verify the next links of the chain, for
+authentication only. A voucher is never a holder: the Runner seals neither a
+vault key nor a Session's key for it.
+
+What the revocation cannot stop: a server that keeps listing a revoked
+Appareil as trusted gets it the new key, as it could keep serving it the old
+items. Revocation trusts the server to stop serving the revoked holder; what
+the server alone cannot do is add a key of its own.
+
+### The rotation
+
+```
+newVaultKey = 32 random bytes                     version v + 1
+for each holder h (type, id, pk):
+  wrap_h    = sealWrap(skRotator, pk, newVaultKey,
+                       "crewdeck/v1/vault-wrap", "<id>:<v + 1>")
+for each item key (itemType, itemId, aad, wrappedKey) of GET /api/vault/items:
+  itemKey   = aesGcmOpen(vaultKey_v, wrappedKey, "crewdeck/v1/item-key" ‖ aad)
+  rewrapped = aesGcmSeal(newVaultKey, itemKey, "crewdeck/v1/item-key" ‖ aad)
+  item      = { itemType, itemId, previousKey: wrappedKey, wrappedKey: rewrapped }
+POST /api/vault/rotations (the Runner: /api/runner/vault/rotations)
+  { fromVersion: v, toVersion: v + 1, wraps, items, seq }
+```
+
+- The item's ciphertext does not change: only its key is rewrapped, under the
+  same additional data. The server gives each item's `aad` with its key; a
+  wrong one only keeps the key from opening, and the rotator then stops.
+- `GET /api/vault/items?cursor=` reads the items page by page (500 at most)
+  from `VaultItemsRegistry`, where each kind of stored item registers how it
+  lists its keys and replaces one: `idea.text`, `idea.analysis`,
+  `idea.reason` (`"<ideaId>:<field>"`), `process-version.sealed` and
+  `process-draft.sealed` (`"process:<projectId>"`), `project-settings.worktree-commands`
+  (`"settings:<projectId>"`). A ticket that stores a new kind of item
+  registers it.
+- The server takes the rotation in one transaction, or nothing: 409
+  `vault.version-changed` when `fromVersion` is no longer the current one,
+  409 `realtime.stale` when the vault changed since `seq`, 422
+  `vault.holders-missing` unless `wraps` names every holder exactly once and
+  no other, 422 `vault.items-missing` unless `items` is every registered item.
+  It then stores the wraps of `v + 1`, deletes those of older versions,
+  replaces each item key, moves the version and clears the rotation, with
+  `vault.upserted`. The body is bounded at 10 MB (an item takes at most
+  about 320 bytes, so 30,000 items at most).
+- Each item key is replaced only while the stored one is still its
+  `previousKey`, the key the rotator read and unwrapped: a conditional
+  UPDATE on the whole sealed item, which PostgreSQL evaluates again on the
+  row a concurrent write left. An item sealed again between `GET
+  /api/vault/items` and the rotation (a new item key under `v`) would
+  otherwise be overwritten by the rewrap of its older key, and its new
+  ciphertext would never open: 409 `vault.items-changed`, nothing changes.
+- A page whose rotation gets 409 or one of these 422 reloads the vault and
+  tries once more; the Runner does the same.
+- Every sealed write carries the version of the vault key it sealed under
+  (`vaultKeyVersion`: `POST /api/ideas` for the Idée's text, `PATCH
+  /api/projects/:id/settings` with the worktree Commandes). The server
+  checks it against `pilots.vault_key_version` in the write's transaction,
+  after it updated the Pilote's row, the row a rotation holds while it moves
+  the version: 409 `vault.version-changed` for an older one (or any other),
+  and nothing is stored. The page then unlocks the vault again, seals again
+  under the new key and sends once more, once. A version the page opened that
+  way, before its `vault.upserted`, makes it read the state again, as its own
+  reopening does: the items it holds were rewrapped under the new key. So
+  does a first unlock that opens a newer version than the one of the state
+  read while the vault was locked (a rotation in between): the page compares
+  the version it holds with the one its state was read under, never with the
+  slice an event moved. A later writer of a sealed
+  item (the process versions and drafts, an Idée's analysis or reason, the
+  Local Sources' texts) does the same, else an item sealed under a key no
+  holder keeps any more is stored and never opens.
+- The Runner's wrap of the new version reaches it in `vault.rotated`
+  while it is connected, else in its next `hello.accepted`; it opens it from
+  the key of the holder that rotated (one it holds), keeps it as
+  `vault.wrap` with that sender's key, and opens its Commandes with the new
+  key from then on.
+- Each page opens its wrap of the new version at its next unlock (on
+  `vault.upserted` with a new version), from the first of its held keys
+  whose tag checks: its own, its approver's, the Runner's.
+- The Session keys are per Session and are not under the vault key: nothing
+  to rewrap (SESSION-1 wraps them for the trusted holders only).
+
+### What proves it
+
+| What | Test |
+|---|---|
+| A revoked Appareil's next wrap request is 422 `devices.revoked`, the rotation pending, its events | `test/integration/devices-revoke.spec.ts` |
+| A trusted Appareil rotates: the version moves, every holder opens the new key, an item sealed before opens after | `apps/web/src/keys/rotation.spec.ts`; `test/integration/devices-revoke.spec.ts` |
+| A holder never seals for a key it did not authenticate | `rotation.spec.ts`; `internal/keys/rotation_test.go` |
+| The real Runner rotates when it is the first holder online | `test/integration/vault-rotation-runner.spec.ts` |
+| A rotation missing a holder or an item, or racing another | `test/integration/devices-revoke.spec.ts` |
+| An item sealed again since the rotator read it: 409 `vault.items-changed`, nothing changes; the page and the Runner read again and try once more | `test/integration/devices-revoke.spec.ts`; `apps/web/src/keys/rotation.spec.ts`; `cmd/crewdeck-runner/rotation_test.go` |
+| A sealed write under an older vault key: 409 `vault.version-changed`, nothing stored; the page seals again and sends once more | `test/integration/ideas.spec.ts`; `test/integration/project-settings.spec.ts`; `apps/web/src/note-idea.spec.ts`; `apps/web/src/project-settings.spec.ts` |
+| Every route and the socket refuse a revoked Appareil; the page forgets it (422, 4403, its event) | `test/integration/devices-revoke.spec.ts`; `apps/web/src/api/client.spec.ts`; `apps/web/src/store/connection.spec.ts`; `apps/web/src/keys/follow.spec.ts` |
+| A version opened by a sealed write reads the state again; an unlock answered after the Appareil was forgotten publishes nothing | `apps/web/src/keys/follow.spec.ts`; `apps/web/src/keys/vault.spec.ts`; `apps/web/src/keys/index.spec.ts` |
+| A revocation at once with the Appareil's approval or its `lastSeenAt`: no deadlock | `test/integration/devices-revoke.spec.ts` |
+| Two dialogs at once cannot revoke the last trusted Appareil without the warning | `test/integration/devices-revoke.spec.ts`; `apps/web/src/app.devices-revoke.spec.ts` |
+| The warning before the last trusted Appareil; the current one revoked clears its keys | `apps/web/src/views/devices.spec.ts`; `apps/web/src/app.devices-revoke.spec.ts`; `e2e/devices.spec.ts` |
+| A Runner replaced by a new link loses its wraps, the rotation pending | `test/integration/devices-revoke.spec.ts`; `test/integration/runner-link.spec.ts` |
+| `crewdeck-runner uninstall` warns when no trusted Appareil is left | `cmd/crewdeck-runner/maintenance_test.go` |
 
 ## Sessions (SESSION-1)
 
@@ -726,6 +901,12 @@ travels to the tabs as a Session's does.
   `"command:<runId>:<seq>"` (`commandOutputAad`). The Runner logs the
   plaintext chunks in `commands/<runId>.log` (mode 600, its folder 700), and
   replays from it.
+- A run whose health address answered while its process ran becomes a
+  service of the Runner (RUNNER-19): its run's log ends with « Service
+  démarré (pid <n>). », and what the service prints after it goes in the
+  clear to `services/<projectId>/<commandId>.log` (mode 600, its folder
+  700), never relayed nor sent to the server. Its verdict, as any, is
+  figures only (`healthy`, `health-timeout`).
 
 | Message | From → to | Sealed | Additional data |
 |---|---|---|---|

@@ -183,8 +183,8 @@ describe('sign in by a link sent by email, against PostgreSQL', () => {
       expect(zEmailLinkVerified.parse(await res.json())).toEqual({ next: '/idees' });
       const cookie = sessionOf(res);
       expect(cookie).toMatch(/^crewdeck_session=[\w-]{43}$/);
-      const pilots = await sql<{ id: string; display_name: string; time_zone: string; github_user_id: string | null }>('SELECT * FROM pilots');
-      expect(pilots).toEqual([expect.objectContaining({ display_name: 'ada.lovelace', time_zone: 'America/Toronto', github_user_id: null })]);
+      const pilots = await sql<{ id: string; display_name: string; time_zone: string }>('SELECT * FROM pilots');
+      expect(pilots).toEqual([expect.objectContaining({ display_name: 'ada.lovelace', time_zone: 'America/Toronto' })]);
       expect(await sql('SELECT pilot_id, provider, subject, email, login FROM pilot_identities')).toEqual([
         { pilot_id: pilots[0]?.id, provider: 'email', subject: 'ada.lovelace@example.com', email: 'ada.lovelace@example.com', login: null },
       ]);
@@ -192,7 +192,8 @@ describe('sign in by a link sent by email, against PostgreSQL', () => {
       expect(zMe.parse(await me.json())).toMatchObject({
         id: pilots[0]?.id,
         displayName: 'ada.lovelace',
-        identities: [{ provider: 'email', label: 'ada.lovelace@example.com' }],
+        identities: [{ provider: 'email', label: 'ada.lovelace@example.com', reconnect: false }],
+        githubLinked: false,
       });
     });
 

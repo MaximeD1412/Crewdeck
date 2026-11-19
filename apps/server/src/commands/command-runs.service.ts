@@ -1,9 +1,11 @@
-import type { RunnerMessageOf } from '@crewdeck/contracts';
+import type { RunnerMessageOf, SealedItem } from '@crewdeck/contracts';
 import { Injectable } from '@nestjs/common';
 import { RunnerCommands } from '../runners/runner-commands.service.js';
+import { runInPilotScope } from '../scope/scope.context.js';
+import { ProjectSettingsService } from '../settings/project-settings.js';
 
-/** A `command.run` as its caller gives it: the message without its envelope. */
-export type CommandRunRequest = Omit<RunnerMessageOf<'command.run'>, 'type' | 'id' | 'at'>;
+/** A `command.run` as its caller gives it: the message without its envelope, nor the Projet's worktree Commandes `send` adds. */
+export type CommandRunRequest = Omit<RunnerMessageOf<'command.run'>, 'type' | 'id' | 'at' | 'worktreeCommands'>;
 
 /**
  * Who says which Pilote a run is (the relay of its output asks it before a
@@ -31,10 +33,14 @@ export class CommandRuns implements CommandRunOwners {
   /** runId → pilotId, the runs sent since the process started. */
   private readonly sent = new Map<string, string>();
 
-  constructor(private readonly commands: RunnerCommands) {}
+  constructor(
+    private readonly commands: RunnerCommands,
+    private readonly settings: ProjectSettingsService,
+  ) {}
 
-  send(pilotId: string, run: CommandRunRequest): void {
-    this.commands.send(pilotId, { type: 'command.run', ...run });
+  async send(pilotId: string, run: CommandRunRequest): Promise<void> {
+    const worktreeCommands: SealedItem | null = await runInPilotScope(pilotId, () => this.settings.worktreeCommands(run.projectId));
+    this.commands.send(pilotId, { type: 'command.run', ...run, worktreeCommands });
     this.sent.set(run.runId, pilotId);
   }
 

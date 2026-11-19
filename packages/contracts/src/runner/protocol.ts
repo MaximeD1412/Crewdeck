@@ -7,11 +7,12 @@ import { zFolderCheckMessage, zFolderChecked, zProjectFolderAttach, zProjectsFol
 import { zHeartbeat, zHeartbeatAck } from './heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './hello.js';
 import { zMcpServers } from './mcp.js';
-import { zSessionResume, zSessionStart, zSessionStateMessage, zSessionStop } from './session.js';
+import { zSessionAnswered, zSessionResume, zSessionStart, zSessionStateMessage, zSessionStop, zSessionWaiting } from './session.js';
 import { zGitHubChanged, zMirrorLive, zMirrorProjects, zMirrorResync, zMirrorToken, zMirrorTokenFailed, zMirrorTokenIssued } from './mirror.js';
 import { zRelay, zSessionInput, zSessionKeys, zSessionReplay } from './relay.js';
 import { zStepVerdict } from './step.js';
 import { zUsage, zUsageAck } from './usage.js';
+import { zVaultRotated, zVaultRotationPending } from './vault.js';
 
 export { runnerMessage, type RunnerEnvelope, zRunnerEnvelope } from './envelope.js';
 
@@ -41,7 +42,7 @@ export const zProtocolError = runnerMessage('error', { code: zErrorCode });
 export type ProtocolError = z.infer<typeof zProtocolError>;
 
 /** Every message the Runner sends. */
-export const zRunnerToServer = z.discriminatedUnion('type', [zHello, zHeartbeat, zCapabilities, zMcpServers, zStepVerdict, zMirrorToken, zSessionStateMessage, zSessionKeys, zRelay, zFolderChecked, zProjectsFolders, zCommandStarted, zCommandVerdict, zCommandKeys, zCommandOutput, zUsage]);
+export const zRunnerToServer = z.discriminatedUnion('type', [zHello, zHeartbeat, zCapabilities, zMcpServers, zStepVerdict, zMirrorToken, zSessionStateMessage, zSessionWaiting, zSessionAnswered, zSessionKeys, zRelay, zFolderChecked, zProjectsFolders, zCommandStarted, zCommandVerdict, zCommandKeys, zCommandOutput, zUsage]);
 export type RunnerToServer = z.infer<typeof zRunnerToServer>;
 export type RunnerToServerType = RunnerToServer['type'];
 
@@ -68,6 +69,8 @@ export const zServerToRunner = z.discriminatedUnion('type', [
   zCommandStop,
   zCommandReplay,
   zUsageAck,
+  zVaultRotationPending,
+  zVaultRotated,
 ]);
 export type ServerToRunner = z.infer<typeof zServerToRunner>;
 export type ServerToRunnerType = ServerToRunner['type'];

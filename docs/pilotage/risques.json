@@ -449,7 +449,7 @@
         {
           "texte": "Avertissement avant de révoquer le dernier détenteur de clé",
           "ref": "ADR 0003",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Inviter à approuver un second Appareil dès les Premiers pas",
@@ -584,13 +584,13 @@
       "categorie": "ops",
       "gravite": "faible",
       "titre": "Notifications impossibles sur iPhone sans la PWA installée",
-      "statut": "solution choisie",
-      "statutDepuis": "2026-11-10",
+      "statut": "implémenté",
+      "statutDepuis": "2026-11-16",
       "solutions": [
         {
           "texte": "Les Paramètres expliquent l'ajout à l'écran d'accueil",
           "ref": "ADR 0007",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [
@@ -1131,13 +1131,13 @@
       "categorie": "ops",
       "gravite": "faible",
       "titre": "Un service lancé par une Commande reste actif et occupe la machine",
-      "statut": "solution choisie",
-      "statutDepuis": "2026-11-14",
+      "statut": "implémenté",
+      "statutDepuis": "2026-11-19",
       "solutions": [
         {
           "texte": "Services suivis par le Runner, arrêtés avant la relance de leur Commande et à la désinstallation",
           "ref": "ADR 0013",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

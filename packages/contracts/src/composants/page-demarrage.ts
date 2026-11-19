@@ -65,12 +65,14 @@ const PROJECTS = { projectsTab: 'github', folder: FOLDER } as const;
  * machine » and « Dépôt GitHub » (`projectsTab`, `selectProjectsTab`,
  * PROJET-6), then the FolderProjectForm of `folder` or the RepositoryPicker
  * of `picker` (PROJET-2): their `checkPath`, `create` and `follow` go up to
- * the page's dispatcher, their `later` becomes the page's `continue`. `command` is `null` until the page
+ * the page's dispatcher, their `later` becomes the page's `continue`; without
+ * `githubLinked` (CORE-11), a caution Banner above the Tabs, « Relier GitHub »
+ * (`linkGitHub`: the core leaves for `/api/auth/github/link`). `command` is `null` until the page
  * drew its code; `busy` while a command is on its way.
  */
 export const PageDemarrage = defineComposant({
   name: 'PageDemarrage',
-  version: 5,
+  version: 6,
   tag: 'cd-page-demarrage',
   category: 'page',
   description: 'Les Premiers pas : le Runner, les Comptes IA, les Projets.',
@@ -85,6 +87,7 @@ export const PageDemarrage = defineComposant({
     busy: z.boolean(),
     engines: z.array(zEngineAccount),
     usable: z.boolean(),
+    githubLinked: z.boolean(),
     projectsTab: zProjectOrigin,
     folder: FolderProjectForm.data,
     picker: RepositoryPicker.data,
@@ -94,12 +97,13 @@ export const PageDemarrage = defineComposant({
     selectProjectsTab: z.object({ id: zProjectOrigin }),
     retry: z.object({}),
     continue: z.object({}),
+    linkGitHub: z.object({}),
   },
   slots: [],
   examples: [
     {
       name: 'en attente du Runner',
-      data: { step: 'runner', displayName: 'octocat', system: 'linux', command: COMMAND, shortId: '7KQ4', failure: null, runner: null, busy: false, engines: [], usable: false, picker: NO_PICKER, ...PROJECTS },
+      data: { step: 'runner', displayName: 'octocat', system: 'linux', command: COMMAND, shortId: '7KQ4', failure: null, runner: null, busy: false, engines: [], usable: false, githubLinked: true, picker: NO_PICKER, ...PROJECTS },
     },
     {
       name: 'liaison échouée',
@@ -114,13 +118,14 @@ export const PageDemarrage = defineComposant({
         busy: false,
         engines: [],
         usable: false,
+        githubLinked: true,
         picker: NO_PICKER,
         ...PROJECTS,
       },
     },
     {
       name: 'Runner relié',
-      data: { step: 'runner', displayName: 'octocat', system: 'wsl', command: null, shortId: null, failure: null, runner: RUNNER, busy: false, engines: [], usable: false, picker: NO_PICKER, ...PROJECTS },
+      data: { step: 'runner', displayName: 'octocat', system: 'wsl', command: null, shortId: null, failure: null, runner: RUNNER, busy: false, engines: [], usable: false, githubLinked: true, picker: NO_PICKER, ...PROJECTS },
     },
     {
       name: 'Comptes IA',
@@ -135,6 +140,7 @@ export const PageDemarrage = defineComposant({
         busy: false,
         engines: [...EXAMPLE_ENGINES],
         usable: true,
+        githubLinked: true,
         picker: NO_PICKER,
         ...PROJECTS,
       },
@@ -152,6 +158,7 @@ export const PageDemarrage = defineComposant({
         busy: false,
         engines: [...EXAMPLE_ENGINES_NONE],
         usable: false,
+        githubLinked: true,
         picker: NO_PICKER,
         ...PROJECTS,
       },
@@ -169,6 +176,7 @@ export const PageDemarrage = defineComposant({
         busy: false,
         engines: [],
         usable: false,
+        githubLinked: true,
         picker: PICKER,
         ...PROJECTS,
       },
@@ -186,9 +194,28 @@ export const PageDemarrage = defineComposant({
         busy: false,
         engines: [],
         usable: false,
+        githubLinked: true,
         picker: PICKER,
         projectsTab: 'dossier',
         folder: { ...FOLDER, path: '~/projets/recettes', check: { state: 'ready', hasCode: true }, name: 'recettes' },
+      },
+    },
+    {
+      name: 'Projets sans GitHub',
+      data: {
+        step: 'projects',
+        displayName: 'ada.lovelace',
+        system: 'linux',
+        command: null,
+        shortId: null,
+        failure: null,
+        runner: RUNNER,
+        busy: false,
+        engines: [],
+        usable: false,
+        githubLinked: false,
+        picker: NO_PICKER,
+        ...PROJECTS,
       },
     },
   ],

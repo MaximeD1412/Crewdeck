@@ -15,10 +15,11 @@ describe('COMPOSANTS', () => {
 
   it.each([
     ['cadre', ['PageHeader', 'ProjectFilter']],
-    ['page', ['PageComposants', 'PageConnexion', 'PageConnexionLien', 'PageDemarrage', 'PageIdees', 'PageIntrouvable', 'PageProjet', 'PageProjets', 'PageRunner', 'PageAjouterProjet']],
+    ['page', ['PageComposants', 'PageConnexion', 'PageConnexionLien', 'PageDemarrage', 'PageIdees', 'PageIntrouvable', 'PageParametres', 'PageParametresProjet', 'PageProjet', 'PageProjets', 'PageRunner', 'PageAjouterProjet']],
     [
       'partie',
       [
+        'AccountIdentities',
         'AgentRow',
         'Capture',
         'Card',
@@ -41,6 +42,7 @@ describe('COMPOSANTS', () => {
         'Port',
         'ProcessCanvas',
         'ProcessTrack',
+        'PushSettings',
         'Question',
         'RepositoryPicker',
         'RoleSettings',
@@ -91,6 +93,29 @@ describe('COMPOSANTS', () => {
     const origin = COMPOSANTS.SettingRow.data.shape.origin;
     expect(['compte', 'projet', null].map((value) => origin.safeParse(value).success)).toEqual([true, true, true]);
     expect(origin.safeParse('autre').success).toBe(false);
+  });
+
+  it('gives SettingRow, version 2, the revert of a setting changed for a Projet, by its name', () => {
+    expect(COMPOSANTS.SettingRow.version).toBe(2);
+    expect(Object.keys(COMPOSANTS.SettingRow.actions)).toEqual(['revert']);
+    expect(COMPOSANTS.SettingRow.actions.revert.parse({ name: 'role:code' })).toEqual({ name: 'role:code' });
+    expect(COMPOSANTS.SettingRow.actions.revert.safeParse({ name: '' }).success).toBe(false);
+  });
+
+  it('drops the Étapes optionnelles from the account’s Paramètres, version 2', () => {
+    expect(COMPOSANTS.PageParametres.version).toBe(2);
+    expect(COMPOSANTS.PageParametres.slots).not.toContain('optional-steps');
+  });
+
+  it('declares the Paramètres of a Projet, its sections in their order, the branches and the worktree after the Rôles', () => {
+    expect(COMPOSANTS.PageParametresProjet).toMatchObject({
+      tag: 'cd-page-parametres-projet',
+      category: 'page',
+      slots: ['roles', 'steps', 'branches', 'worktree', 'schedules', 'notifications'],
+    });
+    expect(COMPOSANTS.PageParametresProjet.data.parse({ project: 'Site mairie', changedCount: 3, counts: { roles: 2, notifications: 1 } })).toBeTruthy();
+    expect(COMPOSANTS.PageParametresProjet.data.safeParse({ project: 'x', changedCount: 0, counts: { optional: 1 } }).success).toBe(false);
+    expect(Object.keys(COMPOSANTS.PageParametresProjet.actions)).toEqual(['change']);
   });
 
   it('names the ports\' types as the Types d\'artefact', () => {

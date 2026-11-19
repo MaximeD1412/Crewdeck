@@ -14,7 +14,7 @@ import (
 var runnerFixtures = filepath.Join("..", "..", "..", "..", "packages", "contracts", "fixtures", "runner")
 
 var engineEventKinds = []string{
-	EngineEventKindAuthRequired, EngineEventKindError, EngineEventKindLimitReached, EngineEventKindMessage,
+	EngineEventKindAnswer, EngineEventKindAuthRequired, EngineEventKindError, EngineEventKindLimitReached, EngineEventKindMessage,
 	EngineEventKindPermissionRequest, EngineEventKindQuestion, EngineEventKindResult, EngineEventKindToolCall,
 	EngineEventKindToolResult, EngineEventKindUsage,
 }

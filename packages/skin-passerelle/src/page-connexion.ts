@@ -5,8 +5,9 @@ import { PasserelleElement, sharedStyles } from './base.js';
 /**
  * `cd-page-connexion`: the welcome, inside the bare Cadre (`design/screens/crewdeck/connexion.html`),
  * the field « Ton adresse e-mail » and the primary « Recevoir un lien » (or
- * Enter in the field), which emit `requestLink` with what is typed; then « ou »
- * and the secondary « Continuer avec GitHub » (`signInWith`), and the help.
+ * Enter in the field), which emit `requestLink` with what is typed; then « ou »,
+ * the secondary « Continuer avec Google » (no icon: the Passerelle draws no
+ * Google mark) and « Continuer avec GitHub » (`signInWith`), and the help.
  * After a failed attempt, a halt Banner above the field says why. Once the link
  * is sent, a go Banner with the address and « Changer d’adresse »
  * (`changeEmail`) take the field’s place; the address typed comes back with
@@ -119,6 +120,12 @@ export class PasserellePageConnexion extends PasserelleElement<typeof PageConnex
       ${error ? html`<cd-banner part="error" .data=${{ tone: 'halt', title: t(`connexion.error.${error}`) }}></cd-banner>` : nothing}
       ${sentTo === null ? this.renderForm() : this.renderSent(sentTo)}
       <p part="or" class="or">${t('connexion.or')}</p>
+      <cd-button
+        part="google"
+        class="google wide"
+        .data=${{ label: t('connexion.google'), variant: 'secondary', size: 'md' }}
+        @click=${() => this.emit('signInWith', { provider: 'google' })}
+      ></cd-button>
       <cd-button
         part="github"
         class="github wide"

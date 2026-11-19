@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"strconv"
@@ -48,25 +49,56 @@ func (r *Runner) attempt(message contracts.RunnerCommandRun, l *live) (contracts
 	}
 	defer done()
 
-	place, err := r.place(l.ctx, message, command.Where)
-	if err != nil {
-		if l.ctx.Err() != nil {
-			return contracts.RunnerCommandVerdictReasonStopped, nil
-		}
-		r.cfg.Logger.Warn("command.place", "runId", message.RunId, "where", string(command.Where), "error", "unavailable")
-		return contracts.RunnerCommandVerdictReasonPlaceUnavailable, nil
-	}
-	defer place.Release()
-	if l.ctx.Err() != nil {
-		return contracts.RunnerCommandVerdictReasonStopped, nil
+	// Its service, if it runs, first: a stop that fails runs nothing new.
+	if err := r.stopService(serviceKey{projectID: message.ProjectId, commandID: message.CommandId}); err != nil {
+		r.cfg.Logger.Warn("command.service", "runId", message.RunId, "error", "not stopped")
+		return contracts.RunnerCommandVerdictReasonSpawnFailed, nil
 	}
 
+	// Its log first: what prepares its worktree goes in it, before its own output.
 	out, err := r.openOutput(message.RunId)
 	if err != nil {
 		r.cfg.Logger.Warn("command.log", "runId", message.RunId, "error", "not opened")
 		return contracts.RunnerCommandVerdictReasonSpawnFailed, nil
 	}
-	defer out.close()
+	// A service kept holds its place and its output until it ends.
+	kept := false
+	defer func() {
+		if !kept {
+			out.close()
+		}
+	}()
+	stdout := out.stream(contracts.CommandOutputChunkStreamStdout)
+	stderr := out.stream(contracts.CommandOutputChunkStreamStderr)
+	prep := session.Preparation{Commands: worktreeSealed(message.WorktreeCommands), Env: environment(message), Stdout: stdout, Stderr: stderr}
+
+	place, err := r.place(l.ctx, message, command.Where, prep)
+	out.flush()
+	if err != nil {
+		var setup *session.SetupError
+		switch {
+		case l.ctx.Err() != nil:
+			return contracts.RunnerCommandVerdictReasonStopped, nil
+		case errors.As(err, &setup):
+			r.cfg.Logger.Warn("command.place", "runId", message.RunId, "where", string(command.Where), "error", "setup-failed")
+			_, _ = stderr.Write([]byte(setup.Summary + "\n"))
+			out.flush()
+			return contracts.RunnerCommandVerdictReasonSetupFailed, nil
+		}
+		r.cfg.Logger.Warn("command.place", "runId", message.RunId, "where", string(command.Where), "error", "unavailable")
+		return contracts.RunnerCommandVerdictReasonPlaceUnavailable, nil
+	}
+	// Released before its log closes: what cleans its worktree goes in it.
+	defer func() {
+		if !kept {
+			place.Release()
+			out.flush()
+		}
+	}()
+	if l.ctx.Err() != nil {
+		return contracts.RunnerCommandVerdictReasonStopped, nil
+	}
+
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		shell = "/bin/sh"
@@ -74,8 +106,8 @@ func (r *Runner) attempt(message contracts.RunnerCommandRun, l *live) (contracts
 	cmd := exec.Command(shell, "-lc", command.Run)
 	cmd.Dir = place.Dir
 	cmd.Env = append(os.Environ(), environment(message)...)
-	cmd.Stdout = out.stream(contracts.CommandOutputChunkStreamStdout)
-	cmd.Stderr = out.stream(contracts.CommandOutputChunkStreamStderr)
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	// Stdin nil is /dev/null. Its own group, so that a kill reaches its children.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.WaitDelay = waitDelay
@@ -84,40 +116,62 @@ func (r *Runner) attempt(message contracts.RunnerCommandRun, l *live) (contracts
 		return contracts.RunnerCommandVerdictReasonSpawnFailed, nil
 	}
 	r.send(message.RunId, "started", protocol.NewCommandStarted(message.RunId))
-	exited := make(chan struct{})
-	go func() {
-		_ = cmd.Wait()
-		close(exited)
-	}()
+	proc := lead(cmd)
+
+	if command.HealthURL != "" {
+		var (
+			reason   contracts.RunnerCommandVerdictReason
+			exitCode *int
+		)
+		reason, exitCode, kept = r.awaitHealth(message, l, proc, out, place, command.HealthURL)
+		return reason, exitCode
+	}
 
 	reason := contracts.RunnerCommandVerdictReasonExited
 	select {
-	case <-exited:
+	case <-proc.left:
 	case <-r.cfg.After(Timeout):
 		reason = contracts.RunnerCommandVerdictReasonTimeout
 	case <-l.ctx.Done():
 		reason = contracts.RunnerCommandVerdictReasonStopped
 	}
 	if reason != contracts.RunnerCommandVerdictReasonExited {
-		group := -cmd.Process.Pid
-		_ = syscall.Kill(group, syscall.SIGTERM)
-		select {
-		case <-exited:
-		case <-r.cfg.After(KillGrace):
-		}
-		// What ignored the SIGTERM, the shell or a child it left.
-		_ = syscall.Kill(group, syscall.SIGKILL)
-		<-exited
+		r.kill(proc)
 		out.flush()
 		return reason, nil
 	}
+	proc.reap()
 	out.flush()
-	var exitCode *int
+	return reason, proc.code
+}
+
+// kill sends the run's group SIGTERM, then SIGKILL after KillGrace, and
+// reaps its process once it exited: its group signalled while its pid is
+// still its own.
+func (r *Runner) kill(proc *leader) {
+	killGroup(proc, r.cfg.After)
+}
+
+// killGroup is the kill of a run's group on the clock after.
+func killGroup(proc *leader, after func(time.Duration) <-chan time.Time) {
+	_ = proc.signal(syscall.SIGTERM)
+	select {
+	case <-proc.left:
+	case <-after(KillGrace):
+	}
+	// What ignored the SIGTERM, the shell or a child it left.
+	_ = proc.signal(syscall.SIGKILL)
+	proc.reap()
+}
+
+// exitCodeOf is the exit code of the run's process once it exited by
+// itself, nil when a signal ended it.
+func exitCodeOf(cmd *exec.Cmd) *int {
 	if state := cmd.ProcessState; state != nil && state.Exited() {
 		code := state.ExitCode()
-		exitCode = &code
+		return &code
 	}
-	return reason, exitCode
+	return nil
 }
 
 // environment is what the run gets beside the Runner's own environment:
@@ -144,7 +198,7 @@ func text(value any) string {
 // place is the folder the opened Commande runs in: the Ticket's worktree at
 // its SHA, or the Projet's integration checkout. An origin the Runner has
 // no clone for, or a Ticket without its branch and SHA, has none.
-func (r *Runner) place(ctx context.Context, message contracts.RunnerCommandRun, where contracts.ProcessSealedCommandsValueWhere) (*session.Place, error) {
+func (r *Runner) place(ctx context.Context, message contracts.RunnerCommandRun, where contracts.ProcessSealedCommandsValueWhere, prep session.Preparation) (*session.Place, error) {
 	if r.cfg.Places == nil || message.Origin.Kind != contracts.RunnerCommandRunOriginKindGithub {
 		return nil, session.ErrPlaceUnavailable
 	}
@@ -157,5 +211,14 @@ func (r *Runner) place(ctx context.Context, message contracts.RunnerCommandRun, 
 	if branch == "" || sha == "" {
 		return nil, session.ErrPlaceUnavailable
 	}
-	return r.cfg.Places.TicketWorktree(ctx, message.ProjectId, owner, name, branch, sha)
+	return r.cfg.Places.TicketWorktree(ctx, message.ProjectId, owner, name, branch, sha, prep)
+}
+
+// worktreeSealed is the run's worktree Commandes as the message gave them,
+// nil when the Pilote set neither.
+func worktreeSealed(given *contracts.RunnerCommandRunWorktreeCommands) *session.SealedCommands {
+	if given == nil {
+		return nil
+	}
+	return &session.SealedCommands{Key: given.Key, Ciphertext: given.Ciphertext}
 }

@@ -1,6 +1,8 @@
 import type { Decision, DecisionKind } from '@crewdeck/contracts';
 import { formatRelative, t, type ComposantData, type IconName, type PageAToi } from '@crewdeck/sdk';
-import { actionsOf, decisionViews, kindLabel, type DecisionViews } from './decisions/registry.js';
+import type { SessionEventRead } from '../sessions/peek.js';
+import { roleName as sessionRoleName } from './session.js';
+import { actionsOf, decisionViews, kindLabel, type DecisionReads, type DecisionViews } from './decisions/registry.js';
 
 export type PageAToiData = ComposantData<typeof PageAToi>;
 
@@ -37,7 +39,14 @@ export interface AToiOptions {
    * does not know it, the Décision then named by its `projectId`.
    */
   readonly projectName?: (projectId: string) => string | null;
+  /** A Session's event read from the Runner (`sessions/peek.ts`); none read by default. */
+  readonly sessionEvent?: DecisionReads['sessionEvent'];
+  /** A Rôle's name; a default Rôle's, else its id, by default. */
+  readonly roleName?: DecisionReads['roleName'];
 }
+
+const NOT_READ: SessionEventRead = { state: 'reading' };
+const defaultRoleName = (role: string): string => sessionRoleName(role, undefined);
 
 /** Newest first; the same instant by id, as `GET /api/decisions` orders them. */
 const newestFirst = (a: Decision, b: Decision): number =>
@@ -53,8 +62,9 @@ const newestFirst = (a: Decision, b: Decision): number =>
 export const aToiView = (
   open: Iterable<Decision>,
   query: Readonly<Record<string, string>>,
-  { runnerOnline, now = new Date(), views = decisionViews, projectName: nameOf = () => null }: AToiOptions,
+  { runnerOnline, now = new Date(), views = decisionViews, sessionEvent = () => NOT_READ, roleName = defaultRoleName, projectName: nameOf = () => null }: AToiOptions,
 ): PageAToiData => {
+  const reads: DecisionReads = { runnerOnline, sessionEvent, roleName };
   const all = [...open]
     .map((decision) =>
       decision.projectName === null && decision.projectId !== null ? { ...decision, projectName: nameOf(decision.projectId) ?? decision.projectId } : decision,
@@ -82,11 +92,11 @@ export const aToiView = (
       return {
         id: decision.id,
         kind: kindLabel(decision.kind),
-        title: view.title?.(decision) ?? decision.label,
+        title: view.title?.(decision, reads) ?? decision.label,
         meta:
           view.meta?.(decision, now) ??
           [decision.projectName, ...decision.metaParts, formatRelative(decision.createdAt, now)].filter(Boolean).join(' · '),
-        context: view.context?.(decision) ?? null,
+        context: view.context?.(decision, reads) ?? null,
         tone: decision.tone,
         icon: ICONS[decision.kind],
         actions: actionsOf(view, decision).map((action) => {

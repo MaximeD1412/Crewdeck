@@ -23,13 +23,21 @@ import (
 // them again when the set of those that exist changed (ADR 0012).
 const ReportEvery = 60 * time.Second
 
+// Vault is what the folders need of the vault key (keys.Vault, or the
+// Runner's held one).
+type Vault interface {
+	SealItem(plaintext, aad []byte) (keys.SealedItem, error)
+	OpenItem(item keys.SealedItem, aad []byte) ([]byte, error)
+}
+
 // Config is what the handler works with.
 type Config struct {
 	Checker Checker
 	// Store holds runner.json, whose `projects` are the Projets' folders.
 	Store state.Store
-	// Vault opens the server's sealed paths and seals the checks' results.
-	Vault *keys.Vault
+	// Vault opens the server's sealed paths and seals the checks' results:
+	// the vault held, whose key a rotation replaces (E2E-4).
+	Vault Vault
 	// Send sends a message on the current connection (protocol.ErrNotConnected without one).
 	Send   func(ctx context.Context, message any) error
 	Logger *slog.Logger

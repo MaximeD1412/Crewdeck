@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  COMMAND_HEALTH_SECONDS,
   commandOutputAad,
   commandWrapAad,
   zClientMessage,
@@ -66,6 +67,19 @@ describe('the Commandes of the Runner', () => {
     expect(zCommandRun.safeParse({ ...run, commandId: 'Tests' }).success).toBe(false);
   });
 
+  it('carries the Projet’s worktree Commandes sealed as stored, or null, and gives setup-failed when their preparation fails', () => {
+    const run = fixture('command.run');
+    expect(zCommandRun.parse(run).worktreeCommands).toEqual(run.worktreeCommands);
+    expect(zCommandRun.parse({ ...run, worktreeCommands: null }).worktreeCommands).toBeNull();
+    const withoutThem = { ...run };
+    delete withoutThem.worktreeCommands;
+    expect(zCommandRun.safeParse(withoutThem).success).toBe(false);
+    expect(zCommandRun.safeParse({ ...run, worktreeCommands: { prepare: 'pnpm install', clean: null } }).success).toBe(false);
+    expect(zCommandRun.shape.worktreeCommands).toBe(zSessionStart.shape.worktreeCommands);
+    const verdict = fixture('command.verdict');
+    expect(zCommandVerdict.parse({ ...verdict, passed: false, exitCode: null, reason: 'setup-failed' })).toMatchObject({ reason: 'setup-failed' });
+  });
+
   it('carries the text and the place only sealed, never in the clear', () => {
     const run = fixture('command.run');
     const parsed = zCommandRun.parse({ ...run, run: 'rm -rf ~', where: 'project' });
@@ -80,6 +94,15 @@ describe('the Commandes of the Runner', () => {
     expect(zCommandVerdict.safeParse({ ...verdict, durationMs: -1 }).success).toBe(false);
     expect(zCommandVerdict.safeParse({ ...verdict, output: 'FAIL src/cart.spec.ts' }).success).toBe(true);
     expect(zCommandVerdict.parse({ ...verdict, output: 'FAIL src/cart.spec.ts' })).not.toHaveProperty('output');
+  });
+
+  it('reads the verdict of a health address: healthy passes with or without an exit code, health-timeout fails with none', () => {
+    const verdict = fixture('command.verdict');
+    const service = { ...verdict, passed: true, exitCode: null, reason: 'healthy' };
+    expect(zCommandVerdict.parse(service)).toEqual(service);
+    expect(zCommandVerdict.parse({ ...service, exitCode: 0 })).toMatchObject({ reason: 'healthy', exitCode: 0 });
+    expect(zCommandVerdict.parse({ ...verdict, passed: false, exitCode: null, reason: 'health-timeout' })).toMatchObject({ reason: 'health-timeout' });
+    expect(COMMAND_HEALTH_SECONDS).toBe(120);
   });
 
   it('opens the sealed part as the Commandes of a version: a text of 1 to 4000 characters, its place, its health address', () => {

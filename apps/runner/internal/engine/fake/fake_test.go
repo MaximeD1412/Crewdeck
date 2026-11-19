@@ -120,7 +120,8 @@ func TestTheFakeEngineWaitsForTheAnswerToAQuestionAndRecordsIt(t *testing.T) {
 	if err := run.Answer(context.Background(), "q-1", engine.Answer{Options: []string{"Bleu"}}); err != nil {
 		t.Fatal(err)
 	}
-	if rest := drain(t, run); len(rest) != 2 || rest[0].Message.Text != "Bleu, donc" {
+	rest := drain(t, run)
+	if len(rest) != 3 || rest[0].Answer == nil || rest[0].Answer.RequestId != "q-1" || rest[0].Answer.Options[0] != "Bleu" || rest[0].Answer.Seq != 2 || rest[1].Message.Text != "Bleu, donc" {
 		t.Fatalf("after the answer %+v", rest)
 	}
 	answers := e.Runs()[0].Answers()

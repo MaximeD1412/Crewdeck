@@ -260,6 +260,20 @@ func TestACancelledCallWithdrawsItsRequest(t *testing.T) {
 	}
 }
 
+func TestACallAllowedForTheSessionAddsTheToolsRuleToTheSession(t *testing.T) {
+	c := start(t, &permission.Server{Ask: func(context.Context, control.Request) (control.Reply, error) {
+		return control.Reply{Allow: true, ForSession: true}, nil
+	}})
+	c.handshake()
+
+	c.call(2, "toolu_allow")
+	allowed := answerText(t, c.read())
+	updates, _ := json.Marshal(allowed["updatedPermissions"])
+	if allowed["behavior"] != "allow" || string(updates) != `[{"behavior":"allow","destination":"session","rules":[{"toolName":"Bash"}],"type":"addRules"}]` {
+		t.Fatalf("allowed %v", allowed)
+	}
+}
+
 func TestAnAdapterThatCannotBeReachedDeniesTheCall(t *testing.T) {
 	c := start(t, &permission.Server{Ask: func(context.Context, control.Request) (control.Reply, error) {
 		return control.Reply{}, io.ErrUnexpectedEOF

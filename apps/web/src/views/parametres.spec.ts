@@ -1,10 +1,10 @@
-import { DEFAULT_ACCOUNT_SETTINGS, type AccountSettings, type AiAccount } from '@crewdeck/contracts';
-import { t, type ComposantData, type RoleSettings } from '@crewdeck/sdk';
+import { DEFAULT_ACCOUNT_SETTINGS, type AiAccount, type Project, type PushSubscription, type SettingsState } from '@crewdeck/contracts';
+import { COMPOSANTS, t, type ComposantData, type PushSettings, type RoleSettings } from '@crewdeck/sdk';
 import type { PlacedNode } from '../placed.js';
 import { devicesCard } from './devices.js';
-import { NO_ROLES_LOCAL, parametresView } from './parametres.js';
+import { NO_PUSH_LOCAL, NO_ROLES_LOCAL, parametresView, type PushLocal } from './parametres.js';
 
-const SETTINGS = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Asia/Tokyo' };
+const SETTINGS: SettingsState = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Asia/Tokyo', projects: [] };
 const ZONES = ['America/Montreal', 'Asia/Tokyo', 'Europe/Paris'];
 
 const MODDERS = {
@@ -23,7 +23,7 @@ const MODDERS = {
 
 describe('parametresView', () => {
   it('fills « Compte » with the time zone, every IANA zone to pick, and « Pour les Moddeurs »', () => {
-    expect(parametresView(SETTINGS, ZONES).filter((node) => node.slot !== 'roles')).toEqual([
+    expect(parametresView(SETTINGS, ZONES).filter((node) => node.slot === 'account' || node.slot === 'modders')).toEqual([
       {
         tag: 'cd-card',
         slot: 'account',
@@ -59,6 +59,24 @@ describe('parametresView', () => {
     expect(select.options.map((option) => option.value)).toEqual(['America/Montreal', 'Asia/Tokyo', 'Europe/Kiev', 'Europe/Paris']);
   });
 
+  it('puts « Connexion » with the Pilote’s Identités in « account », before « Compte »', () => {
+    const identities = [{ provider: 'email', label: 'pilote@example.com', reconnect: false }] as const;
+    const nodes = parametresView(SETTINGS, ZONES, { pilot: { identities: [...identities] } }).filter((node) => node.slot === 'account');
+    expect(nodes.map((node) => node.tag)).toEqual(['cd-account-identities', 'cd-card']);
+    expect(nodes[0]).toEqual({ tag: 'cd-account-identities', slot: 'account', data: { identities, error: null } });
+    COMPOSANTS.AccountIdentities.data.parse(nodes[0]?.data);
+  });
+
+  it('gives « Connexion » the case of a failed link from ?erreur=, nothing for an unknown one', () => {
+    const pilot = { identities: [{ provider: 'email', label: 'pilote@example.com', reconnect: false }] } as const;
+    const identitiesOf = (erreur: string | undefined) =>
+      parametresView(undefined, ZONES, { pilot: { identities: [...pilot.identities] }, erreur }).find((node) => node.tag === 'cd-account-identities');
+    expect(identitiesOf('github-already-linked')?.data).toMatchObject({ error: 'github-already-linked' });
+    expect(identitiesOf('github-other-account')?.data).toMatchObject({ error: 'github-other-account' });
+    expect(identitiesOf('nimporte')?.data).toMatchObject({ error: null });
+    expect(identitiesOf(undefined)?.data).toMatchObject({ error: null });
+  });
+
   it('shows only « Pour les Moddeurs » until the snapshot gives the settings', () => {
     expect(parametresView(undefined, ZONES)).toEqual([MODDERS]);
     expect(parametresView(null, ZONES)).toEqual([MODDERS]);
@@ -69,9 +87,9 @@ describe('parametresView', () => {
       ['dev_1', { id: 'dev_1', name: 'Firefox sur Linux', state: 'trusted', approvedAt: '2026-11-03T09:00:00.000Z', revokedAt: null, lastSeenAt: null, current: true }],
     ] as const);
     const nodes = parametresView(SETTINGS, ZONES, { devices });
-    expect(nodes.map((node) => node.slot)).toEqual(['devices', 'roles', 'account', 'modders']);
+    expect(nodes.map((node) => node.slot)).toEqual(['devices', 'roles', 'notifications', 'account', 'modders']);
     expect(nodes[0]).toEqual(devicesCard(devices));
-    expect(parametresView(SETTINGS, ZONES).map((node) => node.slot)).toEqual(['roles', 'account', 'modders']);
+    expect(parametresView(SETTINGS, ZONES).map((node) => node.slot)).toEqual(['roles', 'notifications', 'account', 'modders']);
   });
 });
 
@@ -101,7 +119,7 @@ const GPT = { engine: 'codex', model: 'gpt-5.5', label: 'Codex · GPT-5.5' };
 const CUSTOM = { id: 'r-k3v9q2m7', name: 'Revue Codex', createdAt: '2026-11-11T08:30:00.000Z' };
 
 type Data = ComposantData<typeof RoleSettings>;
-const rolesOf = (settings: AccountSettings, accounts: readonly AiAccount[], local = NO_ROLES_LOCAL): Data => {
+const rolesOf = (settings: SettingsState, accounts: readonly AiAccount[], local = NO_ROLES_LOCAL): Data => {
   const node = parametresView(settings, ZONES, { accounts, local }).find((candidate: PlacedNode) => candidate.slot === 'roles');
   expect(node?.tag).toBe('cd-role-settings');
   return node?.data as Data;
@@ -148,7 +166,7 @@ describe('parametresView, « Rôles et modèles »', () => {
   });
 
   it('lists the Rôles the Pilote added after the default ones, removable, with their own help', () => {
-    const settings = { ...SETTINGS, roles: { ...SETTINGS.roles, [CUSTOM.id]: { engine: 'codex', model: 'gpt-5.5' } }, customRoles: [CUSTOM] } as AccountSettings;
+    const settings = { ...SETTINGS, roles: { ...SETTINGS.roles, [CUSTOM.id]: { engine: 'codex', model: 'gpt-5.5' } }, customRoles: [CUSTOM] } as SettingsState;
     expect(rolesOf(settings, [CLAUDE, CODEX]).roles.at(-1)).toEqual({
       id: CUSTOM.id,
       name: 'Revue Codex',
@@ -172,5 +190,108 @@ describe('parametresView, « Rôles et modèles »', () => {
     expect(data.models).toEqual([]);
     expect(choices(data)).toEqual({ idea: null, design: null, code: null, review: null });
     expect(data.roles.every((role) => role.error === null)).toBe(true);
+  });
+});
+
+const IPHONE: PushSubscription = {
+  id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a01',
+  endpoint: 'https://web.push.apple.com/QGx1',
+  label: 'Safari · iPhone',
+  createdAt: '2026-11-03T09:00:00.000Z',
+};
+const LAPTOP: PushSubscription = {
+  id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a02',
+  endpoint: 'https://fcm.googleapis.com/fcm/send/abc',
+  label: 'Chrome · Windows',
+  createdAt: '2026-11-12T09:00:00.000Z',
+};
+const HERE: PushLocal = { ...NO_PUSH_LOCAL, available: true };
+
+const pushOf = (settings: SettingsState, subscriptions: readonly PushSubscription[], local: PushLocal = HERE): ComposantData<typeof PushSettings> => {
+  const node = parametresView(settings, ZONES, { push: { subscriptions, local } }).find((candidate) => candidate.slot === 'notifications');
+  expect(node?.tag).toBe('cd-push-settings');
+  return node?.data as ComposantData<typeof PushSettings>;
+};
+
+describe('parametresView’s « Notifications » (ATOI-4)', () => {
+  it('comes second, after « Rôles et modèles », once the settings are known', () => {
+    expect(parametresView(SETTINGS, ZONES).map((node) => node.slot)).toEqual(['roles', 'notifications', 'account', 'modders']);
+  });
+
+  it('gives the account’s push and every browser that receives it, in the order they were authorized, with its date', () => {
+    expect(pushOf({ ...SETTINGS, notifications: { push: true } }, [LAPTOP, IPHONE])).toEqual({
+      push: true,
+      subscriptions: [
+        { id: IPHONE.id, label: 'Safari · iPhone', meta: 'autorisé le 3 nov.' },
+        { id: LAPTOP.id, label: 'Chrome · Windows', meta: 'autorisé le 12 nov.' },
+      ],
+      device: 'subscribe',
+      busy: false,
+      error: null,
+    });
+    expect(pushOf(SETTINGS, []).push).toBe(SETTINGS.notifications.push);
+  });
+
+  it('says whether this browser receives them: subscribed when its endpoint is listed, unavailable where it cannot push', () => {
+    expect(pushOf(SETTINGS, [IPHONE], { ...HERE, endpoint: IPHONE.endpoint }).device).toBe('subscribed');
+    expect(pushOf(SETTINGS, [IPHONE], { ...HERE, endpoint: LAPTOP.endpoint }).device).toBe('subscribe');
+    expect(pushOf(SETTINGS, [IPHONE], NO_PUSH_LOCAL).device).toBe('unavailable');
+  });
+
+  it('gives the account’s push on its way rather than the store’s, until the store has it', () => {
+    expect(pushOf({ ...SETTINGS, notifications: { push: false } }, [], { ...HERE, pushing: true }).push).toBe(true);
+    expect(pushOf({ ...SETTINGS, notifications: { push: true } }, [], { ...HERE, pushing: null }).push).toBe(true);
+    expect(pushOf({ ...SETTINGS, notifications: { push: true } }, [], { ...HERE, pushing: false }).push).toBe(false);
+  });
+
+  it('gives the page’s own state: busy while subscribing, why it failed', () => {
+    expect(pushOf(SETTINGS, [], { ...HERE, busy: true, error: 'L’activation a échoué : réessaie.' })).toMatchObject({ busy: true, error: 'L’activation a échoué : réessaie.' });
+  });
+});
+
+const project = (id: string, displayName: string, fullName = `dupre/${displayName}`): Project => ({
+  id,
+  repositoryId: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6c01',
+  owner: 'dupre',
+  name: fullName.split('/')[1] ?? displayName,
+  fullName,
+  displayName,
+  nameSealed: null,
+  folder: null,
+  releaseBranch: 'main',
+  integrationBranch: 'develop',
+  hasCode: true,
+  inventoryState: 'approved',
+  accessLost: false,
+  followedAt: '2026-11-11T08:30:00.000Z',
+});
+
+describe('parametresView, « Par Projet »', () => {
+  const MAIRIE = project('019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a01', 'Site mairie');
+  const API = project('019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a02', 'API facturation');
+  const changed = (projectId: string, changedCount: number) =>
+    ({ projectId, changedCount }) as unknown as SettingsState['projects'][number];
+
+  it('lists each Projet by name, what it changed over the account, a link to its Paramètres', () => {
+    const settings: SettingsState = { ...SETTINGS, projects: [changed(MAIRIE.id, 2)] };
+    const card = parametresView(settings, ZONES, { projects: [MAIRIE, API] }).find((node) => node.slot === 'projects');
+    expect(card?.data).toEqual({ title: t('settings.projects.title'), label: t('settings.projects.label'), flush: true });
+    expect(card?.children?.map((row) => [row.data, row.children])).toEqual([
+      [
+        { title: 'API facturation', meta: t('settings.projects.inherits'), href: `/projets/${API.id}/parametres` },
+        [{ tag: 'cd-icon', slot: 'trailing', data: { name: 'chevron-right', size: 'sm' } }],
+      ],
+      [
+        { title: 'Site mairie', meta: t('settings.projects.changed.other', { count: 2 }), href: `/projets/${MAIRIE.id}/parametres` },
+        [{ tag: 'cd-icon', slot: 'trailing', data: { name: 'chevron-right', size: 'sm' } }],
+      ],
+    ]);
+    const one = parametresView({ ...SETTINGS, projects: [changed(API.id, 1)] }, ZONES, { projects: [API] }).find((node) => node.slot === 'projects');
+    expect(one?.children?.[0]?.data).toMatchObject({ meta: t('settings.projects.changed.one') });
+  });
+
+  it('puts « Par Projet » after « Compte », before « Pour les Moddeurs », and draws none without a Projet', () => {
+    expect(parametresView(SETTINGS, ZONES, { projects: [MAIRIE] }).map((node) => node.slot)).toEqual(['roles', 'notifications', 'account', 'projects', 'modders']);
+    expect(parametresView(SETTINGS, ZONES).map((node) => node.slot)).toEqual(['roles', 'notifications', 'account', 'modders']);
   });
 });

@@ -342,6 +342,11 @@ export class FakeGitHub implements GitHubClient, Fake {
     return `/fake-github/login/oauth/authorize?${new URLSearchParams({ client_id: 'fake', redirect_uri: redirectUri, state }).toString()}`;
   }
 
+  /** The tokens a sign-in of `user` would give, without a call: a scenario's Pilote signed in with GitHub linked. */
+  tokensOf(user: GitHubUser): UserTokens {
+    return this.tokensFor(this.seedUser(user).id);
+  }
+
   exchangeCode(code: string, redirectUri: string): Promise<UserTokens> {
     this.record('exchangeCode', code, redirectUri);
     return this.run(() => this.tokensFor(this.codes.get(code)));

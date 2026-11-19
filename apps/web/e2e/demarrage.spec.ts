@@ -276,3 +276,29 @@ test.describe('« Premiers pas », the Projets (US-3)', () => {
     expect(((await (await page.request.get('/api/projects')).json()) as { items: unknown[] }).items).toEqual([]);
   });
 });
+
+/**
+ * CORE-11, US-3: a Pilote signed in without GitHub sees, at the Projets'
+ * step, the Banner that links it; « Relier GitHub » goes through GitHub and
+ * comes back to « Premiers pas », GitHub linked, the Banner gone.
+ */
+test('« Premiers pas » without GitHub: the Banner « Relier GitHub » links it and comes back, the Banner gone', async ({ page, scenario, expectAccessible }) => {
+  await scenario('demarrage-projets-sans-github');
+
+  const demarrage = page.locator('cd-page-demarrage');
+  await expect(demarrage.getByRole('heading', { level: 1, name: 'Choisis tes Projets' })).toBeVisible();
+  await expect(demarrage.getByText('Pour suivre un Dépôt GitHub, relie d’abord ton compte GitHub.')).toBeVisible();
+  await expectAccessible(page);
+  // Without GitHub, a request for a GitHub token is refused with 409, never a sign-out.
+  const token = await page.request.post('/api/github/token', { headers: { origin: new URL(page.url()).origin } });
+  expect(token.status()).toBe(409);
+  expect(await token.json()).toMatchObject({ code: 'github.not-linked' });
+  expect((await page.request.get('/api/me')).status()).toBe(200);
+
+  await demarrage.getByRole('button', { name: 'Relier GitHub' }).click();
+
+  await expect(page).toHaveURL('/demarrage');
+  await expect(demarrage.getByRole('heading', { level: 1, name: 'Choisis tes Projets' })).toBeVisible();
+  await expect(demarrage.getByRole('button', { name: 'Relier GitHub' })).toHaveCount(0);
+  expect(await (await page.request.get('/api/me')).json()).toMatchObject({ githubLinked: true });
+});

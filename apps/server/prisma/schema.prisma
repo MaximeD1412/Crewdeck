@@ -28,55 +28,57 @@ enum GettingStartedStep {
 /// their first sign-in with an Identité no Pilote has (ADR 0014). `seq` is the
 /// number of its last event (CORE-5), `lastSeq` the one of the last event
 /// about the Pilote themselves (`pilot.upserted`). Ids are UUIDv7, generated
-/// in code (`src/ids.ts`). `githubUserId` and `login` are no longer read nor
-/// written by the server (the `github` Identité holds them; a trigger copies
-/// them back for the version before): CORE-11's migration drops them.
+/// in code (`src/ids.ts`). Its GitHub user and login are on its `github`
+/// Identité.
 model Pilot {
-  id                 String               @id @db.Uuid
-  githubUserId       BigInt?              @unique @map("github_user_id")
-  login              String?
+  id                   String               @id @db.Uuid
   /// The Pilote's readable name: GitHub's login, or their address's local part.
-  displayName        String               @map("display_name")
-  avatarUrl          String?              @map("avatar_url")
-  timeZone           String               @map("time_zone")
-  gettingStartedStep GettingStartedStep   @default(runner) @map("getting_started_step")
-  seq                BigInt               @default(0)
-  lastSeq            BigInt               @default(0) @map("last_seq")
+  displayName          String               @map("display_name")
+  avatarUrl            String?              @map("avatar_url")
+  timeZone             String               @map("time_zone")
+  gettingStartedStep   GettingStartedStep   @default(runner) @map("getting_started_step")
+  seq                  BigInt               @default(0)
+  lastSeq              BigInt               @default(0) @map("last_seq")
   /// The last `github_changes.seq` of the Pilote (ADR 0010): the Miroir's
   /// own counter, never shared with the tabs' `seq`.
-  githubChangeSeq    BigInt               @default(0) @map("github_change_seq")
+  githubChangeSeq      BigInt               @default(0) @map("github_change_seq")
   /// The version of the Pilote's vault key (ADR 0003, E2E-2): 0 before the
   /// first Appareil wrapped one, then 1; E2E-4 rotates it.
-  vaultKeyVersion    Int                  @default(0) @map("vault_key_version")
+  vaultKeyVersion      Int                  @default(0) @map("vault_key_version")
+  /// A revoked key holder waits for the vault key's rotation (E2E-4).
+  vaultRotationPending Boolean              @default(false) @map("vault_rotation_pending")
+  /// The `seq` of the last `vault.upserted`: a rotation carries it (ADR 0007).
+  vaultLastSeq         BigInt               @default(0) @map("vault_last_seq")
   /// The last `#<n>` of the Pilote's Idées (IDEE-1), raised in the transaction that notes one.
-  ideaSeq            Int                  @default(0) @map("idea_seq")
-  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz
-  identities         PilotIdentity[]
-  githubToken        GithubUserToken?
-  webSessions        WebSession[]
-  events             Event[]
-  installations      GitHubInstallation[]
-  runners            Runner[]
-  runnerLinkCodes    RunnerLinkCode[]
-  latencySamples     LatencySample[]
-  aiAccounts         AiAccount[]
-  mcpServers         McpServer[]
-  devices            Device[]
-  vaultKeyWraps      VaultKeyWrap[]
-  repositories       Repository[]
-  projects           Project[]
-  decisions          Decision[]
-  ideas              Idea[]
-  tickets            Ticket[]
-  milestones         Milestone[]
-  codeChanges        CodeChange[]
-  codeChangeChecks   CodeChangeCheck[]
-  githubChanges      GitHubChange[]
-  usageMeasures      UsageMeasure[]
-  spends             Spend[]
-  settings           AccountSettings?
-  customRoles        CustomRole[]
-  agentSessions      AgentSession[]
+  ideaSeq              Int                  @default(0) @map("idea_seq")
+  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  identities           PilotIdentity[]
+  githubToken          GithubUserToken?
+  webSessions          WebSession[]
+  events               Event[]
+  installations        GitHubInstallation[]
+  runners              Runner[]
+  runnerLinkCodes      RunnerLinkCode[]
+  latencySamples       LatencySample[]
+  aiAccounts           AiAccount[]
+  mcpServers           McpServer[]
+  devices              Device[]
+  vaultKeyWraps        VaultKeyWrap[]
+  repositories         Repository[]
+  projects             Project[]
+  decisions            Decision[]
+  ideas                Idea[]
+  tickets              Ticket[]
+  milestones           Milestone[]
+  codeChanges          CodeChange[]
+  codeChangeChecks     CodeChangeCheck[]
+  githubChanges        GitHubChange[]
+  usageMeasures        UsageMeasure[]
+  spends               Spend[]
+  settings             AccountSettings?
+  customRoles          CustomRole[]
+  pushSubscriptions    PushSubscription[]
+  agentSessions        AgentSession[]
 
   @@map("pilots")
 }
@@ -328,11 +330,32 @@ model Device {
   holderEnc         Bytes?              @map("holder_enc")
   holderCiphertext  Bytes?              @map("holder_ciphertext")
   holderTag         Bytes?              @map("holder_tag")
+  /// The `seq` of its last `device.upserted`: its revocation carries it (ADR 0007).
+  lastSeq           BigInt              @default(0) @map("last_seq")
   pilot             Pilot               @relation(fields: [pilotId], references: [id], onDelete: Cascade)
 
   @@unique([pilotId, shortId], map: "devices_pilot_id_short_id_pending_key", where: raw("state = 'pending' AND short_id IS NOT NULL"))
   @@index([pilotId, createdAt])
   @@map("devices")
+}
+
+/// A browser that receives the Pilote's push notifications (ATOI-4, US-18),
+/// not an Appareil of ADR 0003: removing it removes the push only. What its
+/// `pushManager.subscribe` gave (its push service's endpoint, its keys) and
+/// the label the page read from its user agent (« Safari · iPhone »).
+model PushSubscription {
+  id           String    @id @db.Uuid
+  pilotId      String    @map("pilot_id") @db.Uuid
+  endpoint     String    @unique
+  p256dh       String
+  auth         String
+  label        String
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  lastPushedAt DateTime? @map("last_pushed_at") @db.Timestamptz
+  pilot        Pilot     @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@index([pilotId, createdAt])
+  @@map("push_subscriptions")
 }
 
 enum VaultKeyHolderType {
@@ -365,12 +388,12 @@ model VaultKeyWrap {
 
 /// The Paramètres of the Pilote's account (PARAM-1), the default of each of
 /// their Projets: no row until they change one, `SettingsService` then reads
-/// the defaults. `roles` and `optionalSteps` are JSON, parsed by the
-/// contract's schemas on every read. The time zone stays on `pilots`.
+/// the defaults. `roles` is JSON, parsed by the contract's schemas on every
+/// read. The time zone stays on `pilots`. No Étapes optionnelles any more
+/// (PARAM-3): an Étape runs because it is in the Projet's Process.
 model AccountSettings {
   pilotId           String   @id @map("pilot_id") @db.Uuid
   roles             Json
-  optionalSteps     Json     @map("optional_steps")
   notificationsPush Boolean  @default(false) @map("notifications_push")
   updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
   pilot             Pilot    @relation(fields: [pilotId], references: [id], onDelete: Cascade)
@@ -472,6 +495,14 @@ model Decision {
   outcome     String?
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
   resolvedAt  DateTime?     @map("resolved_at") @db.Timestamptz
+  /// When the Pilote was told of it (ATOI-4): pushed to their browsers, seen
+  /// on a tab visible again, or its push off. `null` while it waits, what the
+  /// next push sends (`src/notifications/push-delivery.ts`).
+  notifiedAt  DateTime?     @map("notified_at") @db.Timestamptz
+  /// When a push took it, on its way to the browsers: not yet told. Handed
+  /// back (`null`) when no browser got it; a claim older than its lease, a
+  /// push interrupted (a restart, a failed hand back), waits again.
+  pushClaimedAt DateTime?   @map("push_claimed_at") @db.Timestamptz
   pilot       Pilot         @relation(fields: [pilotId], references: [id], onDelete: Cascade)
 
   @@unique([pilotId, kind, subjectId], map: "decisions_pilot_id_kind_subject_id_open_key", where: raw("state = 'open'"))
@@ -722,14 +753,35 @@ model Project {
   phaseRuns         PhaseRun[]
   stepRuns          StepRun[]
   artifactSources   ArtifactSource[]
-  ideas             Idea[]              @relation("IdeaProject")
-  targetedIdeas     Idea[]              @relation("IdeaTarget")
+  settings          ProjectSettings?
+  ideas             Idea[]           @relation("IdeaProject")
+  targetedIdeas     Idea[]           @relation("IdeaTarget")
   agentSessions     AgentSession[]
 
   @@unique([pilotId, githubRepoId])
   /// The key the Projet's Tickets, milestones, changes of code and Process point at, with their Pilote.
   @@unique([pilotId, id])
   @@map("projects")
+}
+
+/// What a Projet changed over its Pilote's account (PARAM-3, US-82): no row
+/// until it changes one. `roles` holds only the Rôles overridden
+/// (`zProjectSettingsOverrides`, parsed on every read); `notificationsPush`
+/// `null` follows the account. `worktreeCommands` is one sealed item
+/// (`zSealedItem`, base64url) of the two worktree Commandes, which the server
+/// never opens (ADR 0003): RUNNER-20's Runner does. The branches stay on
+/// `projects`.
+model ProjectSettings {
+  projectId         String   @id @map("project_id") @db.Uuid
+  pilotId           String   @map("pilot_id") @db.Uuid
+  roles             Json
+  notificationsPush Boolean? @map("notifications_push")
+  worktreeCommands  Json?    @map("worktree_commands")
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  project           Project  @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+
+  @@unique([pilotId, projectId])
+  @@map("project_settings")
 }
 
 /// What a change of GitHub names (`zGitHubChangeKind`).
@@ -987,7 +1039,8 @@ enum ProcessActivation {
 /// A version of a Projet's Process (ADR 0011): one immutable document, numbered
 /// from 1 per Projet, its Commandes' text in `sealed` (a `SealedItem`, stored
 /// as received). A trigger of the migration refuses any `UPDATE`; the active
-/// version is the highest number.
+/// version is the highest number. Only the vault key's rotation (E2E-4) may
+/// replace the item key of `sealed`, its ciphertext and every other column kept.
 model ProcessVersion {
   id           String            @id @db.Uuid
   pilotId      String            @map("pilot_id") @db.Uuid

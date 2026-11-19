@@ -201,6 +201,16 @@ export const demarrageProjets = defineScenario({
 });
 
 /**
+ * « Premiers pas »' last step for a Pilote signed in by email, GitHub not
+ * linked (CORE-11): the Banner « Relier GitHub » above an empty picker.
+ */
+export const demarrageProjetsSansGithub = defineScenario({
+  name: 'demarrage-projets-sans-github',
+  path: '/demarrage',
+  seed: (ctx) => signInPilot(ctx, { gettingStartedStep: 'projects', identities: ['email'] }),
+});
+
+/**
  * `demarrage-projets` on its folder tab, for the visual review: the form of
  * a folder of the Runner's machine (no mockup yet, `demarrage-projets` being
  * GitHub only). The capture opens the tab and types `RECETTES_FOLDER`.

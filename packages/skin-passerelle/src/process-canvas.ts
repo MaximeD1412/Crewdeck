@@ -201,6 +201,8 @@ export class PasserelleProcessCanvas extends PasserelleElement<typeof ProcessCan
   /** The view shown: the data's, until the Pilote moves. */
   private view: View = { zoom: 100, pan: { x: 0, y: 0 } };
   private shownView: string | null = null;
+  /** The last `focus` centred, so that each is centred once. */
+  private shownFocus: string | null = null;
   private measured: Measured | null = null;
   private routes: Routes | null = null;
   private drag: Drag | null = null;
@@ -263,6 +265,24 @@ export class PasserelleProcessCanvas extends PasserelleElement<typeof ProcessCan
       loopBacks: loopBacks.map((loop, i) => ({ from: loop.from, to: loop.to, badge: measured.badges[i] ?? { width: 0, height: 0 } })),
     });
     this.requestUpdate();
+    this.centreFocus();
+  }
+
+  /** Centres the block `focus` names, once per `focus`, and says so by a `view`. */
+  private centreFocus(): void {
+    const focus = this.data.focus;
+    const key = focus ? `${focus.id}:${focus.at}` : null;
+    if (!focus || key === this.shownFocus) return;
+    const viewport = this.viewport;
+    const block = [...this.renderRoot.querySelectorAll<HTMLElement>('cd-step-card, cd-phase')].find(
+      (el) => (el.dataset['step'] ?? el.dataset['phase']) === focus.id,
+    );
+    if (!viewport || !block) return;
+    this.shownFocus = key;
+    const centre = this.centreOf(block);
+    const z = this.view.zoom / 100;
+    this.applyView({ zoom: this.view.zoom, pan: { x: centre.x - viewport.clientWidth / (2 * z), y: centre.y - viewport.clientHeight / (2 * z) } });
+    this.emitView();
   }
 
   // The view ------------------------------------------------------------------

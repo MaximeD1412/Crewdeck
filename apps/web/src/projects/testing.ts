@@ -11,7 +11,7 @@ import type { FolderSocket } from './folder-check.js';
  * under the same additional data, as the real one.
  */
 export const fakeVault = (): Pick<Vault, 'sealItem' | 'openItem'> => ({
-  sealItem: async (plaintext, aad) => ({ key: new Uint8Array(60).fill(aad.length), ciphertext: concat(aad, plaintext) }),
+  sealItem: async (plaintext, aad) => ({ key: new Uint8Array(60).fill(aad.length), ciphertext: concat(aad, plaintext), vaultKeyVersion: 1 }),
   openItem: async (item: SealedItem, aad) => {
     const head = item.ciphertext.subarray(0, aad.length);
     if (item.key[0] !== aad.length % 256 || head.some((byte, i) => byte !== aad[i])) throw new Error('keys: does not open');

@@ -1,7 +1,7 @@
 import { type Me, zMe, zTestingPilotUpdate } from '@crewdeck/contracts';
 import { Body, Controller, HttpCode, Post } from '@nestjs/common';
 import { createZodDto, ZodResponse } from 'nestjs-zod';
-import { identitiesOf, ME, toMe } from '../pilots/me.controller.js';
+import { linksOf, ME, toMe } from '../pilots/me.controller.js';
 import { EventsWriter } from '../realtime/events.writer.js';
 import { Transactions } from '../realtime/transactions.js';
 import { currentPilotId } from '../scope/scope.context.js';
@@ -29,7 +29,7 @@ export class TestingPilotController {
   async rename(@Body() { displayName }: TestingPilotUpdateDto): Promise<Me> {
     const pilotId = currentPilotId();
     return this.transactions.run(async (tx) => {
-      const pilot = toMe(await tx.pilot.update({ where: { id: pilotId }, data: { displayName }, select: ME }), await identitiesOf(tx));
+      const pilot = toMe(await tx.pilot.update({ where: { id: pilotId }, data: { displayName }, select: ME }), await linksOf(tx));
       await this.events.write(tx, pilotId, 'pilot.upserted', pilot);
       return pilot;
     });

@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 )
@@ -95,11 +94,13 @@ func (m *Manager) origin(owner, name string) *GitHubOrigin {
 }
 
 // TicketWorktree is the worktree of the Ticket's branch at sha, for a run.
-// Absent, it is made detached at sha after a fetch, prepared by the Hooks as
-// a Session's, and removed at Release; a stopped Session's is used as it is
-// when its HEAD is sha, and kept. A live Session's, another run's, or one at
-// another commit gives ErrPlaceUnavailable.
-func (m *Manager) TicketWorktree(ctx context.Context, projectID, owner, name, branch, sha string) (*Place, error) {
+// Absent, it is made detached at sha after a fetch, prepared by the Hooks
+// with prep as a Session's, then cleaned and removed at Release; a
+// preparation that fails removes it and gives a *SetupError. A stopped
+// Session's is used as it is when its HEAD is sha, not prepared again, and
+// kept. A live Session's, another run's, or one at another commit gives
+// ErrPlaceUnavailable.
+func (m *Manager) TicketWorktree(ctx context.Context, projectID, owner, name, branch, sha string, prep Preparation) (*Place, error) {
 	if !uuid.MatchString(projectID) || !validBranch(branch) || !gitSha.MatchString(sha) {
 		return nil, ErrPlaceUnavailable
 	}
@@ -125,7 +126,8 @@ func (m *Manager) TicketWorktree(ctx context.Context, projectID, owner, name, br
 		unhold()
 		return nil, err
 	}
-	w := Worktree{ProjectID: projectID, Dir: dir, Branch: branch, Clone: clone}
+	prep.Commands = m.cfg.Hooks.keep(projectID, prep.Commands)
+	w := Worktree{ProjectID: projectID, Dir: dir, Branch: branch, Clone: clone, Preparation: prep}
 	unlock := m.locks.lock(clone)
 	removeWorktree(ctx, clone, dir) // one a killed Runner left there
 	err = os.MkdirAll(filepath.Dir(dir), 0o700)
@@ -134,15 +136,7 @@ func (m *Manager) TicketWorktree(ctx context.Context, projectID, owner, name, br
 	}
 	unlock()
 	remove := func() {
-		// The run's own context may be gone; the cleaning has its own.
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-		if err := m.cfg.Hooks.clean(ctx, w); err != nil {
-			m.cfg.Logger.Warn("command.clean", "error", errorKind(err))
-		}
-		unlock := m.locks.lock(clone)
-		removeWorktree(ctx, clone, dir)
-		unlock()
+		m.remove(w)
 		unhold()
 	}
 	if err != nil {
@@ -152,9 +146,9 @@ func (m *Manager) TicketWorktree(ctx context.Context, projectID, owner, name, br
 		unhold()
 		return nil, ErrPlaceUnavailable
 	}
-	if err := m.cfg.Hooks.prepare(ctx, w); err != nil {
+	if err := m.cfg.Hooks.prepare(ctx, withEnv(ctx, w)); err != nil {
 		remove()
-		return nil, err
+		return nil, setupFailed(err)
 	}
 	return &Place{Dir: dir, release: remove}, nil
 }

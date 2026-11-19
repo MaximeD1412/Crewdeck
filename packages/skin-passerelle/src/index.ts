@@ -36,10 +36,13 @@ import { PasserellePageIdees } from './page-idees.js';
 import { PasserellePageComposants } from './page-composants.js';
 import { PasserellePageConnexion } from './page-connexion.js';
 import { PasserellePageConnexionLien } from './page-connexion-lien.js';
+import { PasserelleAccountIdentities } from './account-identities.js';
 import { PasserellePageDemarrage } from './page-demarrage.js';
+import { PasserellePageParametresProjet } from './page-parametres-projet.js';
 import { PasserellePageParametres } from './page-parametres.js';
 import { PasserellePageHeader } from './page-header.js';
 import { PasserellePageIntrouvable } from './page-introuvable.js';
+import { PasserellePageProcessEditor } from './page-process-editor.js';
 import { PasserellePageProjet } from './page-projet.js';
 import { PasserellePageProjets } from './page-projets.js';
 import { PasserellePageRunner } from './page-runner.js';
@@ -50,6 +53,7 @@ import { PasserelleProcessCanvas } from './process-canvas.js';
 import { PasserellePhaseGroup } from './phase-group.js';
 import { PasserelleProcessTrack } from './process-track.js';
 import { PasserelleProjectFilter } from './project-filter.js';
+import { PasserellePushSettings } from './push-settings.js';
 import { PasserelleQuestion } from './question.js';
 import { PasserelleSession } from './session.js';
 import { PasserelleRadio } from './radio.js';
@@ -92,13 +96,17 @@ export default defineSkin({
     PageConnexionLien: PasserellePageConnexionLien,
     PageDemarrage: PasserellePageDemarrage,
     PageParametres: PasserellePageParametres,
+    PageParametresProjet: PasserellePageParametresProjet,
     PageIntrouvable: PasserellePageIntrouvable,
+    PageProcessEditor: PasserellePageProcessEditor,
     PageProjet: PasserellePageProjet,
     PageProjets: PasserellePageProjets,
     PageRunner: PasserellePageRunner,
     RepositoryPicker: PasserelleRepositoryPicker,
     FolderProjectForm: PasserelleFolderProjectForm,
     RoleSettings: PasserelleRoleSettings,
+    PushSettings: PasserellePushSettings,
+    AccountIdentities: PasserelleAccountIdentities,
     Card: PasserelleCard,
     CodeBlock: PasserelleCodeBlock,
     Dialog: PasserelleDialog,

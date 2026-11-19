@@ -14,8 +14,8 @@ export const LAST_SEEN_AT = new Date('2026-11-11T13:02:00.000Z');
  * subscription, Codex by API key), and their usage (RUNNER-13): measured up to
  * now, or up to `lastSeenAt` when the Runner went offline then.
  */
-export const withAccounts = async (ctx: ScenarioContext, lastSeenAt?: Date) => {
-  const seed = await signInPilot(ctx);
+export const withAccounts = async (ctx: ScenarioContext, lastSeenAt?: Date, signIn?: Parameters<typeof signInPilot>[1]) => {
+  const seed = await signInPilot(ctx, signIn);
   const { token } = await createLinkedRunner(ctx.prisma, seed.pilotId, { ...RUNNER_MACHINE, ...(lastSeenAt ? { lastSeenAt } : {}) });
   await createAiAccounts(ctx.prisma, seed.pilotId, [CLAUDE_SUBSCRIPTION, CODEX_API_KEY], lastSeenAt);
   await seedUsage(ctx, seed.pilotId, lastSeenAt ? { lastMeasureAt: lastSeenAt } : {});

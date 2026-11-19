@@ -119,6 +119,31 @@
     "type": {
       "const": "session.start",
       "type": "string"
+    },
+    "worktreeCommands": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "ciphertext": {
+              "pattern": "^[A-Za-z0-9_-]*$",
+              "type": "string"
+            },
+            "key": {
+              "pattern": "^[A-Za-z0-9_-]*$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "ciphertext",
+            "key"
+          ],
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [
@@ -134,7 +159,8 @@
     "role",
     "sessionId",
     "title",
-    "type"
+    "type",
+    "worktreeCommands"
   ],
   "title": "RunnerSessionStart",
   "type": "object"

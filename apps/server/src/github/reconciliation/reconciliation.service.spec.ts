@@ -32,7 +32,7 @@ describe('the reconciliation of the followed repositories', () => {
         ScheduleModule.forRoot(),
         LoggerModule.forRoot(loggerParams(parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: 'postgresql://x@127.0.0.1:1/x' }), { write: (line: string) => lines.push(line) })),
       ],
-      providers: [ReconcileHooks, Reconciliation, { provide: GitHubInstallations, useValue: { linked: () => Promise.resolve(linked) } }],
+      providers: [ReconcileHooks, Reconciliation, { provide: GitHubInstallations, useValue: { linked: (pilotId?: string) => Promise.resolve(linked.filter((target) => pilotId === undefined || target.pilotId === pilotId)) } }],
     }).compile();
     app = moduleRef.createNestApplication({ logger: false });
     hooks = app.get(ReconcileHooks);
@@ -134,5 +134,26 @@ describe('the reconciliation of the followed repositories', () => {
     expect(started).toBe(2);
     await elapse(15 * 60_000);
     expect(started).toBe(4);
+  });
+
+  it('runs every hook over one Pilote’s installations only, at once for runFor', async () => {
+    linked.push({ installationId: 51000003, pilotId: PILOT_A });
+
+    await app.get(Reconciliation).runFor(PILOT_A);
+
+    expect(calls).toEqual([
+      { key: 'repositories', pilotId: PILOT_A, installationId: 51000001, scope: PILOT_A },
+      { key: 'issues', pilotId: PILOT_A, installationId: 51000001, scope: PILOT_A },
+      { key: 'repositories', pilotId: PILOT_A, installationId: 51000003, scope: PILOT_A },
+      { key: 'issues', pilotId: PILOT_A, installationId: 51000003, scope: PILOT_A },
+    ]);
+  });
+
+  it('logs and swallows a failure of runFor: the link that starts it does not wait on it', async () => {
+    vi.spyOn(app.get(GitHubInstallations), 'linked').mockRejectedValueOnce(new Error('database down'));
+
+    await expect(app.get(Reconciliation).runFor(PILOT_A)).resolves.toBeUndefined();
+
+    expect(lines.some((line) => line.includes('reconciliation failed'))).toBe(true);
   });
 });

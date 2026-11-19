@@ -49,6 +49,9 @@ type output struct {
 	file    *os.File
 	seq     int
 	streams []*stream
+	// service, once the run became a service, is where its output goes on,
+	// as it comes and never relayed.
+	service *os.File
 }
 
 // openOutput creates the run's log (mode 600) and, when the relay is on,
@@ -88,13 +91,54 @@ func (o *output) flush() {
 func (o *output) close() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	if o.service != nil {
+		_ = o.service.Close()
+		return
+	}
 	_ = o.file.Close()
 }
 
-// emit logs one chunk, then relays it.
+// handOver ends the run's log with line, then sends what the streams give
+// to the service's log.
+func (o *output) handOver(service *os.File, line string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.emitLocked(contracts.CommandOutputChunkStreamStdout, []byte(line))
+	_ = o.file.Close()
+	o.service = service
+}
+
+// takeBack makes the run's log, reopened, where the streams go again, its
+// chunks numbered on and relayed: once a service ended, what cleans its
+// worktree belongs to the run. Its service's log stays as it was.
+func (o *output) takeBack() error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.service == nil {
+		return nil
+	}
+	file, err := os.OpenFile(logPath(o.r.cfg.Home, o.runID), os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	_ = o.service.Close()
+	o.service, o.file = nil, file
+	return nil
+}
+
+// emit logs one chunk, then relays it; once handed over, it goes to the
+// service's log.
 func (o *output) emit(name contracts.CommandOutputChunkStream, text []byte) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	if o.service != nil {
+		_, _ = o.service.Write(text)
+		return
+	}
+	o.emitLocked(name, text)
+}
+
+func (o *output) emitLocked(name contracts.CommandOutputChunkStream, text []byte) {
 	o.seq++
 	chunk := Chunk{Seq: o.seq, At: time.Now().UTC().Truncate(time.Millisecond), Stream: name, Text: string(text)}
 	line, err := json.Marshal(chunk)

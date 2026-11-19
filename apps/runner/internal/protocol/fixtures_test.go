@@ -17,32 +17,36 @@ var fixturesDir = filepath.Join("..", "..", "..", "..", "packages", "contracts",
 // Each fixture of the protocol decodes into its generated type, and into the envelope with its type.
 func TestEveryFixtureOfTheProtocolDecodesIntoItsGeneratedType(t *testing.T) {
 	decoders := map[string]func([]byte) error{
-		TypeHello:               decodeInto[contracts.RunnerHello],
-		TypeHelloAccepted:       decodeInto[contracts.RunnerHelloAccepted],
-		TypeHelloRejected:       decodeInto[contracts.RunnerHelloRejected],
-		TypeHeartbeat:           decodeInto[contracts.RunnerHeartbeat],
-		TypeHeartbeatAck:        decodeInto[contracts.RunnerHeartbeatAck],
-		TypeError:               decodeInto[contracts.RunnerError],
-		TypeStepVerdict:         decodeInto[contracts.RunnerStepVerdict],
-		TypeCapabilities:        decodeInto[contracts.RunnerCapabilities],
-		TypeMcpServers:          decodeInto[contracts.RunnerMcpServers],
-		TypeGitHubChanged:       decodeInto[contracts.RunnerGithubChanged],
-		TypeMirrorResync:        decodeInto[contracts.RunnerMirrorResync],
-		TypeMirrorLive:          decodeInto[contracts.RunnerMirrorLive],
-		TypeMirrorProjects:      decodeInto[contracts.RunnerMirrorProjects],
-		TypeMirrorToken:         decodeInto[contracts.RunnerMirrorToken],
-		TypeMirrorTokenIssued:   decodeInto[contracts.RunnerMirrorTokenIssued],
-		TypeMirrorTokenFailed:   decodeInto[contracts.RunnerMirrorTokenFailed],
-		TypeUsage:               decodeInto[contracts.RunnerUsage],
-		TypeUsageAck:            decodeInto[contracts.RunnerUsageAck],
-		TypeSessionStart:        decodeInto[contracts.RunnerSessionStart],
-		TypeSessionStop:         decodeInto[contracts.RunnerSessionStop],
-		TypeSessionResume:       decodeInto[contracts.RunnerSessionResume],
-		TypeSessionState:        decodeInto[contracts.RunnerSessionState],
-		TypeFolderCheck:         decodeInto[contracts.RunnerFolderCheck],
-		TypeFolderChecked:       decodeInto[contracts.RunnerFolderChecked],
-		TypeProjectFolderAttach: decodeInto[contracts.RunnerProjectFolderAttach],
-		TypeProjectsFolders:     decodeInto[contracts.RunnerProjectsFolders],
+		TypeHello:                decodeInto[contracts.RunnerHello],
+		TypeHelloAccepted:        decodeInto[contracts.RunnerHelloAccepted],
+		TypeHelloRejected:        decodeInto[contracts.RunnerHelloRejected],
+		TypeHeartbeat:            decodeInto[contracts.RunnerHeartbeat],
+		TypeHeartbeatAck:         decodeInto[contracts.RunnerHeartbeatAck],
+		TypeError:                decodeInto[contracts.RunnerError],
+		TypeStepVerdict:          decodeInto[contracts.RunnerStepVerdict],
+		TypeCapabilities:         decodeInto[contracts.RunnerCapabilities],
+		TypeMcpServers:           decodeInto[contracts.RunnerMcpServers],
+		TypeGitHubChanged:        decodeInto[contracts.RunnerGithubChanged],
+		TypeMirrorResync:         decodeInto[contracts.RunnerMirrorResync],
+		TypeMirrorLive:           decodeInto[contracts.RunnerMirrorLive],
+		TypeMirrorProjects:       decodeInto[contracts.RunnerMirrorProjects],
+		TypeMirrorToken:          decodeInto[contracts.RunnerMirrorToken],
+		TypeMirrorTokenIssued:    decodeInto[contracts.RunnerMirrorTokenIssued],
+		TypeMirrorTokenFailed:    decodeInto[contracts.RunnerMirrorTokenFailed],
+		TypeUsage:                decodeInto[contracts.RunnerUsage],
+		TypeUsageAck:             decodeInto[contracts.RunnerUsageAck],
+		TypeSessionStart:         decodeInto[contracts.RunnerSessionStart],
+		TypeSessionStop:          decodeInto[contracts.RunnerSessionStop],
+		TypeSessionResume:        decodeInto[contracts.RunnerSessionResume],
+		TypeSessionState:         decodeInto[contracts.RunnerSessionState],
+		TypeVaultRotationPending: decodeInto[contracts.RunnerVaultRotationPending],
+		TypeVaultRotated:         decodeInto[contracts.RunnerVaultRotated],
+		TypeSessionWaiting:       decodeInto[contracts.RunnerSessionWaiting],
+		TypeSessionAnswered:      decodeInto[contracts.RunnerSessionAnswered],
+		TypeFolderCheck:          decodeInto[contracts.RunnerFolderCheck],
+		TypeFolderChecked:        decodeInto[contracts.RunnerFolderChecked],
+		TypeProjectFolderAttach:  decodeInto[contracts.RunnerProjectFolderAttach],
+		TypeProjectsFolders:      decodeInto[contracts.RunnerProjectsFolders],
 	}
 	entries, err := os.ReadDir(fixturesDir)
 	if err != nil {
@@ -301,5 +305,14 @@ func TestEveryFixtureOfTheCommandesDecodesIntoItsGeneratedType(t *testing.T) {
 	zero := 0
 	if passed := NewCommandVerdict(run, contracts.RunnerCommandVerdictReasonExited, &zero, 0); !passed.Passed {
 		t.Error("an exit code 0 does not pass")
+	}
+	if service := NewCommandVerdict(run, contracts.RunnerCommandVerdictReasonHealthy, nil, 0); !service.Passed || service.ExitCode != nil {
+		t.Errorf("a healthy service: %+v, want passed without an exit code", service)
+	}
+	if daemon := NewCommandVerdict(run, contracts.RunnerCommandVerdictReasonHealthy, &zero, 0); !daemon.Passed || daemon.ExitCode != 0 {
+		t.Errorf("a healthy run that exited 0: %+v, want passed, 0", daemon)
+	}
+	if late := NewCommandVerdict(run, contracts.RunnerCommandVerdictReasonHealthTimeout, nil, 0); late.Passed {
+		t.Error("a health-timeout passes")
 	}
 }

@@ -29,6 +29,17 @@ const zBase64Key = (bytes: number, { atLeast = false } = {}) =>
     .transform((value) => Buffer.from(value, 'base64'))
     .refine((key) => (atLeast ? key.length >= bytes : key.length === bytes), `${atLeast ? 'At least ' : ''}${bytes} bytes, in base64`);
 
+/**
+ * A VAPID key as `web-push generate-vapid-keys` prints it: base64url without
+ * padding, of exactly `bytes` (65 for the public P-256 point, 32 for the
+ * private scalar). Kept as its text, what `web-push` takes.
+ */
+const zVapidKey = (bytes: number) =>
+  z
+    .string()
+    .regex(/^[A-Za-z0-9_-]+$/, 'Base64url (web-push generate-vapid-keys)')
+    .refine((key) => Buffer.from(key, 'base64url').length === bytes, `${bytes} bytes, in base64url`);
+
 /** The variables of the GitHub App, required where the server talks to the real GitHub. */
 const GITHUB_APP_KEYS = [
   'GITHUB_APP_ID',
@@ -42,8 +53,13 @@ const GITHUB_APP_KEYS = [
 /** The keys of the sign-in (CORE-4), required where Pilotes sign in for good. */
 const AUTH_KEYS = ['GITHUB_TOKEN_KEY', 'SESSION_SECRET'] as const;
 
+/** The VAPID keys of Web Push (ATOI-4), required where pushes reach real browsers. */
+const VAPID_KEYS = ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'] as const;
 /** The mail of the sign-in by email (CORE-9), required where the links go to real addresses. */
 const MAIL_KEYS = ['SMTP_URL', 'MAIL_FROM'] as const;
+
+/** The Google OAuth client of the sign-in with Google (CORE-10; the clients, INFRA-15), required where Pilotes sign in for good. */
+const GOOGLE_KEYS = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'] as const;
 
 /** Where the page is served without `PUBLIC_URL`: Vite's dev server (`apps/web/vite.config.ts`). */
 const DEV_APP_URL = 'http://localhost:4200';
@@ -91,6 +107,19 @@ export const zEnv = z
     /** At least 32 bytes in base64: signs the sign-in's short-lived cookie. Same rule as GITHUB_TOKEN_KEY. */
     SESSION_SECRET: zBase64Key(32, { atLeast: true }).optional(),
     /**
+     * The VAPID key pair of Web Push (ATOI-4, ADR 0007): the push services
+     * check each push against the public key a browser subscribed with, so
+     * changing it ends every subscription. Required outside development and
+     * test, drawn at each boot there.
+     */
+    VAPID_PUBLIC_KEY: zVapidKey(65).optional(),
+    VAPID_PRIVATE_KEY: zVapidKey(32).optional(),
+    /** Who the push services may write to about this server's pushes: a `mailto:` or an `https:` URL. Same rule. */
+    VAPID_SUBJECT: z
+      .string()
+      .regex(/^(mailto:.+|https:\/\/.+)$/, 'A mailto: or an https: URL')
+      .optional(),
+    /**
      * The SMTP relay the sign-in links leave by (`smtps://user:password@host:465`,
      * INFRA-14). Required outside development and test; unset there, the links
      * stay in the server's memory (`GET /api/testing/mails` with the fakes).
@@ -98,6 +127,13 @@ export const zEnv = z
     SMTP_URL: z.url({ protocol: /^smtps?$/ }).optional(),
     /** The sender of those mails (`Crewdeck <connexion@crewdeck.example>`). Same rule as SMTP_URL. */
     MAIL_FROM: z.string().min(1).optional(),
+    /**
+     * The OAuth client of the sign-in with Google (ADR 0014, INFRA-15).
+     * Required outside development and test; unset there without the fakes,
+     * « Continuer avec Google » comes back with `google-unavailable`.
+     */
+    GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+    GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
     /**
      * `1`: the fake GitHub (and the fake Runner) in place of the real ones,
      * with the test scenarios (`pnpm dev`, the end-to-end tests). Refused in
@@ -119,9 +155,12 @@ export const zEnv = z
       require('PUBLIC_URL', 'outside development and test');
       for (const key of GITHUB_APP_KEYS) require(key, 'outside development and test');
       for (const key of AUTH_KEYS) require(key, 'outside development and test');
+      for (const key of VAPID_KEYS) require(key, 'outside development and test');
       for (const key of MAIL_KEYS) require(key, 'outside development and test');
+      for (const key of GOOGLE_KEYS) require(key, 'outside development and test');
     }
     if (env.SMTP_URL !== undefined) require('MAIL_FROM', 'with SMTP_URL');
+    if (env.GOOGLE_CLIENT_ID !== undefined) require('GOOGLE_CLIENT_SECRET', 'with GOOGLE_CLIENT_ID');
     if (env.CREWDECK_FAKES !== undefined && (deployed || env.NODE_ENV === 'production')) {
       context.addIssue({ code: 'custom', path: ['CREWDECK_FAKES'], message: 'Refused in production: the fakes never replace GitHub there' });
     }
@@ -138,7 +177,7 @@ export const isDeployed = (env: Env): boolean => env.CREWDECK_ENV === 'productio
 /** The page's origin (`https://crewdeck.example`): `PUBLIC_URL`'s, else Vite's dev server. */
 export const appOrigin = (env: Env): string => new URL(env.PUBLIC_URL ?? DEV_APP_URL).origin;
 
-/** Whether the fakes replace GitHub and the Runner (`CREWDECK_FAKES=1`). */
+/** Whether the fakes replace GitHub, Google and the Runner (`CREWDECK_FAKES=1`). */
 export const usesFakes = (env: Env): boolean => env.CREWDECK_FAKES === '1';
 
 export class InvalidEnvError extends Error {

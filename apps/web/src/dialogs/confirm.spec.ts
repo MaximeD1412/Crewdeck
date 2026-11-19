@@ -3,7 +3,7 @@ import '@crewdeck/skin-passerelle/tokens.css';
 import * as sdk from '@crewdeck/sdk';
 import { COMPOSANTS, t } from '@crewdeck/sdk';
 import { userEvent } from 'vitest/browser';
-import { CONFIRM_TAG, confirmSensitiveAction, CrewdeckConfirm, type ConfirmOptions } from './confirm.js';
+import { CONFIRM_TAG, confirmProductAction, confirmSensitiveAction, CrewdeckConfirm, type ConfirmOptions } from './confirm.js';
 
 const options: ConfirmOptions = {
   action: 'loop.start',
@@ -139,5 +139,17 @@ describe('crewdeck-confirm', () => {
     expect(Object.keys(COMPOSANTS)).not.toContain('ConfirmDialog');
     expect(Object.values(COMPOSANTS).map((d) => d.tag as string)).not.toContain(CONFIRM_TAG);
     expect(Object.keys(sdk).filter((name) => /confirm/i.test(name))).toEqual([]);
+  });
+
+  it('confirms a product’s action the same way, without calling it an Action sensible (E2E-4: « Retirer » an Appareil)', async () => {
+    const answer = confirmProductAction({ consequences: options.consequences, icon: options.icon, title: 'Retirer « Firefox sur Linux » ?', confirmLabel: 'Retirer l’Appareil', tone: 'danger' });
+    await expect.poll(() => document.querySelector(CONFIRM_TAG) !== null && dialog()?.open).toBe(true);
+    expect(dialog().getAttribute('role')).toBe('alertdialog');
+    expect(shadow().querySelector('.mark')?.textContent?.trim()).toBe(t('confirm.mark.product'));
+    expect(shadow().querySelector('h2')?.textContent).toBe('Retirer « Firefox sur Linux » ?');
+    // One core confirmation at a time, whichever kind.
+    expect(await confirmSensitiveAction(options)).toBe(false);
+    button('Retirer l’Appareil').click();
+    expect(await answer).toBe(true);
   });
 });

@@ -1,3 +1,4 @@
+import { AccountIdentities } from './account-identities.js';
 import { AgentRow } from './agent-row.js';
 import { Banner } from './banner.js';
 import { Button } from './button.js';
@@ -30,8 +31,10 @@ import { PageConnexion } from './page-connexion.js';
 import { PageConnexionLien } from './page-connexion-lien.js';
 import { PageDemarrage } from './page-demarrage.js';
 import { PageParametres } from './page-parametres.js';
+import { PageParametresProjet } from './page-parametres-projet.js';
 import { PageHeader } from './page-header.js';
 import { PageIntrouvable } from './page-introuvable.js';
+import { PageProcessEditor } from './page-process-editor.js';
 import { PageProjet } from './page-projet.js';
 import { PageProjets } from './page-projets.js';
 import { PageRunner } from './page-runner.js';
@@ -42,6 +45,7 @@ import { ProcessCanvas } from './process-canvas.js';
 import { PhaseGroup } from './phase-group.js';
 import { ProcessTrack } from './process-track.js';
 import { ProjectFilter } from './project-filter.js';
+import { PushSettings } from './push-settings.js';
 import { Question } from './question.js';
 import { Radio } from './radio.js';
 import { RepositoryPicker } from './repository-picker.js';
@@ -68,6 +72,7 @@ import { ToolChip } from './tool-chip.js';
 import { UsageCard } from './usage-card.js';
 import { UsageMeter } from './usage-meter.js';
 
+export * from './account-identities.js';
 export * from './action.js';
 export * from './agent-row.js';
 export * from './banner.js';
@@ -104,8 +109,10 @@ export * from './page-connexion.js';
 export * from './page-connexion-lien.js';
 export * from './page-demarrage.js';
 export * from './page-parametres.js';
+export * from './page-parametres-projet.js';
 export * from './page-header.js';
 export * from './page-introuvable.js';
+export * from './page-process-editor.js';
 export * from './page-projet.js';
 export * from './page-projets.js';
 export * from './page-runner.js';
@@ -116,6 +123,7 @@ export * from './process-canvas.js';
 export * from './phase-group.js';
 export * from './process-track.js';
 export * from './project-filter.js';
+export * from './push-settings.js';
 export * from './question.js';
 export * from './radio.js';
 export * from './repository-picker.js';
@@ -161,9 +169,11 @@ export const COMPOSANTS = {
   PageConnexionLien,
   PageDemarrage,
   PageParametres,
+  PageParametresProjet,
   PageIntrouvable,
   PageProjet,
   PageProjets,
+  PageProcessEditor,
   PageRunner,
   Card,
   CodeBlock,
@@ -173,6 +183,8 @@ export const COMPOSANTS = {
   RepositoryPicker,
   FolderProjectForm,
   RoleSettings,
+  PushSettings,
+  AccountIdentities,
   Session,
   Message,
   ToolCall,

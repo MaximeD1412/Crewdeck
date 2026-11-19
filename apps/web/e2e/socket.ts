@@ -17,7 +17,8 @@ export const routeSocket = async (page: Page): Promise<SocketCut> => {
   let held = false;
   // Each socket the page opened, and its server's side when it reaches the server.
   const sockets: { page: WebSocketRoute; server: WebSocketRoute | null }[] = [];
-  await page.routeWebSocket('**/api/ws', (ws) => {
+  // By its path: a tab's socket names its Appareil in its query (`?device=<id>`, E2E-4).
+  await page.routeWebSocket((url) => url.pathname === '/api/ws', (ws) => {
     sockets.push({ page: ws, server: held ? null : ws.connectToServer() });
   });
   const closeAll = async () => {

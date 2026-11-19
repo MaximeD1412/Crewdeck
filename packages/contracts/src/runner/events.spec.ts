@@ -7,9 +7,9 @@ const read = (path: string): Record<string, unknown> => JSON.parse(readFileSync(
 const event = (kind: string) => read(`events/${kind}.json`);
 
 describe('the normalised events of a Moteur', () => {
-  it('are those of docs/spikes/engines.md, the spike having added none', () => {
+  it('are those of docs/spikes/engines.md, and the answer a request took (SESSION-3)', () => {
     expect([...ENGINE_EVENT_KINDS].sort()).toEqual(
-      ['auth-required', 'error', 'limit-reached', 'message', 'permission-request', 'question', 'result', 'tool-call', 'tool-result', 'usage'].sort(),
+      ['answer', 'auth-required', 'error', 'limit-reached', 'message', 'permission-request', 'question', 'result', 'tool-call', 'tool-result', 'usage'].sort(),
     );
   });
 
@@ -52,6 +52,26 @@ describe('the normalised events of a Moteur', () => {
     expect(zEngineEvent.safeParse({ ...usage, costUsdMicros: 0.5 }).success).toBe(false);
     expect(zEngineEvent.parse({ ...event('limit-reached'), window: 'unknown' })).toMatchObject({ window: 'unknown' });
     expect(zEngineEvent.safeParse({ ...event('limit-reached'), window: 'month' }).success).toBe(false);
+  });
+});
+
+describe('the requests of a Moteur and their answers', () => {
+  it('place a question among several of the same request, its index from 1 and their count, or neither', () => {
+    const question = event('question');
+    expect(zEngineEvent.parse({ ...question, index: 1, count: 3 })).toMatchObject({ index: 1, count: 3 });
+    expect(zEngineEvent.safeParse({ ...question, index: 1 }).success).toBe(false);
+    expect(zEngineEvent.safeParse({ ...question, index: 4, count: 3 }).success).toBe(false);
+    expect(zEngineEvent.safeParse({ ...question, index: 0, count: 3 }).success).toBe(false);
+  });
+
+  it('answer a question with the labels chosen or a text, a permission with a decision, one of them only', () => {
+    const answer = event('answer');
+    const base = { kind: 'answer', seq: answer.seq, at: answer.at, requestId: answer.requestId };
+    expect(zEngineEvent.parse({ ...base, text: 'Rouge, mais foncé' })).toMatchObject({ text: 'Rouge, mais foncé' });
+    for (const decision of ['allow', 'allow-session', 'deny']) expect(zEngineEvent.parse({ ...base, decision })).toMatchObject({ decision });
+    expect(zEngineEvent.safeParse({ ...base, decision: 'always' }).success).toBe(false);
+    expect(zEngineEvent.safeParse(base).success).toBe(false);
+    expect(zEngineEvent.safeParse({ ...base, text: 'oui', decision: 'allow' }).success).toBe(false);
   });
 });
 

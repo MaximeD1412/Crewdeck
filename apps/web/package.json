@@ -13,6 +13,7 @@
   "devDependencies": {
     "@axe-core/playwright": "catalog:",
     "@playwright/test": "catalog:",
+    "@resvg/resvg-js": "catalog:",
     "@types/node": "catalog:",
     "@types/qrcode": "catalog:",
     "@vitest/browser-playwright": "catalog:",

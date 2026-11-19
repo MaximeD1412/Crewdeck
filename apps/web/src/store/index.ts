@@ -1,7 +1,9 @@
 import { type Idea, type PhaseRun, type StepRun, UNFINISHED_PHASE_RUN_STATES, zState } from '@crewdeck/contracts';
 import { holdsIdea } from './ideas.js';
 import { createClient } from '../api/client.js';
+import { currentDeviceId, deviceRevoked } from '../api/request.js';
 import { createConnection } from './connection.js';
+import { applySettingsEvent } from './settings.js';
 import { createStore } from './store.js';
 
 /**
@@ -18,6 +20,8 @@ store.registerSlice('runner-link', { shape: 'single' });
 store.registerSlice('ai-account', { shape: 'collection' });
 store.registerSlice('mcp-server', { shape: 'collection' });
 store.registerSlice('device', { shape: 'collection', snapshotKey: 'devices' });
+store.registerSlice('push-subscription', { shape: 'collection', snapshotKey: 'push-subscriptions' });
+store.registerSlice('vault', { shape: 'single' });
 store.registerSlice('project', { shape: 'collection', snapshotKey: 'projects' });
 store.registerSlice('process', { shape: 'collection', snapshotKey: 'processes' });
 // As `GET /api/state`: the unfinished PhaseRuns and their StepRuns, a finished one dropped with its StepRuns (PROCESS-4).
@@ -29,7 +33,7 @@ store.registerSlice('ticket', { shape: 'collection', snapshotKey: 'tickets' });
 store.registerSlice('milestone', { shape: 'collection', snapshotKey: 'milestones' });
 store.registerSlice('code-change', { shape: 'collection', snapshotKey: 'codeChanges' });
 store.registerSlice('agent-session', { shape: 'collection', snapshotKey: 'sessions' });
-store.registerSlice('settings', { shape: 'single' });
+store.registerSlice('settings', { shape: 'single', apply: applySettingsEvent });
 store.registerSlice('usage', { shape: 'collection' });
 
 export const client = createClient({
@@ -37,4 +41,5 @@ export const client = createClient({
   onStale: () => connection.catchUp(),
 });
 
-export const connection = createConnection({ store, snapshot: () => client.query('/api/state', zState) });
+// The tab's Appareil named in its socket (E2E-4): revoked, the server closes it with 4403 and the page forgets it.
+export const connection = createConnection({ store, snapshot: () => client.query('/api/state', zState), device: currentDeviceId, forgetDevice: deviceRevoked });

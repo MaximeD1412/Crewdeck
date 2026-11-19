@@ -26,7 +26,7 @@ const type = (el: Element, value: string) => {
 };
 
 describe('PageConnexion', () => {
-  it('welcomes the Pilote: the email field and « Recevoir un lien », then « ou » and the secondary GitHub button, then the help', async () => {
+  it('welcomes the Pilote: the email field and « Recevoir un lien », then « ou », the secondary Google then GitHub buttons, then the help', async () => {
     const el = await render(COMPOSANTS.PageConnexion, NOMINAL);
     expect(textOf(inside(el, 'h1'))).toBe('Bienvenue sur Crewdeck');
     expect(textOf(inside(el, '[part=lead]'))).toBe(t('connexion.lead'));
@@ -36,10 +36,12 @@ describe('PageConnexion', () => {
     expect(buttonData(el, 'cd-button.request')).toMatchObject({ label: 'Recevoir un lien', variant: 'primary', icon: 'send' });
     expect(buttonData(el, 'cd-button.request').state).toBeUndefined();
     expect(textOf(inside(el, '[part=or]'))).toBe('ou');
+    expect(buttonData(el, 'cd-button.google')).toMatchObject({ label: 'Continuer avec Google', variant: 'secondary' });
+    expect(buttonData(el, 'cd-button.google').icon).toBeUndefined();
     expect(buttonData(el, 'cd-button.github')).toMatchObject({ label: 'Continuer avec GitHub', variant: 'secondary', icon: 'github' });
-    expect(textOf(inside(el, '[part=help]'))).toBe('Pas de mot de passe : un lien par e-mail, ou ton compte GitHub.');
+    expect(textOf(inside(el, '[part=help]'))).toBe('Pas de mot de passe : un lien par e-mail, ou ton compte Google ou GitHub.');
     expect(el.shadowRoot?.querySelector('cd-banner')).toBeNull();
-    const order = ['cd-text-field', 'cd-button.request', '[part=or]', 'cd-button.github', '[part=help]'].map((selector) => inside(el, selector));
+    const order = ['cd-text-field', 'cd-button.request', '[part=or]', 'cd-button.google', 'cd-button.github', '[part=help]'].map((selector) => inside(el, selector));
     for (const [index, node] of order.slice(1).entries()) {
       expect(order[index]?.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
@@ -61,10 +63,13 @@ describe('PageConnexion', () => {
     expect(actions).toEqual([{ composant: 'PageConnexion', action: 'requestLink', payload: { email: 'pilote@example.com' } }]);
   });
 
-  it('« Continuer avec GitHub » emits signInWith github', async () => {
+  it.each([
+    ['Google', 'google'],
+    ['GitHub', 'github'],
+  ] as const)('« Continuer avec %s » emits signInWith %s', async (_name, provider) => {
     const el = await render(COMPOSANTS.PageConnexion, NOMINAL);
-    const actions = await actionsOf(() => inside(el, 'cd-button.github', 'button').click());
-    expect(actions).toEqual([{ composant: 'PageConnexion', action: 'signInWith', payload: { provider: 'github' } }]);
+    const actions = await actionsOf(() => inside(el, `cd-button.${provider}`, 'button').click());
+    expect(actions).toEqual([{ composant: 'PageConnexion', action: 'signInWith', payload: { provider } }]);
   });
 
   it('busy, « Recevoir un lien » is loading and nothing is requested again, the address kept', async () => {
@@ -105,6 +110,12 @@ describe('PageConnexion', () => {
     expect(t('connexion.error.link-invalid')).toBe('Ce lien de connexion n’est plus valable : demande-en un nouveau.');
   });
 
+  it('names the Google cases as the ticket does, and a refusal whatever the account', () => {
+    expect(t('connexion.error.google-unavailable')).toBe('Google ne répond pas, réessaie dans un instant.');
+    expect(t('connexion.error.google-unverified')).toBe('Ton adresse Google n’est pas vérifiée : vérifie-la chez Google, ou reçois un lien par e-mail.');
+    expect(t('connexion.error.denied')).not.toMatch(/GitHub|Google/);
+  });
+
   it('once the link is sent, a go banner with the address and « Changer d’adresse » take the field’s place', async () => {
     const el = await render(COMPOSANTS.PageConnexion, { ...NOMINAL, sentTo: 'pilote@example.com' });
     expect(el.shadowRoot?.querySelector('cd-text-field')).toBeNull();
@@ -115,6 +126,7 @@ describe('PageConnexion', () => {
     const change = inside(el, 'cd-button.change') as HTMLElement & { data: unknown };
     expect(change.getAttribute('slot')).toBe('actions');
     expect(change.data).toMatchObject({ label: 'Changer d’adresse', variant: 'ghost' });
+    expect(buttonData(el, 'cd-button.google')).toMatchObject({ label: 'Continuer avec Google' });
     expect(buttonData(el, 'cd-button.github')).toMatchObject({ label: 'Continuer avec GitHub' });
     const actions = await actionsOf(() => inside(el, 'cd-button.change', 'button').click());
     expect(actions).toEqual([{ composant: 'PageConnexion', action: 'changeEmail', payload: {} }]);
@@ -134,7 +146,7 @@ describe('PageConnexion', () => {
     await page.viewport(390, 800);
     const el = await render(COMPOSANTS.PageConnexion, NOMINAL);
     const width = inside(el, 'cd-text-field', 'input').getBoundingClientRect().width;
-    for (const selector of ['cd-button.request', 'cd-button.github']) {
+    for (const selector of ['cd-button.request', 'cd-button.google', 'cd-button.github']) {
       expect(inside(el, selector, 'button').getBoundingClientRect().width).toBeCloseTo(width, 0);
     }
   });

@@ -35,12 +35,15 @@
     "reason": {
       "enum": [
         "exited",
+        "healthy",
         "timeout",
+        "health-timeout",
         "stopped",
         "busy",
         "sealed-invalid",
         "place-unavailable",
-        "spawn-failed"
+        "spawn-failed",
+        "setup-failed"
       ],
       "type": "string"
     },

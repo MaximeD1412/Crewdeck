@@ -2,6 +2,7 @@ package engine_test
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
@@ -63,5 +64,31 @@ func TestStampSetsTheSeqAndTheInstantOfAnEventOfAnyKindWithoutTouchingTheOrigina
 	}
 	if empty := engine.Stamp(contracts.EngineEvent{}, 1, at); empty.Value() != nil {
 		t.Fatalf("stamped an empty event into %+v", empty)
+	}
+}
+
+func TestAnswerEventSaysTheAnswerGiven(t *testing.T) {
+	yes, no := true, false
+	cases := []struct {
+		answer engine.Answer
+		want   string
+	}{
+		{engine.Answer{Options: []string{"Bleu", "Vert"}}, `{"kind":"answer","seq":0,"at":"0001-01-01T00:00:00Z","requestId":"r","options":["Bleu","Vert"]}`},
+		{engine.Answer{Text: "Les deux"}, `{"kind":"answer","seq":0,"at":"0001-01-01T00:00:00Z","requestId":"r","text":"Les deux"}`},
+		{engine.Answer{Allow: &yes}, `{"kind":"answer","seq":0,"at":"0001-01-01T00:00:00Z","requestId":"r","decision":"allow"}`},
+		{engine.Answer{Allow: &yes, ForSession: true}, `{"kind":"answer","seq":0,"at":"0001-01-01T00:00:00Z","requestId":"r","decision":"allow-session"}`},
+		{engine.Answer{Allow: &no, Text: "Pas encore"}, `{"kind":"answer","seq":0,"at":"0001-01-01T00:00:00Z","requestId":"r","decision":"deny"}`},
+	}
+	for _, c := range cases {
+		data, err := json.Marshal(engine.AnswerEvent("r", c.answer))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got, want map[string]any
+		_ = json.Unmarshal(data, &got)
+		_ = json.Unmarshal([]byte(c.want), &want)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("AnswerEvent(%+v) = %s, want %s", c.answer, data, c.want)
+		}
 	}
 }

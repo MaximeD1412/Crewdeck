@@ -62,7 +62,7 @@ func TestTheRunnerHoldsTheAppareilsAnApprovalVouchesFor(t *testing.T) {
 		}(),
 	}
 
-	got := authenticatedHolders(runner, pub(first), listed)
+	got := authenticatedHolders(runner, pub(first), contracts.RunnerDeviceHolders{Holders: listed})
 	want := [][]byte{pub(first), pub(laptop), pub(phone), pub(tablet)}
 	if len(got) != len(want) {
 		t.Fatalf("holders %d, want %d", len(got), len(want))
@@ -77,6 +77,49 @@ func TestTheRunnerHoldsTheAppareilsAnApprovalVouchesFor(t *testing.T) {
 	}
 }
 
+// voucher is a revoked Appareil's entry, listed by the server for the chain
+// only (E2E-4).
+func voucher(e contracts.RunnerDeviceHoldersHoldersElem) contracts.RunnerDeviceHoldersVouchersElem {
+	return contracts.RunnerDeviceHoldersVouchersElem{
+		DeviceId: e.DeviceId, PublicKey: e.PublicKey, ApproverPublicKey: e.ApproverPublicKey,
+		Wrap: contracts.RunnerDeviceHoldersVouchersElemWrap{Enc: e.Wrap.Enc, Ciphertext: e.Wrap.Ciphertext, Tag: e.Wrap.Tag},
+	}
+}
+
+// The first Appareil approved the laptop, the laptop the phone, then the
+// laptop was revoked (E2E-4): its approval still vouches for the phone, in
+// any order, but the laptop is never a holder again; a voucher the Runner
+// cannot authenticate vouches for nothing.
+func TestARevokedApproverStillVouchesForTheAppareilsItApproved(t *testing.T) {
+	runner, first, laptop, phone, intruder, tablet := mustKey(t), mustKey(t), mustKey(t), mustKey(t), mustKey(t), mustKey(t)
+	own := keys.PublicKeyBytes(runner)
+	pub := keys.PublicKeyBytes
+	const laptopID, phoneID, intruderID, tabletID = "01933b6e-8f3a-7c4d-9e2f-0a1b2c3d4e71", "01933b6e-8f3a-7c4d-9e2f-0a1b2c3d4e72", "01933b6e-8f3a-7c4d-9e2f-0a1b2c3d4e73", "01933b6e-8f3a-7c4d-9e2f-0a1b2c3d4e74"
+
+	got := authenticatedHolders(runner, pub(first), contracts.RunnerDeviceHolders{
+		Holders: []contracts.RunnerDeviceHoldersHoldersElem{
+			vouch(t, laptop, own, phoneID, pub(phone)),
+			// The tablet, "approved" by a voucher no held key vouches for.
+			vouch(t, intruder, own, tabletID, pub(tablet)),
+		},
+		Vouchers: []contracts.RunnerDeviceHoldersVouchersElem{
+			voucher(vouch(t, first, own, laptopID, pub(laptop))),
+			voucher(vouch(t, mustKey(t), own, intruderID, pub(intruder))),
+		},
+	})
+	if len(got) != 2 || !bytes.Equal(got[0], pub(first)) || !bytes.Equal(got[1], pub(phone)) {
+		t.Fatalf("holders %x, want the first Appareil and the phone", got)
+	}
+
+	// A voucher alone is never a holder.
+	got = authenticatedHolders(runner, pub(first), contracts.RunnerDeviceHolders{
+		Vouchers: []contracts.RunnerDeviceHoldersVouchersElem{voucher(vouch(t, first, own, laptopID, pub(laptop)))},
+	})
+	if len(got) != 1 || !bytes.Equal(got[0], pub(first)) {
+		t.Fatalf("holders %x, want the first Appareil only", got)
+	}
+}
+
 // The relay reads the holders again at each wrap, from the server; a server
 // that does not answer leaves the first Appareil, said in the log.
 func TestTheRelaysHoldersAreReadAgainAtEachWrap(t *testing.T) {
@@ -86,10 +129,10 @@ func TestTheRelaysHoldersAreReadAgainAtEachWrap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var listed []contracts.RunnerDeviceHoldersHoldersElem
+	var listed contracts.RunnerDeviceHolders
 	var fail error
 	var warned []error
-	relay, err := relayKeys(store, func(context.Context) ([]contracts.RunnerDeviceHoldersHoldersElem, error) { return listed, fail }, func(err error) { warned = append(warned, err) })
+	relay, err := relayKeys(store, func(context.Context) (contracts.RunnerDeviceHolders, error) { return listed, fail }, func(err error) { warned = append(warned, err) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +141,7 @@ func TestTheRelaysHoldersAreReadAgainAtEachWrap(t *testing.T) {
 	if err != nil || len(holders) != 1 || !bytes.Equal(holders[0], w.DevicePublicKey) {
 		t.Fatalf("holders %x (%v), want the linked Appareil's only", holders, err)
 	}
-	listed = []contracts.RunnerDeviceHoldersHoldersElem{vouch(t, s.runner, keys.PublicKeyBytes(s.runner), newDeviceID, keys.PublicKeyBytes(s.phone))}
+	listed = contracts.RunnerDeviceHolders{Holders: []contracts.RunnerDeviceHoldersHoldersElem{vouch(t, s.runner, keys.PublicKeyBytes(s.runner), newDeviceID, keys.PublicKeyBytes(s.phone))}}
 	holders, err = relay.Holders()
 	if err != nil || len(holders) != 2 || !bytes.Equal(holders[1], keys.PublicKeyBytes(s.phone)) {
 		t.Fatalf("holders %x (%v), want the approved Appareil too", holders, err)

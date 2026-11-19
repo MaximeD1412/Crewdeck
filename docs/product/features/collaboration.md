@@ -80,7 +80,7 @@ Avis. The Pilote's approval stays the gate.
 - **US-130** (next) As a Relecteur, I want to comment on a passage of a document or on a zone of a mockup or a capture, on the PC or the phone, and give my Avis (« approuvé » or « changements demandés ») on the Version soumise I read, so that my feedback is precise and kept.
 - **US-131** (next) As a Pilote, I want the Avis of the Relecteurs on the Décision of the review (« Avis client : approuvé par Claire, version 2 »), my approval staying the Action sensible that decides, and to submit the next version when the agent changed it, each Avis staying with the version it was given on, so that I decide knowing what my client thinks.
 - **US-132** (next) As a Membre, I want my own « À toi » with what waits for me (a Version soumise to review, a Décision I may settle), with an email for a Relecteur and the Pilote's notifications for the other Accès, so that nobody waits for me without my knowing.
-- **US-133** (next) As the person who asks for changes (the Pilote, or a Membre allowed to approve), I want to choose which comments of the Membres go to the agent as its Retour, all checked by default, so that a comment never becomes an instruction on its own.
+- **US-133** (next) As a Pilote, or a Membre allowed to approve, I want to choose, when I ask for changes, which comments of the Membres go to the agent as its Retour, all checked by default, so that a comment never becomes an instruction on its own.
 
 ### Working as a team
 Contributeurs follow and feed the Projet without driving the agents;

@@ -1,4 +1,4 @@
-import { createGithubToken } from './github-token.js';
+import { createGithubToken, GithubNotLinkedError } from './github-token.js';
 import { ApiError } from './request.js';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -50,6 +50,19 @@ describe('the GitHub token of the page', () => {
     const error = await token.get().catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({ status: 401, code: 'auth.github-expired' });
+    await expect(token.get()).resolves.toBe('ghu_1');
+  });
+
+  it('rejects a Pilote without GitHub with GithubNotLinkedError, not a sign-out, and asks again once linked', async () => {
+    const message = 'Relie ton compte GitHub dans les Paramètres pour continuer.';
+    fetchMock.mockResolvedValueOnce(json(409, { status: 409, code: 'github.not-linked', message }));
+    fetchMock.mockResolvedValueOnce(json(200, { accessToken: 'ghu_1', expiresAt: at(10 * MINUTE) }));
+    const token = createGithubToken();
+
+    const error = await token.get().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(GithubNotLinkedError);
+    expect(error).toMatchObject({ status: 409, code: 'github.not-linked', message });
+    expect(error).not.toMatchObject({ status: 401 });
     await expect(token.get()).resolves.toBe('ghu_1');
   });
 

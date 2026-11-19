@@ -1,11 +1,27 @@
 import { zGithubToken, type GithubToken } from '@crewdeck/contracts';
-import { request } from './request.js';
+import { ApiError, request } from './request.js';
 
 /** A token is asked again this long before it expires: a read started with it still finishes in time. */
 const MARGIN_MS = 60_000;
 
+/**
+ * The Pilote has no GitHub linked (CORE-11, ADR 0014): 409 `github.not-linked`.
+ * The page stays signed in; the reader offers « Relier GitHub » instead.
+ */
+export class GithubNotLinkedError extends ApiError {
+  constructor(error: ApiError) {
+    super({ status: error.status, code: error.code, message: error.message });
+    this.name = 'GithubNotLinkedError';
+  }
+}
+
+const notLinked = (error: unknown): never => {
+  if (error instanceof ApiError && error.code === 'github.not-linked') throw new GithubNotLinkedError(error);
+  throw error;
+};
+
 export interface GithubTokenSource {
-  /** The Pilote's GitHub access token, to read GitHub from the page (ADR 0002). */
+  /** The Pilote's GitHub access token, to read GitHub from the page (ADR 0002); a `GithubNotLinkedError` without GitHub. */
   get(): Promise<string>;
   /** Forgets it: on sign-out. */
   clear(): void;
@@ -28,7 +44,9 @@ export const createGithubToken = (): GithubTokenSource => {
   return {
     async get() {
       if (fresh(cached)) return cached.accessToken;
-      pending ??= request('POST', '/api/github/token', zGithubToken).finally(() => (pending = null));
+      pending ??= request('POST', '/api/github/token', zGithubToken)
+        .catch(notLinked)
+        .finally(() => (pending = null));
       const asked = generation;
       const token = await pending;
       if (asked === generation) cached = token;

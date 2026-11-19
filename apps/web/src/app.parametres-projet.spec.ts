@@ -7,7 +7,7 @@ import { boot, type App } from './app.js';
 import { applySettingsEvent } from './store/settings.js';
 import { createStore } from './store/store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [], githubLinked: false };
 const AT = '2026-11-12T09:00:00.000Z';
 const PROJECT: Project = {
   id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a80',

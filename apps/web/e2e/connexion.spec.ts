@@ -111,8 +111,8 @@ test.describe('the sign-in (US-1)', () => {
     expect(await signInByLink(page)).toBe(me.id);
     expect(await identitiesOf(page)).toEqual(
       expect.arrayContaining([
-        { provider: 'google', label: ADDRESS },
-        { provider: 'email', label: ADDRESS },
+        { provider: 'google', label: ADDRESS, reconnect: false },
+        { provider: 'email', label: ADDRESS, reconnect: false },
       ]),
     );
   });
@@ -127,8 +127,8 @@ test.describe('the sign-in (US-1)', () => {
     expect(identities).toHaveLength(2);
     expect(identities).toEqual(
       expect.arrayContaining([
-        { provider: 'email', label: ADDRESS },
-        { provider: 'google', label: ADDRESS },
+        { provider: 'email', label: ADDRESS, reconnect: false },
+        { provider: 'google', label: ADDRESS, reconnect: false },
       ]),
     );
   });

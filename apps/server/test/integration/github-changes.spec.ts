@@ -171,7 +171,7 @@ describe('the envelopes of GitHub’s changes for the Runner’s Miroir, against
     logs.length = 0;
     pilotId = newId();
     token = undefined;
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, getting_started_step) VALUES ($1, $2, 'octo-fixture', 'Europe/Paris', 'projects')`, [
+    await sql(`WITH p AS (INSERT INTO pilots (id, display_name, time_zone, getting_started_step) VALUES ($1, 'octo-fixture', 'Europe/Paris', 'projects') RETURNING id) INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) SELECT gen_random_uuid(), id, 'github', $2::text, 'octo-fixture' FROM p`, [
       pilotId,
       SENDER_ID,
     ]);
@@ -460,7 +460,7 @@ describe('the envelopes of GitHub’s changes for the Runner’s Miroir, against
       const mine = { pilotId, cookie, token };
       pilotId = newId();
       token = undefined;
-      await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, getting_started_step) VALUES ($1, $2, 'octo-other', 'Europe/Paris', 'projects')`, [
+      await sql(`WITH p AS (INSERT INTO pilots (id, display_name, time_zone, getting_started_step) VALUES ($1, 'octo-other', 'Europe/Paris', 'projects') RETURNING id) INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) SELECT gen_random_uuid(), id, 'github', $2::text, 'octo-other' FROM p`, [
         pilotId,
         OTHER_SENDER_ID,
       ]);

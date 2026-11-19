@@ -182,7 +182,7 @@ describe('the engine against PostgreSQL', () => {
     fakes.github.reset();
     fakes.github.seedRepo({ ...APP_REPO, installationId: INSTALLATION_ID, files: { 'README.md': '# App' } });
     const id = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, getting_started_step) VALUES ($1, $2, 'octo-fixture', 'Europe/Paris', 'projects')`, [id, SENDER_ID]);
+    await sql(`WITH p AS (INSERT INTO pilots (id, display_name, time_zone, getting_started_step) VALUES ($1, 'octo-fixture', 'Europe/Paris', 'projects') RETURNING id) INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) SELECT gen_random_uuid(), id, 'github', $2::text, 'octo-fixture' FROM p`, [id, SENDER_ID]);
     const token = await runInPilotScope(id, () => app.get(WebSessions).open(prisma.scoped, id, undefined));
     alice = { id, cookie: `${SESSION_COOKIE}=${token}` };
     // Alice follows the fixture's repository: her Projet, its version 1 « Process Crewdeck ».

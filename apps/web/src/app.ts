@@ -1,5 +1,6 @@
 import type { EmailLinkVerified, Me } from '@crewdeck/contracts';
 import {
+  AccountIdentities,
   Cadre,
   PageAToi,
   PageComposants,
@@ -50,7 +51,7 @@ import { createSessionRelay, type SessionRelay } from './sessions/relay.js';
 import { routeData, routeSlots, startRouter, type Route, type RouteMatch, type Router } from './router.js';
 import { aToiHref, composantsHref, ideesHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
-import { HOME_PATH, providerSignInHref, signInGuard } from './sign-in.js';
+import { githubLinkHref, HOME_PATH, providerSignInHref, signInGuard } from './sign-in.js';
 import { client as pageClient, connection as pageConnection, store as pageStore } from './store/index.js';
 import type { Connection } from './store/connection.js';
 import { createIdeaPlaintext } from './store/idea-plaintext.js';
@@ -297,6 +298,8 @@ export const boot = async ({
       return parametresView(slices.settings, timeZones(), {
         accounts: [...(slices['ai-account']?.values() ?? [])],
         local: roleSettings.view(),
+        pilot: slices.pilot,
+        erreur: match.query['erreur'],
         projects: [...(slices.project?.values() ?? [])],
         devices: slices.device,
         currentDeviceId: currentDeviceId(),
@@ -410,6 +413,7 @@ export const boot = async ({
   dispatcher.registerAction(RoleSettings, 'add', { run: () => roleSettings.open() });
   dispatcher.registerAction(RoleSettings, 'create', { run: (body) => roleSettings.create(body) });
   dispatcher.registerAction(RoleSettings, 'cancel', { run: () => roleSettings.cancel() });
+  dispatcher.registerAction(AccountIdentities, 'linkGitHub', { run: () => leave(githubLinkHref('/parametres')) });
   const currentProject = (): string | null => (router.current.composant === PageParametresProjet ? (router.current.params['id'] ?? null) : null);
   dispatcher.registerAction(PageParametresProjet, 'change', {
     run: ({ name, value }) => {
@@ -455,6 +459,7 @@ export const boot = async ({
   dispatcher.registerAction(PageDemarrage, 'selectSystem', { run: ({ system }) => gettingStarted.selectSystem(system) });
   dispatcher.registerAction(PageDemarrage, 'retry', { run: () => gettingStarted.retry() });
   dispatcher.registerAction(PageDemarrage, 'continue', { run: () => gettingStarted.advance() });
+  dispatcher.registerAction(PageDemarrage, 'linkGitHub', { run: () => leave(githubLinkHref('/demarrage')) });
   const editor = createEditorActions({ ui: editorUi, navigate: (url, options) => router.navigate(url, options), current: () => router.current });
   dispatcher.registerAction(PageProcessEditor, 'select', { run: (payload) => editor.select(payload) });
   dispatcher.registerAction(PageProcessEditor, 'tab', { run: (payload) => editor.tab(payload) });

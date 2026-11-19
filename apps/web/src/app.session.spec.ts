@@ -6,7 +6,7 @@ import { boot, type App } from './app.js';
 import type { SessionRelay } from './sessions/relay.js';
 import { createStore } from './store/store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [], githubLinked: false };
 const SESSION: AgentSession = {
   id: '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a7b',
   projectId: '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a02',

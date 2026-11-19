@@ -83,7 +83,8 @@ describe('sign in with GitHub against PostgreSQL', () => {
     expect(session).toMatch(/Path=\//);
     expect(session).toMatch(/Max-Age=2592000/);
     const pilots = await sql<{ id: string; display_name: string; time_zone: string; avatar_url: string }>('SELECT * FROM pilots');
-    expect(pilots).toEqual([expect.objectContaining({ display_name: 'octocat', time_zone: 'Europe/Paris', avatar_url: OCTOCAT.avatarUrl, github_user_id: String(OCTOCAT.id), login: 'octocat' })]);
+    expect(pilots).toEqual([expect.objectContaining({ display_name: 'octocat', time_zone: 'Europe/Paris', avatar_url: OCTOCAT.avatarUrl })]);
+    expect(Object.keys(pilots[0] ?? {})).not.toContain('github_user_id');
     expect(await sql('SELECT pilot_id, provider, subject, email, login FROM pilot_identities')).toEqual([
       { pilot_id: pilots[0]?.id, provider: 'github', subject: String(OCTOCAT.id), email: null, login: 'octocat' },
     ]);
@@ -148,7 +149,7 @@ describe('sign in with GitHub against PostgreSQL', () => {
 
     await signIn({ timeZone: 'America/New_York' });
 
-    expect(await sql('SELECT display_name, login, time_zone FROM pilots')).toEqual([{ display_name: 'octocat-renamed', login: 'octocat-renamed', time_zone: 'Europe/Paris' }]);
+    expect(await sql('SELECT display_name, time_zone FROM pilots')).toEqual([{ display_name: 'octocat-renamed', time_zone: 'Europe/Paris' }]);
     expect(await sql('SELECT provider, login FROM pilot_identities')).toEqual([{ provider: 'github', login: 'octocat-renamed' }]);
     expect(await sql('SELECT count(*)::int AS n FROM web_sessions')).toEqual([{ n: 2 }]);
   });
@@ -289,6 +290,64 @@ describe('sign in with GitHub against PostgreSQL', () => {
       expect(await sql('SELECT id FROM web_sessions')).toHaveLength(2);
     });
 
+    /** The signed-in GitHub Pilote gains an email Identité: they sign in another way too. */
+    const withEmail = async (): Promise<string> => {
+      const [pilot] = await sql<{ id: string }>('SELECT id FROM pilots');
+      await sql(`INSERT INTO pilot_identities (id, pilot_id, provider, subject, email) VALUES ($1, $2, 'email', 'pilote@example.com', 'pilote@example.com')`, [newId(), pilot?.id]);
+      return pilot?.id ?? '';
+    };
+
+    it('answers 409 github.not-linked to a Pilote without GitHub, and keeps their session', async () => {
+      const cookie = await signedIn();
+      const pilot = await withEmail();
+      await sql(`DELETE FROM pilot_identities WHERE provider = 'github'`);
+      await sql('DELETE FROM github_user_tokens');
+
+      await expectEnvelope(await call('/api/github/token', cookie, { method: 'POST' }), 409, 'github.not-linked');
+      expect(await sql('SELECT pilot_id FROM web_sessions')).toEqual([{ pilot_id: pilot }]);
+      expect(zMe.parse(await (await call('/api/me', cookie)).json())).toMatchObject({
+        identities: [{ provider: 'email', label: 'pilote@example.com', reconnect: false }],
+        githubLinked: false,
+      });
+    });
+
+    it('keeps the sessions and sockets of a Pilote with an email Identité when GitHub refuses the refresh: tokens gone, 409, « reconnect »', async () => {
+      const cookie = await signedIn();
+      const pilot = await withEmail();
+      const client = await socket(cookie);
+      await sql(`UPDATE github_user_tokens SET access_expires_at = now() + interval '1 minute'`);
+      fakes.github.reset();
+      fakes.github.seedUser(OCTOCAT);
+
+      await expectEnvelope(await call('/api/github/token', cookie, { method: 'POST' }), 409, 'github.not-linked');
+
+      expect(await sql('SELECT * FROM github_user_tokens')).toEqual([]);
+      expect(await sql('SELECT pilot_id FROM web_sessions')).toEqual([{ pilot_id: pilot }]);
+      expect(zMe.parse(await (await call('/api/me', cookie)).json())).toMatchObject({
+        identities: [{ provider: 'github', reconnect: true }, { provider: 'email', reconnect: false }],
+        githubLinked: false,
+      });
+      const events = await sql<{ payload: { githubLinked: boolean } }>(`SELECT payload FROM events WHERE type = 'pilot.upserted' ORDER BY seq`);
+      expect(events.at(-1)?.payload.githubLinked).toBe(false);
+      client.send({ type: 'ping' });
+      await expect(client.next('pong')).resolves.toEqual({ type: 'pong' });
+      await expectEnvelope(await call('/api/github/token', cookie, { method: 'POST' }), 409, 'github.not-linked');
+    });
+
+    it('tells the tabs once a sign-in with GitHub brings the tokens back: pilot.upserted with githubLinked', async () => {
+      await signedIn();
+      await withEmail();
+      await sql('DELETE FROM github_user_tokens');
+      const upserted = () => sql<{ payload: { githubLinked: boolean } }>(`SELECT payload FROM events WHERE type = 'pilot.upserted' ORDER BY seq`);
+      const before = (await upserted()).length;
+
+      await signIn();
+
+      expect((await upserted()).slice(before).map((event) => event.payload.githubLinked)).toEqual([true]);
+      await signIn();
+      expect(await upserted()).toHaveLength(before + 1);
+    });
+
     it('signs the Pilote out when the refresh token has expired', async () => {
       const cookie = await signedIn();
       await sql(`UPDATE github_user_tokens SET access_expires_at = now(), refresh_expires_at = now()`);
@@ -311,7 +370,8 @@ describe('sign in with GitHub against PostgreSQL', () => {
         avatarUrl: OCTOCAT.avatarUrl,
         timeZone: 'Europe/Paris',
         gettingStartedStep: 'runner',
-        identities: [{ provider: 'github', label: 'octocat' }],
+        identities: [{ provider: 'github', label: 'octocat', reconnect: false }],
+        githubLinked: true,
       });
     });
 

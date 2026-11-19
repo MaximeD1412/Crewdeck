@@ -112,8 +112,9 @@ describe('sign in with Google against PostgreSQL', () => {
       expect(oauth).toMatch(/Path=\/api\/auth\/google;/);
       expect(oauth).toMatch(/HttpOnly/);
       expect(oauth).toMatch(/Max-Age=600/);
-      const sealed = openOauthState(secret, cookieValue(oauth));
-      expect(sealed).toMatchObject({ timeZone: 'Europe/Paris', next: '/idees', codeVerifier: expect.stringMatching(/^[\w-]{43}$/), nonce: expect.any(String) });
+      const opened = openOauthState(secret, cookieValue(oauth));
+      const sealed = opened?.intent === 'sign-in' ? opened : undefined;
+      expect(opened).toMatchObject({ intent: 'sign-in', timeZone: 'Europe/Paris', next: '/idees', codeVerifier: expect.stringMatching(/^[\w-]{43}$/), nonce: expect.any(String) });
       expect(Object.fromEntries(location.searchParams)).toMatchObject({
         redirect_uri: `${APP_URL}/api/auth/google/callback`,
         response_type: 'code',
@@ -330,8 +331,8 @@ describe('sign in with Google against PostgreSQL', () => {
       const me = await fetch(`${url}/api/me`, { headers: { cookie: sessionOf(res) } });
       expect(zMe.parse(await me.json()).identities).toEqual(
         expect.arrayContaining([
-          { provider: 'google', label: ADDRESS },
-          { provider: 'email', label: ADDRESS },
+          { provider: 'google', label: ADDRESS, reconnect: false },
+          { provider: 'email', label: ADDRESS, reconnect: false },
         ]),
       );
     });

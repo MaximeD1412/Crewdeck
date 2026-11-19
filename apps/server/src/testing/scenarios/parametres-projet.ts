@@ -21,8 +21,11 @@ export const SITE_MAIRIE_WORKTREE = { prepare: 'pnpm install --frozen-lockfile',
  * Code Opus 5.5 (`parametres-projet`'s mockup), its worktree Commandes sealed
  * under the test vault when `worktree`.
  */
-export const seedParametresAccount = async (ctx: ScenarioContext, { worktree }: { worktree: boolean }) => {
-  const { token, ...seed } = await withAccounts(ctx);
+export const seedParametresAccount = async (
+  ctx: ScenarioContext,
+  { worktree, signIn }: { worktree: boolean; signIn?: Parameters<typeof withAccounts>[2] },
+) => {
+  const { token, ...seed } = await withAccounts(ctx, undefined, signIn);
   await ctx.prisma.unscoped.accountSettings.create({
     data: {
       pilotId: seed.pilotId,

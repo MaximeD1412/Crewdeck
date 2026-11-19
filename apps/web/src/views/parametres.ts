@@ -7,11 +7,12 @@ import {
   type AiAccount,
   type Device,
   type EngineId,
+  type Me,
   type Project,
   type RoleChoice,
   type SettingsState,
 } from '@crewdeck/contracts';
-import { t, type Card, type ComposantData, type Icon, type ListRow, type RoleSettings, type Select, type SettingRow } from '@crewdeck/sdk';
+import { zLinkError, t, type AccountIdentities, type Card, type ComposantData, type Icon, type ListRow, type RoleSettings, type Select, type SettingRow } from '@crewdeck/sdk';
 import type { PlacedNode } from '../placed.js';
 import { devicesCard } from './devices.js';
 
@@ -140,16 +141,30 @@ export interface RolesInput {
   readonly projects?: readonly Project[];
 }
 
-/** What the Paramètres read beside the settings: « Rôles et modèles »'s, and the Appareils with this browser's own (E2E-3). */
-export interface ParametresInput extends RolesInput {
+/** What « Connexion » reads (CORE-11): the Pilote's Identités, and the URL's `?erreur=` after a failed « Relier GitHub ». */
+export interface IdentitiesInput {
+  readonly pilot?: Pick<Me, 'identities'> | null | undefined;
+  readonly erreur?: string | undefined;
+}
+
+/** « Connexion », placed in `account` before « Compte »: one row per Identité, an unknown `erreur` ignored. */
+const identities = (pilot: Pick<Me, 'identities'>, erreur: string | undefined): PlacedNode => {
+  const error = zLinkError.safeParse(erreur);
+  const data: ComposantData<typeof AccountIdentities> = { identities: pilot.identities, error: error.success ? error.data : null };
+  return { tag: 'cd-account-identities', slot: 'account', data };
+};
+
+/** What the Paramètres read beside the settings: « Rôles et modèles »'s, « Connexion »'s, and the Appareils with this browser's own (E2E-3). */
+export interface ParametresInput extends RolesInput, IdentitiesInput {
   readonly devices?: ReadonlyMap<string, Device>;
   readonly currentDeviceId?: string | null;
 }
 
 /**
  * The Emplacements of the Paramètres (pure, US-82): « Appareils » once the
- * snapshot gave them, this page's own named (E2E-3); once it gave the
- * settings, « Rôles et modèles » (PARAM-2) and « Compte » with the time
+ * snapshot gave them, this page's own named (E2E-3); once the Pilote is
+ * known, « Connexion » with their Identités (CORE-11); once the snapshot gave
+ * the settings, « Rôles et modèles » (PARAM-2) and « Compte » with the time
  * zone (a zone the list lacks, an alias, kept among the options), « Par
  * Projet » (PARAM-3), then « Pour les Moddeurs ». The other sections are
  * their tickets'.
@@ -157,9 +172,11 @@ export interface ParametresInput extends RolesInput {
 export const parametresView = (
   settings: SettingsState | null | undefined,
   zones: readonly string[],
-  { accounts = [], local = NO_ROLES_LOCAL, projects = [], devices, currentDeviceId }: ParametresInput = {},
+  { accounts = [], local = NO_ROLES_LOCAL, projects = [], pilot, erreur, devices, currentDeviceId }: ParametresInput = {},
 ): readonly PlacedNode[] => [
   ...[devicesCard(devices, currentDeviceId)].filter((node) => node !== null),
-  ...(settings ? [roles(settings, accounts, local), account(settings, zones), ...byProject(settings, projects)] : []),
+  ...(settings ? [roles(settings, accounts, local)] : []),
+  ...(pilot ? [identities(pilot, erreur)] : []),
+  ...(settings ? [account(settings, zones), ...byProject(settings, projects)] : []),
   modders(),
 ];

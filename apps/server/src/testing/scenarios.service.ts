@@ -3,10 +3,12 @@ import type { AddressInfo } from 'node:net';
 import { Inject, Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { HttpAdapterHost, ModuleRef } from '@nestjs/core';
 import { EmailLinkLimiter } from '../auth/email/email-link-limiter.js';
+import { GithubTokens } from '../auth/github-tokens.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RunnerLinkLimiter } from '../runners/link/link-limiter.js';
 import { RunnerOffline } from '../runners/runner-offline.service.js';
 import { RunnerWaitingWork } from '../runners/waiting-work.js';
+import { runInPilotScope } from '../scope/scope.context.js';
 import { FAKES, type Fakes, resetFakes } from './fakes.js';
 import type { Scenario } from './scenarios/index.js';
 
@@ -49,7 +51,13 @@ export class ScenariosService implements OnModuleInit, OnModuleDestroy {
     this.moduleRef.get(EmailLinkLimiter, { strict: false }).reset();
     await this.emptyDatabase();
     const runnerOffline = this.moduleRef.get(RunnerOffline, { strict: false });
-    const seeded = await scenario.seed({ prisma: this.prisma, fakes: this.fakes, refreshRunnerOffline: (pilotId) => runnerOffline.refresh(pilotId) });
+    const tokens = this.moduleRef.get(GithubTokens, { strict: false });
+    const seeded = await scenario.seed({
+      prisma: this.prisma,
+      fakes: this.fakes,
+      refreshRunnerOffline: (pilotId) => runnerOffline.refresh(pilotId),
+      storeGithubTokens: (pilotId, userTokens) => runInPilotScope(pilotId, () => tokens.store(this.prisma.scoped, pilotId, userTokens)),
+    });
     if (seeded.runnerToken) await this.fakes.runner.connect(this.ownUrl(), seeded.runnerToken, seeded.runnerMachine);
     return { name: scenario.name, path: seeded.path ?? scenario.path, sessionCookie: seeded.sessionCookie ?? null, runnerLink: seeded.runnerLink ?? null, device: seeded.device ?? null };
   }

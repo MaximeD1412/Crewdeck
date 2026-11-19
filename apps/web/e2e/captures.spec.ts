@@ -81,6 +81,15 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await picker.getByRole('checkbox', { name: /^octocat\/site-mairie\b/ }).check();
     await expect(picker.getByRole('button', { name: 'Suivre 2 Projets' })).toBeEnabled();
   },
+  // « Gestion du process » once the snapshot drew its canvas (1280 px; the phone's list is PROCESS-11's).
+  ...Object.fromEntries(
+    ['process', 'process-manques', 'process-etape', 'process-sources', 'process-local'].map((name) => [
+      name,
+      async (page: Page, width: number) => {
+        if (width >= 1280) await expect(page.locator('cd-page-process-editor cd-process-canvas cd-step-card').first()).toBeVisible();
+      },
+    ]),
+  ),
   projets: async (page) => {
     await expect(page.locator('cd-page-projets cd-list-row')).toHaveCount(4);
   },

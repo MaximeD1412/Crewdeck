@@ -9,6 +9,7 @@ import {
   PageDemarrage,
   PageIdees,
   PageParametres,
+  PageProcessEditor,
   PageProjets,
   PageRunner,
   RepositoryPicker,
@@ -17,6 +18,7 @@ import {
 } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
 import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatcher.js';
+import { createEditorActions } from './actions/process-editor.js';
 import { me as readMe, requestLink as postLinkRequest, verifyLink as postLinkVerify } from './api/auth.js';
 import type { Client } from './api/client.js';
 import { ApiError, currentDeviceId } from './api/request.js';
@@ -27,6 +29,7 @@ import { createClosedIdeas } from './closed-ideas.js';
 import { createDeadline } from './deadline.js';
 import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
 import { createPageKeys, type PageKeys } from './keys/index.js';
+import { createEditorUi } from './process/editor-ui.js';
 import { createNoteIdea } from './note-idea.js';
 import { createProjects } from './projects.js';
 import { bootSkin } from './registry.js';
@@ -49,6 +52,7 @@ import { systemOfBrowser } from './views/demarrage.js';
 import { ADD_DEVICE_ID } from './views/devices.js';
 import { ideesQuery, ideesView } from './views/idees.js';
 import { parametresView, timeZones } from './views/parametres.js';
+import { processEditorView } from './views/process-editor.js';
 import { projetsView } from './views/projets.js';
 import { runnerView } from './views/runner.js';
 import { usageChangesAt } from './views/usage.js';
@@ -182,6 +186,8 @@ export const boot = async ({
   noteDialog.data = noteIdea.view();
   shell.append(noteDialog);
   const roleSettings = createRoleSettings({ client });
+  // « Gestion du process »' own state: its view per Projet, the block to centre (PROCESS-7).
+  const editorUi = createEditorUi();
   const signIn = signInGuard(pilot);
   const started = gettingStartedGuard(gettingStarted.pilot);
   const pageData = routeData(routes, () => store.getState());
@@ -209,6 +215,10 @@ export const boot = async ({
       if (match.composant === RepositoryPicker) return projects.picker('projets');
       const { slices } = store.getState();
       if (match.composant === PageProjets) return projetsView(slices.project?.values() ?? []);
+      if (match.composant === PageProcessEditor) {
+        const projectId = match.params['id'] ?? '';
+        return processEditorView(store.getState(), projectId, editorUi.view(projectId, match.query));
+      }
       if (match.composant === PageIdees) {
         // The Idées merged or rejected beyond the slice's 90 days: their first page as the page first shows.
         closedIdeas.ensure();
@@ -248,6 +258,7 @@ export const boot = async ({
     projects.subscribe(() => router.refresh()),
     closedIdeas.subscribe(() => router.refresh()),
     roleSettings.subscribe(() => router.refresh()),
+    editorUi.subscribe(() => router.refresh()),
   ];
   if (pilot) {
     // The Appareil named before the snapshot, which says which one is `current`.
@@ -309,6 +320,10 @@ export const boot = async ({
   dispatcher.registerAction(PageDemarrage, 'selectSystem', { run: ({ system }) => gettingStarted.selectSystem(system) });
   dispatcher.registerAction(PageDemarrage, 'retry', { run: () => gettingStarted.retry() });
   dispatcher.registerAction(PageDemarrage, 'continue', { run: () => gettingStarted.advance() });
+  const editor = createEditorActions({ ui: editorUi, navigate: (url, options) => router.navigate(url, options), current: () => router.current });
+  dispatcher.registerAction(PageProcessEditor, 'select', { run: (payload) => editor.select(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'tab', { run: (payload) => editor.tab(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'view', { run: (payload) => editor.view(payload) });
   dispatcher.registerAction(PageProjets, 'add', { run: () => router.navigate('/projets/ajouter') });
   // In « Premiers pas » the Projets followed end it; on `/projets/ajouter` the list shows them.
   dispatcher.registerAction(RepositoryPicker, 'follow', {

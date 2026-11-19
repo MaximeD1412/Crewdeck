@@ -38,6 +38,7 @@ import { PasserellePageDemarrage } from './page-demarrage.js';
 import { PasserellePageParametres } from './page-parametres.js';
 import { PasserellePageHeader } from './page-header.js';
 import { PasserellePageIntrouvable } from './page-introuvable.js';
+import { PasserellePageProcessEditor } from './page-process-editor.js';
 import { PasserellePageProjets } from './page-projets.js';
 import { PasserellePageRunner } from './page-runner.js';
 import { PasserellePermissionRequest } from './permission-request.js';
@@ -89,6 +90,7 @@ export default defineSkin({
     PageDemarrage: PasserellePageDemarrage,
     PageParametres: PasserellePageParametres,
     PageIntrouvable: PasserellePageIntrouvable,
+    PageProcessEditor: PasserellePageProcessEditor,
     PageProjets: PasserellePageProjets,
     PageRunner: PasserellePageRunner,
     RepositoryPicker: PasserelleRepositoryPicker,

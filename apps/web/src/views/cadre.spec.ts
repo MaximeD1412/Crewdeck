@@ -127,6 +127,11 @@ describe('cadreView', () => {
     expect(cadreView(open(9), at('/a-toi')).menu.filter((item) => item.count !== null).map((item) => item.id)).toEqual(['a-toi']);
   });
 
+  it('is compact on « Gestion du process », its entry « Projets »', () => {
+    expect(cadreView(empty, at('/projets/019a6f00-0000-7000-8000-000000000011/process')).cadre).toMatchObject({ variant: 'compact', current: 'projets' });
+    expect(cadreView(empty, at('/projets')).cadre).toMatchObject({ variant: 'default', current: 'projets' });
+  });
+
   it('counts the Idées to triage on « Idées », not those already triaged, no count when none waits', () => {
     const ideas = (...states: ('to-triage' | 'retained' | 'merged')[]): CadreState => ({ slices: { idea: new Map(states.map((state, i) => [String(i), { state }])) } });
     const countOf = (state: CadreState) => cadreView(state, at('/a-toi')).menu.find((item) => item.id === 'idees')?.count;

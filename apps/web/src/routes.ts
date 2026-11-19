@@ -1,4 +1,19 @@
-import { type IdeesTab, COMPOSANTS, PageAToi, PageComposants, PageConnexion, PageConnexionLien, PageDemarrage, PageIdees, PageParametres, PageProjets, PageRunner, RepositoryPicker, UsageCard } from '@crewdeck/sdk';
+import {
+  type IdeesTab,
+  COMPOSANTS,
+  PageAToi,
+  PageComposants,
+  PageConnexion,
+  PageConnexionLien,
+  PageDemarrage,
+  PageIdees,
+  PageParametres,
+  PageProcessEditor,
+  PageProjets,
+  PageRunner,
+  RepositoryPicker,
+  UsageCard,
+} from '@crewdeck/sdk';
 import { currentDeviceId } from './api/request.js';
 import type { PlacedNode } from './placed.js';
 import type { Route } from './router.js';
@@ -42,7 +57,10 @@ const usageSlot = (slot: string, data: UsageCardData | null): readonly PlacedNod
  * `PageRunner`, whose data `app.ts` gives from the store
  * (`views/runner.ts`); `/projets` → `PageProjets` and `/projets/ajouter` →
  * `RepositoryPicker`, whose data `app.ts` gives from the store
- * (`views/projets.ts`, `projects.ts`); `/parametres` → `PageParametres`,
+ * (`views/projets.ts`, `projects.ts`); `/projets/:id/process` →
+ * `PageProcessEditor`, whose data `app.ts` gives from the store and the
+ * page's own state (`views/process-editor.ts`, `process/editor-ui.ts`);
+ * `/parametres` → `PageParametres`,
  * whose « Rôles et modèles » `app.ts` completes with the page's own state
  * (`role-settings.ts`). The usage of the Comptes IA fills `/runner`'s
  * Emplacement `usage` and « À toi »'s `ai-accounts` (`views/usage.ts`). The first route that matches wins.
@@ -62,6 +80,7 @@ export const ROUTES: readonly Route[] = [
   { path: '/runner', composant: PageRunner, slots: (_match, state) => usageSlot('usage', usageCard(usageOf(state))) },
   { path: '/projets', composant: PageProjets },
   { path: '/projets/ajouter', composant: RepositoryPicker },
+  { path: '/projets/:id/process', composant: PageProcessEditor },
   {
     path: '/parametres',
     composant: PageParametres,

@@ -22,9 +22,13 @@ export interface RequestSession {
   readonly id: string;
   readonly projectId: string;
   readonly role: string;
-  readonly title: string;
+  /** Null for a Local Projet's, whose title the server cannot read (SOURCE-2). */
+  readonly title: string | null;
   readonly projectName: string | null;
 }
+
+/** The label of a Local Projet's Session's request, its title sealed. */
+export const LOCAL_SESSION_LABEL = 'Session d’un Projet local';
 
 /** The Décision of the request `message` of `session`: its title the Session's, its link the panel's. */
 export const requestDecision = (session: RequestSession, message: Pick<SessionWaiting, 'requestId' | 'kind' | 'seq'>): RaiseInput => ({
@@ -33,7 +37,7 @@ export const requestDecision = (session: RequestSession, message: Pick<SessionWa
   projectName: session.projectName,
   subjectType: REQUEST_SUBJECT_TYPE,
   subjectId: message.requestId,
-  label: session.title.slice(0, DECISION_LABEL_MAX),
+  label: (session.title ?? LOCAL_SESSION_LABEL).slice(0, DECISION_LABEL_MAX),
   metaParts: ['session'],
   tone: message.kind === 'question' ? 'accent' : 'caution',
   link: `/a-toi?session=${session.id}`,

@@ -302,12 +302,31 @@ describe('the Sessions against PostgreSQL', () => {
       expect((await socket.expect('session.start')).sessionId).toBe(session.id);
     });
 
-    it('refuses a Projet whose code is not on GitHub with 422 sessions.no-origin, and writes no row', async () => {
+    it('starts a Local Projet’s Session from its folder: origin local, its title stored sealed and sent null (SOURCE-2)', async () => {
       const alice = await pilot();
       const projectId = await project(alice, 'local');
+      const socket = await online(alice);
+      const sealed = { key: 'a'.repeat(80), ciphertext: 'b'.repeat(40) };
 
-      const failure = await start(alice, input(projectId)).catch((error: unknown) => error);
+      const session = await start(alice, input(projectId, { title: sealed }));
 
+      expect(session).toMatchObject({ title: null, titleSealed: sealed });
+      expect(zAgentSession.parse(session)).toEqual(session);
+      const message = await socket.expect('session.start');
+      expect(message).toMatchObject({ sessionId: session.id, origin: { kind: 'local' }, title: null });
+      expect(await sql('SELECT title, title_sealed FROM agent_sessions WHERE id = $1', [session.id])).toEqual([{ title: null, title_sealed: sealed }]);
+    });
+
+    it('never stores a readable title for a Local Projet nor a sealed one for GitHub, and refuses a Projet with no code Source with 422 sessions.no-origin', async () => {
+      const alice = await pilot();
+      const local = await project(alice, 'local');
+      const github = await project(alice);
+      await sql(`DELETE FROM artifact_sources WHERE project_id = $1 AND "group" = 'code'`, [github]);
+      const withCode = await project(alice);
+
+      await expect(start(alice, input(local))).rejects.toThrow('a readable title for a Session on local');
+      await expect(start(alice, input(withCode, { title: { key: 'a'.repeat(80), ciphertext: 'b'.repeat(40) } }))).rejects.toThrow('a sealed title for a Session on github');
+      const failure = await start(alice, input(github)).catch((error: unknown) => error);
       expect(failure).toBeInstanceOf(AppError);
       expect(failure).toMatchObject({ status: 422, code: 'sessions.no-origin', message: 'Ce Projet n’a pas de dépôt pour les Sessions.' });
       expect(await sql('SELECT id FROM agent_sessions')).toEqual([]);

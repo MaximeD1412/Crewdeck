@@ -10,6 +10,7 @@ export const SESSION_ROW = {
   engine: true,
   model: true,
   title: true,
+  titleSealed: true,
   branch: true,
   base: true,
   permissionMode: true,
@@ -24,7 +25,15 @@ export const SESSION_ROW = {
   endedAt: true,
   lastSeq: true,
   // The Projet's worktree Commandes, sealed as stored: `session.start` carries them, the view never (RUNNER-20).
-  project: { select: { owner: true, name: true, settings: { select: { worktreeCommands: true } } } },
+  // Its code's Source (SOURCE-1) gives the origin `session.start` names, read as it is when sent (SOURCE-7 may move it).
+  project: {
+    select: {
+      owner: true,
+      name: true,
+      settings: { select: { worktreeCommands: true } },
+      artifactSources: { where: { group: 'code' }, select: { source: true } },
+    },
+  },
 } as const satisfies Prisma.AgentSessionSelect;
 
 export type SessionRow = Prisma.AgentSessionGetPayload<{ select: typeof SESSION_ROW }>;
@@ -42,6 +51,7 @@ export const toAgentSession = (row: SessionRow): AgentSession => ({
   engine: spelled<EngineId>(row.engine),
   model: row.model,
   title: row.title,
+  titleSealed: row.titleSealed === null ? null : zSealedItem.parse(row.titleSealed),
   state: row.state,
   interruptedReason: row.interruptedReason === null ? null : spelled<SessionInterruptedReason>(row.interruptedReason),
   outcome: row.outcome,
@@ -52,12 +62,23 @@ export const toAgentSession = (row: SessionRow): AgentSession => ({
   endedAt: row.endedAt?.toISOString() ?? null,
 });
 
-/** The `session.start` of the Session `row`: its origin the Projet's repository on GitHub (SOURCE-2 adds the Local one), its Projet's worktree Commandes sealed as stored, `null` when the Pilote set neither. */
+/**
+ * The origin a Session of `row`'s Projet clones: its repository on GitHub,
+ * or its folder when its code is Local (SOURCE-2), whose path only the
+ * Runner knows.
+ */
+export const originOf = (project: SessionRow['project']): SessionStart['origin'] => {
+  if (project.artifactSources[0]?.source === 'local') return { kind: 'local' };
+  const { owner, name } = githubNamesOf(project);
+  return { kind: 'github', owner, name };
+};
+
+/** The `session.start` of the Session `row`: its origin (`originOf`), its title readable or `null` (a Local Projet's, sealed), its Projet's worktree Commandes sealed as stored, `null` when the Pilote set neither. */
 export const startMessageOf = (row: SessionRow): Omit<SessionStart, 'id' | 'at'> => ({
   type: 'session.start',
   sessionId: row.id,
   projectId: row.projectId,
-  origin: { kind: 'github', owner: githubNamesOf(row.project).owner, name: githubNamesOf(row.project).name },
+  origin: originOf(row.project),
   branch: row.branch,
   base: row.base,
   engine: spelled<EngineId>(row.engine),

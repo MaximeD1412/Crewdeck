@@ -14,6 +14,7 @@ const SESSION: AgentSession = {
   engine: 'claude-code',
   model: 'claude-opus-5-5',
   title: 'Concevoir · Agenda partagé',
+  titleSealed: null,
   state: 'active',
   interruptedReason: null,
   outcome: null,
@@ -64,6 +65,13 @@ describe('sessionView', () => {
       resumeDisabledReason: null,
       expandable: false,
     });
+  });
+
+  it('heads a Local Projet’s Session, its title sealed, as « Session d’un Projet local »', () => {
+    const sealed = { key: 'a'.repeat(80), ciphertext: 'b'.repeat(40) };
+    const { data } = view({ session: { ...SESSION, title: null, titleSealed: sealed } });
+    expect(COMPOSANTS.Session.data.parse(data)).toEqual(data);
+    expect(data.title).toBe(t('session.title.local'));
   });
 
   it('names a Rôle the Pilote added by its name', () => {

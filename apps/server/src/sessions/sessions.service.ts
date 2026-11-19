@@ -5,6 +5,7 @@ import {
   LIVE_SESSION_STATES,
   RESUMABLE_SESSION_STATES,
   type RoleId,
+  type SealedItem,
   type SessionAnswered,
   type SessionPermissionMode,
   type SessionState,
@@ -32,13 +33,18 @@ import { raiseRequest, resolveOpenRequests, resolveRequest } from './requests.js
 import { SessionHooks } from './session-hooks.js';
 import { SESSION_ROW, type SessionRow, startMessageOf, stored, toAgentSession } from './session.view.js';
 
-/** What starts a Session: `base` the Projet's integration branch unless given; `step` the Étape it runs, none when the Pilote writes first. */
+/**
+ * What starts a Session: `base` the Projet's integration branch unless given;
+ * `step` the Étape it runs, none when the Pilote writes first; `title` the
+ * Ticket's or Conception's, readable for a GitHub Projet, sealed as the
+ * server holds it for a Local one (SOURCE-2).
+ */
 export interface StartSession {
   readonly projectId: string;
   readonly role: RoleId;
   readonly engine: EngineId;
   readonly model: string;
-  readonly title: string;
+  readonly title: string | SealedItem;
   readonly branch: string;
   readonly base?: string;
   readonly step?: SessionStep;
@@ -119,15 +125,19 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
   /**
    * Starts a Session of the current Pilote in `tx`: the row `starting` and
    * its event, then, once committed, `session.start` to the Runner (offline,
-   * once it is back). 404 `project.not-found`; 422 `sessions.no-origin` for
-   * a Projet whose code is not on GitHub (the Local origin is SOURCE-2's).
+   * once it is back), its origin the Projet's code Source (`originOf`). 404
+   * `project.not-found`; 422 `sessions.no-origin` for a Projet with no code
+   * Source. A Local Projet's title is stored sealed, `title` null.
    */
   async start(tx: Tx, input: StartSession): Promise<AgentSession> {
     const pilotId = currentPilotId();
     const project = await tx.project.findUnique({ where: { id: input.projectId }, select: { integrationBranch: true } });
     if (!project) throw notFound('project.not-found', MESSAGES['project.not-found']);
-    const onGithub = await tx.artifactSource.count({ where: { projectId: input.projectId, group: 'code', source: 'github' } });
-    if (onGithub === 0) throw unprocessable('sessions.no-origin', MESSAGES['sessions.no-origin']);
+    const code = await tx.artifactSource.findUnique({ where: { projectId_group: { projectId: input.projectId, group: 'code' } }, select: { source: true } });
+    if (!code) throw unprocessable('sessions.no-origin', MESSAGES['sessions.no-origin']);
+    const sealed = typeof input.title !== 'string';
+    // The caller gives the title as the Source holds it: a readable one never goes to a Local Projet, nor a sealed one to GitHub.
+    if (sealed !== (code.source === 'local')) throw new Error(`a ${sealed ? 'sealed' : 'readable'} title for a Session on ${code.source}`);
     const created = await tx.agentSession.create({
       data: {
         id: newId(),
@@ -136,7 +146,8 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
         role: input.role,
         engine: stored(input.engine),
         model: input.model,
-        title: input.title,
+        title: typeof input.title === 'string' ? input.title : null,
+        titleSealed: typeof input.title === 'string' ? undefined : input.title,
         branch: input.branch,
         base: input.base ?? project.integrationBranch,
         permissionMode: permissionModeOf(input.step),

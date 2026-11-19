@@ -9,6 +9,7 @@ import type { RunnerPresence } from '../../runners/runner-presence.service.js';
 import { currentPilotId, runInPilotScope } from '../../scope/scope.context.js';
 import { CommandRuns } from '../command-runs.service.js';
 import { CommandOutputRelay } from './command-output-relay.js';
+import type { ProjectSettingsService } from '../../settings/project-settings.js';
 
 const ALICE = 'alice';
 const BOB = 'bob';
@@ -131,12 +132,12 @@ describe('CommandOutputRelay', () => {
     const link: RunnerLink = { pilotId: ALICE, runnerId: 'runner-1', accepted: true, send: vi.fn(), close: vi.fn() };
     connections.take(link);
     const commands = new RunnerCommands(connections, { isOnline: () => true } as unknown as RunnerPresence);
-    const runs = new CommandRuns(commands);
+    const runs = new CommandRuns(commands, { worktreeCommands: async () => null } as unknown as ProjectSettingsService);
     const tabs = new Registry<TabMessageHandler>();
     const logger = { debug: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as PinoLogger;
     new CommandOutputRelay(tabs, runs, commands, connections, new RunnerDispatcher(), logger).onModuleInit();
     const [handler] = tabs.all();
-    runs.send(ALICE, {
+    await runs.send(ALICE, {
       runId: RUN,
       projectId: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a92',
       commandId: 'cmd-tests',

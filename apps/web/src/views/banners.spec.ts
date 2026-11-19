@@ -51,6 +51,16 @@ describe('bannersView', () => {
     expect(bannersView({ ...live, vaultState: 'locked', slices: { device: devices(TRUSTED) } }, null)).toEqual([]);
   });
 
+  it('the last trusted Appareil revoked, the Runner linked still holds the vault: the same offer, to approve from its machine (E2E-4)', () => {
+    const live = { connection: 'live', lostAt: null } as const;
+    const revoked = devices({ ...TRUSTED, state: 'revoked' });
+    const vault = { version: 2, rotationPending: true };
+    expect(bannersView({ ...live, vaultState: 'no-device', runner: { state: 'offline' }, slices: { device: revoked, vault } }, null).map(({ key }) => key)).toEqual(['device']);
+    // No vault at all (version 0), a Runner or not: nothing to approve from.
+    expect(bannersView({ ...live, vaultState: 'no-device', runner: { state: 'offline' }, slices: { device: revoked, vault: { version: 0, rotationPending: false } } }, null)).toEqual([]);
+    expect(bannersView({ ...live, vaultState: 'no-device', runner: { state: 'online' }, slices: {} }, null)).toEqual([]);
+  });
+
   describe('« Runner hors ligne »', () => {
     const SINCE = '2026-11-11T13:02:00.000Z';
     const PROJECTS: WaitingProject[] = [

@@ -21,6 +21,7 @@ import { PROJECT_VIEW, toProject } from '../projects/project.view.js';
 import { ProjectChanges } from '../projects/project-changes.js';
 import { EventsWriter } from '../realtime/events.writer.js';
 import { type Tx, Transactions } from '../realtime/transactions.js';
+import { assertVaultVersion } from '../vault/sealed-write.js';
 import { currentPilotId } from '../scope/scope.context.js';
 import { overridesOf, SettingsService, validateRoleChoices } from './settings.service.js';
 
@@ -70,11 +71,14 @@ export class ProjectSettingsService {
    * 404 for a Projet that is not the Pilote's; a Rôle validated as the
    * account's (400 on an unknown id, 422 `settings.engine-unusable`), `null`
    * back to the account; 422 `settings.branches-same` when both branches
-   * would be one. Serialised on the Pilote's row, as the account's changes.
+   * would be one; 409 `vault.version-changed` for Commandes sealed under
+   * another vault key than the current one. Serialised on the Pilote's row,
+   * as the account's changes.
    */
   async update(tx: Tx, pilotId: string, projectId: string, patch: ProjectSettingsPatch): Promise<{ settings: ProjectSettings; seq: bigint; branchesChanged: boolean }> {
     if (!zId.safeParse(projectId).success) throw projectNotFound();
     await this.settings.lock(tx, pilotId);
+    if (patch.worktreeCommands && patch.vaultKeyVersion !== undefined) await assertVaultVersion(tx, pilotId, patch.vaultKeyVersion);
     const project = await tx.project.findFirst({
       where: { id: projectId },
       select: { integrationBranch: true, releaseBranch: true, settings: { select: { roles: true, notificationsPush: true, worktreeCommands: true } } },

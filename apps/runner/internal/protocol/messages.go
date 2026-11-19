@@ -52,6 +52,10 @@ const (
 	TypeCommandVerdict = "command.verdict"
 	TypeCommandKeys    = "command.keys"
 	TypeCommandOutput  = "command.output"
+	// The vault key's rotation (E2E-4): the server says one waits, and hands
+	// the Runner its wrap of the new version once a holder rotated.
+	TypeVaultRotationPending = "vault.rotation-pending"
+	TypeVaultRotated         = "vault.rotated"
 )
 
 // Machine is what the Runner says of itself in its hello.

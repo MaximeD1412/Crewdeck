@@ -97,6 +97,7 @@ describe('zProjectSettingsPatch', () => {
       notifications: { push: null },
       branches: { integration: 'main-2' },
       worktreeCommands: SEALED,
+      vaultKeyVersion: 2,
     };
     expect(zProjectSettingsPatch.parse(patch)).toEqual(patch);
     expect(zProjectSettingsPatch.parse({ worktreeCommands: null })).toEqual({ worktreeCommands: null });
@@ -113,7 +114,16 @@ describe('zProjectSettingsPatch', () => {
   });
 
   it('refuses a sealed item over 16 KiB', () => {
-    expect(zProjectSettingsPatch.safeParse({ worktreeCommands: { key: b64(60), ciphertext: b64(16 * 1024) } }).success).toBe(true);
-    expect(zProjectSettingsPatch.safeParse({ worktreeCommands: { key: b64(60), ciphertext: b64(16 * 1024 + 3) } }).success).toBe(false);
+    expect(zProjectSettingsPatch.safeParse({ worktreeCommands: { key: b64(60), ciphertext: b64(16 * 1024) }, vaultKeyVersion: 1 }).success).toBe(true);
+    expect(zProjectSettingsPatch.safeParse({ worktreeCommands: { key: b64(60), ciphertext: b64(16 * 1024 + 3) }, vaultKeyVersion: 1 }).success).toBe(false);
+  });
+
+  it('needs the version of the vault key the Commandes were sealed under, with them only (E2E-4)', () => {
+    const sealed = { key: b64(60), ciphertext: b64(64) };
+    const missing = zProjectSettingsPatch.safeParse({ worktreeCommands: sealed });
+    expect(missing.error?.issues.map((issue) => issue.path.join('.'))).toEqual(['vaultKeyVersion']);
+    expect(zProjectSettingsPatch.safeParse({ worktreeCommands: sealed, vaultKeyVersion: 0 }).success).toBe(false);
+    expect(zProjectSettingsPatch.safeParse({ worktreeCommands: null }).success).toBe(true);
+    expect(zProjectSettingsPatch.safeParse({ branches: { integration: 'develop' }, vaultKeyVersion: 1 }).success).toBe(false);
   });
 });

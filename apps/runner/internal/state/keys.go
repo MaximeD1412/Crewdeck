@@ -41,15 +41,27 @@ func (s Store) LoadRunnerKey() ([]byte, error) {
 }
 
 // VaultWrap is the content of vault.wrap: the Runner's wrap of the vault key
-// at VaultKeyVersion, and the Appareil's public key that sealed it, which the
-// link's device proof authenticated. Byte strings are base64 in the file.
+// at VaultKeyVersion; DevicePublicKey, the first Appareil's, which the link's
+// device proof authenticated; and SenderPublicKey, the key that sealed a
+// wrap of a later version (E2E-4: the Runner's own, or the holder's that
+// rotated), absent when that Appareil sealed it. Byte strings are base64 in
+// the file.
 type VaultWrap struct {
 	RunnerID        string `json:"runnerId"`
 	VaultKeyVersion int    `json:"vaultKeyVersion"`
 	DevicePublicKey []byte `json:"devicePublicKey"`
+	SenderPublicKey []byte `json:"senderPublicKey,omitempty"`
 	Enc             []byte `json:"enc"`
 	Ciphertext      []byte `json:"ciphertext"`
 	Tag             []byte `json:"tag"`
+}
+
+// Sender is the public key the wrap opens from.
+func (w VaultWrap) Sender() []byte {
+	if len(w.SenderPublicKey) > 0 {
+		return w.SenderPublicKey
+	}
+	return w.DevicePublicKey
 }
 
 // SaveVaultWrap writes vault.wrap.

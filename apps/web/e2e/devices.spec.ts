@@ -152,6 +152,96 @@ test('a new browser shows its code, which the trusted Appareil approves by pasti
   await context.close();
 });
 
+/**
+ * « Retirer » on this browser's row (« cet Appareil ») or on the other one's, then the core's
+ * confirmation dialog it opens, named after `name`. Both browsers may share a name (same user agent).
+ */
+const revoke = async (page: Page, row: 'this' | 'other', name: string) => {
+  const rows = appareilsCard(page).locator('cd-list-row');
+  await (row === 'this' ? rows.filter({ hasText: 'cet Appareil' }) : rows.filter({ hasNotText: 'cet Appareil' })).getByRole('button', { name: 'Retirer' }).click();
+  const dialog = page.locator('crewdeck-confirm').getByRole('alertdialog');
+  await expect(dialog.getByRole('heading', { name: `Retirer « ${name} » ?` })).toBeVisible();
+  await expect(dialog).toContainText('Confirmé par Crewdeck');
+  return dialog;
+};
+
+test('revoking an Appareil: refused at once, the vault key rotated by the trusted one; the last one warned first, its keys cleared', async ({
+  page,
+  browser,
+  baseURL,
+  scenario,
+  expectAccessible,
+}, testInfo) => {
+  const sentTrusted = recorded(page);
+  const run = await scenario('appareils');
+  await linkFirstAppareil(page, baseURL);
+  await openAppareils(page);
+  const card = appareilsCard(page);
+  const trustedName = ((await (await page.request.get('/api/state')).json()) as { devices: { name: string; state: string }[] }).devices.find(({ state }) => state === 'trusted')?.name ?? '';
+
+  // A second browser, approved by its code (E2E-3).
+  const context = await otherBrowser(browser, testInfo, run.sessionCookie ?? '');
+  const fresh = await context.newPage();
+  await fresh.goto('/parametres');
+  await deviceBanner(fresh).getByRole('button', { name: 'Approuver cet Appareil' }).click();
+  const shown = newDevice(fresh);
+  await expect(shown.locator('code').first()).toHaveText(CODE);
+  const asked = await pasteCode(page, (await shown.locator('code').first().textContent()) ?? '');
+  // The pending Appareil read: its name in the heading.
+  await expect(asked.getByRole('heading')).toHaveText(/^Approuver « .+ » \?$/);
+  const name = /^Approuver « (.+) » \?$/.exec((await asked.getByRole('heading').textContent()) ?? '')?.[1] ?? '';
+  await asked.getByRole('button', { name: 'Approuver' }).click();
+  await asked.getByRole('button', { name: 'Fermer' }).click();
+  await expect(shown.getByRole('heading', { name: 'Appareil approuvé' })).toBeVisible();
+  await shown.getByRole('button', { name: 'Fermer' }).click();
+  await expect(card.locator('cd-list-row')).toHaveCount(2);
+
+  // « Retirer » on the second one: what happens, no warning while another stays trusted.
+  const dialog = await revoke(page, 'other', name);
+  await expect(dialog).toContainText('Crewdeck cesse aussitôt de lui servir tes données chiffrées');
+  await expect(dialog).toContainText('La clé de tes données chiffrées change');
+  await expect(dialog).not.toContainText('C’est ton dernier Appareil de confiance');
+  await expectAccessible(page);
+  await dialog.getByRole('button', { name: 'Retirer l’Appareil' }).click();
+  await expect(card.locator('cd-list-row')).toHaveCount(1);
+
+  // The trusted one rotates the vault key on its own, and its vault opens the new version.
+  await expect.poll(() => sentTrusted.some((line) => /POST \S+\/api\/vault\/rotations /.test(line))).toBe(true);
+  await expect.poll(async () => (await (await page.request.get('/api/state')).json()).vault).toEqual({ version: 2, rotationPending: false });
+  await openAppareils(page);
+  await expectVaultOpen(page);
+
+  // The revoked browser, reloaded: no wrap for it, its Banner back.
+  await fresh.goto('/parametres');
+  await expect(deviceBanner(fresh)).toContainText('Cet Appareil ne lit pas encore tes Sessions ni le texte de tes Idées.');
+  await context.close();
+
+  // The last trusted Appareil, this one: the OPS-1 warning first, then its keys cleared from this browser.
+  const last = await revoke(page, 'this', trustedName);
+  await expect(last).toContainText('C’est cet Appareil');
+  await expect(last).toContainText('C’est ton dernier Appareil de confiance : si tu réinstalles ensuite le Runner, le texte de tes Idées sera perdu.');
+  await expectAccessible(page);
+  await last.getByRole('button', { name: 'Retirer l’Appareil' }).click();
+  await expect(card).toHaveCount(0);
+  // Its socket closed with 4403 (E2E-4): a short Resynchronisation, then live again without it, its Banner alone.
+  await expect(deviceBanner(page)).toHaveCount(1);
+  await expect(deviceBanner(page)).toContainText('Cet Appareil ne lit pas encore tes Sessions ni le texte de tes Idées.');
+  // Its record of the Appareil gone from IndexedDB.
+  const stored = await page.evaluate(
+    () =>
+      new Promise<unknown>((done) => {
+        const open = indexedDB.open('crewdeck-keys');
+        open.onsuccess = () => {
+          const db = open.result;
+          if (!db.objectStoreNames.contains('device')) return done(undefined);
+          const read = db.transaction('device', 'readonly').objectStore('device').get('self');
+          read.onsuccess = () => done(read.result);
+        };
+      }),
+  );
+  expect(stored).toBeUndefined();
+});
+
 test('a new Appareil’s code expires after 10 minutes: « Code expiré », and « Recommencer » shows a new one', async ({ page, scenario, expectAccessible }) => {
   await page.clock.install();
   await scenario('appareil-a-approuver');

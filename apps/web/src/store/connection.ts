@@ -29,6 +29,10 @@ export interface ConnectionOptions {
   /** `/api/ws` on the page's origin by default. */
   readonly url?: string;
   readonly createSocket?: (url: string) => SocketLike;
+  /** This browser's Appareil, named in each socket's URL (`?device=<id>`, E2E-4): the server closes it with 4403 once revoked. */
+  readonly device?: () => string | null;
+  /** Forgets this browser's Appareil, after a 4403: the next socket names none. */
+  readonly forgetDevice?: () => Promise<void>;
   /** The tab's visibility: `document.visibilityState` by default. */
   readonly visibility?: () => DocumentVisibilityState;
 }
@@ -42,6 +46,13 @@ export interface Connection {
    * One `hello` at a time: asked again meanwhile, the next one goes after that `live`, and only its own `live` ends the `resync`.
    */
   catchUp(): void;
+  /**
+   * After a change no event tells (the vault key's rotation rewrapped every
+   * item key, E2E-4): `resync`, `GET /api/state` read again and applied, then
+   * `hello` with its `seq`. A snapshot that cannot be read is owed to the next
+   * socket, which reads it before its `hello`.
+   */
+  refresh(): void;
   /** A message of a Session's relay (SESSION-1) on the open socket; false when none is open. */
   sendRelay(message: TabRelayClientMessage): boolean;
   /** The relay's messages from the server: `session.keys`, `relay`, `session.error`. */
@@ -88,7 +99,8 @@ const parse = (data: unknown): ServerMessage | null => {
  * 2, 5 then 10 s, at once when the tab becomes visible; a skipped `seq`
  * reconnects at once, and so does a ping left unanswered 10 s (a transport
  * the browser still holds open). A socket closed because the session ended
- * (4401) is not opened again.
+ * (4401) is not opened again. A socket closed because the Appareil it named
+ * was revoked (4403, E2E-4) forgets it, then opens one without it at once.
  */
 export const createConnection = ({
   store,
@@ -97,6 +109,8 @@ export const createConnection = ({
   // A WebSocket's handlers take its own events, wider than what the connection reads.
   createSocket = (target) => new WebSocket(target) as unknown as SocketLike,
   visibility = () => document.visibilityState,
+  device = () => null,
+  forgetDevice = async () => undefined,
 }: ConnectionOptions): Connection => {
   let socket: SocketLike | null = null;
   let attempt = 0;
@@ -108,6 +122,8 @@ export const createConnection = ({
   let awaiting = false;
   /** A catch-up asked while one was waiting: its `hello` goes once the server is `live`. */
   let again = false;
+  /** A `refresh` not applied yet: the next socket opened reads the snapshot before its `hello`. */
+  let owed = false;
 
   const relayListeners = new Set<(message: TabRelayServerMessage) => void>();
   const commandListeners = new Set<(message: TabCommandServerMessage) => void>();
@@ -141,6 +157,27 @@ export const createConnection = ({
     current.close();
   };
 
+  const refresh = () => {
+    if (stopped) return;
+    owed = true;
+    store.markStale();
+    const current = socket;
+    snapshot().then(
+      (state) => {
+        // A socket opened since reads its own.
+        if (stopped || socket !== current) return;
+        owed = false;
+        store.applySnapshot(state);
+        if (current?.readyState !== OPEN) return;
+        if (awaiting) again = true;
+        else hello();
+      },
+      () => {
+        if (!stopped && current && socket === current) lost('later');
+      },
+    );
+  };
+
   const scheduleReconnect = (delay: number) => {
     clearTimeout(reconnectTimer);
     reconnectTimer = setTimeout(() => {
@@ -154,6 +191,10 @@ export const createConnection = ({
     store.markLost(new Date());
     if (reconnect === 'never') return;
     if (reconnect === 'now') return open();
+    backoff();
+  };
+
+  const backoff = () => {
     const delay = RECONNECT_DELAYS_MS[Math.min(attempt, RECONNECT_DELAYS_MS.length - 1)] as number;
     attempt += 1;
     scheduleReconnect(delay);
@@ -213,10 +254,14 @@ export const createConnection = ({
     if (stopped) return;
     clearTimeout(reconnectTimer);
     reconnectTimer = undefined;
-    const current = createSocket(url);
+    const named = device();
+    const target = new URL(url);
+    if (named) target.searchParams.set('device', named);
+    const current = createSocket(target.href);
     socket = current;
     current.onopen = () => {
-      hello();
+      if (owed) refresh();
+      else hello();
       pingTimer = setInterval(ping, PING_INTERVAL_MS);
       for (const listener of openListeners) listener();
     };
@@ -226,7 +271,18 @@ export const createConnection = ({
       const message = parse(event.data);
       if (message) onMessage(message);
     };
-    current.onclose = (event) => lost(event.code === WS_CLOSE.unauthorized ? 'never' : 'later');
+    current.onclose = (event) => {
+      if (event.code !== WS_CLOSE.deviceRevoked) return lost(event.code === WS_CLOSE.unauthorized ? 'never' : 'later');
+      lost('never');
+      // Forgotten, the next socket names no Appareil; still named, the backoff keeps it from a loop.
+      void forgetDevice()
+        .catch(() => undefined)
+        .then(() => {
+          if (stopped || socket) return;
+          if (device() === named) return backoff();
+          open();
+        });
+    };
   };
 
   const onVisibilityChange = () => {
@@ -254,6 +310,7 @@ export const createConnection = ({
       if (awaiting) again = true;
       else hello();
     },
+    refresh,
     sendRelay: (message) => send(message),
     onRelay(listener) {
       relayListeners.add(listener);

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "fromVersion": {
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "type": "integer"
+    },
+    "items": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "itemId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "itemType": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z-]*\\.[a-z][a-z-]*$",
+            "type": "string"
+          },
+          "previousKey": {
+            "pattern": "^[A-Za-z0-9_-]*$",
+            "type": "string"
+          },
+          "wrappedKey": {
+            "pattern": "^[A-Za-z0-9_-]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId",
+          "itemType",
+          "previousKey",
+          "wrappedKey"
+        ],
+        "type": "object"
+      },
+      "maxItems": 30000,
+      "type": "array"
+    },
+    "seq": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "toVersion": {
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "type": "integer"
+    },
+    "wraps": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "ciphertext": {
+            "pattern": "^[A-Za-z0-9_-]*$",
+            "type": "string"
+          },
+          "enc": {
+            "pattern": "^[A-Za-z0-9_-]*$",
+            "type": "string"
+          },
+          "holderId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "holderType": {
+            "enum": [
+              "device",
+              "runner"
+            ],
+            "type": "string"
+          },
+          "tag": {
+            "pattern": "^[A-Za-z0-9_-]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ciphertext",
+          "enc",
+          "holderId",
+          "holderType",
+          "tag"
+        ],
+        "type": "object"
+      },
+      "maxItems": 101,
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "fromVersion",
+    "items",
+    "seq",
+    "toVersion",
+    "wraps"
+  ],
+  "title": "RunnerVaultRotation",
+  "type": "object"
+}

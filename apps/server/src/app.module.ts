@@ -33,6 +33,7 @@ import { TicketsModule } from './tickets/tickets.module.js';
 import { UsageModule } from './usage/usage.module.js';
 import { SensitiveActionsModule } from './sensitive-actions/sensitive-actions.module.js';
 import { SettingsModule } from './settings/settings.module.js';
+import { VaultModule } from './vault/vault.module.js';
 import { WebModule } from './web/web.module.js';
 
 export interface AppModuleOptions {
@@ -79,6 +80,7 @@ export class AppModule {
         PilotsModule,
         DevicesModule,
         RunnersModule,
+        VaultModule,
         SessionsModule,
         CommandsModule,
         RepositoriesModule,

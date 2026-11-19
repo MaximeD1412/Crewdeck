@@ -61,7 +61,8 @@ describe('the Paramètres of a Projet against PostgreSQL', () => {
   /** A Pilote with a session and both Comptes IA: their id and the cookie of a tab. */
   const pilot = async (login = 'octocat'): Promise<{ id: string; cookie: string }> => {
     const id = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone) VALUES ($1, $2, $3, 'Europe/Paris')`, [id, Math.floor(Math.random() * 1e9), login]);
+    // Its vault at version 1, as « Premiers pas » leave it: the Commandes are sealed under it.
+    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, vault_key_version) VALUES ($1, $2, $3, 'Europe/Paris', 1)`, [id, Math.floor(Math.random() * 1e9), login]);
     const token = await runInPilotScope(id, () => app.get(WebSessions).open(prisma.scoped, id, undefined));
     await createAiAccounts(prisma, id, [CLAUDE_SUBSCRIPTION, CODEX_API_KEY]);
     return { id, cookie: `${SESSION_COOKIE}=${token}` };
@@ -267,7 +268,7 @@ describe('the Paramètres of a Projet against PostgreSQL', () => {
       const alice = await pilot('alice');
       const projectId = await project(alice.id);
 
-      const res = zProjectSettings.parse(await (await patch(alice.cookie, projectId, { seq: '0', worktreeCommands: SEALED })).json());
+      const res = zProjectSettings.parse(await (await patch(alice.cookie, projectId, { seq: '0', worktreeCommands: SEALED, vaultKeyVersion: 1 })).json());
       expect(res.worktreeCommands).toEqual(SEALED);
       expect(await sql('SELECT worktree_commands FROM project_settings WHERE project_id = $1', [projectId])).toEqual([{ worktree_commands: SEALED }]);
       expect(await runInPilotScope(alice.id, () => app.get(ProjectSettingsService).worktreeCommands(projectId))).toEqual(SEALED);
@@ -275,8 +276,8 @@ describe('the Paramètres of a Projet against PostgreSQL', () => {
       await patch(alice.cookie, projectId, { seq: '1', notifications: { push: false } });
       expect(zProjectSettings.parse(await (await get(alice.cookie, projectId)).json()).worktreeCommands).toEqual(SEALED);
 
-      await expectFields(await patch(alice.cookie, projectId, { seq: '2', worktreeCommands: { key: b64(60), ciphertext: b64(16 * 1024 + 3) } }), ['worktreeCommands.ciphertext']);
-      await expectFields(await patch(alice.cookie, projectId, { seq: '2', worktreeCommands: { prepare: 'pnpm install', clean: null } }), [
+      await expectFields(await patch(alice.cookie, projectId, { seq: '2', worktreeCommands: { key: b64(60), ciphertext: b64(16 * 1024 + 3) }, vaultKeyVersion: 1 }), ['worktreeCommands.ciphertext']);
+      await expectFields(await patch(alice.cookie, projectId, { seq: '2', worktreeCommands: { prepare: 'pnpm install', clean: null }, vaultKeyVersion: 1 }), [
         'worktreeCommands.key',
         'worktreeCommands.ciphertext',
         'worktreeCommands.prepare',
@@ -287,6 +288,26 @@ describe('the Paramètres of a Projet against PostgreSQL', () => {
       expect(removed.worktreeCommands).toBeNull();
       expect(await sql('SELECT worktree_commands FROM project_settings WHERE project_id = $1', [projectId])).toEqual([{ worktree_commands: null }]);
       expect(JSON.stringify(await sql('SELECT * FROM project_settings'))).not.toContain('pnpm install');
+    });
+
+    it('answers 409 vault.version-changed to Commandes sealed under an older vault key than the current one, and writes nothing; 400 without the version (E2E-4)', async () => {
+      const alice = await pilot('alice');
+      const projectId = await project(alice.id);
+      const before = await sql('SELECT seq FROM pilots WHERE id = $1', [alice.id]);
+
+      await expectFields(await patch(alice.cookie, projectId, { seq: '0', worktreeCommands: SEALED }), ['vaultKeyVersion']);
+      await expectFields(await patch(alice.cookie, projectId, { seq: '0', notifications: { push: false }, vaultKeyVersion: 1 }), ['vaultKeyVersion']);
+      // The vault rotated to version 2 since the page sealed under version 1.
+      await sql('UPDATE pilots SET vault_key_version = 2 WHERE id = $1', [alice.id]);
+      await expectEnvelope(await patch(alice.cookie, projectId, { seq: '0', worktreeCommands: SEALED, vaultKeyVersion: 1, notifications: { push: false } }), 409, 'vault.version-changed');
+      expect(await sql('SELECT project_id FROM project_settings')).toEqual([]);
+      expect(await sql('SELECT seq FROM pilots WHERE id = $1', [alice.id])).toEqual(before);
+
+      const res = await patch(alice.cookie, projectId, { seq: '0', worktreeCommands: SEALED, vaultKeyVersion: 2 });
+      expect(res.status).toBe(200);
+      expect(zProjectSettings.parse(await res.json()).worktreeCommands).toEqual(SEALED);
+      // Removing them seals nothing: no version to give.
+      expect((await patch(alice.cookie, projectId, { seq: '1', worktreeCommands: null })).status).toBe(200);
     });
   });
 

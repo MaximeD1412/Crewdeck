@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createClient } from './client.js';
-import { ApiError, setCurrentDevice } from './request.js';
+import { DEVICE_HEADER } from '@crewdeck/contracts';
+import { ApiError, currentDeviceId, onDeviceRevoked, setCurrentDevice } from './request.js';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const zIdea = z.object({ id: z.string(), title: z.string() });
@@ -105,5 +106,47 @@ describe('the API client', () => {
     fetchMock.mockResolvedValueOnce(json(409, { status: 409, code: 'idea.already-retained', message: 'Cette Idée est déjà retenue.' }));
     await client.command('POST', '/api/ideas/i1/retain', {}).catch(() => undefined);
     expect(onStale).not.toHaveBeenCalled();
+  });
+  describe('an Appareil the server says revoked (E2E-4)', () => {
+    const REVOKED = { status: 422, code: 'devices.revoked', message: 'Cet Appareil a été révoqué.' };
+    const DEVICE = '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a74';
+    const headerOf = (call: number): unknown => (fetchMock.mock.calls[call]?.[1]?.headers as Record<string, string> | undefined)?.[DEVICE_HEADER];
+    afterEach(() => {
+      setCurrentDevice(null);
+      onDeviceRevoked(null);
+    });
+
+    it('forgets it, then makes the call again without it: the page reads on as a browser without Appareil', async () => {
+      setCurrentDevice(DEVICE);
+      const forget = vi.fn(async () => setCurrentDevice(null));
+      onDeviceRevoked(forget);
+      fetchMock.mockResolvedValueOnce(json(422, REVOKED)).mockResolvedValueOnce(json(200, { id: 'i1', title: 'Une Idée' }));
+
+      await expect(client.query('/api/state', zIdea)).resolves.toEqual({ id: 'i1', title: 'Une Idée' });
+
+      expect(forget).toHaveBeenCalledOnce();
+      expect([headerOf(0), headerOf(1)]).toEqual([DEVICE, undefined]);
+      expect(currentDeviceId()).toBeNull();
+    });
+
+    it('two calls refused at once forget it once', async () => {
+      setCurrentDevice(DEVICE);
+      const forget = vi.fn(async () => setCurrentDevice(null));
+      onDeviceRevoked(forget);
+      fetchMock.mockResolvedValueOnce(json(422, REVOKED)).mockResolvedValueOnce(json(422, REVOKED)).mockImplementation(async () => json(200, { id: 'i1', title: 'Une Idée' }));
+
+      await Promise.all([client.query('/api/a', zIdea), client.query('/api/b', zIdea)]);
+
+      expect(forget).toHaveBeenCalledOnce();
+    });
+
+    it('a devices.revoked sent without an Appareil named is thrown as is', async () => {
+      const forget = vi.fn(async () => undefined);
+      onDeviceRevoked(forget);
+      fetchMock.mockResolvedValueOnce(json(422, REVOKED));
+      await expect(client.query('/api/state', zIdea)).rejects.toMatchObject({ code: 'devices.revoked' });
+      expect(forget).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledOnce();
+    });
   });
 });

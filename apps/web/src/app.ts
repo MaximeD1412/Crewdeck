@@ -25,13 +25,15 @@ import { dispatcher as pageDispatcher, type Dispatcher } from './actions/dispatc
 import { createEditorActions } from './actions/process-editor.js';
 import { me as readMe, requestLink as postLinkRequest, verifyLink as postLinkVerify } from './api/auth.js';
 import type { Client } from './api/client.js';
-import { ApiError, currentDeviceId } from './api/request.js';
+import { ApiError, currentDeviceId, deviceRevoked, onDeviceRevoked } from './api/request.js';
 import { updateSettings } from './api/settings.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
+import { confirmProductAction } from './dialogs/confirm.js';
 import { browserScanner, openApproveDevice, openNewDevice } from './dialogs/device-approval.js';
 import { createClosedIdeas } from './closed-ideas.js';
 import { createDeadline } from './deadline.js';
 import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
+import { followVault } from './keys/follow.js';
 import { createPageKeys, type PageKeys } from './keys/index.js';
 import { createEditorUi } from './process/editor-ui.js';
 import { createNoteIdea } from './note-idea.js';
@@ -57,7 +59,7 @@ import { actionsOf, decisionViews } from './views/decisions/registry.js';
 import './views/decisions/loop-back-exhausted.js';
 import './views/decisions/runner-offline.js';
 import { systemOfBrowser } from './views/demarrage.js';
-import { ADD_DEVICE_ID } from './views/devices.js';
+import { ADD_DEVICE_ID, isLastTrusted, revokeConfirmation, revokedDeviceOf } from './views/devices.js';
 import { ideesQuery, ideesView } from './views/idees.js';
 import { parametresView, timeZones } from './views/parametres.js';
 import { parametresProjetView, type ParametresProjetView } from './views/parametres-projet.js';
@@ -89,13 +91,17 @@ export interface BootOptions {
   readonly verifyLink?: (token: string, timeZone: string) => Promise<EmailLinkVerified>;
   /** The page's store and its socket (`store/index.ts`) by default. */
   readonly store?: Store;
-  readonly connection?: Pick<Connection, 'start' | 'stop'>;
+  readonly connection?: Pick<Connection, 'start' | 'stop'> & Partial<Pick<Connection, 'refresh'>>;
   /** The page's queries and commands (`store/index.ts`) by default. */
   readonly client?: Pick<Client, 'command' | 'query'>;
   /** The latency the page measures on its store's live events (CORE-8): started with the socket. */
   readonly latency?: LatencyMeter;
-  /** This browser's Appareil, the vault (E2E-2) and a new Appareil's approval (E2E-3): IndexedDB and WebCrypto by default. */
-  readonly keys?: Pick<PageKeys, 'linkKeys' | 'vault' | 'nameDevice' | 'unlockVault' | 'approval'>;
+  /**
+   * This browser's Appareil, the vault (E2E-2), a new Appareil's approval
+   * (E2E-3), the vault key's rotation and a revoked Appareil forgotten
+   * (E2E-4): IndexedDB and WebCrypto by default.
+   */
+  readonly keys?: Pick<PageKeys, 'linkKeys' | 'vault' | 'nameDevice' | 'unlockVault' | 'approval' | 'rotateVault' | 'forgetDevice'>;
   /** The relay of the Sessions (SESSION-1): through the page's socket, with this browser's Appareil, by default. */
   readonly relay?: Pick<SessionRelay, 'openSession' | 'sendInput' | 'closeSession'>;
 }
@@ -153,9 +159,37 @@ export const boot = async ({
       if (key === 'device') openNewDevice({ approval: keys.approval, store, unlockVault });
     },
   });
-  // « Ajouter un Appareil », the core's button in the Appareils' Card: the approval of another one.
+  /**
+   * « Retirer » an Appareil (E2E-4): the core's dialog says what happens, then
+   * the revocation with the store's `seq`; this browser's own forgets its keys
+   * (the Banner of a browser without an Appareil then shows). The request
+   * says whether the dialog warned of the last trusted Appareil (OPS-1): when
+   * another revocation left it the last meanwhile (409
+   * `devices.last-changed`), the dialog asks again, with the warning. Any
+   * other refusal is shown as any other (`unhandledrejection`).
+   */
+  const revokeDevice = async (deviceId: string, { warned = false } = {}): Promise<void> => {
+    const currentId = currentDeviceId();
+    const devices = store.getState().slices.device;
+    const last = warned || isLastTrusted(devices, deviceId);
+    const asked = revokeConfirmation(devices, deviceId, currentId, { last });
+    if (!asked || !(await confirmProductAction(asked))) return;
+    try {
+      await client.command('POST', `/api/devices/${encodeURIComponent(deviceId)}/revoke`, { last });
+    } catch (error) {
+      if (!last && error instanceof ApiError && error.code === 'devices.last-changed') return revokeDevice(deviceId, { warned: true });
+      throw error;
+    }
+    if (deviceId === currentId) await keys.forgetDevice();
+  };
+  // This browser's Appareil revoked (a 422 `devices.revoked`, the socket's 4403, its `device.upserted`): its keys forgotten.
+  onDeviceRevoked(() => keys.forgetDevice());
+  // The core's buttons in the Appareils' Card: « Ajouter un Appareil » approves another one, « Retirer » revokes one.
   const onOutletClick = (event: MouseEvent) => {
-    if (!event.composedPath().some((target) => target instanceof HTMLElement && target.id === ADD_DEVICE_ID)) return;
+    const ids = event.composedPath().flatMap((target) => (target instanceof HTMLElement && target.id ? [target.id] : []));
+    const revoked = ids.map(revokedDeviceOf).find((id) => id !== null);
+    if (revoked) return void revokeDevice(revoked);
+    if (!ids.includes(ADD_DEVICE_ID)) return;
     openApproveDevice({ approval: keys.approval, vaultState: () => store.getState().vaultState, scanner: browserScanner() });
   };
   shell.outlet.addEventListener('click', onOutletClick);
@@ -316,6 +350,16 @@ export const boot = async ({
     projectSettings.subscribe(() => router.refresh()),
     editorUi.subscribe(() => router.refresh()),
   ];
+  // The vault's version and rotation (E2E-4): a new version opened, a pending rotation run, the state read again after either.
+  const stopFollowingVault = followVault({
+    store,
+    vault: keys.vault,
+    unlockVault,
+    rotateVault: () => keys.rotateVault(),
+    refresh: () => connection.refresh?.(),
+    currentDeviceId,
+    forgetDevice: deviceRevoked,
+  });
   if (pilot) {
     // The Appareil named before the snapshot, which says which one is `current`.
     await keys.nameDevice();
@@ -410,6 +454,8 @@ export const boot = async ({
   dispatcher.registerAction(Composer, 'send', { run: ({ text }) => sessionPanel.send(text) });
   const stop = () => {
     sessionPanel.dispose();
+    stopFollowingVault();
+    onDeviceRevoked(null);
     router.stop();
     usageChanges.stop();
     connection.stop();

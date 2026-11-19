@@ -9,6 +9,9 @@ import "regexp"
 type RunnerDeviceHolders struct {
 	// Holders corresponds to the JSON schema field "holders".
 	Holders []RunnerDeviceHoldersHoldersElem `json:"holders"`
+
+	// Vouchers corresponds to the JSON schema field "vouchers".
+	Vouchers []RunnerDeviceHoldersVouchersElem `json:"vouchers,omitempty,omitzero"`
 }
 
 type RunnerDeviceHoldersHoldersElem struct {
@@ -102,6 +105,100 @@ func (j *RunnerDeviceHoldersHoldersElem) UnmarshalJSON(value []byte) error {
 		return fmt.Errorf("field %s pattern match: must match %s", "PublicKey", `^[A-Za-z0-9_-]*$`)
 	}
 	*j = RunnerDeviceHoldersHoldersElem(plain)
+	return nil
+}
+
+type RunnerDeviceHoldersVouchersElem struct {
+	// ApproverPublicKey corresponds to the JSON schema field "approverPublicKey".
+	ApproverPublicKey string `json:"approverPublicKey"`
+
+	// DeviceId corresponds to the JSON schema field "deviceId".
+	DeviceId string `json:"deviceId"`
+
+	// PublicKey corresponds to the JSON schema field "publicKey".
+	PublicKey string `json:"publicKey"`
+
+	// Wrap corresponds to the JSON schema field "wrap".
+	Wrap RunnerDeviceHoldersVouchersElemWrap `json:"wrap"`
+}
+
+type RunnerDeviceHoldersVouchersElemWrap struct {
+	// Ciphertext corresponds to the JSON schema field "ciphertext".
+	Ciphertext string `json:"ciphertext"`
+
+	// Enc corresponds to the JSON schema field "enc".
+	Enc string `json:"enc"`
+
+	// Tag corresponds to the JSON schema field "tag".
+	Tag string `json:"tag"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerDeviceHoldersVouchersElemWrap) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["ciphertext"]; raw != nil && !ok {
+		return fmt.Errorf("field ciphertext in RunnerDeviceHoldersVouchersElemWrap: required")
+	}
+	if _, ok := raw["enc"]; raw != nil && !ok {
+		return fmt.Errorf("field enc in RunnerDeviceHoldersVouchersElemWrap: required")
+	}
+	if _, ok := raw["tag"]; raw != nil && !ok {
+		return fmt.Errorf("field tag in RunnerDeviceHoldersVouchersElemWrap: required")
+	}
+	type Plain RunnerDeviceHoldersVouchersElemWrap
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Ciphertext)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Ciphertext", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Enc)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Enc", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Tag)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Tag", `^[A-Za-z0-9_-]*$`)
+	}
+	*j = RunnerDeviceHoldersVouchersElemWrap(plain)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerDeviceHoldersVouchersElem) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["approverPublicKey"]; raw != nil && !ok {
+		return fmt.Errorf("field approverPublicKey in RunnerDeviceHoldersVouchersElem: required")
+	}
+	if _, ok := raw["deviceId"]; raw != nil && !ok {
+		return fmt.Errorf("field deviceId in RunnerDeviceHoldersVouchersElem: required")
+	}
+	if _, ok := raw["publicKey"]; raw != nil && !ok {
+		return fmt.Errorf("field publicKey in RunnerDeviceHoldersVouchersElem: required")
+	}
+	if _, ok := raw["wrap"]; raw != nil && !ok {
+		return fmt.Errorf("field wrap in RunnerDeviceHoldersVouchersElem: required")
+	}
+	type Plain RunnerDeviceHoldersVouchersElem
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.ApproverPublicKey)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "ApproverPublicKey", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`, string(plain.DeviceId)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "DeviceId", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.PublicKey)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "PublicKey", `^[A-Za-z0-9_-]*$`)
+	}
+	*j = RunnerDeviceHoldersVouchersElem(plain)
 	return nil
 }
 

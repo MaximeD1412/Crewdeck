@@ -264,6 +264,15 @@ describe('PageProcessEditor', () => {
       expect(menuBox.width).toBeGreaterThan(stepBox.width * 2);
     });
 
+    it('keeps a long catalogue within the window, scrolling inside its Menu', async () => {
+      const groups = catalogue.catalogue?.groups ?? [];
+      const long = { ...catalogue, catalogue: { ...catalogue.catalogue!, groups: Array.from({ length: 12 }, () => groups).flat() } };
+      const el = await show(long);
+      const menu = inside(el, '.menu-anchor cd-menu');
+      expect(menu.getBoundingClientRect().bottom).toBeLessThanOrEqual(window.innerHeight);
+      expect(menu.scrollHeight).toBeGreaterThan(menu.clientHeight);
+    });
+
     it('relays « Phase » and « Étape »', async () => {
       const el = await show(phase);
       const details = await actionsOf(() => {

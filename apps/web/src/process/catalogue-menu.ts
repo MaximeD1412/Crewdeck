@@ -9,8 +9,10 @@ type MenuName = NonNullable<StepKindSpec['menu']>;
 
 const ICONS: Readonly<Record<Exclude<StepFamily, 'core'>, Icon>> = { agent: 'spark', gate: 'user', command: 'terminal' };
 /** The kinds whose detail says what they are rather than their ports. */
-const DETAILS: Partial<Record<StepKind, 'process.catalogue.detail.review' | 'process.catalogue.detail.command'>> = {
+const DETAILS: Partial<Record<StepKind, `process.catalogue.detail.${'review' | 'command' | 'approval' | 'crossReview'}`>> = {
   review: 'process.catalogue.detail.review',
+  'cross-review': 'process.catalogue.detail.crossReview',
+  approval: 'process.catalogue.detail.approval',
   command: 'process.catalogue.detail.command',
 };
 /** From this many Types d'artefact on one side, « … ». */

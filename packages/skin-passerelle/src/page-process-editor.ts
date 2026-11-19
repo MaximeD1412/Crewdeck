@@ -213,6 +213,10 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
         z-index: 5;
         /* Its own width (--cd-menu-width), not the anchor's: it opens leftwards over the panel. */
         max-width: none;
+        /* Within the window, below the header: a long catalogue scrolls inside it. */
+        max-height: calc(100dvh - 10rem);
+        overflow-y: auto;
+        overscroll-behavior: contain;
       }
       .radios {
         display: flex;

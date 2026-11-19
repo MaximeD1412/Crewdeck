@@ -29,7 +29,6 @@ describe('catalogueMenu', () => {
     expect(item(menu, 'inventory')?.detail).toBe('→ Inventaire');
     expect(item(menu, 'technical-design')?.detail).toBe('PRD, Maquettes → Conception technique');
     expect(item(menu, 'split')?.detail).toBe('… → Ticket');
-    expect(item(menu, 'cross-review')?.detail).toBe('… → Verdict');
     expect(item(menu, 'visual-review')).toMatchObject({ icon: 'user', detail: 'Changement de code, Maquettes → Verdict' });
     expect(item(menu, 'idea-triage')?.icon).toBe('user');
   });
@@ -37,6 +36,11 @@ describe('catalogueMenu', () => {
   it('says the Review is on the Rôle of one’s choice, the Commande judged on its exit code', () => {
     expect(item(menu, 'review')).toMatchObject({ icon: 'spark', detail: 'sur le Rôle de ton choix → Verdict' });
     expect(item(menu, 'command')).toMatchObject({ icon: 'terminal', detail: 'jugée sur son code de sortie' });
+  });
+
+  it('says the Revue croisée and the Approbation take a document, as the mockup does', () => {
+    expect(item(menu, 'cross-review')).toMatchObject({ icon: 'spark', detail: 'un document → Verdict' });
+    expect(item(menu, 'approval')).toMatchObject({ icon: 'user', detail: 'un document → le même, approuvé' });
   });
 
   it('disables a unique kind the definition already holds', () => {

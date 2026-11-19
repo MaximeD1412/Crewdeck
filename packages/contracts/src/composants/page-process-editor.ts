@@ -242,7 +242,7 @@ export const PageProcessEditor = defineComposant({
             {
               label: 'Revues',
               items: [
-                { id: 'cross-review', label: 'Revue croisée', icon: 'spark', detail: '… → Verdict', selected: false, disabled: false },
+                { id: 'cross-review', label: 'Revue croisée', icon: 'spark', detail: 'un document → Verdict', selected: false, disabled: false },
                 { id: 'review', label: 'Review', icon: 'spark', detail: 'sur le Rôle de ton choix → Verdict', selected: false, disabled: false },
               ],
             },

@@ -66,6 +66,9 @@ type FollowerConfig struct {
 	Folders func() map[string]string
 	// Vault opens a Local Projet's sealed name; nil: its key names it.
 	Vault func() NameOpener
+	// Tokens, when set, give the GitHub tokens in place of the server's «
+	// Miroir » ones: the commands' tests, which run no server.
+	Tokens func(repository string) github.TokenSource
 }
 
 // Follower keeps the copy live from the server's envelopes (ADR 0010,
@@ -188,6 +191,9 @@ func NewFollower(cfg FollowerConfig) (*Follower, error) {
 		f.logger = (&Mirror{}).logger()
 	}
 	cfg.GitHub.Tokens = f.tokenSource
+	if cfg.Tokens != nil {
+		cfg.GitHub.Tokens, f.tokensReady = cfg.Tokens, true
+	}
 	if cfg.GitHub.Now == nil {
 		cfg.GitHub.Now = f.clock.Now
 	}

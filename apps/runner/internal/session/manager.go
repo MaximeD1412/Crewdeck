@@ -536,6 +536,8 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 	s.mu.Unlock()
 	m.setState(s, contracts.RunnerSessionStateStateActive)
 
+	// turnFailed is an Étape's last turn ended in error: its Session too.
+	turnFailed := false
 	for event := range run.Events() {
 		m.logEvent(s, out, event, false)
 		state := contracts.RunnerSessionStateStateActive
@@ -550,9 +552,19 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 				s.rec.EngineSessionID = *id
 			}
 			stopping := s.stopping
+			step := s.rec.Step != nil
 			s.mu.Unlock()
 			if stopping {
 				s.cancel()
+			} else if step && event.Result.Status != contracts.EngineEventResultStatusInterrupted {
+				// An Étape's agent works alone, its questions asked in its
+				// turn (`etape ask`): the end of its turn is the end of its
+				// work. The Moteur is ended, as a normal end, for its Contrat
+				// to be checked; one interrupted by the Pilote waits for them.
+				turnFailed = event.Result.Status == contracts.EngineEventResultStatusError
+				if err := run.End(ctx); err != nil && !errors.Is(err, engine.ErrRunEnded) {
+					m.cfg.Logger.Warn("session.engine", "sessionId", rec.SessionID, "error", "the Moteur did not end")
+				}
 			}
 		}
 		// A request answered while another still waits: the Session waits on.
@@ -575,7 +587,7 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 		m.halt(s)
 	case m.ctx.Err() != nil:
 		m.drop(s) // the Runner stops: the Session is told after its restart
-	case waitErr != nil:
+	case waitErr != nil, turnFailed:
 		m.cfg.Logger.Warn("session.engine", "sessionId", rec.SessionID, "error", "the Moteur ended in error")
 		m.finish(s, w, true, contracts.RunnerSessionStateOutcomeError, contracts.RunnerSessionStateErrorEngineFailed)
 	default:

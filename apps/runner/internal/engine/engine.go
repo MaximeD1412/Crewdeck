@@ -40,6 +40,11 @@ type Run interface {
 	// Interrupt stops the turn in progress: it ends with a `result` whose
 	// status is `interrupted`.
 	Interrupt(ctx context.Context) error
+	// End ends the run once its turn is over: the Moteur takes no more
+	// messages and exits, a normal end (Wait then returns nil). A Moteur that
+	// stays alive between turns (Claude Code's stream-json input) ends only
+	// so; one whose run ends with its turn has nothing more to do.
+	End(ctx context.Context) error
 	// Wait waits for the run to end, and says why when it is not a normal end.
 	Wait() error
 }

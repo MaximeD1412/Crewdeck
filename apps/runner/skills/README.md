@@ -51,6 +51,11 @@ first in its PATH:
   `content` is the report's free text, sealed by the Runner before it leaves
   the machine, never in `figures`.
 
+The end of the agent's turn is the end of the Étape: the Runner then ends
+the Moteur (Claude Code, which waits for its next message, has its input
+closed), unless the Pilote interrupted the turn. A Skill asks only through
+`etape ask`, inside its turn.
+
 The Contrat of the Étape is checked by the Runner once the Session ended, on
 its worktree and its change of code read from the Miroir: a Skill does not
 check it, it delivers what the Contrat asks.

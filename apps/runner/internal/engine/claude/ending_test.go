@@ -100,3 +100,32 @@ func TestCancellingTheRunStopsItDuringABlockedSend(t *testing.T) {
 		t.Fatal("Send still blocked 5 s after the run ended")
 	}
 }
+
+// Claude waits for its next message after a turn, as long as stdin is open:
+// End closes it, and the run ends as a normal end, every event given.
+func TestEndClosesStdinAndClaudeWaitingAfterItsTurnExitsAsANormalEnd(t *testing.T) {
+	run := fakeStream(t, context.Background(),
+		`{"type":"system","subtype":"init","session_id":"end-0000-4000-8000-000000000001"}`,
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"fait"}]}}`,
+		`{"type":"result","subtype":"success","is_error":false,"session_id":"end-0000-4000-8000-000000000001"}`,
+		`{"fake":"await-eof"}`,
+	)
+	var events []contracts.EngineEvent
+	for event := range run.Events() {
+		events = append(events, event)
+		if event.Result != nil {
+			if err := run.End(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := waitFor(t, run); err != nil {
+		t.Fatalf("Wait: %v, want a normal end", err)
+	}
+	if last := events[len(events)-1]; last.Result == nil || last.Result.Status != contracts.EngineEventResultStatusOk {
+		t.Fatalf("events %s", render(events))
+	}
+	if err := run.End(context.Background()); !errors.Is(err, engine.ErrRunEnded) {
+		t.Fatalf("End after the end: %v", err)
+	}
+}

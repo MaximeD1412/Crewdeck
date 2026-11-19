@@ -18,6 +18,8 @@ import (
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contrat"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/engine/claude"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/engine/enginetest"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/keys"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/localsock"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/session"
@@ -396,5 +398,82 @@ func TestAnUnknownContratSendsNoVerdictAndLogsItsCodeOnly(t *testing.T) {
 	}
 	if !strings.Contains(logged.String(), "error=unknown-contrat") {
 		t.Fatalf("logged %q", logged.String())
+	}
+}
+
+// Claude Code stays alive after its turn, waiting for its next message on
+// stdin: an Étape's Session on the real adapter, its fake binary kept open
+// after its result, still ends ok, its Contrat checked and its verdict sent.
+func TestAnEtapesSessionOnClaudeCodeWaitingAfterItsTurnEndsOkWithItsVerdict(t *testing.T) {
+	stream := filepath.Join(t.TempDir(), "stream.jsonl")
+	lines := []string{
+		`{"type":"system","subtype":"init","session_id":"etape-0000-4000-8000-000000000001"}`,
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"fait"}]}}`,
+		`{"type":"result","subtype":"success","is_error":false,"session_id":"etape-0000-4000-8000-000000000001"}`,
+		`{"fake":"await-eof"}`,
+	}
+	if err := os.WriteFile(stream, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := newSetup(t)
+	// A short home: Claude's control socket is under the 108 bytes of a unix address.
+	home, err := os.MkdirTemp("", "cd-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(home) })
+	s.home = filepath.Join(home, ".crewdeck")
+	s.adapter = &claude.Engine{BinaryPath: enginetest.FakeBinary(t), Env: []string{"FAKE_ENGINE_STREAM=" + stream}}
+	pr := &change{pr: &contrat.PullRequest{Base: "develop", Head: "feat/12-panier", Body: "Closes #12", HeadSHA: "0123abc"}}
+	s.config = func(c *session.Config) { c.ChangeOf = pr.of }
+	m := s.manager(t)
+	message := start(firstID, "feat/12-panier")
+	message.Step.ContractId = "example"
+
+	m.Start(message)
+	ended := s.reports.await(t, firstID, contracts.RunnerSessionStateStateEnded)
+
+	if ended.Outcome == nil || *ended.Outcome != contracts.RunnerSessionStateOutcomeOk {
+		t.Fatalf("ended %+v, want ok", ended)
+	}
+	select {
+	case sent := <-s.reports.steps:
+		if verdict, ok := sent.(contracts.RunnerStepVerdict); !ok || verdict.StepRunId != stepRunID {
+			t.Fatalf("sent %+v, want the StepRun's verdict", sent)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no step.verdict")
+	}
+}
+
+// A Session of the Pilote's own waits for their next message after a turn;
+// an Étape's whose turn ended in error ends in error, with no verdict.
+func TestOnlyAnEtapesTurnEndsItsSessionAndOneInErrorEndsItInError(t *testing.T) {
+	failed := contracts.EngineEvent{Result: &contracts.EngineEventResult{Status: contracts.EngineEventResultStatusError}}
+	s := newSetup(t, message("fait"), failed)
+	s.engine.StayOpen = true
+	m := s.manager(t)
+	pilots := start(secondID, "feat/13-favoris")
+	pilots.Step = nil
+
+	m.Start(pilots)
+	s.reports.await(t, secondID, contracts.RunnerSessionStateStateWaiting)
+	m.Start(start(firstID, "feat/12-panier"))
+	ended := s.reports.await(t, firstID, contracts.RunnerSessionStateStateEnded)
+
+	if ended.Outcome == nil || *ended.Outcome != contracts.RunnerSessionStateOutcomeError || ended.Error == nil || *ended.Error != contracts.RunnerSessionStateErrorEngineFailed {
+		t.Fatalf("ended %+v, want error engine-failed", ended)
+	}
+	runs := s.engine.Runs()
+	if len(runs) != 2 || runs[0].Ended() || !runs[1].Ended() {
+		t.Fatalf("ended runs: the Pilote's %v, the Étape's %v", runs[0].Ended(), runs[1].Ended())
+	}
+	if states := s.reports.states(secondID); slices.Contains(states, contracts.RunnerSessionStateStateEnded) {
+		t.Fatalf("the Pilote's Session went %v", states)
+	}
+	select {
+	case sent := <-s.reports.steps:
+		t.Fatalf("sent %+v, want no verdict", sent)
+	default:
 	}
 }

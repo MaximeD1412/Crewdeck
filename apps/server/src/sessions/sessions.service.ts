@@ -5,13 +5,16 @@ import {
   LIVE_SESSION_STATES,
   RESUMABLE_SESSION_STATES,
   type RoleId,
+  type SessionAnswered,
   type SessionPermissionMode,
   type SessionState,
   type SessionStateMessage,
   type SessionStep,
+  type SessionWaiting,
 } from '@crewdeck/contracts';
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { DecisionsService } from '../decisions/decisions.service.js';
 import { AppError, notFound, unprocessable } from '../errors/app-error.js';
 import { MESSAGES } from '../errors/messages.js';
 import type { Prisma } from '../generated/prisma/client.js';
@@ -25,6 +28,7 @@ import { type OutgoingRunnerMessage, type RunnerLink, RunnerConnections } from '
 import { RunnerDispatcher } from '../runners/runner-dispatcher.js';
 import { RunnerPresence } from '../runners/runner-presence.service.js';
 import { currentPilotId, runInPilotScope } from '../scope/scope.context.js';
+import { raiseRequest, resolveRequest, resolveRequestsOfEnded } from './requests.js';
 import { SessionHooks } from './session-hooks.js';
 import { SESSION_ROW, type SessionRow, startMessageOf, stored, toAgentSession } from './session.view.js';
 
@@ -82,11 +86,14 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
     private readonly dispatcher: RunnerDispatcher,
     private readonly clock: RunnerClock,
     private readonly hooks: SessionHooks,
+    private readonly decisions: DecisionsService,
     @InjectPinoLogger(SessionsService.name) private readonly logger: PinoLogger,
   ) {}
 
   onModuleInit(): void {
     this.dispatcher.registerRunnerHandler('session.state', (message, context) => this.report(context.pilotId, message));
+    this.dispatcher.registerRunnerHandler('session.waiting', (message, context) => this.waiting(context.pilotId, message));
+    this.dispatcher.registerRunnerHandler('session.answered', (message, context) => this.answered(context.pilotId, message));
     this.removals.push(
       this.presence.onAnyOffline((pilotId) => {
         this.serial(pilotId, () => this.transactions.run((tx) => this.interruptAll(tx, pilotId))).catch((error: unknown) =>
@@ -209,6 +216,7 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
             engineSessionId,
             endedAt: this.clock.now(),
           });
+          await resolveRequestsOfEnded(tx, this.decisions, message.sessionId);
           await this.hooks.ended(tx, toAgentSession(ended));
           return;
         }
@@ -223,6 +231,43 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
           interruptedReason: message.state === 'interrupted' ? 'runner_restarted' : null,
           engineSessionId,
         });
+      }),
+    );
+  }
+
+  /**
+   * The Runner's `session.waiting` (SESSION-3): a request of the agent waits
+   * for the Pilote. Its Décision is raised and the live Session becomes
+   * `waiting`, in one transaction; a Session unknown, or no longer live, is
+   * ignored.
+   */
+  waiting(pilotId: string, message: SessionWaiting): Promise<void> {
+    return this.serial(pilotId, () =>
+      this.transactions.run(async (tx) => {
+        const row = await tx.agentSession.findUnique({
+          where: { id: message.sessionId },
+          select: { id: true, projectId: true, role: true, title: true, state: true, project: { select: { displayName: true } } },
+        });
+        if (!row || !LIVE.includes(row.state)) return;
+        await raiseRequest(tx, this.decisions, { ...row, projectName: row.project.displayName }, message);
+        if (row.state !== 'waiting') await this.change(tx, pilotId, row.id, { state: 'waiting', interruptedReason: null });
+      }),
+    );
+  }
+
+  /**
+   * The Runner's `session.answered`: the request was answered, from whatever
+   * tab. Its Décision is resolved (`answered`), and the Session goes back to
+   * `active` when no other request of it waits. An `interrupted` or `stopped`
+   * Session keeps its state.
+   */
+  answered(pilotId: string, message: SessionAnswered): Promise<void> {
+    return this.serial(pilotId, () =>
+      this.transactions.run(async (tx) => {
+        const row = await tx.agentSession.findUnique({ where: { id: message.sessionId }, select: { id: true, state: true } });
+        if (!row) return;
+        const othersWait = await resolveRequest(tx, this.decisions, row.id, message.requestId);
+        if (row.state === 'waiting' && !othersWait) await this.change(tx, pilotId, row.id, { state: 'active' });
       }),
     );
   }

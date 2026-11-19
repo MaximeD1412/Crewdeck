@@ -847,7 +847,8 @@ func (f *Follower) reconcileLocal(ctx context.Context, p *followed, repository s
 
 // indexDocs runs the key's documentation index (MIROIR-5): asked by
 // generation, it is done once one begun after the ask succeeds; a failure
-// waits its backoff in docsRetry, the GitHub key late meanwhile.
+// waits its backoff in docsRetry, the key late meanwhile, and the worker
+// tries again then.
 func (f *Follower) indexDocs(ctx context.Context, p *followed, repository string, generation uint64) error {
 	err := f.mirror.IndexDocs(ctx, repository)
 	f.mu.Lock()
@@ -860,6 +861,11 @@ func (f *Follower) indexDocs(ctx context.Context, p *followed, repository string
 		p.docsFailed = true
 		p.docsRetry = f.clock.Now().Add(f.backoff.Delay(p.docsFailures))
 		p.docsFailures++
+		// An ask stays pending, should the worker have done this
+		// generation already (a Sync's index failing after it): the worker
+		// retries it after the backoff.
+		p.docsWanted = max(p.docsWanted, p.docsDone+1)
+		wake(p)
 	}
 	return err
 }

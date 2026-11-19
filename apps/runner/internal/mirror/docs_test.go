@@ -553,6 +553,44 @@ func TestDocsAGitHubSyncAnswersOnceTheDocumentsAreIndexed(t *testing.T) {
 	}
 }
 
+func TestDocsAFailedIndexOfAGenerationAlreadyDoneIsRetriedAfterItsBackoff(t *testing.T) {
+	remote := newDocsRemote(t, docsFiles)
+	clock := newClock()
+	server := newRunnerServer(t, clock)
+	store, path := followedStore(t, 0, followedAtelier)
+	server.sendLive(0)
+	f := followDocs(t, store, server, remote, nil)
+	server.awaitHello()
+	awaitDoc(t, path, "acme/atelier", "AGENTS.md", "PRD")
+	eventually(t, "live", func() bool { s, _ := f.State("acme/atelier"); return s.State == FreshnessLive })
+	f.mu.Lock()
+	p := f.projects["acme/atelier"]
+	generation := p.docsDone
+	f.mu.Unlock()
+
+	// The worker indexed this generation; a Sync's index of it fails after.
+	moved := filepath.Join(filepath.Dir(remote.bare), "ailleurs.git")
+	if err := os.Rename(remote.bare, moved); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.indexDocs(context.Background(), p, "acme/atelier", generation); err == nil {
+		t.Fatal("the index succeeded with GitHub gone")
+	}
+	if s, _ := f.State("acme/atelier"); s.State != FreshnessLate {
+		t.Fatalf("freshness %s after a failed index", s.State)
+	}
+
+	// No new ask: the backoff alone retries it.
+	if err := os.Rename(moved, remote.bare); err != nil {
+		t.Fatal(err)
+	}
+	remote.commit(t, "develop", map[string]string{"CONTEXT.md": "# Glossaire\n"})
+	advanceUntil(t, clock, time.Second, "the index retried", func() bool {
+		return count(t, path, "SELECT count(*) FROM docs WHERE path = 'CONTEXT.md'") == 1
+	})
+	eventually(t, "live again", func() bool { s, _ := f.State("acme/atelier"); return s.State == FreshnessLive })
+}
+
 func TestDocsAFailedIndexMakesTheLocalKeyLateUntilOneSucceeds(t *testing.T) {
 	folder := newDocsFolder(t, map[string]string{"AGENTS.md": "# Instructions\n\nLire le PRD.\n"})
 	carnet := localCarnet(folder.work)

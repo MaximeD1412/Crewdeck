@@ -22,7 +22,8 @@ import (
 // TestMain lets this test binary serve as the local HTTP server a Commande
 // starts, when it is run with CREWDECK_TEST_SERVE set to a port: it listens
 // after CREWDECK_TEST_SERVE_AFTER (a duration), answers each GET with
-// CREWDECK_TEST_SERVE_STATUS (200 by default) and its pid, and prints
+// CREWDECK_TEST_SERVE_STATUS (200 by default; a 3xx to /login, which
+// answers 200) and its pid, and prints
 // « served » on its stdout for each.
 func TestMain(m *testing.M) {
 	if port := os.Getenv("CREWDECK_TEST_SERVE"); port != "" {
@@ -45,10 +46,14 @@ func serve(port string) {
 		fmt.Fprintln(os.Stderr, "listen:", err)
 		os.Exit(1)
 	}
-	_ = http.Serve(listener, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	_ = http.Serve(listener, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		fmt.Println("served")
+		if req.URL.Path == "/login" {
+			fmt.Fprint(w, os.Getpid())
+			return
+		}
 		if status >= 300 && status < 400 {
-			w.Header().Set("Location", "/")
+			w.Header().Set("Location", "/login") // which answers 200
 		}
 		w.WriteHeader(status)
 		fmt.Fprint(w, os.Getpid())
@@ -297,7 +302,7 @@ func TestHealthARedirectIsNotHealthy(t *testing.T) {
 	port := freePort(t)
 	h.commands.Run(h.healthRun(t, runID, server(t, port, 0, "CREWDECK_TEST_SERVE_STATUS=302"), address(port), sha))
 	h.sent.started(t, runID)
-	// It answers, with a 302 only.
+	// Its address answers a 302 to a page that answers 200: the address given is the one that must answer 2xx.
 	deadline := time.Now().Add(10 * time.Second)
 	for !strings.Contains(string(must(os.ReadFile(logPathOf(h, runID)))), "served") && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
@@ -397,5 +402,34 @@ func TestServiceASurvivingServiceIsFoundAtStartAndStoppedBeforeItsCommandeRunsAg
 	}
 	if exists(h.pidFile()) {
 		t.Fatal("the stopped service's pid file is still there")
+	}
+}
+
+func TestHealthAServiceWhoseShellExitsHasTheChildItLeftStopped(t *testing.T) {
+	h := newHarness(t)
+	sha := h.remote.ticket(t)
+	h.start(t)
+	port := freePort(t)
+	// The server, a child of the shell in its group, outlives it.
+	text := strings.TrimPrefix(server(t, port, 0), "exec ") + " > /dev/null 2>&1 & echo $! > " + h.mark("child") + "; sleep 2"
+
+	h.commands.Run(h.healthRun(t, runID, text, address(port), sha))
+	if v := h.sent.verdict(t, runID); v.Reason != contracts.RunnerCommandVerdictReasonHealthy {
+		t.Fatalf("verdict %+v, want healthy", v)
+	}
+	child := pidIn(t, h.mark("child"))
+	shell := h.service(t).Pid
+	if !dies(shell) && !dies(shell) {
+		t.Fatal("the service's shell did not exit")
+	}
+	if !dies(child) {
+		t.Fatal("the server its shell left still runs, untracked")
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for exists(h.pidFile()) && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if exists(h.pidFile()) {
+		t.Fatal("the pid file of a service gone is still there")
 	}
 }

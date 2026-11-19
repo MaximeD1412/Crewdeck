@@ -26,11 +26,8 @@ const (
 	HealthWindow = 120 * time.Second
 	// healthEvery is how often the address is asked.
 	healthEvery = time.Second
-	// healthTimeout is how long one GET has, its redirects included.
+	// healthTimeout is how long one GET has.
 	healthTimeout = 2 * time.Second
-	// healthRedirects is the most redirects one GET follows; a 3xx after
-	// them is the answer, and not a healthy one.
-	healthRedirects = 3
 	// healthBodyMax is the most of an answer's body read.
 	healthBodyMax = 1024
 )
@@ -41,11 +38,11 @@ var healthClient = func() *http.Client {
 	return &http.Client{
 		Timeout:   healthTimeout,
 		Transport: transport,
-		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
-			if len(via) > healthRedirects {
-				return http.ErrUseLastResponse
-			}
-			return nil
+		// No redirect followed: the address given is the one that must
+		// answer 2xx, its 3xx is its answer, and not a healthy one (a
+		// redirect to a login page that answers 200 says nothing of it).
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
 		},
 	}
 }()
@@ -154,6 +151,11 @@ func (r *Runner) keep(message contracts.RunnerCommandRun, cmd *exec.Cmd, exited 
 	done := r.track(key, message.RunId)
 	go func() {
 		<-exited
+		// What its process left in its group goes with it: a child the
+		// Runner would track no more, holding its port.
+		if err := stopGroup(pid, r.cfg.After); err != nil {
+			r.cfg.Logger.Warn("command.service", "runId", message.RunId, "error", "group not stopped")
+		}
 		out.flush()
 		out.close()
 		place.Release()

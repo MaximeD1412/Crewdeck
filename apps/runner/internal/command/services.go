@@ -21,7 +21,8 @@ import (
 // stopped (SIGTERM to its group, SIGKILL after KillGrace) before its
 // Commande runs again, and by `crewdeck-runner uninstall`; one that exits by
 // itself loses its file when the Runner notices: its own Wait while the
-// Runner lives, else the next run or the next start.
+// Runner lives (what it left in its group stopped with it), else the next
+// run or the next start.
 //
 //	services/<projectId>/<commandId>.pid  { pid, pgid, startedAt, runId } (folder 700, file 600)
 //	services/<projectId>/<commandId>.log  the service's output after its verdict (mode 600, replaced at each start)

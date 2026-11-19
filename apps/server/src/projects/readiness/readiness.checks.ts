@@ -19,11 +19,15 @@ export interface FolderFigures {
   readonly integrationBranch: boolean;
 }
 
-/** What GitHub said last of a GitHub Projet's repository: the labels of the Process missing, each branch there. */
+/**
+ * What GitHub said last of a GitHub Projet's repository: the labels of the
+ * Process missing, each branch there; `null` for a group never read on
+ * GitHub (its Source was Local then, or GitHub failed since it moved).
+ */
 export interface GitHubFigures {
-  readonly labelsMissing: number;
-  readonly releaseBranch: boolean;
-  readonly integrationBranch: boolean;
+  readonly labelsMissing: number | null;
+  readonly releaseBranch: boolean | null;
+  readonly integrationBranch: boolean | null;
 }
 
 /** Everything a Projet's readiness reads, gathered by `ReadinessService` on its triggers. */
@@ -116,13 +120,13 @@ const processCheck: Evaluator = ({ process }) =>
 
 const labels: Evaluator = ({ sources, github }) => {
   if (sources.ticket !== 'github') return null;
-  if (github === null) return { state: 'pending', facts: {}, fix: null };
+  if (github === null || github.labelsMissing === null) return { state: 'pending', facts: {}, fix: null };
   return github.labelsMissing === 0 ? ok({ missing: 0 }) : { state: 'missing', facts: { missing: github.labelsMissing }, fix: 'auto' };
 };
 
 const branches: Evaluator = ({ sources, github, releaseBranch, integrationBranch }) => {
   if (sources.code !== 'github') return null;
-  if (github === null) return { state: 'pending', facts: { release: releaseBranch, integration: integrationBranch }, fix: null };
+  if (github === null || github.releaseBranch === null || github.integrationBranch === null) return { state: 'pending', facts: { release: releaseBranch, integration: integrationBranch }, fix: null };
   const facts = { release: releaseBranch, integration: integrationBranch, releaseExists: github.releaseBranch, integrationExists: github.integrationBranch };
   if (!github.releaseBranch) return { state: 'missing', facts, fix: null };
   return github.integrationBranch ? ok(facts) : { state: 'missing', facts, fix: 'auto' };

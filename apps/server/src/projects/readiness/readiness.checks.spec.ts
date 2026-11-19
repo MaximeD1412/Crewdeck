@@ -157,6 +157,12 @@ describe('the readiness of a Projet', () => {
     it('is pending until GitHub was read', () => {
       expect(check({ ...READY, github: null }, 'labels')).toMatchObject({ state: 'pending', fix: null });
     });
+
+    it('is pending, never ready, while GitHub never read the labels: the Tickets were Local when it last did', () => {
+      const unread = { ...READY, github: { ...READY.github!, labelsMissing: null } };
+      expect(check(unread, 'labels')).toMatchObject({ state: 'pending', fix: null });
+      expect(evaluateReadiness(unread).ready).toBe(false);
+    });
   });
 
   describe('branches', () => {
@@ -175,6 +181,12 @@ describe('the readiness of a Projet', () => {
 
     it('is missing with nothing to click without the release branch', () => {
       expect(check({ ...READY, github: { ...READY.github!, releaseBranch: false, integrationBranch: false } }, 'branches')).toMatchObject({ state: 'missing', fix: null });
+    });
+
+    it('is pending, never ready, while GitHub never read the branches: the Code was Local when it last did', () => {
+      const unread = { ...READY, github: { ...READY.github!, releaseBranch: null, integrationBranch: null } };
+      expect(check(unread, 'branches')).toMatchObject({ state: 'pending', fix: null });
+      expect(evaluateReadiness(unread).ready).toBe(false);
     });
   });
 

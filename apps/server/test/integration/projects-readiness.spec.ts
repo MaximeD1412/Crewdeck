@@ -2,7 +2,7 @@ import { type EngineCapabilities, PROCESS_CREWDECK, PROCESS_LABELS, type Project
 import type { INestApplication } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
-import { inject } from 'vitest';
+import { inject, vi } from 'vitest';
 import { SESSION_COOKIE } from '../../src/auth/cookies.js';
 import { WebSessions } from '../../src/auth/web-sessions.js';
 import { appOrigin, parseEnv } from '../../src/config/env.js';
@@ -326,6 +326,30 @@ describe('the readiness of a Projet against PostgreSQL', () => {
       const moved = await projectOf(alice, project.id);
       expect(checkOf(moved, 'labels')).toMatchObject({ state: 'missing', facts: { missing: PROCESS_LABELS.length }, fix: 'auto' });
       expect(moved.readiness?.ready).toBe(false);
+    });
+
+    it('keeps the labels pending when GitHub fails to read them once its Tickets moved there, then says what is missing', async () => {
+      const alice = await pilot('octo-fixture', SENDER_ID);
+      const runner = await online(alice);
+      const project = await githubProject(alice);
+      await sql(`UPDATE artifact_sources SET source = 'local' WHERE project_id = $1 AND "group" = 'ticket'`, [project.id]);
+      await app.get(Reconciliation).run();
+      await readiness.settled();
+
+      await sql(`UPDATE artifact_sources SET source = 'github' WHERE project_id = $1 AND "group" = 'ticket'`, [project.id]);
+      const failing = vi.spyOn(fakes.github, 'listLabels').mockRejectedValueOnce(new Error('GitHub down'));
+      runner.send({ type: 'capabilities', engines: [CLAUDE_CONNECTED] });
+
+      await eventually(async () => expect(checkOf(await projectOf(alice, project.id), 'engines')?.state).toBe('ok'));
+      expect(failing).toHaveBeenCalled();
+      const unread = await projectOf(alice, project.id);
+      expect(checkOf(unread, 'labels')).toMatchObject({ state: 'pending', fix: null });
+      expect(unread.readiness?.ready).toBe(false);
+      failing.mockRestore();
+
+      await app.get(Reconciliation).run();
+      await readiness.settled();
+      expect(checkOf(await projectOf(alice, project.id), 'labels')).toMatchObject({ state: 'missing', facts: { missing: PROCESS_LABELS.length }, fix: 'auto' });
     });
 
     it('names the Serveur MCP an Étape uses and the Runner does not declare, and turns ok once it does', async () => {

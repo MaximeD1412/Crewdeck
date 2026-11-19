@@ -53,9 +53,6 @@ interface BranchNames {
   readonly integration: string;
 }
 
-/** The GitHub figures as stored, with the groups of Sources read for them: a group moved to GitHub since is read again. */
-type StoredGitHubFigures = GitHubFigures & BranchNames & { readonly read?: { readonly labels: boolean; readonly branches: boolean } };
-
 /**
  * What the readiness last read of GitHub and of the folder, stored with it
  * (`projects.readiness_facts`): figures only, never a path nor a content.
@@ -63,7 +60,7 @@ type StoredGitHubFigures = GitHubFigures & BranchNames & { readonly read?: { rea
  * `error` the failure of the last one.
  */
 export interface ReadinessStoredFacts {
-  readonly github: StoredGitHubFigures | null;
+  readonly github: (GitHubFigures & BranchNames) | null;
   readonly folder: (FolderFigures & BranchNames) | null;
   readonly preparing: string | null;
   readonly error: ProjectFolderPrepareError | null;
@@ -305,8 +302,8 @@ export class ReadinessService implements OnModuleInit, OnModuleDestroy {
     const stale = (figures: BranchNames | null): boolean => figures === null || figures.release !== names.release || figures.integration !== names.integration;
 
     const repo = repoOf(row);
-    const unread = (figures: StoredGitHubFigures | null): boolean =>
-      stale(figures) || (sources.ticket === 'github' && figures?.read?.labels !== true) || (sources.code === 'github' && figures?.read?.branches !== true);
+    const unread = (figures: ReadinessStoredFacts['github']): boolean =>
+      stale(figures) || (sources.ticket === 'github' && figures?.labelsMissing === null) || (sources.code === 'github' && (figures?.releaseBranch ?? null) === null);
     if (repo && !row.accessLost && (sources.ticket === 'github' || sources.code === 'github') && (reads.github || unread(stored.github))) {
       const github = await this.readGitHub(repo, sources, names);
       if (github) stored = { ...stored, github };
@@ -364,20 +361,20 @@ export class ReadinessService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** The labels and the branches the Sources put on GitHub; `null` when GitHub fails (the figures read before stay). */
-  private async readGitHub(repo: RepoRef, sources: ProcessSources, names: BranchNames): Promise<StoredGitHubFigures | null> {
+  private async readGitHub(repo: RepoRef, sources: ProcessSources, names: BranchNames): Promise<ReadinessStoredFacts['github']> {
     try {
-      let labelsMissing = 0;
+      let labelsMissing: number | null = null;
       if (sources.ticket === 'github') {
         const present = new Set((await this.github.listLabels(repo)).map((label) => label.name));
         labelsMissing = PROCESS_LABELS.filter((label) => !present.has(label.name)).length;
       }
-      let releaseBranch = true;
-      let integrationBranch = true;
+      let releaseBranch: boolean | null = null;
+      let integrationBranch: boolean | null = null;
       if (sources.code === 'github') {
         releaseBranch = (await this.github.getBranch(repo, names.release)) !== null;
         integrationBranch = (await this.github.getBranch(repo, names.integration)) !== null;
       }
-      return { labelsMissing, releaseBranch, integrationBranch, ...names, read: { labels: sources.ticket === 'github', branches: sources.code === 'github' } };
+      return { labelsMissing, releaseBranch, integrationBranch, ...names };
     } catch (error) {
       this.logger.warn({ code: error instanceof AppError ? error.code : undefined }, 'readiness: github not read');
       return null;

@@ -1,6 +1,9 @@
 package command
 
-import "syscall"
+import (
+	"syscall"
+	"time"
+)
 
 // SetKill replaces kill(2) for the signals the Runner sends a group, until
 // restore.
@@ -25,6 +28,19 @@ func FailWatch(err error) (restore func()) {
 	return func() {
 		hooks.Lock()
 		hooks.watch = previous
+		hooks.Unlock()
+	}
+}
+
+// SlowPoll makes an unwatched process looked at every d, until restore.
+func SlowPoll(d time.Duration) (restore func()) {
+	hooks.Lock()
+	previous := hooks.poll
+	hooks.poll = d
+	hooks.Unlock()
+	return func() {
+		hooks.Lock()
+		hooks.poll = previous
 		hooks.Unlock()
 	}
 }

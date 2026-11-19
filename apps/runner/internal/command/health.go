@@ -95,6 +95,8 @@ func (r *Runner) awaitHealth(message contracts.RunnerCommandRun, l *live, proc *
 	for {
 		select {
 		case <-ok:
+			// A process that exited before its address answered is no
+			// service: its exit, noticed or not yet, gives the verdict.
 			if proc.hasLeft() {
 				return r.exitedHealthy(proc, out)
 			}

@@ -47,14 +47,23 @@ func awaitExit(pid int) (*int, error) {
 	return nil, nil
 }
 
-// exitedUnreaped says whether pid is a zombie (`/proc/<pid>/stat`, field 3).
-func exitedUnreaped(pid int) bool {
+// zombie says whether pid exited, unreaped, and its wait status when the
+// OS gives it (`/proc/<pid>/stat`: its state, field 3, its exit code,
+// field 52).
+func zombie(pid int) (dead bool, status syscall.WaitStatus, known bool) {
 	stat, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
 	if err != nil {
-		return false
+		return false, 0, false
 	}
 	fields := strings.Fields(string(stat[bytes.LastIndexByte(stat, ')')+1:]))
-	return len(fields) > 0 && fields[0] == "Z"
+	if len(fields) == 0 || fields[0] != "Z" {
+		return false, 0, false
+	}
+	if len(fields) < 50 {
+		return true, 0, false
+	}
+	code, err := strconv.ParseUint(fields[49], 10, 32)
+	return true, syscall.WaitStatus(code), err == nil
 }
 
 // groupLives says whether the group pgid holds a process that is not a

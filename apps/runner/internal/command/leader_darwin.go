@@ -49,11 +49,15 @@ var errNotWatched = errors.New("command: the kqueue did not watch the process")
 // sZOMB is a zombie's p_stat (sys/proc.h).
 const sZOMB = 5
 
-// exitedUnreaped says whether pid is a zombie (sysctl kern.proc.pid: no
-// file, no process of its own, when the kqueue could not be had).
-func exitedUnreaped(pid int) bool {
+// zombie says whether pid exited, unreaped, and its wait status (sysctl
+// kern.proc.pid, its p_stat and p_xstat: no file, no process of its own,
+// when the kqueue could not be had).
+func zombie(pid int) (dead bool, status syscall.WaitStatus, known bool) {
 	info, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
-	return err == nil && info.Proc.P_stat == sZOMB
+	if err != nil || info.Proc.P_stat != sZOMB {
+		return false, 0, false
+	}
+	return true, syscall.WaitStatus(info.Proc.P_xstat), true
 }
 
 // groupLives says whether the group pgid holds a process that is not a

@@ -618,3 +618,48 @@ func TestHealthARunWhoseExitCannotBeWatchedStillGivesItsExitCode(t *testing.T) {
 		t.Fatalf("verdict %+v, want exited with 1", v)
 	}
 }
+
+func TestHealthAnUnwatchedRunThatExitsZeroHasWhatItLeftKilledAfterTheWindow(t *testing.T) {
+	h := newHarness(t)
+	sha := h.remote.ticket(t)
+	t.Cleanup(command.FailWatch(syscall.EMFILE))
+	h.start(t)
+	text := "echo $$ > " + h.mark("shell") + "; sleep 300 > /dev/null 2>&1 & echo $! > " + h.mark("child") + "; exit 0"
+
+	h.commands.Run(h.healthRun(t, runID, text, address(freePort(t)), sha))
+	shell, child := pidIn(t, h.mark("shell")), pidIn(t, h.mark("child"))
+	t.Cleanup(func() { _ = syscall.Kill(child, syscall.SIGKILL) })
+	if !dies(shell) {
+		t.Fatal("the shell did not exit")
+	}
+	time.Sleep(500 * time.Millisecond) // its exit noticed: a zombie, every 100 ms
+	h.clock.fire(t, command.HealthWindow)
+	if v := h.sent.verdict(t, runID); v.Reason != contracts.RunnerCommandVerdictReasonHealthTimeout {
+		t.Fatalf("verdict %+v, want health-timeout", v)
+	}
+	if !dies(child) {
+		t.Fatal("what an unwatched run left in its group outlived its window")
+	}
+}
+
+func TestHealthAnAddressThatAnswersAfterAnUnnoticedExitOneFailsExited(t *testing.T) {
+	h := newHarness(t)
+	sha := h.remote.ticket(t)
+	t.Cleanup(command.FailWatch(syscall.EMFILE))
+	t.Cleanup(command.SlowPoll(4 * time.Second))
+	h.start(t)
+	port := freePort(t)
+	// A server of its own session answers after 500 ms; the run exits 1 at once.
+	text := "setsid sh -c \"" + strings.ReplaceAll(server(t, port, 500*time.Millisecond), "'", "") + " > /dev/null 2>&1 & echo \\$! > " + h.mark("daemon") + "\"; exit 1"
+
+	h.commands.Run(h.healthRun(t, runID, text, address(port), sha))
+	daemon := pidIn(t, h.mark("daemon"))
+	t.Cleanup(func() { _ = syscall.Kill(daemon, syscall.SIGKILL) })
+	v := h.sent.verdict(t, runID)
+	if v.Passed || v.Reason != contracts.RunnerCommandVerdictReasonExited || code(v) != 1 {
+		t.Fatalf("verdict %+v, want not passed, exited, 1", v)
+	}
+	if exists(h.pidFile()) {
+		t.Fatal("a run that exited 1 has a pid file")
+	}
+}

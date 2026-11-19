@@ -30,14 +30,16 @@ func lead(cmd *exec.Cmd) *leader {
 		code, err := watchExit(l.pid)
 		if err != nil {
 			// Not watched (a kqueue refused, say): it is looked at until it
-			// is a zombie, its group signalled meanwhile, then reaped at
-			// once, its group signalled no more.
-			l.pollExit()
-			l.mu.Lock()
-			l.reaped = true
-			l.mu.Unlock()
-			_ = cmd.Wait()
-			code = exitCodeOf(cmd)
+			// is a zombie, whose exit status the OS gives without reaping it.
+			var known bool
+			if code, known = l.pollExit(); !known {
+				// Its status unread: reaped at once, its group signalled no more.
+				l.mu.Lock()
+				l.reaped = true
+				l.mu.Unlock()
+				_ = cmd.Wait()
+				code = exitCodeOf(cmd)
+			}
 		}
 		l.code = code
 		close(l.left)
@@ -45,23 +47,36 @@ func lead(cmd *exec.Cmd) *leader {
 	return l
 }
 
-// pollExit waits, every pollEvery, until it exited, unreaped.
-func (l *leader) pollExit() {
-	for !exitedUnreaped(l.pid) {
-		time.Sleep(pollEvery)
+// pollExit waits, every pollEvery, until it is a zombie: its exit code, nil
+// when a signal ended it; known says the OS gave it.
+func (l *leader) pollExit() (code *int, known bool) {
+	for {
+		dead, status, known := zombie(l.pid)
+		if dead {
+			if !known {
+				return nil, false
+			}
+			if status.Exited() {
+				c := status.ExitStatus()
+				return &c, true
+			}
+			return nil, true
+		}
+		time.Sleep(pollInterval())
 	}
 }
 
 // pollEvery is how often an unwatched process is looked at.
 const pollEvery = 100 * time.Millisecond
 
-// hasLeft says whether it exited.
+// hasLeft says whether it exited, noticed or not yet: a zombie has.
 func (l *leader) hasLeft() bool {
 	select {
 	case <-l.left:
 		return true
 	default:
-		return false
+		dead, _, _ := zombie(l.pid)
+		return dead
 	}
 }
 
@@ -136,7 +151,14 @@ var hooks = struct {
 	sync.Mutex
 	kill  func(pid int, sig syscall.Signal) error
 	watch func(pid int) (*int, error)
-}{kill: syscall.Kill, watch: awaitExit}
+	poll  time.Duration
+}{kill: syscall.Kill, watch: awaitExit, poll: pollEvery}
+
+func pollInterval() time.Duration {
+	hooks.Lock()
+	defer hooks.Unlock()
+	return hooks.poll
+}
 
 func sendSignal(pid int, sig syscall.Signal) error {
 	hooks.Lock()

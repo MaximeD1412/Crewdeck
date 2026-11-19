@@ -50,6 +50,7 @@ import { PasserelleProcessCanvas } from './process-canvas.js';
 import { PasserellePhaseGroup } from './phase-group.js';
 import { PasserelleProcessTrack } from './process-track.js';
 import { PasserelleProjectFilter } from './project-filter.js';
+import { PasserellePushSettings } from './push-settings.js';
 import { PasserelleQuestion } from './question.js';
 import { PasserelleSession } from './session.js';
 import { PasserelleRadio } from './radio.js';
@@ -98,6 +99,7 @@ export default defineSkin({
     PageRunner: PasserellePageRunner,
     RepositoryPicker: PasserelleRepositoryPicker,
     RoleSettings: PasserelleRoleSettings,
+    PushSettings: PasserellePushSettings,
     AccountIdentities: PasserelleAccountIdentities,
     Card: PasserelleCard,
     CodeBlock: PasserelleCodeBlock,

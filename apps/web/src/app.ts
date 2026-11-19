@@ -15,6 +15,7 @@ import {
   PageProjets,
   PageRunner,
   RepositoryPicker,
+  PushSettings,
   RoleSettings,
   Composer,
   PermissionRequest,
@@ -44,6 +45,8 @@ import { createProjectSettings } from './project-settings.js';
 import { createProjects } from './projects.js';
 import { bootSkin } from './registry.js';
 import { createDeviceStore } from './keys/device-store.js';
+import { createBrowserPush, type PushDevice } from './push.js';
+import { createPushSettings } from './push-settings.js';
 import { createRoleSettings } from './role-settings.js';
 import { createSessionPanel } from './session-panel.js';
 import { createSessionPeek } from './sessions/peek.js';
@@ -110,6 +113,8 @@ export interface BootOptions {
    * (E2E-4): IndexedDB and WebCrypto by default.
    */
   readonly keys?: Pick<PageKeys, 'linkKeys' | 'vault' | 'nameDevice' | 'unlockVault' | 'approval' | 'rotateVault' | 'forgetDevice'>;
+  /** This browser's push (ATOI-4): its service worker's `PushManager` by default. */
+  readonly push?: PushDevice;
   /** The relay of the Sessions (SESSION-1): through the page's socket, with this browser's Appareil, by default. */
   readonly relay?: Pick<SessionRelay, 'openSession' | 'sendInput' | 'closeSession'>;
 }
@@ -144,6 +149,7 @@ export const boot = async ({
   client = pageClient,
   latency = createLatencyMeter({ store }),
   keys = createPageKeys({ store, client, userAgent: navigator.userAgent }),
+  push = createBrowserPush(window),
   relay = createSessionRelay({ socket: pageConnection, devices: createDeviceStore() }),
 }: BootOptions): Promise<App> => {
   // A sign-in link's token leaves the address bar before anything else (ADR 0014).
@@ -240,6 +246,12 @@ export const boot = async ({
   noteDialog.data = noteIdea.view();
   shell.append(noteDialog);
   const roleSettings = createRoleSettings({ client });
+  const pushSettings = createPushSettings({
+    client,
+    device: push,
+    userAgent: navigator.userAgent,
+    subscriptionOf: (id) => store.getState().slices['push-subscription']?.get(id),
+  });
   /** The page without its `?session=`: the panel closed. */
   const closePanel = () => {
     const url = new URL(location.href);
@@ -298,6 +310,7 @@ export const boot = async ({
       return parametresView(slices.settings, timeZones(), {
         accounts: [...(slices['ai-account']?.values() ?? [])],
         local: roleSettings.view(),
+        push: { subscriptions: [...(slices['push-subscription']?.values() ?? [])], local: pushSettings.view() },
         pilot: slices.pilot,
         erreur: match.query['erreur'],
         projects: [...(slices.project?.values() ?? [])],
@@ -358,6 +371,7 @@ export const boot = async ({
       if (online && !runnerOnline) peek.retry();
       runnerOnline = online;
       gettingStarted.sync();
+      pushSettings.settled(store.getState().slices.settings);
       router.refresh();
       shell.refresh();
       usageChanges.schedule();
@@ -372,6 +386,7 @@ export const boot = async ({
     projects.subscribe(() => router.refresh()),
     closedIdeas.subscribe(() => router.refresh()),
     roleSettings.subscribe(() => router.refresh()),
+    pushSettings.subscribe(() => router.refresh()),
     projectSettings.subscribe(() => router.refresh()),
     editorUi.subscribe(() => router.refresh()),
   ];
@@ -391,6 +406,7 @@ export const boot = async ({
     void keys.unlockVault().finally(vaultTried);
     latency.start();
     connection.start();
+    void pushSettings.sync();
   }
   if (!pilot) vaultTried();
   dispatcher.registerAction(PageConnexion, 'signInWith', {
@@ -413,6 +429,9 @@ export const boot = async ({
   dispatcher.registerAction(RoleSettings, 'add', { run: () => roleSettings.open() });
   dispatcher.registerAction(RoleSettings, 'create', { run: (body) => roleSettings.create(body) });
   dispatcher.registerAction(RoleSettings, 'cancel', { run: () => roleSettings.cancel() });
+  dispatcher.registerAction(PushSettings, 'toggle', { run: ({ push }) => pushSettings.toggle(push) });
+  dispatcher.registerAction(PushSettings, 'subscribe', { run: () => pushSettings.activate() });
+  dispatcher.registerAction(PushSettings, 'remove', { run: ({ id }) => pushSettings.remove(id) });
   dispatcher.registerAction(AccountIdentities, 'linkGitHub', { run: () => leave(githubLinkHref('/parametres')) });
   const currentProject = (): string | null => (router.current.composant === PageParametresProjet ? (router.current.params['id'] ?? null) : null);
   dispatcher.registerAction(PageParametresProjet, 'change', {

@@ -31,10 +31,12 @@ catalog:
   "@prisma/adapter-pg": 7.10.1
   "@prisma/client": 7.10.1
   "@prisma/get-dmmf": 7.10.1
+  "@resvg/resvg-js": 2.6.2
   "@swc/core": 1.16.22
   "@types/node": 24.19.2
   "@types/pg": 8.23.1
   "@types/qrcode": 1.5.6
+  "@types/web-push": 3.6.4
   "@types/ws": 8.18.2
   "@vitest/browser-playwright": 5.1.0
   eslint: 10.14.0
@@ -63,6 +65,7 @@ catalog:
   uuid: 14.0.3
   vite: 8.3.7
   vitest: 5.1.0
+  web-push: 3.6.7
   ws: 8.22.2
   zod: 4.6.7
 

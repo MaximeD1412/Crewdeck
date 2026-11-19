@@ -41,6 +41,7 @@ describe('COMPOSANTS', () => {
         'Port',
         'ProcessCanvas',
         'ProcessTrack',
+        'PushSettings',
         'Question',
         'RepositoryPicker',
         'RoleSettings',

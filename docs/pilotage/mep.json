@@ -434,11 +434,11 @@
       "id": "migration-usage",
       "phase": "db",
       "source": "#67",
-      "titre": "Migration 20261203000000_usage : les tables usage_measures, spends et fx_rates",
+      "titre": "Migration 20261205000000_usage : les tables usage_measures, spends et fx_rates",
       "pourquoi": "L’usage des Comptes IA face à leurs limites et la dépense du mois d’une clé API (RUNNER-13, US-55) vivent dans trois nouvelles tables et un type usage_window_id. La migration ne fait qu’ajouter : la version précédente tourne dessus sans les lire.",
       "etapes": [
         "Rien à lancer à la main : le déploiement du staging, puis celui de la prod, appliquent la migration.",
-        "Vérifier après chaque déploiement que son journal montre la migration appliquée (20261203000000_usage), puis que GET /api/state contient la tranche usage."
+        "Vérifier après chaque déploiement que son journal montre la migration appliquée (20261205000000_usage), puis que GET /api/state contient la tranche usage."
       ],
       "commande": "docker compose -p crewdeck-staging --env-file /opt/crewdeck/staging/.env -f docker-compose.yml -f docker-compose.staging.yml run --rm server migrate",
       "ajouteLe": "2026-11-15"
@@ -493,6 +493,72 @@
         "Vérifier sur chaque base (crewdeck-prod, puis crewdeck-staging) que la commande imprime une date : la migration est appliquée."
       ],
       "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261130000000_agent_sessions'\"",
+      "ajouteLe": "2026-11-16"
+    },
+    {
+      "id": "env-vapid-public-key",
+      "phase": "env",
+      "source": "#54",
+      "titre": "VAPID_PUBLIC_KEY dans le .env de la prod et du staging",
+      "pourquoi": "La clé publique VAPID de Web Push (ATOI-4) : la page la lit dans GET /api/config pour abonner le navigateur, et chaque service push vérifie les envois contre elle. Le serveur refuse de démarrer sans elle en production et en staging. Changée, tous les abonnements des navigateurs cessent de recevoir : chaque Pilote doit refaire « Activer sur cet appareil ». Une paire par environnement, jamais la même.",
+      "etapes": [
+        "npx web-push generate-vapid-keys, une fois par environnement : la « Public Key » dans /opt/crewdeck/prod/.env (VAPID_PUBLIC_KEY), celle de l'autre paire dans /opt/crewdeck/staging/.env.",
+        "Garder chaque paire dans le gestionnaire de mots de passe, avec sa clé privée (env-vapid-private-key).",
+        "Vérifier après le déploiement suivant : GET /api/config donne vapidPublicKey, la même que le .env."
+      ],
+      "commande": "sudo grep -c '^VAPID_PUBLIC_KEY=.\\+' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
+      "ajouteLe": "2026-11-16"
+    },
+    {
+      "id": "env-vapid-private-key",
+      "phase": "env",
+      "source": "#54",
+      "titre": "VAPID_PRIVATE_KEY dans le .env de la prod et du staging, de la même paire que VAPID_PUBLIC_KEY",
+      "pourquoi": "La clé privée VAPID signe chaque notification push (ATOI-4) ; le serveur refuse de démarrer sans elle en production et en staging. Une clé qui n'est pas de la paire de VAPID_PUBLIC_KEY fait refuser chaque envoi par les services push : aucune notification n'arrive, sans autre erreur qu'un avertissement dans les logs du serveur.",
+      "etapes": [
+        "La « Private Key » de la paire générée pour env-vapid-public-key : VAPID_PRIVATE_KEY dans /opt/crewdeck/prod/.env, celle de l'autre paire dans /opt/crewdeck/staging/.env.",
+        "Vérifier après le déploiement suivant : le serveur est healthy (une clé illisible l'arrête au démarrage)."
+      ],
+      "commande": "sudo grep -c '^VAPID_PRIVATE_KEY=.\\+' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
+      "ajouteLe": "2026-11-16"
+    },
+    {
+      "id": "env-vapid-subject",
+      "phase": "env",
+      "source": "#54",
+      "titre": "VAPID_SUBJECT dans le .env de la prod et du staging",
+      "pourquoi": "Le contact que les services push (Apple, Google, Mozilla) peuvent écrire à propos des envois de ce serveur : un mailto: ou une URL https:. Le serveur refuse de démarrer sans lui en production et en staging ; Apple refuse les envois dont le sujet est absent ou invalide.",
+      "etapes": [
+        "Dans /opt/crewdeck/prod/.env et /opt/crewdeck/staging/.env : VAPID_SUBJECT=mailto:<l'adresse du fondateur>.",
+        "Vérifier après le déploiement suivant : le serveur est healthy."
+      ],
+      "commande": "sudo grep -c '^VAPID_SUBJECT=\\(mailto:\\|https://\\).\\+' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
+      "ajouteLe": "2026-11-16"
+    },
+    {
+      "id": "migration-push-subscriptions",
+      "phase": "db",
+      "source": "#54",
+      "titre": "Appliquer la migration 20261209000000_push_subscriptions en staging puis en production",
+      "pourquoi": "La table push_subscriptions garde les navigateurs qui reçoivent les notifications push de chaque Pilote (leur endpoint, leurs clés, leur libellé), et la colonne decisions.notified_at ce qui a déjà été poussé. Sans elles, « Notifications » des Paramètres et GET /api/state échouent. La migration ne fait qu'ajouter : la version précédente du serveur tourne sur la base migrée ; les Décisions déjà ouvertes ne sont jamais poussées.",
+      "etapes": [
+        "Rien à lancer à la main : deploy.sh répète la migration sur la dernière sauvegarde (rehearse.sh), puis l'applique au déploiement du staging, puis à celui de la production.",
+        "Vérifier sur chaque base (crewdeck-prod, puis crewdeck-staging) que la commande imprime une date : la migration est appliquée."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261209000000_push_subscriptions'\"",
+      "ajouteLe": "2026-11-16"
+    },
+    {
+      "id": "chk-push-iphone",
+      "phase": "chk",
+      "source": "#54",
+      "titre": "Recevoir une notification push sur l'iPhone, l'app ajoutée à l'écran d'accueil",
+      "pourquoi": "Les tests prouvent la règle des 2 minutes et l'envoi contre un faux service push ; seul un vrai iPhone prouve la chaîne entière : la PWA installée, la permission, le service push d'Apple, le clic qui ouvre la Décision (risque OPS-7).",
+      "etapes": [
+        "Sur l'iPhone, Safari : ouvrir le site, Partager → Sur l'écran d'accueil, puis ouvrir Crewdeck depuis l'écran d'accueil.",
+        "Paramètres → Notifications : « Notifications push » activé, puis « Activer sur cet appareil », autoriser : la ligne « Safari · iPhone » apparaît.",
+        "Fermer tous les onglets Crewdeck, faire lever une Décision (couper le Runner alors que du travail attend : « Runner hors ligne ») : la notification arrive ; la toucher ouvre sa page dans l'app."
+      ],
       "ajouteLe": "2026-11-16"
     },
     {

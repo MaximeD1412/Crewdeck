@@ -365,7 +365,7 @@ describe('the Cadre at 390 px', () => {
     const data = (value: unknown) => JSON.stringify(value).replaceAll("'", '&#39;');
     const session = { id: '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a7b', title: 'Concevoir · Agenda partagé', meta: 'Personal OS · Conception · Claude Code', state: 'active', resumeDisabledReason: null, resumeLabel: null, resumeIcon: null, status: null, expandable: false };
     const messages = Array.from({ length: 40 }, (_, index) => `<cd-message data='${data({ from: 'agent', text: `Message ${index + 1} de l’agent, assez long pour prendre deux lignes sur un téléphone.`, at: '2026-11-11T14:00:00.000Z' })}'></cd-message>`).join('');
-    const composer = `<cd-composer slot="composer" data='${data({ placeholder: 'Écrire', hint: null, state: 'idle', value: '', dictation: false })}'></cd-composer>`;
+    const composer = `<cd-composer slot="composer" data='${data({ placeholder: 'Écrire', hint: null, state: 'idle', value: '', dictation: { available: false, state: 'idle', elapsedSeconds: 0, error: null, notice: false } })}'></cd-composer>`;
     const el = await cadre(withCounts, { slots: { panel: `<cd-session data='${data(session)}'>${messages}${composer}</cd-session>` } });
     const held = el.querySelector('cd-session') as HTMLElement;
     await settle(held);

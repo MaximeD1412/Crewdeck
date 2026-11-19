@@ -147,7 +147,7 @@ describe('POST /api/projects/:id/process/activate against PostgreSQL', () => {
     expect((await deliverWebhook(url, { event: 'installation', payload: created })).status).toBe(202);
     await app.get(WebhookDispatcher).settled();
     const { seq, repositories } = await state(alice);
-    const followed = await call(alice, 'POST', '/api/projects', { repositoryIds: repositories.map((repository) => repository.id), seq: String(seq) });
+    const followed = await call(alice, 'POST', '/api/projects', { repositoryIds: repositories.map((repository) => repository.id), templateId: 'process-crewdeck', seq: String(seq) });
     expect(followed.status).toBe(201);
     projectId = zProjectList.parse(await followed.json()).items[0]?.id ?? '';
   });

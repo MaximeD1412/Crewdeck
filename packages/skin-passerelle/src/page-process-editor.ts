@@ -8,6 +8,8 @@ type Tab = Data['tab'];
 type Step = NonNullable<Data['step']>;
 type Phase = NonNullable<Data['phase']>;
 type Row = Step['tools'][number];
+type SourceRow = Data['sources']['rows'][number];
+type SourceSelect = NonNullable<SourceRow['select']>;
 type ForEach = Phase['repeat'][number]['forEach'];
 type StepKind = ComposantPayload<typeof PageProcessEditor, 'addStep'>['kind'];
 type Control = HTMLElement & { value: string };
@@ -24,8 +26,11 @@ const isTab = (id: unknown): id is Tab => TABS.includes(id as Tab);
  * from 1280 px, the editor taking the height the compact Cadre leaves: the
  * ProcessCanvas, and its panel (`--cd-aside-width`), Tabs « Manques »,
  * « Étape » or « Phase », « Sources », the versions at its foot. Below 1280
- * px the editor is not rendered. The canvas's `select` and `view` become the
- * page's (`centre: false`), a Manque's row a `select` that centres its block.
+ * px the editor is not rendered: the Sources' card only, under the Banner of
+ * a migration of Source running (`process-migration-en-cours.html`). The
+ * canvas's `select` and `view` become the page's (`centre: false`), a
+ * Manque's row a `select` that centres its block; a group's Select changed,
+ * `migrate`, the Select back on its Source until the page says otherwise.
  *
  * Editable (`process-catalogue.html`, `process-phase.html`), the header holds
  * « Phase » and « Étape », the catalogue's Menu under the latter; a refusal
@@ -196,6 +201,20 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
       }
       .not-found {
         flex: 1;
+      }
+      /* Its label named by the row, hidden as cd-setting-row hides its own, kept as the Select's name. */
+      .item cd-select {
+        width: 7.5rem;
+        --cd-field-label-position: absolute;
+        --cd-field-label-size: var(--cd-stroke);
+        --cd-field-label-overflow: hidden;
+        --cd-field-label-clip: inset(50%);
+        --cd-field-label-white-space: nowrap;
+      }
+      .phone-sources {
+        display: flex;
+        flex-direction: column;
+        gap: var(--cd-space-2);
       }
       .header-actions {
         display: flex;
@@ -368,11 +387,52 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     if (isTab(tab)) this.emit('tab', { tab });
   }
 
-  private row({ icon, label, detail }: Row, trailing?: string): TemplateResult {
+  private row({ icon, label, detail }: Row): TemplateResult {
     return html`<div class="item" role="listitem">
-      <cd-icon .data=${{ name: icon, size: 'sm' }}></cd-icon><b>${label}</b>${trailing ? html`<span class="mono">${trailing}</span>` : html`<span></span>`}
+      <cd-icon .data=${{ name: icon, size: 'sm' }}></cd-icon><b>${label}</b><span></span>
       ${detail === null ? nothing : html`<small>${detail}</small>`}
     </div>`;
+  }
+
+  /** A row of the Sources: its value, its group's Select (wide only), or the badge of its migration. */
+  private sourceRow(row: SourceRow): TemplateResult {
+    const { icon, label, detail, value, select, migration } = row;
+    const trailing =
+      migration !== null
+        ? html`<cd-status-badge .data=${{ tone: 'caution', label: migration }}></cd-status-badge>`
+        : select && this.wide
+          ? html`<cd-select
+              data-group=${select.group}
+              .data=${{
+                name: `source.${select.group}`,
+                label: select.label,
+                value: select.value,
+                options: select.options.map((option) => ({ ...option, disabled: false })),
+                help: null,
+                state: select.disabled ? 'disabled' : null,
+              }}
+              @change=${(event: Event) => this.choose(select, event)}
+            ></cd-select>`
+          : html`<span class="mono">${value}</span>`;
+    return html`<div class="item ${migration === null ? '' : 'caution'}" role="listitem">
+      <cd-icon .data=${{ name: icon, size: 'sm' }}></cd-icon><b>${label}</b>${trailing}
+      ${detail === null ? nothing : html`<small>${detail}</small>`}
+    </div>`;
+  }
+
+  /** A group's Select changed: `migrate`, the Select back on what the page says (the choice while it asks, then the Source). */
+  private choose(select: SourceSelect, event: Event) {
+    const control = event.currentTarget as HTMLElement & { value: string; reset(): void };
+    const to = select.options.find((option) => option.value === control.value)?.value;
+    if (to === undefined || to === select.value) return;
+    this.emit('migrate', { group: select.group, to });
+    control.reset();
+  }
+
+  private migrationBanner(): TemplateResult | typeof nothing {
+    const { banner } = this.data.sources;
+    if (!banner) return nothing;
+    return html`<cd-banner class="migration" .data=${{ tone: 'caution', icon: 'refresh', title: banner.title }}>${banner.text}</cd-banner>`;
   }
 
   private gaps(): TemplateResult {
@@ -539,8 +599,19 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
 
   private sources(): TemplateResult {
     const { lead, rows } = this.data.sources;
-    return html`<p class="lead">${lead}</p>
-      <div class="list" role="list">${rows.map((row) => this.row(row, row.value))}</div>`;
+    return html`${this.migrationBanner()}
+      <p class="lead">${lead}</p>
+      <div class="list" role="list">${rows.map((row) => this.sourceRow(row))}</div>`;
+  }
+
+  /** The phone's Sources: read, a migration's Banner above them (editing stays on the PC). */
+  private phoneSources(): TemplateResult {
+    const { rows } = this.data.sources;
+    return html`${this.migrationBanner()}
+      <section class="phone-sources" aria-labelledby="phone-sources">
+        <h2 id="phone-sources">${t('process.tabs.sources')}</h2>
+        <div class="list" role="list">${rows.map((row) => this.sourceRow(row))}</div>
+      </section>`;
   }
 
   private panel(): TemplateResult {
@@ -641,7 +712,7 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
             </cd-process-canvas>
             ${this.panel()}
           </div>`
-        : nothing}
+        : this.phoneSources()}
       ${canvas.editable ? this.removePhaseDialog() : nothing}`;
   }
 }

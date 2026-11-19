@@ -1,4 +1,4 @@
-import { formatDate, formatDay, formatEuros, formatHour, formatNumber, formatPercent, formatRelative, formatWeekday, sameDay } from './format.js';
+import { formatDate, formatDateOfAnyYear, formatDay, formatElapsed, formatEuros, formatHour, formatNumber, formatPercent, formatRelative, formatWeekday, sameDay } from './format.js';
 
 const NNBSP = ' ';
 const NBSP = ' ';
@@ -58,10 +58,19 @@ describe('formatDay', () => {
   });
 });
 
+describe('formatDateOfAnyYear', () => {
+  it('gives the day of this year, and the year of an older one', () => {
+    expect(formatDateOfAnyYear(local(10, 9), local(20, 12))).toBe('10 nov.');
+    expect(formatDateOfAnyYear(local(10, 9).toISOString(), local(20, 12))).toBe('10 nov.');
+    expect(formatDateOfAnyYear(new Date(2025, 10, 10, 9), local(20, 12))).toBe('10 nov. 2025');
+  });
+});
+
 describe('formatDate', () => {
   it('gives the local day and the short month of an instant', () => {
     expect(formatDate(local(3, 0, 30))).toBe('3 nov.');
     expect(formatDate(local(3, 23, 59).toISOString())).toBe('3 nov.');
+    expect(formatDate(new Date(2025, 10, 3, 9))).toBe('3 nov.');
   });
 });
 
@@ -84,5 +93,17 @@ describe('formatEuros', () => {
     expect(formatEuros(180)).toBe(`1,80${NBSP}€`);
     expect(formatEuros(123456)).toBe(`1${NNBSP}234,56${NBSP}€`);
     expect(formatEuros(0)).toBe(`0,00${NBSP}€`);
+  });
+});
+
+describe('formatElapsed', () => {
+  it.each([
+    [0, '0:00'],
+    [7, '0:07'],
+    [59, '0:59'],
+    [60, '1:00'],
+    [125, '2:05'],
+  ])('%i s is « %s »', (seconds, text) => {
+    expect(formatElapsed(seconds)).toBe(text);
   });
 });

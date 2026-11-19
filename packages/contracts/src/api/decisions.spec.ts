@@ -26,9 +26,11 @@ describe('zDecision', () => {
     expect(STATE_SLICES.decisions.parse([DECISION])).toEqual([DECISION]);
   });
 
-  it('has the fifteen kinds, a Retour at its maximum among them', () => {
-    expect(DECISION_KINDS).toHaveLength(15);
+  it('has the eighteen kinds, a Retour at its maximum, a Local Projet\'s missing folder and both of a migration of Source among them', () => {
+    expect(DECISION_KINDS).toHaveLength(18);
+    expect(DECISION_KINDS).toEqual(expect.arrayContaining(['source-migration.failed', 'source-migration.unfinished']));
     expect(DECISION_KINDS).toContain('loop-back.exhausted');
+    expect(DECISION_KINDS).toContain('project.folder-missing');
     expect(zDecision.safeParse({ ...DECISION, kind: 'something-else' }).success).toBe(false);
   });
 

@@ -6,9 +6,12 @@ import {
   processSourcesOf,
   TYPE_SOURCE,
   withDefaultRoles,
+  SOURCE_KINDS,
   type AccountSettings,
   type AiAccount,
   type ArtifactType,
+  type CodeChange,
+  type PhaseRun,
   type Port,
   type ProcessChange,
   type ProcessDefinition,
@@ -17,7 +20,9 @@ import {
   type ProjectProcess,
   type ProjectSource,
   type Runner,
+  type SourceMigration,
   type Step,
+  type Ticket,
   type Tool,
   type ForEach,
 } from '@crewdeck/contracts';
@@ -26,10 +31,11 @@ import { canvasOf, gapStep, kindLabelOf, roleName, targetPhaseOf, typeLabel, typ
 import { catalogueMenu } from '../process/catalogue-menu.js';
 import { changeLabels } from '../process/diff-labels.js';
 import { canRemovePhase, canRemoveStep } from '../process/edit.js';
-import type { EditorUi } from '../process/editor-ui.js';
+import type { EditorUi, SourceChoice } from '../process/editor-ui.js';
 import { runningByVersion, type WorkKind } from '../process/running-work.js';
 import { sensitiveBlockedReason } from '../store/sensitive.js';
 import type { StoreState } from '../store/store.js';
+import { doneMeta, lastDoneOf, migrationBadge, migrationBanner, migrationMeta, runningMigrationOf, sourceLabel, type SourceMigrationReads } from './source-migration.js';
 
 export type ProcessEditorData = ComposantData<typeof PageProcessEditor>;
 type GapRow = ProcessEditorData['gaps'][number];
@@ -46,8 +52,26 @@ export interface ProcessEditorState {
     readonly settings?: AccountSettings | null;
     readonly runner?: Pick<Runner, 'machine'> | null;
     readonly 'ai-account'?: { values(): Iterable<AiAccount> };
+    readonly 'source-migration'?: ReadonlyMap<string, SourceMigration>;
+    readonly 'phase-run'?: ReadonlyMap<string, PhaseRun>;
+    readonly ticket?: ReadonlyMap<string, Ticket>;
+    readonly 'code-change'?: ReadonlyMap<string, CodeChange>;
   };
 }
+
+/** What the Sources read of the store for a Projet (SOURCE-7): its migrations, its work, its Tickets and changes of code. */
+export const sourceReadsOf = (state: ProcessEditorState, project: Project, definition: ProcessDefinition | null): SourceMigrationReads => {
+  const { slices } = state;
+  return {
+    project,
+    definition,
+    migrations: [...(slices['source-migration']?.values() ?? [])],
+    phaseRuns: [...(slices['phase-run']?.values() ?? [])],
+    tickets: [...(slices.ticket?.values() ?? [])],
+    codeChanges: [...(slices['code-change']?.values() ?? [])],
+    machine: slices.runner?.machine ?? t('process.sources.machine.none'),
+  };
+};
 
 /** What the page's edits add to the store's view (PROCESS-8): `NO_EDITS` reads the store as is. */
 export interface EditorEdits {
@@ -251,34 +275,57 @@ const removePhaseDialog = (definition: ProcessDefinition, phaseId: string | null
 };
 
 /**
- * The Sources (ADR 0012, « Which Source for what »), read: « Tickets » and
- * « Code et documents », each Local on the Runner's machine (never the
- * folder's path) or GitHub with the repository, the types the shown
- * definition passes and those it does not; the Idée « Crewdeck »; the
- * Livraison, when passed, without Source.
+ * The Sources (ADR 0012, « Which Source for what »): « Tickets » and « Code
+ * et documents », each Local on the Runner's machine (never the folder's
+ * path) or GitHub with the repository, the types the shown definition passes
+ * and those it does not, and its Select (SOURCE-7: the choice not yet
+ * confirmed while its dialog is open; disabled while the other group
+ * migrates); a group migrating, its caution badge, where it is, and the
+ * Banner; one migrated, since when and from where. A Local Projet (PROJET-6)
+ * has no Dépôt GitHub to migrate to: its groups read, without a Select. The
+ * Idée « Crewdeck »;
+ * the Livraison, when passed, without Source.
  */
-const sourcesPanel = (view: ProjectProcess, definition: ProcessDefinition, project: Project, machine: string): ProcessEditorData['sources'] => {
+const sourcesPanel = (view: ProjectProcess, definition: ProcessDefinition, reads: SourceMigrationReads, choice: SourceChoice | null): ProcessEditorData['sources'] => {
+  const { project, machine } = reads;
+  const migrations = [...reads.migrations];
+  const running = runningMigrationOf(migrations, project.id);
   const passed = new Set(definition.steps.flatMap((step) => [...step.inputs, ...step.outputs].map((port) => port.type)));
   const typesOf = (group: string): readonly ArtifactType[] => GROUP_ORDER.filter((type) => TYPE_SOURCE[type] === group);
   const group = (id: 'ticket' | 'code', source: ProjectSource): SourceRow => {
     const held = typesOf(id).filter((type) => passed.has(type));
     const unused = typesOf(id).filter((type) => !passed.has(type));
-    const place = source.source === 'github' ? project.fullName : t(`process.sources.${id}.local`, { machine });
+    const place = source.source === 'github' ? (project.fullName ?? '') : t(`process.sources.${id}.local`, { machine });
     const parts = [
       // The Tickets' group holds only the Ticket: its place says it.
       ...(id === 'code' && held.length > 0 ? [t('process.sources.held', { types: held.map(typeLabel).join(', ') })] : []),
     ];
     const unusedText = unused.length > 0 ? t(unused.length === 1 ? 'process.sources.unused.one' : 'process.sources.unused.other', { types: unused.map(typeLabel).join(', ') }) : null;
     const types = parts.length > 0 && unusedText ? t('process.sources.join', { first: parts[0]!, second: unusedText }) : (parts[0] ?? unusedText);
+    const detail = types ? t('process.sources.withPlace', { place, types }) : place;
+    const row = { label: t(`process.sources.${id}`), value: sourceLabel(source.source) };
+    if (running?.group === id) return { ...row, icon: 'refresh', detail: migrationMeta(running), select: null, migration: migrationBadge(running) };
+    const done = lastDoneOf(migrations, project.id, id);
+    if (project.fullName === null) return { ...row, icon: 'folder', detail: done && done.to === source.source ? doneMeta(detail, done) : detail, select: null, migration: null };
+    // The Pilote's pick, until the dialog confirms it or « Annuler » forgets it.
+    const picked = choice?.group === id && choice.to !== source.source ? choice.to : null;
     return {
+      ...row,
       icon: source.source === 'github' ? 'github' : 'folder',
-      label: t(`process.sources.${id}`),
-      value: t(`process.sources.${source.source}`),
-      detail: types ? t('process.sources.withPlace', { place, types }) : place,
+      detail: picked ? t('process.sources.migration.chosen', { source: sourceLabel(picked) }) : done && done.to === source.source ? doneMeta(detail, done) : detail,
+      select: {
+        group: id,
+        label: t(`process.sources.migration.${id}.select`),
+        value: picked ?? source.source,
+        options: SOURCE_KINDS.map((kind) => ({ value: kind, label: sourceLabel(kind) })),
+        disabled: running !== null,
+      },
+      migration: null,
     };
   };
   return {
-    lead: t('process.sources.lead'),
+    lead: project.fullName === null ? t('process.sources.lead') : t('process.sources.migration.lead', { repository: project.fullName }),
+    banner: running ? migrationBanner(running, reads) : null,
     rows: [
       group('ticket', view.sources.ticket),
       group('code', view.sources.code),
@@ -287,9 +334,11 @@ const sourcesPanel = (view: ProjectProcess, definition: ProcessDefinition, proje
         label: t('process.sources.idea'),
         value: t('process.sources.crewdeck'),
         detail: passed.has('idea') ? null : t('process.sources.unused.one', { types: typeLabel('idea') }),
+        select: null,
+        migration: null,
       },
       ...(passed.has('delivery')
-        ? [{ icon: 'send', label: t('process.sources.delivery'), value: t('process.sources.none'), detail: t('process.sources.delivery.none') } as const]
+        ? [{ icon: 'send', label: t('process.sources.delivery'), value: t('process.sources.none'), detail: t('process.sources.delivery.none'), select: null, migration: null } as const]
         : []),
     ],
   };
@@ -375,7 +424,7 @@ const nothing = (found: boolean, ui: EditorUi): ProcessEditorData => ({
   catalogue: null,
   toast: ui.toast,
   removePhase: null,
-  sources: { lead: t('process.sources.lead'), rows: [] },
+  sources: { lead: t('process.sources.lead'), banner: null, rows: [] },
   footer: { changes: '', versions: '' },
   activate: null,
 });
@@ -388,7 +437,14 @@ const nothing = (found: boolean, ui: EditorUi): ProcessEditorData => ({
  * the edits' view in place of the store's, the target Phase, why a block
  * does not go, the catalogue, the refusal and the Dialog asked.
  */
-export const processEditorView = (state: ProcessEditorState, projectId: string, ui: EditorUi, edits: EditorEdits = NO_EDITS): ProcessEditorData => {
+export const processEditorView = (
+  state: ProcessEditorState,
+  projectId: string,
+  ui: EditorUi,
+  edits: EditorEdits = NO_EDITS,
+  // A Local Projet's name is sealed: the page opens it (PROJET-6, `projects.ts`).
+  projectName: (project: Project) => string = (project) => project.displayName ?? '',
+): ProcessEditorData => {
   const { slices } = state;
   if (!slices.project || !slices.process) return nothing(true, ui);
   const project = slices.project.get(projectId);
@@ -408,7 +464,7 @@ export const processEditorView = (state: ProcessEditorState, projectId: string, 
 
   return {
     found: true,
-    title: { projectName: project.displayName, backHref: '/projets', count: countOf(view, changes, gaps.length) },
+    title: { projectName: projectName(project), backHref: '/projets', count: countOf(view, changes, gaps.length) },
     hasVersion: view.active !== null,
     canvas: canvasOf(definition, gaps, selection, { zoom: ui.zoom, pan: ui.pan, roleNames, focus: ui.focus, editable: true, target: target?.id ?? null }),
     tab: ui.tab,
@@ -419,7 +475,7 @@ export const processEditorView = (state: ProcessEditorState, projectId: string, 
     // An edit's refusal, else the activation's Toast: the edit's goes first, cleared at the next edit.
     toast: edits.toast === null ? ui.toast : { tone: 'halt', icon: 'block', text: edits.toast },
     removePhase: removePhaseDialog(definition, edits.removingPhase),
-    sources: sourcesPanel(view, definition, project, slices.runner?.machine ?? t('process.sources.machine.none')),
+    sources: sourcesPanel(view, definition, sourceReadsOf(state, project, view.active?.definition ?? definition), ui.choice ?? null),
     footer: footerOf(view, changes, roleNames),
     activate: activateOf(state, view, changes, gaps.length, edits.saving ?? false),
   };

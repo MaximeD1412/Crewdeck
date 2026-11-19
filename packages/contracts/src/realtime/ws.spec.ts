@@ -69,6 +69,7 @@ describe('zState', () => {
       'sessions',
       'settings',
       'usage',
+      'sourceMigrations',
     ]);
     const state = {
       seq: 3,
@@ -93,6 +94,7 @@ describe('zState', () => {
       sessions: [],
       settings,
       usage: [],
+      sourceMigrations: [],
     };
     expect(zState.parse(state)).toEqual(state);
     expect(zState.safeParse({ seq: 3, pilot: PILOT }).success).toBe(false);

@@ -73,9 +73,10 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     await settle(el);
     inside(el, 'button.send').click();
   },
-  'Composer.dictate': (el) => inside(el, 'button.mic').click(),
-  'Composer.stopDictation': async (el) => {
-    el.data = { ...(el.data as object), state: 'dictating' };
+  'Composer.dictate-start': (el) => inside(el, 'button.mic').click(),
+  'Composer.dictate-stop': async (el) => {
+    const data = el.data as { dictation: object };
+    el.data = { ...data, dictation: { ...data.dictation, state: 'dictating' } };
     await settle(el);
     inside(el, 'button.mic').click();
   },
@@ -89,6 +90,24 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     el.data = { ...(el.data as object), context: 'demarrage' };
     await settle(el);
     inside(el, 'cd-button.later', 'button').click();
+  },
+  'FolderProjectForm.checkPath': (el) => {
+    const field = inside<HTMLInputElement>(el, 'cd-text-field.path', 'input');
+    field.value = '~/projets/recettes-2';
+    field.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+  },
+  'FolderProjectForm.create': (el) => inside(el, 'cd-button.create', 'button').click(),
+  'FolderProjectForm.later': async (el) => {
+    el.data = { ...(el.data as object), context: 'demarrage' };
+    await settle(el);
+    inside(el, 'cd-button.later', 'button').click();
+  },
+  'PageAjouterProjet.selectTab': (el) => inside(el, 'cd-tabs', 'button[role=tab]:nth-of-type(2)').click(),
+  'PageProjet.openProcess': (el) => inside(el, 'cd-button.process', 'button').click(),
+  'PageDemarrage.selectProjectsTab': async (el) => {
+    el.data = COMPOSANTS.PageDemarrage.examples.find((example) => example.name === 'Projets')?.data;
+    await settle(el);
+    inside(el, 'cd-tabs.projects-tabs', 'button[role=tab]').click();
   },
   'PageAToi.filter': (el) => inside(el, 'cd-project-filter', 'cd-chip:nth-of-type(2)', 'button').click(),
   'PageAToi.open': (el) => inside(el, 'cd-decision-row', '.open').click(),
@@ -114,6 +133,13 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     inside(el, 'cd-button.submit', 'button').click();
   },
   'NoteIdeaDialog.cancel': (el) => inside(el, 'cd-button.cancel', 'button').click(),
+  'NoteIdeaDialog.dictate-start': (el) => inside(el, 'cd-button.dictate', 'button').click(),
+  'NoteIdeaDialog.dictate-stop': async (el) => {
+    const data = el.data as { dictation: object };
+    el.data = { ...data, dictation: { ...data.dictation, state: 'dictating' } };
+    await settle(el);
+    inside(el, 'cd-button.dictate', 'button').click();
+  },
   'AccountIdentities.linkGitHub': (el) => inside(el, 'cd-button.link', 'button').click(),
   'PageConnexion.requestLink': (el) => inside(el, 'cd-button.request', 'button').click(),
   'PageConnexion.signInWith': (el) => inside(el, 'cd-button.github', 'button').click(),
@@ -149,6 +175,19 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
   },
   'PageProcessEditor.select': (el) => atPc(el, () => inside(el, 'cd-process-canvas', 'cd-step-card[data-step=analyse]', 'article').click()),
   'PageProcessEditor.tab': (el) => atPc(el, () => inside(el, 'cd-tabs', 'button[role=tab]:nth-of-type(3)').click()),
+  'PageProcessEditor.migrate': async (el) => {
+    const { width, height } = { width: window.innerWidth, height: window.innerHeight };
+    await page.viewport(1280, 800);
+    try {
+      el.data = COMPOSANTS.PageProcessEditor.examples.find((example) => example.name === 'les Sources')?.data;
+      await expect.poll(() => el.shadowRoot?.querySelector('cd-select[data-group=ticket]')?.shadowRoot?.querySelector('select') ?? null).not.toBeNull();
+      const select = inside(el, 'cd-select[data-group=ticket]', 'select') as HTMLSelectElement;
+      select.value = 'github';
+      for (const type of ['input', 'change']) select.dispatchEvent(new Event(type, { bubbles: true, composed: true }));
+    } finally {
+      await page.viewport(width, height);
+    }
+  },
   'PageProcessEditor.view': (el) => atPc(el, () => inside(el, 'cd-process-canvas', 'cd-icon-button.zoom-in', 'button').click()),
   'PageProcessEditor.addPhase': (el) => editing(el, 'une Phase choisie', () => inside(el, 'cd-button.add-phase', 'button').click()),
   'PageProcessEditor.openCatalogue': (el) => editing(el, 'une Phase choisie', () => inside(el, 'cd-button.add-step', 'button').click()),

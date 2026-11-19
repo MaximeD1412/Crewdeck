@@ -31,6 +31,7 @@ const catalogue = example('le catalogue ouvert');
 const refused = example('un déplacement refusé');
 const removing = example('retirer une Phase');
 const sources = example('les Sources');
+const migrating = example('une migration de Source en cours');
 const noVersion = example('sans version active');
 const notFound = example('Projet introuvable');
 const toActivate = example('un brouillon à activer');
@@ -45,6 +46,8 @@ const panel = (el: Element) => inside(el, '.panel-body');
 const parts = (item: Element) => ['b', '.mono', 'small'].map((part) => textOf(item.querySelector(part)) ?? null);
 const activateButton = (el: Element) => root(el).querySelector('cd-page-header cd-button.activate') as (HTMLElement & { data: unknown }) | null;
 const only = (details: { action: string; payload: unknown }[]) => details.map(({ action, payload }) => ({ action, payload }));
+const icon = (item: Element) => (item.querySelector('cd-icon') as HTMLElement & { data: { name: string } }).data.name;
+type SelectEl = HTMLElement & { value: string; data: { label: string; value: string; state: string | null; options: { label: string }[] } };
 
 describe('PageProcessEditor', () => {
   it('titles the page « Gestion du process », its back link to the Projet, its count the version shown', async () => {
@@ -174,17 +177,52 @@ describe('PageProcessEditor', () => {
     expect((inside(panel(el), 'cd-empty') as HTMLElement & { data: unknown }).data).toMatchObject({ title: 'Choisis une Étape ou une Phase sur le canevas.' });
   });
 
-  it('shows the Sources: the lead, then each group, its place and what it holds', async () => {
+  it('shows the Sources: the lead, then each group, its place, what it holds and its Select', async () => {
     const el = await show(sources);
     const body = panel(el);
-    expect(textOf(inside(body, '.lead'))).toBe('Une Source par Type d’artefact : elle gagne toujours.');
-    const icon = (item: Element) => (item.querySelector('cd-icon') as HTMLElement & { data: { name: string } }).data.name;
+    expect(textOf(inside(body, '.lead'))).toBe(
+      'Une Source par Type d’artefact : elle gagne toujours. Changer de Source migre tout ce qu’elle tient. GitHub : MaximeD1412/site-mairie.',
+    );
+    expect(body.querySelector('cd-banner')).toBeNull();
     expect([...body.querySelectorAll('.item')].map((item) => [icon(item), ...parts(item)])).toEqual([
-      ['folder', 'Tickets', 'Local', 'dossier tickets/ du Projet, sur atelier-pc'],
-      ['github', 'Code et documents', 'GitHub', 'MaximeD1412/site-mairie · Changement de code, Verdict, PRD, Maquettes, Conception technique ; Inventaire non utilisé'],
+      ['folder', 'Tickets', null, 'dossier tickets/ du Projet, sur atelier-pc'],
+      ['github', 'Code et documents', null, 'MaximeD1412/site-mairie · Changement de code, Verdict, PRD, Maquettes, Conception technique ; Inventaire non utilisé'],
       ['bulb', 'Idée', 'Crewdeck', null],
     ]);
-    expect(body.querySelector('cd-select, select')).toBeNull();
+    const selects = [...body.querySelectorAll<SelectEl>('cd-select')];
+    expect(selects.map((select) => [select.dataset['group'], select.data.label, select.data.value, select.data.state])).toEqual([
+      ['ticket', 'Source des Tickets', 'local', null],
+      ['code', 'Source du code et des documents', 'github', null],
+    ]);
+    expect(selects[0]!.data.options.map((option) => option.label)).toEqual(['Local', 'GitHub']);
+  });
+
+  it('asks to migrate a group when its Select changes, the Select back on its Source until the page says otherwise', async () => {
+    const el = await show(sources);
+    const select = inside<SelectEl>(panel(el), 'cd-select[data-group=ticket]');
+    const native = inside<HTMLSelectElement>(select, 'select');
+    const details = await actionsOf(() => {
+      native.value = 'github';
+      native.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+      native.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    });
+    expect(only(details)).toEqual([{ action: 'migrate', payload: { group: 'ticket', to: 'github' } }]);
+    await settle(select);
+    expect(select.value).toBe('local');
+  });
+
+  it('shows a migration running: its Banner, the badge and meta in place of the group’s Select, the other Select disabled', async () => {
+    const el = await show(migrating);
+    const body = panel(el);
+    const banner = inside(body, 'cd-banner') as HTMLElement & { data: unknown };
+    expect(banner.data).toEqual({ tone: 'caution', icon: 'refresh', title: 'Migration des Tickets vers GitHub' });
+    expect(textOf(banner)).toBe('Aucun nouveau Ticket ne démarre. #12 et #14 finissent sur Local, puis les 30 Tickets passent sur GitHub d’un coup.');
+    const [tickets, code] = [...body.querySelectorAll('.item')];
+    expect(tickets!.classList.contains('caution')).toBe(true);
+    expect((inside(tickets!, 'cd-status-badge') as HTMLElement & { data: unknown }).data).toEqual({ tone: 'caution', label: 'Local → GitHub' });
+    expect(textOf(tickets!.querySelector('small'))).toBe('migration en cours · 2 Tickets à finir sur Local');
+    expect(tickets!.querySelector('cd-select')).toBeNull();
+    expect(inside<SelectEl>(code!, 'cd-select').data.state).toBe('disabled');
   });
 
   it('shows the versions at the panel’s foot', async () => {
@@ -495,13 +533,29 @@ describe('PageProcessEditor', () => {
     });
   });
 
-  it('does not render the editor below 1280 px', async () => {
+  it('does not render the editor below 1280 px: the Sources only, read', async () => {
     await page.viewport(390, 844);
     const el = await show(active);
     expect(textOf(inside(el, 'cd-page-header', 'h1'))).toBe('Gestion du process');
     expect(root(el).querySelector('.editor')).toBeNull();
+    expect(textOf(inside(el, '.phone-sources h2'))).toBe('Sources');
+    expect([...root(el).querySelectorAll('.phone-sources .item')].map((item) => parts(item).slice(0, 2))).toEqual([
+      ['Tickets', 'Local'],
+      ['Code et documents', 'GitHub'],
+      ['Idée', 'Crewdeck'],
+    ]);
+    expect(root(el).querySelector('cd-select')).toBeNull();
     await page.viewport(1280, 800);
     await settle(el);
     await expect.poll(() => root(el).querySelector('.editor')).not.toBeNull();
+  });
+
+  it('shows a migration running on the phone: its Banner above the Sources, the row’s badge and meta', async () => {
+    await page.viewport(390, 844);
+    const el = await show(migrating);
+    expect((inside(el, 'cd-banner.migration') as HTMLElement & { data: { title: string } }).data.title).toBe('Migration des Tickets vers GitHub');
+    const tickets = inside(el, '.phone-sources .item.caution');
+    expect((inside(tickets, 'cd-status-badge') as HTMLElement & { data: unknown }).data).toEqual({ tone: 'caution', label: 'Local → GitHub' });
+    expect(textOf(tickets.querySelector('small'))).toBe('migration en cours · 2 Tickets à finir sur Local');
   });
 });

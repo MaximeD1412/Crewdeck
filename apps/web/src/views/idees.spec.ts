@@ -65,7 +65,7 @@ const slices = (ideas: readonly Idea[] = IDEAS): IdeesSlices => ({
       [SITE_MAIRIE, 'Site mairie'],
       [PERSONAL_OS, 'Personal OS'],
       ['019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a04', 'Tennis Manager'],
-    ].map(([id, displayName]) => [id as string, { id: id as string, displayName: displayName as string }]),
+    ].map(([id, displayName]) => [id as string, { id: id as string, displayName: displayName as string, nameSealed: null }]),
   ),
 });
 
@@ -118,6 +118,19 @@ describe('ideesView', () => {
       { projectId: '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a04', label: 'Tennis Manager', selected: false },
     ]);
     expect(view({ onglet: 'retenues' }).projects.map((chip) => chip.count)).toEqual([2, 1, 1, undefined, undefined]);
+  });
+
+  it('names a Local Projet by the page’s name for it, « Projet local » without one', () => {
+    const LOCAL = '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a09';
+    const given = slices([idea(70, 'to-triage', { projectId: LOCAL, createdAt: minutesAgo(5) })]);
+    const project = new Map(given.project);
+    project.set(LOCAL, { id: LOCAL, displayName: null, nameSealed: { key: 'A'.repeat(80), ciphertext: 'B'.repeat(40) } });
+    const withLocal = { ...given, project };
+
+    expect(view({}, withLocal).ideas[0]?.meta).toBe('#70 · Projet local · il y a 5 min');
+    const named = ideesView(withLocal, plaintext, { ...ideesQuery({}), now: NOW, projectName: (shown) => shown.displayName ?? 'Recettes' });
+    expect(named.projects.map((chip) => chip.label)).toEqual(['Tous les Projets', 'Crewdeck', 'Personal OS', 'Recettes', 'Site mairie', 'Tennis Manager']);
+    expect(named.ideas[0]?.meta.split(' · ')[1]).toBe('Recettes');
   });
 
   it('filters by the Projet of ?projet=, the one the analysis proposes when the Pilote chose none', () => {

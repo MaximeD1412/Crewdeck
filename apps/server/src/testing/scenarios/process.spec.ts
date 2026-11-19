@@ -25,7 +25,7 @@ describe('the scenarios of « Gestion du process »', () => {
   it('opens each on its Projet’s « Gestion du process », the state in its URL', () => {
     const { mairie, recettes, sansVersion } = PROCESS_SCENARIO_PROJECTS;
     expect(
-      ['process', 'process-manques', 'process-etape', 'process-phase', 'process-catalogue', 'process-sources', 'process-local', 'process-sans-version'].map(
+      ['process', 'process-manques', 'process-etape', 'process-phase', 'process-catalogue', 'process-sources', 'process-local', 'process-sans-version', 'process-migration-source', 'process-migration-en-cours'].map(
         (name) => findScenario(name)?.path,
       ),
     ).toEqual([
@@ -37,6 +37,8 @@ describe('the scenarios of « Gestion du process »', () => {
       `/projets/${mairie}/process?onglet=sources`,
       `/projets/${recettes}/process?etape=st-lancer`,
       `/projets/${sansVersion}/process`,
+      `/projets/${mairie}/process?onglet=sources`,
+      `/projets/${mairie}/process?onglet=sources`,
     ]);
   });
 });

@@ -1,6 +1,7 @@
 import {
   type IdeesTab,
   COMPOSANTS,
+  PageAjouterProjet,
   PageAToi,
   PageComposants,
   PageConnexion,
@@ -10,9 +11,9 @@ import {
   PageParametres,
   PageParametresProjet,
   PageProcessEditor,
+  PageProjet,
   PageProjets,
   PageRunner,
-  RepositoryPicker,
   UsageCard,
 } from '@crewdeck/sdk';
 import { currentDeviceId } from './api/request.js';
@@ -32,6 +33,12 @@ export const composantsHref = (name: string): string => `/parametres/composants?
 /** « À toi », every Projet's Décisions, or one Projet's (`?projet=`). */
 export const aToiHref = (projectId: string | null): string => (projectId ? `/a-toi?projet=${encodeURIComponent(projectId)}` : '/a-toi');
 
+/** A Projet's page. */
+export const projetHref = (projectId: string): string => `/projets/${encodeURIComponent(projectId)}`;
+
+/** « Ajouter un Projet », or the choice of a Local Projet's folder again (`?projet=`). */
+export const ajouterHref = (projectId: string | null = null): string =>
+  projectId ? `/projets/ajouter?projet=${encodeURIComponent(projectId)}` : '/projets/ajouter';
 /** A Projet's Paramètres from the store alone, its worktree Commandes locked: `null` until the store has the Projet and the settings. */
 const projetView = (id: string | undefined, state: StoreState) => {
   const project = state.slices.project?.get(id ?? '');
@@ -64,9 +71,11 @@ const usageSlot = (slot: string, data: UsageCardData | null): readonly PlacedNod
  * whose data `app.ts` gives from the store and the texts in clear
  * (`views/idees.ts`); `/runner` →
  * `PageRunner`, whose data `app.ts` gives from the store
- * (`views/runner.ts`); `/projets` → `PageProjets` and `/projets/ajouter` →
- * `RepositoryPicker`, whose data `app.ts` gives from the store
- * (`views/projets.ts`, `projects.ts`); `/projets/:id/process` →
+ * (`views/runner.ts`); `/projets` → `PageProjets`, `/projets/ajouter` →
+ * `PageAjouterProjet` (its folder's form and its RepositoryPicker;
+ * `?projet=<id>` to choose a Local Projet's folder again) and `/projets/:id`
+ * → `PageProjet`, whose data `app.ts` gives from the store and the page's own
+ * state (`views/projets.ts`, `projects.ts`, `projects/`); `/projets/:id/process` →
  * `PageProcessEditor`, whose data `app.ts` gives from the store and the
  * page's own state (`views/process-editor.ts`, `process/editor-ui.ts`);
  * `/parametres` → `PageParametres`,
@@ -90,7 +99,8 @@ export const ROUTES: readonly Route[] = [
   { path: '/demarrage', composant: PageDemarrage },
   { path: '/runner', composant: PageRunner, slots: (_match, state) => usageSlot('usage', usageCard(usageOf(state))) },
   { path: '/projets', composant: PageProjets },
-  { path: '/projets/ajouter', composant: RepositoryPicker },
+  { path: '/projets/ajouter', composant: PageAjouterProjet },
+  { path: '/projets/:id', composant: PageProjet },
   { path: '/projets/:id/process', composant: PageProcessEditor },
   {
     path: '/projets/:id/parametres',

@@ -2,8 +2,10 @@ import {
   DEMARRAGE_SYSTEMS,
   formatRelative,
   PageDemarrage,
+  PROJECT_ORIGINS,
   t,
   zDemarrageSystem,
+  zProjectOrigin,
   type CdActionDetail,
   type ComposantData,
 } from '@crewdeck/sdk';
@@ -39,9 +41,10 @@ const track = ({ step, failure, runner }: Data): { label: string; meta: null; st
  * Moteur, its Compte IA's badges, its models as ListRows with their badge,
  * and the command that connects it while it is not; without a usable Moteur,
  * the caution Banner above them and « Continuer » disabled. The Projets: the
- * RepositoryPicker of `picker`, whose « Plus tard » is the page's `continue`;
- * without GitHub, the caution Banner above it and « Relier GitHub »
- * (`linkGitHub`).
+ * Tabs « Dossier sur ta machine » and « Dépôt GitHub » (`selectProjectsTab`),
+ * then the FolderProjectForm of `folder` or the RepositoryPicker of `picker`,
+ * whose « Plus tard » is the page's `continue`; without GitHub, the caution
+ * Banner above the Tabs and « Relier GitHub » (`linkGitHub`).
  */
 export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarrage> {
   static override styles = [
@@ -103,6 +106,15 @@ export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarr
   ];
 
   protected readonly composant = PageDemarrage;
+
+  /** The projects' Tabs' `select` becomes the page's `selectProjectsTab`. */
+  private selectProjectsTab(event: Event) {
+    const detail = (event as CustomEvent<CdActionDetail>).detail;
+    if (detail.composant !== 'Tabs' || detail.action !== 'select') return;
+    event.stopPropagation();
+    const tab = zProjectOrigin.safeParse((detail.payload as { id?: unknown } | undefined)?.id);
+    if (tab.success) this.emit('selectProjectsTab', { id: tab.data });
+  }
 
   /** The Tabs' `select` becomes the page's `selectSystem`. */
   private selectSystem(event: Event) {
@@ -243,17 +255,22 @@ export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarr
       </section>`;
   }
 
-  /** The picker's `later` becomes the page's `continue`; its `follow` goes on up to the page's dispatcher. */
-  private onPicker(event: Event) {
+  /** The form's or the picker's `later` becomes the page's `continue`; their other actions go on up to the page's dispatcher. */
+  private onProjects(event: Event) {
     const detail = (event as CustomEvent<CdActionDetail>).detail;
-    if (detail.composant !== 'RepositoryPicker' || detail.action !== 'later') return;
+    if ((detail.composant !== 'RepositoryPicker' && detail.composant !== 'FolderProjectForm') || detail.action !== 'later') return;
     event.stopPropagation();
     if (!this.data.busy) this.emit('continue', {});
   }
 
-  /** The Projets: the RepositoryPicker of `picker`, under the step's title and its explanation; without GitHub, « Relier GitHub » above it. */
+  /**
+   * The Projets: the Tabs, then the FolderProjectForm of `folder` or the
+   * RepositoryPicker of `picker`, under the step's title and its explanation;
+   * both stay mounted, the other tab's hidden, keeping what the Pilote typed.
+   * Without GitHub, « Relier GitHub » above the Tabs, whichever is open.
+   */
   private projectsStep(): TemplateResult {
-    const { picker, busy, githubLinked } = this.data;
+    const { projectsTab, folder, picker, busy, githubLinked } = this.data;
     return html`${this.head(t('demarrage.projects.title'), t('demarrage.projects.lead'))}
       ${githubLinked
         ? nothing
@@ -265,7 +282,21 @@ export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarr
               @click=${() => this.emit('linkGitHub', {})}
             ></cd-button>
           </cd-banner>`}
-      <cd-repository-picker .data=${{ ...picker, busy: picker.busy || busy }} @cd-action=${this.onPicker}></cd-repository-picker>`;
+      <cd-tabs
+        class="projects-tabs"
+        .data=${{ tabs: PROJECT_ORIGINS.map((id) => ({ id, label: t(`projets.ajouter.tab.${id}`), selected: id === projectsTab })) }}
+        @cd-action=${this.selectProjectsTab}
+      ></cd-tabs>
+      <cd-folder-project-form
+        ?hidden=${projectsTab !== 'dossier'}
+        .data=${{ ...folder, busy: folder.busy || busy }}
+        @cd-action=${this.onProjects}
+      ></cd-folder-project-form>
+      <cd-repository-picker
+        ?hidden=${projectsTab !== 'github'}
+        .data=${{ ...picker, busy: picker.busy || busy }}
+        @cd-action=${this.onProjects}
+      ></cd-repository-picker>`;
   }
 
   protected override render() {

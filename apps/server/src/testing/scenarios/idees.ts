@@ -83,7 +83,7 @@ const seedProjects = async (ctx: ScenarioContext, pilotId: string): Promise<Map<
     { name: 'tennis-manager', hasCode: true, project: 'Tennis Manager' },
   ]);
   const projects = await ctx.prisma.unscoped.project.findMany({ where: { pilotId }, select: { id: true, displayName: true } });
-  return new Map(projects.map((project) => [project.displayName, project.id]));
+  return new Map(projects.flatMap((project) => (project.displayName === null ? [] : [[project.displayName, project.id] as const])));
 };
 
 /**
@@ -147,6 +147,9 @@ export const idees = defineScenario({ name: 'idees', path: '/idees', seed: (ctx)
 
 /** « Noter une Idée » (`idees`, state `nouvelle`): the same Idées, the Dialog opened by the test. */
 export const ideesNouvelle = defineScenario({ name: 'idees-nouvelle', path: '/idees', seed: (ctx) => seedIdees(ctx, MOCKUP) });
+
+/** « Noter une Idée » dictated (`idees`, state `dictee`): the same Idées, the Dialog opened and the dictation run by the test with a fake recognition. */
+export const ideesDictee = defineScenario({ name: 'idees-dictee', path: '/idees', seed: (ctx) => seedIdees(ctx, MOCKUP) });
 
 /** No Idée yet (`idees`, state `vide`): « Aucune Idée pour l’instant », the Projets followed and the Appareil trusted. */
 export const ideesVide = defineScenario({ name: 'idees-vide', path: '/idees', seed: (ctx) => seedIdees(ctx, []) });

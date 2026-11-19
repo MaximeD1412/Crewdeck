@@ -18,6 +18,7 @@ import type {
   Runner,
   RunnerLink,
   SettingsState,
+  SourceMigration,
   State,
   StepRun,
   Ticket,
@@ -83,6 +84,8 @@ export interface Slices {
   readonly settings: SettingsState | null;
   /** The usage of the Comptes IA (RUNNER-13), by the Compte IA's id, from the snapshot's `usage`. */
   readonly usage: ReadonlyMap<string, UsageAccount>;
+  /** The migrations of Source (SOURCE-7), by id, from the snapshot's `sourceMigrations`: those not done, and the last done of each group. */
+  readonly 'source-migration': ReadonlyMap<string, SourceMigration>;
 }
 
 export interface StoreState {

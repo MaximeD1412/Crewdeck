@@ -16,6 +16,7 @@ export type Instant = Date | string;
 const toDate = (instant: Instant): Date => (typeof instant === 'string' ? new Date(instant) : instant);
 
 const dayMonth = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short' });
+const dayMonthYear = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });
 const dayMonthUtc = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', timeZone: 'UTC' });
 const hourMinute = new Intl.DateTimeFormat(LOCALE, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const weekday = new Intl.DateTimeFormat(LOCALE, { weekday: 'long' });
@@ -52,6 +53,15 @@ export const formatHour = (instant: Instant): string => hourMinute.format(toDate
 /** « 3 nov. » for an instant, its day in the browser's time zone. */
 export const formatDate = (instant: Instant): string => dayMonth.format(toDate(instant));
 
+/**
+ * « 10 nov. » for an instant of this year, « 10 nov. 2025 » for an older one,
+ * in the browser's time zone: a date that may be years old (« Suivi depuis »).
+ */
+export const formatDateOfAnyYear = (instant: Instant, now: Date = new Date()): string => {
+  const date = toDate(instant);
+  return date.getFullYear() === now.getFullYear() ? dayMonth.format(date) : dayMonthYear.format(date);
+};
+
 /** « jeudi »: the day of the week of an instant. */
 export const formatWeekday = (instant: Instant): string => weekday.format(toDate(instant));
 
@@ -75,3 +85,9 @@ export const formatPercent = (ratio: number): string => `${integer.format(ratio 
 
 /** « 1,80 € » for 180 cents, after a no-break space. */
 export const formatEuros = (cents: number): string => `${twoDecimals.format(cents / 100)}${NBSP}€`;
+
+/** Minutes and seconds since a start, « 0:07 », « 1:05 »: a dictation's time. */
+export const formatElapsed = (seconds: number): string => {
+  const whole = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+};

@@ -1,4 +1,4 @@
-import { ideaItemAad, processSealAad, type VaultItem, worktreeCommandsAad, zSealedItem } from '@crewdeck/contracts';
+import { ideaItemAad, processSealAad, projectNameAad, type VaultItem, worktreeCommandsAad, zSealedItem } from '@crewdeck/contracts';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import type { Tx } from '../realtime/transactions.js';
@@ -128,8 +128,24 @@ const worktreeCommands: VaultItemKind = {
   },
 };
 
+/** A Local Projet's name (PROJET-6), sealed by the page under `project:<id>:name`. */
+const projectNames: VaultItemKind = {
+  itemType: 'project.name',
+  async list(tx, from, take) {
+    const rows = await tx.project.findMany({ where: { ...after(from), nameSealed: { not: Prisma.DbNull } }, orderBy: { id: 'asc' }, take, select: { id: true, nameSealed: true } });
+    return rows.flatMap(({ id, nameSealed }) => {
+      const wrappedKey = keyOf(nameSealed);
+      return wrappedKey ? [{ itemType: 'project.name', itemId: id, aad: projectNameAad(id), wrappedKey }] : [];
+    });
+  },
+  async replace(tx, id, previousKey, wrappedKey) {
+    const row = await tx.project.findUnique({ where: { id }, select: { nameSealed: true } });
+    return swap(row?.nameSealed, previousKey, wrappedKey, async (stored, value) => (await tx.project.updateMany({ where: { id, nameSealed: { equals: stored } }, data: { nameSealed: value } })).count);
+  },
+};
+
 /** The kinds of every sealed item the server stores today. */
-export const VAULT_ITEM_KINDS: readonly VaultItemKind[] = [ideaKind('text'), ideaKind('analysis'), ideaKind('reason'), processVersions, processDrafts, worktreeCommands];
+export const VAULT_ITEM_KINDS: readonly VaultItemKind[] = [ideaKind('text'), ideaKind('analysis'), ideaKind('reason'), processVersions, processDrafts, worktreeCommands, projectNames];
 
 /** Where a page of items starts: the kind's index and the last id read. */
 export interface VaultItemsCursor {

@@ -1,5 +1,6 @@
 import { type AgentSession, type EngineId, type RoleId, type SessionError, type SessionInterruptedReason, type SessionStart, type StepId, zSealedItem } from '@crewdeck/contracts';
 import type { Prisma } from '../generated/prisma/client.js';
+import { githubNamesOf } from '../projects/project.view.js';
 
 /** What a Session's view, and the `session.start` it is sent with, read of its row. */
 export const SESSION_ROW = {
@@ -56,7 +57,7 @@ export const startMessageOf = (row: SessionRow): Omit<SessionStart, 'id' | 'at'>
   type: 'session.start',
   sessionId: row.id,
   projectId: row.projectId,
-  origin: { kind: 'github', owner: row.project.owner, name: row.project.name },
+  origin: { kind: 'github', owner: githubNamesOf(row.project).owner, name: githubNamesOf(row.project).name },
   branch: row.branch,
   base: row.base,
   engine: spelled<EngineId>(row.engine),

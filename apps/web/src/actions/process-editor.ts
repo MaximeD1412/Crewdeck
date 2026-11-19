@@ -1,8 +1,9 @@
-import { diffDefinitions, type ProcessDefinition, type ProcessRunningWork } from '@crewdeck/contracts';
+import { diffDefinitions, type ProcessDefinition, type ProcessRunningWork, type Project } from '@crewdeck/contracts';
 import { t, type ComposantAction, type ComposantParsedPayload, type MessageKey, type MessageParams, type PageProcessEditor } from '@crewdeck/sdk';
 import type { Client } from '../api/client.js';
 import { activateProcess } from '../api/process.js';
 import { ApiError } from '../api/request.js';
+import { migrateSource } from '../api/source-migrations.js';
 import type { ConfirmOptions } from '../dialogs/confirm.js';
 import { targetPhaseOf } from '../process/canvas.js';
 import { changeLabels } from '../process/diff-labels.js';
@@ -12,6 +13,9 @@ import { editorQueryOf, processHref, type EditorUiState } from '../process/edito
 import { runningByVersion, type WorkKind } from '../process/running-work.js';
 import type { RouteMatch } from '../router.js';
 import type { StoreState } from '../store/store.js';
+import { sourceReadsOf, type ProcessEditorState } from '../views/process-editor.js';
+import { migrationConfirmation } from '../views/source-migration.js';
+import type { SensitiveActionHandler } from './dispatcher.js';
 
 type Payload<A extends ComposantAction<typeof PageProcessEditor>> = ComposantParsedPayload<typeof PageProcessEditor, A>;
 
@@ -26,6 +30,8 @@ export interface EditorActionsOptions {
   readonly client?: Pick<Client, 'command'>;
   /** An Idée's title, when the page holds it opened (its first line); else `null`, and it is counted. */
   readonly ideaTitle?: (ideaId: string) => string | null;
+  /** A Projet's name: a Local Projet's is sealed, the page opens it (PROJET-6); else its `displayName`. */
+  readonly projectName?: (project: Project) => string;
 }
 
 type Confirmation = Omit<ConfirmOptions, 'action'>;
@@ -67,7 +73,7 @@ const addedId = (before: ProcessDefinition, after: ProcessDefinition, blocks: 'p
  * or Phase added selected, a Phase's name focused; a Phase with Étapes
  * removed once the Dialog confirms.
  */
-export const createEditorActions = ({ ui, editing, navigate, current, client, ideaTitle = () => null }: EditorActionsOptions) => {
+export const createEditorActions = ({ ui, editing, navigate, current, client, ideaTitle = () => null, projectName: nameOf = (project) => project.displayName ?? '' }: EditorActionsOptions) => {
   const here = () => {
     const match = current();
     return { projectId: match.params['id'] ?? '', query: editorQueryOf(match.query) };
@@ -120,7 +126,8 @@ export const createEditorActions = ({ ui, editing, navigate, current, client, id
         confirming = { projectId, saving: edits.saving ?? false };
         // What the page shows (PROCESS-8): its edits not saved yet included.
         const view = edits.shown ?? state.slices.process?.get(projectId);
-        const projectName = state.slices.project?.get(projectId)?.displayName ?? '';
+        const project = state.slices.project?.get(projectId);
+        const projectName = project ? nameOf(project) : '';
         const active = view?.active ?? null;
         const next = (active?.number ?? 0) + 1;
         const roleNames = Object.fromEntries((state.slices.settings?.customRoles ?? []).map((role) => [role.id, role.name]));
@@ -220,3 +227,41 @@ export const createEditorActions = ({ ui, editing, navigate, current, client, id
 };
 
 export type EditorActions = ReturnType<typeof createEditorActions>;
+
+export interface MigrateActionOptions {
+  readonly ui: Pick<EditorUiState, 'choose'>;
+  readonly client: Pick<Client, 'command'>;
+  /** The page's match: its Projet's id. */
+  readonly current: () => Pick<RouteMatch, 'params'>;
+}
+
+/**
+ * « Migrer » a group of the Sources (SOURCE-7, US-102), the Action sensible
+ * `source.migrate`: the core's dialog says what the migration holds, copies
+ * and archives; the group's Select shows the choice while it is open and
+ * goes back once answered; confirmed, the migration is asked with the `seq`
+ * seen when the dialog opened, and the store shows it running, live. A
+ * refusal is an `ApiError`, which the page shows.
+ */
+export const createMigrateAction = ({ ui, client, current }: MigrateActionOptions): SensitiveActionHandler<Payload<'migrate'>> => {
+  const projectId = () => current().params['id'] ?? '';
+  return {
+    confirmation: ({ group, to }, state) => {
+      const slices = state.slices as ProcessEditorState['slices'];
+      const project = slices.project?.get(projectId());
+      const view = slices.process?.get(projectId());
+      const definition = view?.active?.definition ?? view?.draft?.definition ?? null;
+      const from = view?.sources[group].source ?? (to === 'github' ? 'local' : 'github');
+      if (!project) throw new Error(`Projet ${projectId()} absent du store`);
+      return migrationConfirmation(sourceReadsOf(state as ProcessEditorState, project, definition), group, from, to);
+    },
+    pending: (choice) => {
+      const id = projectId();
+      ui.choose(id, choice);
+      return () => ui.choose(id, null);
+    },
+    run: async ({ group, to }, { seq }) => {
+      await migrateSource(client, projectId(), group, to, seq);
+    },
+  };
+};

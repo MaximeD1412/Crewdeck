@@ -4,6 +4,7 @@ import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
 import { fromBase64Url, utf8 } from './keys/bytes.js';
 import type { VaultState } from './keys/vault.js';
+import { fakeSpeech, installFakeSpeech, removeSpeech } from './dictation/fake-speech.js';
 import { createNoteIdea } from './note-idea.js';
 import type { StoreState } from './store/store.js';
 
@@ -13,7 +14,16 @@ const PERSONAL_OS = '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a02';
 const TEXT = 'Pouvoir dupliquer une recette';
 const KEY = new Uint8Array(60).fill(7);
 
-const setup = ({ vaultState = 'unlocked' as VaultState, width = 1280, refuse = null as ApiError | null, refusals = [] as ApiError[] } = {}) => {
+type Named = { id: string; displayName: string | null; nameSealed: { key: string; ciphertext: string } | null };
+
+const setup = ({
+  vaultState = 'unlocked' as VaultState,
+  width = 1280,
+  refuse = null as ApiError | null,
+  refusals = [] as ApiError[],
+  extraProjects = [] as [string, Named][],
+  projectName = undefined as ((project: Named) => string) | undefined,
+} = {}) => {
   const calls: { method: string; path: string; body: Record<string, unknown> }[] = [];
   const sealed: { plaintext: string; aad: string }[] = [];
   const client = {
@@ -55,12 +65,13 @@ const setup = ({ vaultState = 'unlocked' as VaultState, width = 1280, refuse = n
       return 'unlocked';
     }),
   };
-  const projects = new Map([
-    [PERSONAL_OS, { id: PERSONAL_OS, displayName: 'Personal OS' }],
-    [CREWDECK, { id: CREWDECK, displayName: 'Crewdeck' }],
+  const projects = new Map<string, Named>([
+    [PERSONAL_OS, { id: PERSONAL_OS, displayName: 'Personal OS', nameSealed: null }],
+    [CREWDECK, { id: CREWDECK, displayName: 'Crewdeck', nameSealed: null }],
+    ...extraProjects,
   ]);
   const store = { getState: () => ({ vaultState, slices: { project: projects } }) as unknown as StoreState };
-  const noteIdea = createNoteIdea({ client, vault, store, width: () => width, newId: () => ID });
+  const noteIdea = createNoteIdea({ client, vault, store, width: () => width, newId: () => ID, ...(projectName ? { projectName } : {}) });
   const changed = vi.fn<() => void>();
   noteIdea.subscribe(changed);
   return { noteIdea, calls, sealed, vault, changed };
@@ -83,10 +94,25 @@ describe('createNoteIdea', () => {
         { id: CREWDECK, name: 'Crewdeck' },
         { id: PERSONAL_OS, name: 'Personal OS' },
       ],
+      value: '',
+      dictation: { available: false, state: 'idle', elapsedSeconds: 0, error: null, notice: false },
     });
     noteIdea.cancel();
     expect(noteIdea.view().open).toBe(false);
     expect(changed).toHaveBeenCalledTimes(2);
+  });
+
+  it('names a Local Projet by the page’s name for it, « Projet local » by default', () => {
+    const LOCAL = '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a09';
+    const extraProjects: [string, Named][] = [[LOCAL, { id: LOCAL, displayName: null, nameSealed: { key: 'A'.repeat(80), ciphertext: 'B'.repeat(40) } }]];
+
+    expect(setup({ extraProjects }).noteIdea.view().projects.map((project) => project.name)).toEqual(['Crewdeck', 'Personal OS', 'Projet local']);
+    const named = setup({ extraProjects, projectName: (project) => project.displayName ?? 'Atelier' }).noteIdea.view();
+    expect(named.projects).toEqual([
+      { id: LOCAL, name: 'Atelier' },
+      { id: CREWDECK, name: 'Crewdeck' },
+      { id: PERSONAL_OS, name: 'Personal OS' },
+    ]);
   });
 
   it('seals the trimmed text under "<id>:text" and sends only its ciphertext, with the Projet, from the pc', async () => {
@@ -187,5 +213,71 @@ describe('createNoteIdea', () => {
     await first;
     expect(vault.sealItem).toHaveBeenCalledTimes(1);
     expect(noteIdea.view().open).toBe(false);
+  });
+
+  describe('dictated', () => {
+    beforeEach(() => {
+      installFakeSpeech();
+      localStorage.clear();
+    });
+    afterEach(() => removeSpeech());
+
+    it('puts the transcript in the field as it comes, and the Idée noted after it goes with dictated: true', async () => {
+      const { noteIdea, calls, sealed } = setup();
+      noteIdea.open(null);
+      expect(noteIdea.view().dictation).toMatchObject({ available: true, state: 'idle' });
+      noteIdea.dictateStart({ text: '' });
+      expect(noteIdea.view().dictation).toMatchObject({ state: 'dictating', notice: true });
+      fakeSpeech().say('Pouvoir dupliquer', false);
+      expect(noteIdea.view().value).toBe('Pouvoir dupliquer');
+      fakeSpeech().say('Pouvoir dupliquer une recette', true);
+      expect(noteIdea.view().value).toBe(TEXT);
+      noteIdea.dictateStop();
+      expect(noteIdea.view()).toMatchObject({ value: TEXT, dictation: { state: 'idle' } });
+      // Corrected by hand before « Noter »: still dictated.
+      await noteIdea.submit({ text: `${TEXT} en variante`, projectId: null });
+      expect(sealed).toEqual([{ plaintext: `${TEXT} en variante`, aad: `${ID}:text` }]);
+      expect(calls[0]?.body).toMatchObject({ dictated: true });
+    });
+
+    it('« Noter » while dictating stops it first', async () => {
+      const { noteIdea, calls } = setup();
+      noteIdea.open(null);
+      noteIdea.dictateStart({ text: '' });
+      fakeSpeech().say(TEXT, false);
+      await noteIdea.submit({ text: TEXT, projectId: null });
+      expect(fakeSpeech().listening).toBe(false);
+      expect(calls[0]?.body).toMatchObject({ dictated: true });
+    });
+
+    it('a dictation that heard nothing leaves the Idée typed: dictated: false', async () => {
+      const { noteIdea, calls } = setup();
+      noteIdea.open(null);
+      noteIdea.dictateStart({ text: TEXT });
+      noteIdea.dictateStop();
+      await noteIdea.submit({ text: TEXT, projectId: null });
+      expect(calls[0]?.body).toMatchObject({ dictated: false });
+    });
+
+    it('cancel stops it, and the next opening is a new field, not dictated', async () => {
+      const { noteIdea, calls } = setup();
+      noteIdea.open(null);
+      noteIdea.dictateStart({ text: '' });
+      fakeSpeech().say('Une autre idée', true);
+      noteIdea.cancel();
+      expect(fakeSpeech().listening).toBe(false);
+      noteIdea.open(null);
+      expect(noteIdea.view()).toMatchObject({ value: '', dictation: { state: 'idle', error: null } });
+      await noteIdea.submit({ text: TEXT, projectId: null });
+      expect(calls[0]?.body).toMatchObject({ dictated: false });
+    });
+
+    it('a refused microphone shows its message and returns to idle', () => {
+      const { noteIdea } = setup();
+      noteIdea.open(null);
+      noteIdea.dictateStart({ text: '' });
+      fakeSpeech().fail('not-allowed');
+      expect(noteIdea.view().dictation).toMatchObject({ state: 'idle', error: t('dictation.error.notAllowed') });
+    });
   });
 });

@@ -15,7 +15,7 @@ describe('COMPOSANTS', () => {
 
   it.each([
     ['cadre', ['PageHeader', 'ProjectFilter']],
-    ['page', ['PageComposants', 'PageConnexion', 'PageConnexionLien', 'PageDemarrage', 'PageIdees', 'PageIntrouvable', 'PageParametres', 'PageParametresProjet', 'PageProjets', 'PageRunner']],
+    ['page', ['PageComposants', 'PageConnexion', 'PageConnexionLien', 'PageDemarrage', 'PageIdees', 'PageIntrouvable', 'PageParametres', 'PageParametresProjet', 'PageProjet', 'PageProjets', 'PageRunner', 'PageAjouterProjet']],
     [
       'partie',
       [
@@ -28,6 +28,7 @@ describe('COMPOSANTS', () => {
         'Composer',
         'DecisionRow',
         'Dialog',
+        'FolderProjectForm',
         'IdeaRow',
         'KeyValue',
         'ListRow',

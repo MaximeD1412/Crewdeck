@@ -31,6 +31,12 @@ export type SensitiveConfirmation<Payload> = (payload: Payload, state: StoreStat
 export interface SensitiveActionHandler<Payload> {
   confirmation: SensitiveConfirmation<Payload>;
   run(payload: Payload, context: { readonly seq: bigint }): void | Promise<void>;
+  /**
+   * What the page shows while the action is asked (a Select on its choice):
+   * called as it is asked, its return once it is answered (refused,
+   * cancelled, or run), so that a cancel puts the page back.
+   */
+  pending?(payload: Payload): () => void;
 }
 
 /** The handler an action asks for: a confirmation for an Action sensible. */
@@ -65,6 +71,7 @@ export interface DispatcherOptions {
 type AnyHandler = {
   run(payload: unknown, context?: { readonly seq: bigint }): void | Promise<void>;
   confirmation?: SensitiveConfirmation<unknown>;
+  pending?(payload: unknown): () => void;
 };
 
 /**
@@ -97,6 +104,7 @@ export const createDispatcher = ({
     const seen = state();
     const seq = seen.seq ?? 0n;
     confirming = true;
+    const settled = handler.pending?.(payload);
     try {
       const confirmed = await confirm({ action, ...handler.confirmation(payload, seen) });
       if (!confirmed) return;
@@ -105,6 +113,7 @@ export const createDispatcher = ({
       await handler.run(payload, { seq });
     } finally {
       confirming = false;
+      settled?.();
     }
   };
 

@@ -4,6 +4,7 @@
  * `design/screens.json`) into `CAPTURES_DIR`, once per project (390 and 1280 px).
  */
 import type { Page } from '@playwright/test';
+import { installFakeSpeech, type FakeSpeechControl } from '../src/dictation/fake-speech.js';
 import { openConfirm } from './confirm.js';
 import { expect, test } from './fixtures.js';
 import { linkFirstAppareil } from './runner-link.js';
@@ -88,6 +89,22 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await picker.getByRole('checkbox', { name: /^octocat\/site-mairie\b/ }).check();
     await expect(picker.getByRole('button', { name: 'Suivre 2 Projets' })).toBeEnabled();
   },
+  // The folder tab, a git folder with code checked by the Runner, its name proposed.
+  'demarrage-projets-dossier': async (page) => {
+    await page.locator('cd-page-demarrage').getByRole('tab', { name: 'Dossier sur ta machine' }).click();
+    const form = page.locator('cd-page-demarrage cd-folder-project-form');
+    await form.getByRole('textbox', { name: 'Chemin du dossier' }).fill('~/projets/recettes');
+    await expect(form).toContainText('Dépôt git · déjà du code : un inventaire sera proposé.');
+    await expect(form.getByRole('button', { name: 'Créer le Projet' })).toBeEnabled();
+  },
+  // The Local Projet's name opened by the trusted Appareil, its folder kept by the Runner.
+  'projet-local': async (page) => {
+    await expect(page.locator('cd-page-projet').getByRole('heading', { level: 1, name: 'Recettes' })).toBeVisible();
+    await expect(page.locator('cd-page-projet')).toContainText('sur atelier-pc');
+  },
+  'projets-vide': async (page) => {
+    await expect(page.locator('cd-page-projets')).toContainText('Aucun Projet suivi');
+  },
   // « Gestion du process » once the snapshot drew its canvas (1280 px; the phone's list is PROCESS-11's).
   ...Object.fromEntries(
     ['process', 'process-manques', 'process-etape', 'process-phase', 'process-sources', 'process-local'].map((name) => [
@@ -148,6 +165,23 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await page.locator('cd-page-idees cd-page-header').getByRole('button', { name: 'Noter une Idée' }).click();
     await expect(page.getByRole('dialog', { name: 'Noter une Idée' })).toBeVisible();
   },
+  // « Noter une Idée » dictating, as the mockup: the fake recognition, the notice already seen on this Appareil, 7 s heard.
+  'idees-dictee': async (page) => {
+    await page.addInitScript(installFakeSpeech);
+    await page.addInitScript(() => localStorage.setItem('crewdeck.dictation.notice', 'vue'));
+    await page.clock.install({ time: new Date('2026-11-19T10:00:00+01:00') });
+    await page.reload();
+    await expect(page.locator('cd-page-idees cd-idea-row').first()).toContainText('Prévenir quand une Planification');
+    await page.clock.pauseAt(new Date('2026-11-19T10:01:00+01:00'));
+    await page.locator('cd-page-idees cd-page-header').getByRole('button', { name: 'Noter une Idée' }).click();
+    await expect(page.getByRole('dialog', { name: 'Noter une Idée' })).toBeVisible();
+    await page.locator('cd-note-idea-dialog').getByRole('button', { name: 'Dicter', exact: true }).click();
+    await page.evaluate(() =>
+      (window as unknown as { fakeSpeech: FakeSpeechControl }).fakeSpeech.say('Pouvoir dupliquer une recette pour en faire une variante, avec…', false),
+    );
+    await page.clock.runFor(7_000);
+    await expect(page.locator('cd-note-idea-dialog .rec')).toContainText('Dictée en cours · 0:07');
+  },
   'idees-vide': async (page) => {
     await expect(page.locator('cd-page-idees cd-empty')).toContainText('Aucune Idée pour l’instant');
   },
@@ -199,6 +233,15 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await expect(page.locator('#app > cd-cadre > cd-session[slot=panel] cd-permission-request')).toContainText('git push origin design/agenda-partage');
     await expect(page.locator('cd-page-a-toi cd-decision-row').filter({ hasText: 'Concevoir · Agenda partagé' })).toContainText('Bash : git push');
   },
+  // The Tickets' Select turned to GitHub (SOURCE-7): the core's confirmation over the Sources, on the PC only.
+  'process-migration-source': async (page, width) => {
+    if (width < 1280) return;
+    await page.locator('cd-page-process-editor').getByRole('combobox', { name: 'Source des Tickets' }).selectOption('github');
+    await expect(page.getByRole('alertdialog', { name: 'Passer les Tickets de Site mairie sur GitHub ?' })).toBeVisible();
+  },
+  'process-migration-en-cours': async (page) => {
+    await expect(page.locator('cd-page-process-editor cd-banner.migration').filter({ visible: true })).toContainText('#12 et #14');
+  },
   // « Maximum de Retours atteint » (PROCESS-6) among the nine Décisions of `a-toi`.
   'a-toi-process': async (page) => {
     await expect(page.locator('cd-page-a-toi cd-decision-row')).toHaveCount(10);
@@ -206,7 +249,7 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
 };
 
 /** The scenarios whose capture is the screen, not the whole page: a modal over it. */
-const SCREEN_ONLY: ReadonlySet<string> = new Set(['confirm-dialog', 'appareil-a-approuver-code', 'appareils-ajouter', 'idees-nouvelle', 'process-activation']);
+const SCREEN_ONLY: ReadonlySet<string> = new Set(['confirm-dialog', 'appareil-a-approuver-code', 'appareils-ajouter', 'idees-nouvelle', 'idees-dictee', 'process-activation']);
 
 const names = (process.env['CAPTURES_SCENARIOS'] ?? '')
   .split(',')

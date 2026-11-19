@@ -1,13 +1,42 @@
-import { zProjectList, type InstallReturn, type Project, type PublicConfig } from '@crewdeck/contracts';
+import {
+  zProject,
+  zProjectList,
+  type AttachProjectFolder,
+  type CreateLocalProject,
+  type InstallReturn,
+  type ProcessTemplateId,
+  type Project,
+  type PublicConfig,
+} from '@crewdeck/contracts';
 import type { Client } from './client.js';
 
 /**
  * `POST /api/projects` (US-3): the Dépôts GitHub to follow, each becoming a
- * Projet; the answer is the Projets created, whose events the store gets too.
- * A refusal is an `ApiError` (404 a repository gone, 422 already a Projet).
+ * Projet started from the Modèle de process `templateId` (US-97); the answer
+ * is the Projets created, whose events the store gets too. A refusal is an
+ * `ApiError` (404 a repository gone, 422 already a Projet).
  */
-export const followProjects = async (client: Pick<Client, 'command'>, repositoryIds: readonly string[]): Promise<Project[]> =>
-  (await client.command('POST', '/api/projects', { repositoryIds }, zProjectList)).items;
+export const followProjects = async (client: Pick<Client, 'command'>, repositoryIds: readonly string[], templateId: ProcessTemplateId): Promise<Project[]> =>
+  (await client.command('POST', '/api/projects', { repositoryIds, templateId }, zProjectList)).items;
+
+/**
+ * `POST /api/projects/local` (PROJET-6): a Projet from a folder the Runner
+ * checked, its name and its path already sealed by the page. A refusal is an
+ * `ApiError` (422 `runner.offline`, 422 `project.id-taken`).
+ */
+export const postLocalProject = (client: Pick<Client, 'command'>, body: CreateLocalProject): Promise<Project> =>
+  client.command('POST', '/api/projects/local', body, zProject);
+
+/**
+ * `POST /api/projects/:id/folder` (PROJET-6): a Local Projet's folder chosen
+ * again, sealed for the Runner; `seq` the store's unless given. A refusal is
+ * an `ApiError` (404, 409 stale, 422 `project.not-local`, 422 `runner.offline`).
+ */
+export const postProjectFolder = (
+  client: Pick<Client, 'command'>,
+  projectId: string,
+  body: Omit<AttachProjectFolder, 'seq'> & { readonly seq?: bigint },
+): Promise<Project> => client.command('POST', `/api/projects/${encodeURIComponent(projectId)}/folder`, body, zProject);
 
 /**
  * GitHub's page that installs the App on more repositories (ADR 0002); its

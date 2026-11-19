@@ -17,11 +17,12 @@ import { connexion, connexionErreur, connexionGoogleNonVerifiee, connexionLien, 
 import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
 import { appareilAApprouver, appareilAApprouverCode, appareils, appareilsAjouter } from './devices.js';
 import type { Scenario } from './define.js';
-import { idees, ideesNouvelle, ideesVide } from './idees.js';
+import { idees, ideesDictee, ideesNouvelle, ideesVide } from './idees.js';
 import { menuPlus } from './menu-plus.js';
-import { demarrageProjets, demarrageProjetsSansGithub, projets, projetsVide } from './projets.js';
+import { demarrageProjets, demarrageProjetsDossier, demarrageProjetsSansGithub, projetLocal, projets, projetsVide } from './projets.js';
 import { parametres, parametresNotifications, parametresNotificationsIphone } from './parametres.js';
 import { parametresProjet } from './parametres-projet.js';
+import { processMigrationScenarios } from './process-migration.js';
 import { processScenarios } from './process.js';
 import { resynchronisation } from './resynchronisation.js';
 import { runner, runnerServeursMcp } from './runner.js';
@@ -55,15 +56,18 @@ const SCENARIOS: readonly Scenario[] = [
   demarrageComptesIa,
   demarrageComptesIaAucun,
   demarrageProjets,
+  demarrageProjetsDossier,
   demarrageProjetsSansGithub,
   idees,
   ideesNouvelle,
+  ideesDictee,
   ideesVide,
   menuPlus,
   parametres,
   parametresNotifications,
   parametresNotificationsIphone,
   parametresProjet,
+  projetLocal,
   projets,
   projetsVide,
   resynchronisation,
@@ -86,6 +90,7 @@ const SCENARIOS: readonly Scenario[] = [
   ...composantsProcess,
   ...composantsProcessList,
   ...processScenarios,
+  ...processMigrationScenarios,
 ];
 
 const byName = new Map(SCENARIOS.map((scenario) => [scenario.name, scenario]));

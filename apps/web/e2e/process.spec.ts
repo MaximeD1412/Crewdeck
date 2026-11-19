@@ -120,7 +120,7 @@ test.describe('« Gestion du process » (US-92, US-94, US-88)', () => {
     await expect(panel(page).locator('section.repeat .help')).toHaveText('Chaque Ticket prêt parcourt la Phase : c’est la Boucle.');
   });
 
-  test('« Sources »: the Tickets Local on the Runner’s machine, the code and documents on GitHub, the Idée in Crewdeck, no Select', async ({
+  test('« Sources »: the Tickets Local on the Runner’s machine, the code and documents on GitHub, the Idée in Crewdeck, a Select for each group but the Idée', async ({
     page,
     scenario,
     expectAccessible,
@@ -130,15 +130,18 @@ test.describe('« Gestion du process » (US-92, US-94, US-88)', () => {
     await expect(tab(page, /^Sources/)).toHaveAttribute('aria-selected', 'true');
     const rows = panel(page).locator('.item');
     await expect(rows).toHaveText([
-      /Tickets\s*Local\s*dossier tickets\/ du Projet, sur atelier-pc/,
-      /Code et documents\s*GitHub\s*octocat\/site-mairie · Changement de code, Verdict, PRD, Maquettes, Conception technique ; Inventaire non utilisé/,
+      /Tickets[\s\S]*dossier tickets\/ du Projet, sur atelier-pc/,
+      /Code et documents[\s\S]*octocat\/site-mairie · Changement de code, Verdict, PRD, Maquettes, Conception technique ; Inventaire non utilisé/,
       /Idée\s*Crewdeck/,
     ]);
-    await expect(panel(page).locator('cd-select, select')).toHaveCount(0);
+    // SOURCE-7: each group's Source is a Select, its value the current Source; the Idée stays in Crewdeck.
+    await expect(panel(page).getByRole('combobox', { name: 'Source des Tickets' })).toHaveValue('local');
+    await expect(panel(page).getByRole('combobox', { name: 'Source du code et des documents' })).toHaveValue('github');
+    await expect(panel(page).getByRole('combobox')).toHaveCount(2);
     await expectAccessible(page);
   });
 
-  test('a Local Projet: its draft’s Phase « Livraison » and its Commande « Lancer » chosen; Local for both groups, no GitHub', async ({
+  test('a Local Projet: its draft’s Phase « Livraison » and its Commande « Lancer » chosen; Local for both groups, each in its Select, no GitHub on the canvas', async ({
     page,
     scenario,
     expectAccessible,
@@ -154,8 +157,10 @@ test.describe('« Gestion du process » (US-92, US-94, US-88)', () => {
 
     await tab(page, /^Sources/).click();
     await expect(page).toHaveURL(/onglet=sources/);
-    await expect(panel(page).locator('.item')).toHaveText([/Tickets\s*Local/, /Code et documents\s*Local/, /Idée\s*Crewdeck/, /Livraison\s*aucune Source/]);
-    await expect(panel(page)).not.toContainText('GitHub');
+    await expect(panel(page).locator('.item')).toHaveText([/Tickets[\s\S]*dossier tickets\/ du Projet/, /Code et documents[\s\S]*dossier du Projet/, /Idée\s*Crewdeck/, /Livraison\s*aucune Source/]);
+    // SOURCE-7: both groups Local, each in its Select (Local, GitHub), GitHub only as the other choice.
+    await expect(panel(page).getByRole('combobox', { name: 'Source des Tickets' })).toHaveValue('local');
+    await expect(panel(page).getByRole('combobox', { name: 'Source du code et des documents' })).toHaveValue('local');
   });
 
   test('a Projet without an active version: its draft, its Manque, the Banner, « Ce brouillon deviendra la v1. »', async ({ page, scenario, expectAccessible }) => {

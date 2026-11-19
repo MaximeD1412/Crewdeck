@@ -24,9 +24,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// TestMain lets this test binary serve as a stdio Serveur MCP when it is started as one.
+// TestMain lets this test binary serve as a stdio Serveur MCP when it is
+// started as one, and run as crewdeck-runner when gh_test.go's shims run it.
 func TestMain(m *testing.M) {
 	mcptest.ServeIfAsked()
+	if os.Getenv(mainEnv) == "1" {
+		main()
+		os.Exit(0)
+	}
 	os.Exit(m.Run())
 }
 

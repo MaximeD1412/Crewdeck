@@ -40,8 +40,20 @@ type Config struct {
 	// GitHubURL is where the GitHub repositories are cloned from; empty,
 	// DefaultGitHubURL.
 	GitHubURL string
-	// Tokens authenticates the clones (RUNNER-10); nil clones without one.
+	// Tokens authenticates the clones of the Commandes' runs; nil clones
+	// without one.
 	Tokens github.TokenSource
+	// GitHubTokens gives a Session a new GitHub token, the server's
+	// (github.ServerTokens, RUNNER-10): each Session of a GitHub Projet has
+	// its own, fetched as it starts, renewed while it lives, given to git
+	// through the askpass and to gh through its shim; nil, its git runs
+	// with Tokens.
+	GitHubTokens func(ctx context.Context, sessionID string) (github.Issued, error)
+	// RunnerPath is the program of the askpass and of the Session's shims;
+	// empty, this one.
+	RunnerPath string
+	// Now is time.Now unless a test moves the tokens' clock.
+	Now func() time.Time
 	// LocalOrigin gives a Local Projet's Origin (source/local, SOURCE-2);
 	// nil, a Session of a Local Projet ends `clone-failed`.
 	LocalOrigin func(projectID string) Origin
@@ -95,6 +107,8 @@ type live struct {
 	run    engine.Run
 	// pending are the requests of the run that wait for the Pilote.
 	pending map[string]request
+	// token is the GitHub token of the run, while it runs.
+	token *github.SessionToken
 }
 
 // request is a `question` or a `permission-request` that waits: what an
@@ -411,6 +425,21 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 		return
 	}
 	w.Clone = origin.Dir()
+	var gitEnv []string
+	if gh, ok := origin.(*GitHubOrigin); ok && m.cfg.GitHubTokens != nil {
+		switch _, end, err := m.sessionToken(ctx, s, rec.SessionID); {
+		case errors.Is(err, github.ErrNoRepository):
+			// No repository the server reaches: the Session runs without a
+			// token, its clone public or failing.
+		case err != nil:
+			m.fail(s, w, false, contracts.RunnerSessionStateErrorCloneFailed, "github-token", err)
+			return
+		default:
+			defer end()
+			gitEnv = github.GitEnv(m.runnerPath(), m.cfg.Home, rec.SessionID)
+			gh.Tokens, gh.Env = nil, gitEnv
+		}
+	}
 
 	if _, err := os.Stat(w.Dir); fresh || err != nil {
 		_, auth, err := origin.Clone(ctx)
@@ -451,6 +480,10 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 		m.relayLive(key, rec.SessionID, end)
 	}
 	opts := engine.StartOptions{Dir: w.Dir, Model: rec.Model, Role: rec.Role, PermissionMode: engine.PermissionMode(rec.PermissionMode), SessionDir: dir, SessionID: rec.SessionID}
+	if opts.Env, err = m.moteurEnv(rec.SessionID, gitEnv); err != nil {
+		m.fail(s, w, true, contracts.RunnerSessionStateErrorEngineFailed, "shims", err)
+		return
+	}
 	var run engine.Run
 	if rec.EngineSessionID != "" {
 		run, err = adapter.Resume(ctx, engine.ResumeOptions{StartOptions: opts, EngineSessionID: rec.EngineSessionID})

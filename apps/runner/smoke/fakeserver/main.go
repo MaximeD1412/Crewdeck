@@ -11,7 +11,9 @@
 //     /api/runner/link/:id), its proofs and the vault key's wrap real;
 //   - the Runner's socket (/api/ws?client=runner): hello, heartbeats,
 //     session.start, session.state;
-//   - GET /api/sessions/:id with the scenario's session cookie.
+//   - GET /api/sessions/:id with the scenario's session cookie;
+//   - POST /api/runner/sessions/:id/github-token, `sessions.no-repository`
+//     as the real server answers for the smoke Projet.
 //
 // The linux job runs the same smoke.sh against the real server. Never
 // shipped: built by the nightly and by smoke_test.go only.

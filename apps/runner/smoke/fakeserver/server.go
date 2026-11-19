@@ -74,6 +74,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/runner/link/{id}", s.linkStatus)
 	mux.HandleFunc("GET /api/ws", s.socket)
 	mux.HandleFunc("GET /fake-github/repos/{owner}/{repo}/pulls/{number}", s.pullRequest)
+	mux.HandleFunc("POST /api/runner/sessions/{id}/github-token", s.githubToken)
 	return mux
 }
 
@@ -253,6 +254,27 @@ func (s *server) pullRequest(w http.ResponseWriter, r *http.Request) {
 		"base":   map[string]string{"ref": baseBranch},
 		"labels": []map[string]string{{"name": "conception"}},
 	})
+}
+
+// githubToken is the real server's answer for the smoke Projet, which has
+// no Dépôt GitHub (apps/server/src/testing/scenarios/smoke.ts): no token,
+// the Session clones the bare repositories without one.
+func (s *server) githubToken(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	sc := s.scenario
+	var known bool
+	if sc != nil {
+		_, known = sc.sessions[r.PathValue("id")]
+	}
+	s.mu.Unlock()
+	switch {
+	case sc == nil || r.Header.Get("Authorization") != "Bearer "+sc.token:
+		fail(w, http.StatusUnauthorized, "runner.token-invalid", "Runner inconnu.")
+	case !known:
+		fail(w, http.StatusNotFound, "sessions.not-found", "Session introuvable.")
+	default:
+		fail(w, http.StatusUnprocessableEntity, "sessions.no-repository", "Le Projet de cette Session n’a pas de dépôt GitHub accessible.")
+	}
 }
 
 // startSession sends session.start for the scenario's Projet, at once when

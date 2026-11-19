@@ -3,6 +3,7 @@ package local
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -241,6 +242,17 @@ func Format(f TicketFile) []byte {
 	return out.Bytes()
 }
 
+// rewrite is Format checked: the file as it is written and as it reads
+// back, ErrUnwritable when it would not parse, before anything is written.
+func rewrite(f TicketFile) ([]byte, TicketFile, error) {
+	data := Format(f)
+	written, err := Parse(data)
+	if err != nil {
+		return nil, TicketFile{}, fmt.Errorf("%w: %v", ErrUnwritable, err)
+	}
+	return data, written, nil
+}
+
 func (f TicketFile) encodeFrontMatter() []byte {
 	var doc *yaml.Node
 	if f.doc != nil {
@@ -308,8 +320,9 @@ func keyIndex(mapping *yaml.Node, key string) int {
 	return -1
 }
 
-// setValue gives node the value, keeping its comments and, for a list, its
-// flow or block style.
+// setValue gives node the value, keeping its comments, its anchor (a
+// Pilote's alias of it still resolves) and, for a list, its flow or block
+// style.
 func setValue(node *yaml.Node, value any) {
 	var fresh yaml.Node
 	if err := fresh.Encode(value); err != nil {
@@ -320,6 +333,9 @@ func setValue(node *yaml.Node, value any) {
 		fresh.Style |= yaml.FlowStyle
 	}
 	fresh.HeadComment, fresh.LineComment, fresh.FootComment = node.HeadComment, node.LineComment, node.FootComment
+	if node.Kind != yaml.AliasNode {
+		fresh.Anchor = node.Anchor
+	}
 	*node = fresh
 }
 

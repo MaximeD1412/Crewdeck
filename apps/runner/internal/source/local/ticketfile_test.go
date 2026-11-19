@@ -100,3 +100,20 @@ func TestLocalTicketFileRewriteKeepsTheKeysOrderThePilotesKeysAndComments(t *tes
 		t.Errorf("formatted:\n%s\nwant:\n%s", got, want)
 	}
 }
+
+func TestLocalTicketFileRewriteKeepsTheAnchorOfAKeyItChangesForThePilotesAlias(t *testing.T) {
+	data := "---\nnumber: 3\ntitle: &titre Ancien\ncustom: *titre\n---\nCorps\n"
+	f, err := local.Parse([]byte(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Title = "Nouveau"
+	want := "---\nnumber: 3\ntitle: &titre Nouveau\ncustom: *titre\n---\nCorps\n"
+	got := local.Format(f)
+	if string(got) != want {
+		t.Errorf("formatted:\n%s\nwant:\n%s", got, want)
+	}
+	if reread, err := local.Parse(got); err != nil || reread.Title != "Nouveau" {
+		t.Errorf("reread %+v, %v", reread, err)
+	}
+}

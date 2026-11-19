@@ -309,3 +309,24 @@ func TestLocalScanNamesANewFileApartFromOneTaken(t *testing.T) {
 		t.Error("the unreadable 4-b.md was overwritten")
 	}
 }
+
+func TestLocalRefusesAnEditThatWouldLeaveTheFileUnreadableAndLeavesItAsItWas(t *testing.T) {
+	// The Pilote's key aliases a label: replacing the labels would drop its anchor.
+	data := "---\nnumber: 1\ntitle: A\nlabels: [&taille size:S]\ncustom: *taille\n---\nCorps\n"
+	dir := folder(t, map[string]string{"tickets/1-a.md": data})
+	p := open(t, dir)
+	ctx := context.Background()
+	if _, err := p.EditTicket(ctx, 1, source.TicketEdit{AddLabels: []string{"priority:P1"}, RemoveLabels: []string{"size:S"}}); !errors.Is(err, local.ErrUnwritable) {
+		t.Errorf("EditTicket: %v, want ErrUnwritable", err)
+	}
+	if got := read(t, dir, "tickets/1-a.md"); got != data {
+		t.Errorf("the refused edit wrote:\n%s", got)
+	}
+	s, err := p.Scan(ctx)
+	if err != nil || len(s.Unreadable) != 0 {
+		t.Fatalf("scan after the refused edit: %+v, %v", s.Unreadable, err)
+	}
+	if ticket, err := p.Ticket(ctx, 1); err != nil || ticket.Title != "A" {
+		t.Errorf("the Ticket after the refused edit: %+v, %v", ticket, err)
+	}
+}

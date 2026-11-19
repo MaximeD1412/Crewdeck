@@ -58,6 +58,11 @@ var ErrNoTitle = errors.New("local: a Ticket has a title")
 // ErrInvalidState: a state, or a reason, a Ticket cannot have.
 var ErrInvalidState = errors.New("local: not a Ticket's state")
 
+// ErrUnwritable: the Ticket's file, rewritten, would no longer parse (a
+// Pilote's alias of an anchor inside a value the write replaces); the file is
+// left as it is.
+var ErrUnwritable = errors.New("local: the Ticket's file would no longer read once rewritten")
+
 // Project is a Local Projet's Source: the Tickets of its folder's working
 // tree, what the work wrote about them in local.db. Its writes are the
 // files' (in place, never added nor committed) and local.db's.
@@ -206,25 +211,32 @@ func (p *Project) scan(ctx context.Context) (scanned, error) {
 		return s, err
 	}
 	for _, f := range fresh {
+		// Checked before a number is taken: a file numbering would make unreadable is left as it is.
+		probe := f.file
+		probe.Number = 1
+		if _, _, err := rewrite(probe); err != nil {
+			s.Unreadable = append(s.Unreadable, Unreadable{Path: f.path, Reason: ReasonFrontMatter})
+			continue
+		}
 		n, err := p.allocate(ctx, tx)
 		if err != nil {
 			return s, err
 		}
 		f.file.Number = n
+		data, reparsed, err := rewrite(f.file)
+		if err != nil {
+			return s, err
+		}
 		target, err := p.freePath(n, f.file.Title)
 		if err != nil {
 			return s, err
 		}
-		mtime, err := p.writeFile(target, Format(f.file))
+		mtime, err := p.writeFile(target, data)
 		if err != nil {
 			return s, err
 		}
 		if err := os.Remove(filepath.Join(p.folder, filepath.FromSlash(f.path))); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return s, fmt.Errorf("local: rename a Ticket's file: %w", err)
-		}
-		reparsed, err := Parse(Format(f.file))
-		if err != nil {
-			return s, err
 		}
 		s.files[n] = file{path: target, file: reparsed, mtime: mtime}
 	}
@@ -693,12 +705,11 @@ func (p *Project) rewrite(ctx context.Context, number int, change func(*TicketFi
 
 // writeTicket writes the file at path, records it and says it changed.
 func (p *Project) writeTicket(ctx context.Context, tx *sql.Tx, s *scanned, path string, f TicketFile) (source.Ticket, error) {
-	data := Format(f)
-	mtime, err := p.writeFile(path, data)
+	data, written, err := rewrite(f)
 	if err != nil {
 		return source.Ticket{}, err
 	}
-	written, err := Parse(data)
+	mtime, err := p.writeFile(path, data)
 	if err != nil {
 		return source.Ticket{}, err
 	}

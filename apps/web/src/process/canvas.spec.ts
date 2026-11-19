@@ -151,6 +151,16 @@ describe('editing the canvas', () => {
     expect(data.phases.map((phase) => phase.target)).toEqual([false, true, false]);
   });
 
+  it('draws the selected Phase, when it is the target, as the target only, as the mockup does', () => {
+    const data = canvasOf(PROCESS_CREWDECK, [], { kind: 'phase', id: 'ph-dev' }, { ...CONTEXT, editable: true, target: 'ph-dev' });
+    expect(data.phases.map((phase) => [phase.target, phase.selected])).toEqual([
+      [false, false],
+      [false, false],
+      [true, false],
+    ]);
+    expect(canvasOf(PROCESS_CREWDECK, [], { kind: 'phase', id: 'ph-dev' }, CONTEXT).phases[2]?.selected).toBe(true);
+  });
+
   it('targets the selected Phase, else the selected Étape’s, else the last one', () => {
     expect(targetPhaseOf(PROCESS_CREWDECK, { kind: 'phase', id: 'ph-idee' })?.id).toBe('ph-idee');
     expect(targetPhaseOf(PROCESS_CREWDECK, { kind: 'step', id: 'st-prd' })?.id).toBe('ph-conception');

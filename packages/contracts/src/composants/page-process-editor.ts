@@ -146,7 +146,7 @@ const DEVELOPMENT: NonNullable<Data['phase']> = {
 const editable: Data = { ...active, canvas: { ...canvas, editable: true } };
 const withPhase = (data: Data): Data => ({
   ...data,
-  canvas: { ...data.canvas, phases: data.canvas.phases.map((phase) => ({ ...phase, selected: phase.id === 'ph-dev', target: phase.id === 'ph-dev' })) },
+  canvas: { ...data.canvas, phases: data.canvas.phases.map((phase) => ({ ...phase, selected: false, target: phase.id === 'ph-dev' })) },
   tab: 'selection',
   phase: DEVELOPMENT,
 });

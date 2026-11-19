@@ -211,6 +211,8 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
         top: calc(100% + var(--cd-space-2));
         right: 0;
         z-index: 5;
+        /* Its own width (--cd-menu-width), not the anchor's: it opens leftwards over the panel. */
+        max-width: none;
       }
       .radios {
         display: flex;

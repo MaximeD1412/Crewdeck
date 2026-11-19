@@ -126,13 +126,15 @@ export const canvasOf = (definition: ProcessDefinition, gaps: readonly ProcessGa
     focus: context.focus ? { id: context.focus.id, at: context.focus.at } : null,
     phases: definition.phases.map((phase) => {
       const steps = definition.steps.filter((step) => step.phaseId === phase.id).map((step) => stepOf(step, phase));
+      const target = phase.id === (context.target ?? null);
       return {
         id: phase.id,
         name: phase.name,
         forEach: phase.forEach === null ? null : t(`process.forEach.${phase.forEach}`),
         gaps: steps.reduce((sum, step) => sum + step.gaps, 0),
-        target: phase.id === (context.target ?? null),
-        selected: selected('phase', phase.id),
+        target,
+        // The target's outline already says it: the selected Phase is where an Étape goes.
+        selected: selected('phase', phase.id) && !target,
         col: phase.col,
         row: phase.row,
         steps,

@@ -259,6 +259,9 @@ describe('PageProcessEditor', () => {
       const [menuBox, stepBox] = [menu.getBoundingClientRect(), step.getBoundingClientRect()];
       expect(menuBox.top).toBeGreaterThan(stepBox.bottom);
       expect(Math.round(menuBox.right)).toBe(Math.round(stepBox.right));
+      // Its own width, opening leftwards: not the button's.
+      expect(Math.round(menuBox.width)).toBe(Math.round(Number.parseFloat(getComputedStyle(menu).width)));
+      expect(menuBox.width).toBeGreaterThan(stepBox.width * 2);
     });
 
     it('relays « Phase » and « Étape »', async () => {

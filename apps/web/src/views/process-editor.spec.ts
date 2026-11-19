@@ -224,7 +224,7 @@ describe('processEditorView', () => {
       nameError: null,
       focusName: null,
     });
-    expect(dev.canvas.phases.map((phase) => phase.selected)).toEqual([false, false, true]);
+    expect(dev.canvas.phases.map((phase) => [phase.target, phase.selected])).toEqual([[false, false], [false, false], [true, false]]);
 
     const definition = structuredClone(PROCESS_CREWDECK);
     definition.phases.find((phase) => phase.id === 'ph-dev')!.forEach = null;

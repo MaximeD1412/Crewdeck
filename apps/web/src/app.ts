@@ -39,6 +39,7 @@ import { createDeadline } from './deadline.js';
 import { createGettingStarted, gettingStartedGuard } from './getting-started.js';
 import { followVault } from './keys/follow.js';
 import { createPageKeys, type PageKeys } from './keys/index.js';
+import { createEditing } from './process/editing.js';
 import { createEditorUi } from './process/editor-ui.js';
 import { createNoteIdea } from './note-idea.js';
 import { createProjectSettings } from './project-settings.js';
@@ -284,6 +285,8 @@ export const boot = async ({
   };
   // « Gestion du process »' own state: its view per Projet, the block to centre (PROCESS-7).
   const editorUi = createEditorUi();
+  // Its edits, each Projet's draft saved behind them (PROCESS-8).
+  const editing = createEditing({ client, stored: (projectId) => store.getState().slices.process?.get(projectId) });
   const signIn = signInGuard(pilot);
   // A Projet the store does not have once the snapshot is there (removed, another Pilote's): the Projets.
   const projectGuard = (match: RouteMatch): string | null => {
@@ -338,7 +341,7 @@ export const boot = async ({
       if (match.composant === PageProjets) return projetsView(slices.project?.values() ?? []);
       if (match.composant === PageProcessEditor) {
         const projectId = match.params['id'] ?? '';
-        return processEditorView(store.getState(), projectId, editorUi.view(projectId, match.query));
+        return processEditorView(store.getState(), projectId, editorUi.view(projectId, match.query), editing.edits(projectId));
       }
       if (match.composant === PageIdees) {
         // The Idées merged or rejected beyond the slice's 90 days: their first page as the page first shows.
@@ -389,6 +392,7 @@ export const boot = async ({
     pushSettings.subscribe(() => router.refresh()),
     projectSettings.subscribe(() => router.refresh()),
     editorUi.subscribe(() => router.refresh()),
+    editing.subscribe(() => router.refresh()),
   ];
   // The vault's version and rotation (E2E-4): a new version opened, a pending rotation run, the state read again after either.
   const stopFollowingVault = followVault({
@@ -479,10 +483,22 @@ export const boot = async ({
   dispatcher.registerAction(PageDemarrage, 'retry', { run: () => gettingStarted.retry() });
   dispatcher.registerAction(PageDemarrage, 'continue', { run: () => gettingStarted.advance() });
   dispatcher.registerAction(PageDemarrage, 'linkGitHub', { run: () => leave(githubLinkHref('/demarrage')) });
-  const editor = createEditorActions({ ui: editorUi, navigate: (url, options) => router.navigate(url, options), current: () => router.current });
+  const editor = createEditorActions({ ui: editorUi, editing, navigate: (url, options) => router.navigate(url, options), current: () => router.current });
   dispatcher.registerAction(PageProcessEditor, 'select', { run: (payload) => editor.select(payload) });
   dispatcher.registerAction(PageProcessEditor, 'tab', { run: (payload) => editor.tab(payload) });
   dispatcher.registerAction(PageProcessEditor, 'view', { run: (payload) => editor.view(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'addPhase', { run: () => editor.addPhase() });
+  dispatcher.registerAction(PageProcessEditor, 'openCatalogue', { run: () => editor.openCatalogue() });
+  dispatcher.registerAction(PageProcessEditor, 'closeMenu', { run: () => editor.closeMenu() });
+  dispatcher.registerAction(PageProcessEditor, 'addStep', { run: (payload) => editor.addStep(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'moveStep', { run: (payload) => editor.moveStep(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'moveStepToPhase', { run: (payload) => editor.moveStepToPhase(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'removeStep', { run: (payload) => editor.removeStep(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'renamePhase', { run: (payload) => editor.renamePhase(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'setForEach', { run: (payload) => editor.setForEach(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'removePhase', { run: (payload) => editor.removePhase(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'cancelRemovePhase', { run: () => editor.cancelRemovePhase() });
+  dispatcher.registerAction(PageProcessEditor, 'confirmRemovePhase', { run: (payload) => editor.confirmRemovePhase(payload) });
   dispatcher.registerAction(PageProjets, 'add', { run: () => router.navigate('/projets/ajouter') });
   // In « Premiers pas » the Projets followed end it; on `/projets/ajouter` the list shows them.
   dispatcher.registerAction(RepositoryPicker, 'follow', {

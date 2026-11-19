@@ -18,12 +18,15 @@ import (
 // RenewBefore is how long before its expiry a Session's token is renewed.
 const RenewBefore = 10 * time.Minute
 
+// RenewRetry is how long after a failed renewal the next is tried.
+const RenewRetry = time.Minute
+
 // ErrSessionEnded is the token of a Session that ended: none.
 var ErrSessionEnded = errors.New("github: the Session ended")
 
 // ErrNoRepository is the server's answer for a Session whose Projet has no
-// repository it reaches (`sessions.no-repository`): a Local Projet, or a
-// Projet without a Dépôt GitHub; the Session runs without a token.
+// repository it reaches (`sessions.no-repository`): a Local Projet, a
+// Projet without a Dépôt GitHub, or its access lost.
 var ErrNoRepository = errors.New("github: the Session's Projet has no repository the server reaches")
 
 // Issued is a Session's token and when it expires.
@@ -33,18 +36,21 @@ type Issued struct {
 }
 
 // SessionToken is one Session's GitHub token (RUNNER-10, ADR 0002): fetched
-// at its first use, kept in memory only, renewed once less than RenewBefore
-// is left, until End. The askpass and the gh shim ask it at each call, so a
-// renewal reaches the agents that run long.
+// at its first use, kept in memory only, renewed RenewBefore before its
+// expiry (by Keep, or by Token when asked late), until End. The askpass and
+// the gh shim ask it at each call, so a renewal reaches the agents that run
+// long.
 type SessionToken struct {
 	// Fetch asks the server for a new token of the Session.
 	Fetch func(ctx context.Context) (Issued, error)
-	// Now is time.Now unless a test moves it.
-	Now func() time.Time
+	// Now and After are time's unless a test moves them.
+	Now   func() time.Time
+	After func(time.Duration) <-chan time.Time
 
 	mu      sync.Mutex
 	current Issued
 	ended   bool
+	done    chan struct{} // closed by End
 }
 
 // Token is the current token: the one kept while more than RenewBefore is
@@ -77,7 +83,59 @@ func (s *SessionToken) Token(ctx context.Context) (string, error) {
 func (s *SessionToken) End() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !s.ended {
+		close(s.doneLocked())
+	}
 	s.ended, s.current = true, Issued{}
+}
+
+// Keep renews the token RenewBefore before its expiry without waiting for it
+// to be asked, a failed renewal tried again every RenewRetry (the token kept
+// while valid), until End or ctx's end.
+func (s *SessionToken) Keep(ctx context.Context) {
+	s.mu.Lock()
+	done := s.doneLocked()
+	s.mu.Unlock()
+	wait := s.untilRenewal()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-done:
+			return
+		case <-s.after(max(wait, 0)):
+		}
+		if _, err := s.Token(ctx); errors.Is(err, ErrSessionEnded) {
+			return
+		}
+		if wait = s.untilRenewal(); wait <= 0 {
+			wait = RenewRetry // the renewal failed
+		}
+	}
+}
+
+// untilRenewal is how long until the current token is due to be renewed.
+func (s *SessionToken) untilRenewal() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.current.Token == "" {
+		return 0
+	}
+	return s.current.ExpiresAt.Add(-RenewBefore).Sub(s.now())
+}
+
+func (s *SessionToken) doneLocked() chan struct{} {
+	if s.done == nil {
+		s.done = make(chan struct{})
+	}
+	return s.done
+}
+
+func (s *SessionToken) after(d time.Duration) <-chan time.Time {
+	if s.After == nil {
+		return time.After(d)
+	}
+	return s.After(d)
 }
 
 func (s *SessionToken) now() time.Time {

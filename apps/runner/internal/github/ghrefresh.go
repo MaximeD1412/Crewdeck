@@ -50,6 +50,7 @@ var (
 // arguments, or, for `issue create` and `pr create`, from the URL it printed
 // last on stdout.
 func Named(args []string, stdout string) Refresh {
+	args = verbFirst(args)
 	if len(args) < 2 {
 		return Refresh{None: true}
 	}
@@ -74,6 +75,37 @@ func Named(args []string, stdout string) Refresh {
 		return api(args[1:])
 	}
 	return Refresh{None: true}
+}
+
+// verbFirst moves the flags gh accepts before a command's group or verb
+// (`gh --repo o/r issue comment 12`, `gh issue -R o/r comment 12`) after
+// them, where the verb's own flags are: the group and the verb first. Before
+// `api`, nothing moves.
+func verbFirst(args []string) []string {
+	var words, flags []string
+	i := 0
+	for ; i < len(args) && len(words) < 2; i++ {
+		arg := args[i]
+		switch {
+		case arg == "--":
+			return args
+		case strings.HasPrefix(arg, "-") && len(arg) > 1:
+			flags = append(flags, arg)
+			if (arg == "-R" || arg == "--repo") && i+1 < len(args) {
+				i++
+				flags = append(flags, args[i])
+			}
+		default:
+			words = append(words, arg)
+			if arg == "api" {
+				return args
+			}
+		}
+	}
+	if len(flags) == 0 {
+		return args
+	}
+	return append(append(words, flags...), args[i:]...)
 }
 
 // object is the Refresh of `gh issue|pr <verb> <rest>`.

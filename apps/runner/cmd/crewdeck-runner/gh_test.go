@@ -162,6 +162,14 @@ func TestMirrorGhRunsTheRealGhWithTheSessionsTokenThenRefreshesTheIssueBeforeItR
 	if fetches, syncs := h.refreshed(); len(fetches) != 1 || fetches[0] != (mirror.FetchRequest{Repository: ghKey, Number: 12}) || len(syncs) != 0 {
 		t.Fatalf("refreshes %+v %+v, want issue 12 fetched", fetches, syncs)
 	}
+
+	// The repository before the group, as gh accepts it.
+	if _, stderr, code := h.shim(t, t.TempDir(), gh, "gh", "--repo", ghKey, "issue", "comment", "14", "--body", "x"); code != 0 {
+		t.Fatalf("gh --repo … issue comment: %d %q", code, stderr)
+	}
+	if fetches, _ := h.refreshed(); len(fetches) != 2 || fetches[1] != (mirror.FetchRequest{Repository: ghKey, Number: 14}) {
+		t.Fatalf("fetches %+v, want issue 14 of %s fetched", fetches, ghKey)
+	}
 }
 
 func TestTheGhShimFindsAPRByItsBranchInTheCopyAndSyncsWhenNothingIsNamed(t *testing.T) {

@@ -427,9 +427,10 @@ func (f *Follower) followed(repository string) (*followed, Project, bool) {
 }
 
 // Fetch writes the issue or PR as its Source has it now (a PR with its
-// head's checks), or deletes it when the Source no longer has it.
+// head's checks), or deletes it when the Source no longer has it; a GitHub
+// key whose fetch failed stays late until it, or a synchronization, succeeds.
 func (f *Follower) Fetch(ctx context.Context, repository string, number int) error {
-	_, project, ok := f.followed(repository)
+	p, project, ok := f.followed(repository)
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrNotAProject, repository)
 	}
@@ -437,10 +438,23 @@ func (f *Follower) Fetch(ctx context.Context, repository string, number int) err
 		_, err := f.mirror.RefreshLocal(ctx, project.Repository, number)
 		return err
 	}
+	begun := f.markSeq()
+	err := f.fetchNow(ctx, project.Repository, number)
+	f.mu.Lock()
+	if err != nil {
+		f.markBehind(p, number)
+	} else {
+		p.caughtUp(number, begun)
+	}
+	f.mu.Unlock()
+	return err
+}
+
+func (f *Follower) fetchNow(ctx context.Context, repository string, number int) error {
 	if !acquire(ctx, f.fetches) {
 		return ctx.Err()
 	}
-	write, err := f.fetch(ctx, project.Repository, change{kind: contracts.RunnerGithubChangedChangeKindIssue, number: number})
+	write, err := f.fetch(ctx, repository, change{kind: contracts.RunnerGithubChangedChangeKindIssue, number: number})
 	<-f.fetches
 	if err != nil {
 		return err
@@ -452,7 +466,8 @@ func (f *Follower) Fetch(ctx context.Context, repository string, number int) err
 }
 
 // Sync reconciles the key (every key when ""), openOnly walking only a
-// GitHub key's open issues and PRs; the keys synchronized, in order.
+// GitHub key's open issues and PRs; the keys synchronized, in order. A
+// GitHub key whose synchronization failed stays late until one succeeds.
 func (f *Follower) Sync(ctx context.Context, repository string, openOnly bool) ([]string, error) {
 	var targets []*followed
 	f.mu.Lock()
@@ -475,6 +490,7 @@ func (f *Follower) Sync(ctx context.Context, repository string, openOnly bool) (
 		f.mu.Lock()
 		k := p.project.Repository
 		f.mu.Unlock()
+		begun := f.markSeq()
 		var err error
 		switch {
 		case IsLocal(k):
@@ -484,6 +500,14 @@ func (f *Follower) Sync(ctx context.Context, repository string, openOnly bool) (
 		default:
 			err = f.reconcileProject(ctx, p, k, 0)
 		}
+		f.mu.Lock()
+		switch {
+		case err != nil && !IsLocal(k):
+			f.markBehind(p, 0)
+		case err == nil:
+			p.caughtUp(0, begun)
+		}
+		f.mu.Unlock()
 		if err != nil {
 			return synced, err
 		}

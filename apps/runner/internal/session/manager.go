@@ -46,14 +46,16 @@ type Config struct {
 	// GitHubTokens gives a Session a new GitHub token, the server's
 	// (github.ServerTokens, RUNNER-10): each Session of a GitHub Projet has
 	// its own, fetched as it starts, renewed while it lives, given to git
-	// through the askpass and to gh through its shim; nil, its git runs
-	// with Tokens.
+	// through the askpass and to gh through its shim, a Session whose token
+	// is refused ending `clone-failed`; nil (the smoke build's local
+	// repositories alone), its git runs with Tokens.
 	GitHubTokens func(ctx context.Context, sessionID string) (github.Issued, error)
 	// RunnerPath is the program of the askpass and of the Session's shims;
 	// empty, this one.
 	RunnerPath string
-	// Now is time.Now unless a test moves the tokens' clock.
-	Now func() time.Time
+	// Now and After are time's unless a test moves the tokens' clock.
+	Now   func() time.Time
+	After func(time.Duration) <-chan time.Time
 	// LocalOrigin gives a Local Projet's Origin (source/local, SOURCE-2);
 	// nil, a Session of a Local Projet ends `clone-failed`.
 	LocalOrigin func(projectID string) Origin
@@ -426,15 +428,17 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 	}
 	w.Clone = origin.Dir()
 	var gitEnv []string
-	if gh, ok := origin.(*GitHubOrigin); ok && m.cfg.GitHubTokens != nil {
-		switch _, end, err := m.sessionToken(ctx, s, rec.SessionID); {
-		case errors.Is(err, github.ErrNoRepository):
-			// No repository the server reaches: the Session runs without a
-			// token, its clone public or failing.
-		case err != nil:
-			m.fail(s, w, false, contracts.RunnerSessionStateErrorCloneFailed, "github-token", err)
-			return
-		default:
+	if gh, ok := origin.(*GitHubOrigin); ok {
+		// Never the machine's credentials: the Session's token, or none.
+		gitEnv = github.NoMachineCredentials()
+		if m.cfg.GitHubTokens != nil {
+			// A token refused, its Projet's access lost included, ends the
+			// Session before its clone and its Moteur.
+			_, end, err := m.sessionToken(ctx, s, rec.SessionID)
+			if err != nil {
+				m.fail(s, w, false, contracts.RunnerSessionStateErrorCloneFailed, "github-token", err)
+				return
+			}
 			defer end()
 			gitEnv = github.GitEnv(m.runnerPath(), m.cfg.Home, rec.SessionID)
 			gh.Tokens, gh.Env = nil, gitEnv

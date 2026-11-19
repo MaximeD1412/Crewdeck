@@ -35,6 +35,10 @@ import (
 // from; empty, GitHub. Only the smoke build changes it (smoke.go).
 var sessionsGitHubURL = ""
 
+// sessionsTokens says whether each Session of a GitHub Projet asks the server
+// for its token; only the smoke build, its repositories local, turns it off.
+var sessionsTokens = true
+
 const notLinked = "Ce Runner n’est relié à aucun compte : relie-le avec la commande que donne Crewdeck, crewdeck-runner link <code>."
 
 // run stays connected to the server until SIGINT, SIGTERM, or a refusal of
@@ -138,15 +142,18 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	defer closeMirror()
 	// The Sessions the server asks for, those kept under ~/.crewdeck/sessions
 	// said in each hello: none alive after a restart.
+	// Each Session of a GitHub Projet has its own token (RUNNER-10), asked
+	// of the server with the Runner's, given to git and gh over runner.sock.
+	var sessionTokens func(context.Context, string) (github.Issued, error)
+	if sessionsTokens {
+		sessionTokens = github.ServerTokens{Server: linked.Server, RunnerToken: linked.Token}.Fetch
+	}
 	sessions, err := session.New(session.Config{
-		Home:        store.Dir,
-		Engines:     reporter.Engines,
-		GitHubURL:   sessionsGitHubURL,
-		LocalOrigin: locals.Origin,
-		// Each Session of a GitHub Projet has its own token (RUNNER-10),
-		// asked of the server with the Runner's, given to git and gh over
-		// runner.sock.
-		GitHubTokens: github.ServerTokens{Server: linked.Server, RunnerToken: linked.Token}.Fetch,
+		Home:         store.Dir,
+		Engines:      reporter.Engines,
+		GitHubURL:    sessionsGitHubURL,
+		LocalOrigin:  locals.Origin,
+		GitHubTokens: sessionTokens,
 		Logger:       logger,
 		Keys:         relay,
 		Send:         send,

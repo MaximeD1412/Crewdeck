@@ -49,13 +49,17 @@ func (m *Manager) ServeGitHubTokens(sock *localsock.Server) {
 }
 
 // sessionToken is the token of the run of s, a GitHub Projet's when the
-// manager has GitHubTokens: fetched now, its end returned.
+// manager has GitHubTokens: fetched now, then kept renewed until its end,
+// returned.
 func (m *Manager) sessionToken(ctx context.Context, s *live, sessionID string) (*github.SessionToken, func(), error) {
 	tokens := &github.SessionToken{
 		Fetch: func(ctx context.Context) (github.Issued, error) { return m.cfg.GitHubTokens(ctx, sessionID) },
 		Now:   m.cfg.Now,
+		After: m.cfg.After,
 	}
+	keep, stop := context.WithCancel(ctx)
 	end := func() {
+		stop()
 		tokens.End()
 		s.mu.Lock()
 		if s.token == tokens {
@@ -70,6 +74,7 @@ func (m *Manager) sessionToken(ctx context.Context, s *live, sessionID string) (
 		end()
 		return nil, nil, err
 	}
+	go tokens.Keep(keep)
 	return tokens, end, nil
 }
 

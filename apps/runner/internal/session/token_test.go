@@ -34,8 +34,14 @@ func TestMain(m *testing.M) {
 
 // fakeClock is the clock the tests move.
 type fakeClock struct {
-	mu  sync.Mutex
-	now time.Time
+	mu      sync.Mutex
+	now     time.Time
+	waiters []clockWaiter
+}
+
+type clockWaiter struct {
+	at time.Time
+	ch chan time.Time
 }
 
 func (c *fakeClock) Now() time.Time {
@@ -44,9 +50,37 @@ func (c *fakeClock) Now() time.Time {
 	return c.now
 }
 
+// After fires once the clock is moved to now+d.
+func (c *fakeClock) After(d time.Duration) <-chan time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ch := make(chan time.Time, 1)
+	if d <= 0 {
+		ch <- c.now
+		return ch
+	}
+	c.waiters = append(c.waiters, clockWaiter{c.now.Add(d), ch})
+	return ch
+}
+
+func (c *fakeClock) waiting() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.waiters)
+}
+
 func (c *fakeClock) advance(d time.Duration) {
 	c.mu.Lock()
 	c.now = c.now.Add(d)
+	kept := c.waiters[:0]
+	for _, w := range c.waiters {
+		if w.at.After(c.now) {
+			kept = append(kept, w)
+			continue
+		}
+		w.ch <- c.now
+	}
+	c.waiters = kept
 	c.mu.Unlock()
 }
 
@@ -55,6 +89,12 @@ type tokenServer struct {
 	clock *fakeClock
 	mu    sync.Mutex
 	asked []string
+}
+
+func (s *tokenServer) count() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.asked)
 }
 
 func (s *tokenServer) issue(_ context.Context, sessionID string) (github.Issued, error) {
@@ -176,7 +216,7 @@ func TestASessionClonesAndPushesThroughTheAskpassWithItsTokenRenewedAndNoCredent
 	}
 	var engines engine.Registry
 	engines.Register(s.engine)
-	m, err := session.New(session.Config{Home: s.home, Engines: &engines, GitHubURL: gh.url, GitHubTokens: tokens.issue, Now: clock.Now, RunnerPath: runner, Send: s.reports.send})
+	m, err := session.New(session.Config{Home: s.home, Engines: &engines, GitHubURL: gh.url, GitHubTokens: tokens.issue, Now: clock.Now, After: clock.After, RunnerPath: runner, Send: s.reports.send})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,8 +234,16 @@ func TestASessionClonesAndPushesThroughTheAskpassWithItsTokenRenewedAndNoCredent
 		t.Fatalf("pushes with %q, want one with the Session's token ghs_1", pushed)
 	}
 
-	// 51 min later: less than 10 min left, the next push renews the token.
-	clock.advance(51 * time.Minute)
+	// 50 min later, 10 min left: renewed, unasked; the next push has it.
+	waitFor(t, "the renewal's wait", func() bool { return clock.waiting() == 1 })
+	clock.advance(49 * time.Minute)
+	time.Sleep(20 * time.Millisecond)
+	if n := tokens.count(); n != 1 {
+		t.Fatalf("%d tokens asked at 49 min, want the first alone", n)
+	}
+	clock.advance(time.Minute)
+	waitFor(t, "the token renewed at 50 min, unasked", func() bool { return tokens.count() == 2 })
+	clock.advance(time.Minute)
 	if err := agentPush(t, opts, "caisse.txt"); err != nil {
 		t.Fatalf("the agent's push after the renewal: %v", err)
 	}
@@ -271,25 +319,28 @@ func TestTheMoteursPathStartsWithTheSessionsGhAndMirrorShims(t *testing.T) {
 	}
 }
 
-func TestASessionWhoseProjetHasNoRepositoryRunsWithoutAToken(t *testing.T) {
+func TestASessionWhoseProjetLostItsRepositoryEndsCloneFailed(t *testing.T) {
 	s := newSetup(t, question("q-1"))
 	var engines engine.Registry
 	engines.Register(s.engine)
 	noRepository := func(context.Context, string) (github.Issued, error) {
 		return github.Issued{}, fmt.Errorf("the server: %w", github.ErrNoRepository)
 	}
-	m, err := session.New(session.Config{Home: s.home, Engines: &engines, GitHubURL: s.remote.url(), GitHubTokens: noRepository, RunnerPath: "/opt/crewdeck/crewdeck-runner", Send: s.reports.send})
+	m, err := session.New(session.Config{Home: s.home, Engines: &engines, GitHubURL: s.remote.url(), GitHubTokens: noRepository, Send: s.reports.send})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(m.Close)
 
 	m.Start(start(firstID, "feat/12-panier"))
-	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
 
-	env := strings.Join(s.engine.Runs()[0].Options().Env, "\n")
-	if strings.Contains(env, "GIT_ASKPASS=") || !strings.Contains(env, "PATH="+filepath.Join(s.home, "sessions", firstID, "bin")) {
-		t.Fatalf("env %q, want the shims and no askpass", env)
+	// Never on the machine's credentials: no clone, no Moteur.
+	ended := s.reports.await(t, firstID, contracts.RunnerSessionStateStateEnded)
+	if ended.Error == nil || *ended.Error != contracts.RunnerSessionStateErrorCloneFailed || len(s.engine.Runs()) != 0 {
+		t.Fatalf("ended %+v, want clone-failed before any Moteur", ended)
+	}
+	if _, err := os.Stat(filepath.Join(s.home, "sessions", firstID, "bin")); err == nil {
+		t.Fatal("the shims of a Session that never ran were written")
 	}
 }
 
@@ -311,5 +362,15 @@ func TestASessionWhoseTokenIsRefusedEndsCloneFailed(t *testing.T) {
 	ended := s.reports.await(t, firstID, contracts.RunnerSessionStateStateEnded)
 	if ended.Error == nil || *ended.Error != contracts.RunnerSessionStateErrorCloneFailed || len(s.engine.Runs()) != 0 {
 		t.Fatalf("ended %+v, want clone-failed before any Moteur", ended)
+	}
+}
+
+func waitFor(t *testing.T, what string, ok func() bool) {
+	t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); !ok(); {
+		if time.Now().After(deadline) {
+			t.Fatalf("never: %s", what)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }

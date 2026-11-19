@@ -118,6 +118,7 @@ type Follower struct {
 	tokens      map[string]installationToken // by repository, lower case
 	tokensReady bool                         // a mirror.token.issued arrived
 	tok         tokenRequest
+	marks       uint64 // the behind marks' last seq
 }
 
 // followed is one Projet the follower follows.
@@ -129,9 +130,14 @@ type followed struct {
 	failures int
 	filled   bool
 	synced   time.Time
-	wake     chan struct{}
-	cancel   context.CancelFunc
-	stopped  chan struct{}
+	// behind are the objects whose refresh failed (a fetch; 0 a
+	// synchronization), each with its mark's seq: the copy stays late until
+	// a refresh of it begun after succeeds (risk AGT-7, after an agent's
+	// write).
+	behind  map[int]uint64
+	wake    chan struct{}
+	cancel  context.CancelFunc
+	stopped chan struct{}
 }
 
 // resync is a mirror.resync in progress: each Projet's reconciliation asked
@@ -735,6 +741,7 @@ func (f *Follower) reconcileProject(ctx context.Context, p *followed, repository
 	if IsLocal(repository) {
 		return f.reconcileLocal(ctx, p, repository, generation)
 	}
+	begun := f.markSeq()
 	if !acquire(ctx, f.reconcile) {
 		return ctx.Err()
 	}
@@ -757,6 +764,7 @@ func (f *Follower) reconcileProject(ctx context.Context, p *followed, repository
 	f.mu.Lock()
 	m := marks[repository]
 	p.done, p.filled, p.synced = max(p.done, generation), m.filled, m.synced
+	p.caughtUp(0, begun)
 	f.mu.Unlock()
 	return f.finishResync()
 }
@@ -1038,5 +1046,32 @@ func (f *Follower) followTokens(ctx context.Context) {
 		case <-fired:
 		}
 		stop()
+	}
+}
+
+// markSeq is the behind marks' last seq.
+func (f *Follower) markSeq() uint64 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.marks
+}
+
+// markBehind records, f.mu held, that the refresh of p's object number (0:
+// all of them) failed.
+func (f *Follower) markBehind(p *followed, number int) {
+	f.marks++
+	if p.behind == nil {
+		p.behind = map[int]uint64{}
+	}
+	p.behind[number] = f.marks
+}
+
+// caughtUp clears, f.mu held, the marks a refresh begun after seq begun
+// leaves behind it: the object's (number), or every one (0).
+func (p *followed) caughtUp(number int, begun uint64) {
+	for n, seq := range p.behind {
+		if seq <= begun && (number == 0 || n == number) {
+			delete(p.behind, n)
+		}
 	}
 }

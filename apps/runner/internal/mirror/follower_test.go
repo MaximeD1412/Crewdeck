@@ -710,6 +710,68 @@ func TestAProjetsFreshnessFollowsItsCopy(t *testing.T) {
 	eventually(t, "late once disconnected", func() bool { return state().State == FreshnessLate })
 }
 
+func TestAFailedRefreshLeavesItsCopyLateUntilARefreshOfItSucceeds(t *testing.T) {
+	clock := newClock()
+	server := newRunnerServer(t, clock)
+	fake := newFake(t, "testdata/graphql")
+	store, path := followedStore(t, 0, followedAtelier)
+	server.sendLive(0)
+	server.set(func(s *runnerServer) { s.answer = func(int) any { return nil } })
+	f, _ := follow(t, store, fake, server)
+	server.awaitHello()
+	server.send(server.issued(clock.Now().Add(time.Hour)))
+	awaitFilled(t, path, 1)
+	state := func() FreshnessState {
+		t.Helper()
+		freshness, err := f.State("acme/atelier")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return freshness.State
+	}
+	eventually(t, "live", func() bool { return state() == FreshnessLive })
+	ctx := context.Background()
+
+	// An agent's write, whose refresh of #38 fails: late, the next read fetches.
+	fake.Fail("MirrorObject", githubtest.BadGateway(), 1)
+	if err := f.Fetch(ctx, "acme/atelier", 38); err == nil {
+		t.Fatal("the refused fetch succeeded")
+	}
+	if got := state(); got != FreshnessLate {
+		t.Fatalf("after a failed refresh: %s, want late", got)
+	}
+	if err := f.Fetch(ctx, "acme/atelier", 39); err != nil {
+		t.Fatal(err)
+	}
+	if got := state(); got != FreshnessLate {
+		t.Fatalf("after another object's fetch: %s, want late", got)
+	}
+	if err := f.Fetch(ctx, "acme/atelier", 38); err != nil {
+		t.Fatal(err)
+	}
+	if got := state(); got != FreshnessLive {
+		t.Fatalf("once #38 fetched: %s, want live", got)
+	}
+
+	// A failed synchronization: late until one succeeds.
+	fake.Fail("MirrorIssues", githubtest.BadGateway(), 1)
+	if _, err := f.Sync(ctx, "acme/atelier", false); err == nil {
+		t.Fatal("the refused synchronization succeeded")
+	}
+	if err := f.Fetch(ctx, "acme/atelier", 38); err != nil {
+		t.Fatal(err)
+	}
+	if got := state(); got != FreshnessLate {
+		t.Fatalf("after a failed synchronization and a fetch: %s, want late", got)
+	}
+	if _, err := f.Sync(ctx, "acme/atelier", false); err != nil {
+		t.Fatal(err)
+	}
+	if got := state(); got != FreshnessLive {
+		t.Fatalf("once synchronized: %s, want live", got)
+	}
+}
+
 func TestTheReconciliationRunsAtStartAndEvery15MinutesAndCatchesALostEnvelope(t *testing.T) {
 	clock := newClock()
 	server := newRunnerServer(t, clock)

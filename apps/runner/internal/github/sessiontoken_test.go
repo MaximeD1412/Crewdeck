@@ -17,8 +17,14 @@ import (
 
 // clock is a fake clock the tests move.
 type clock struct {
-	mu  sync.Mutex
-	now time.Time
+	mu      sync.Mutex
+	now     time.Time
+	waiters []waiter
+}
+
+type waiter struct {
+	at time.Time
+	ch chan time.Time
 }
 
 func (c *clock) Now() time.Time {
@@ -27,28 +33,131 @@ func (c *clock) Now() time.Time {
 	return c.now
 }
 
+// After fires once the clock is moved to now+d.
+func (c *clock) After(d time.Duration) <-chan time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ch := make(chan time.Time, 1)
+	if d <= 0 {
+		ch <- c.now
+		return ch
+	}
+	c.waiters = append(c.waiters, waiter{c.now.Add(d), ch})
+	return ch
+}
+
 func (c *clock) advance(d time.Duration) {
 	c.mu.Lock()
 	c.now = c.now.Add(d)
+	kept := c.waiters[:0]
+	for _, w := range c.waiters {
+		if w.at.After(c.now) {
+			kept = append(kept, w)
+			continue
+		}
+		w.ch <- c.now
+	}
+	c.waiters = kept
 	c.mu.Unlock()
+}
+
+// awaitWaiting waits for someone to wait on the clock.
+func (c *clock) awaitWaiting(t *testing.T) {
+	t.Helper()
+	eventually(t, "a wait on the clock", func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return len(c.waiters) == 1
+	})
+}
+
+func eventually(t *testing.T, what string, ok func() bool) {
+	t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); !ok(); {
+		if time.Now().After(deadline) {
+			t.Fatalf("never: %s", what)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 // issuer gives a new token valid 1 h at each call, as the server does.
 type issuer struct {
-	clock *clock
-	mu    sync.Mutex
-	calls int
-	fail  error
+	clock    *clock
+	mu       sync.Mutex
+	calls    int
+	attempts int
+	fail     error
+}
+
+func (i *issuer) counts() (calls, attempts int) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.calls, i.attempts
 }
 
 func (i *issuer) fetch(context.Context) (github.Issued, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
+	i.attempts++
 	if i.fail != nil {
 		return github.Issued{}, i.fail
 	}
 	i.calls++
 	return github.Issued{Token: fmt.Sprintf("ghs_%d", i.calls), ExpiresAt: i.clock.Now().Add(time.Hour)}, nil
+}
+
+func TestASessionTokenRenewsItselfTenMinutesBeforeItExpiresWithoutBeingAsked(t *testing.T) {
+	c := &clock{now: time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC)}
+	i := &issuer{clock: c}
+	tokens := &github.SessionToken{Fetch: i.fetch, Now: c.Now, After: c.After}
+	ctx := context.Background()
+	if _, err := tokens.Token(ctx); err != nil {
+		t.Fatal(err)
+	}
+	kept := make(chan struct{})
+	go func() { tokens.Keep(ctx); close(kept) }()
+
+	c.awaitWaiting(t)
+	c.advance(49 * time.Minute)
+	time.Sleep(20 * time.Millisecond)
+	if calls, _ := i.counts(); calls != 1 {
+		t.Fatalf("%d tokens fetched at 49 min, want the first alone", calls)
+	}
+	c.advance(time.Minute)
+	eventually(t, "renewed at 50 min, unasked", func() bool { calls, _ := i.counts(); return calls == 2 })
+
+	// The server out of reach at the next renewal: retried every minute.
+	c.awaitWaiting(t)
+	i.mu.Lock()
+	i.fail = errors.New("the server is out of reach")
+	i.mu.Unlock()
+	c.advance(50 * time.Minute)
+	eventually(t, "a renewal tried", func() bool { _, attempts := i.counts(); return attempts == 3 })
+	c.awaitWaiting(t)
+	c.advance(github.RenewRetry)
+	eventually(t, "the renewal retried", func() bool { _, attempts := i.counts(); return attempts == 4 })
+	if token, err := tokens.Token(ctx); err != nil || token != "ghs_2" {
+		t.Fatalf("Token while the renewal fails: %q, %v, want the valid ghs_2", token, err)
+	}
+	c.awaitWaiting(t)
+	i.mu.Lock()
+	i.fail = nil
+	i.mu.Unlock()
+	c.advance(github.RenewRetry)
+	eventually(t, "renewed once the server answers", func() bool { calls, _ := i.counts(); return calls == 3 })
+	c.awaitWaiting(t)
+	if token, err := tokens.Token(ctx); err != nil || token != "ghs_3" {
+		t.Fatalf("Token after the renewal: %q, %v, want ghs_3", token, err)
+	}
+
+	// The Session ends: the renewals stop.
+	tokens.End()
+	select {
+	case <-kept:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Keep still runs after End")
+	}
 }
 
 func TestASessionTokenIsFetchedOnceThenRenewedTenMinutesBeforeItExpires(t *testing.T) {

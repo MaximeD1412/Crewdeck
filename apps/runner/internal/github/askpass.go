@@ -39,11 +39,18 @@ const AskpassUser = "x-access-token"
 // credential helper of the machine's (never the Pilote's own credentials),
 // so that no credential is ever in a remote URL nor in a file.
 func GitEnv(runner, home, sessionID string) []string {
-	return []string{
+	return append([]string{
 		"GIT_ASKPASS=" + runner,
 		AskpassSessionEnv + "=" + sessionID,
-		"GIT_TERMINAL_PROMPT=0",
 		state.HomeEnv + "=" + home,
+	}, NoMachineCredentials()...)
+}
+
+// NoMachineCredentials is the part of GitEnv that keeps git from the
+// machine's credentials: no credential helper, no prompt.
+func NoMachineCredentials() []string {
+	return []string{
+		"GIT_TERMINAL_PROMPT=0",
 		"GIT_CONFIG_COUNT=1",
 		"GIT_CONFIG_KEY_0=credential.helper",
 		"GIT_CONFIG_VALUE_0=",

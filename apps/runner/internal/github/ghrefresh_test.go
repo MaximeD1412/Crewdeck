@@ -26,6 +26,11 @@ func TestNamedSaysWhatAGhCommandChanged(t *testing.T) {
 		{"issue transfer", []string{"issue", "transfer", "5", "acme/autre"}, "", github.Refresh{Number: 5}},
 		{"issue lock", []string{"issue", "lock", "5"}, "", github.Refresh{Number: 5}},
 		{"pr delete is not gh's but issue delete is", []string{"issue", "delete", "5", "--yes"}, "", github.Refresh{Number: 5}},
+		{"--repo before the group", []string{"--repo", "acme/shop", "issue", "comment", "12", "--body", "x"}, "", github.Refresh{Number: 12, Repository: "acme/shop"}},
+		{"-R before the verb", []string{"issue", "-R", "acme/shop", "comment", "12", "--body", "x"}, "", github.Refresh{Number: 12, Repository: "acme/shop"}},
+		{"--repo= before the group", []string{"--repo=acme/shop", "pr", "--repo=acme/shop", "merge", "7"}, "", github.Refresh{Number: 7, Repository: "acme/shop"}},
+		{"-Racme/shop before a label's verb", []string{"label", "-Racme/shop", "create", "urgent"}, "", github.Refresh{All: true, Repository: "acme/shop"}},
+		{"--repo before a read", []string{"--repo", "acme/shop", "issue", "view", "12"}, "", github.Refresh{None: true}},
 		// The creations: the URL they print last.
 		{"issue create", []string{"issue", "create", "--title", "t", "--body", "b"}, "Creating issue in acme/shop\n\nhttps://github.com/acme/shop/issues/31\n", github.Refresh{Number: 31, Repository: "acme/shop"}},
 		{"pr create", []string{"pr", "create", "--fill"}, "https://github.com/acme/shop/pull/32\n", github.Refresh{Number: 32, Repository: "acme/shop"}},

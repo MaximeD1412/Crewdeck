@@ -9,6 +9,7 @@ import (
 	"iter"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/engine"
@@ -26,6 +27,10 @@ const maxLogLine = 16 << 20
 type sessionLog struct {
 	file    *os.File
 	lastSeq int
+	// cut: an agent's message still streams at its end (a delta, maybe
+	// usage reports after it), what a Runner killed in the middle of a turn
+	// leaves.
+	cut bool
 }
 
 // openLog opens the log for appending; lastSeq is its last event's. What a
@@ -33,7 +38,7 @@ type sessionLog struct {
 // so that the next events follow it and Replay sees them.
 func openLog(dir string) (*sessionLog, error) {
 	path := filepath.Join(dir, logFile)
-	last, whole, err := scanLog(path)
+	last, whole, cut, err := scanLog(path)
 	if err != nil {
 		return nil, err
 	}
@@ -45,35 +50,36 @@ func openLog(dir string) (*sessionLog, error) {
 		file.Close()
 		return nil, err
 	}
-	return &sessionLog{file: file, lastSeq: last}, nil
+	return &sessionLog{file: file, lastSeq: last, cut: cut}, nil
 }
 
-// scanLog gives the seq of the log's last whole event, and the length of
-// the log up to the end of its line: a line not ended, or not an event, ends
-// the log, as it does Replay.
-func scanLog(path string) (last int, whole int64, err error) {
+// scanLog gives the seq of the log's last whole event, the length of the
+// log up to the end of its line, and whether that event is a delta: a line
+// not ended, or not an event, ends the log, as it does Replay.
+func scanLog(path string) (last int, whole int64, cut bool, err error) {
 	file, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return 0, 0, nil
+		return 0, 0, false, nil
 	}
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, false, err
 	}
 	defer file.Close()
 	reader := bufio.NewReaderSize(file, 64<<10)
 	for {
 		line, err := reader.ReadBytes('\n')
 		if errors.Is(err, io.EOF) {
-			return last, whole, nil
+			return last, whole, cut, nil
 		}
 		if err != nil {
-			return 0, 0, err
+			return 0, 0, false, err
 		}
 		var event contracts.EngineEvent
 		if json.Unmarshal(line, &event) != nil {
-			return last, whole, nil
+			return last, whole, cut, nil
 		}
 		last, whole = seqOf(event), whole+int64(len(line))
+		cut = stillCut(cut, event)
 	}
 }
 
@@ -89,7 +95,33 @@ func (l *sessionLog) append(event contracts.EngineEvent, offset int) (contracts.
 		return stamped, err
 	}
 	l.lastSeq = seqOf(stamped)
+	l.cut = stillCut(l.cut, stamped)
 	return stamped, nil
+}
+
+// stillCut says whether a message still streams after the event: a delta
+// opens it, a usage report keeps it as it was, anything else ends it (the
+// page joins the deltas by the same rule).
+func stillCut(cut bool, event contracts.EngineEvent) bool {
+	switch {
+	case event.Message != nil:
+		return !event.Message.Final
+	case event.Usage != nil:
+		return cut
+	}
+	return false
+}
+
+// endCut ends the turn a killed Runner cut, a `result` `interrupted` after
+// its last delta, so that what the resumed run says is a message apart, in
+// the log as in its replay. A log not cut is left as it is.
+func (l *sessionLog) endCut(at time.Time) (contracts.EngineEvent, bool, error) {
+	if !l.cut {
+		return contracts.EngineEvent{}, false, nil
+	}
+	end := contracts.EngineEvent{Result: &contracts.EngineEventResult{Kind: contracts.EngineEventKindResult, Status: contracts.EngineEventResultStatusInterrupted, Seq: 1, At: at}}
+	stamped, err := l.append(end, l.lastSeq)
+	return stamped, err == nil, err
 }
 
 func (l *sessionLog) close() error { return l.file.Close() }

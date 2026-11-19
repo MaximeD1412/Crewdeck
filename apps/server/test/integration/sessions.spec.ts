@@ -465,7 +465,7 @@ describe('the Sessions against PostgreSQL', () => {
       await expectFields(await call(alice, 'POST', `/api/sessions/${own}/resume`, {}), ['seq']);
     });
 
-    it('stops a live Session, the Runner told, its event written; 409 on a stale seq; 422 sessions.not-running for one not live', async () => {
+    it('stops a live Session, the Runner told, its event written, when kept in endedAt; 409 on a stale seq; 422 sessions.not-running for one not live', async () => {
       const alice = await pilot();
       const projectId = await project(alice);
       const socket = await online(alice);
@@ -478,9 +478,10 @@ describe('the Sessions against PostgreSQL', () => {
       const stopped = await call(alice, 'POST', `/api/sessions/${session.id}/stop`, { seq });
 
       expect(stopped.status).toBe(200);
-      expect(zAgentSession.parse(await stopped.json())).toMatchObject({ state: 'stopped' });
+      const body = zAgentSession.parse(await stopped.json());
+      expect(body).toMatchObject({ state: 'stopped', endedAt: expect.any(String) });
       expect((await socket.expect('session.stop')).sessionId).toBe(session.id);
-      expect(await row(session.id)).toMatchObject({ state: 'stopped', engine_session_id: 'eng-1' });
+      expect(await row(session.id)).toMatchObject({ state: 'stopped', engine_session_id: 'eng-1', ended_at: new Date(body.endedAt ?? '') });
       const state = zState.parse(await (await call(alice, 'GET', '/api/state')).json());
       expect(state.sessions).toEqual([expect.objectContaining({ id: session.id, state: 'stopped' })]);
       const again = await call(alice, 'POST', `/api/sessions/${session.id}/stop`, { seq: String(state.seq) });
@@ -488,10 +489,10 @@ describe('the Sessions against PostgreSQL', () => {
       expect(envelope.message).toBe('Cette Session ne tourne pas.');
     });
 
-    it('resumes a stopped Session on its Moteur’s id, starts again one without; 422 sessions.not-resumable for a live one, runner.offline when the Runner is away', async () => {
+    it('resumes a stopped Session on its Moteur’s id, its endedAt cleared, starts again one without; 422 sessions.not-resumable for a live one, runner.offline when the Runner is away', async () => {
       const alice = await pilot();
       const projectId = await project(alice);
-      const withId = await insert(alice, projectId, { state: 'stopped', engineSessionId: 'eng-1' });
+      const withId = await insert(alice, projectId, { state: 'stopped', engineSessionId: 'eng-1', endedAt: new Date() });
       const withoutId = await insert(alice, projectId, { state: 'interrupted' });
 
       await expectEnvelope(await call(alice, 'POST', `/api/sessions/${withId}/resume`, { seq: '0' }), 422, 'runner.offline');
@@ -500,11 +501,13 @@ describe('the Sessions against PostgreSQL', () => {
       const refused = await expectEnvelope(await call(alice, 'POST', `/api/sessions/${live}/resume`, { seq: '0' }), 422, 'sessions.not-resumable');
       expect(refused.message).toBe('Cette Session ne peut pas être reprise.');
 
-      expect((await call(alice, 'POST', `/api/sessions/${withId}/resume`, { seq: '0' })).status).toBe(200);
+      const resumed = await call(alice, 'POST', `/api/sessions/${withId}/resume`, { seq: '0' });
+      expect(resumed.status).toBe(200);
+      expect(zAgentSession.parse(await resumed.json())).toMatchObject({ state: 'starting', endedAt: null });
       expect((await socket.expect('session.resume')).sessionId).toBe(withId);
       expect((await call(alice, 'POST', `/api/sessions/${withoutId}/resume`, { seq: '0' })).status).toBe(200);
       expect(await socket.expect('session.start')).toMatchObject({ sessionId: withoutId, origin: { kind: 'github', owner: 'acme', name: 'shop' } });
-      expect((await row(withId))?.state).toBe('starting');
+      expect(await row(withId)).toMatchObject({ state: 'starting', ended_at: null });
     });
 
     it('gives in GET /api/state the Sessions not ended and those ended in the last 24 h', async () => {

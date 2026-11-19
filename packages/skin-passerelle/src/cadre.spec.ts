@@ -188,6 +188,15 @@ describe('the Cadre at 1280 px', () => {
     expect(shadow(el, 'main').getBoundingClientRect().right).toBeLessThanOrEqual(rect.left + 1);
   });
 
+  it('fills the panel with what it holds, edge to edge, its own scroll inside', async () => {
+    const el = await cadre(withCounts, { slots: { panel: PANEL } });
+    const aside = shadow(el, 'aside').getBoundingClientRect();
+    const held = (el.querySelector('[slot=panel]') as HTMLElement).getBoundingClientRect();
+    // Inside its thin left border.
+    expect([held.right, held.top, held.height]).toEqual([aside.right, aside.top, aside.height]);
+    expect(held.width).toBeGreaterThan(aside.width - 2);
+  });
+
   it('hides the panel without one', async () => {
     const el = await cadre();
     expect(isShown(shadow(el, 'aside'))).toBe(false);
@@ -348,6 +357,26 @@ describe('the Cadre at 390 px', () => {
     expect(rect.height).toBeGreaterThanOrEqual(844);
     expect(isShown(shadow(el, 'header'))).toBe(false);
     expect(shownEntries(el)).toEqual([]);
+    const held = (el.querySelector('[slot=panel]') as HTMLElement).getBoundingClientRect();
+    expect([held.width, held.height]).toEqual([rect.width, rect.height]);
+  });
+
+  it('holds a long Session to the screen: its head and its Composer seen, its log scrolling', async () => {
+    const data = (value: unknown) => JSON.stringify(value).replaceAll("'", '&#39;');
+    const session = { id: '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a7b', title: 'Concevoir · Agenda partagé', meta: 'Personal OS · Conception · Claude Code', state: 'active', resumeDisabledReason: null, resumeLabel: null, resumeIcon: null, status: null, expandable: false };
+    const messages = Array.from({ length: 40 }, (_, index) => `<cd-message data='${data({ from: 'agent', text: `Message ${index + 1} de l’agent, assez long pour prendre deux lignes sur un téléphone.`, at: '2026-11-11T14:00:00.000Z' })}'></cd-message>`).join('');
+    const composer = `<cd-composer slot="composer" data='${data({ placeholder: 'Écrire', hint: null, state: 'idle', value: '', dictation: false })}'></cd-composer>`;
+    const el = await cadre(withCounts, { slots: { panel: `<cd-session data='${data(session)}'>${messages}${composer}</cd-session>` } });
+    const held = el.querySelector('cd-session') as HTMLElement;
+    await settle(held);
+    expect(shadow(el, 'aside').getBoundingClientRect().height).toBe(844);
+    const head = shadow(held, 'header').getBoundingClientRect();
+    const typing = (held.querySelector('cd-composer') as HTMLElement).getBoundingClientRect();
+    expect(head.top).toBe(0);
+    expect(typing.bottom).toBeLessThanOrEqual(844);
+    const log = shadow(held, '[role=log]');
+    expect(log.scrollHeight).toBeGreaterThan(log.clientHeight);
+    expect(document.scrollingElement?.scrollHeight).toBeLessThanOrEqual(844);
   });
 
   it('bare: only the brand above the page, centred', async () => {

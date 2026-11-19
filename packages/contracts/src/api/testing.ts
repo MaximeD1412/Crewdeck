@@ -11,12 +11,15 @@ import { zId } from '../values.js';
 /**
  * A trusted Appareil a scenario seeds, its keys base64url: the browser keeps
  * its private key as its own (`crewdeck-keys`) to open the vault and the
- * scenario's sealed texts. A test key, never a Pilote's.
+ * scenario's sealed texts. A test key, never a Pilote's. `runnerPublicKey`,
+ * when the scenario's fake Runner relays a Session (SESSION-2): the key the
+ * Appareil checks its Session keys come from, as a pairing would leave it.
  */
 export const zScenarioDevice = z.object({
   deviceId: zId,
   privateKey: zBytes32,
   publicKey: zBytes32,
+  runnerPublicKey: zBytes32.optional(),
 });
 export type ScenarioDevice = z.infer<typeof zScenarioDevice>;
 

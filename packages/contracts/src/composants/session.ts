@@ -34,11 +34,13 @@ const [permissionExample] = PermissionRequest.examples;
  * `stopped`, `interrupted` and `failed` show the resume button, labelled
  * `resumeLabel` with `resumeIcon` (« Reprendre » and `play` without them):
  * « Relancer » for a failed Commande, whose output reads as a Session (US-104),
- * the core leaving its `composer` Emplacement empty.
+ * the core leaving its `composer` Emplacement empty. `status`, under the log,
+ * says what the agent is doing while it runs (« Claude Code travaille ·
+ * 42 s »); `expandable: false` hides « Agrandir ».
  */
 export const Session = defineComposant({
   name: 'Session',
-  version: 1,
+  version: 2,
   tag: 'cd-session',
   category: 'partie',
   description: 'Une Session d’agent : ce qu’il écrit et fait, et le champ pour lui répondre.',
@@ -50,13 +52,15 @@ export const Session = defineComposant({
     resumeDisabledReason: z.string().nullable(),
     resumeLabel: z.string().nullable(),
     resumeIcon: zIconName.nullable(),
+    status: z.string().nullable(),
+    expandable: z.boolean(),
   }),
   actions: { stop: z.object({}), resume: z.object({}), close: z.object({}), expand: z.object({}) },
   slots: ['default', 'composer'],
   examples: [
     {
       name: 'active',
-      data: { id: ID, title: TITLE, meta: META, state: 'active', resumeDisabledReason: null, resumeLabel: null, resumeIcon: null },
+      data: { id: ID, title: TITLE, meta: META, state: 'active', resumeDisabledReason: null, resumeLabel: null, resumeIcon: null, status: 'Claude Code travaille · 42 s', expandable: true },
       slots: {
         default: [
           tool('Read', 'docs/product/prd.md', '281 lignes'),
@@ -80,7 +84,7 @@ export const Session = defineComposant({
     },
     {
       name: 'en attente d’une réponse',
-      data: { id: ID, title: TITLE, meta: META, state: 'waiting', resumeDisabledReason: null, resumeLabel: null, resumeIcon: null },
+      data: { id: ID, title: TITLE, meta: META, state: 'waiting', resumeDisabledReason: null, resumeLabel: null, resumeIcon: null, status: null, expandable: true },
       slots: {
         default: [
           tool('Grep', 'agenda · apps/web/src', '14 fichiers'),
@@ -96,7 +100,7 @@ export const Session = defineComposant({
     },
     {
       name: 'en attente d’une permission',
-      data: { id: ID, title: TITLE, meta: META, state: 'waiting', resumeDisabledReason: null, resumeLabel: null, resumeIcon: null },
+      data: { id: ID, title: TITLE, meta: META, state: 'waiting', resumeDisabledReason: null, resumeLabel: null, resumeIcon: null, status: null, expandable: true },
       slots: {
         default: [
           tool('Write', 'docs/product/features/agenda-partage.md', '142 lignes'),
@@ -113,7 +117,7 @@ export const Session = defineComposant({
     },
     {
       name: 'arrêtée',
-      data: { id: ID, title: TITLE, meta: META, state: 'stopped', resumeDisabledReason: null, resumeLabel: null, resumeIcon: null },
+      data: { id: ID, title: TITLE, meta: META, state: 'stopped', resumeDisabledReason: null, resumeLabel: null, resumeIcon: null, status: null, expandable: true },
       slots: {
         default: [
           message(
@@ -136,6 +140,8 @@ export const Session = defineComposant({
         resumeDisabledReason: 'Runner hors ligne',
         resumeLabel: null,
         resumeIcon: null,
+        status: null,
+        expandable: true,
       },
       slots: {
         default: placed(
@@ -158,6 +164,8 @@ export const Session = defineComposant({
         resumeDisabledReason: null,
         resumeLabel: 'Relancer',
         resumeIcon: 'refresh',
+        status: null,
+        expandable: false,
       },
       slots: {
         default: [

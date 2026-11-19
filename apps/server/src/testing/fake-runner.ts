@@ -1,19 +1,26 @@
+import { randomBytes } from 'node:crypto';
 import {
   type CommandRunReason,
   type EngineCapabilities,
+  type EngineEvent,
   HEARTBEAT_SECONDS,
   type McpServers,
   PROTOCOL_VERSION,
   type Runner,
   type RunnerToServer,
   type ServerToRunner,
+  SESSION_KEY_INFO,
+  type SessionInput,
   type SessionOutcome,
+  type SessionReplay,
   type TestingRunnerUsage,
   zServerToRunner,
+  zSessionInputPayload,
 } from '@crewdeck/contracts';
 import WebSocket from 'ws';
 import { newId } from '../ids.js';
 import type { Fake } from './fakes.js';
+import { openFrame, sealFrame, sealWrap } from './vault.js';
 
 /** How long `connect` waits for `hello.accepted`. */
 const ACCEPT_MS = 5_000;
@@ -25,6 +32,18 @@ const OWN_MACHINE: RunnerMachine = { runnerVersion: 'fake', machine: 'atelier', 
 
 type WithoutEnvelope<T> = T extends unknown ? Omit<T, 'id' | 'at'> : never;
 
+/** A Session whose log the fake Runner holds (`holdSession`), as a Runner that ran it. */
+export interface HeldSession {
+  /** The fake Runner's own X25519 private key (raw bytes), which authenticates the wraps of the Session's key. */
+  readonly runnerPrivateKey: Uint8Array;
+  /** The X25519 public keys (raw bytes) of the Appareils it wraps the Session's key for. */
+  readonly holders: readonly Uint8Array[];
+  /** Its log, `seq` 1, 2, … */
+  readonly events: readonly EngineEvent[];
+}
+
+/** What the fake Runner's agent answers to the Pilote's `text`. */
+export const heldReply = (text: string): string => `Noté : « ${text} ».`;
 /** How the fake Runner's runs of a Commande end: an exit code, or a reason without one. */
 export type FakeCommandEnd = { readonly reason: 'exited'; readonly exitCode: number } | { readonly reason: Exclude<CommandRunReason, 'exited'> };
 
@@ -42,10 +61,13 @@ const fakeChunk = (seq: number) => ({ seq, nonce: Buffer.alloc(12, seq).toString
  * `session.start` and `session.resume` answer `active` on the Session's own
  * Moteur id, then `ended` with the outcome `endSessionsWith` set (none: they
  * stay `active`); `session.stop` answers `stopped`; its `hello` tells the
- * Sessions it knows, none alive, as a relaunched Runner. Its Commandes
- * (RUNNER-18): `command.run` answers `command.started`, two output chunks
- * (opaque bytes) and the verdict `endCommandsWith` set (by default exited
- * with 0); `command.replay` sends the tab those two chunks again.
+ * Sessions it knows, none alive, as a relaunched Runner. The relay of a
+ * Session it holds (`holdSession`, SESSION-2): `session.replay` answers its
+ * key wrapped for its holders and its log from `fromSeq`, sealed, to the tab
+ * that asked; `session.input` adds the agent's `heldReply`, live to every tab.
+ * Its Commandes (RUNNER-18): `command.run` answers `command.started`, two
+ * output chunks (opaque bytes) and the verdict `endCommandsWith` set (by
+ * default exited with 0); `command.replay` sends the tab those two chunks again.
  */
 export class FakeRunner implements Fake {
   private socket: WebSocket | undefined;
@@ -55,6 +77,8 @@ export class FakeRunner implements Fake {
   /** The Sessions it was asked to run, by id: their Moteur's id. */
   private readonly sessions = new Map<string, string>();
   private sessionsEnd: SessionOutcome | undefined;
+  /** The Sessions whose log it holds, by id: their key and log. */
+  private readonly held = new Map<string, HeldSession & { readonly key: Buffer; readonly log: EngineEvent[] }>();
   private commandsEnd: FakeCommandEnd = { reason: 'exited', exitCode: 0 };
 
   /** Whether its `hello` was accepted and its socket is still open. */
@@ -131,6 +155,11 @@ export class FakeRunner implements Fake {
     this.sessionsEnd = outcome;
   }
 
+  /** Holds the log of `sessionId` under a key of its own, for the tabs that open it from now on. */
+  holdSession(sessionId: string, session: HeldSession): void {
+    this.held.set(sessionId, { ...session, key: randomBytes(32), log: [...session.events] });
+  }
+
   /** How its runs of a Commande end, from now on. */
   endCommandsWith(end: FakeCommandEnd): void {
     this.commandsEnd = end;
@@ -156,6 +185,7 @@ export class FakeRunner implements Fake {
     this.last = undefined;
     this.sessions.clear();
     this.sessionsEnd = undefined;
+    this.held.clear();
     this.commandsEnd = { reason: 'exited', exitCode: 0 };
   }
 
@@ -174,6 +204,10 @@ export class FakeRunner implements Fake {
       case 'session.stop':
         if (this.sessions.has(message.sessionId)) this.send(socket, { type: 'session.state', sessionId: message.sessionId, state: 'stopped' });
         return;
+      case 'session.replay':
+        return this.replay(socket, message);
+      case 'session.input':
+        return this.reply(socket, message);
       case 'command.run': {
         const { runId } = message;
         this.send(socket, { type: 'command.started', runId });
@@ -189,6 +223,34 @@ export class FakeRunner implements Fake {
       default:
         return;
     }
+  }
+
+  private replay(socket: WebSocket, { sessionId, tabId, fromSeq }: SessionReplay): void {
+    const held = this.held.get(sessionId);
+    if (!held) return;
+    const wraps = held.holders.map((holder) => {
+      const holderId = Buffer.from(holder).toString('base64url');
+      const wrap = sealWrap(held.runnerPrivateKey, holder, held.key, SESSION_KEY_INFO, `${sessionId}:${holderId}`);
+      return { holderId, enc: wrap.enc.toString('base64url'), wrappedKey: wrap.ciphertext.toString('base64url'), tag: wrap.tag.toString('base64url') };
+    });
+    this.send(socket, { type: 'session.keys', sessionId, tabId, wraps });
+    for (const event of held.log.filter(({ seq }) => seq >= fromSeq)) {
+      this.send(socket, { type: 'relay', sessionId, tabId, seq: event.seq, ...sealFrame(held.key, JSON.stringify(event), `${sessionId}:${event.seq}`) });
+    }
+  }
+
+  private reply(socket: WebSocket, { sessionId, inputId, nonce, ciphertext }: SessionInput): void {
+    const held = this.held.get(sessionId);
+    if (!held) return;
+    let input;
+    try {
+      input = zSessionInputPayload.parse(JSON.parse(openFrame(held.key, { nonce, ciphertext }, `${sessionId}:input:${inputId}`).toString('utf8')));
+    } catch {
+      return;
+    }
+    const event: EngineEvent = { kind: 'message', from: 'agent', text: heldReply(input.text), final: true, seq: held.log.length + 1, at: new Date().toISOString() };
+    held.log.push(event);
+    this.send(socket, { type: 'relay', sessionId, seq: event.seq, ...sealFrame(held.key, JSON.stringify(event), `${sessionId}:${event.seq}`) });
   }
 
   private send(socket: WebSocket, message: WithoutEnvelope<RunnerToServer>): void {

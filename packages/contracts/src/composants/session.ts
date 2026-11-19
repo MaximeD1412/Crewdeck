@@ -6,6 +6,7 @@ import { Banner } from './banner.js';
 import { Composer } from './composer.js';
 import { Button } from './button.js';
 import { defineComposant } from './define.js';
+import { DICTATION_EXAMPLES } from './dictation.js';
 import { Empty } from './empty.js';
 import { zIconName } from './icons.js';
 import { Message } from './message.js';
@@ -22,7 +23,7 @@ const message = (from: 'agent' | 'pilote', text: string, at: string) => placed(M
 const tool = (name: string, target: string | null, detail: string | null) =>
   placed(ToolCall.tag, { tool: name, target, detail });
 const composer = (placeholder: string, state: 'idle' | 'disabled' = 'idle') =>
-  placed(Composer.tag, { placeholder, hint: null, state, value: '', dictation: true });
+  placed(Composer.tag, { placeholder, hint: null, state, value: '', dictation: DICTATION_EXAMPLES.idle });
 
 const [questionExample] = Question.examples;
 const [permissionExample] = PermissionRequest.examples;

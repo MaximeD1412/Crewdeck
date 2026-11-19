@@ -48,6 +48,12 @@ export const createDraftSaver = ({ projectId, client, stored, onFailure }: Draft
   let local: ProcessDefinition | null = null;
   /** Whether `local` holds edits not sent yet. */
   let dirty = false;
+  /**
+   * The Process `local` rests on: the view its first edit was made on, then
+   * the answer of its own save. Its revision is the one the next PUT sends,
+   * never another tab's that the store got meanwhile: that one gives a 409.
+   */
+  let rests: ProjectProcess | undefined;
   /** The last answer, shown until the store is as recent. */
   let confirmed: ProjectProcess | null = null;
   let inFlight: Promise<void> | null = null;
@@ -88,7 +94,7 @@ export const createDraftSaver = ({ projectId, client, stored, onFailure }: Draft
 
   const flush = (): void => {
     if (inFlight || !dirty || !local) return;
-    const from = base();
+    const from = rests;
     const definition = local;
     dirty = false;
     const input: ProcessDraftInput = { definition, sealed: sealedFor(definition, from), revision: revisionOf(from), baseVersion: versionOf(from) };
@@ -96,6 +102,7 @@ export const createDraftSaver = ({ projectId, client, stored, onFailure }: Draft
       .then(
         (answer) => {
           confirmed = answer;
+          rests = answer;
           if (!dirty) local = null;
         },
         (error: unknown) => {
@@ -120,6 +127,7 @@ export const createDraftSaver = ({ projectId, client, stored, onFailure }: Draft
       if (!current) return { ok: false, reason: t('process.draft.failed') };
       const result = change(current);
       if (!result.ok || result.definition === current) return result;
+      if (!local) rests = base();
       local = result.definition;
       dirty = true;
       notify();

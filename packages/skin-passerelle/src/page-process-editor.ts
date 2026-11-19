@@ -251,7 +251,7 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
   private sentName: string | null = null;
   /** The last ask to focus the name that was honoured. */
   private focusedAt: number | null = null;
-  /** Whether the catalogue was open when « Étape » was pressed: the Menu closes itself on that press. */
+  /** Whether the catalogue was open when « Étape » was pressed: the Menu closes itself on that press, its click then opens nothing. A key or that click clears it. */
   private catalogueWasOpen = false;
   /** Bumped when a choice in the panel was refused: its controls, keyed on it, show the data again. */
   private resets = 0;
@@ -288,7 +288,10 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
   }
 
   private onCatalogueButton() {
-    if (this.catalogueWasOpen) return;
+    // The press that closed the Menu ends here: the next click, from the keyboard too, opens it again.
+    const closing = this.catalogueWasOpen;
+    this.catalogueWasOpen = false;
+    if (closing) return;
     this.emit('openCatalogue', {});
   }
 
@@ -573,6 +576,7 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
           aria-expanded=${catalogue ? 'true' : 'false'}
           .data=${{ label: t('process.header.step'), variant: 'secondary', size: 'sm', icon: 'plus' }}
           @pointerdown=${() => (this.catalogueWasOpen = this.data.catalogue !== null)}
+          @keydown=${() => (this.catalogueWasOpen = false)}
           @click=${this.onCatalogueButton}
         ></cd-button>
         ${catalogue ? html`<cd-menu .data=${catalogue} @cd-action=${this.onMenu}></cd-menu>` : nothing}

@@ -87,6 +87,21 @@ describe('createDraftSaver', () => {
     expect(saver.view()?.draft?.revision).toBe(2);
   });
 
+  it('sends the edits made meanwhile on the revision its own save gave, not on another tab’s that came first', async () => {
+    const { saver, server, store } = setup();
+    saver.edit(rename('Livraison'));
+    saver.edit(addPhase);
+    const first = server.pending[0] as Pending;
+    // Another tab saved on revision 1: its event (revision 2) arrives before this tab's answer (revision 1).
+    const renamed = renamePhase(first.input.definition, 'ph-dev', 'Relecture');
+    if (!renamed.ok) throw new Error(renamed.reason);
+    const other = answered({ ...first.input, revision: 1, definition: renamed.definition });
+    store(other);
+    first.resolve(answered(first.input));
+    await vi.waitFor(() => expect(server.pending).toHaveLength(2));
+    expect(server.pending[1]?.input.revision).toBe(1);
+  });
+
   it('sends nothing for an edit that changes nothing, nor for a refused one', () => {
     const { saver, server } = setup();
     expect(saver.edit(rename('Développement'))).toEqual({ ok: true, definition: PROCESS_CREWDECK });

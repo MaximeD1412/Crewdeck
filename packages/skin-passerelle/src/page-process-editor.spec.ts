@@ -303,6 +303,34 @@ describe('PageProcessEditor', () => {
       expect(only(details).map(({ action }) => action)).toEqual(['closeMenu']);
     });
 
+    it('opens the catalogue from the keyboard after « Étape » was pressed to close it', async () => {
+      const el = await show(catalogue);
+      const button = native<HTMLButtonElement>(el, 'cd-button.add-step', 'button');
+      await actionsOf(() => {
+        button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
+        button.click();
+      });
+      (el as unknown as { data: Data }).data = phase;
+      await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+      expect(root(el).querySelector('cd-menu')).toBeNull();
+      // Enter or Space on a button: a click with no pointerdown before it.
+      const reopened = await actionsOf(() => native<HTMLButtonElement>(el, 'cd-button.add-step', 'button').click());
+      expect(only(reopened)).toEqual([{ action: 'openCatalogue', payload: {} }]);
+    });
+
+    it('opens the catalogue from the keyboard after a press that closed it ended off « Étape »', async () => {
+      const el = await show(catalogue);
+      native<HTMLButtonElement>(el, 'cd-button.add-step', 'button').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
+      (el as unknown as { data: Data }).data = phase;
+      await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+      const button = native<HTMLButtonElement>(el, 'cd-button.add-step', 'button');
+      const reopened = await actionsOf(() => {
+        button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }));
+        button.click();
+      });
+      expect(only(reopened)).toEqual([{ action: 'openCatalogue', payload: {} }]);
+    });
+
     it('shows a refusal as the canvas’s Toast', async () => {
       const el = await show(refused);
       const toast = inside(el, 'cd-process-canvas > cd-toast[slot=toast]') as HTMLElement & { data: unknown };

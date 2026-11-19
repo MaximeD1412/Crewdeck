@@ -15,11 +15,13 @@ import (
 	"time"
 
 	"github.com/itchyny/gojq"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/github"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/github/githubtest"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/keys"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/localsock"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/mirror"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/service"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
 )
 
@@ -101,8 +103,16 @@ var localTickets = map[string]string{
 }
 
 // newMiroirFixture builds the copy, filled, and starts its Runner.
-func newMiroirFixture(t *testing.T) *miroirFixture {
+func newMiroirFixture(t *testing.T) *miroirFixture { return newMiroirFixtureOf(t, false) }
+
+// newMiroirFixtureOf, mixed: one Projet, P3, its Tickets Local (local/P3)
+// and its code on GitHub (acme/atelier).
+func newMiroirFixtureOf(t *testing.T, mixed bool) *miroirFixture {
 	t.Helper()
+	id := "P2"
+	if mixed {
+		id = "P3"
+	}
 	root := t.TempDir()
 	f := &miroirFixture{home: filepath.Join(root, ".crewdeck"), folder: filepath.Join(root, "carnet")}
 	t.Setenv(state.HomeEnv, f.home)
@@ -113,6 +123,9 @@ func newMiroirFixture(t *testing.T) *miroirFixture {
 	f.fake.Schema(githubtest.GitHubSchema)
 
 	writeFiles(t, f.folder, localTickets)
+	if mixed {
+		writeFiles(t, f.folder, map[string]string{"tickets/3-la-vitrine-locale.md": "---\nnumber: 3\ntitle: La vitrine, le Ticket\n---\n\nLe Ticket local.\n"})
+	}
 	gitIn(t, f.folder, "init")
 	gitIn(t, f.folder, "add", ".")
 	gitIn(t, f.folder, "commit", "-m", "les Tickets")
@@ -125,7 +138,7 @@ func newMiroirFixture(t *testing.T) *miroirFixture {
 
 	home := state.Store{Dir: f.home}
 	if err := home.Save(state.State{Server: "http://127.0.0.1:1", RunnerID: "runner-id", Token: "rnr_token",
-		Projects: map[string]string{"P2": f.folder}}); err != nil {
+		Projects: map[string]string{id: f.folder}}); err != nil {
 		t.Fatal(err)
 	}
 	store, err := mirror.Open(filepath.Join(f.home, mirror.FileName))
@@ -134,12 +147,21 @@ func newMiroirFixture(t *testing.T) *miroirFixture {
 	}
 	f.store = store
 	t.Cleanup(func() { store.Close() })
-	if err := store.PutProjects([]mirror.Project{
+	projects := []mirror.Project{
 		{Repository: ghKey, ProjectID: "P1", Source: mirror.SourceGitHub, Groups: []string{mirror.GroupTicket, mirror.GroupCode},
 			GitHubRepoID: 1, InstallationID: 1, DisplayName: "Atelier", IntegrationBranch: "develop"},
 		{Repository: localKey, ProjectID: "P2", Source: mirror.SourceLocal, Groups: []string{mirror.GroupTicket, mirror.GroupCode},
 			DisplayName: "Carnet", IntegrationBranch: "main", Folder: f.folder},
-	}); err != nil {
+	}
+	if mixed {
+		projects = []mirror.Project{
+			{Repository: ghKey, ProjectID: id, Source: mirror.SourceGitHub, Groups: []string{mirror.GroupCode},
+				GitHubRepoID: 1, InstallationID: 1, DisplayName: "Vitrine", IntegrationBranch: "develop"},
+			{Repository: mirror.LocalPrefix + id, ProjectID: id, Source: mirror.SourceLocal, Groups: []string{mirror.GroupTicket},
+				DisplayName: "Vitrine", IntegrationBranch: "main", Folder: f.folder},
+		}
+	}
+	if err := store.PutProjects(projects); err != nil {
 		t.Fatal(err)
 	}
 
@@ -150,9 +172,9 @@ func newMiroirFixture(t *testing.T) *miroirFixture {
 	}
 	f.locals = locals
 	t.Cleanup(func() { locals.Close() })
-	project, ok := locals.Project("P2")
+	project, ok := locals.Project(id)
 	if !ok {
-		t.Fatal("no Local Projet P2")
+		t.Fatal("no Local Projet " + id)
 	}
 	ctx := context.Background()
 	if _, err := project.Scan(ctx); err != nil {
@@ -163,11 +185,11 @@ func newMiroirFixture(t *testing.T) *miroirFixture {
 	}
 	db := locals.db.SQL()
 	if _, err := db.Exec(`INSERT INTO changes (project_id, number, title, body, head_ref, head_oid, base_ref, state, mergeable, author, created_at, updated_at)
-		VALUES ('P2', 7, 'Le panier, la PR', 'Closes #12', 'feat/12-x', ?, 'main', 'open', 'MERGEABLE', 'agent-bot', '2026-11-05T08:00:00Z', '2026-11-05T08:00:00Z')`, head); err != nil {
+		VALUES (?, 7, 'Le panier, la PR', 'Closes #12', 'feat/12-x', ?, 'main', 'open', 'MERGEABLE', 'agent-bot', '2026-11-05T08:00:00Z', '2026-11-05T08:00:00Z')`, id, head); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(`INSERT INTO reviews (id, project_id, number, author, state, body, commit_oid, submitted_at)
-		VALUES ('r1', 'P2', 7, 'relecteur', 'APPROVED', 'Bien.', ?, '2026-11-06T09:00:00Z')`, head); err != nil {
+		VALUES ('r1', ?, 7, 'relecteur', 'APPROVED', 'Bien.', ?, '2026-11-06T09:00:00Z')`, id, head); err != nil {
 		t.Fatal(err)
 	}
 
@@ -447,5 +469,271 @@ func TestMiroirListFiltersAsGhOnBothSources(t *testing.T) {
 				t.Errorf("pr list --head of no PR: %v, %q", err, out)
 			}
 		})
+	}
+}
+
+// readyLines are `ready`'s lines as (number, available).
+func readyLines(t *testing.T, out string) [][2]any {
+	t.Helper()
+	var lines [][2]any
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if line == "" {
+			continue
+		}
+		var r map[string]any
+		if err := json.Unmarshal([]byte(line), &r); err != nil {
+			t.Fatalf("%v: %q", err, line)
+		}
+		lines = append(lines, [2]any{r["number"], r["available"]})
+	}
+	return lines
+}
+
+func TestMiroirReadyOnBothSources(t *testing.T) {
+	f := newMiroirFixture(t)
+	f.states(t, map[string]mirror.KeyState{ghKey: {State: mirror.FreshnessLive, SyncedAt: at(time.Minute)},
+		localKey: {State: mirror.FreshnessLive, SyncedAt: at(time.Minute)}})
+	for _, c := range []struct {
+		name, dir      string
+		available, all [][2]any
+	}{
+		// 12 has PR 7 on feat/12-x, 13 is blocked by 12 still open; 15 (P0, M2
+		// due) before 14 (no milestone).
+		{"github", githubDir(t), [][2]any{{15.0, true}, {14.0, true}},
+			[][2]any{{15.0, true}, {14.0, true}, {12.0, false}, {13.0, false}}},
+		{"local", f.sessionDir(t), [][2]any{{14.0, true}}, [][2]any{{14.0, true}, {12.0, false}, {13.0, false}}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			out, stderr, err := runMiroir(t, c.dir, "ready")
+			if err != nil || stderr != "" {
+				t.Fatalf("ready: %v\n%s", err, stderr)
+			}
+			if got := readyLines(t, out); !reflect.DeepEqual(got, c.available) {
+				t.Errorf("ready = %v, want %v", got, c.available)
+			}
+			out, _, _ = runMiroir(t, c.dir, "ready", "--all")
+			if got := readyLines(t, out); !reflect.DeepEqual(got, c.all) {
+				t.Errorf("ready --all = %v, want %v", got, c.all)
+			}
+			out, _, _ = runMiroir(t, c.dir, "ready", "--all", "--numbers", "13,14")
+			if got := readyLines(t, out); !reflect.DeepEqual(got, [][2]any{{14.0, true}, {13.0, false}}) {
+				t.Errorf("ready --all --numbers 13,14 = %v", got)
+			}
+		})
+	}
+	out, _, _ := runMiroir(t, githubDir(t), "ready", "--all", "--numbers", "13")
+	if !strings.Contains(out, `"openBlockers":[12]`) || !strings.Contains(out, `"milestone":"M2 Le panier","due":"2026-12-15T00:00:00Z"`) {
+		t.Errorf("ready 13: %s", out)
+	}
+}
+
+func TestMiroirATicketFileEditedByHandIsTheAnswerOfASession(t *testing.T) {
+	f := newMiroirFixture(t)
+	dir := f.sessionDir(t)
+	writeFiles(t, f.folder, map[string]string{"tickets/12-le-panier.md": strings.Replace(localTickets["tickets/12-le-panier.md"], "title: Le panier", "title: Le panier, revu à la main", 1)})
+
+	out, stderr, err := runMiroir(t, dir, "issue", "view", "12", "--json", "title", "--jq", ".title")
+	if err != nil || stderr != "" || out != "Le panier, revu à la main\n" {
+		t.Fatalf("issue view: %v, %q, stderr %q", err, out, stderr)
+	}
+}
+
+func TestMiroirAProjetWithItsTicketsLocalAndItsCodeOnGitHub(t *testing.T) {
+	newMiroirFixtureOf(t, true)
+	dir := githubDir(t)
+
+	out, stderr, err := runMiroir(t, dir, "issue", "view", "3", "--json", "title,url", "--jq", ".title, .url")
+	if err != nil || stderr != "" || !strings.HasPrefix(out, "La vitrine, le Ticket\nfile://") || !strings.HasSuffix(out, "tickets/3-la-vitrine-locale.md\n") {
+		t.Errorf("issue view 3: %v, %q, stderr %q", err, out, stderr)
+	}
+	out, stderr, err = runMiroir(t, dir, "pr", "view", "3", "--json", "title,state", "--jq", ".title, .state")
+	if err != nil || out != "La vitrine, la PR\nMERGED\n" {
+		t.Errorf("pr view 3: %v, %q, stderr %q", err, out, stderr)
+	}
+}
+
+func TestMiroirALateKeyFetchesTheObjectFirst(t *testing.T) {
+	f := newMiroirFixture(t)
+	dir := githubDir(t)
+
+	out, stderr, err := runMiroir(t, dir, "issue", "view", "12", "--json", "title", "--jq", ".title")
+	if err != nil || stderr != "" || out != "Le panier\n" {
+		t.Fatalf("issue view of a late key: %v, %q, stderr %q", err, out, stderr)
+	}
+	if n := f.fake.Count("MirrorObject"); n == 0 {
+		t.Error("a late key's view did not fetch the object")
+	}
+
+	f.states(t, map[string]mirror.KeyState{ghKey: {State: mirror.FreshnessLate, SyncedAt: at(2*time.Hour + time.Minute)}})
+	f.fake.Fail("MirrorObject", githubtest.BadGateway(), 100)
+	out, stderr, err = runMiroir(t, dir, "issue", "view", "12", "--json", "title", "--jq", ".title")
+	if err != nil || out != "Le panier\n" {
+		t.Fatalf("issue view when the fetch fails: %v, %q", err, out)
+	}
+	if stderr != "Miroir en retard pour Atelier : dernière synchro il y a 2 h\n" {
+		t.Errorf("stderr %q", stderr)
+	}
+}
+
+func TestMiroirAFillingKeyListsFromGitHubAndReadyExits3(t *testing.T) {
+	f := newMiroirFixture(t)
+	f.states(t, map[string]mirror.KeyState{ghKey: {State: mirror.FreshnessFilling}})
+	dir := githubDir(t)
+
+	out, _, err := runMiroir(t, dir, "issue", "list", "--state", "open", "--json", "number", "--jq", "[.[].number]")
+	if err != nil || out != "[15,14,13,12]\n" {
+		t.Errorf("issue list of a filling key: %v, %q", err, out)
+	}
+	if n := f.fake.Count("MirrorListIssues"); n == 0 {
+		t.Error("the list did not come from GitHub")
+	}
+	_, stderr, err := runMiroir(t, dir, "ready")
+	if exitCode(err) != 3 || stderr != "Miroir en remplissage pour Atelier\n" {
+		t.Errorf("ready of a filling key: exit %d, stderr %q", exitCode(err), stderr)
+	}
+}
+
+func TestMiroirWithoutARunnerAnswersFromTheCopy(t *testing.T) {
+	f := newMiroirFixture(t)
+	f.stop()
+	dir := githubDir(t)
+
+	out, stderr, err := runMiroir(t, dir, "issue", "view", "12", "--json", "title", "--jq", ".title")
+	if err != nil || out != "Le panier\n" {
+		t.Fatalf("issue view: %v, %q", err, out)
+	}
+	if !strings.HasPrefix(stderr, "Miroir en retard pour Atelier : dernière synchro il y a ") {
+		t.Errorf("stderr %q", stderr)
+	}
+	_, _, err = runMiroir(t, dir, "sync")
+	if exitCode(err) != 1 || err == nil || !strings.Contains(err.Error(), "Le Runner n'est pas démarré") {
+		t.Errorf("sync without a Runner: exit %d, %v", exitCode(err), err)
+	}
+}
+
+func TestMiroirSearchAndSQL(t *testing.T) {
+	newMiroirFixture(t)
+	outside := t.TempDir()
+
+	out, _, err := runMiroir(t, outside, "search", "limite atteinte", "--kind", "comment")
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	repositories := jq(t, []byte(out), `[.rows[].repository] | unique`)
+	if !reflect.DeepEqual(repositories, []any{ghKey, localKey}) {
+		t.Errorf("search found %v:\n%s", repositories, out)
+	}
+	if fresh := jq(t, []byte(out), `.freshness | keys`); !reflect.DeepEqual(fresh, []any{ghKey, localKey}) {
+		t.Errorf("freshness %v", fresh)
+	}
+
+	out, _, err = runMiroir(t, outside, "sql", "select count(*) as n from issues")
+	if err != nil {
+		t.Fatalf("sql: %v", err)
+	}
+	// 4 issues and 2 PRs of acme/atelier, 3 Tickets and 1 change of local/P2.
+	if rows := jq(t, []byte(out), `.rows`); !reflect.DeepEqual(rows, []any{map[string]any{"n": 10.0}}) {
+		t.Errorf("sql rows %v:\n%s", rows, out)
+	}
+	if _, _, err := runMiroir(t, outside, "sql", "delete from issues"); exitCode(err) != 1 {
+		t.Errorf("sql delete: exit %d", exitCode(err))
+	}
+	out, _, _ = runMiroir(t, outside, "sql", "select count(*) as n from issues")
+	if !strings.Contains(out, `"n":10`) {
+		t.Errorf("the copy changed: %s", out)
+	}
+}
+
+func readFiles(t *testing.T, paths ...string) map[string][]byte {
+	t.Helper()
+	out := map[string][]byte{}
+	for _, p := range paths {
+		data, err := os.ReadFile(p)
+		if err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+		out[p] = data
+	}
+	return out
+}
+
+func TestMiroirRebuildRefillsALocalProjetAndLeavesLocalDBUnchanged(t *testing.T) {
+	f := newMiroirFixture(t)
+	dir := f.sessionDir(t)
+	db := filepath.Join(f.home, "local.db")
+	before := readFiles(t, db, db+"-wal")
+
+	out, _, err := runMiroir(t, dir, "rebuild")
+	if err != nil || out != "Miroir reconstruit : remplissage en cours\n" {
+		t.Fatalf("rebuild: %v, %q", err, out)
+	}
+	out, stderr, err := runMiroir(t, dir, "issue", "list", "--json", "number", "--jq", "[.[].number]")
+	if err != nil || out != "[14,13,12]\n" {
+		t.Errorf("issue list after rebuild: %v, %q, stderr %q", err, out, stderr)
+	}
+	if after := readFiles(t, db, db+"-wal"); !reflect.DeepEqual(before, after) {
+		t.Error("local.db changed")
+	}
+}
+
+func TestStatusShowsTheMiroirInEachState(t *testing.T) {
+	f := newMiroirFixture(t)
+	m := &machine{
+		service: func() (service.Config, error) { return service.Config{OS: "linux", WSL: true, Home: t.TempDir()}, nil },
+		engines: func(context.Context) []contracts.EngineCapabilities { return nil },
+	}
+	for _, c := range []struct {
+		keys map[string]mirror.KeyState
+		line string
+	}{
+		{map[string]mirror.KeyState{ghKey: {State: mirror.FreshnessLive, SyncedAt: at(time.Minute)}, localKey: {State: mirror.FreshnessLive, SyncedAt: at(time.Minute)}}, "Miroir : à jour"},
+		{map[string]mirror.KeyState{ghKey: {State: mirror.FreshnessFilling}, localKey: {State: mirror.FreshnessLive, SyncedAt: at(time.Minute)}}, "Miroir : en remplissage"},
+		{map[string]mirror.KeyState{ghKey: {State: mirror.FreshnessLate, SyncedAt: at(3*time.Hour + time.Minute)}, localKey: {State: mirror.FreshnessLive, SyncedAt: at(time.Minute)}}, "Miroir : en retard depuis 3 h"},
+	} {
+		f.states(t, c.keys)
+		var out bytes.Buffer
+		root := newRoot(m)
+		root.SetOut(&out)
+		root.SetErr(&out)
+		root.SetArgs([]string{"status"})
+		if err := root.Execute(); err != nil {
+			t.Fatalf("status: %v\n%s", err, out.String())
+		}
+		if !strings.Contains(out.String(), c.line+"\n") {
+			t.Errorf("status lacks %q:\n%s", c.line, out.String())
+		}
+	}
+}
+
+func TestMiroirStatusAndSyncWithARunner(t *testing.T) {
+	f := newMiroirFixture(t)
+	outside := t.TempDir()
+
+	out, _, err := runMiroir(t, outside, "status", "--json")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	keys := jq(t, []byte(out), `[.keys[] | {repository, state, issues, pulls}]`)
+	want := []any{
+		map[string]any{"repository": ghKey, "state": "late", "issues": 4.0, "pulls": 2.0},
+		map[string]any{"repository": localKey, "state": "live", "issues": 3.0, "pulls": 1.0},
+	}
+	if !reflect.DeepEqual(keys, want) {
+		t.Errorf("status keys %v", keys)
+	}
+	if runner := jq(t, []byte(out), `.socket.runner`); runner != true {
+		t.Errorf("socket %v", runner)
+	}
+
+	out, _, err = runMiroir(t, outside, "sync", "--repo", ghKey)
+	if err != nil || out != "Miroir synchronisé : Atelier\n" {
+		t.Errorf("sync --repo: %v, %q", err, out)
+	}
+	out, _, err = runMiroir(t, outside, "sync")
+	if err != nil || out != "Miroir synchronisé : Atelier\nMiroir synchronisé : Carnet\n" {
+		t.Errorf("sync: %v, %q", err, out)
+	}
+	if n := f.fake.Count("MirrorIssues"); n == 0 {
+		t.Error("sync did not walk GitHub")
 	}
 }

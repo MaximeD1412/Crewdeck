@@ -100,50 +100,47 @@ func (r *Runner) attempt(message contracts.RunnerCommandRun, l *live) (contracts
 		return contracts.RunnerCommandVerdictReasonSpawnFailed, nil
 	}
 	r.send(message.RunId, "started", protocol.NewCommandStarted(message.RunId))
-	exited := make(chan struct{})
-	go func() {
-		_ = cmd.Wait()
-		close(exited)
-	}()
+	proc := lead(cmd)
 
 	if command.HealthURL != "" {
 		var (
 			reason   contracts.RunnerCommandVerdictReason
 			exitCode *int
 		)
-		reason, exitCode, kept = r.awaitHealth(message, l, cmd, exited, out, place, command.HealthURL)
+		reason, exitCode, kept = r.awaitHealth(message, l, proc, out, place, command.HealthURL)
 		return reason, exitCode
 	}
 
 	reason := contracts.RunnerCommandVerdictReasonExited
 	select {
-	case <-exited:
+	case <-proc.left:
 	case <-r.cfg.After(Timeout):
 		reason = contracts.RunnerCommandVerdictReasonTimeout
 	case <-l.ctx.Done():
 		reason = contracts.RunnerCommandVerdictReasonStopped
 	}
 	if reason != contracts.RunnerCommandVerdictReasonExited {
-		r.kill(cmd, exited)
+		r.kill(proc)
 		out.flush()
 		return reason, nil
 	}
+	proc.reap()
 	out.flush()
-	return reason, exitCodeOf(cmd)
+	return reason, proc.code
 }
 
 // kill sends the run's group SIGTERM, then SIGKILL after KillGrace, and
-// waits for its process to be reaped.
-func (r *Runner) kill(cmd *exec.Cmd, exited <-chan struct{}) {
-	group := -cmd.Process.Pid
-	_ = syscall.Kill(group, syscall.SIGTERM)
+// reaps its process once it exited: its group signalled while its pid is
+// still its own.
+func (r *Runner) kill(proc *leader) {
+	_ = proc.signal(syscall.SIGTERM)
 	select {
-	case <-exited:
+	case <-proc.left:
 	case <-r.cfg.After(KillGrace):
 	}
 	// What ignored the SIGTERM, the shell or a child it left.
-	_ = syscall.Kill(group, syscall.SIGKILL)
-	<-exited
+	_ = proc.signal(syscall.SIGKILL)
+	proc.reap()
 }
 
 // exitCodeOf is the exit code of the run's process once it exited by

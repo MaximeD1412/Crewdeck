@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -20,9 +21,11 @@ import (
 // never taken for it (its start time as the OS reports it). A service is
 // stopped (SIGTERM to its group, SIGKILL after KillGrace) before its
 // Commande runs again, and by `crewdeck-runner uninstall`; one that exits by
-// itself loses its file when the Runner notices: its own Wait while the
-// Runner lives (what it left in its group stopped with it), else the next
-// run or the next start.
+// itself loses its file when the Runner notices: at its exit while the
+// Runner lives, once what it left in its group is stopped (its process
+// reaped only then, so that its group's id is never another's; a group that
+// cannot be stopped keeps the service, and fails its Commande's next run),
+// else the next run or the next start.
 //
 //	services/<projectId>/<commandId>.pid  { pid, pgid, startedAt, runId } (folder 700, file 600)
 //	services/<projectId>/<commandId>.log  the service's output after its verdict (mode 600, replaced at each start)
@@ -170,19 +173,44 @@ func writeAtOnce(path string, data []byte) error {
 	return os.Rename(tmp.Name(), path)
 }
 
-// tracked is a service this Runner started: done once it ended and its
-// place was released.
-type tracked struct {
-	runID string
-	done  chan struct{}
+// service is a service this Runner started.
+type service struct {
+	runID   string
+	proc    *leader
+	after   func(time.Duration) <-chan time.Time
+	release func() // its output closed, its place released, its file removed
+
+	mu    sync.Mutex // one stop at a time
+	ended chan struct{}
 }
 
-func (r *Runner) track(key serviceKey, runID string) chan struct{} {
-	done := make(chan struct{})
+// stop ends the service: its group stopped (SIGTERM, SIGKILL after
+// KillGrace), its process reaped, its place released and its file removed.
+// When its group outlives the stop (a signal refused, a process that
+// survives its SIGKILL), nothing else is done and stop fails: the service
+// stays tracked, its place held, its file kept, and its process unreaped,
+// so that its group's id stays its own for the next stop.
+func (s *service) stop() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	select {
+	case <-s.ended:
+		return nil
+	default:
+	}
+	if err := s.proc.stopGroup(s.after); err != nil {
+		return err
+	}
+	s.proc.reap()
+	s.release()
+	close(s.ended)
+	return nil
+}
+
+func (r *Runner) track(key serviceKey, s *service) {
 	r.svcMu.Lock()
-	r.services[key] = &tracked{runID: runID, done: done}
+	r.services[key] = s
 	r.svcMu.Unlock()
-	return done
 }
 
 // untrack forgets the service of the run runID once it ended, and its pid
@@ -190,7 +218,7 @@ func (r *Runner) track(key serviceKey, runID string) chan struct{} {
 func (r *Runner) untrack(key serviceKey, runID string) {
 	r.svcMu.Lock()
 	defer r.svcMu.Unlock()
-	if t := r.services[key]; t != nil && t.runID == runID {
+	if s := r.services[key]; s != nil && s.runID == runID {
 		delete(r.services, key)
 	}
 	path := key.pidPath(r.cfg.Home)
@@ -199,9 +227,16 @@ func (r *Runner) untrack(key serviceKey, runID string) {
 	}
 }
 
-// stopService stops the Commande's service before it runs again, and
-// removes its file; a file whose process is gone is only removed.
+// stopService stops the Commande's service before it runs again: the one
+// this Runner started, or the one its pid file names; a file whose process
+// is gone is only removed. An error leaves the service as it was.
 func (r *Runner) stopService(key serviceKey) error {
+	r.svcMu.Lock()
+	s := r.services[key]
+	r.svcMu.Unlock()
+	if s != nil {
+		return s.stop()
+	}
 	path := key.pidPath(r.cfg.Home)
 	rec, err := readRecord(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -211,12 +246,6 @@ func (r *Runner) stopService(key serviceKey) error {
 		if err := stopGroup(rec.Pgid, r.cfg.After); err != nil {
 			return err
 		}
-	}
-	r.svcMu.Lock()
-	t := r.services[key]
-	r.svcMu.Unlock()
-	if t != nil && t.runID == rec.RunID {
-		<-t.done // its place released, its output closed
 	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -274,10 +303,10 @@ func cmpErr(first, err error) error {
 	return err
 }
 
-// stopGroup sends the group SIGTERM, then SIGKILL after KillGrace, and
-// waits for it to be gone.
+// stopGroup sends the group of a service of an earlier Runner SIGTERM,
+// then SIGKILL after KillGrace, and waits for it to be gone.
 func stopGroup(pgid int, after func(time.Duration) <-chan time.Time) error {
-	if err := syscall.Kill(-pgid, syscall.SIGTERM); err != nil {
+	if err := sendSignal(-pgid, syscall.SIGTERM); err != nil {
 		if errors.Is(err, syscall.ESRCH) {
 			return nil
 		}
@@ -286,7 +315,7 @@ func stopGroup(pgid int, after func(time.Duration) <-chan time.Time) error {
 	if gone(pgid, after(KillGrace)) {
 		return nil
 	}
-	if err := syscall.Kill(-pgid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+	if err := sendSignal(-pgid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
 		return err
 	}
 	if gone(pgid, time.After(killWait)) {

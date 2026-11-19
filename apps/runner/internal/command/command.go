@@ -95,7 +95,7 @@ type Runner struct {
 
 	// svcMu guards the services this Runner started, and their pid files.
 	svcMu    sync.Mutex
-	services map[serviceKey]*tracked
+	services map[serviceKey]*service
 }
 
 // live is a run under way.
@@ -137,7 +137,7 @@ func New(cfg Config) (*Runner, error) {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	r := &Runner{cfg: cfg, ctx: ctx, cancel: cancel, busy: map[string]bool{}, runs: map[string]*live{}, services: map[serviceKey]*tracked{}}
+	r := &Runner{cfg: cfg, ctx: ctx, cancel: cancel, busy: map[string]bool{}, runs: map[string]*live{}, services: map[serviceKey]*service{}}
 	r.pruneServices()
 	r.Sweep()
 	r.wg.Add(1)

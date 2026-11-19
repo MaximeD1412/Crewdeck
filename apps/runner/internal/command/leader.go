@@ -1,0 +1,133 @@
+package command
+
+import (
+	"errors"
+	"os/exec"
+	"sync"
+	"syscall"
+	"time"
+)
+
+// leader is a run's process, the leader of its own group. Its exit is
+// noticed without reaping it: while its zombie stands, the OS gives its pid
+// to no other process, so its group's id is still its group's, and a signal
+// to it reaches only what the run left there. It is reaped once nothing will
+// be signalled any more.
+type leader struct {
+	cmd  *exec.Cmd
+	pid  int
+	left chan struct{} // it exited, its zombie unreaped
+	code *int          // its exit code, nil when a signal ended it; set before left closes
+
+	mu     sync.Mutex
+	reaped bool
+}
+
+// lead watches cmd's process, started.
+func lead(cmd *exec.Cmd) *leader {
+	l := &leader{cmd: cmd, pid: cmd.Process.Pid, left: make(chan struct{})}
+	go func() {
+		code, held := awaitExit(l.pid)
+		if !held {
+			// The OS could not tell without reaping it: no signal to its
+			// group from now on.
+			l.mu.Lock()
+			l.reaped = true
+			l.mu.Unlock()
+			_ = cmd.Wait()
+			code = exitCodeOf(cmd)
+		}
+		l.code = code
+		close(l.left)
+	}()
+	return l
+}
+
+// hasLeft says whether it exited.
+func (l *leader) hasLeft() bool {
+	select {
+	case <-l.left:
+		return true
+	default:
+		return false
+	}
+}
+
+// reap waits for it to exit, then reaps it and waits for its output to be
+// copied.
+func (l *leader) reap() {
+	<-l.left
+	l.mu.Lock()
+	reaped := l.reaped
+	l.reaped = true
+	l.mu.Unlock()
+	if !reaped {
+		_ = l.cmd.Wait()
+	}
+}
+
+// signal sends sig to its group; once it is reaped, nothing: its group's id
+// may then be another's.
+func (l *leader) signal(sig syscall.Signal) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.reaped {
+		return nil
+	}
+	if err := sendSignal(-l.pid, sig); err != nil && !errors.Is(err, syscall.ESRCH) {
+		return err
+	}
+	return nil
+}
+
+// stopGroup stops what lives in its group, itself included: SIGTERM, SIGKILL
+// after KillGrace, and its group then holds no process but a zombie. Its
+// zombie is not reaped.
+func (l *leader) stopGroup(after func(time.Duration) <-chan time.Time) error {
+	if !groupLives(l.pid) {
+		return nil
+	}
+	if err := l.signal(syscall.SIGTERM); err != nil {
+		return err
+	}
+	if l.emptied(after(KillGrace)) {
+		return nil
+	}
+	if err := l.signal(syscall.SIGKILL); err != nil {
+		return err
+	}
+	if l.emptied(time.After(killWait)) {
+		return nil
+	}
+	return errNotStopped
+}
+
+// emptied waits until its group holds no live process, or until; it says
+// which.
+func (l *leader) emptied(until <-chan time.Time) bool {
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if !groupLives(l.pid) {
+			return true
+		}
+		select {
+		case <-until:
+			return !groupLives(l.pid)
+		case <-ticker.C:
+		}
+	}
+}
+
+// signals is kill(2), a test's to replace.
+var signals = struct {
+	sync.Mutex
+	kill func(pid int, sig syscall.Signal) error
+}{kill: syscall.Kill}
+
+func sendSignal(pid int, sig syscall.Signal) error {
+	signals.Lock()
+	kill := signals.kill
+	signals.Unlock()
+	return kill(pid, sig)
+}

@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"strconv"
 	"time"
 
@@ -87,35 +86,35 @@ func answers(ctx context.Context, url string) bool {
 // awaitHealth judges a started run by its health address. kept says the
 // process became a service: its place and its output are then the
 // service's, released when it ends.
-func (r *Runner) awaitHealth(message contracts.RunnerCommandRun, l *live, cmd *exec.Cmd, exited <-chan struct{}, out *output, place *session.Place, url string) (reason contracts.RunnerCommandVerdictReason, exitCode *int, kept bool) {
+func (r *Runner) awaitHealth(message contracts.RunnerCommandRun, l *live, proc *leader, out *output, place *session.Place, url string) (reason contracts.RunnerCommandVerdictReason, exitCode *int, kept bool) {
 	ctx, cancel := context.WithCancel(l.ctx)
 	defer cancel()
 	ok := healthy(ctx, url)
 	window := r.cfg.After(HealthWindow)
-	waiting := exited
+	waiting := proc.left
 	for {
 		select {
 		case <-ok:
-			select {
-			case <-exited:
-				return r.exitedHealthy(cmd, out)
-			default:
+			if proc.hasLeft() {
+				return r.exitedHealthy(proc, out)
 			}
-			reason, kept := r.keep(message, cmd, exited, out, place)
+			reason, kept := r.keep(message, proc, out, place)
 			return reason, nil, kept
 		case <-waiting:
-			// Exited 0: its address may answer still (it daemonized).
+			// Exited 0: its address may answer still (it daemonized). Not
+			// reaped: what it left in its group is still to be killed.
 			waiting = nil
-			if code := exitCodeOf(cmd); code == nil || *code != 0 {
+			if code := proc.code; code == nil || *code != 0 {
+				proc.reap()
 				out.flush()
 				return contracts.RunnerCommandVerdictReasonExited, code, false
 			}
 		case <-window:
-			r.kill(cmd, exited)
+			r.kill(proc)
 			out.flush()
 			return contracts.RunnerCommandVerdictReasonHealthTimeout, nil, false
 		case <-l.ctx.Done():
-			r.kill(cmd, exited)
+			r.kill(proc)
 			out.flush()
 			return contracts.RunnerCommandVerdictReasonStopped, nil, false
 		}
@@ -124,9 +123,10 @@ func (r *Runner) awaitHealth(message contracts.RunnerCommandRun, l *live, cmd *e
 
 // exitedHealthy is the verdict of an address that answered once its
 // process had exited: healthy when it exited 0, no service kept.
-func (r *Runner) exitedHealthy(cmd *exec.Cmd, out *output) (contracts.RunnerCommandVerdictReason, *int, bool) {
+func (r *Runner) exitedHealthy(proc *leader, out *output) (contracts.RunnerCommandVerdictReason, *int, bool) {
+	proc.reap()
 	out.flush()
-	code := exitCodeOf(cmd)
+	code := proc.code
 	if code == nil || *code != 0 {
 		return contracts.RunnerCommandVerdictReasonExited, code, false
 	}
@@ -136,33 +136,41 @@ func (r *Runner) exitedHealthy(cmd *exec.Cmd, out *output) (contracts.RunnerComm
 // keep makes the run's live process a service: its pid file written, its
 // output going on to its own log, its place held until it ends. A service
 // that cannot be recorded is not kept: its group is killed.
-func (r *Runner) keep(message contracts.RunnerCommandRun, cmd *exec.Cmd, exited <-chan struct{}, out *output, place *session.Place) (contracts.RunnerCommandVerdictReason, bool) {
+func (r *Runner) keep(message contracts.RunnerCommandRun, proc *leader, out *output, place *session.Place) (contracts.RunnerCommandVerdictReason, bool) {
 	key := serviceKey{projectID: message.ProjectId, commandID: message.CommandId}
-	pid := cmd.Process.Pid
-	logFile, err := r.recordService(key, pid, message.RunId)
+	logFile, err := r.recordService(key, proc.pid, message.RunId)
 	if err != nil {
 		r.cfg.Logger.Warn("command.service", "runId", message.RunId, "error", "not recorded")
-		r.kill(cmd, exited)
+		r.kill(proc)
 		out.flush()
 		return contracts.RunnerCommandVerdictReasonSpawnFailed, false
 	}
 	out.flush()
-	out.handOver(logFile, "Service démarré (pid "+strconv.Itoa(pid)+").\n")
-	done := r.track(key, message.RunId)
+	out.handOver(logFile, "Service démarré (pid "+strconv.Itoa(proc.pid)+").\n")
+	svc := &service{
+		runID: message.RunId,
+		proc:  proc,
+		after: r.cfg.After,
+		ended: make(chan struct{}),
+		release: func() {
+			out.flush()
+			out.close()
+			place.Release()
+			r.untrack(key, message.RunId)
+		},
+	}
+	r.track(key, svc)
 	go func() {
-		<-exited
+		<-proc.left
 		// What its process left in its group goes with it: a child the
-		// Runner would track no more, holding its port.
-		if err := stopGroup(pid, r.cfg.After); err != nil {
+		// Runner would track no more, holding its port. Until it is gone,
+		// the service is not over: the next run of its Commande stops it
+		// first, or fails.
+		if err := svc.stop(); err != nil {
 			r.cfg.Logger.Warn("command.service", "runId", message.RunId, "error", "group not stopped")
 		}
-		out.flush()
-		out.close()
-		place.Release()
-		r.untrack(key, message.RunId)
-		close(done)
 	}()
-	r.cfg.Logger.Info("command.service", "runId", message.RunId, "pid", pid)
+	r.cfg.Logger.Info("command.service", "runId", message.RunId, "pid", proc.pid)
 	return contracts.RunnerCommandVerdictReasonHealthy, true
 }
 

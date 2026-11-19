@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -431,5 +432,116 @@ func TestHealthAServiceWhoseShellExitsHasTheChildItLeftStopped(t *testing.T) {
 	}
 	if exists(h.pidFile()) {
 		t.Fatal("the pid file of a service gone is still there")
+	}
+}
+
+// zombie says whether pid exited and is not reaped yet.
+func zombie(pid int) bool {
+	stat, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return false
+	}
+	fields := strings.Fields(string(stat[strings.LastIndexByte(string(stat), ')')+1:]))
+	return len(fields) > 0 && fields[0] == "Z"
+}
+
+// becomesZombie waits for pid to exit, unreaped.
+func becomesZombie(t *testing.T, pid int) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for !zombie(pid) && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !zombie(pid) {
+		t.Fatalf("pid %d is not an unreaped zombie (alive %v)", pid, alive(pid))
+	}
+}
+
+func TestHealthAServiceWhoseGroupCannotBeStoppedKeepsItsCommandeFromRunningUntilItIs(t *testing.T) {
+	h := newHarness(t)
+	sha := h.remote.ticket(t)
+	h.start(t)
+	var refuse atomic.Bool
+	t.Cleanup(command.SetKill(func(pid int, sig syscall.Signal) error {
+		if refuse.Load() && pid < 0 {
+			return syscall.EPERM
+		}
+		return syscall.Kill(pid, sig)
+	}))
+	port := freePort(t)
+	text := strings.TrimPrefix(server(t, port, 0), "exec ") + " > /dev/null 2>&1 & echo $! > " + h.mark("child") + "; sleep 2"
+	h.commands.Run(h.healthRun(t, runID, text, address(port), sha))
+	if v := h.sent.verdict(t, runID); v.Reason != contracts.RunnerCommandVerdictReasonHealthy {
+		t.Fatalf("verdict %+v, want healthy", v)
+	}
+	child := pidIn(t, h.mark("child"))
+	t.Cleanup(func() { _ = syscall.Kill(child, syscall.SIGKILL) })
+	shell := h.service(t).Pid
+	refuse.Store(true)
+
+	// Its shell exits, the server it left cannot be stopped: the service is not over.
+	becomesZombie(t, shell)
+	time.Sleep(200 * time.Millisecond)
+	if !alive(child) || !exists(h.pidFile()) {
+		t.Fatalf("child alive %v, pid file %v: want both", alive(child), exists(h.pidFile()))
+	}
+	h.commands.Run(h.healthRun(t, secondRun, "touch "+h.mark("second"), address(port), sha))
+	if v := h.sent.verdict(t, secondRun); v.Reason != contracts.RunnerCommandVerdictReasonSpawnFailed {
+		t.Fatalf("verdict %+v, want spawn-failed while the service's group lives", v)
+	}
+	if exists(h.mark("second")) || !alive(child) || !exists(h.pidFile()) {
+		t.Fatal("the Commande ran beside its service, or the service was dropped")
+	}
+
+	// Once it can be stopped, the next run stops it first, then runs.
+	refuse.Store(false)
+	const thirdRun = "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6c03"
+	h.commands.Run(h.run(t, thirdRun, "touch "+h.mark("third"), "project", sha))
+	if v := h.sent.verdict(t, thirdRun); !v.Passed {
+		t.Fatalf("verdict %+v, want passed", v)
+	}
+	if !dies(child) || !exists(h.mark("third")) || exists(h.pidFile()) {
+		t.Fatal("the service was not stopped before its Commande ran again")
+	}
+	if zombie(shell) {
+		t.Fatal("the service's shell was never reaped")
+	}
+}
+
+func TestHealthAServicesGroupIsSignalledOnlyWhileItsProcessIsUnreaped(t *testing.T) {
+	h := newHarness(t)
+	sha := h.remote.ticket(t)
+	h.start(t)
+	var shell atomic.Int64
+	reused := make(chan int, 10)
+	t.Cleanup(command.SetKill(func(pid int, sig syscall.Signal) error {
+		// Its pid gone, a group of that id could be another's: none signalled then.
+		if leader := int(shell.Load()); pid == -leader && sig != 0 {
+			if _, err := os.Stat("/proc/" + strconv.Itoa(leader)); err != nil {
+				reused <- leader
+			}
+		}
+		return syscall.Kill(pid, sig)
+	}))
+	port := freePort(t)
+	text := strings.TrimPrefix(server(t, port, 0), "exec ") + " > /dev/null 2>&1 & echo $! > " + h.mark("child") + "; sleep 2"
+	h.commands.Run(h.healthRun(t, runID, text, address(port), sha))
+	if v := h.sent.verdict(t, runID); v.Reason != contracts.RunnerCommandVerdictReasonHealthy {
+		t.Fatalf("verdict %+v, want healthy", v)
+	}
+	child := pidIn(t, h.mark("child"))
+	t.Cleanup(func() { _ = syscall.Kill(child, syscall.SIGKILL) })
+	shell.Store(int64(h.service(t).Pid))
+	if !dies(child) {
+		t.Fatal("the server its shell left still runs")
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for exists(h.pidFile()) && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	select {
+	case pid := <-reused:
+		t.Fatalf("the group %d was signalled once its process was reaped", pid)
+	default:
 	}
 }

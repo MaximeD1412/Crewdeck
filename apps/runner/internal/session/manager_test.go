@@ -85,16 +85,24 @@ type reports struct {
 	all    []contracts.RunnerSessionState
 	next   chan contracts.RunnerSessionState
 	frames chan any
+	// requests are the session.waiting and session.answered (answer_test.go).
+	requests chan any
 }
 
 func newReports() *reports {
-	return &reports{next: make(chan contracts.RunnerSessionState, 100), frames: make(chan any, 1000)}
+	return &reports{next: make(chan contracts.RunnerSessionState, 100), frames: make(chan any, 1000), requests: make(chan any, 100)}
 }
 
 func (r *reports) send(_ context.Context, message any) error {
 	switch message.(type) {
 	case contracts.RunnerSessionKeys, contracts.RunnerRelay:
 		r.frames <- message
+		return nil
+	case contracts.RunnerSessionWaiting, contracts.RunnerSessionAnswered:
+		select {
+		case r.requests <- message: // read by answer_test.go only
+		default:
+		}
 		return nil
 	}
 	state, ok := message.(contracts.RunnerSessionState)
@@ -733,6 +741,9 @@ func TestAResumeAfterARunnerKilledMidMessageEndsItsTurnInterruptedFirst(t *testi
 	for name, tail := range map[string]string{
 		"its last event a delta":              "",
 		"a usage report after its last delta": `{"kind":"usage","seq":5,"at":"2026-11-17T14:02:01Z","outputTokens":12}` + "\n",
+		// SESSION-3: a request no answer reached, withdrawn, the resumed run never taking it.
+		"a request still waiting at its end": `{"kind":"message","seq":5,"at":"2026-11-17T14:02:01Z","from":"agent","text":"Les nuages.","final":true}` + "\n" +
+			`{"kind":"permission-request","seq":6,"at":"2026-11-17T14:02:02Z","requestId":"toolu_left","tool":"Bash","command":"ls"}` + "\n",
 	} {
 		t.Run(name, func(t *testing.T) { resumeAfterACutMessage(t, tail) })
 	}
@@ -906,7 +917,7 @@ func TestAStopAsARunGivesItsWorktreeBackCancelsTheResumeThatWaitedForIt(t *testi
 
 	// A Commande's run holds the stopped Session's worktree, as it is.
 	dir := s.worktree("feat/12-panier")
-	place, err := m.TicketWorktree(context.Background(), projectID, "acme", "shop", "feat/12-panier", git(t, dir, "rev-parse", "HEAD"))
+	place, err := m.TicketWorktree(context.Background(), projectID, "acme", "shop", "feat/12-panier", git(t, dir, "rev-parse", "HEAD"), session.Preparation{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -100,7 +100,7 @@ describe('the usage of the Comptes IA against PostgreSQL', () => {
 
   const pilot = async (login = 'octocat', timeZone = 'Europe/Paris'): Promise<Tab> => {
     const id = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, getting_started_step) VALUES ($1, $2, $3, $4, 'done')`, [
+    await sql(`WITH p AS (INSERT INTO pilots (id, display_name, time_zone, getting_started_step) VALUES ($1, $3, $4, 'done') RETURNING id) INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) SELECT gen_random_uuid(), id, 'github', $2::text, $3 FROM p`, [
       id,
       Math.floor(Math.random() * 1e9),
       login,

@@ -1,8 +1,9 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 
-/** What a sign-in carries from `start` to the callback, in the `crewdeck_oauth` cookie. */
-export interface OauthState {
+/** What a sign-in with GitHub carries from `start` to the callback. */
+export interface SignInState {
+  readonly intent: 'sign-in';
   /** The `state` GitHub sends back: the callback refuses any other. */
   readonly state: string;
   /** The browser's IANA time zone, the new Pilot's. */
@@ -15,17 +16,33 @@ export interface OauthState {
   readonly nonce?: string;
 }
 
+/** What « Relier GitHub » carries from `link` to the callback: the session's Pilote, whom the callback's session must be. */
+export interface LinkState {
+  readonly intent: 'link';
+  readonly state: string;
+  readonly pilotId: string;
+  /** The page to come back to, linked or not (`?erreur=`). */
+  readonly next: string;
+}
+
+/** What the `crewdeck_oauth` cookie carries from `start` or `link` to the shared callback (one callback URL for the App). */
+export type OauthState = SignInState | LinkState;
+
 /** A sign-in has 10 minutes to come back. */
 export const OAUTH_TTL_SECONDS = 600;
 
-const zSigned = z.object({
-  state: z.string().min(1),
-  timeZone: z.string(),
-  next: z.string(),
-  codeVerifier: z.string().min(1).optional(),
-  nonce: z.string().min(1).optional(),
-  exp: z.number(),
-});
+const zState = z.discriminatedUnion('intent', [
+  z.object({
+    intent: z.literal('sign-in'),
+    state: z.string().min(1),
+    timeZone: z.string(),
+    next: z.string(),
+    codeVerifier: z.string().min(1).optional(),
+    nonce: z.string().min(1).optional(),
+  }),
+  z.object({ intent: z.literal('link'), state: z.string().min(1), pilotId: z.string().min(1), next: z.string() }),
+]);
+const zExpiry = z.object({ exp: z.number() });
 
 const sign = (secret: Buffer, body: string): Buffer => createHmac('sha256', secret).update(body).digest();
 
@@ -56,10 +73,14 @@ export const openOauthState = (secret: Buffer, cookie: string | undefined, now =
   } catch {
     return undefined;
   }
-  const parsed = zSigned.safeParse(json);
-  if (!parsed.success || parsed.data.exp <= now) return undefined;
+  // A cookie sealed before the intents existed is a sign-in's.
+  const parsed = zState.safeParse(json !== null && typeof json === 'object' && !('intent' in json) ? { ...json, intent: 'sign-in' } : json);
+  const expiry = zExpiry.safeParse(json);
+  // zod drops `exp` from the state, as any key it does not declare.
+  if (!parsed.success || !expiry.success || expiry.data.exp <= now) return undefined;
+  if (parsed.data.intent === 'link') return parsed.data;
   const { state, timeZone, next, codeVerifier, nonce } = parsed.data;
-  return { state, timeZone, next, ...(codeVerifier === undefined ? {} : { codeVerifier }), ...(nonce === undefined ? {} : { nonce }) };
+  return { intent: 'sign-in', state, timeZone, next, ...(codeVerifier === undefined ? {} : { codeVerifier }), ...(nonce === undefined ? {} : { nonce }) };
 };
 
 /** Two states, compared in constant time. */
@@ -71,8 +92,15 @@ export const sameState = (a: string, b: string): boolean => {
 
 export const DEFAULT_NEXT = '/a-toi';
 
-/** A path of this site (`/…`, not `//host` nor `/\host`, which browsers read as another site), else `/a-toi`. */
-export const safeNext = (next: unknown): string => (typeof next === 'string' && /^\/(?![/\\])/.test(next) ? next : DEFAULT_NEXT);
+/** A path of this site (`/…`, not `//host` nor `/\host`, which browsers read as another site), else `fallback`, `/a-toi`. */
+export const safeNext = (next: unknown, fallback = DEFAULT_NEXT): string => (typeof next === 'string' && /^\/(?![/\\])/.test(next) ? next : fallback);
+
+/** `next` with `?erreur=<error>`, which the page it names shows (a failed « Relier GitHub »). */
+export const withError = (next: string, error: string): string => {
+  const url = new URL(next, 'http://crewdeck.invalid');
+  url.searchParams.set('erreur', error);
+  return `${url.pathname}${url.search}${url.hash}`;
+};
 
 const TIME_ZONES = new Set(Intl.supportedValuesOf('timeZone'));
 

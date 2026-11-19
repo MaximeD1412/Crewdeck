@@ -1,8 +1,11 @@
 import type { Decision, WaitingProject } from '@crewdeck/contracts';
 import { COMPOSANTS, formatHour } from '@crewdeck/sdk';
 import { aToiView } from '../a-toi.js';
-import { decisionViews } from './registry.js';
+import { decisionViews, type DecisionReads } from './registry.js';
 import { runnerOfflineView, waitingItemText } from './runner-offline.js';
+
+/** What the row reads beyond its Décision: nothing this kind needs. */
+const READS: DecisionReads = { runnerOnline: true, sessionEvent: () => ({ state: 'reading' }), roleName: (role) => role };
 
 const NOW = new Date('2026-11-11T13:30:00.000Z');
 const SINCE = '2026-11-11T13:02:00.000Z';
@@ -68,7 +71,7 @@ describe('the « Runner hors ligne » Décision in « À toi »', () => {
   it('says « 1 Projet », and no context for malformed Projets, the time of its creation without `since`', () => {
     expect(runnerOfflineView.meta?.(offline(PROJECTS.slice(0, 1)), NOW)).toBe(`1 Projet · depuis ${formatHour(SINCE)}`);
     const broken = offline(PROJECTS, { projects: '{nope', since: 'hier' });
-    expect(runnerOfflineView.context?.(broken)).toBeNull();
+    expect(runnerOfflineView.context?.(broken, READS)).toBeNull();
     expect(runnerOfflineView.meta?.(broken, NOW)).toBe(`0 Projets · depuis ${formatHour('2026-11-11T13:02:45.000Z')}`);
   });
 

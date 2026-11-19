@@ -9,7 +9,7 @@ import type { VaultState } from './keys/vault.js';
 import { createStore } from './store/store.js';
 import { ADD_DEVICE_ID } from './views/devices.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [], githubLinked: false };
 const TRUSTED: Device = {
   id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a74',
   name: 'Firefox sur Linux',
@@ -54,7 +54,7 @@ const started = async (vault: VaultState) => {
       forgetDevice: async () => undefined,
     },
   });
-  store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [TRUSTED], vault: { version: 1, rotationPending: false }, settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], usage: [] });
+  store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [TRUSTED], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], usage: [] });
   await vi.waitFor(() => expect(store.getState().vaultState).toBe(vault));
   return { root, app, approval, store };
 };

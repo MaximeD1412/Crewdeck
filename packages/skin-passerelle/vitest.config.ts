@@ -6,6 +6,7 @@ import { defineConfig } from 'vitest/config';
 const BROWSER_SPECS = [
   'src/composants.spec.ts',
   'src/cadre.spec.ts',
+  'src/account-identities.spec.ts',
   'src/*-row.spec.ts',
   'src/capture.spec.ts',
   'src/process-track.spec.ts',
@@ -27,6 +28,7 @@ const BROWSER_SPECS = [
   'src/page-projets.spec.ts',
   'src/repository-picker.spec.ts',
   'src/role-settings.spec.ts',
+  'src/push-settings.spec.ts',
   'src/page-runner.spec.ts',
   'src/page-parametres.spec.ts',
   'src/page-parametres-projet.spec.ts',

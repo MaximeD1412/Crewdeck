@@ -35,6 +35,10 @@ const (
 	TypeSessionStop   = "session.stop"
 	TypeSessionResume = "session.resume"
 	TypeSessionState  = "session.state"
+	// The requests of a Session (SESSION-3): one waits for the Pilote, then it
+	// was answered.
+	TypeSessionWaiting  = "session.waiting"
+	TypeSessionAnswered = "session.answered"
 	// The relay of a Session (SESSION-1): the server asks a replay and hands
 	// the Pilote's input, the Runner sends the Session's key and its events,
 	// all sealed for the Appareils.
@@ -165,6 +169,19 @@ func NewSessionState(sessionID string, state contracts.RunnerSessionStateState, 
 		message.EngineSessionId = &engineSessionID
 	}
 	return message
+}
+
+// NewSessionWaiting says a request of the Session waits for the Pilote: its
+// id, its kind and the seq of its event in the Session's log, never its text.
+func NewSessionWaiting(sessionID, requestID string, kind contracts.RunnerSessionWaitingKind, seq int) contracts.RunnerSessionWaiting {
+	at := now()
+	return contracts.RunnerSessionWaiting{Type: TypeSessionWaiting, Id: newID(at), At: at, SessionId: sessionID, RequestId: requestID, Kind: kind, Seq: seq}
+}
+
+// NewSessionAnswered says the request was answered, from whatever tab.
+func NewSessionAnswered(sessionID, requestID string) contracts.RunnerSessionAnswered {
+	at := now()
+	return contracts.RunnerSessionAnswered{Type: TypeSessionAnswered, Id: newID(at), At: at, SessionId: sessionID, RequestId: requestID}
 }
 
 // NewSessionKeys sends the Session's key wrapped for each holder, to the tab

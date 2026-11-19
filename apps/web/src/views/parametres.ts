@@ -7,11 +7,26 @@ import {
   type AiAccount,
   type Device,
   type EngineId,
+  type Me,
   type Project,
+  type PushSubscription,
   type RoleChoice,
   type SettingsState,
 } from '@crewdeck/contracts';
-import { t, type Card, type ComposantData, type Icon, type ListRow, type RoleSettings, type Select, type SettingRow } from '@crewdeck/sdk';
+import {
+  formatDate,
+  t,
+  zLinkError,
+  type AccountIdentities,
+  type Card,
+  type ComposantData,
+  type Icon,
+  type ListRow,
+  type PushSettings,
+  type RoleSettings,
+  type Select,
+  type SettingRow,
+} from '@crewdeck/sdk';
 import type { PlacedNode } from '../placed.js';
 import { devicesCard } from './devices.js';
 
@@ -133,6 +148,45 @@ const roles = (settings: AccountSettings, accounts: readonly AiAccount[], local:
   return { tag: 'cd-role-settings', slot: 'roles', data };
 };
 
+/** The page's own state of « Notifications » (`push-settings.ts`): what this browser can do, its endpoint, its subscription on its way, why it failed. */
+export interface PushLocal {
+  /** Whether this browser can receive a push (`canPush`). */
+  readonly available: boolean;
+  /** The endpoint this browser receives on, `null` when it is not subscribed. */
+  readonly endpoint: string | null;
+  /** The account's push on its way (`PATCH /api/settings`), shown until the store has it; `null` otherwise. */
+  readonly pushing: boolean | null;
+  readonly busy: boolean;
+  readonly error: string | null;
+}
+
+export const NO_PUSH_LOCAL: PushLocal = { available: false, endpoint: null, pushing: null, busy: false, error: null };
+
+/** What « Notifications » reads beside the settings: the store's browsers, the page's own state. */
+export interface PushInput {
+  readonly subscriptions?: readonly PushSubscription[];
+  readonly local?: PushLocal;
+}
+
+/**
+ * « Notifications » (ATOI-4, US-18): the account's push, each browser that
+ * receives it in the order it was authorized, and whether this one does (its
+ * endpoint listed), may (« Activer sur cet appareil ») or cannot (the help
+ * of the home screen).
+ */
+const notifications = (settings: AccountSettings, { subscriptions = [], local = NO_PUSH_LOCAL }: PushInput): PlacedNode => {
+  const sorted = [...subscriptions].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const subscribed = local.endpoint !== null && sorted.some((subscription) => subscription.endpoint === local.endpoint);
+  const data: ComposantData<typeof PushSettings> = {
+    push: local.pushing ?? settings.notifications.push,
+    subscriptions: sorted.map(({ id, label, createdAt }) => ({ id, label, meta: t('settings.notifications.authorized', { date: formatDate(createdAt) }) })),
+    device: !local.available ? 'unavailable' : subscribed ? 'subscribed' : 'subscribe',
+    busy: local.busy,
+    error: local.error,
+  };
+  return { tag: 'cd-push-settings', slot: 'notifications', data };
+};
+
 /** What the Paramètres read beside the settings: the Comptes IA the Runner reports, the page's own state of the Rôles, the Projets. */
 export interface RolesInput {
   readonly accounts?: readonly AiAccount[];
@@ -140,26 +194,43 @@ export interface RolesInput {
   readonly projects?: readonly Project[];
 }
 
-/** What the Paramètres read beside the settings: « Rôles et modèles »'s, and the Appareils with this browser's own (E2E-3). */
-export interface ParametresInput extends RolesInput {
+/** What « Connexion » reads (CORE-11): the Pilote's Identités, and the URL's `?erreur=` after a failed « Relier GitHub ». */
+export interface IdentitiesInput {
+  readonly pilot?: Pick<Me, 'identities'> | null | undefined;
+  readonly erreur?: string | undefined;
+}
+
+/** « Connexion », placed in `account` before « Compte »: one row per Identité, an unknown `erreur` ignored. */
+const identities = (pilot: Pick<Me, 'identities'>, erreur: string | undefined): PlacedNode => {
+  const error = zLinkError.safeParse(erreur);
+  const data: ComposantData<typeof AccountIdentities> = { identities: pilot.identities, error: error.success ? error.data : null };
+  return { tag: 'cd-account-identities', slot: 'account', data };
+};
+
+/** What the Paramètres read beside the settings: « Rôles et modèles »'s, « Notifications »' (ATOI-4), « Connexion »'s, and the Appareils with this browser's own (E2E-3). */
+export interface ParametresInput extends RolesInput, IdentitiesInput {
+  readonly push?: PushInput;
   readonly devices?: ReadonlyMap<string, Device>;
   readonly currentDeviceId?: string | null;
 }
 
 /**
  * The Emplacements of the Paramètres (pure, US-82): « Appareils » once the
- * snapshot gave them, this page's own named (E2E-3); once it gave the
- * settings, « Rôles et modèles » (PARAM-2) and « Compte » with the time
- * zone (a zone the list lacks, an alias, kept among the options), « Par
- * Projet » (PARAM-3), then « Pour les Moddeurs ». The other sections are
- * their tickets'.
+ * snapshot gave them, this page's own named (E2E-3); once the Pilote is
+ * known, « Connexion » with their Identités (CORE-11); once the snapshot gave
+ * the settings, « Rôles et modèles » (PARAM-2), « Notifications » (ATOI-4)
+ * and « Compte » with the time zone (a zone the list lacks, an alias, kept
+ * among the options), « Par Projet » (PARAM-3), then « Pour les Moddeurs ».
+ * The other sections are their tickets'.
  */
 export const parametresView = (
   settings: SettingsState | null | undefined,
   zones: readonly string[],
-  { accounts = [], local = NO_ROLES_LOCAL, projects = [], devices, currentDeviceId }: ParametresInput = {},
+  { accounts = [], local = NO_ROLES_LOCAL, push = {}, projects = [], pilot, erreur, devices, currentDeviceId }: ParametresInput = {},
 ): readonly PlacedNode[] => [
   ...[devicesCard(devices, currentDeviceId)].filter((node) => node !== null),
-  ...(settings ? [roles(settings, accounts, local), account(settings, zones), ...byProject(settings, projects)] : []),
+  ...(settings ? [roles(settings, accounts, local), notifications(settings, push)] : []),
+  ...(pilot ? [identities(pilot, erreur)] : []),
+  ...(settings ? [account(settings, zones), ...byProject(settings, projects)] : []),
   modders(),
 ];

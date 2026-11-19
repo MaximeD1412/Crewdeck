@@ -36,7 +36,7 @@ const SESSION: AgentSession = {
 };
 const AT = '2026-11-15T08:00:00.000Z';
 const SHA = 'a'.repeat(40);
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [], githubLinked: false };
 
 const TICKET: Ticket = {
   id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a90',
@@ -150,6 +150,7 @@ const SNAPSHOT: State = {
   'ai-account': [],
   'mcp-server': [],
   devices: [],
+  'push-subscriptions': [],
   vault: { version: 1, rotationPending: false },
   projects: [],
   processes: [PROCESS],

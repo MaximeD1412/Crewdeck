@@ -68,7 +68,7 @@ describe('/api/ws against PostgreSQL', () => {
     const seqs: number[] = [];
     for (let i = 0; i < count; i++) {
       const seq = await runInPilotScope(pilotId, () =>
-        app.get(Transactions).run((tx) => app.get(EventsWriter).write(tx, pilotId, 'pilot.upserted', { id: pilotId, displayName: login, avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] })),
+        app.get(Transactions).run((tx) => app.get(EventsWriter).write(tx, pilotId, 'pilot.upserted', { id: pilotId, displayName: login, avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [], githubLinked: false })),
       );
       seqs.push(Number(seq));
     }

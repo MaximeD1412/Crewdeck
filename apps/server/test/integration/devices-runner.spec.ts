@@ -111,10 +111,7 @@ describe('a new Appareil approved by the Go Runner (E2E-3)', () => {
 
   it('approves the code of a second browser with the real binary: it opens what the first one sealed', async () => {
     const pilotId = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, getting_started_step) VALUES ($1, $2, 'octocat', 'Europe/Paris', 'runner')`, [
-      pilotId,
-      Math.floor(Math.random() * 1e9),
-    ]);
+    await sql(`INSERT INTO pilots (id, display_name, time_zone, getting_started_step) VALUES ($1, 'octocat', 'Europe/Paris', 'runner')`, [pilotId]);
 
     // The first Appareil links the Runner (E2E-2).
     const first = await browser(pilotId, CHROME);
@@ -190,10 +187,7 @@ describe('a new Appareil approved by the Go Runner (E2E-3)', () => {
 
   it('approves nothing from a machine not linked, and says how to link it', async () => {
     const pilotId = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, getting_started_step) VALUES ($1, $2, 'octocat', 'Europe/Paris', 'done')`, [
-      pilotId,
-      Math.floor(Math.random() * 1e9),
-    ]);
+    await sql(`INSERT INTO pilots (id, display_name, time_zone, getting_started_step) VALUES ($1, 'octocat', 'Europe/Paris', 'done')`, [pilotId]);
     const home = join(work, 'unlinked');
     const phone = await browser(pilotId, SAFARI_IOS);
     const code = await phone.approval.register();

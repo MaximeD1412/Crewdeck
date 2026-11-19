@@ -9,6 +9,7 @@ const linkSlice: StateContributor = { ...pilotSlice, key: 'runner-link' };
 const aiAccountSlice: StateContributor = { ...pilotSlice, key: 'ai-account' };
 const mcpServerSlice: StateContributor = { ...pilotSlice, key: 'mcp-server' };
 const devicesSlice: StateContributor = { ...pilotSlice, key: 'devices' };
+const pushSubscriptionsSlice: StateContributor = { ...pilotSlice, key: 'push-subscriptions' };
 const projectsSlice: StateContributor = { ...pilotSlice, key: 'projects' };
 const processesSlice: StateContributor = { ...pilotSlice, key: 'processes' };
 const phaseRunsSlice: StateContributor = { ...pilotSlice, key: 'phaseRuns' };
@@ -30,6 +31,7 @@ const all = [
   aiAccountSlice,
   mcpServerSlice,
   devicesSlice,
+  pushSubscriptionsSlice,
   projectsSlice,
   processesSlice,
   phaseRunsSlice,
@@ -58,9 +60,9 @@ describe('StateController at boot', () => {
   });
 
   it('refuses to start with a slice missing, repeated or not in STATE_SLICES', () => {
-    expect(() => boot([])).toThrow(/missing \[pilot, runner, runner-link, ai-account, mcp-server, devices, vault, projects, processes, phaseRuns, stepRuns, repositories, decisions, ideas, tickets, milestones, codeChanges, sessions, settings, usage\]/);
+    expect(() => boot([])).toThrow(/missing \[pilot, runner, runner-link, ai-account, mcp-server, devices, push-subscriptions, vault, projects, processes, phaseRuns, stepRuns, repositories, decisions, ideas, tickets, milestones, codeChanges, sessions, settings, usage\]/);
     expect(() => boot([pilotSlice])).toThrow(
-      /missing \[runner, runner-link, ai-account, mcp-server, devices, vault, projects, processes, phaseRuns, stepRuns, repositories, decisions, ideas, tickets, milestones, codeChanges, sessions, settings, usage\]/,
+      /missing \[runner, runner-link, ai-account, mcp-server, devices, push-subscriptions, vault, projects, processes, phaseRuns, stepRuns, repositories, decisions, ideas, tickets, milestones, codeChanges, sessions, settings, usage\]/,
     );
     expect(() => boot([...all, pilotSlice])).toThrow(/repeated \[pilot\]/);
     expect(() => boot([pilotSlice, runnerSlice, { ...pilotSlice, key: 'designs' as never }])).toThrow(/repeated \[designs\]/);

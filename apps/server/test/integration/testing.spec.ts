@@ -101,7 +101,27 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
       expect(run.sessionCookie).toMatch(/^crewdeck_session=[\w-]{43}$/);
       const me = await fetch(`${await app.getUrl()}/api/me`, { headers: { cookie: run.sessionCookie ?? '' } });
       expect(me.status).toBe(200);
-      expect(await me.json()).toMatchObject({ displayName: 'octocat', timeZone: 'Europe/Paris', identities: [{ provider: 'github', label: 'octocat' }] });
+      expect(await me.json()).toMatchObject({ displayName: 'octocat', timeZone: 'Europe/Paris', identities: [{ provider: 'github', label: 'octocat', reconnect: false }], githubLinked: true });
+    });
+
+    it('signs the Pilote of « parametres » in by email, GitHub not linked; « Relier GitHub » then links the fake GitHub user', async () => {
+      const run = zScenarioRun.parse(await (await post(app, 'parametres')).json());
+      const base = await app.getUrl();
+      const cookie = run.sessionCookie ?? '';
+      const me = await fetch(`${base}/api/me`, { headers: { cookie } });
+      expect(await me.json()).toMatchObject({ displayName: 'pilote', identities: [{ provider: 'email', label: 'pilote@example.com', reconnect: false }], githubLinked: false });
+      const token = await fetch(`${base}/api/github/token`, { method: 'POST', headers: { cookie, origin: appOrigin(parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: databaseUrl })) } });
+      expect(token.status).toBe(409);
+
+      const start = await fetch(`${base}/api/auth/github/link?next=/parametres`, { redirect: 'manual', headers: { cookie } });
+      const state = new URL(start.headers.get('location') ?? '', base).searchParams.get('state') ?? '';
+      const oauth = start.headers.getSetCookie().find((line) => line.startsWith('crewdeck_oauth='))?.split(';')[0] ?? '';
+      const back = await fetch(`${base}/api/auth/github/callback?${new URLSearchParams({ code: 'fake-code', state })}`, {
+        redirect: 'manual',
+        headers: { cookie: `${oauth}; ${cookie}` },
+      });
+      expect(back.headers.get('location')).toBe('/parametres');
+      expect(await (await fetch(`${base}/api/me`, { headers: { cookie } })).json()).toMatchObject({ githubLinked: true });
     });
 
     it('trusts the Appareil of « Idées », whose wrap opens the vault, and the vault every Idée’s text', async () => {

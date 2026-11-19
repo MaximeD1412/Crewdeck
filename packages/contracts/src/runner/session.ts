@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zStepId } from '../contrats/define.js';
+import { zSealedItem } from '../keys/sealed.js';
 import { AGENT_ROLES, zId } from '../values.js';
 import { ENGINE_IDS } from './engines.js';
 import { runnerMessage } from './envelope.js';
@@ -47,10 +48,22 @@ export type SessionStep = z.infer<typeof zSessionStep>;
 export const zSessionTitle = z.string().min(1).max(300);
 
 /**
+ * The Projet's worktree Commandes « Préparer le worktree » and « Nettoyer le
+ * worktree » (RUNNER-20, ADR 0011, ADR 0013), sealed as `ProjectSettings`
+ * stores them (plaintext `zWorktreeCommands`, additional data
+ * `settings:<projectId>`): the server never opens them, the Runner does and
+ * runs them around each worktree it makes. `null` when the Pilote set
+ * neither.
+ */
+export const zWorktreeCommandsSealed = zSealedItem.nullable();
+
+/**
  * Server → Runner: start the Session `sessionId` (RUNNER-9) in a worktree of
  * `branch` (from `origin/<branch>` when it exists, else from `origin/<base>`),
- * with the Moteur `engine` on `model`, as the Rôle `role`. The Runner reports
- * it with `session.state`; a Session it already knows is not started twice.
+ * with the Moteur `engine` on `model`, as the Rôle `role`, the worktree
+ * prepared by `worktreeCommands` before the Moteur starts and cleaned by them
+ * before it is removed. The Runner reports it with `session.state`; a Session
+ * it already knows is not started twice.
  */
 export const zSessionStart = runnerMessage('session.start', {
   sessionId: zId,
@@ -65,6 +78,7 @@ export const zSessionStart = runnerMessage('session.start', {
   permissionMode: zSessionPermissionMode,
   step: zSessionStep.optional(),
   title: zSessionTitle,
+  worktreeCommands: zWorktreeCommandsSealed,
 });
 export type SessionStart = z.infer<typeof zSessionStart>;
 
@@ -98,8 +112,9 @@ export const zSessionOutcome = z.enum(SESSION_OUTCOMES);
 export type SessionOutcome = z.infer<typeof zSessionOutcome>;
 
 /**
- * Why an `ended` Session ended in `error`: its worktree's preparation failed
- * (`setup-failed`), another live Session has its branch (`branch-busy`), its
+ * Why an `ended` Session ended in `error`: its worktree could not be made or
+ * its preparation failed (`setup-failed`, « Préparer le worktree » that exits
+ * non-zero, times out, or does not open), another live Session has its branch (`branch-busy`), its
  * Moteur failed or could not start (`engine-failed`), its clone or fetch
  * failed (`clone-failed`). A code, never the error's text.
  */
@@ -120,6 +135,28 @@ export const zSessionStateMessage = runnerMessage('session.state', {
   engineSessionId: z.string().min(1).max(200).optional(),
 });
 export type SessionStateMessage = z.infer<typeof zSessionStateMessage>;
+
+/** What a Session's request asks: an answer to a question, or a permission. */
+export const SESSION_REQUEST_KINDS = ['question', 'permission'] as const;
+export const zSessionRequestKind = z.enum(SESSION_REQUEST_KINDS);
+export type SessionRequestKind = z.infer<typeof zSessionRequestKind>;
+
+/**
+ * Runner → server: the agent of the Session waits for the Pilote's answer to
+ * the request `requestId` (SESSION-3), the event `seq` of its log. Never the
+ * question nor the command: the page reads them through the relay.
+ */
+export const zSessionWaiting = runnerMessage('session.waiting', {
+  sessionId: zId,
+  requestId: z.string().min(1).max(200),
+  kind: zSessionRequestKind,
+  seq: z.int().positive(),
+});
+export type SessionWaiting = z.infer<typeof zSessionWaiting>;
+
+/** Runner → server: the request `requestId` was answered, from whichever tab. */
+export const zSessionAnswered = runnerMessage('session.answered', { sessionId: zId, requestId: z.string().min(1).max(200) });
+export type SessionAnswered = z.infer<typeof zSessionAnswered>;
 
 /** A Session the Runner knows, in its `hello`: `alive` while its Moteur still runs (never after a restart of the Runner). */
 export const zHelloSession = z.object({ sessionId: zId, alive: z.boolean() });

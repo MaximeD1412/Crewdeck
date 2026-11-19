@@ -9,7 +9,7 @@ import { matchRoute } from './router.js';
 import { ROUTES } from './routes.js';
 import { createStore, type Store } from './store/store.js';
 
-const ME: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [] };
+const ME: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'runner', identities: [], githubLinked: false };
 const LINK_ID = '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a70';
 const AT = '2026-11-11T14:12:00.000Z';
 const SECRET = 'M2PXA7QK9VZ3T8W4R6N1B5C0DE';
@@ -97,7 +97,7 @@ describe('createGettingStarted', () => {
   };
 
   const snapshot = (overrides: Partial<State> = {}) =>
-    store.applySnapshot({ seq: seq++, pilot: ME, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], vault: { version: 1, rotationPending: false }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [], ...overrides });
+    store.applySnapshot({ seq: seq++, pilot: ME, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [], ...overrides });
   const event = (type: 'runner-link.upserted' | 'runner.upserted' | 'pilot.upserted' | 'ai-account.upserted', payload: unknown) =>
     store.applyEvent({ seq: seq++, type, payload, at: AT } as Parameters<Store['applyEvent']>[0]);
   const flush = () => new Promise((resolve) => setTimeout(resolve, 0));

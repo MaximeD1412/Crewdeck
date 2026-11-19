@@ -19,6 +19,7 @@ describe('COMPOSANTS', () => {
     [
       'partie',
       [
+        'AccountIdentities',
         'AgentRow',
         'Capture',
         'Card',
@@ -40,6 +41,7 @@ describe('COMPOSANTS', () => {
         'Port',
         'ProcessCanvas',
         'ProcessTrack',
+        'PushSettings',
         'Question',
         'RepositoryPicker',
         'RoleSettings',

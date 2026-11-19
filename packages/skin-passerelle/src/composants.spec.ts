@@ -114,6 +114,7 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     inside(el, 'cd-button.submit', 'button').click();
   },
   'NoteIdeaDialog.cancel': (el) => inside(el, 'cd-button.cancel', 'button').click(),
+  'AccountIdentities.linkGitHub': (el) => inside(el, 'cd-button.link', 'button').click(),
   'PageConnexion.requestLink': (el) => inside(el, 'cd-button.request', 'button').click(),
   'PageConnexion.signInWith': (el) => inside(el, 'cd-button.github', 'button').click(),
   'PageConnexion.changeEmail': async (el) => {
@@ -189,6 +190,11 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     await settle(el);
     inside(el, 'cd-button.continue', 'button').click();
   },
+  'PageDemarrage.linkGitHub': async (el) => {
+    el.data = COMPOSANTS.PageDemarrage.examples.find((example) => example.name === 'Projets sans GitHub')?.data;
+    await settle(el);
+    inside(el, 'cd-button.link-github', 'button').click();
+  },
   'PageParametres.change': (el) => {
     const native = inside<HTMLSelectElement>(el.querySelector('cd-select') as Element, 'select');
     native.value = 'Asia/Tokyo';
@@ -223,6 +229,13 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     await settle(el);
     inside(el, 'cd-button.cancel', 'button').click();
   },
+  'PushSettings.toggle': (el) => inside(el, 'cd-toggle', 'button').click(),
+  'PushSettings.subscribe': async (el) => {
+    el.data = COMPOSANTS.PushSettings.examples[1]?.data;
+    await settle(el);
+    inside(el, 'cd-button.subscribe', 'button').click();
+  },
+  'PushSettings.remove': (el) => inside(el, 'cd-button.remove', 'button').click(),
 };
 
 afterEach(() => document.body.replaceChildren());

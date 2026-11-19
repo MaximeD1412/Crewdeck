@@ -13,6 +13,12 @@ export const PROJECTS = {
   tennisManager: { projectId: '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a04', projectName: 'Tennis Manager' },
 } as const;
 
+/** The Session of the mockups, « Concevoir · Agenda partagé » of Personal OS (`session.ts`'s), whose question waits in « À toi ». */
+export const AGENDA_SESSION_ID = '019a6f1e-7c3d-7e4f-9a1b-5e5510000001';
+
+/** Its question, the first of three, the event `seq` 4 of its log (`session-question`). */
+export const AGENDA_QUESTION = { requestId: 'toolu_01AskAgendaRules0000001', seq: 4 } as const;
+
 interface Seeded {
   readonly kind: DecisionKind;
   readonly project: (typeof PROJECTS)[keyof typeof PROJECTS];
@@ -22,6 +28,7 @@ interface Seeded {
   readonly metaParts: readonly string[];
   readonly tone: DecisionTone;
   readonly link: string;
+  readonly params?: Readonly<Record<string, string | number>>;
   /** How long it has waited, in minutes. */
   readonly age: number;
 }
@@ -29,8 +36,32 @@ interface Seeded {
 /** The nine Décisions of `design/screens/crewdeck/a-toi.html`, one of each kind it shows, with their ages. */
 const MOCKUP: readonly Seeded[] = [
   { kind: 'ticket-blocked', project: PROJECTS.crewdeck, subjectType: 'ticket', subjectId: '42', label: '#42 Connexion GitHub', metaParts: ['Code'], tone: 'halt', link: '/boucle?ticket=42', age: 4 },
-  { kind: 'permission-requested', project: PROJECTS.crewdeck, subjectType: 'session', subjectId: 'session-44', label: 'Code · #44 Liste des Projets', metaParts: ['session'], tone: 'caution', link: '/boucle?ticket=44', age: 2 },
-  { kind: 'agent-question', project: PROJECTS.personalOs, subjectType: 'session', subjectId: 'session-agenda', label: 'Concevoir · Agenda partagé', metaParts: ['session'], tone: 'accent', link: '/conceptions', age: 3 },
+  // A Session of the Boucle the scenario does not hold: its Décision leads to its Ticket.
+  {
+    kind: 'permission-requested',
+    project: PROJECTS.crewdeck,
+    subjectType: 'session-request',
+    subjectId: 'toolu_01PushListeProjets00001',
+    label: '#44 Liste des Projets',
+    metaParts: ['session'],
+    tone: 'caution',
+    link: '/boucle?ticket=44',
+    params: { role: 'code' },
+    age: 2,
+  },
+  // The Runner's `session.waiting` of `session-question` raises it again: the same Décision.
+  {
+    kind: 'agent-question',
+    project: PROJECTS.personalOs,
+    subjectType: 'session-request',
+    subjectId: AGENDA_QUESTION.requestId,
+    label: 'Concevoir · Agenda partagé',
+    metaParts: ['session'],
+    tone: 'accent',
+    link: `/a-toi?session=${AGENDA_SESSION_ID}`,
+    params: { sessionId: AGENDA_SESSION_ID, requestSeq: AGENDA_QUESTION.seq, role: 'design' },
+    age: 3,
+  },
   { kind: 'limit-reached', project: PROJECTS.personalOs, subjectType: 'ai-account', subjectId: 'claude-5h', label: 'Claude · fenêtre de 5 h', metaParts: ['#51 arrêté'], tone: 'caution', link: '/runner', age: 12 },
   { kind: 'visual-review', project: PROJECTS.personalOs, subjectType: 'ticket', subjectId: '38', label: '#38 Page Planning', metaParts: ['4 captures'], tone: 'accent', link: '/boucle?ticket=38', age: 20 },
   { kind: 'document-review', project: PROJECTS.personalOs, subjectType: 'design', subjectId: 'agenda-partage', label: 'PRD « Agenda partagé »', metaParts: ['Conception'], tone: 'accent', link: '/conceptions', age: 60 },
@@ -48,13 +79,13 @@ export const seedDecisions = async (ctx: ScenarioContext, lastSeenAt?: Date) => 
   const { token, ...seed } = await withAccounts(ctx, lastSeenAt);
   const now = Date.now();
   await ctx.prisma.unscoped.decision.createMany({
-    data: MOCKUP.map(({ project, age, metaParts, ...decision }) => ({
+    data: MOCKUP.map(({ project, age, metaParts, params = {}, ...decision }) => ({
       id: newId(),
       pilotId: seed.pilotId,
       ...decision,
       ...project,
       metaParts: [...metaParts],
-      params: {},
+      params: { ...params },
       createdAt: new Date(now - age * MINUTE),
     })),
   });

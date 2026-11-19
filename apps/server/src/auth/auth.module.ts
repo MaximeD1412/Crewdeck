@@ -6,6 +6,8 @@ import { EmailLinkLimiter } from './email/email-link-limiter.js';
 import { EmailLinks } from './email/email-links.js';
 import { EmailLoginTokensSweep } from './email/email-login-tokens.sweep.js';
 import { SESSION_SECRET, sessionSecret, tokenCipher } from './auth.keys.js';
+import { GithubLinkController } from './github-link.controller.js';
+import { GithubLinks } from './github-links.js';
 import { GoogleAuthController } from './google/google-auth.controller.js';
 import { GithubTokenController } from './github-token.controller.js';
 import { GithubTokens } from './github-tokens.js';
@@ -16,9 +18,9 @@ import { SessionWsAuthenticator } from './session.ws-authenticator.js';
 import { TokenCipher } from './token-cipher.js';
 import { WebSessions } from './web-sessions.js';
 
-/** Sign-in with GitHub, by a link sent by email (CORE-9) or with Google (CORE-10), the Pilotes' Identités, the browser's sessions (and their sockets, CORE-5), the Pilote's GitHub tokens (CORE-4). */
+/** Sign-in with GitHub, by a link sent by email (CORE-9) or with Google (CORE-10), the Pilotes' Identités, the browser's sessions (and their sockets, CORE-5), the Pilote's GitHub tokens (CORE-4), « Relier GitHub » (CORE-11). */
 @Module({
-  controllers: [AuthController, EmailAuthController, GoogleAuthController, GithubTokenController],
+  controllers: [AuthController, GithubLinkController, EmailAuthController, GoogleAuthController, GithubTokenController],
   providers: [
     WebSessions,
     PilotIdentities,
@@ -27,6 +29,7 @@ import { WebSessions } from './web-sessions.js';
     EmailLoginTokensSweep,
     SameOriginGuard,
     GithubTokens,
+    GithubLinks,
     SessionMiddleware,
     SessionWsAuthenticator,
     { provide: SESSION_SECRET, inject: [ENV], useFactory: sessionSecret },

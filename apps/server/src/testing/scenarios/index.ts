@@ -19,14 +19,14 @@ import { appareilAApprouver, appareilAApprouverCode, appareils, appareilsAjouter
 import type { Scenario } from './define.js';
 import { idees, ideesNouvelle, ideesVide } from './idees.js';
 import { menuPlus } from './menu-plus.js';
-import { demarrageProjets, projets, projetsVide } from './projets.js';
-import { parametres } from './parametres.js';
+import { demarrageProjets, demarrageProjetsSansGithub, projets, projetsVide } from './projets.js';
+import { parametres, parametresNotifications, parametresNotificationsIphone } from './parametres.js';
 import { parametresProjet } from './parametres-projet.js';
 import { processScenarios } from './process.js';
 import { resynchronisation } from './resynchronisation.js';
 import { runner, runnerServeursMcp } from './runner.js';
 import { aToiRunnerHorsLigne, runnerHorsLigne } from './runner-offline.js';
-import { session, sessionArretee, sessionRunnerHorsLigne } from './session.js';
+import { session, sessionArretee, sessionPermission, sessionQuestion, sessionRunnerHorsLigne } from './session.js';
 import { smoke } from './smoke.js';
 
 export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed } from './define.js';
@@ -55,11 +55,14 @@ const SCENARIOS: readonly Scenario[] = [
   demarrageComptesIa,
   demarrageComptesIaAucun,
   demarrageProjets,
+  demarrageProjetsSansGithub,
   idees,
   ideesNouvelle,
   ideesVide,
   menuPlus,
   parametres,
+  parametresNotifications,
+  parametresNotificationsIphone,
   parametresProjet,
   projets,
   projetsVide,
@@ -69,6 +72,8 @@ const SCENARIOS: readonly Scenario[] = [
   runnerServeursMcp,
   session,
   sessionArretee,
+  sessionQuestion,
+  sessionPermission,
   sessionRunnerHorsLigne,
   smoke,
   ...composantsRows,

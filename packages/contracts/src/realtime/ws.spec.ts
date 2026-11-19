@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { DEFAULT_ACCOUNT_SETTINGS, withSeq, zClientMessage, zServerMessage, zState, STATE_SLICES } from '../index.js';
 
-const PILOT = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
+const PILOT = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [], githubLinked: false };
 
 describe('zClientMessage', () => {
   it('accepts hello with a seq or null, ping, visibility', () => {
@@ -54,6 +54,7 @@ describe('zState', () => {
       'ai-account',
       'mcp-server',
       'devices',
+      'push-subscriptions',
       'vault',
       'projects',
       'processes',
@@ -77,6 +78,7 @@ describe('zState', () => {
       'ai-account': [],
       'mcp-server': [],
       devices: [],
+      'push-subscriptions': [],
       vault: { version: 1, rotationPending: false },
       projects: [],
       processes: [],

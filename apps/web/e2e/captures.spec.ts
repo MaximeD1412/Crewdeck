@@ -10,6 +10,12 @@ import { linkFirstAppareil } from './runner-link.js';
 import { routeSocket } from './socket.js';
 import { becomeTrustedDevice } from './trusted-device.js';
 
+/** The nav's « Notifications » opened, then back at the top: the full-page shot keeps its sticky columns in place at 1280 px. */
+const openNotifications = async (page: Page) => {
+  await page.getByRole('navigation', { name: 'Paramètres / Sections' }).getByRole('link', { name: 'Notifications' }).click();
+  await page.evaluate(() => window.scrollTo(0, 0));
+};
+
 /** The Paramètres' « Appareils », this browser linked first: its first trusted Appareil (E2E-3). */
 const appareils = async (page: Page) => {
   await linkFirstAppareil(page, undefined);
@@ -106,6 +112,20 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   parametres: async (page) => {
     await expect(page.getByRole('combobox', { name: 'Moteur et modèle du Rôle Idée' }).filter({ visible: true })).toHaveValue('claude-code:claude-sonnet-5-5');
   },
+  // « Notifications » (ATOI-4): its section opened, as a link of the nav does (on the phone, the section alone).
+  'parametres-notifications': async (page) => {
+    await openNotifications(page);
+    await expect(page.getByRole('button', { name: 'Activer sur cet appareil' })).toBeVisible();
+  },
+  // A browser without PushManager, an iPhone outside the home-screen app: the help instead of the button.
+  'parametres-notifications-iphone': async (page) => {
+    await page.addInitScript(() => {
+      Reflect.deleteProperty(window, 'PushManager');
+    });
+    await page.reload();
+    await openNotifications(page);
+    await expect(page.getByText('Sur iPhone, ajoute Crewdeck à l’écran d’accueil', { exact: false })).toBeVisible();
+  },
   // On the trusted Appareil, the Code on Codex once the snapshot is there; at 1280 px, the worktree Commandes opened.
   'parametres-projet': async (page, width) => {
     await becomeTrustedDevice(page);
@@ -161,6 +181,17 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   'session-runner-hors-ligne': async (page) => {
     await expect(page.locator('#app > cd-cadre > cd-session[slot=panel]')).toContainText('Conversation sur ton Runner');
     await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('Les sessions reprendront');
+  },
+  // A question of the agent (SESSION-3), its first option chosen as the mockup shows it.
+  'session-question': async (page) => {
+    const question = page.locator('#app > cd-cadre > cd-session[slot=panel] cd-question');
+    await expect(question).toContainText('Qui peut modifier un événement');
+    await question.getByRole('radio', { name: 'Tous les membres de l’agenda' }).check();
+  },
+  // A `git push` waiting for the Pilote's permission (SESSION-3), its Décision's command read under the panel.
+  'session-permission': async (page) => {
+    await expect(page.locator('#app > cd-cadre > cd-session[slot=panel] cd-permission-request')).toContainText('git push origin design/agenda-partage');
+    await expect(page.locator('cd-page-a-toi cd-decision-row').filter({ hasText: 'Concevoir · Agenda partagé' })).toContainText('Bash : git push');
   },
   // « Maximum de Retours atteint » (PROCESS-6) among the nine Décisions of `a-toi`.
   'a-toi-process': async (page) => {

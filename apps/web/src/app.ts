@@ -1,5 +1,6 @@
 import type { EmailLinkVerified, Me } from '@crewdeck/contracts';
 import {
+  AccountIdentities,
   Cadre,
   PageAToi,
   PageComposants,
@@ -14,8 +15,11 @@ import {
   PageProjets,
   PageRunner,
   RepositoryPicker,
+  PushSettings,
   RoleSettings,
   Composer,
+  PermissionRequest,
+  Question,
   Session,
   SettingRow,
   type Skin,
@@ -42,22 +46,28 @@ import { createProjectSettings } from './project-settings.js';
 import { createProjects } from './projects.js';
 import { bootSkin } from './registry.js';
 import { createDeviceStore } from './keys/device-store.js';
+import { createBrowserPush, type PushDevice } from './push.js';
+import { createPushSettings } from './push-settings.js';
 import { createRoleSettings } from './role-settings.js';
 import { createSessionPanel } from './session-panel.js';
+import { createSessionPeek } from './sessions/peek.js';
 import { createSessionRelay, type SessionRelay } from './sessions/relay.js';
 import { routeData, routeSlots, startRouter, type Route, type RouteMatch, type Router } from './router.js';
 import { aToiHref, composantsHref, ideesHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
-import { HOME_PATH, providerSignInHref, signInGuard } from './sign-in.js';
+import { githubLinkHref, HOME_PATH, providerSignInHref, signInGuard } from './sign-in.js';
 import { client as pageClient, connection as pageConnection, store as pageStore } from './store/index.js';
 import type { Connection } from './store/connection.js';
 import { createIdeaPlaintext } from './store/idea-plaintext.js';
 import { createLatencyMeter, type LatencyMeter } from './store/latency.js';
 import type { Store } from './store/store.js';
+import { aToiView } from './views/a-toi.js';
 import { createConnexion } from './views/connexion.js';
 import { createConnexionLien, takeLinkToken } from './views/connexion-lien.js';
 import { actionsOf, decisionViews } from './views/decisions/registry.js';
+import './views/decisions/agent-question.js';
 import './views/decisions/loop-back-exhausted.js';
+import './views/decisions/permission-requested.js';
 import './views/decisions/runner-offline.js';
 import { systemOfBrowser } from './views/demarrage.js';
 import { ADD_DEVICE_ID, isLastTrusted, revokeConfirmation, revokedDeviceOf } from './views/devices.js';
@@ -67,6 +77,7 @@ import { parametresProjetView, type ParametresProjetView } from './views/paramet
 import { processEditorView } from './views/process-editor.js';
 import { projetsView } from './views/projets.js';
 import { runnerView } from './views/runner.js';
+import { roleName } from './views/session.js';
 import { usageChangesAt } from './views/usage.js';
 
 /** The Skins the page knows, by id: at the MVP, the default one. */
@@ -103,6 +114,8 @@ export interface BootOptions {
    * (E2E-4): IndexedDB and WebCrypto by default.
    */
   readonly keys?: Pick<PageKeys, 'linkKeys' | 'vault' | 'nameDevice' | 'unlockVault' | 'approval' | 'rotateVault' | 'forgetDevice'>;
+  /** This browser's push (ATOI-4): its service worker's `PushManager` by default. */
+  readonly push?: PushDevice;
   /** The relay of the Sessions (SESSION-1): through the page's socket, with this browser's Appareil, by default. */
   readonly relay?: Pick<SessionRelay, 'openSession' | 'sendInput' | 'closeSession'>;
 }
@@ -137,6 +150,7 @@ export const boot = async ({
   client = pageClient,
   latency = createLatencyMeter({ store }),
   keys = createPageKeys({ store, client, userAgent: navigator.userAgent }),
+  push = createBrowserPush(window),
   relay = createSessionRelay({ socket: pageConnection, devices: createDeviceStore() }),
 }: BootOptions): Promise<App> => {
   // A sign-in link's token leaves the address bar before anything else (ADR 0014).
@@ -233,12 +247,20 @@ export const boot = async ({
   noteDialog.data = noteIdea.view();
   shell.append(noteDialog);
   const roleSettings = createRoleSettings({ client });
+  const pushSettings = createPushSettings({
+    client,
+    device: push,
+    userAgent: navigator.userAgent,
+    subscriptionOf: (id) => store.getState().slices['push-subscription']?.get(id),
+  });
   /** The page without its `?session=`: the panel closed. */
   const closePanel = () => {
     const url = new URL(location.href);
     url.searchParams.delete('session');
     router.navigate(url.pathname + url.search + url.hash);
   };
+  // What « À toi » reads of a Session's request, from the Runner (SESSION-3).
+  const peek = createSessionPeek({ relay });
   const sessionPanel = createSessionPanel({ store, client, relay, shell, navigate: (url) => router.navigate(url), close: closePanel });
   const projectSettings = createProjectSettings({
     client,
@@ -291,6 +313,9 @@ export const boot = async ({
       return parametresView(slices.settings, timeZones(), {
         accounts: [...(slices['ai-account']?.values() ?? [])],
         local: roleSettings.view(),
+        push: { subscriptions: [...(slices['push-subscription']?.values() ?? [])], local: pushSettings.view() },
+        pilot: slices.pilot,
+        erreur: match.query['erreur'],
         projects: [...(slices.project?.values() ?? [])],
         devices: slices.device,
         currentDeviceId: currentDeviceId(),
@@ -306,6 +331,13 @@ export const boot = async ({
       if (match.composant === PageConnexionLien) return connexionLien.view();
       if (match.composant === RepositoryPicker) return projects.picker('projets');
       const { slices } = store.getState();
+      if (match.composant === PageAToi) {
+        return aToiView(slices.decision?.values() ?? [], match.query, {
+          runnerOnline: slices.runner?.state === 'online',
+          sessionEvent: peek.read,
+          roleName: (role) => roleName(role, slices.settings),
+        });
+      }
       if (match.composant === PageProjets) return projetsView(slices.project?.values() ?? []);
       if (match.composant === PageProcessEditor) {
         const projectId = match.params['id'] ?? '';
@@ -334,15 +366,22 @@ export const boot = async ({
   const refreshNoteDialog = () => {
     noteDialog.data = noteIdea.view();
   };
+  // The Runner back: the reads of « À toi » it failed are tried again.
+  let runnerOnline = store.getState().slices.runner?.state === 'online';
   const unsubscribe = [
     store.subscribe(() => {
+      const online = store.getState().slices.runner?.state === 'online';
+      if (online && !runnerOnline) peek.retry();
+      runnerOnline = online;
       gettingStarted.sync();
+      pushSettings.settled(store.getState().slices.settings);
       router.refresh();
       shell.refresh();
       usageChanges.schedule();
       refreshNoteDialog();
     }),
     plaintext.subscribe(() => router.refresh()),
+    peek.subscribe(() => router.refresh()),
     noteIdea.subscribe(refreshNoteDialog),
     gettingStarted.subscribe(() => router.refresh()),
     connexion.subscribe(() => router.refresh()),
@@ -350,6 +389,7 @@ export const boot = async ({
     projects.subscribe(() => router.refresh()),
     closedIdeas.subscribe(() => router.refresh()),
     roleSettings.subscribe(() => router.refresh()),
+    pushSettings.subscribe(() => router.refresh()),
     projectSettings.subscribe(() => router.refresh()),
     editorUi.subscribe(() => router.refresh()),
     editing.subscribe(() => router.refresh()),
@@ -370,6 +410,7 @@ export const boot = async ({
     void keys.unlockVault().finally(vaultTried);
     latency.start();
     connection.start();
+    void pushSettings.sync();
   }
   if (!pilot) vaultTried();
   dispatcher.registerAction(PageConnexion, 'signInWith', {
@@ -392,6 +433,10 @@ export const boot = async ({
   dispatcher.registerAction(RoleSettings, 'add', { run: () => roleSettings.open() });
   dispatcher.registerAction(RoleSettings, 'create', { run: (body) => roleSettings.create(body) });
   dispatcher.registerAction(RoleSettings, 'cancel', { run: () => roleSettings.cancel() });
+  dispatcher.registerAction(PushSettings, 'toggle', { run: ({ push }) => pushSettings.toggle(push) });
+  dispatcher.registerAction(PushSettings, 'subscribe', { run: () => pushSettings.activate() });
+  dispatcher.registerAction(PushSettings, 'remove', { run: ({ id }) => pushSettings.remove(id) });
+  dispatcher.registerAction(AccountIdentities, 'linkGitHub', { run: () => leave(githubLinkHref('/parametres')) });
   const currentProject = (): string | null => (router.current.composant === PageParametresProjet ? (router.current.params['id'] ?? null) : null);
   dispatcher.registerAction(PageParametresProjet, 'change', {
     run: ({ name, value }) => {
@@ -437,6 +482,7 @@ export const boot = async ({
   dispatcher.registerAction(PageDemarrage, 'selectSystem', { run: ({ system }) => gettingStarted.selectSystem(system) });
   dispatcher.registerAction(PageDemarrage, 'retry', { run: () => gettingStarted.retry() });
   dispatcher.registerAction(PageDemarrage, 'continue', { run: () => gettingStarted.advance() });
+  dispatcher.registerAction(PageDemarrage, 'linkGitHub', { run: () => leave(githubLinkHref('/demarrage')) });
   const editor = createEditorActions({ ui: editorUi, editing, navigate: (url, options) => router.navigate(url, options), current: () => router.current });
   dispatcher.registerAction(PageProcessEditor, 'select', { run: (payload) => editor.select(payload) });
   dispatcher.registerAction(PageProcessEditor, 'tab', { run: (payload) => editor.tab(payload) });
@@ -468,6 +514,11 @@ export const boot = async ({
   // « Agrandir » is not at the MVP: the panel does not offer it.
   dispatcher.registerAction(Session, 'expand', { run: () => undefined });
   dispatcher.registerAction(Composer, 'send', { run: ({ text }) => sessionPanel.send(text) });
+  // The agent's requests in the panel (SESSION-3): sealed to the Runner, which hands them to the Moteur once.
+  dispatcher.registerAction(Question, 'answer', { run: ({ questionId, optionIds }) => sessionPanel.answer(questionId, optionIds) });
+  dispatcher.registerAction(PermissionRequest, 'allow', { run: ({ id }) => sessionPanel.permission(id, 'allow') });
+  dispatcher.registerAction(PermissionRequest, 'allowForSession', { run: ({ id }) => sessionPanel.permission(id, 'allow-session') });
+  dispatcher.registerAction(PermissionRequest, 'deny', { run: ({ id }) => sessionPanel.permission(id, 'deny') });
   const stop = () => {
     sessionPanel.dispose();
     stopFollowingVault();

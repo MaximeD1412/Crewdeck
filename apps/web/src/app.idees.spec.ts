@@ -10,7 +10,7 @@ import type { SealedItem } from './keys/vault.js';
 import { holdsIdea } from './store/ideas.js';
 import { createStore } from './store/store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [], githubLinked: false };
 const PERSONAL_OS = '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a02';
 const AT = '2026-11-16T08:00:00.000Z';
 
@@ -152,7 +152,7 @@ describe('« Idées » follows the store', () => {
   });
 
   it('then lists the snapshot’s Idées in clear, the Cadre counting those to triage', async () => {
-    store.applySnapshot({ seq: 3, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], vault: { version: 1, rotationPending: false }, projects: [project], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [idea(63, 'Exporter le planning'), idea(50, 'Ancienne', { state: 'retained' })], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
+    store.applySnapshot({ seq: 3, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, projects: [project], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [idea(63, 'Exporter le planning'), idea(50, 'Ancienne', { state: 'retained' })], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
     store.markLive();
     await vi.waitFor(() => expect(pageData().ideas.map((row) => row.title)).toEqual(['Exporter le planning']));
     expect(pageData()).toMatchObject({ empty: false, toTriage: 1 });

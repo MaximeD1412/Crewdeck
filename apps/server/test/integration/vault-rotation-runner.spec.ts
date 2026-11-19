@@ -100,7 +100,7 @@ describe('the vault key rotated by the Go Runner (E2E-4)', () => {
 
   it('rotates when it is the first holder online: the phone opens version 2 and the Idée sealed before; the revoked Appareil gets no wrap', async () => {
     const pilotId = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone, getting_started_step) VALUES ($1, $2, 'octocat', 'Europe/Paris', 'runner')`, [
+    await sql(`WITH p AS (INSERT INTO pilots (id, display_name, time_zone, getting_started_step) VALUES ($1, 'octocat', 'Europe/Paris', 'runner') RETURNING id) INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) SELECT gen_random_uuid(), id, 'github', $2::text, 'octocat' FROM p`, [
       pilotId,
       Math.floor(Math.random() * 1e9),
     ]);

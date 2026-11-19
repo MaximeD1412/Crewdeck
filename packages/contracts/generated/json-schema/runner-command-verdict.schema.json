@@ -42,7 +42,8 @@
         "busy",
         "sealed-invalid",
         "place-unavailable",
-        "spawn-failed"
+        "spawn-failed",
+        "setup-failed"
       ],
       "type": "string"
     },

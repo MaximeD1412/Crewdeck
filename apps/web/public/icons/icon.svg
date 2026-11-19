@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- The Cadre's brand mark (`mark` of skin-passerelle's icons) on `ground`, within the maskable safe zone. -->
+  <rect width="512" height="512" fill="#0d1317"/>
+  <rect x="136" y="136" width="240" height="240" rx="16" fill="#5cc8dc"/>
+  <g transform="translate(176 176) scale(6.6667)" fill="none" stroke="#04222a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 16l8-8 8 8"/>
+    <path d="M4 21h16"/>
+  </g>
+</svg>

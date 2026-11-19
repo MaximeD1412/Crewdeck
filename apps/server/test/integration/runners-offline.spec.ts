@@ -93,7 +93,7 @@ describe('« Runner hors ligne » against PostgreSQL', () => {
   /** A Pilote with a session, whose published events land in `published`. */
   const pilot = async (): Promise<{ id: string; cookie: string }> => {
     const id = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone) VALUES ($1, $2, 'octocat', 'Europe/Paris')`, [id, Math.floor(Math.random() * 1e9)]);
+    await sql(`WITH p AS (INSERT INTO pilots (id, display_name, time_zone) VALUES ($1, 'octocat', 'Europe/Paris') RETURNING id) INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) SELECT gen_random_uuid(), id, 'github', $2::text, 'octocat' FROM p`, [id, Math.floor(Math.random() * 1e9)]);
     const token = await runInPilotScope(id, () => app.get(WebSessions).open(prisma.scoped, id, undefined));
     const unsubscribe = app.get(EventsBus).subscribe(id, (event) => published.push(event));
     unsubscribes.push(unsubscribe);

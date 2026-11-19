@@ -614,7 +614,14 @@ afterwards unreadable to it even if it kept the old key.
   `devices.revoked` (the call is then made once more without the header), on
   the socket's 4403 (a socket without it is opened at once), and on its own
   `device.upserted` `revoked`. Every tab of the browser does the same, each
-  on its own next call or socket.
+  on its own next call or socket. Forgetting is final: the vault key is
+  dropped at once, and an unlock asked before, whose wrap arrives after,
+  publishes neither the key nor a state.
+- **Lock order**: every writer of an Appareil's row (its revocation, its
+  approval, its `lastSeenAt`) locks the Pilote's row first, then the
+  Appareil's, so that two of them at once wait for each other instead of
+  deadlocking. `lastSeenAt` is read first without a lock, since most calls
+  change nothing.
 - The page asks before the last trusted Appareil: « C'est ton dernier
   Appareil de confiance : si tu réinstalles ensuite le Runner, le texte de tes
   Idées sera perdu. »; `crewdeck-runner uninstall` prints the same warning
@@ -714,7 +721,9 @@ POST /api/vault/rotations (the Runner: /api/runner/vault/rotations)
   after it updated the Pilote's row, the row a rotation holds while it moves
   the version: 409 `vault.version-changed` for an older one (or any other),
   and nothing is stored. The page then unlocks the vault again, seals again
-  under the new key and sends once more, once. A later writer of a sealed
+  under the new key and sends once more, once. A version the page opened that
+  way, before its `vault.upserted`, makes it read the state again, as its own
+  reopening does: the items it holds were rewrapped under the new key. A later writer of a sealed
   item (the process versions and drafts, an Idée's analysis or reason, the
   Local Sources' texts) does the same, else an item sealed under a key no
   holder keeps any more is stored and never opens.
@@ -741,6 +750,8 @@ POST /api/vault/rotations (the Runner: /api/runner/vault/rotations)
 | An item sealed again since the rotator read it: 409 `vault.items-changed`, nothing changes; the page and the Runner read again and try once more | `test/integration/devices-revoke.spec.ts`; `apps/web/src/keys/rotation.spec.ts`; `cmd/crewdeck-runner/rotation_test.go` |
 | A sealed write under an older vault key: 409 `vault.version-changed`, nothing stored; the page seals again and sends once more | `test/integration/ideas.spec.ts`; `test/integration/project-settings.spec.ts`; `apps/web/src/note-idea.spec.ts`; `apps/web/src/project-settings.spec.ts` |
 | Every route and the socket refuse a revoked Appareil; the page forgets it (422, 4403, its event) | `test/integration/devices-revoke.spec.ts`; `apps/web/src/api/client.spec.ts`; `apps/web/src/store/connection.spec.ts`; `apps/web/src/keys/follow.spec.ts` |
+| A version opened by a sealed write reads the state again; an unlock answered after the Appareil was forgotten publishes nothing | `apps/web/src/keys/follow.spec.ts`; `apps/web/src/keys/vault.spec.ts`; `apps/web/src/keys/index.spec.ts` |
+| A revocation at once with the Appareil's approval or its `lastSeenAt`: no deadlock | `test/integration/devices-revoke.spec.ts` |
 | Two dialogs at once cannot revoke the last trusted Appareil without the warning | `test/integration/devices-revoke.spec.ts`; `apps/web/src/app.devices-revoke.spec.ts` |
 | The warning before the last trusted Appareil; the current one revoked clears its keys | `apps/web/src/views/devices.spec.ts`; `apps/web/src/app.devices-revoke.spec.ts`; `e2e/devices.spec.ts` |
 | A Runner replaced by a new link loses its wraps, the rotation pending | `test/integration/devices-revoke.spec.ts`; `test/integration/runner-link.spec.ts` |

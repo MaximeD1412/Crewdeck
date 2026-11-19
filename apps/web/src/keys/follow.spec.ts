@@ -30,7 +30,11 @@ const setUp = ({ held = 1, outcome = 'rotated' as RotationOutcome } = {}) => {
     store.applySnapshot({ seq: seq++, devices: [device(state)], vault } as never);
   const event = (vault: VaultSlice) => store.applyEvent({ seq: seq++, type: 'vault.upserted', payload: vault, at: AT });
   const revoked = () => store.applyEvent({ seq: seq++, type: 'device.upserted', payload: device('revoked'), at: AT });
-  return { store, unlockVault, rotateVault, refresh, forgetDevice, stop, snapshot, event, revoked };
+  /** The vault opened at `next` by another of the page's paths (a sealed write's 409). */
+  const adopt = (next: number) => {
+    version = next;
+  };
+  return { store, unlockVault, rotateVault, refresh, forgetDevice, stop, snapshot, event, revoked, adopt };
 };
 
 describe('the page following the vault (E2E-4)', () => {
@@ -61,6 +65,22 @@ describe('the page following the vault (E2E-4)', () => {
     await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
     expect(unlockVault).toHaveBeenCalledTimes(1);
     expect(rotateVault).not.toHaveBeenCalled();
+  });
+
+  it('reads the state again once the page opened a new version on its own (a sealed write’s 409 before vault.upserted): its items still under the old key', async () => {
+    const { unlockVault, refresh, snapshot, event, adopt } = setUp();
+    snapshot({ version: 1, rotationPending: false });
+    expect(refresh).not.toHaveBeenCalled();
+
+    adopt(2);
+    event({ version: 2, rotationPending: false });
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    expect(unlockVault).not.toHaveBeenCalled();
+
+    // Once only for that version.
+    snapshot({ version: 2, rotationPending: false });
+    await Promise.resolve();
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it('tries one rotation per version: a failure is left to another holder, no loop', async () => {

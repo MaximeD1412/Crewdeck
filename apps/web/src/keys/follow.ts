@@ -22,6 +22,9 @@ export interface VaultFollowOptions {
  * - its version moved past the one this page holds (another holder rotated):
  *   the page opens its wrap of the new version, then reads the state again,
  *   since every item key was rewrapped without an event of its own;
+ * - a version this page opened on its own (a sealed write's 409
+ *   `vault.version-changed`, before `vault.upserted`): the state is read
+ *   again too, its items' keys still those of the old version;
  * - a rotation pending, this Appareil trusted and its vault open at the
  *   current version: it rotates, one at a time, once per version (a failure
  *   leaves it to another holder, never a loop), then reads the state again;
@@ -37,12 +40,16 @@ export const followVault = ({ store, vault, unlockVault, rotateVault, refresh, c
   /** The last version reopened, and the last one this page tried to rotate from. */
   let reopened: number | null = null;
   let tried: number | null = null;
+  /** The version the store's items were last read under: the first one opened, then each one moved to. */
+  let synced: number | null = null;
 
   const run = (work: () => Promise<boolean>) => {
     busy = true;
     void work()
       .then((changed) => {
-        if (changed) refresh();
+        if (!changed) return;
+        synced = vault.version();
+        refresh();
       })
       .catch(() => undefined)
       .finally(() => {
@@ -64,6 +71,11 @@ export const followVault = ({ store, vault, unlockVault, rotateVault, refresh, c
     if (!slice || vaultState !== 'unlocked') return;
     const held = vault.version();
     if (held === null) return;
+    if (synced === null) synced = held;
+    if (held > synced) {
+      synced = held;
+      return refresh();
+    }
     if (slice.version > held) {
       if (reopened === slice.version) return;
       reopened = slice.version;

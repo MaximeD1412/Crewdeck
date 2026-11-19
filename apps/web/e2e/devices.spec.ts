@@ -187,6 +187,8 @@ test('revoking an Appareil: refused at once, the vault key rotated by the truste
   const shown = newDevice(fresh);
   await expect(shown.locator('code').first()).toHaveText(CODE);
   const asked = await pasteCode(page, (await shown.locator('code').first().textContent()) ?? '');
+  // The pending Appareil read: its name in the heading.
+  await expect(asked.getByRole('heading')).toHaveText(/^Approuver « .+ » \?$/);
   const name = /^Approuver « (.+) » \?$/.exec((await asked.getByRole('heading').textContent()) ?? '')?.[1] ?? '';
   await asked.getByRole('button', { name: 'Approuver' }).click();
   await asked.getByRole('button', { name: 'Fermer' }).click();

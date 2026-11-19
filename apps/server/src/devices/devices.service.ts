@@ -146,15 +146,20 @@ export class Devices {
     });
   }
 
-  /** The page of the current Pilote named its Appareil: `lastSeenAt` now, if the last one is an hour old or more. */
+  /**
+   * The page of the current Pilote named its Appareil: `lastSeenAt` now, if
+   * the last one is an hour old or more. Read first without a lock: most
+   * calls change nothing. A change locks the Pilote before the Appareil, as
+   * every writer of an Appareil does (a revocation at once, E2E-4).
+   */
   async seen(pilotId: string, id: string): Promise<void> {
     const now = this.clock.now();
     await runInPilotScope(pilotId, () => this.transactions.run(async (tx) => {
       const before = new Date(now.getTime() - DEVICE_SEEN_EVERY_MS);
-      const { count } = await tx.device.updateMany({
-        where: { id, state: { not: 'revoked' }, OR: [{ lastSeenAt: null }, { lastSeenAt: { lte: before } }] },
-        data: { lastSeenAt: now },
-      });
+      const due = { id, state: { not: 'revoked' as const }, OR: [{ lastSeenAt: null }, { lastSeenAt: { lte: before } }] };
+      if (!(await tx.device.findFirst({ where: due, select: { id: true } }))) return;
+      await this.events.lock(tx, pilotId);
+      const { count } = await tx.device.updateMany({ where: due, data: { lastSeenAt: now } });
       if (count === 0) return;
       const row = await tx.device.findUniqueOrThrow({ where: { id }, select: DEVICE_VIEW });
       await writeDeviceUpserted(this.events, tx, pilotId, toDevice(row));

@@ -390,6 +390,71 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
     });
   });
 
+  describe('a revocation beside another writer of the Appareil (lock order)', () => {
+    /**
+     * The Pilote's row held by another transaction while the revocation, then
+     * `other`, queue behind it, in that order: once released, the revocation
+     * holds the Pilote and wants the Appareil. A writer that locked the
+     * Appareil before the Pilote would deadlock with it (one of them 500).
+     */
+    const behindThePilote = async (tab: Tab, revoke: () => Promise<Response>, other: () => Promise<Response>) => {
+      const waiting = async () => (await sql<{ n: number }>(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND datname = current_database()`))[0]?.n;
+      const holder = new pg.Client({ connectionString: databaseUrl });
+      await holder.connect();
+      try {
+        await holder.query('BEGIN');
+        await holder.query('SELECT id FROM pilots WHERE id = $1 FOR UPDATE', [tab.id]);
+        const revoked = revoke();
+        await expect.poll(waiting, { timeout: 5000, interval: 20 }).toBe(1);
+        const answered = other();
+        await expect.poll(waiting, { timeout: 5000, interval: 20 }).toBe(2);
+        await holder.query('COMMIT');
+        return await Promise.all([revoked, answered]);
+      } finally {
+        await holder.end();
+      }
+    };
+
+    it('the first call of the hour naming the Appareil, at once with its revocation: both answer, its lastSeenAt left as it was', async () => {
+      const alice = await pilot();
+      const first = await linked(alice);
+      const second = await approved(alice, first);
+      const at = await seq(alice);
+      await sql('UPDATE devices SET last_seen_at = NULL WHERE id = $1', [second.deviceId]);
+
+      const [revoked, seen] = await behindThePilote(
+        alice,
+        () => page(alice, `/api/devices/${second.deviceId}/revoke`, { body: { seq: at, last: false } }),
+        () => page(alice, '/api/me', { deviceId: second.deviceId }),
+      );
+
+      expect([revoked.status, seen.status]).toEqual([200, 200]);
+      const [row] = await sql<{ state: string; last_seen_at: Date | null }>('SELECT state, last_seen_at FROM devices WHERE id = $1', [second.deviceId]);
+      expect(row).toEqual({ state: 'revoked', last_seen_at: null });
+    });
+
+    it('the approval of a pending Appareil, at once with its revocation: the revocation wins, the approval 409 devices.not-pending', async () => {
+      const alice = await pilot();
+      const first = await linked(alice);
+      const side = newDeviceSide();
+      const created = zDeviceCreated.parse(await (await page(alice, '/api/devices', { body: side.request() })).json());
+      const at = await seq(alice);
+      const body = { approver: { type: 'device', id: first.deviceId }, vaultKeyVersion: 1, wrap: shapedWrap(), proof: approvalProof(side.secret, side.publicKey, first.publicKey) };
+      // The approver seen just now: what waits behind the revocation is the approval itself.
+      await sql('UPDATE devices SET last_seen_at = now() WHERE id = $1', [first.deviceId]);
+
+      const [revoked, approval] = await behindThePilote(
+        alice,
+        () => page(alice, `/api/devices/${created.id}/revoke`, { body: { seq: at } }),
+        () => page(alice, `/api/devices/${created.id}/approve`, { body, deviceId: first.deviceId }),
+      );
+
+      expect(revoked.status).toBe(200);
+      await expectEnvelope(approval, 409, 'devices.not-pending');
+      expect(await wrapsOf(alice.id)).not.toContain(`device:${created.id}:1`);
+    });
+  });
+
   describe('the rotation by a trusted Appareil', () => {
     it('moves the version: every holder’s wrap of v+1 stored, the older deleted, each item key replaced with its ciphertext kept, with vault.upserted; the Runner gets its wrap', async () => {
       const alice = await pilot();

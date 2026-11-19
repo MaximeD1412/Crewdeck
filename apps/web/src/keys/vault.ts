@@ -39,6 +39,12 @@ export interface Vault {
    * key, and keeps the vault key in memory as a non-extractable AES-GCM key.
    */
   unlockVault(): Promise<VaultState>;
+  /**
+   * This browser's Appareil forgotten (E2E-4): the vault key dropped, the
+   * state `no-device`, and every unlock under way invalidated, its answer
+   * arriving after this publishing neither a key nor a state.
+   */
+  forget(): void;
   sealItem(plaintext: Uint8Array, aad: Uint8Array): Promise<SealedUnder>;
   openItem(item: SealedItem, aad: Uint8Array): Promise<Bytes>;
   /**
@@ -70,6 +76,8 @@ interface Held {
 export const createVault = ({ devices, fetchWrap, onState }: VaultOptions): Vault => {
   let state: VaultState = 'locked';
   let held: Held | null = null;
+  /** Moved by `forget`: an unlock asked under an older one publishes nothing. */
+  let generation = 0;
 
   const set = (next: VaultState): VaultState => {
     if (next !== 'unlocked') held = null;
@@ -87,7 +95,11 @@ export const createVault = ({ devices, fetchWrap, onState }: VaultOptions): Vaul
     state: () => state,
     version: () => held?.version ?? null,
     async unlockVault() {
+      const asked = generation;
+      // Forgotten meanwhile: the state `forget` set stays.
+      const publish = (next: VaultState): VaultState => (asked === generation ? set(next) : state);
       const device = await devices.getDevice();
+      if (asked !== generation) return state;
       if (!device?.deviceId) return set('no-device');
       const { deviceId, privateKey, publicKey, senderPublicKey, runnerPublicKey } = device;
       let wrap: VaultKeyWrap;
@@ -95,7 +107,7 @@ export const createVault = ({ devices, fetchWrap, onState }: VaultOptions): Vaul
         wrap = await fetchWrap(deviceId);
       } catch (error) {
         const code = codeOf(error);
-        return set(code === 'devices.not-found' || code === 'devices.revoked' ? 'no-device' : 'locked');
+        return publish(code === 'devices.not-found' || code === 'devices.revoked' ? 'no-device' : 'locked');
       }
       // The keys this Appareil authenticated, the likeliest sender first: the
       // first Appareil sealed its own wrap, an approved one holds its
@@ -117,13 +129,18 @@ export const createVault = ({ devices, fetchWrap, onState }: VaultOptions): Vaul
           // Not this sender's: the next one.
         }
       }
-      if (!raw || !sender) return set('locked');
+      if (!raw || !sender) return publish('locked');
       const from = sender;
       const open = () => openWrap(privateKey, from, sealed, INFO.vaultWrap, aad);
       const key = await importAesKey(raw);
       raw.fill(0);
+      if (asked !== generation) return state;
       held = { key, version: wrap.vaultKeyVersion, open };
       return set('unlocked');
+    },
+    forget() {
+      generation += 1;
+      set('no-device');
     },
     async sealItem(plaintext, aad) {
       const { key: vaultKey, version } = unlocked();

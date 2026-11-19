@@ -103,6 +103,23 @@ describe('the vault', () => {
     expect(states).toEqual(['no-device', 'no-device', 'locked', 'locked']);
   });
 
+  it('forgets for good: an unlock asked before, answered after, publishes no key nor state (E2E-4)', async () => {
+    const { vault, states, answer } = await setUp();
+    const { vault: expected } = await vectors();
+    let release: (() => void) | undefined;
+    answer(() => new Promise((done) => (release = () => done({ ...expected.wrap, vaultKeyVersion: expected.vaultKeyVersion }))));
+    const unlocking = vault.unlockVault();
+    await vi.waitFor(() => expect(release).toBeDefined());
+
+    vault.forget();
+    release?.();
+
+    expect(await unlocking).toBe('no-device');
+    expect(vault.state()).toBe('no-device');
+    expect(vault.version()).toBeNull();
+    expect(states).toEqual(['no-device']);
+  });
+
   it('stays locked on a wrap it did not seal, and seals nothing then', async () => {
     const { vault, answer } = await setUp();
     const { vault: expected } = await vectors();

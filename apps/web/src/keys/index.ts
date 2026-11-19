@@ -79,9 +79,12 @@ export const createPageKeys = ({ store, client, userAgent, devices = createDevic
     },
     rotateVault: () => rotation.rotate(),
     async forgetDevice() {
+      // At once: an unlock under way publishes nothing after this.
+      vault.forget();
       await devices.clearDevice();
       setCurrentDevice(null);
-      await vault.unlockVault().catch(() => store.setVaultState('no-device'));
+      // One asked while IndexedDB was cleared read the record still there: invalidated too.
+      vault.forget();
     },
   };
 };

@@ -116,6 +116,8 @@ export class DeviceApprovals {
     const parsed = zId.safeParse(id);
     if (!parsed.success) throw deviceUnknown();
     return this.transactions.run(async (tx) => {
+      // The Pilote before the Appareil, as every writer of an Appareil (a revocation at once, E2E-4).
+      await this.events.lock(tx, pilotId);
       const now = this.clock.now();
       const device = await tx.device.findUnique({ where: { id: parsed.data }, select: { state: true, shortId: true, expiresAt: true } });
       if (!device) throw deviceUnknown();

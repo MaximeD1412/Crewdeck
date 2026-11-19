@@ -39,8 +39,10 @@ them, comments, gives an **Avis**), « Contributeur » (notes and triages
 **Idées**, comments, reads the **Sessions**), « Co-pilote » (also drives
 **Sessions** and the **Boucle**, approves, settles **Décisions**),
 « Administrateur » (also manages the **Membres** and changes the
-**Process**). A **Pilote** creates their own by duplicating one; defined
-once in their account.
+**Process**). A **Pilote** creates their own by duplicating one, in their
+account, offered on all their **Projets**; only they create or change one.
+A **Membre** who manages the **Membres** gives an existing **Accès**, never
+changes one.
 _Avoid_: rôle (a **Rôle** is an agent's), permission, profil
 
 **Droit** (`Permission`):
@@ -264,8 +266,10 @@ One conversation of an agent in one **Rôle**, on the **Runner**, with one
 **Moteur**: every agent **Étape** runs in a **Session** (a **Commande** or a
 gate of the **Pilote**'s does not), the **Boucle**'s included,
 and the **Pilote** can read and drive any of them. Its content stays between
-the **Runner** and the **Appareils**; while the **Runner** is « hors ligne »
-only its title and state are shown. A **Session** with no progress is
+the **Runner** and the **Appareils**: at the MVP, while the **Runner** is
+« hors ligne » only its title and state are shown; from the Lancement it is
+also stored encrypted, readable with the **Runner** off as long as its
+**Ticket** or **Étape** is open and 30 days after. A **Session** with no progress is
 interrupted (« Session sans progrès »); one the **Pilote** continues in their
 terminal is « repris hors Crewdeck », its work left alone by the **Boucle**
 until they give it back.
@@ -345,7 +349,8 @@ _Avoid_: agent (it runs agents), daemon, worker
 
 **Runner partagé** (`SharedRunner`):
 A **Runner** on a server, linked to one **Projet** rather than to a person,
-carrying API keys only, where the **Membres** allowed to drive the agents
+carrying API keys only, each put there for that **Projet** by its
+**Pilote** or a **Membre** allowed to and paid by whoever put it, where the **Membres** allowed to drive the agents
 run their **Sessions** and the **Boucle**; it may hold the folder of a
 **Local** **Projet**. A **Projet** has at most one.
 _Avoid_: serveur d'équipe, runner cloud (the hosted **Runner** is `later`)
@@ -364,9 +369,10 @@ the other agents of the moment, paid or open source, later (`next`). A
 _Avoid_: provider, harness, IA, modèle (a **Moteur** offers several models)
 
 **Compte IA** (`AiAccount`):
-How the **Pilote** pays for a **Moteur**: their own sign-in to it, where the
-provider allows it, or their own API key. It stays on the **Runner**; the
-product never holds it.
+How the **Pilote** (or, on a **Runner partagé**, a **Membre**) pays for a
+**Moteur**: their own sign-in to it, where the provider allows it, or their
+own API key, the only kind a **Projet d'équipe** uses. It stays on the
+**Runner**; the product never holds it.
 _Avoid_: abonnement (one kind of **Compte IA** only), clé, credentials
 
 **Rôle** (`AgentRole`):

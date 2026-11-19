@@ -67,8 +67,23 @@ Membre's next Appareil is approved from one of their own, as a Pilote's is.
 - **US-124** (next) As a Pilote, I want to invite someone onto one of my Projets by email with an Accès, the invitation opening the Projet only once they sign in with the invited address, without waiting for one of my Appareils to be on, so that a client or a teammate joins in one click.
 - **US-125** (next) As a Membre, I want to sign in with a link sent to my email, or with my Google or GitHub account, with no Runner nor Compte IA, and see only the Projets I was invited onto, next to my own if I am a Pilote too, so that joining costs me nothing.
 - **US-126** (next) As a Pilote, I want to see the Membres of a Projet with their Accès, change an Accès and remove a Membre, a removed Membre losing access at once and the Projet's key changing, their comments and Avis staying with their name, so that I control who reads my work.
-- **US-127** (next) As a Pilote, I want four Accès by default (Relecteur, Contributeur, Co-pilote, Administrateur), which never change, and to create my own by duplicating one and choosing its Droits (read the Projet, read the Sessions, comment, give an Avis, note and triage Idées, drive Sessions and start the Boucle, approve, change the Process or a Source, manage the Membres and the Accès, the Paramètres of the Projet, read the Historique), my Accès defined once in my account for all my Projets, so that each person gets exactly the rights they need.
-- **US-128** (next) As a Membre allowed to manage the Membres, I want to invite, change and remove Membres of the Projet, never granting a Droit I do not hold, so that the Pilote can hand over the administration safely.
+The four Accès by default give these Droits (✓); « Lire les Versions
+soumises » comes with every Accès:
+
+| Droit | Relecteur | Contributeur | Co-pilote | Administrateur |
+|---|---|---|---|---|
+| Commenter, rendre un Avis | ✓ | ✓ | ✓ | ✓ |
+| Lire le Projet, lire les Sessions | | ✓ | ✓ | ✓ |
+| Noter et trier des Idées | | ✓ | ✓ | ✓ |
+| Piloter les Sessions, démarrer la Boucle | | | ✓ | ✓ |
+| Approuver (document, revue visuelle, merge), trancher les Décisions | | | ✓ | ✓ |
+| Modifier le Process ou une Source | | | | ✓ |
+| Paramètres du Projet | | | | ✓ |
+| Gérer les Membres | | | | ✓ |
+| Lire l'Historique | | | | ✓ |
+
+- **US-127** (next) As a Pilote, I want the four Accès by default, which never change, and to create my own by duplicating one and choosing its Droits among those of the table, my Accès defined in my account and offered on all my Projets, only I creating or changing them, a change applying at once to every Membre who holds that Accès, the product saying on how many Projets before I confirm, so that each person gets exactly the rights they need.
+- **US-128** (next) As a Membre allowed to manage the Membres, I want to invite, change the Accès of and remove the Membres of that Projet, choosing among the Accès of its Pilote and never one with a Droit I do not hold, so that the Pilote can hand over the administration safely.
 
 ### A client's review
 The Pilote submits a document of a Conception, a set of mockups or the
@@ -91,7 +106,7 @@ its Pilote may drive the agents.
 - **US-135** (next) As a Co-pilote, I want to drive Sessions and start the Boucle of a Projet on my own Runner or on its Runner partagé, and settle its Décisions within my Droits, each Action sensible confirmed as for the Pilote, so that the team ships without waiting for the Pilote.
 - **US-136** (next) As a Membre allowed to settle a Décision, I want it in the « À toi » of everyone who may settle it, the first answer settling it for all with the name of who answered, so that a Décision never waits for one person.
 - **US-137** (next) As a Pilote, I want a Projet d'équipe to run its agents on API keys only, the product saying so when I give a Membre the Droit to drive them and showing which Comptes IA stay usable, a Session started on a subscription refused with why, so that no personal subscription serves a team.
-- **US-138** (next) As a Pilote, I want to make a Runner on a server (US-70) the Runner partagé of a Projet, carrying API keys only, where the Membres allowed to drive the agents run their Sessions and the Boucle, the spend counted per person in the statistics, so that the team's agents work day and night with every PC off.
+- **US-138** (next) As a Pilote, I want to make a Runner on a server (US-70) the Runner partagé of a Projet, carrying only the API keys that I or a Membre allowed to change the Paramètres of the Projet put there for it, each key paid by whoever put it and named with them, where the Membres allowed to drive the agents run their Sessions and the Boucle, the spend counted per key and per person who started the work in the statistics, so that the team's agents work day and night with every PC off.
 - **US-139** (next) As a Co-pilote, I want to be told why I cannot run the agents of a Local Projet whose folder is on the Pilote's own machine (« ce Projet vit sur la machine de Maxime »), and to run them once its folder is on its Runner partagé, so that a Projet without GitHub can still be driven by a team.
 - **US-140** (next) As a Pilote or a Membre, I want to read a Session while its Runner is off, the Session stored encrypted as long as its Ticket or its Étape is open and 30 days after, so that everyone follows the agents whatever machine is on.
 
@@ -114,9 +129,11 @@ place of the reasons, and now names who decided.
 - A Relecteur's **Avis** approving in the **Pilote**'s place: the gate is
   the **Pilote**'s (or a **Membre**'s allowed to approve), so that what
   ships is decided by someone who answers for the **Projet**.
-- A **Membre** running agents on the **Pilote**'s **Comptes IA** or
-  subscription: the providers' terms make a subscription personal, and the
-  **Pilote** would pay for someone else's work without seeing it.
+- A **Membre** running agents on the **Pilote**'s own **Runner** and its
+  **Comptes IA**: the providers' terms make a subscription personal, and the
+  **Pilote** would pay for someone else's work without seeing it. An API key
+  the **Pilote** puts on the **Runner partagé** of a **Projet** is the
+  exception they choose, named and counted (US-138).
 - A **Projet** with **Membres** readable by our servers: what a team shares
   stays encrypted end to end, as a solo **Pilote**'s work does (US-60).
 - Editing a document together inside Crewdeck: a document lives at its
@@ -166,8 +183,8 @@ place of the reasons, and now names who decided.
 
 ## Open questions
 
-- The price of the team's plan (per seat for the Contributeurs and
-  Co-pilotes, or per **Projet d'équipe**): the founder, with the business
+- The price of the team's plan (per seat for the **Accès** that drive the
+  agents or administer, or per **Projet d'équipe**): the founder, with the business
   model, before the Lancement.
 - May a Co-pilote use their own subscription, on their own machine, for the
   **Sessions** they start in a **Projet d'équipe**? The providers' terms

@@ -1,4 +1,5 @@
 import {
+  type CommandRunReason,
   type EngineCapabilities,
   HEARTBEAT_SECONDS,
   type McpServers,
@@ -7,6 +8,7 @@ import {
   type RunnerToServer,
   type ServerToRunner,
   type SessionOutcome,
+  type TestingRunnerUsage,
   zServerToRunner,
 } from '@crewdeck/contracts';
 import WebSocket from 'ws';
@@ -23,17 +25,27 @@ const OWN_MACHINE: RunnerMachine = { runnerVersion: 'fake', machine: 'atelier', 
 
 type WithoutEnvelope<T> = T extends unknown ? Omit<T, 'id' | 'at'> : never;
 
+/** How the fake Runner's runs of a Commande end: an exit code, or a reason without one. */
+export type FakeCommandEnd = { readonly reason: 'exited'; readonly exitCode: number } | { readonly reason: Exclude<CommandRunReason, 'exited'> };
+
+/** The two chunks of a fake run: opaque bytes, as the server sees a real one's. */
+const fakeChunk = (seq: number) => ({ seq, nonce: Buffer.alloc(12, seq).toString('base64url'), ciphertext: Buffer.alloc(32, 0xf0 + seq).toString('base64url') });
+
 /**
  * The Runner of the scenario's Pilote, for `pnpm dev` and the end-to-end
  * run (`CREWDECK_FAKES=1`): it connects to this server's own `/api/ws` with
  * the scenario's token (`ScenarioSeed.runnerToken`), says `hello`, then
  * heartbeats every `HEARTBEAT_SECONDS`, so that the page sees it « en
  * ligne »; `report` sends its Moteurs' `capabilities` (RUNNER-7),
- * `reportMcpServers` its Serveurs MCP (RUNNER-16). Its Sessions (RUNNER-9):
+ * `reportMcpServers` its Serveurs MCP (RUNNER-16), `sendUsage` a Moteur's
+ * `usage` (RUNNER-13). Its Sessions (RUNNER-9):
  * `session.start` and `session.resume` answer `active` on the Session's own
  * Moteur id, then `ended` with the outcome `endSessionsWith` set (none: they
  * stay `active`); `session.stop` answers `stopped`; its `hello` tells the
- * Sessions it knows, none alive, as a relaunched Runner.
+ * Sessions it knows, none alive, as a relaunched Runner. Its Commandes
+ * (RUNNER-18): `command.run` answers `command.started`, two output chunks
+ * (opaque bytes) and the verdict `endCommandsWith` set (by default exited
+ * with 0); `command.replay` sends the tab those two chunks again.
  */
 export class FakeRunner implements Fake {
   private socket: WebSocket | undefined;
@@ -43,6 +55,7 @@ export class FakeRunner implements Fake {
   /** The Sessions it was asked to run, by id: their Moteur's id. */
   private readonly sessions = new Map<string, string>();
   private sessionsEnd: SessionOutcome | undefined;
+  private commandsEnd: FakeCommandEnd = { reason: 'exited', exitCode: 0 };
 
   /** Whether its `hello` was accepted and its socket is still open. */
   get connected(): boolean {
@@ -106,9 +119,21 @@ export class FakeRunner implements Fake {
     return true;
   }
 
+  /** Sends `usage` in a `usage` message; `false` while not connected. */
+  sendUsage(usage: TestingRunnerUsage): boolean {
+    if (!this.socket || !this.connected) return false;
+    this.send(this.socket, { type: 'usage', ...usage });
+    return true;
+  }
+
   /** How its Sessions end once `active`, from now on: `undefined`, they stay `active`; `error`, as a Moteur that failed. */
   endSessionsWith(outcome: SessionOutcome | undefined): void {
     this.sessionsEnd = outcome;
+  }
+
+  /** How its runs of a Commande end, from now on. */
+  endCommandsWith(end: FakeCommandEnd): void {
+    this.commandsEnd = end;
   }
 
   /** Connects again as its last `connect`, the Runner relaunched; `false` when it never connected since its reset. */
@@ -131,6 +156,7 @@ export class FakeRunner implements Fake {
     this.last = undefined;
     this.sessions.clear();
     this.sessionsEnd = undefined;
+    this.commandsEnd = { reason: 'exited', exitCode: 0 };
   }
 
   private answer(socket: WebSocket, message: ServerToRunner): void {
@@ -147,6 +173,18 @@ export class FakeRunner implements Fake {
       }
       case 'session.stop':
         if (this.sessions.has(message.sessionId)) this.send(socket, { type: 'session.state', sessionId: message.sessionId, state: 'stopped' });
+        return;
+      case 'command.run': {
+        const { runId } = message;
+        this.send(socket, { type: 'command.started', runId });
+        for (const seq of [1, 2]) this.send(socket, { type: 'command.output', runId, ...fakeChunk(seq) });
+        const end = this.commandsEnd;
+        const exitCode = end.reason === 'exited' ? end.exitCode : null;
+        this.send(socket, { type: 'command.verdict', runId, passed: exitCode === 0, exitCode, reason: end.reason, durationMs: 1200 });
+        return;
+      }
+      case 'command.replay':
+        for (const seq of [1, 2]) if (seq >= message.fromSeq) this.send(socket, { type: 'command.output', runId: message.runId, tabId: message.tabId, ...fakeChunk(seq) });
         return;
       default:
         return;

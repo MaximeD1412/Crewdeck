@@ -76,7 +76,10 @@ export const zEngineEventAuthRequired = engineEvent('auth-required', { reason: z
 
 /**
  * The end of a turn: `interrupted` after `Interrupt`. `engineSessionId` is the
- * Moteur's own id of the Session, what `Resume` takes.
+ * Moteur's own id of the Session, what `Resume` takes. `costUsdMicros` is
+ * the cost of the Session so far, cumulative over its turns and its resumes
+ * (Claude's `total_cost_usd`: 1 480 before a `--resume`, 1 784 after it, in
+ * 04-interrupt and 04-resume): the Runner sends what each result adds.
  */
 export const RESULT_STATUSES = ['ok', 'error', 'interrupted'] as const;
 export const zEngineEventResult = engineEvent('result', {

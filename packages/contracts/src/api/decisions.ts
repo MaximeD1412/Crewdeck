@@ -20,6 +20,7 @@ export const DECISION_KINDS = [
   'step-failed',
   'runner-offline',
   'ideas-to-triage',
+  'loop-back.exhausted',
 ] as const;
 export const zDecisionKind = z.enum(DECISION_KINDS);
 export type DecisionKind = z.infer<typeof zDecisionKind>;

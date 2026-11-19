@@ -6,8 +6,17 @@
 import type { Page } from '@playwright/test';
 import { openConfirm } from './confirm.js';
 import { expect, test } from './fixtures.js';
+import { linkFirstAppareil } from './runner-link.js';
 import { routeSocket } from './socket.js';
 import { becomeTrustedDevice } from './trusted-device.js';
+
+/** The Paramètres' « Appareils », this browser linked first: its first trusted Appareil (E2E-3). */
+const appareils = async (page: Page) => {
+  await linkFirstAppareil(page, undefined);
+  await page.goto('/parametres');
+  await page.getByRole('navigation', { name: 'Paramètres / Sections' }).getByRole('link', { name: 'Appareils' }).click();
+  await expect(page.locator('cd-page-parametres > cd-card[slot=devices]')).toBeVisible();
+};
 
 /** What a scenario's capture shows beyond its page: a sheet or a dialog opened, by width. */
 const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<void>>> = {
@@ -25,6 +34,16 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   'a-toi-menu-plus': async (page, width) => {
     if (width < 1280) await page.getByRole('button', { name: 'Plus' }).click();
   },
+  // The form sent: its go Banner in place of the field (CORE-9).
+  'connexion-lien-envoye': async (page) => {
+    const connexion = page.locator('cd-page-connexion');
+    await connexion.getByRole('textbox', { name: 'Ton adresse e-mail' }).fill('pilote@example.com');
+    await connexion.getByRole('button', { name: 'Recevoir un lien' }).click();
+    await expect(connexion.getByText('Lien envoyé à pilote@example.com')).toBeVisible();
+  },
+  'connexion-lien': async (page) => {
+    await expect(page.locator('cd-page-connexion-lien').getByRole('button', { name: 'Se connecter' })).toBeVisible();
+  },
   // The page draws its code once the snapshot is there: its command shown.
   demarrage: async (page) => {
     await expect(page.locator('cd-page-demarrage cd-code-block')).toContainText('--link');
@@ -34,6 +53,21 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   },
   'demarrage-runner-relie': async (page) => {
     await expect(page.locator('cd-page-demarrage cd-banner')).toContainText('Runner en ligne');
+  },
+  // A new Appareil: the Cadre's Banner, then its dialog with the QR code and the code (E2E-3).
+  'appareil-a-approuver': async (page) => {
+    await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('Cet Appareil ne lit pas encore');
+  },
+  'appareil-a-approuver-code': async (page) => {
+    await page.locator('#app > cd-cadre > cd-banner[slot=banner]').getByRole('button', { name: 'Approuver cet Appareil' }).click();
+    await expect(page.getByRole('img', { name: 'QR code de cet Appareil' })).toBeVisible();
+    await expect(page.locator('crewdeck-new-device code').first()).toHaveText(/^[0-9A-Z]{4}-[0-9A-Z]{26}$/);
+  },
+  appareils,
+  'appareils-ajouter': async (page) => {
+    await appareils(page);
+    await page.locator('cd-page-parametres > cd-card[slot=devices]').getByRole('button', { name: 'Ajouter un Appareil' }).click();
+    await expect(page.getByLabel('Colle le code affiché sur le nouvel Appareil')).toBeFocused();
   },
   'demarrage-comptes-ia': async (page) => {
     await expect(page.locator('cd-page-demarrage cd-card[data-engine=claude-code]')).toContainText('connecté · abonnement');
@@ -48,6 +82,15 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await picker.getByRole('checkbox', { name: /^octocat\/site-mairie\b/ }).check();
     await expect(picker.getByRole('button', { name: 'Suivre 2 Projets' })).toBeEnabled();
   },
+  // « Gestion du process » once the snapshot drew its canvas (1280 px; the phone's list is PROCESS-11's).
+  ...Object.fromEntries(
+    ['process', 'process-manques', 'process-etape', 'process-sources', 'process-local'].map((name) => [
+      name,
+      async (page: Page, width: number) => {
+        if (width >= 1280) await expect(page.locator('cd-page-process-editor cd-process-canvas cd-step-card').first()).toBeVisible();
+      },
+    ]),
+  ),
   projets: async (page) => {
     await expect(page.locator('cd-page-projets cd-list-row')).toHaveCount(4);
   },
@@ -61,25 +104,52 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await expect(page.getByRole('combobox', { name: 'Moteur et modèle du Rôle Code' }).filter({ visible: true })).toHaveValue('codex:gpt-5.5');
     if (width >= 1280) await expect(page.getByRole('textbox', { name: 'Préparer le worktree' })).toHaveValue('pnpm install --frozen-lockfile');
   },
+  // The Idées opened by the trusted Appareil the scenario installs.
+  idees: async (page) => {
+    await expect(page.locator('cd-page-idees cd-idea-row').first()).toContainText('Prévenir quand une Planification');
+  },
+  // « Noter une Idée » opened over the list, as the mockup.
+  'idees-nouvelle': async (page) => {
+    await expect(page.locator('cd-page-idees cd-idea-row').first()).toContainText('Prévenir quand une Planification');
+    await page.locator('cd-page-idees cd-page-header').getByRole('button', { name: 'Noter une Idée' }).click();
+    await expect(page.getByRole('dialog', { name: 'Noter une Idée' })).toBeVisible();
+  },
+  'idees-vide': async (page) => {
+    await expect(page.locator('cd-page-idees cd-empty')).toContainText('Aucune Idée pour l’instant');
+  },
   runner: async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('en ligne');
+    await expect(page.locator('cd-page-runner > cd-usage-card')).toContainText('au rythme actuel');
   },
   'runner-serveurs-mcp': async (page) => {
     await expect(page.locator('cd-page-runner cd-card.mcp cd-list-row')).toHaveCount(2);
   },
   'runner-hors-ligne': async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('hors ligne');
+    await expect(page.locator('cd-page-runner > cd-usage-card')).toContainText('Dernière mesure');
     await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner] cd-code-block')).toContainText('crewdeck-runner restart');
   },
-  // « Runner hors ligne » (ATOI-3): its row among the Décisions, and its banner.
+  // The card « Comptes IA » is filled once the snapshot is there (RUNNER-13).
+  'a-toi': async (page) => {
+    await expect(page.locator('cd-page-a-toi > cd-usage-card')).toContainText('Au rythme actuel');
+  },
+  'a-toi-vide': async (page) => {
+    await expect(page.locator('cd-page-a-toi > cd-usage-card')).toContainText('Au rythme actuel');
+  },
+  // « Runner hors ligne » (ATOI-3): its row among the Décisions, and its banner; the Comptes IA as last measured.
   'a-toi-runner-hors-ligne': async (page) => {
     await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('Ton Runner ne répond plus');
+    await expect(page.locator('cd-page-a-toi cd-decision-row')).toHaveCount(10);
+    await expect(page.locator('cd-page-a-toi > cd-usage-card')).toContainText('Dernière mesure');
+  },
+  // « Maximum de Retours atteint » (PROCESS-6) among the nine Décisions of `a-toi`.
+  'a-toi-process': async (page) => {
     await expect(page.locator('cd-page-a-toi cd-decision-row')).toHaveCount(10);
   },
 };
 
 /** The scenarios whose capture is the screen, not the whole page: a modal over it. */
-const SCREEN_ONLY: ReadonlySet<string> = new Set(['confirm-dialog']);
+const SCREEN_ONLY: ReadonlySet<string> = new Set(['confirm-dialog', 'appareil-a-approuver-code', 'appareils-ajouter', 'idees-nouvelle']);
 
 const names = (process.env['CAPTURES_SCENARIOS'] ?? '')
   .split(',')

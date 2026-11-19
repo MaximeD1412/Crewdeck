@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { DEFAULT_ACCOUNT_SETTINGS, withSeq, zClientMessage, zServerMessage, zState, STATE_SLICES } from '../index.js';
 
-const PILOT = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
+const PILOT = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
 
 describe('zClientMessage', () => {
   it('accepts hello with a seq or null, ping, visibility', () => {
@@ -60,11 +60,13 @@ describe('zState', () => {
       'stepRuns',
       'repositories',
       'decisions',
+      'ideas',
       'tickets',
       'milestones',
       'codeChanges',
       'sessions',
       'settings',
+      'usage',
     ]);
     const state = {
       seq: 3,
@@ -80,11 +82,13 @@ describe('zState', () => {
       stepRuns: [],
       repositories: [],
       decisions: [],
+      ideas: [],
       tickets: [],
       milestones: [],
       codeChanges: [],
       sessions: [],
       settings,
+      usage: [],
     };
     expect(zState.parse(state)).toEqual(state);
     expect(zState.safeParse({ seq: 3, pilot: PILOT }).success).toBe(false);

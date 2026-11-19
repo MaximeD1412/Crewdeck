@@ -117,8 +117,8 @@ describe('cadreView', () => {
   });
 
   it('takes the Pilote from the pilot slice', () => {
-    const state: CadreState = { slices: { pilot: { login: 'maximed1412', avatarUrl: 'https://avatars.example/u/1' } } };
-    expect(cadreView(state, at('/a-toi')).cadre.pilot).toEqual({ login: 'maximed1412', avatarUrl: 'https://avatars.example/u/1' });
+    const state: CadreState = { slices: { pilot: { displayName: 'maximed1412', avatarUrl: 'https://avatars.example/u/1' } } };
+    expect(cadreView(state, at('/a-toi')).cadre.pilot).toEqual({ displayName: 'maximed1412', avatarUrl: 'https://avatars.example/u/1' });
   });
 
   it('counts the open Décisions on « À toi », no count when none waits', () => {
@@ -129,7 +129,19 @@ describe('cadreView', () => {
     expect(cadreView(open(9), at('/a-toi')).menu.filter((item) => item.count !== null).map((item) => item.id)).toEqual(['a-toi']);
   });
 
-  it.each(['/connexion', '/demarrage'])('is bare on %s', (path) => {
+  it('is compact on « Gestion du process », its entry « Projets »', () => {
+    expect(cadreView(empty, at('/projets/019a6f00-0000-7000-8000-000000000011/process')).cadre).toMatchObject({ variant: 'compact', current: 'projets' });
+    expect(cadreView(empty, at('/projets')).cadre).toMatchObject({ variant: 'default', current: 'projets' });
+  });
+
+  it('counts the Idées to triage on « Idées », not those already triaged, no count when none waits', () => {
+    const ideas = (...states: ('to-triage' | 'retained' | 'merged')[]): CadreState => ({ slices: { idea: new Map(states.map((state, i) => [String(i), { state }])) } });
+    const countOf = (state: CadreState) => cadreView(state, at('/a-toi')).menu.find((item) => item.id === 'idees')?.count;
+    expect(countOf(ideas('to-triage', 'retained', 'to-triage', 'merged'))).toBe(2);
+    expect(countOf(ideas('retained'))).toBeNull();
+  });
+
+  it.each(['/connexion', '/connexion/lien', '/demarrage'])('is bare on %s', (path) => {
     expect(cadreView(empty, at(path)).cadre).toMatchObject({ variant: 'bare', current: null });
   });
 });

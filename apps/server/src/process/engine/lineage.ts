@@ -1,6 +1,6 @@
-import type { ArtifactType, PhaseRun } from '@crewdeck/contracts';
+import { type ArtifactType, type PhaseRun, zArtifactRef } from '@crewdeck/contracts';
+import { z } from 'zod';
 import type { Tx } from '../../realtime/transactions.js';
-import { STEP_RUN_VIEW, toStepRun } from './engine.view.js';
 import type { Ancestor } from './feeding.js';
 
 /**
@@ -45,6 +45,11 @@ export const ancestors = async (tx: Tx, phaseRun: Pick<PhaseRun, 'id' | 'parentP
     parent = row?.parentPhaseRunId ?? null;
   }
   if (chain.length === 0) return [];
-  const stepRuns = (await tx.stepRun.findMany({ where: { phaseRunId: { in: chain } }, select: STEP_RUN_VIEW, orderBy: { id: 'asc' } })).map(toStepRun);
+  const rows = await tx.stepRun.findMany({
+    where: { phaseRunId: { in: chain } },
+    select: { id: true, phaseRunId: true, stepId: true, state: true, iteration: true, outputs: true },
+    orderBy: { id: 'asc' },
+  });
+  const stepRuns = rows.map((row) => ({ ...row, outputs: z.array(zArtifactRef).parse(row.outputs) }));
   return chain.map((id) => ({ id, stepRuns: stepRuns.filter((run) => run.phaseRunId === id) }));
 };

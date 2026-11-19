@@ -11,6 +11,7 @@ import {
   type ProjectProcess,
   type State,
   type StepRun,
+  type Idea,
   type Ticket,
 } from '@crewdeck/contracts';
 import { store } from './index.js';
@@ -35,7 +36,7 @@ const SESSION: AgentSession = {
 };
 const AT = '2026-11-15T08:00:00.000Z';
 const SHA = 'a'.repeat(40);
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
 
 const TICKET: Ticket = {
   id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a90',
@@ -117,6 +118,7 @@ const PHASE_RUN: PhaseRun = {
   itemId: '42',
   state: 'running',
   waitingOn: null,
+  loopBacks: [],
   startedAt: AT,
   endedAt: null,
 };
@@ -135,6 +137,7 @@ const STEP_RUN: StepRun = {
   failure: null,
   reason: null,
   sessionId: null,
+  canAskChanges: false,
   startedAt: AT,
   endedAt: null,
 };
@@ -153,11 +156,13 @@ const SNAPSHOT: State = {
   stepRuns: [STEP_RUN],
   repositories: [],
   decisions: [],
+  ideas: [],
   tickets: [TICKET],
   milestones: [MILESTONE],
   codeChanges: [CHANGE],
   sessions: [SESSION],
   settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] },
+  usage: [],
 };
 
 describe('the page’s store', () => {
@@ -243,6 +248,37 @@ describe('the page’s store', () => {
 
     expect([...(store.getState().slices['phase-run']?.keys() ?? [])].sort()).toEqual([PHASE_RUN.id, OTHER.id]);
     expect([...(store.getState().slices['step-run']?.values() ?? [])]).toEqual([failed, retried]);
+  });
+
+  it('holds the Idées by id, dropping one merged or rejected more than 90 days ago, as the snapshot would', () => {
+    const idea: Idea = {
+      id: '0193a4f2-7c1e-7a10-8c2c-000000000064',
+      number: 64,
+      projectId: PROJECT,
+      targetProjectId: null,
+      targetIsNew: false,
+      state: 'to-triage',
+      text: { key: 'a'.repeat(80), ciphertext: 'b'.repeat(40) },
+      analysis: null,
+      impact: null,
+      effort: null,
+      duplicateIds: [],
+      notedFrom: 'telephone',
+      dictated: false,
+      mergedIntoId: null,
+      reason: null,
+      ticketNumber: null,
+      createdAt: AT,
+      updatedAt: new Date().toISOString(),
+      analysedAt: null,
+      triagedAt: null,
+    };
+    store.applySnapshot({ ...SNAPSHOT, ideas: [idea] });
+    expect(store.getState().slices.idea?.get(idea.id)).toEqual(idea);
+
+    const old = new Date(Date.now() - 91 * 24 * 60 * 60 * 1000).toISOString();
+    store.applyEvent({ seq: 2, type: 'idea.upserted', payload: { ...idea, state: 'rejected', updatedAt: old }, at: AT });
+    expect(store.getState().slices.idea?.size).toBe(0);
   });
 
   it('holds the Sessions by id, from the snapshot then their events', () => {

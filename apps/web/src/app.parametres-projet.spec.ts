@@ -7,7 +7,7 @@ import { boot, type App } from './app.js';
 import { applySettingsEvent } from './store/settings.js';
 import { createStore } from './store/store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
 const AT = '2026-11-12T09:00:00.000Z';
 const PROJECT: Project = {
   id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a80',
@@ -85,13 +85,13 @@ describe('a Projet’s Paramètres in the page', () => {
   it('then shows the Projet’s sections, its Rôles inherited from the account, following the events of its Paramètres', () => {
     store.applySnapshot({
       seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [CODEX], 'mcp-server': [], devices: [], projects: [PROJECT], processes: [], phaseRuns: [], stepRuns: [],
-      repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...ACCOUNT, projects: [OWN] },
+      repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...ACCOUNT, projects: [OWN] }, usage: [],
     });
     expect(page()?.data).toEqual({ project: 'Site mairie', changedCount: 0, counts: {} });
     expect(slotsOf()).toEqual(['roles', 'steps', 'branches', 'worktree', 'notifications']);
     expect(row('role:code')?.data['origin']).toBe('compte');
-    // No route draws the Gestion du process yet (PROCESS-7): the row has no link.
-    expect(page()?.querySelector<WithData>('cd-card[slot=steps] cd-list-row')?.data['href']).toBeUndefined();
+    // Its Étapes link to the Gestion du process (PROCESS-7).
+    expect(page()?.querySelector<WithData>('cd-card[slot=steps] cd-list-row')?.data['href']).toBe(`/projets/${PROJECT.id}/process`);
     // A browser that is no trusted Appareil: the worktree Commandes stay closed.
     expect(page()?.querySelector<WithData>('cd-card[slot=worktree] cd-text-field')?.data).toMatchObject({ state: 'disabled', help: t('settings.project.worktree.locked') });
 

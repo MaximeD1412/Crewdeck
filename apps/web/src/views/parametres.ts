@@ -5,6 +5,7 @@ import {
   withDefaultRoles,
   type AccountSettings,
   type AiAccount,
+  type Device,
   type EngineId,
   type Project,
   type RoleChoice,
@@ -12,6 +13,7 @@ import {
 } from '@crewdeck/contracts';
 import { t, type Card, type ComposantData, type Icon, type ListRow, type RoleSettings, type Select, type SettingRow } from '@crewdeck/sdk';
 import type { PlacedNode } from '../placed.js';
+import { devicesCard } from './devices.js';
 
 /** The time zones the Pilote may pick: the IANA zones the browser knows. */
 export const timeZones = (): readonly string[] => Intl.supportedValuesOf('timeZone');
@@ -138,9 +140,16 @@ export interface RolesInput {
   readonly projects?: readonly Project[];
 }
 
+/** What the Paramètres read beside the settings: « Rôles et modèles »'s, and the Appareils with this browser's own (E2E-3). */
+export interface ParametresInput extends RolesInput {
+  readonly devices?: ReadonlyMap<string, Device>;
+  readonly currentDeviceId?: string | null;
+}
+
 /**
- * The Emplacements of the Paramètres (pure, US-82): once the snapshot gave
- * the settings, « Rôles et modèles » (PARAM-2) and « Compte » with the time
+ * The Emplacements of the Paramètres (pure, US-82): « Appareils » once the
+ * snapshot gave them, this page's own named (E2E-3); once it gave the
+ * settings, « Rôles et modèles » (PARAM-2) and « Compte » with the time
  * zone (a zone the list lacks, an alias, kept among the options), « Par
  * Projet » (PARAM-3), then « Pour les Moddeurs ». The other sections are
  * their tickets'.
@@ -148,8 +157,9 @@ export interface RolesInput {
 export const parametresView = (
   settings: SettingsState | null | undefined,
   zones: readonly string[],
-  { accounts = [], local = NO_ROLES_LOCAL, projects = [] }: RolesInput = {},
+  { accounts = [], local = NO_ROLES_LOCAL, projects = [], devices, currentDeviceId }: ParametresInput = {},
 ): readonly PlacedNode[] => [
+  ...[devicesCard(devices, currentDeviceId)].filter((node) => node !== null),
   ...(settings ? [roles(settings, accounts, local), account(settings, zones), ...byProject(settings, projects)] : []),
   modders(),
 ];

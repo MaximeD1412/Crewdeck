@@ -1,4 +1,5 @@
 import { aToi, aToiVide } from './a-toi.js';
+import { aToiProcess } from './a-toi-process.js';
 import { blank } from './blank.js';
 import {
   composants,
@@ -12,34 +13,50 @@ import {
   composantsTextField,
   confirmDialog,
 } from './composants.js';
-import { connexion, connexionErreur } from './connexion.js';
+import { connexion, connexionErreur, connexionGoogleNonVerifiee, connexionLien, connexionLienEnvoye } from './connexion.js';
 import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
+import { appareilAApprouver, appareilAApprouverCode, appareils, appareilsAjouter } from './devices.js';
 import type { Scenario } from './define.js';
+import { idees, ideesNouvelle, ideesVide } from './idees.js';
 import { menuPlus } from './menu-plus.js';
 import { demarrageProjets, projets, projetsVide } from './projets.js';
 import { parametres } from './parametres.js';
 import { parametresProjet } from './parametres-projet.js';
+import { processScenarios } from './process.js';
 import { resynchronisation } from './resynchronisation.js';
 import { runner, runnerServeursMcp } from './runner.js';
 import { aToiRunnerHorsLigne, runnerHorsLigne } from './runner-offline.js';
+import { smoke } from './smoke.js';
 
 export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed } from './define.js';
 
 /** Every scenario, by name: a screen ticket adds its own here. */
 const SCENARIOS: readonly Scenario[] = [
+  appareilAApprouver,
+  appareilAApprouverCode,
+  appareils,
+  appareilsAjouter,
   aToi,
   aToiVide,
+  aToiProcess,
   aToiRunnerHorsLigne,
+  aToiVide,
   blank,
   composants,
   connexion,
   connexionErreur,
+  connexionGoogleNonVerifiee,
+  connexionLien,
+  connexionLienEnvoye,
   demarrage,
   demarrageLiaisonEchouee,
   demarrageRunnerRelie,
   demarrageComptesIa,
   demarrageComptesIaAucun,
   demarrageProjets,
+  idees,
+  ideesNouvelle,
+  ideesVide,
   menuPlus,
   parametres,
   parametresProjet,
@@ -49,6 +66,7 @@ const SCENARIOS: readonly Scenario[] = [
   runner,
   runnerHorsLigne,
   runnerServeursMcp,
+  smoke,
   ...composantsRows,
   composantsTextField,
   composantsSettingRow,
@@ -58,6 +76,7 @@ const SCENARIOS: readonly Scenario[] = [
   ...composantsSession,
   ...composantsProcess,
   ...composantsProcessList,
+  ...processScenarios,
 ];
 
 const byName = new Map(SCENARIOS.map((scenario) => [scenario.name, scenario]));

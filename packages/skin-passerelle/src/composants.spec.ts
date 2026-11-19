@@ -4,11 +4,24 @@ import './tokens.css';
 import './document.css';
 import { COMPOSANTS, t, zCdActionDetail } from '@crewdeck/sdk';
 import type { LitElement } from 'lit';
+import { page } from 'vitest/browser';
 import { COPIED_MS } from './code-block.js';
 import passerelle from './index.js';
 import { actionsOf, centreOf, defineSkin, drag, inside, pointer, render, settle, textOf } from './testing/dom.js';
 
 beforeAll(defineSkin);
+
+/** Runs `act` at 1280 px, once `el` has drawn its PC layout (the editor of « Gestion du process » exists only there). */
+const atPc = async (el: Element, act: () => void): Promise<void> => {
+  const { width, height } = { width: window.innerWidth, height: window.innerHeight };
+  await page.viewport(1280, 800);
+  try {
+    await expect.poll(() => el.shadowRoot?.querySelector('cd-process-canvas')?.shadowRoot?.querySelector('cd-step-card') ?? null).not.toBeNull();
+    act();
+  } finally {
+    await page.viewport(width, height);
+  }
+};
 
 /** How each declared action is set off from the first example: a test fails for an action without one. */
 const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unknown>> = {
@@ -69,7 +82,35 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     await settle(el);
     inside(el, 'cd-button.note-idea', 'button').click();
   },
-  'PageConnexion.signIn': (el) => inside(el, 'cd-button', 'button').click(),
+  'PageIdees.note': (el) => inside(el, 'cd-button.note', 'button').click(),
+  'PageIdees.open': (el) => inside(el, 'cd-idea-row', '.open').click(),
+  'PageIdees.filter': (el) => inside(el, 'cd-project-filter', 'cd-chip:nth-of-type(2)', 'button').click(),
+  'PageIdees.tab': (el) => inside(el, 'cd-tabs', 'button[role=tab]:nth-of-type(2)').click(),
+  'PageIdees.more': async (el) => {
+    el.data = COMPOSANTS.PageIdees.examples[4]?.data;
+    await settle(el);
+    inside(el, 'cd-button.more', 'button').click();
+  },
+  'NoteIdeaDialog.submit': (el) => {
+    const field = inside<HTMLTextAreaElement>(el, 'cd-text-field.text', 'textarea');
+    field.value = 'Pouvoir dupliquer une recette';
+    field.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    inside(el, 'cd-button.submit', 'button').click();
+  },
+  'NoteIdeaDialog.cancel': (el) => inside(el, 'cd-button.cancel', 'button').click(),
+  'PageConnexion.requestLink': (el) => inside(el, 'cd-button.request', 'button').click(),
+  'PageConnexion.signInWith': (el) => inside(el, 'cd-button.github', 'button').click(),
+  'PageConnexion.changeEmail': async (el) => {
+    el.data = { ...(el.data as object), sentTo: 'pilote@example.com' };
+    await settle(el);
+    inside(el, 'cd-button.change', 'button').click();
+  },
+  'PageConnexionLien.confirm': (el) => inside(el, 'cd-button.confirm', 'button').click(),
+  'PageConnexionLien.restart': async (el) => {
+    el.data = { state: 'invalid' };
+    await settle(el);
+    inside(el, 'cd-button.restart', 'button').click();
+  },
   'PageDemarrage.selectSystem': (el) => inside(el, 'cd-tabs', 'button[role=tab]:nth-of-type(2)').click(),
   'PageDemarrage.retry': async (el) => {
     el.data = { ...(el.data as object), failure: { reason: 'expired', shortId: '9RTB' } };
@@ -84,6 +125,9 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     pointer('pointerdown', handle, centreOf(handle));
   },
   'Phase.select': (el) => inside(el, 'header').click(),
+  'PageProcessEditor.select': (el) => atPc(el, () => inside(el, 'cd-process-canvas', 'cd-step-card[data-step=analyse]', 'article').click()),
+  'PageProcessEditor.tab': (el) => atPc(el, () => inside(el, 'cd-tabs', 'button[role=tab]:nth-of-type(3)').click()),
+  'PageProcessEditor.view': (el) => atPc(el, () => inside(el, 'cd-process-canvas', 'cd-icon-button.zoom-in', 'button').click()),
   'ProcessCanvas.select': (el) => inside(el, 'cd-step-card[data-step=analyse]', 'article').click(),
   'ProcessCanvas.view': (el) => inside(el, 'cd-icon-button.zoom-in', 'button').click(),
   'ProcessCanvas.moveStep': (el) =>
@@ -466,26 +510,6 @@ describe('PageIntrouvable', () => {
     const link = el.shadowRoot?.querySelector('a');
     expect(link?.getAttribute('href')).toBe('/a-toi');
     expect(link?.textContent?.trim()).toBe(t('router.notFound.back'));
-  });
-});
-
-describe('PageConnexion', () => {
-  it('welcomes the Pilote, with the GitHub button and its help, and no banner', async () => {
-    const el = await render(COMPOSANTS.PageConnexion, { error: null });
-    expect(textOf(el.shadowRoot?.querySelector('h1'))).toBe(t('connexion.title'));
-    expect(textOf(el.shadowRoot?.querySelector('[part=lead]'))).toBe(t('connexion.lead'));
-    expect(textOf(el.shadowRoot?.querySelector('[part=help]'))).toBe(t('connexion.help'));
-    const button = el.shadowRoot?.querySelector('cd-button') as HTMLElement & { data: unknown };
-    expect(button.data).toMatchObject({ label: t('connexion.button'), variant: 'primary', icon: 'github' });
-    expect(el.shadowRoot?.querySelector('cd-banner')).toBeNull();
-  });
-
-  it.each(['state-mismatch', 'denied', 'github-unavailable'] as const)('shows the halt banner of %s above the button', async (error) => {
-    const el = await render(COMPOSANTS.PageConnexion, { error });
-    const banner = el.shadowRoot?.querySelector('cd-banner') as HTMLElement & { data: unknown };
-    expect(banner.data).toMatchObject({ tone: 'halt', title: t(`connexion.error.${error}`) });
-    expect(inside(banner, '[role=alert]')).toBeTruthy();
-    expect(banner.compareDocumentPosition(el.shadowRoot?.querySelector('cd-button') as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

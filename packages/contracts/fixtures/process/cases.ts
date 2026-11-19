@@ -412,4 +412,20 @@ export const PROCESS_CASES: readonly ProcessCase[] = [
     gap('source.missing', 'sources.code-change', 'Changement de code : aucune Source'),
     gap('source.missing', 'sources.verdict', 'Verdict : aucune Source'),
   ),
+  // « Gestion du process »' draft (PROCESS-7, `process-manques`): every kind a Projet's Sources let happen, `source.missing` apart (a Projet holds both groups).
+  accepted(
+    'gaps-every-kind',
+    'remove the Rôle of st-analyse and the arrow st-review.verdict → st-merge.v-review, and add a Commande Étape « Tests de bout en bout » without a `command` Outil',
+    crewdeck(
+      editStep('st-analyse', (step) => (step.tools = step.tools.filter((tool) => tool.kind !== 'role'))),
+      removeArrow('st-review.verdict → st-merge.v-review'),
+      ...withE2e(),
+    ),
+    GITHUB,
+    gap('capability.missing', 'steps.st-analyse', '« Analyse de l’Idée » a besoin d’un Rôle : aucun Outil attaché n’en donne'),
+    gap('input.unfed', 'steps.st-merge.inputs.v-review', 'Entrée « Verdict de la Review » de « Merge » : rien ne l’alimente'),
+    gap('merge.no-review', 'steps.st-merge', '« Merge » merge un Changement de code sans Review avant lui'),
+    gap('merge.no-checks', 'steps.st-merge', '« Merge » merge un Changement de code sans checks avant lui'),
+    gap('capability.missing', 'steps.st-e2e', `« ${E2E} » a besoin d’une Commande : aucun Outil attaché n’en donne`),
+  ),
 ];

@@ -57,30 +57,30 @@ describe('POST /api/testing/pilot against PostgreSQL', () => {
       const state = async () => zState.parse(await (await fetch(`${await app.getUrl()}/api/state`, { headers: { cookie } })).json());
       const before = await state();
 
-      const response = await rename(app, { login: 'renamed' }, cookie);
+      const response = await rename(app, { displayName: 'renamed' }, cookie);
 
       expect(response.status).toBe(200);
-      expect(zMe.parse(await response.json())).toMatchObject({ login: 'renamed', timeZone: 'Europe/Paris' });
+      expect(zMe.parse(await response.json())).toMatchObject({ displayName: 'renamed', timeZone: 'Europe/Paris' });
       const after = await state();
-      expect(after).toMatchObject({ seq: before.seq + 1, pilot: { login: 'renamed' } });
-      expect(await sql<{ type: string; login: string }>(`SELECT type, payload->>'login' AS login FROM events`)).toEqual([
-        { type: 'pilot.upserted', login: 'renamed' },
+      expect(after).toMatchObject({ seq: before.seq + 1, pilot: { displayName: 'renamed' } });
+      expect(await sql<{ type: string; display_name: string }>(`SELECT type, payload->>'displayName' AS display_name FROM events`)).toEqual([
+        { type: 'pilot.upserted', display_name: 'renamed' },
       ]);
     });
 
     it('gives 401 auth.required without a session', async () => {
-      await expectEnvelope(await rename(app, { login: 'renamed' }), 401, 'auth.required');
+      await expectEnvelope(await rename(app, { displayName: 'renamed' }), 401, 'auth.required');
     });
 
-    it('gives 400 validation.invalid for an empty login', async () => {
-      await expectFields(await rename(app, { login: '' }, cookie), ['login']);
+    it('gives 400 validation.invalid for an empty display name', async () => {
+      await expectFields(await rename(app, { displayName: '' }, cookie), ['displayName']);
     });
   });
 
   it('gives 404 on a server booted without CREWDECK_FAKES (production)', async () => {
     const app = await boot('production', false);
     try {
-      expect((await rename(app, { login: 'renamed' })).status).toBe(404);
+      expect((await rename(app, { displayName: 'renamed' })).status).toBe(404);
     } finally {
       await app.close();
     }

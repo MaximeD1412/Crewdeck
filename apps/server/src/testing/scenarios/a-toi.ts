@@ -1,7 +1,7 @@
 import type { DecisionKind, DecisionTone } from '@crewdeck/contracts';
 import { newId } from '../../ids.js';
 import { defineScenario, type ScenarioContext } from './define.js';
-import { signInPilot } from './sign-in.js';
+import { RUNNER_MACHINE, withAccounts } from './runner.js';
 
 const MINUTE = 60_000;
 
@@ -39,9 +39,13 @@ const MOCKUP: readonly Seeded[] = [
   { kind: 'contract-incomplete', project: PROJECTS.siteMairie, subjectType: 'design', subjectId: 'actualites', label: 'Découpage « Actualités »', metaParts: ['Tickets'], tone: 'caution', link: '/conceptions', age: 24 * 60 + 60 },
 ];
 
-/** The Pilote signed in, and the mockup's Décisions open for them, as their modules would have raised them. */
-export const seedDecisions = async (ctx: ScenarioContext) => {
-  const seed = await signInPilot(ctx);
+/**
+ * The Pilote signed in, their Runner and Comptes IA with their usage (the
+ * card « Comptes IA »), and the mockup's Décisions open for them, as their
+ * modules would have raised them.
+ */
+export const seedDecisions = async (ctx: ScenarioContext, lastSeenAt?: Date) => {
+  const { token, ...seed } = await withAccounts(ctx, lastSeenAt);
   const now = Date.now();
   await ctx.prisma.unscoped.decision.createMany({
     data: MOCKUP.map(({ project, age, metaParts, ...decision }) => ({
@@ -54,11 +58,17 @@ export const seedDecisions = async (ctx: ScenarioContext) => {
       createdAt: new Date(now - age * MINUTE),
     })),
   });
-  return seed;
+  return { ...seed, token };
+};
+
+/** Online: the fake Runner connects with the scenario's token. */
+const online = async (ctx: ScenarioContext, decisions: boolean) => {
+  const { token, ...seed } = decisions ? await seedDecisions(ctx) : await withAccounts(ctx);
+  return { ...seed, runnerToken: token, runnerMachine: RUNNER_MACHINE };
 };
 
 /** « À toi » (`design/screens.json`: `a-toi`): nine open Décisions of four Projets. */
-export const aToi = defineScenario({ name: 'a-toi', path: '/a-toi', seed: seedDecisions });
+export const aToi = defineScenario({ name: 'a-toi', path: '/a-toi', seed: (ctx) => online(ctx, true) });
 
 /** « À toi » with nothing waiting (`a-toi`, state `vide`): « Rien ne t’attend ». */
-export const aToiVide = defineScenario({ name: 'a-toi-vide', path: '/a-toi', seed: signInPilot });
+export const aToiVide = defineScenario({ name: 'a-toi-vide', path: '/a-toi', seed: (ctx) => online(ctx, false) });

@@ -30,3 +30,15 @@ export const authKeysEnv = (): Record<string, string> => ({
   GITHUB_TOKEN_KEY: randomBytes(32).toString('base64'),
   SESSION_SECRET: randomBytes(32).toString('base64'),
 });
+
+/** The mail of the sign-in by email (CORE-9), made up for the tests: a relay nobody answers. */
+export const mailEnv = (): Record<string, string> => ({
+  SMTP_URL: 'smtps://crewdeck:test-password@smtp.mail.invalid:465',
+  MAIL_FROM: 'Crewdeck <connexion@crewdeck.example>',
+});
+
+/** The Google OAuth client of the sign-in with Google (CORE-10), made up for the tests: never a real client's. */
+export const googleEnv = (): Record<string, string> => ({
+  GOOGLE_CLIENT_ID: 'crewdeck-test.apps.googleusercontent.com',
+  GOOGLE_CLIENT_SECRET: 'test-google-secret',
+});

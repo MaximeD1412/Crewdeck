@@ -31,6 +31,10 @@ var linkCode = regexp.MustCompile(`^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{26}
 // engines are the Moteurs the Runner looks for on PATH.
 var engines = []string{"claude", "codex"}
 
+// lookEngine finds a Moteur's binary; the smoke build's fake Moteur stands
+// for every one (smoke.go).
+var lookEngine = exec.LookPath
+
 // Why a link fails, as the binary says it (US-2).
 const (
 	reasonUnknown     = "unknown"
@@ -136,7 +140,7 @@ func newLinkCommand(server *string) *cobra.Command {
 				retry:    contracts.LinkPollSeconds * time.Second,
 				poll:     contracts.LinkPollSeconds * time.Second,
 				window:   contracts.LinkCodeTtlSeconds * time.Second,
-				lookPath: exec.LookPath,
+				lookPath: lookEngine,
 				describe: func() (protocol.Machine, error) { return protocol.DescribeMachine(version) },
 				store:    store,
 				install:  installService(noService),
@@ -145,7 +149,7 @@ func newLinkCommand(server *string) *cobra.Command {
 			return l.link(cmd.Context(), args[0])
 		},
 	}
-	cmd.Flags().BoolVar(&noService, "no-service", false, "link without installing the user service (development)")
+	cmd.Flags().BoolVar(&noService, "no-service", false, "link without installing the user service, for development, the smoke test and CI: start it with crewdeck-runner run")
 	return cmd
 }
 

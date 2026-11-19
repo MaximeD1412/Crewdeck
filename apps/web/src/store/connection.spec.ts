@@ -2,7 +2,7 @@ import { DEFAULT_ACCOUNT_SETTINGS, WS_CLOSE, type ClientMessage, type Me, type S
 import { createConnection, PONG_TIMEOUT_MS, type Connection, type SocketLike } from './connection.js';
 import { createStore, type Store } from './store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', login: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done' };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
 const AT = '2026-11-11T08:00:00.000Z';
 const LOST = new Date('2026-11-11T14:12:00.000Z');
 
@@ -49,9 +49,9 @@ class MockSocket implements SocketLike {
   }
 }
 
-const pilotEvent = (seq: number, login: string): ServerMessage => ({
+const pilotEvent = (seq: number, displayName: string): ServerMessage => ({
   type: 'event',
-  event: { seq, type: 'pilot.upserted', payload: { ...PILOT, login }, at: AT },
+  event: { seq, type: 'pilot.upserted', payload: { ...PILOT, displayName }, at: AT },
 });
 
 let store: Store;
@@ -74,7 +74,7 @@ const connect = () => {
 
 /** A connection already live at `seq`, its first socket opened. */
 const liveAt = async (seq: number) => {
-  snapshot.mockResolvedValueOnce({ seq, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] } });
+  snapshot.mockResolvedValueOnce({ seq, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
   const connection = connect();
   const socket = MockSocket.last();
   socket.open();
@@ -102,7 +102,7 @@ afterEach(() => {
 
 describe('the boot of the connection', () => {
   it('goes connecting → snapshot → live: hello without seq, GET /api/state applied, hello with its seq, then live', async () => {
-    snapshot.mockResolvedValueOnce({ seq: 7, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] } });
+    snapshot.mockResolvedValueOnce({ seq: 7, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
     connect();
     const socket = MockSocket.last();
     expect(socket.url).toBe('ws://crewdeck.test/api/ws');
@@ -129,7 +129,7 @@ describe('the boot of the connection', () => {
   it('applies the events the server sends', async () => {
     const { socket } = await liveAt(7);
     socket.receive(pilotEvent(8, 'renamed'));
-    expect(store.getState()).toMatchObject({ seq: 8n, slices: { pilot: { login: 'renamed' } } });
+    expect(store.getState()).toMatchObject({ seq: 8n, slices: { pilot: { displayName: 'renamed' } } });
   });
 
   it('ignores a message that is not one of the server’s', async () => {
@@ -164,7 +164,7 @@ describe('a lost socket', () => {
     expect(next.sent[0]).toEqual({ type: 'hello', lastSeq: '7' });
     next.receive(pilotEvent(8, 'missed'));
     next.receive({ type: 'live' });
-    expect(store.getState()).toMatchObject({ connection: 'live', lostAt: null, seq: 8n, slices: { pilot: { login: 'missed' } } });
+    expect(store.getState()).toMatchObject({ connection: 'live', lostAt: null, seq: 8n, slices: { pilot: { displayName: 'missed' } } });
   });
 
   it('starts the backoff again at 1 s once live', async () => {
@@ -222,7 +222,7 @@ describe('a gap in the seq', () => {
     const { socket } = await liveAt(7);
     socket.receive(pilotEvent(9, 'too-far'));
 
-    expect(store.getState()).toMatchObject({ connection: 'resync', seq: 7n, slices: { pilot: { login: 'octocat' } } });
+    expect(store.getState()).toMatchObject({ connection: 'resync', seq: 7n, slices: { pilot: { displayName: 'octocat' } } });
     expect(socket.readyState).toBe(3);
     expect(MockSocket.all).toHaveLength(2);
     const next = MockSocket.last();
@@ -302,7 +302,7 @@ describe('what the page tells the server', () => {
     socket.receive(pilotEvent(8, 'missed'));
     expect(store.getState().connection).toBe('resync');
     socket.receive({ type: 'live' });
-    expect(store.getState()).toMatchObject({ connection: 'live', seq: 8n, slices: { pilot: { login: 'missed' } } });
+    expect(store.getState()).toMatchObject({ connection: 'live', seq: 8n, slices: { pilot: { displayName: 'missed' } } });
   });
 
   it('a second catchUp during the first one waits for its live, then sends hello again: the first live does not end it', async () => {
@@ -322,11 +322,11 @@ describe('what the page tells the server', () => {
 
     socket.receive(pilotEvent(9, 'second'));
     socket.receive({ type: 'live' });
-    expect(store.getState()).toMatchObject({ connection: 'live', seq: 9n, slices: { pilot: { login: 'second' } } });
+    expect(store.getState()).toMatchObject({ connection: 'live', seq: 9n, slices: { pilot: { displayName: 'second' } } });
   });
 
   it('a catchUp before the boot is live is the same: the boot’s live is followed by its hello', async () => {
-    snapshot.mockResolvedValueOnce({ seq: 7, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] } });
+    snapshot.mockResolvedValueOnce({ seq: 7, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
     const connection = connect();
     const socket = MockSocket.last();
     socket.open();
@@ -346,14 +346,14 @@ describe('what the page tells the server', () => {
     const { connection, socket } = await liveAt(7);
     connection.catchUp();
     socket.sent.length = 0;
-    snapshot.mockResolvedValueOnce({ seq: 20, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, pilot: { ...PILOT, login: 'snapshot' } });
+    snapshot.mockResolvedValueOnce({ seq: 20, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [], pilot: { ...PILOT, displayName: 'snapshot' } });
     socket.receive({ type: 'snapshot-required' });
     await vi.waitFor(() => expect(store.getState().seq).toBe(20n));
     expect(store.getState().connection).toBe('resync');
     expect(socket.sent[0]).toEqual({ type: 'hello', lastSeq: '20' });
 
     socket.receive({ type: 'live' });
-    expect(store.getState()).toMatchObject({ connection: 'live', slices: { pilot: { login: 'snapshot' } } });
+    expect(store.getState()).toMatchObject({ connection: 'live', slices: { pilot: { displayName: 'snapshot' } } });
   });
 
   it('carries a Session’s relay: its messages to the relay, the relay’s on the open socket, and each socket opened again', async () => {
@@ -383,6 +383,29 @@ describe('what the page tells the server', () => {
     expect(opened).toHaveBeenCalledTimes(1);
     // After the socket's hello: the relay's open follows it.
     expect(MockSocket.last().sent[0]?.type).toBe('hello');
+  });
+
+  it('carries a Commande’s output: its messages to its listeners only, and its open and close on the open socket', async () => {
+    const RUN = '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6c01';
+    const { connection, socket } = await liveAt(7);
+    const commands = vi.fn();
+    const relayed = vi.fn();
+    connection.onCommand(commands);
+    connection.onRelay(relayed);
+
+    const bytes = (length: number) => 'A'.repeat(Math.ceil((length * 4) / 3));
+    const wrap = { holderId: bytes(32), enc: bytes(32), wrappedKey: bytes(48), tag: bytes(32) };
+    socket.receive({ type: 'command.keys', runId: RUN, wraps: [wrap] });
+    socket.receive({ type: 'command.output', runId: RUN, seq: 1, nonce: bytes(12), ciphertext: bytes(40) });
+    socket.receive({ type: 'command.error', runId: RUN, code: 'command.not-found' });
+    expect(commands.mock.calls.map(([message]) => (message as ServerMessage).type)).toEqual(['command.keys', 'command.output', 'command.error']);
+    expect(relayed).not.toHaveBeenCalled();
+    expect(store.getState().seq).toBe(7n);
+
+    expect(connection.sendCommand({ type: 'command.open', runId: RUN, fromSeq: 1 })).toBe(true);
+    expect(socket.sent).toEqual([{ type: 'command.open', runId: RUN, fromSeq: 1 }]);
+    socket.drop();
+    expect(connection.sendCommand({ type: 'command.close', runId: RUN })).toBe(false);
   });
 
   it('stop closes the socket, and nothing reconnects nor listens', async () => {

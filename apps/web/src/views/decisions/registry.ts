@@ -1,9 +1,11 @@
 import type { Decision, DecisionKind } from '@crewdeck/contracts';
 import { t, type MessageKey } from '@crewdeck/sdk';
+import type { Client } from '../../api/client.js';
 
-/** What a Décision's button may do: move to another page of the app. */
+/** What a Décision's button may do: move to another page of the app, or send its module's command. */
 export interface DecisionActionContext {
   readonly navigate: (url: string) => void;
+  readonly client: Pick<Client, 'command'>;
 }
 
 /** A button of a Décision in « À toi ». */
@@ -14,6 +16,8 @@ export interface DecisionAction {
   readonly primary?: boolean;
   /** It runs on the Runner: disabled, with its reason, while the Runner is not « en ligne ». */
   readonly needsRunner?: boolean;
+  /** Whether the Décision offers it (« Encore un passage » only while a Retour may be taken); always by default. */
+  readonly shownFor?: (decision: Decision) => boolean;
   run(decision: Decision, context: DecisionActionContext): void | Promise<void>;
 }
 
@@ -34,6 +38,10 @@ export const OPEN_ACTION: DecisionAction = {
   label: 'aToi.open',
   run: (decision, { navigate }) => navigate(decision.link),
 };
+
+/** The buttons `decision` offers, of its view's. */
+export const actionsOf = (view: DecisionView, decision: Decision): readonly DecisionAction[] =>
+  view.actions.filter((action) => action.shownFor?.(decision) ?? true);
 
 /** The view of a kind no module has registered yet: its label as title, « Ouvrir ». */
 export const DEFAULT_DECISION_VIEW: DecisionView = { actions: [OPEN_ACTION] };

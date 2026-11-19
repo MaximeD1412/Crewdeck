@@ -1,4 +1,5 @@
-import { type PhaseRun, type StepRun, UNFINISHED_PHASE_RUN_STATES, zState } from '@crewdeck/contracts';
+import { type Idea, type PhaseRun, type StepRun, UNFINISHED_PHASE_RUN_STATES, zState } from '@crewdeck/contracts';
+import { holdsIdea } from './ideas.js';
 import { createClient } from '../api/client.js';
 import { createConnection } from './connection.js';
 import { applySettingsEvent } from './settings.js';
@@ -24,11 +25,13 @@ store.registerSlice('process', { shape: 'collection', snapshotKey: 'processes' }
 store.registerSlice('phase-run', { shape: 'collection', snapshotKey: 'phaseRuns', holds: (run) => (UNFINISHED_PHASE_RUN_STATES as readonly string[]).includes((run as PhaseRun).state) });
 store.registerSlice('step-run', { shape: 'collection', snapshotKey: 'stepRuns', holds: (run, slices) => slices['phase-run']?.has((run as StepRun).phaseRunId) ?? false });
 store.registerSlice('repository', { shape: 'collection', snapshotKey: 'repositories' });
+store.registerSlice('idea', { shape: 'collection', snapshotKey: 'ideas', holds: (idea) => holdsIdea(idea as Idea) });
 store.registerSlice('ticket', { shape: 'collection', snapshotKey: 'tickets' });
 store.registerSlice('milestone', { shape: 'collection', snapshotKey: 'milestones' });
 store.registerSlice('code-change', { shape: 'collection', snapshotKey: 'codeChanges' });
 store.registerSlice('agent-session', { shape: 'collection', snapshotKey: 'sessions' });
 store.registerSlice('settings', { shape: 'single', apply: applySettingsEvent });
+store.registerSlice('usage', { shape: 'collection' });
 
 export const client = createClient({
   seq: () => store.getState().seq,

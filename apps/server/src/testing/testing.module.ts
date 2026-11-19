@@ -1,14 +1,20 @@
 import { type DynamicModule, Global, Module } from '@nestjs/common';
 import { DecisionsModule } from '../decisions/decisions.module.js';
+import { MAILER } from '../auth/mail/mailer.js';
 import { RunnersModule } from '../runners/runners.module.js';
 import { GITHUB_CLIENT } from '../github/github.client.js';
+import { GOOGLE_CLIENT } from '../auth/google/google.client.js';
+import { FX_SOURCE } from '../usage/fx-source.js';
 import { FakeGitHubController } from './fake-github.controller.js';
+import { FakeGoogleController } from './fake-google.controller.js';
 import { createFakes, FAKES, type Fakes } from './fakes.js';
 import { ScenariosService } from './scenarios.service.js';
 import { TestingController } from './testing.controller.js';
 import { TestingDecisionsController } from './testing-decisions.controller.js';
+import { TestingMailsController } from './testing-mails.controller.js';
 import { TestingPilotController } from './testing-pilot.controller.js';
 import { TestingRunnerController } from './testing-runner.controller.js';
+import { TestingSmokeController } from './testing-smoke.controller.js';
 import { TestingWaitingWorkController } from './testing-waiting-work.controller.js';
 
 /**
@@ -16,13 +22,17 @@ import { TestingWaitingWorkController } from './testing-waiting-work.controller.
  * end-to-end tests and of the captures (`/api/testing/*`, and the change of
  * the Pilote that makes the page miss an event, the Décisions raised and
  * resolved as their modules would, the Runner stopped and relaunched and the
- * work that waits for it), what the page
- * reads from the fake GitHub (`/fake-github/*`). Imported only with
+ * work that waits for it, the page's part of the compiled Runner's smoke
+ * test), what the page
+ * reads from the fake GitHub (`/fake-github/*`), the fake Google's authorize
+ * page (`/fake-google/*`). Imported only with
  * `CREWDECK_FAKES=1`, which the boot refuses in production, and only through
  * a dynamic `import()` (`AppModule`): without it, nothing of `src/testing/` is
- * loaded, and `/api/testing/*` and `/fake-github/*` give 404.
+ * loaded, and `/api/testing/*`, `/fake-github/*` and `/fake-google/*` give 404.
  *
- * Global: `GITHUB_CLIENT` is the fake GitHub wherever a module injects it.
+ * Global: `GITHUB_CLIENT` is the fake GitHub, `MAILER` the fake mail,
+ * `GOOGLE_CLIENT` the fake Google, `FX_SOURCE` the fake ECB, wherever a
+ * module injects them.
  */
 @Global()
 @Module({})
@@ -31,13 +41,16 @@ export class TestingModule {
     return {
       module: TestingModule,
       imports: [DecisionsModule, RunnersModule],
-      controllers: [TestingController, TestingPilotController, TestingDecisionsController, TestingRunnerController, TestingWaitingWorkController, FakeGitHubController],
+      controllers: [TestingController, TestingPilotController, TestingDecisionsController, TestingRunnerController, TestingSmokeController, TestingWaitingWorkController, TestingMailsController, FakeGitHubController, FakeGoogleController],
       providers: [
         ScenariosService,
         { provide: FAKES, useFactory: createFakes },
         { provide: GITHUB_CLIENT, inject: [FAKES], useFactory: (fakes: Fakes) => fakes.github },
+        { provide: FX_SOURCE, inject: [FAKES], useFactory: (fakes: Fakes) => fakes.fx },
+        { provide: MAILER, inject: [FAKES], useFactory: (fakes: Fakes) => fakes.mail },
+        { provide: GOOGLE_CLIENT, inject: [FAKES], useFactory: (fakes: Fakes) => fakes.google },
       ],
-      exports: [FAKES, GITHUB_CLIENT],
+      exports: [FAKES, GITHUB_CLIENT, MAILER, GOOGLE_CLIENT, FX_SOURCE],
     };
   }
 }

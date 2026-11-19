@@ -241,10 +241,11 @@ describe('the engine against PostgreSQL', () => {
     expect(code).toMatchObject({ iteration: 1, reason: null, failure: null, inputs: [{ portId: 'ticket', artifacts: [{ portId: 'ticket', type: 'ticket', id: '42' }], absent: false }] });
 
     const events = await eventsSince(before);
-    expect(events.map((event) => event.type)).toEqual(['phase-run.upserted', 'step-run.upserted']);
+    // The Process anew: its `running` lists the Ticket's work (PROCESS-10).
+    expect(events.map((event) => event.type)).toEqual(['phase-run.upserted', 'process.upserted', 'step-run.upserted']);
     expect(new Set(events.map((event) => event.tx)).size).toBe(1);
     for (const event of events) expect(eventPayloadSchema(event.type as EventType)?.safeParse(event.payload).success).toBe(true);
-    expect(events[1]?.payload).toMatchObject({ id: code?.id, phaseRunId: run.id, stepId: 'st-code', kind: 'code', state: 'running' });
+    expect(events[2]?.payload).toMatchObject({ id: code?.id, phaseRunId: run.id, stepId: 'st-code', kind: 'code', state: 'running' });
   });
 
   it('writes nothing when the caller’s transaction rolls back', async () => {
@@ -399,10 +400,12 @@ describe('the engine against PostgreSQL', () => {
     expect(events.map((event) => [event.type, event.payload['stepId'] ?? event.payload['state']])).toEqual([
       ['phase-run.upserted', 'running'],
       ['step-run.upserted', 'st-code'],
+      // The Process anew: the work runs again (PROCESS-10).
+      ['process.upserted', undefined],
       ['step-run.upserted', 'st-code'],
     ]);
     expect(events[1]?.payload).toMatchObject({ id: failed.id, state: 'failed' });
-    expect(events[2]?.payload).toMatchObject({ state: 'running', iteration: 1 });
+    expect(events[3]?.payload).toMatchObject({ state: 'running', iteration: 1 });
   });
 
   it('asks the start guard on a retry: held, the PhaseRun running and the Étape ready, until startQueued starts it at the same iteration', async () => {

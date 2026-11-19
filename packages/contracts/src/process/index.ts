@@ -1,6 +1,7 @@
 export * from './artifact-types.js';
 export * from './catalogue.js';
 export * from './definition.js';
+export * from './diff.js';
 export * from './gaps.js';
 export * from './loop-backs.js';
 export * from './sources.js';

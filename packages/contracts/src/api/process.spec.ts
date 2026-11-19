@@ -7,6 +7,7 @@ import {
   type ProjectProcess,
   RESOURCES,
   STATE_SLICES,
+  zActivateProcessInput,
   zProcessDraftInput,
   zProjectProcess,
 } from '../index.js';
@@ -29,6 +30,7 @@ const VIEW: ProjectProcess = {
     ticket: { source: 'github', since: '2026-11-15T08:00:00.000Z' },
     code: { source: 'github', since: '2026-11-15T08:00:00.000Z' },
   },
+  running: [],
 };
 
 /** The same view for a Local Projet: both groups Local. */
@@ -57,6 +59,26 @@ describe('zProjectProcess', () => {
     expect(zProjectProcess.safeParse({ ...VIEW, draft: { ...VIEW.draft, revision: 0 } }).success).toBe(false);
     expect(zProjectProcess.safeParse({ ...VIEW, active: { ...VIEW.active, number: 0 } }).success).toBe(false);
     expect(zProjectProcess.safeParse({ ...VIEW, active: { ...VIEW.active, activatedBy: 'import' } }).success).toBe(false);
+  });
+});
+
+describe('the work running in the view', () => {
+  it('names each PhaseRun at work with the version it finishes on, a Ticket by its number', () => {
+    const running = [
+      { phaseRunId: '019a6f00-0000-7000-8000-000000000021', versionNumber: 3, itemType: 'ticket', itemId: '42', ticketNumber: 53 },
+      { phaseRunId: '019a6f00-0000-7000-8000-000000000022', versionNumber: 2, itemType: 'idea', itemId: '019a6f00-0000-7000-8000-000000000031', ticketNumber: null },
+    ] as const;
+    expect(zProjectProcess.parse({ ...VIEW, running }).running).toEqual(running);
+    expect(zProjectProcess.safeParse({ ...VIEW, running: [{ ...running[0], versionNumber: 0 }] }).success).toBe(false);
+    expect(zProjectProcess.safeParse({ ...VIEW, running: undefined }).success).toBe(false);
+  });
+});
+
+describe('zActivateProcessInput', () => {
+  it('takes the draft’s revision the Pilote confirmed and the seq of the dialog', () => {
+    expect(zActivateProcessInput.parse({ revision: 4, seq: 12 })).toEqual({ revision: 4, seq: 12 });
+    expect(zActivateProcessInput.safeParse({ revision: 0, seq: 12 }).success).toBe(false);
+    expect(zActivateProcessInput.safeParse({ revision: 4 }).success).toBe(false);
   });
 });
 

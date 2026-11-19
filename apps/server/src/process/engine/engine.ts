@@ -32,6 +32,7 @@ import { newId } from '../../ids.js';
 import { EventsWriter } from '../../realtime/events.writer.js';
 import type { Tx } from '../../realtime/transactions.js';
 import { currentPilotId } from '../../scope/scope.context.js';
+import { publishProcess } from '../process.service.js';
 import { type Ancestor, crossingArrows, currentStepRuns, isFirstEntry, reachedFrom, readySteps, resolveInputs } from './feeding.js';
 import { PHASE_ITEMS, type PhaseItemHandlers } from './items.js';
 import { ancestors, findParent } from './lineage.js';
@@ -210,6 +211,7 @@ export class Engine {
       select: PHASE_RUN_VIEW,
     });
     await this.publishPhaseRun(tx, row);
+    await this.publishProcessOf(tx, row.projectId);
     return (await this.advanceLoaded(tx, await this.load(tx, row.id))).phaseRun;
   }
 
@@ -578,6 +580,7 @@ export class Engine {
       select: PHASE_RUN_VIEW,
     });
     await this.publishPhaseRun(tx, row);
+    await this.publishProcessOf(tx, projectId);
     if (!turn) await this.advanceLoaded(tx, await this.load(tx, row.id));
   }
 
@@ -673,7 +676,9 @@ export class Engine {
    */
   private async reopen(tx: Tx, loaded: Loaded): Promise<void> {
     await this.setPhaseRunState(tx, loaded.row.id, 'running');
-    if (loaded.row.state === 'failed') for (const run of loaded.stepRuns) await this.publishStepRun(tx, run);
+    if (loaded.row.state !== 'failed') return;
+    for (const run of loaded.stepRuns) await this.publishStepRun(tx, run);
+    await this.publishProcessOf(tx, loaded.row.projectId);
   }
 
   /** The pending starts: the engine's own, in no view, so no event. */
@@ -688,7 +693,18 @@ export class Engine {
   private async setPhaseRunState(tx: Tx, id: string, state: 'running' | 'done' | 'stopped' | 'failed'): Promise<PhaseRun> {
     const finished = state !== 'running';
     const row = await tx.phaseRun.update({ where: { id }, data: { state, waitingOn: null, endedAt: finished ? new Date() : null }, select: PHASE_RUN_VIEW });
-    return this.publishPhaseRun(tx, row);
+    const phaseRun = await this.publishPhaseRun(tx, row);
+    if (finished) await this.publishProcessOf(tx, row.projectId);
+    return phaseRun;
+  }
+
+  /**
+   * The Projet's Process anew when one of its PhaseRuns starts or ends: its
+   * `running` list says which version each piece of work finishes on
+   * (PROCESS-10). A PhaseRun without a Projet is no Process's.
+   */
+  private async publishProcessOf(tx: Tx, projectId: string | null): Promise<void> {
+    if (projectId !== null) await publishProcess(tx, this.events, currentPilotId(), projectId);
   }
 
   private async publishPhaseRun(tx: Tx, row: PhaseRunRow): Promise<PhaseRun> {

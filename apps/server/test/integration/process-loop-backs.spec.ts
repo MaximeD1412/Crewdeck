@@ -402,7 +402,7 @@ describe('the Retours against PostgreSQL', () => {
     expect(stoppedItems).toEqual(['57']);
     expect(await sql("SELECT state, outcome FROM decisions WHERE id = $1", [decision.id])).toEqual([{ state: 'resolved', outcome: 'stopped' }]);
     const events = await eventsSince(before);
-    expect(events.map((event) => event.type)).toEqual(['step-run.upserted', 'phase-run.upserted', 'decision.removed']);
+    expect(events.map((event) => event.type)).toEqual(['step-run.upserted', 'phase-run.upserted', 'process.upserted', 'decision.removed']);
     expectOneTransaction(events);
     expect((await state()).phaseRuns).toEqual([]);
   });

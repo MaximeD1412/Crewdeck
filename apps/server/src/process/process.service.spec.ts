@@ -6,6 +6,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import type { EventsWriter } from '../realtime/events.writer.js';
 import type { Transactions, Tx } from '../realtime/transactions.js';
 import { runInPilotScope } from '../scope/scope.context.js';
+import { SensitiveActionsService } from '../sensitive-actions/sensitive-actions.service.js';
 import { ProcessService } from './process.service.js';
 
 const PILOT = '019a6f00-0000-7000-8000-000000000001';
@@ -64,7 +65,14 @@ const fakeDatabase = (projects: string[] = [PROJECT], sources: ProcessSources = 
         else drafts.push(stored(create));
         return {};
       },
+      update: async ({ where, data }: { where: { projectId: string }; data: Row }) => {
+        Object.assign(drafts.find((candidate) => candidate['projectId'] === where.projectId) ?? {}, data);
+        return {};
+      },
     },
+    // No work runs in these Projets.
+    phaseRun: { findMany: async () => [] },
+    ticket: { findMany: async () => [] },
   };
   const events: { type: string; payload: ProjectProcess }[] = [];
   const writer = {
@@ -75,7 +83,8 @@ const fakeDatabase = (projects: string[] = [PROJECT], sources: ProcessSources = 
     },
   };
   const transactions = { run: <T>(fn: (tx: Tx) => Promise<T>) => fn(tx as unknown as Tx) };
-  const service = new ProcessService(transactions as unknown as Transactions, writer as unknown as EventsWriter);
+  const sensitive = new SensitiveActionsService();
+  const service = new ProcessService(transactions as unknown as Transactions, writer as unknown as EventsWriter, sensitive);
   return { tx: tx as unknown as Tx, service, versions, drafts, events };
 };
 
@@ -104,6 +113,7 @@ describe('ProcessService.createInitialVersion', () => {
       active: { number: 1, definition: PROCESS_CREWDECK, sealed: null, activatedAt: expect.any(String), activatedBy: 'creation', templateName: PROCESS_CREWDECK_NAME },
       draft: null,
       sources: { ticket: { source: 'github', since: SINCE.toISOString() }, code: { source: 'github', since: SINCE.toISOString() } },
+      running: [],
     });
     expect(db.versions).toEqual([expect.objectContaining({ pilotId: PILOT, projectId: PROJECT, number: 1 })]);
     expect(db.drafts).toEqual([]);

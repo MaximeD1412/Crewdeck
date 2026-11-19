@@ -1,0 +1,71 @@
+{
+  "operation": "MirrorObject",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "number": 14
+  },
+  "data": {
+    "repository": {
+      "issueOrPullRequest": {
+        "__typename": "Issue",
+        "number": 14,
+        "title": "Le README",
+        "body": "Trois lignes.",
+        "issueState": "OPEN",
+        "stateReason": null,
+        "url": "https://github.com/acme/atelier/issues/14",
+        "createdAt": "2026-11-03T08:00:00Z",
+        "updatedAt": "2026-11-08T09:00:00Z",
+        "closedAt": null,
+        "author": {
+          "login": "pilote"
+        },
+        "milestone": null,
+        "labels": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "name": "ready-for-agent"
+            },
+            {
+              "name": "size:XS"
+            }
+          ]
+        },
+        "assignees": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "comments": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "parent": null,
+        "subIssues": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "blockedBy": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        }
+      }
+    }
+  }
+}

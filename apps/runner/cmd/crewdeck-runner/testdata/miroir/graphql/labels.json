@@ -1,0 +1,45 @@
+{
+  "operation": "MirrorLabels",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "after": null
+  },
+  "data": {
+    "repository": {
+      "labels": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        },
+        "nodes": [
+          {
+            "name": "priority:P0",
+            "color": "ededed",
+            "description": null
+          },
+          {
+            "name": "priority:P1",
+            "color": "ededed",
+            "description": null
+          },
+          {
+            "name": "ready-for-agent",
+            "color": "ededed",
+            "description": null
+          },
+          {
+            "name": "size:S",
+            "color": "ededed",
+            "description": null
+          },
+          {
+            "name": "size:XS",
+            "color": "ededed",
+            "description": null
+          }
+        ]
+      }
+    }
+  }
+}

@@ -17,6 +17,7 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/command"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/folders"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/localsock"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/logging"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/mcp"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/mirror"
@@ -95,13 +96,6 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	// The vault key's rotation (E2E-4): the Runner rotates when it is the
 	// first holder online, and takes the new version a holder rotated to.
 	rotations := &rotator{store: store, held: vault, api: vaultAPI{http: &http.Client{Timeout: vaultTimeout}, server: linked.Server, token: linked.Token}, logger: logger}
-	// The Miroir (ADR 0010): the copy of the Projets' GitHub, its follower its
-	// only writer, fed by the server's envelopes on each connection.
-	follower, closeMirror, err := followMirror(ctx, logger)
-	if err != nil {
-		return err
-	}
-	defer closeMirror()
 	// The client of the current connection: a new one after each update attempt.
 	var current atomic.Pointer[protocol.Client]
 	send := func(ctx context.Context, m any) error {
@@ -130,6 +124,14 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		return err
 	}
 	defer locals.Close()
+	// The Miroir (ADR 0010, ADR 0012): the copy of every Projet's Sources,
+	// its follower its only writer, fed by the server's envelopes on each
+	// connection and by the Local Projets' folders.
+	follower, closeMirror, err := followMirror(ctx, logger, locals, vault)
+	if err != nil {
+		return err
+	}
+	defer closeMirror()
 	// The Sessions the server asks for, those kept under ~/.crewdeck/sessions
 	// said in each hello: none alive after a restart.
 	sessions, err := session.New(session.Config{
@@ -210,9 +212,13 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		reportMCP(ctx)
 		return caps, err
 	}
+	// runner.sock: the refreshes, and the Miroir's ops of `crewdeck-runner miroir`.
+	sock := &localsock.Server{}
+	accounts.Register(sock, refresh)
+	follower.Register(sock)
 	go func() {
-		if err := accounts.Serve(ctx, socket, refresh); err != nil {
-			logger.Warn("accounts socket", "error", err)
+		if err := sock.Serve(ctx, socket); err != nil {
+			logger.Warn("runner socket", "error", err)
 		}
 	}()
 	go reporter.Every(ctx, contracts.CapabilitiesEverySeconds*time.Second)
@@ -273,7 +279,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 
 // followMirror opens the Miroir and follows GitHub until ctx ends; closeMirror
 // waits for the follower, then closes the copy.
-func followMirror(ctx context.Context, logger *slog.Logger) (*mirror.Follower, func(), error) {
+func followMirror(ctx context.Context, logger *slog.Logger, locals *localSources, vault *heldVault) (*mirror.Follower, func(), error) {
 	path, err := mirror.DefaultPath()
 	if err != nil {
 		return nil, nil, err
@@ -282,7 +288,11 @@ func followMirror(ctx context.Context, logger *slog.Logger) (*mirror.Follower, f
 	if err != nil {
 		return nil, nil, err
 	}
-	follower, err := mirror.NewFollower(mirror.FollowerConfig{Store: store, GitHub: &mirror.Client{Logger: logger}, Logger: logger})
+	follower, err := mirror.NewFollower(mirror.FollowerConfig{
+		Store: store, GitHub: &mirror.Client{Logger: logger}, Logger: logger,
+		Locals: locals, Folders: locals.folders,
+		Vault: func() mirror.NameOpener { return vault },
+	})
 	if err != nil {
 		store.Close()
 		return nil, nil, err

@@ -1,0 +1,113 @@
+{
+  "operation": "MirrorObject",
+  "variables": {
+    "owner": "acme",
+    "name": "atelier",
+    "number": 7
+  },
+  "data": {
+    "repository": {
+      "issueOrPullRequest": {
+        "__typename": "PullRequest",
+        "number": 7,
+        "title": "Le panier, la PR",
+        "body": "Closes #12",
+        "pullState": "OPEN",
+        "url": "https://github.com/acme/atelier/pull/7",
+        "createdAt": "2026-11-05T08:00:00Z",
+        "updatedAt": "2026-11-06T09:00:00Z",
+        "closedAt": null,
+        "mergedAt": null,
+        "author": {
+          "login": "agent-bot"
+        },
+        "milestone": null,
+        "labels": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "assignees": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "comments": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "headRefName": "feat/12-x",
+        "headRefOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "baseRefName": "develop",
+        "isDraft": false,
+        "mergeable": "MERGEABLE",
+        "mergeCommit": null,
+        "statusCheckRollup": {
+          "state": "SUCCESS"
+        },
+        "closingIssuesReferences": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "number": 12,
+              "repository": {
+                "nameWithOwner": "acme/atelier"
+              }
+            }
+          ]
+        },
+        "commits": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "commit": {
+                "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "message": "feat(web) : le panier\n\nSon corps."
+              }
+            }
+          ]
+        },
+        "reviews": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "id": "PRR_7",
+              "author": {
+                "login": "relecteur"
+              },
+              "state": "APPROVED",
+              "body": "Bien.",
+              "commit": {
+                "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "submittedAt": "2026-11-06T09:00:00Z"
+            }
+          ]
+        },
+        "reviewThreads": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        }
+      }
+    }
+  }
+}

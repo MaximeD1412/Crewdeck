@@ -200,6 +200,10 @@ func NewCommandVerdict(runID string, reason contracts.RunnerCommandVerdictReason
 		message.ExitCode = *exitCode
 		message.Passed = reason == contracts.RunnerCommandVerdictReasonExited && *exitCode == 0
 	}
+	// Healthy: its address answered 2xx, its process running on or exited 0.
+	if reason == contracts.RunnerCommandVerdictReasonHealthy {
+		message.Passed = true
+	}
 	return message
 }
 

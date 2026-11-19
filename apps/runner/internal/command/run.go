@@ -48,6 +48,12 @@ func (r *Runner) attempt(message contracts.RunnerCommandRun, l *live) (contracts
 	}
 	defer done()
 
+	// Its service, if it runs, first: a stop that fails runs nothing new.
+	if err := r.stopService(serviceKey{projectID: message.ProjectId, commandID: message.CommandId}); err != nil {
+		r.cfg.Logger.Warn("command.service", "runId", message.RunId, "error", "not stopped")
+		return contracts.RunnerCommandVerdictReasonSpawnFailed, nil
+	}
+
 	place, err := r.place(l.ctx, message, command.Where)
 	if err != nil {
 		if l.ctx.Err() != nil {
@@ -56,7 +62,13 @@ func (r *Runner) attempt(message contracts.RunnerCommandRun, l *live) (contracts
 		r.cfg.Logger.Warn("command.place", "runId", message.RunId, "where", string(command.Where), "error", "unavailable")
 		return contracts.RunnerCommandVerdictReasonPlaceUnavailable, nil
 	}
-	defer place.Release()
+	// A service kept holds its place and its output until it ends.
+	kept := false
+	defer func() {
+		if !kept {
+			place.Release()
+		}
+	}()
 	if l.ctx.Err() != nil {
 		return contracts.RunnerCommandVerdictReasonStopped, nil
 	}
@@ -66,7 +78,11 @@ func (r *Runner) attempt(message contracts.RunnerCommandRun, l *live) (contracts
 		r.cfg.Logger.Warn("command.log", "runId", message.RunId, "error", "not opened")
 		return contracts.RunnerCommandVerdictReasonSpawnFailed, nil
 	}
-	defer out.close()
+	defer func() {
+		if !kept {
+			out.close()
+		}
+	}()
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		shell = "/bin/sh"
@@ -84,40 +100,57 @@ func (r *Runner) attempt(message contracts.RunnerCommandRun, l *live) (contracts
 		return contracts.RunnerCommandVerdictReasonSpawnFailed, nil
 	}
 	r.send(message.RunId, "started", protocol.NewCommandStarted(message.RunId))
-	exited := make(chan struct{})
-	go func() {
-		_ = cmd.Wait()
-		close(exited)
-	}()
+	proc := lead(cmd)
+
+	if command.HealthURL != "" {
+		var (
+			reason   contracts.RunnerCommandVerdictReason
+			exitCode *int
+		)
+		reason, exitCode, kept = r.awaitHealth(message, l, proc, out, place, command.HealthURL)
+		return reason, exitCode
+	}
 
 	reason := contracts.RunnerCommandVerdictReasonExited
 	select {
-	case <-exited:
+	case <-proc.left:
 	case <-r.cfg.After(Timeout):
 		reason = contracts.RunnerCommandVerdictReasonTimeout
 	case <-l.ctx.Done():
 		reason = contracts.RunnerCommandVerdictReasonStopped
 	}
 	if reason != contracts.RunnerCommandVerdictReasonExited {
-		group := -cmd.Process.Pid
-		_ = syscall.Kill(group, syscall.SIGTERM)
-		select {
-		case <-exited:
-		case <-r.cfg.After(KillGrace):
-		}
-		// What ignored the SIGTERM, the shell or a child it left.
-		_ = syscall.Kill(group, syscall.SIGKILL)
-		<-exited
+		r.kill(proc)
 		out.flush()
 		return reason, nil
 	}
+	proc.reap()
 	out.flush()
-	var exitCode *int
+	return reason, proc.code
+}
+
+// kill sends the run's group SIGTERM, then SIGKILL after KillGrace, and
+// reaps its process once it exited: its group signalled while its pid is
+// still its own.
+func (r *Runner) kill(proc *leader) {
+	_ = proc.signal(syscall.SIGTERM)
+	select {
+	case <-proc.left:
+	case <-r.cfg.After(KillGrace):
+	}
+	// What ignored the SIGTERM, the shell or a child it left.
+	_ = proc.signal(syscall.SIGKILL)
+	proc.reap()
+}
+
+// exitCodeOf is the exit code of the run's process once it exited by
+// itself, nil when a signal ended it.
+func exitCodeOf(cmd *exec.Cmd) *int {
 	if state := cmd.ProcessState; state != nil && state.Exited() {
 		code := state.ExitCode()
-		exitCode = &code
+		return &code
 	}
-	return reason, exitCode
+	return nil
 }
 
 // environment is what the run gets beside the Runner's own environment:

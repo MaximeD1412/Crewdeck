@@ -277,6 +277,9 @@ func (h *harness) start(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	t.Cleanup(r.Close)
+	// The services a test left: stopped, after its runner.
+	home := h.home
+	t.Cleanup(func() { _, _ = command.StopServices(home) })
 	h.manager, h.commands = m, r
 	return h
 }
@@ -294,8 +297,9 @@ func (v gatedVault) OpenItem(item keys.SealedItem, aad []byte) ([]byte, error) {
 
 // commande is one entry of a sealed part.
 type commande struct {
-	Run   string `json:"run"`
-	Where string `json:"where"`
+	Run       string `json:"run"`
+	Where     string `json:"where"`
+	HealthURL string `json:"healthUrl,omitempty"`
 }
 
 // seal is the sealed part of a version of the Projet project, as the page seals it.
@@ -447,11 +451,16 @@ func TestACommandeOfTenThousandCharactersRuns(t *testing.T) {
 	text += strings.Repeat("x", 10000-len(text))
 	message := h.run(t, runID, text, "worktree", sha)
 	message.Sealed = h.sealPayload(t, projectID, map[string]any{"commands": map[string]any{
-		"cmd-tests": map[string]any{"run": text, "where": "worktree", "healthUrl": "http://localhost:4173/sante"},
+		"cmd-tests": map[string]any{"run": text, "where": "worktree", "healthUrl": "http://127.0.0.1:" + freePort(t) + "/sante"},
 	}})
 	h.commands.Run(message)
-	if v := h.sent.verdict(t, runID); !v.Passed || !exists(h.mark("ran")) {
-		t.Fatalf("verdict %+v, want the Commande run", v)
+	// Its address never answers: it ran, and failed after its window.
+	for deadline := time.Now().Add(10 * time.Second); !exists(h.mark("ran")) && time.Now().Before(deadline); {
+		time.Sleep(10 * time.Millisecond)
+	}
+	h.clock.fire(t, command.HealthWindow)
+	if v := h.sent.verdict(t, runID); v.Reason != contracts.RunnerCommandVerdictReasonHealthTimeout || !exists(h.mark("ran")) {
+		t.Fatalf("verdict %+v, want the Commande run, then health-timeout", v)
 	}
 }
 

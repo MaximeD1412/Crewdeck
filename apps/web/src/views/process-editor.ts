@@ -17,9 +17,12 @@ import {
   type Runner,
   type Step,
   type Tool,
+  type ForEach,
 } from '@crewdeck/contracts';
-import { formatDate, t, type ComposantData, type PageProcessEditor } from '@crewdeck/sdk';
-import { canvasOf, gapStep, kindLabelOf, roleName, typeLabel, type Selection } from '../process/canvas.js';
+import { formatDate, t, type ComposantData, type MessageKey, type PageProcessEditor } from '@crewdeck/sdk';
+import { canvasOf, gapStep, kindLabelOf, roleName, targetPhaseOf, typeLabel, type Selection } from '../process/canvas.js';
+import { catalogueMenu } from '../process/catalogue-menu.js';
+import { canRemovePhase, canRemoveStep } from '../process/edit.js';
 import type { EditorUi } from '../process/editor-ui.js';
 
 export type ProcessEditorData = ComposantData<typeof PageProcessEditor>;
@@ -37,6 +40,24 @@ export interface ProcessEditorState {
     readonly 'ai-account'?: { values(): Iterable<AiAccount> };
   };
 }
+
+/** What the page's edits add to the store's view (PROCESS-8): `NO_EDITS` reads the store as is. */
+export interface EditorEdits {
+  /** The Process as the canvas shows it, its edits not saved yet included; `undefined`: the store's. */
+  readonly shown?: ProjectProcess | undefined;
+  /** Whether the catalogue's Menu is open. */
+  readonly catalogue: boolean;
+  /** The Phase whose removal the Dialog asks. */
+  readonly removingPhase: string | null;
+  /** The last refusal, in a halt Toast. */
+  readonly toast: string | null;
+  /** Why a Phase's name was refused. */
+  readonly nameError: { readonly phaseId: string; readonly text: string } | null;
+  /** The last ask to focus a Phase's name. */
+  readonly focusName: { readonly phaseId: string; readonly at: number } | null;
+}
+
+export const NO_EDITS: EditorEdits = { catalogue: false, removingPhase: null, toast: null, nameError: null, focusName: null };
 
 /** A port as the panel names it: its type, then its note (« Verdict des checks »). */
 const portLabel = (port: Port): string => (port.note === undefined ? typeLabel(port.type) : `${typeLabel(port.type)} ${port.note}`);
@@ -113,12 +134,48 @@ const toolRow = (tool: Tool, context: Context): ToolRow => {
 const names = (definition: ProcessDefinition, ids: readonly string[]): string =>
   [...new Set(ids)].map((id) => stepById(definition, id)?.name ?? id).join(', ');
 
+/** The Étapes du produit and the Review, which `core.missing` keeps: what the panel says instead of « Retirer ». */
+const KEPT: Partial<Record<Step['kind'], MessageKey>> = {
+  review: 'process.step.keep.review',
+  checks: 'process.step.keep.checks',
+  merge: 'process.step.keep.merge',
+};
+
+/** Why « Retirer » is disabled for an Étape, `null` while it may go. */
+const stepRemoveReason = (definition: ProcessDefinition, step: Step): string | null => {
+  const check = canRemoveStep(definition, step.id);
+  if (check.ok) return null;
+  const kept = check.kind === 'core.missing' ? KEPT[step.kind] : undefined;
+  return kept ? t(kept) : check.reason;
+};
+
+/**
+ * Why « Retirer la Phase » is disabled, `null` while it may go: for
+ * `core.missing`, the Review and the Merge it holds (the Checks when it
+ * holds neither), « qui ne se retirent pas ».
+ */
+const phaseRemoveReason = (definition: ProcessDefinition, phaseId: string): string | null => {
+  const check = canRemovePhase(definition, phaseId);
+  if (check.ok) return null;
+  if (check.kind !== 'core.missing') return check.reason;
+  const kinds = new Set(definition.steps.filter((step) => step.phaseId === phaseId).map((step) => step.kind));
+  const named = (['review', 'merge'] as const).filter((kind) => kinds.has(kind));
+  const held = named.length > 0 ? named : kinds.has('checks') ? (['checks'] as const) : [];
+  if (held.length === 0) return check.reason;
+  const words = held.map((kind) => t(`process.phase.keep.${kind}`));
+  const plural = held.length > 1 || held[0] === 'checks';
+  const list = words.length > 1 ? t('process.phase.keep.and', { first: words.slice(0, -1).join(', '), last: words.at(-1)! }) : words[0]!;
+  return t(plural ? 'process.phase.keep.other' : 'process.phase.keep.one', { held: list });
+};
+
 const stepPanel = (step: Step, context: Context): NonNullable<ProcessEditorData['step']> => {
   const { definition, gaps } = context;
   const phase = definition.phases.find((candidate) => candidate.id === step.phaseId);
   const unfed = new Set(gaps.filter((gap) => gap.kind === 'input.unfed').map((gap) => gap.target));
   const loopBack = definition.loopBacks.find((loop) => loop.from === step.id);
   return {
+    id: step.id,
+    phaseId: step.phaseId,
     name: step.name,
     kindLabel: kindLabelOf(step, phase),
     phaseName: phase?.name ?? '',
@@ -141,20 +198,45 @@ const stepPanel = (step: Step, context: Context): NonNullable<ProcessEditorData[
       return { label: portLabel(port), to: t('process.step.to', { to: fed.length > 0 ? names(definition, fed) : t('process.step.to.nothing') }) };
     }),
     tools: step.tools.map((tool) => toolRow(tool, context)),
+    phases: definition.phases.map((candidate) => ({ value: candidate.id, label: candidate.name })),
+    removeReason: stepRemoveReason(definition, step),
   };
 };
 
 const plural = (count: number, key: 'process.phase.steps' | 'process.phase.loopBacks'): string => t(count === 1 ? `${key}.one` : `${key}.other`, { count });
 
-const phasePanel = (phaseId: string, definition: ProcessDefinition): NonNullable<ProcessEditorData['phase']> => {
+/** « Répéter »'s choices: once, then ADR 0011's closed list. */
+const REPEATS: readonly (ForEach | null)[] = [null, ...(Object.keys(FOR_EACH) as ForEach[])];
+
+const phasePanel = (phaseId: string, definition: ProcessDefinition, edits: EditorEdits): NonNullable<ProcessEditorData['phase']> => {
   const phase = definition.phases.find((candidate) => candidate.id === phaseId)!;
   const steps = new Set(definition.steps.filter((step) => step.phaseId === phase.id).map((step) => step.id));
   const loopBacks = definition.loopBacks.filter((loop) => steps.has(loop.from)).length;
-  const repeat = phase.forEach ? t('process.phase.repeat.forEach', { forEach: FOR_EACH[phase.forEach].label }) : t('process.phase.repeat.once');
   return {
+    id: phase.id,
     name: phase.name,
     count: t('process.phase.count', { steps: plural(steps.size, 'process.phase.steps'), loopBacks: plural(loopBacks, 'process.phase.loopBacks') }),
-    repeat,
+    repeat: REPEATS.map((forEach) => ({
+      forEach,
+      label: forEach ? t('process.phase.repeat.forEach', { forEach: FOR_EACH[forEach].label }) : t('process.phase.repeat.once'),
+      checked: phase.forEach === forEach,
+    })),
+    help: t(phase.forEach ? `process.phase.help.${phase.forEach}` : 'process.phase.help.once'),
+    removeReason: phaseRemoveReason(definition, phase.id),
+    nameError: edits.nameError?.phaseId === phase.id ? edits.nameError.text : null,
+    focusName: edits.focusName?.phaseId === phase.id ? edits.focusName.at : null,
+  };
+};
+
+/** The Dialog removing a Phase with its Étapes, while asked. */
+const removePhaseDialog = (definition: ProcessDefinition, phaseId: string | null): ProcessEditorData['removePhase'] => {
+  const phase = definition.phases.find((candidate) => candidate.id === phaseId);
+  if (!phase) return null;
+  const steps = definition.steps.filter((step) => step.phaseId === phase.id).map((step) => step.name);
+  return {
+    phaseId: phase.id,
+    title: t('process.phase.remove.title', { name: phase.name }),
+    body: t(steps.length === 1 ? 'process.phase.remove.body.one' : 'process.phase.remove.body.other', { count: steps.length, names: steps.join(', ') }),
   };
 };
 
@@ -234,6 +316,9 @@ const nothing = (found: boolean, ui: EditorUi): ProcessEditorData => ({
   gaps: [],
   step: null,
   phase: null,
+  catalogue: null,
+  toast: null,
+  removePhase: null,
   sources: { lead: t('process.sources.lead'), rows: [] },
   footer: { changes: '', versions: '' },
 });
@@ -242,19 +327,22 @@ const nothing = (found: boolean, ui: EditorUi): ProcessEditorData => ({
  * « Gestion du process »' data (pure, US-92, US-94, US-88): the draft when
  * there is one, else the active version, its Manques as `findGaps` gives them
  * for the Projet's Sources, the header's count, the panel's tab, the Étape or
- * Phase of the URL, the Sources and the versions.
+ * Phase of the URL, the Sources and the versions. Editable (US-93, US-95):
+ * the edits' view in place of the store's, the target Phase, why a block
+ * does not go, the catalogue, the refusal and the Dialog asked.
  */
 export const processEditorView = (
   state: ProcessEditorState,
   projectId: string,
   ui: EditorUi,
+  edits: EditorEdits = NO_EDITS,
   // A Local Projet's name is sealed: the page opens it (PROJET-6, `projects.ts`).
   projectName: (project: Project) => string = (project) => project.displayName ?? '',
 ): ProcessEditorData => {
   const { slices } = state;
   if (!slices.project || !slices.process) return nothing(true, ui);
   const project = slices.project.get(projectId);
-  const view = slices.process.get(projectId);
+  const view = edits.shown ?? slices.process.get(projectId);
   const definition = view?.draft?.definition ?? view?.active?.definition;
   if (!project || !view || !definition) return nothing(false, ui);
 
@@ -264,16 +352,20 @@ export const processEditorView = (
   const roleNames = Object.fromEntries((settings?.customRoles ?? []).map((role) => [role.id, role.name]));
   const context: Context = { definition, gaps, project, roleNames, settings, accounts: [...(slices['ai-account']?.values() ?? [])] };
   const step = selection?.kind === 'step' && selection.id ? stepById(definition, selection.id) : undefined;
+  const target = targetPhaseOf(definition, selection);
 
   return {
     found: true,
     title: { projectName: projectName(project), backHref: '/projets', count: countOf(view, gaps.length) },
     hasVersion: view.active !== null,
-    canvas: canvasOf(definition, gaps, selection, { zoom: ui.zoom, pan: ui.pan, roleNames, focus: ui.focus }),
+    canvas: canvasOf(definition, gaps, selection, { zoom: ui.zoom, pan: ui.pan, roleNames, focus: ui.focus, editable: true, target: target?.id ?? null }),
     tab: ui.tab,
     gaps: gaps.map((gap) => gapRowOf(gap, definition)),
     step: step ? stepPanel(step, context) : null,
-    phase: selection?.kind === 'phase' && selection.id ? phasePanel(selection.id, definition) : null,
+    phase: selection?.kind === 'phase' && selection.id ? phasePanel(selection.id, definition, edits) : null,
+    catalogue: edits.catalogue && target ? catalogueMenu(definition, target.name) : null,
+    toast: edits.toast === null ? null : { tone: 'halt', icon: 'block', text: edits.toast },
+    removePhase: removePhaseDialog(definition, edits.removingPhase),
     sources: sourcesPanel(view, definition, project, slices.runner?.machine ?? t('process.sources.machine.none')),
     footer: footerOf(view),
   };

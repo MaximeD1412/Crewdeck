@@ -1,5 +1,5 @@
 import { ARTIFACT_TYPES, findGaps, PORT_TYPES, PROCESS_CREWDECK, type ProcessDefinition } from '@crewdeck/contracts';
-import { canvasOf, type CanvasContext } from './canvas.js';
+import { canvasOf, targetPhaseOf, type CanvasContext } from './canvas.js';
 
 const CONTEXT: CanvasContext = { zoom: 90, pan: { x: 0, y: 0 }, roleNames: {}, focus: null };
 const GITHUB = { ticket: 'github', code: 'github' } as const;
@@ -141,5 +141,30 @@ describe('canvasOf', () => {
 
   it('gives the canvas the ports of every Type d’artefact', () => {
     expect([...PORT_TYPES]).toEqual([...ARTIFACT_TYPES]);
+  });
+});
+
+describe('editing the canvas', () => {
+  it('is editable when asked, the target Phase outlined', () => {
+    const data = canvasOf(PROCESS_CREWDECK, [], null, { ...CONTEXT, editable: true, target: 'ph-conception' });
+    expect(data.editable).toBe(true);
+    expect(data.phases.map((phase) => phase.target)).toEqual([false, true, false]);
+  });
+
+  it('draws the selected Phase, when it is the target, as the target only, as the mockup does', () => {
+    const data = canvasOf(PROCESS_CREWDECK, [], { kind: 'phase', id: 'ph-dev' }, { ...CONTEXT, editable: true, target: 'ph-dev' });
+    expect(data.phases.map((phase) => [phase.target, phase.selected])).toEqual([
+      [false, false],
+      [false, false],
+      [true, false],
+    ]);
+    expect(canvasOf(PROCESS_CREWDECK, [], { kind: 'phase', id: 'ph-dev' }, CONTEXT).phases[2]?.selected).toBe(true);
+  });
+
+  it('targets the selected Phase, else the selected Étape’s, else the last one', () => {
+    expect(targetPhaseOf(PROCESS_CREWDECK, { kind: 'phase', id: 'ph-idee' })?.id).toBe('ph-idee');
+    expect(targetPhaseOf(PROCESS_CREWDECK, { kind: 'step', id: 'st-prd' })?.id).toBe('ph-conception');
+    expect(targetPhaseOf(PROCESS_CREWDECK, { kind: 'sources', id: null })?.id).toBe('ph-dev');
+    expect(targetPhaseOf(PROCESS_CREWDECK, null)?.id).toBe('ph-dev');
   });
 });

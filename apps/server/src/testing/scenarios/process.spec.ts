@@ -25,11 +25,15 @@ describe('the scenarios of « Gestion du process »', () => {
   it('opens each on its Projet’s « Gestion du process », the state in its URL', () => {
     const { mairie, recettes, sansVersion } = PROCESS_SCENARIO_PROJECTS;
     expect(
-      ['process', 'process-manques', 'process-etape', 'process-sources', 'process-local', 'process-sans-version'].map((name) => findScenario(name)?.path),
+      ['process', 'process-manques', 'process-etape', 'process-phase', 'process-catalogue', 'process-sources', 'process-local', 'process-sans-version'].map(
+        (name) => findScenario(name)?.path,
+      ),
     ).toEqual([
       `/projets/${mairie}/process`,
       `/projets/${mairie}/process`,
       `/projets/${mairie}/process?etape=st-review`,
+      `/projets/${mairie}/process?phase=ph-dev`,
+      `/projets/${mairie}/process?phase=ph-dev`,
       `/projets/${mairie}/process?onglet=sources`,
       `/projets/${recettes}/process?etape=st-lancer`,
       `/projets/${sansVersion}/process`,

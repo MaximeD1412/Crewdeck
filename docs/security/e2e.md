@@ -697,8 +697,12 @@ POST /api/vault/rotations (the Runner: /api/runner/vault/rotations)
   (`"settings:<projectId>"`), `project.name` (`"project:<projectId>:name"`,
   a Local Projet's name), `agent-session.title` (a Session's title when its
   artifact is Local, under the additional data of that artifact, which the
-  row keeps). A ticket that stores a new kind of item
-  registers it.
+  row keeps), and a Local Projet's texts the Runner sealed (SOURCE-3) under
+  `"local:<projectId>:<place>"`: `ticket.title`, `ticket.labels`,
+  `milestone.title`, `code-change.title` and
+  `decision.local-unreadable-path` (the path in the params of « Fichier de
+  Ticket illisible », `<key>.<ciphertext>`). A ticket that stores a new kind
+  of item registers it.
 - The server takes the rotation in one transaction, or nothing: 409
   `vault.version-changed` when `fromVersion` is no longer the current one,
   409 `realtime.stale` when the vault changed since `seq`, 422

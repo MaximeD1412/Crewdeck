@@ -382,6 +382,16 @@ describe('the Session panel', () => {
       expect(fakeSpeech().listening).toBe(false);
     });
 
+    it('the Session ended while dictating: the Composer gone, the recognition stops with it', () => {
+      const { panel, shown, store } = setup();
+      panel.show(SESSION.id);
+      panel.dictateStart('');
+      fakeSpeech().say('Pense', false);
+      store.set({ 'agent-session': new Map([[SESSION.id, { ...SESSION, state: 'ended', endedAt: '2026-11-10T10:00:00.000Z' }]]) });
+      expect(composerOf(shown())).toBeUndefined();
+      expect(fakeSpeech().listening).toBe(false);
+    });
+
     it('a disabled Composer dictates nothing', () => {
       const { panel } = setup({ runner: OFFLINE });
       panel.show(SESSION.id);

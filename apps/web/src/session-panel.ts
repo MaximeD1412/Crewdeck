@@ -181,6 +181,8 @@ export const createSessionPanel = ({
       now: now(),
       composer: { value: dictation.text, dictation: dictation.view() },
     });
+    // No Composer any more (the Session ended): nothing in the panel shows the mic, so it stops listening.
+    if (!view.children.some((child) => child.tag === Composer.tag)) dictation.reset();
     tick(view.data.status !== null);
     mount({ tag: Session.tag, data: view.data, children: view.children }, () => navigate('/runner'));
   }

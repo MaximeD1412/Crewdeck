@@ -11,7 +11,6 @@ import {
   type SessionStep,
   type SessionStepInput,
   type StepReport,
-  type StepRun,
   type Verdict,
   zSessionMcpServer,
 } from '@crewdeck/contracts';
@@ -126,10 +125,18 @@ const contractIdOf = (spec: AgentKindSpec): string | null => (spec.contractId ==
 /** The version of the Contrat `contractId` the Runner checks, 1 while it has none registered. */
 const contratVersionOf = (contractId: string): number => CONTRATS.find((contrat) => contrat.id === contractId)?.version ?? 1;
 
-/** The Session's change that finishes its StepRun: its end, and what its Contrat said. */
+/** The Runner's verdict, kept `incomplete` with `report.schema` when a report of the StepRun was refused before it. */
+const withRefusedReport = (verdict: Verdict, before: Verdict | null): Verdict =>
+  before?.failedRuleIds.includes(REPORT_SCHEMA_RULE) ? { ...verdict, status: 'incomplete', failedRuleIds: [...new Set([...verdict.failedRuleIds, REPORT_SCHEMA_RULE])] } : verdict;
+
+/**
+ * The Session's change that finishes its StepRun: its end, and what its
+ * Contrat said. A kind without Contrat passes, unless its report was refused
+ * (a verdict `report.schema` of its own).
+ */
 const outcomeOf = (contractId: string | null, session: AgentSession, verdict: Verdict | null): { finished: 'passed' } | { finished: 'incomplete'; verdict: Verdict } | { finished: 'failed'; failure: string } => {
   if (session.outcome === 'error') return { finished: 'failed', failure: AGENT_STEP_FAILURES.sessionError };
-  if (contractId === null) return { finished: 'passed' };
+  if (contractId === null && !verdict) return { finished: 'passed' };
   if (!verdict) return { finished: 'failed', failure: AGENT_STEP_FAILURES.contractUnchecked };
   return verdict.status === 'passed' ? { finished: 'passed' } : { finished: 'incomplete', verdict };
 };
@@ -200,7 +207,8 @@ export class AgentSteps implements OnModuleInit, OnModuleDestroy {
    * What a valid `step.report` of `kind`'s Skill is given to: `schema`
    * reads its figures, `handler` stores them, and its sealed content, with
    * the kind's own model. A report whose figures `schema` refuses fails the
-   * StepRun `incomplete`, rule `report.schema`. One per kind.
+   * StepRun `incomplete`, rule `report.schema`, once its Session ended. One
+   * per kind.
    */
   registerStepReport<T>(kind: AgentKind, schema: z.ZodType<T>, handler: StepReportHandler<T>): void {
     if (this.reports.has(kind)) throw new Error(`A step.report handler of ${kind} is already registered.`);
@@ -244,7 +252,7 @@ export class AgentSteps implements OnModuleInit, OnModuleDestroy {
       case 'step.started':
         return run.stepRun.state === 'running' ? null : { state: 'running' };
       case 'step.verdict':
-        await this.engine.recordContratVerdict(tx, run, signal.verdict);
+        await this.engine.recordContratVerdict(tx, run, withRefusedReport(signal.verdict, run.stepRun.contratVerdict));
         return null;
       case 'step.report':
         return this.onReport(tx, run, spec, signal.report);
@@ -290,9 +298,12 @@ export class AgentSteps implements OnModuleInit, OnModuleDestroy {
 
   /**
    * A `step.report`: its figures read by the kind's schema and given to its
-   * module; refused, the StepRun fails `incomplete` with `report.schema` in
-   * its `contratVerdict` (the rules its Contrat failed before kept). A kind
-   * that registered no schema reads no report: ignored.
+   * module; refused, `report.schema` goes in the StepRun's `contratVerdict`,
+   * `incomplete` (the rules its Contrat failed before kept, and kept in the
+   * Runner's verdict that follows). The StepRun stays running until its
+   * Session ended, then fails `contract-incomplete`: its Session holds its
+   * branch until then, and the engine's stop still reaches it. A kind that
+   * registered no schema reads no report: ignored.
    */
   private async onReport(tx: Tx, run: StepRunContext, spec: AgentKindSpec, report: StepReport): Promise<StepResult | null> {
     const registered = this.reports.get(spec.kind);
@@ -315,9 +326,8 @@ export class AgentSteps implements OnModuleInit, OnModuleDestroy {
       warningRuleIds: before?.warningRuleIds ?? [],
       ...(before?.headSha ? { headSha: before.headSha } : {}),
     };
-    const recorded: StepRun = await this.engine.recordContratVerdict(tx, run, verdict);
-    await this.hooks.finished(tx, recorded, { status: 'incomplete', verdict, failure: AGENT_STEP_FAILURES.contractIncomplete });
-    return { state: 'failed', failure: AGENT_STEP_FAILURES.contractIncomplete };
+    await this.engine.recordContratVerdict(tx, run, verdict);
+    return null;
   }
 
   /** The StepRun stopped or undone: its live Session stopped with it, not taken for the Pilote's stop. */

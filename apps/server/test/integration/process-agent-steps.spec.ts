@@ -285,8 +285,8 @@ describe('the agent Étapes against PostgreSQL', () => {
     ]);
   });
 
-  it('keeps a valid report for the kind’s module, and fails st-code incomplete with report.schema on an invalid one', async () => {
-    const { socket, run, stepRun } = await started();
+  it('keeps a valid report for the kind’s module; an invalid one fails st-code incomplete with report.schema once its Session ended, then its retry starts on the branch', async () => {
+    const { socket, run, start, stepRun } = await started();
     const sealed = { key: Buffer.alloc(60, 0xd1).toString('base64url'), ciphertext: Buffer.alloc(48, 0xd2).toString('base64url') };
 
     socket.send({ type: 'step.report', stepRunId: stepRun.id, figures: { tests: 12 }, sealed });
@@ -294,9 +294,19 @@ describe('the agent Étapes against PostgreSQL', () => {
     expect((await code(run.id)).state).toBe('running');
 
     socket.send({ type: 'step.report', stepRunId: stepRun.id, figures: { tests: 'douze' } });
+    await vi.waitFor(async () => expect((await code(run.id)).contrat_verdict).toMatchObject({ status: 'incomplete', failedRuleIds: ['report.schema'] }));
+    expect(await code(run.id)).toMatchObject({ state: 'running', failure: null });
+    expect(finished).toEqual([]);
+    expect(await inAlice((tx) => engine.retry(tx, stepRun.id))).toBeNull();
+
+    socket.send({ type: 'step.verdict', stepRunId: stepRun.id, verdict: verdict('passed') });
+    socket.send({ type: 'session.state', sessionId: start.sessionId, state: 'ended', outcome: 'ok' });
     await vi.waitFor(async () => expect((await code(run.id)).state).toBe('failed'));
-    expect(await code(run.id)).toMatchObject({ failure: 'contract-incomplete', contrat_verdict: { contractId: 'code', status: 'incomplete', failedRuleIds: ['report.schema'] } });
+    expect(await code(run.id)).toMatchObject({ failure: 'contract-incomplete', contrat_verdict: verdict('incomplete', ['report.schema']) });
     expect(finished.map(({ finished: outcome }) => outcome.status)).toEqual(['incomplete']);
+
+    expect(await inAlice((tx) => engine.retry(tx, stepRun.id))).not.toBeNull();
+    expect(await socket.expect('session.start')).toMatchObject({ branch: 'feat/42-panier', step: { stepKind: 'code' } });
   });
 
   it('interrupts st-code while its Session is stopped by the Pilote, and runs it again once resumed and active', async () => {

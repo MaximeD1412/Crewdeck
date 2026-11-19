@@ -281,7 +281,7 @@ describe('the agent Étapes', () => {
     expect(finished).toEqual([{ stepRun: expect.objectContaining({ id: STEP_RUN_ID }), finished: { status: 'passed' } }]);
   });
 
-  it('gives a valid report’s figures and sealed content to its kind’s module; fails the StepRun incomplete with report.schema on an invalid one', async () => {
+  it('gives a valid report’s figures and sealed content to its kind’s module; an invalid one writes report.schema, the StepRun failed incomplete only once its Session ended', async () => {
     const { steps, signal, engine, finished } = setup();
     const stored: unknown[] = [];
     steps.registerStepReport('code', z.strictObject({ tickets: z.int().min(0) }), (_tx, _run, report) => {
@@ -295,11 +295,33 @@ describe('the agent Étapes', () => {
     expect(stored).toEqual([{ figures: { tickets: 3 }, sealed }]);
 
     const before = verdictOf('incomplete', ['code.tests']);
-    expect(await signal(runOf({ contratVerdict: before }), report({ tickets: 'trois' }))).toEqual({ state: 'failed', failure: 'contract-incomplete' });
+    expect(await signal(runOf({ contratVerdict: before }), report({ tickets: 'trois' }))).toBeNull();
     const written = { ...before, failedRuleIds: ['code.tests', REPORT_SCHEMA_RULE] };
     expect(engine.recordContratVerdict).toHaveBeenCalledWith(TX, expect.anything(), written);
-    expect(finished.map(({ finished: outcome }) => outcome)).toEqual([{ status: 'incomplete', verdict: written, failure: 'contract-incomplete' }]);
+    expect(finished).toEqual([]);
     expect(stored).toHaveLength(1);
+
+    expect(await signal(runOf({ contratVerdict: written }), { kind: 'session', session: sessionOf({ state: 'ended', outcome: 'ok' }) })).toEqual({ state: 'failed', failure: 'contract-incomplete' });
+    expect(finished.map(({ finished: outcome }) => outcome)).toEqual([{ status: 'incomplete', verdict: written, failure: 'contract-incomplete' }]);
+  });
+
+  it('keeps report.schema in the Runner’s verdict that follows a refused report, passed or not', async () => {
+    const { signal, engine } = setup();
+    const refused = runOf({ contratVerdict: verdictOf('incomplete', [REPORT_SCHEMA_RULE]) });
+
+    await signal(refused, { kind: 'step.verdict', verdict: verdictOf('passed') });
+    expect(engine.recordContratVerdict).toHaveBeenLastCalledWith(TX, refused, verdictOf('incomplete', [REPORT_SCHEMA_RULE]));
+    await signal(refused, { kind: 'step.verdict', verdict: verdictOf('incomplete', ['code.tests']) });
+    expect(engine.recordContratVerdict).toHaveBeenLastCalledWith(TX, refused, verdictOf('incomplete', ['code.tests', REPORT_SCHEMA_RULE]));
+  });
+
+  it('fails incomplete a StepRun whose kind has no Contrat when its report was refused', async () => {
+    const { steps, finished } = setup();
+    const handler = steps.defineAgentKind({ ...SPEC, kind: 'review', contractId: null });
+    const refused = { contractId: 'review', version: 1, status: 'incomplete', failedRuleIds: [REPORT_SCHEMA_RULE], warningRuleIds: [] } as const satisfies Verdict;
+
+    expect(await handler.onSignal(TX, runOf({ kind: 'review', contratVerdict: refused }), { kind: 'session', session: sessionOf({ state: 'ended', outcome: 'ok' }) })).toEqual({ state: 'failed', failure: 'contract-incomplete' });
+    expect(finished.map(({ finished: outcome }) => outcome)).toEqual([{ status: 'incomplete', verdict: refused, failure: 'contract-incomplete' }]);
   });
 
   it('writes a report.schema verdict of the kind’s Contrat when none was checked yet', async () => {

@@ -32,6 +32,7 @@ import { type TicketInput, TicketsWriter } from '../../src/tickets/tickets.write
 import { deliverWebhook, TEST_WEBHOOK_SECRET, webhookFixture } from '../fakes/github.js';
 import { connect, type WsClient } from '../fakes/ws-client.js';
 import { authKeysEnv } from '../github-app.js';
+import { readinessSettled, withoutReadiness } from '../readiness.js';
 import { expectEnvelope, expectFields, startApp } from '../route-baseline.js';
 
 const databaseUrl = inject('databaseUrl');
@@ -479,13 +480,15 @@ describe('the Tickets and changes of code against PostgreSQL', () => {
   describe('the Sources', () => {
     it('writes nothing for a Projet whose groups are not on GitHub', async () => {
       await sql(`UPDATE artifact_sources SET source = 'local'`);
-      const before = (await eventsOf()).length;
+      // The webhooks recompute the readiness of the Projet, its Sources now Local (PROJET-3): not the Tickets' events.
+      const before = withoutReadiness(await eventsOf()).length;
 
       await issue('opened', { number: 42, title: 'Connexion GitHub', labels: ['ready-for-agent'] });
       await openPullRequest('feat/42-connexion-github');
 
       expect(await sql('SELECT id FROM tickets UNION ALL SELECT id FROM code_changes')).toEqual([]);
-      expect(await eventsOf()).toHaveLength(before);
+      await readinessSettled(app);
+      expect(withoutReadiness(await eventsOf())).toHaveLength(before);
     });
 
     it('takes a comment of a PR on the group of the code and one of an issue on that of the Tickets', async () => {

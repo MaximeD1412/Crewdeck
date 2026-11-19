@@ -18,11 +18,12 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/keys"
 )
 
-// opened is a Commande as the Runner opened it: the only text it runs, and
-// the only place it runs it.
+// opened is a Commande as the Runner opened it: the only text it runs, the
+// only place it runs it, and its health address, empty when it has none.
 type opened struct {
-	Run   string
-	Where contracts.ProcessSealedCommandsValueWhere
+	Run       string
+	Where     contracts.ProcessSealedCommandsValueWhere
+	HealthURL string
 }
 
 // runMax is the longest text of a Commande (zProcessSealedPayload's `run`),
@@ -93,13 +94,15 @@ func sealedCommands(plain []byte) (map[string]opened, bool) {
 		if where != string(contracts.ProcessSealedCommandsValueWhereProject) && where != string(contracts.ProcessSealedCommandsValueWhereWorktree) {
 			return nil, false
 		}
+		health := ""
 		if raw, given := fields["healthUrl"]; given {
-			health, ok := jsonString(raw)
+			var ok bool
+			health, ok = jsonString(raw)
 			if !ok || !httpURL(health) {
 				return nil, false
 			}
 		}
-		commands[id] = opened{Run: run, Where: contracts.ProcessSealedCommandsValueWhere(where)}
+		commands[id] = opened{Run: run, Where: contracts.ProcessSealedCommandsValueWhere(where), HealthURL: health}
 	}
 	return commands, true
 }

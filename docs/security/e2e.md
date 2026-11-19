@@ -901,6 +901,12 @@ travels to the tabs as a Session's does.
   `"command:<runId>:<seq>"` (`commandOutputAad`). The Runner logs the
   plaintext chunks in `commands/<runId>.log` (mode 600, its folder 700), and
   replays from it.
+- A run whose health address answered while its process ran becomes a
+  service of the Runner (RUNNER-19): its run's log ends with « Service
+  démarré (pid <n>). », and what the service prints after it goes in the
+  clear to `services/<projectId>/<commandId>.log` (mode 600, its folder
+  700), never relayed nor sent to the server. Its verdict, as any, is
+  figures only (`healthy`, `health-timeout`).
 
 | Message | From → to | Sealed | Additional data |
 |---|---|---|---|

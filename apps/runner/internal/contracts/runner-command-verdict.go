@@ -40,6 +40,8 @@ type RunnerCommandVerdictReason string
 
 const RunnerCommandVerdictReasonBusy RunnerCommandVerdictReason = "busy"
 const RunnerCommandVerdictReasonExited RunnerCommandVerdictReason = "exited"
+const RunnerCommandVerdictReasonHealthTimeout RunnerCommandVerdictReason = "health-timeout"
+const RunnerCommandVerdictReasonHealthy RunnerCommandVerdictReason = "healthy"
 const RunnerCommandVerdictReasonPlaceUnavailable RunnerCommandVerdictReason = "place-unavailable"
 const RunnerCommandVerdictReasonSealedInvalid RunnerCommandVerdictReason = "sealed-invalid"
 const RunnerCommandVerdictReasonSpawnFailed RunnerCommandVerdictReason = "spawn-failed"
@@ -48,7 +50,9 @@ const RunnerCommandVerdictReasonTimeout RunnerCommandVerdictReason = "timeout"
 
 var enumValues_RunnerCommandVerdictReason = []interface{}{
 	"exited",
+	"healthy",
 	"timeout",
+	"health-timeout",
 	"stopped",
 	"busy",
 	"sealed-invalid",

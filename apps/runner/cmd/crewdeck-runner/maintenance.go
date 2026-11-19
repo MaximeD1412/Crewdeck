@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/accounts"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/command"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/mcp"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/service"
@@ -171,7 +172,7 @@ func accepted(in io.Reader) bool {
 }
 
 // uninstall checks everything it is about to remove before removing
-// anything; then the secrets of the Serveurs MCP and the keys come first, as
+// anything, and stops the services of the Commandes; then the secrets of the Serveurs MCP and the keys come first, as
 // a keychain that refuses leaves the Runner whole, to uninstall again once it
 // is unlocked.
 func (m *machine) uninstall(ctx context.Context, out io.Writer) error {
@@ -189,6 +190,17 @@ func (m *machine) uninstall(ctx context.Context, out io.Writer) error {
 	binary, err := m.executable()
 	if err != nil {
 		return err
+	}
+	// The services the Commandes left running, before anything is removed.
+	stopped, err := command.StopServices(store.Dir)
+	if err != nil {
+		return fmt.Errorf("Un service lancé par une Commande n’a pas pu être arrêté (%v) : le Runner n’est pas désinstallé. Arrête-le, puis relance « crewdeck-runner uninstall ».", err)
+	}
+	switch {
+	case stopped == 1:
+		fmt.Fprintln(out, "1 service arrêté.")
+	case stopped > 1:
+		fmt.Fprintf(out, "%d services arrêtés.\n", stopped)
 	}
 	if err := (mcp.Store{Dir: store.Dir}).DeleteSecrets(); err != nil {
 		return fmt.Errorf("Les secrets des Serveurs MCP n’ont pas pu être retirés du trousseau (%v) : le Runner n’est pas désinstallé. Déverrouille le trousseau, puis relance « crewdeck-runner uninstall ».", err)

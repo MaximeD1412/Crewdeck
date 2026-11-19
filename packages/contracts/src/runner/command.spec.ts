@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  COMMAND_HEALTH_SECONDS,
   commandOutputAad,
   commandWrapAad,
   zClientMessage,
@@ -80,6 +81,15 @@ describe('the Commandes of the Runner', () => {
     expect(zCommandVerdict.safeParse({ ...verdict, durationMs: -1 }).success).toBe(false);
     expect(zCommandVerdict.safeParse({ ...verdict, output: 'FAIL src/cart.spec.ts' }).success).toBe(true);
     expect(zCommandVerdict.parse({ ...verdict, output: 'FAIL src/cart.spec.ts' })).not.toHaveProperty('output');
+  });
+
+  it('reads the verdict of a health address: healthy passes with or without an exit code, health-timeout fails with none', () => {
+    const verdict = fixture('command.verdict');
+    const service = { ...verdict, passed: true, exitCode: null, reason: 'healthy' };
+    expect(zCommandVerdict.parse(service)).toEqual(service);
+    expect(zCommandVerdict.parse({ ...service, exitCode: 0 })).toMatchObject({ reason: 'healthy', exitCode: 0 });
+    expect(zCommandVerdict.parse({ ...verdict, passed: false, exitCode: null, reason: 'health-timeout' })).toMatchObject({ reason: 'health-timeout' });
+    expect(COMMAND_HEALTH_SECONDS).toBe(120);
   });
 
   it('opens the sealed part as the Commandes of a version: a text of 1 to 4000 characters, its place, its health address', () => {

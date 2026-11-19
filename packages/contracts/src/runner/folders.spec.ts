@@ -8,6 +8,8 @@ import {
   zClientMessage,
   zFolderCheck,
   zFolderCheckResult,
+  zProjectFolderPrepared,
+  zProjectFolderStateMessage,
   zProjectsFolders,
   zRunnerToServer,
   zServerMessage,
@@ -47,6 +49,29 @@ describe('the folders of a Local Projet, on the Runner protocol', () => {
     const folders = fixture(FIXTURES, 'projects.folders');
     expect(zProjectsFolders.parse({ ...folders, present: [] }).present).toEqual([]);
     expect(zProjectsFolders.safeParse({ ...folders, present: ['/home/pilote/projets/recettes'] }).success).toBe(false);
+  });
+});
+
+describe('the readiness of a Local Projet\'s folder, on the Runner protocol', () => {
+  it.each(['project.folder.state', 'project.folder.prepared'])('accepts %s, Runner to server', (name) => {
+    expect(zRunnerToServer.parse(fixture(FIXTURES, name))).toEqual(fixture(FIXTURES, name));
+  });
+
+  it.each(['project.folder.status', 'project.folder.prepare'])('accepts %s, server to Runner', (name) => {
+    expect(zServerToRunner.parse(fixture(FIXTURES, name))).toEqual(fixture(FIXTURES, name));
+  });
+
+  it('says where the folder stands in figures only, never its path', () => {
+    const state = fixture(FIXTURES, 'project.folder.state');
+    expect(zProjectFolderStateMessage.safeParse({ ...state, path: '/home/pilote/projets/recettes' }).success).toBe(true);
+    expect(zProjectFolderStateMessage.parse({ ...state, path: '/home/pilote/projets/recettes' })).not.toHaveProperty('path');
+    expect(zProjectFolderStateMessage.safeParse({ ...state, isGit: 'yes' }).success).toBe(false);
+  });
+
+  it('ends a preparation ok, or with one of its errors', () => {
+    const prepared = fixture(FIXTURES, 'project.folder.prepared');
+    expect(zProjectFolderPrepared.parse({ ...prepared, ok: false, error: 'git-identity-missing' }).error).toBe('git-identity-missing');
+    expect(zProjectFolderPrepared.safeParse({ ...prepared, ok: false, error: 'disk-full' }).success).toBe(false);
   });
 });
 

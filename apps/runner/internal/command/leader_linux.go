@@ -26,9 +26,9 @@ type siginfo struct {
 }
 
 // awaitExit waits for the process pid, a child, to exit, without reaping
-// it (waitid with WNOWAIT): its exit code, nil when a signal ended it.
-// held says it is still unreaped.
-func awaitExit(pid int) (code *int, held bool) {
+// it (waitid with WNOWAIT): its exit code, nil when a signal ended it. An
+// error says it was not watched.
+func awaitExit(pid int) (*int, error) {
 	var info siginfo
 	for {
 		_, _, errno := syscall.Syscall6(syscall.SYS_WAITID, pPID, uintptr(pid), uintptr(unsafe.Pointer(&info)), wEXITED|wNOWAIT, 0, 0)
@@ -36,15 +36,25 @@ func awaitExit(pid int) (code *int, held bool) {
 			continue
 		}
 		if errno != 0 {
-			return nil, false
+			return nil, errno
 		}
 		break
 	}
 	if info.code == cldExited {
 		c := int(info.status)
-		return &c, true
+		return &c, nil
 	}
-	return nil, true
+	return nil, nil
+}
+
+// exitedUnreaped says whether pid is a zombie (`/proc/<pid>/stat`, field 3).
+func exitedUnreaped(pid int) bool {
+	stat, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return false
+	}
+	fields := strings.Fields(string(stat[bytes.LastIndexByte(stat, ')')+1:]))
+	return len(fields) > 0 && fields[0] == "Z"
 }
 
 // groupLives says whether the group pgid holds a process that is not a

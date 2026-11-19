@@ -61,9 +61,10 @@ type serviceRecord struct {
 	RunID     string `json:"runId"`
 }
 
-// running says whether the record's process runs still: its pid alive with
-// the same start time, in the same group. Never a group of 0 or 1, whose
-// signal would reach the Runner's own or every process.
+// running says whether the record's service runs still: its pid the same
+// process (its start time), alive or a zombie this Runner keeps unreaped,
+// in the same group, and that group holding a live process. Never a group of
+// 0 or 1, whose signal would reach the Runner's own or every process.
 func (rec serviceRecord) running() bool {
 	if rec.Pid <= 1 || rec.Pgid <= 1 || rec.StartedAt == "" {
 		return false
@@ -73,7 +74,7 @@ func (rec serviceRecord) running() bool {
 		return false
 	}
 	pgid, err := syscall.Getpgid(rec.Pid)
-	return err == nil && pgid == rec.Pgid
+	return err == nil && pgid == rec.Pgid && groupLives(rec.Pgid)
 }
 
 func readRecord(path string) (serviceRecord, error) {
@@ -87,8 +88,8 @@ func readRecord(path string) (serviceRecord, error) {
 
 // StartTime is the start time of the process pid as the OS reports it: on
 // Linux its boot's id and its start in clock ticks since that boot
-// (`/proc/<pid>/stat`), on macOS `ps -o lstart=`. A process gone (or a
-// zombie) has none.
+// (`/proc/<pid>/stat`), on macOS `ps -o lstart=`. A zombie keeps its own; a
+// process gone has none.
 func StartTime(pid int) (string, error) {
 	if runtime.GOOS != "linux" {
 		cmd := exec.Command("ps", "-o", "lstart=", "-p", strconv.Itoa(pid))
@@ -105,7 +106,7 @@ func StartTime(pid int) (string, error) {
 	}
 	// After the command's name, in parentheses: its state (field 3), …, its start (field 22).
 	fields := strings.Fields(string(stat[bytes.LastIndexByte(stat, ')')+1:]))
-	if len(fields) < 20 || fields[0] == "Z" {
+	if len(fields) < 20 {
 		return "", os.ErrNotExist
 	}
 	boot, err := os.ReadFile("/proc/sys/kernel/random/boot_id")
@@ -324,17 +325,18 @@ func stopGroup(pgid int, after func(time.Duration) <-chan time.Time) error {
 	return errNotStopped
 }
 
-// gone waits until the group has no process left, or until; it says which.
+// gone waits until the group holds no live process (a zombie it may hold
+// is no longer a service's), or until; it says which.
 func gone(pgid int, until <-chan time.Time) bool {
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		if errors.Is(syscall.Kill(-pgid, 0), syscall.ESRCH) {
+		if !groupLives(pgid) {
 			return true
 		}
 		select {
 		case <-until:
-			return errors.Is(syscall.Kill(-pgid, 0), syscall.ESRCH)
+			return !groupLives(pgid)
 		case <-ticker.C:
 		}
 	}

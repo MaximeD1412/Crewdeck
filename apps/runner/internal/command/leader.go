@@ -27,10 +27,12 @@ type leader struct {
 func lead(cmd *exec.Cmd) *leader {
 	l := &leader{cmd: cmd, pid: cmd.Process.Pid, left: make(chan struct{})}
 	go func() {
-		code, held := awaitExit(l.pid)
-		if !held {
-			// The OS could not tell without reaping it: no signal to its
-			// group from now on.
+		code, err := watchExit(l.pid)
+		if err != nil {
+			// Not watched (a kqueue refused, say): it is looked at until it
+			// is a zombie, its group signalled meanwhile, then reaped at
+			// once, its group signalled no more.
+			l.pollExit()
 			l.mu.Lock()
 			l.reaped = true
 			l.mu.Unlock()
@@ -42,6 +44,16 @@ func lead(cmd *exec.Cmd) *leader {
 	}()
 	return l
 }
+
+// pollExit waits, every pollEvery, until it exited, unreaped.
+func (l *leader) pollExit() {
+	for !exitedUnreaped(l.pid) {
+		time.Sleep(pollEvery)
+	}
+}
+
+// pollEvery is how often an unwatched process is looked at.
+const pollEvery = 100 * time.Millisecond
 
 // hasLeft says whether it exited.
 func (l *leader) hasLeft() bool {
@@ -119,15 +131,23 @@ func (l *leader) emptied(until <-chan time.Time) bool {
 	}
 }
 
-// signals is kill(2), a test's to replace.
-var signals = struct {
+// hooks are kill(2) and the watch of an exit, a test's to replace.
+var hooks = struct {
 	sync.Mutex
-	kill func(pid int, sig syscall.Signal) error
-}{kill: syscall.Kill}
+	kill  func(pid int, sig syscall.Signal) error
+	watch func(pid int) (*int, error)
+}{kill: syscall.Kill, watch: awaitExit}
 
 func sendSignal(pid int, sig syscall.Signal) error {
-	signals.Lock()
-	kill := signals.kill
-	signals.Unlock()
+	hooks.Lock()
+	kill := hooks.kill
+	hooks.Unlock()
 	return kill(pid, sig)
+}
+
+func watchExit(pid int) (*int, error) {
+	hooks.Lock()
+	watch := hooks.watch
+	hooks.Unlock()
+	return watch(pid)
 }

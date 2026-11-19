@@ -461,30 +461,7 @@ func TestHealthAServiceWhoseGroupCannotBeStoppedKeepsItsCommandeFromRunningUntil
 	h := newHarness(t)
 	sha := h.remote.ticket(t)
 	h.start(t)
-	var refuse atomic.Bool
-	t.Cleanup(command.SetKill(func(pid int, sig syscall.Signal) error {
-		if refuse.Load() && pid < 0 {
-			return syscall.EPERM
-		}
-		return syscall.Kill(pid, sig)
-	}))
-	port := freePort(t)
-	text := strings.TrimPrefix(server(t, port, 0), "exec ") + " > /dev/null 2>&1 & echo $! > " + h.mark("child") + "; sleep 2"
-	h.commands.Run(h.healthRun(t, runID, text, address(port), sha))
-	if v := h.sent.verdict(t, runID); v.Reason != contracts.RunnerCommandVerdictReasonHealthy {
-		t.Fatalf("verdict %+v, want healthy", v)
-	}
-	child := pidIn(t, h.mark("child"))
-	t.Cleanup(func() { _ = syscall.Kill(child, syscall.SIGKILL) })
-	shell := h.service(t).Pid
-	refuse.Store(true)
-
-	// Its shell exits, the server it left cannot be stopped: the service is not over.
-	becomesZombie(t, shell)
-	time.Sleep(200 * time.Millisecond)
-	if !alive(child) || !exists(h.pidFile()) {
-		t.Fatalf("child alive %v, pid file %v: want both", alive(child), exists(h.pidFile()))
-	}
+	refuse, child, shell, port := h.stuckService(t, sha)
 	h.commands.Run(h.healthRun(t, secondRun, "touch "+h.mark("second"), address(port), sha))
 	if v := h.sent.verdict(t, secondRun); v.Reason != contracts.RunnerCommandVerdictReasonSpawnFailed {
 		t.Fatalf("verdict %+v, want spawn-failed while the service's group lives", v)
@@ -543,5 +520,101 @@ func TestHealthAServicesGroupIsSignalledOnlyWhileItsProcessIsUnreaped(t *testing
 	case pid := <-reused:
 		t.Fatalf("the group %d was signalled once its process was reaped", pid)
 	default:
+	}
+}
+
+// stuckService starts a service whose shell exits after 2 s and leaves its
+// server in its group, then makes every signal to a group fail: its shell
+// is left an unreaped zombie, its server alive. refuse lets them through
+// again once false.
+func (h *harness) stuckService(t *testing.T, sha string) (refuse *atomic.Bool, child, shell int, port string) {
+	t.Helper()
+	refuse = new(atomic.Bool)
+	t.Cleanup(command.SetKill(func(pid int, sig syscall.Signal) error {
+		if refuse.Load() && pid < 0 {
+			return syscall.EPERM
+		}
+		return syscall.Kill(pid, sig)
+	}))
+	port = freePort(t)
+	text := strings.TrimPrefix(server(t, port, 0), "exec ") + " > /dev/null 2>&1 & echo $! > " + h.mark("child") + "; sleep 2"
+	h.commands.Run(h.healthRun(t, runID, text, address(port), sha))
+	if v := h.sent.verdict(t, runID); v.Reason != contracts.RunnerCommandVerdictReasonHealthy {
+		t.Fatalf("verdict %+v, want healthy", v)
+	}
+	child = pidIn(t, h.mark("child"))
+	t.Cleanup(func() { _ = syscall.Kill(child, syscall.SIGKILL) })
+	shell = h.service(t).Pid
+	refuse.Store(true)
+
+	// Its shell exits, the server it left cannot be stopped: the service is not over.
+	becomesZombie(t, shell)
+	time.Sleep(200 * time.Millisecond)
+	if !alive(child) || !exists(h.pidFile()) {
+		t.Fatalf("child alive %v, pid file %v: want both", alive(child), exists(h.pidFile()))
+	}
+	return refuse, child, shell, port
+}
+
+func TestServiceStopServicesStopsTheGroupAServiceLeftBehindItsUnreapedShell(t *testing.T) {
+	h := newHarness(t)
+	sha := h.remote.ticket(t)
+	h.start(t)
+	refuse, child, _, _ := h.stuckService(t, sha)
+
+	// As uninstall does: the zombie is still the service's, its server is stopped.
+	refuse.Store(false)
+	stopped, err := command.StopServices(h.home)
+	if err != nil || stopped != 1 {
+		t.Fatalf("StopServices = %d, %v; want 1 service stopped", stopped, err)
+	}
+	if !dies(child) || exists(h.pidFile()) {
+		t.Fatalf("child alive %v, pid file %v: want neither", alive(child), exists(h.pidFile()))
+	}
+}
+
+func TestServiceStopServicesFailsWhileTheGroupBehindAnUnreapedShellCannotBeStopped(t *testing.T) {
+	h := newHarness(t)
+	sha := h.remote.ticket(t)
+	h.start(t)
+	_, child, _, _ := h.stuckService(t, sha)
+
+	if _, err := command.StopServices(h.home); err == nil {
+		t.Fatal("StopServices said nothing of a service it could not stop")
+	}
+	if !alive(child) || !exists(h.pidFile()) {
+		t.Fatalf("child alive %v, pid file %v: want both kept", alive(child), exists(h.pidFile()))
+	}
+}
+
+func TestHealthARunWhoseExitCannotBeWatchedIsStillKilledAfterTheWindow(t *testing.T) {
+	h := newHarness(t)
+	sha := h.remote.ticket(t)
+	t.Cleanup(command.FailWatch(syscall.EMFILE))
+	h.start(t)
+	text := "echo $$ > " + h.mark("pid") + "; exec sleep 300"
+
+	h.commands.Run(h.healthRun(t, runID, text, address(freePort(t)), sha))
+	pid := pidIn(t, h.mark("pid"))
+	t.Cleanup(func() { _ = syscall.Kill(pid, syscall.SIGKILL) })
+	h.clock.fire(t, command.HealthWindow)
+	if v := h.sent.verdict(t, runID); v.Reason != contracts.RunnerCommandVerdictReasonHealthTimeout {
+		t.Fatalf("verdict %+v, want health-timeout", v)
+	}
+	if !dies(pid) {
+		t.Fatal("a run whose exit was not watched was not killed")
+	}
+}
+
+func TestHealthARunWhoseExitCannotBeWatchedStillGivesItsExitCode(t *testing.T) {
+	h := newHarness(t)
+	sha := h.remote.ticket(t)
+	t.Cleanup(command.FailWatch(syscall.EMFILE))
+	h.start(t)
+
+	h.commands.Run(h.healthRun(t, runID, "exit 1", address(freePort(t)), sha))
+	v := h.sent.verdict(t, runID)
+	if v.Reason != contracts.RunnerCommandVerdictReasonExited || code(v) != 1 {
+		t.Fatalf("verdict %+v, want exited with 1", v)
 	}
 }

@@ -4,6 +4,6 @@
   "projectType": "library",
   "tags": ["scope:scripts"],
   "targets": {
-    "test": { "inputs": ["default"] }
+    "test": { "inputs": ["default", "{workspaceRoot}/docs/pilotage/mep.json", "{workspaceRoot}/apps/server/prisma/migrations/**/*"] }
   }
 }

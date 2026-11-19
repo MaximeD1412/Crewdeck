@@ -19,6 +19,8 @@ const fakeDatabase = (tables: string[]) => {
           statements.push(sql);
           return Promise.resolve(0);
         },
+        // The Projets whose readiness the run computes after its seed: none in an empty database.
+        project: { findMany: () => Promise.resolve([]) },
       },
     },
   };

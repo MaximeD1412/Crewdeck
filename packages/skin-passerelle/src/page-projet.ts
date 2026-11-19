@@ -1,9 +1,11 @@
-import { formatDateOfAnyYear, PageProjet, t, type ComposantData } from '@crewdeck/sdk';
+import { formatDateOfAnyYear, PageProjet, t, type ComposantData, type ComposantPayload } from '@crewdeck/sdk';
 import { css, html, nothing } from 'lit';
 import { PasserelleElement, sharedStyles } from './base.js';
 
 type Data = ComposantData<typeof PageProjet>;
 type Row = Data['readiness']['rows'][number];
+/** A check « Corriger » fixes: a row's `fix` is only true for one of these (`folder`, `labels`, `branches`). */
+type FixId = ComposantPayload<typeof PageProjet, 'fix'>['checkId'];
 
 /** A check's icon and tone: ok go, missing caution, pending neutral. */
 const LOOK = {
@@ -78,7 +80,7 @@ export class PasserellePageProjet extends PasserelleElement<typeof PageProjet> {
       return html`<cd-button
         slot="trailing"
         .data=${{ label: t('projet.readiness.fix'), variant: 'primary', size: 'sm', ...(fixing === row.id ? { state: 'loading' } : {}) }}
-        @click=${() => this.emit('fix', { checkId: row.id })}
+        @click=${() => this.emit('fix', { checkId: row.id as FixId })}
       ></cd-button>`;
     }
     const { tone } = LOOK[row.state];

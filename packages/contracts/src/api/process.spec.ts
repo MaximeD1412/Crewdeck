@@ -65,8 +65,8 @@ describe('zProjectProcess', () => {
 describe('the work running in the view', () => {
   it('names each PhaseRun at work with the version it finishes on, a Ticket by its number', () => {
     const running = [
-      { phaseRunId: '019a6f00-0000-7000-8000-000000000021', versionNumber: 3, itemType: 'ticket', itemId: '42', ticketNumber: 53 },
-      { phaseRunId: '019a6f00-0000-7000-8000-000000000022', versionNumber: 2, itemType: 'idea', itemId: '019a6f00-0000-7000-8000-000000000031', ticketNumber: null },
+      { phaseRunId: '019a6f00-0000-7000-8000-000000000021', versionNumber: 3, phaseId: 'ph-dev', itemType: 'ticket', itemId: '42', ticketNumber: 53 },
+      { phaseRunId: '019a6f00-0000-7000-8000-000000000022', versionNumber: 2, phaseId: 'ph-conception', itemType: 'idea', itemId: '019a6f00-0000-7000-8000-000000000031', ticketNumber: null },
     ] as const;
     expect(zProjectProcess.parse({ ...VIEW, running }).running).toEqual(running);
     expect(zProjectProcess.safeParse({ ...VIEW, running: [{ ...running[0], versionNumber: 0 }] }).success).toBe(false);

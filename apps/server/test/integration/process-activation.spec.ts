@@ -303,7 +303,7 @@ describe('POST /api/projects/:id/process/activate against PostgreSQL', () => {
     const run = await admit(ticketId);
 
     const started = (await eventsOf(alice)).filter((event) => event.type === 'process.upserted').at(-1);
-    expect(zProjectProcess.parse(started?.payload).running).toEqual([{ phaseRunId: run.id, versionNumber: 1, itemType: 'ticket', itemId: ticketId, ticketNumber: 53 }]);
+    expect(zProjectProcess.parse(started?.payload).running).toEqual([{ phaseRunId: run.id, versionNumber: 1, phaseId: 'ph-dev', itemType: 'ticket', itemId: ticketId, ticketNumber: 53 }]);
 
     await inAlice((tx) => engine.stop(tx, run.id));
 

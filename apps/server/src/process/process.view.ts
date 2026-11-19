@@ -55,6 +55,7 @@ export interface ProcessDraftRow {
 export const RUNNING_WORK_VIEW = {
   id: true,
   projectId: true,
+  phaseId: true,
   itemType: true,
   itemId: true,
   processVersion: { select: { number: true } },
@@ -76,6 +77,7 @@ export const toRunningWork = (row: RunningWorkRow, ticketNumbers: ReadonlyMap<st
         {
           phaseRunId: row.id,
           versionNumber: row.processVersion.number,
+          phaseId: row.phaseId,
           itemType: zArtifactType.parse(row.itemType),
           itemId: row.itemId,
           ticketNumber: row.itemType === 'ticket' ? (ticketNumbers.get(row.itemId) ?? null) : null,

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { zArtifactType } from '../process/artifact-types.js';
 import { zSealedItem } from '../keys/sealed.js';
-import { zProcessDefinition } from '../process/definition.js';
+import { zProcessDefinition, zProcessId } from '../process/definition.js';
 import { type ProcessSources, zSourceKind } from '../process/sources.js';
 import { zId, zInstant } from '../values.js';
 import { withSeq } from './commands.js';
@@ -58,12 +58,13 @@ export type ProjectProcessSources = z.infer<typeof zProjectProcessSources>;
 /**
  * A PhaseRun of the Projet still at work (`running` or `waiting`), and the
  * version it finishes on: what the activation's confirmation lists as
- * staying on its version (ADR 0011). `ticketNumber` names a Ticket's;
- * `null` for another item.
+ * staying on its version (ADR 0011): its Phase, its item, and
+ * `ticketNumber` naming a Ticket's (`null` for another item).
  */
 export const zProcessRunningWork = z.object({
   phaseRunId: zId,
   versionNumber: z.int().min(1),
+  phaseId: zProcessId,
   itemType: zArtifactType,
   itemId: z.string().min(1).max(200),
   ticketNumber: z.int().min(1).nullable(),

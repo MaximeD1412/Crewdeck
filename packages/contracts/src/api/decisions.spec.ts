@@ -26,8 +26,9 @@ describe('zDecision', () => {
     expect(STATE_SLICES.decisions.parse([DECISION])).toEqual([DECISION]);
   });
 
-  it('has the fifteen kinds, a Retour at its maximum among them', () => {
-    expect(DECISION_KINDS).toHaveLength(15);
+  it('has the seventeen kinds, a Retour at its maximum and both of a migration of Source among them', () => {
+    expect(DECISION_KINDS).toHaveLength(17);
+    expect(DECISION_KINDS).toEqual(expect.arrayContaining(['source-migration.failed', 'source-migration.unfinished']));
     expect(DECISION_KINDS).toContain('loop-back.exhausted');
     expect(zDecision.safeParse({ ...DECISION, kind: 'something-else' }).success).toBe(false);
   });

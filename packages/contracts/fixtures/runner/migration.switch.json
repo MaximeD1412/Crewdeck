@@ -1,0 +1,14 @@
+{
+  "type": "migration.switch",
+  "id": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a72",
+  "at": "2026-11-11T09:01:00.000Z",
+  "migrationId": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6b01",
+  "fingerprints": [
+    { "key": "ticket:12", "state": "open", "contentHash": "7d2f0c4e1b9a8f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e" },
+    { "key": "ticket:14", "state": "closed", "contentHash": "0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9" }
+  ],
+  "renumbering": [
+    { "from": 12, "to": 41 },
+    { "from": 14, "to": 42 }
+  ]
+}

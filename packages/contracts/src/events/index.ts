@@ -28,6 +28,7 @@ export const RESOURCES = [
   'agent-session',
   'phase-run',
   'step-run',
+  'source-migration',
   'decision',
   'idea',
   'design',

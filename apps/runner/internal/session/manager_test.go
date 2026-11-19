@@ -741,6 +741,9 @@ func TestAResumeAfterARunnerKilledMidMessageEndsItsTurnInterruptedFirst(t *testi
 	for name, tail := range map[string]string{
 		"its last event a delta":              "",
 		"a usage report after its last delta": `{"kind":"usage","seq":5,"at":"2026-11-17T14:02:01Z","outputTokens":12}` + "\n",
+		// SESSION-3: a request no answer reached, withdrawn, the resumed run never taking it.
+		"a request still waiting at its end": `{"kind":"message","seq":5,"at":"2026-11-17T14:02:01Z","from":"agent","text":"Les nuages.","final":true}` + "\n" +
+			`{"kind":"permission-request","seq":6,"at":"2026-11-17T14:02:02Z","requestId":"toolu_left","tool":"Bash","command":"ls"}` + "\n",
 	} {
 		t.Run(name, func(t *testing.T) { resumeAfterACutMessage(t, tail) })
 	}

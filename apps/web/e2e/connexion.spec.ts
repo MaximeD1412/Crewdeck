@@ -23,6 +23,28 @@ const lastLink = async (page: Page, email = ADDRESS): Promise<string> => {
   return `${url.pathname}${url.hash}`;
 };
 
+/** Opens `/connexion` signed out and signs in with « Continuer avec Google » (the fake Google's account): the Pilote's id. */
+const signInWithGoogle = async (page: Page): Promise<string> => {
+  await page.context().clearCookies();
+  await page.goto('/connexion');
+  await page.locator('cd-page-connexion').getByRole('button', { name: 'Continuer avec Google' }).click();
+  await expect(page).toHaveURL(/\/(demarrage|a-toi)$/);
+  return ((await (await page.request.get('/api/me')).json()) as { id: string }).id;
+};
+
+/** Signs in by a link sent to the scenarios' address, from `/connexion` signed out: the Pilote's id. */
+const signInByLink = async (page: Page): Promise<string> => {
+  await page.context().clearCookies();
+  await page.goto('/connexion');
+  await requestLink(page);
+  await page.goto(await lastLink(page));
+  await page.locator('cd-page-connexion-lien').getByRole('button', { name: 'Se connecter' }).click();
+  await expect(page).toHaveURL(/\/(demarrage|a-toi)$/);
+  return ((await (await page.request.get('/api/me')).json()) as { id: string }).id;
+};
+
+const identitiesOf = async (page: Page): Promise<unknown> => ((await (await page.request.get('/api/me')).json()) as { identities: unknown }).identities;
+
 test.describe('the sign-in (US-1)', () => {
   test('a page signed out lands on /connexion, whose « Continuer avec GitHub » signs in through GitHub and comes back to it', async ({
     page,
@@ -66,7 +88,60 @@ test.describe('the sign-in (US-1)', () => {
     await page.goto('/api/auth/github/callback?error=access_denied&state=x');
 
     await expect(page).toHaveURL('/connexion?erreur=denied');
-    await expect(page.getByRole('alert')).toContainText('Tu as refusé l’accès à GitHub : Crewdeck en a besoin pour suivre tes Projets.');
+    await expect(page.getByRole('alert')).toContainText('Tu as refusé l’accès : Crewdeck en a besoin pour te connecter.');
+  });
+
+  test('« Continuer avec Google » signs a new account up, on « Premiers pas »; signed in again, the same Pilote; then a link to its address, the same Pilote still', async ({
+    page,
+    scenario,
+  }) => {
+    await scenario('connexion');
+    await page.goto('/a-toi');
+    await expect(page).toHaveURL('/connexion?next=%2Fa-toi');
+
+    await page.locator('cd-page-connexion').getByRole('button', { name: 'Continuer avec Google' }).click();
+
+    await expect(page).toHaveURL('/demarrage');
+    const cookies = await page.context().cookies();
+    expect(cookies.find((cookie) => cookie.name === 'crewdeck_session')).toMatchObject({ httpOnly: true, sameSite: 'Lax', path: '/' });
+    const me = (await (await page.request.get('/api/me')).json()) as { id: string };
+    expect(me).toMatchObject({ displayName: 'pilote', avatarUrl: null, identities: [{ provider: 'google', label: ADDRESS }] });
+
+    expect(await signInWithGoogle(page)).toBe(me.id);
+    expect(await signInByLink(page)).toBe(me.id);
+    expect(await identitiesOf(page)).toEqual(
+      expect.arrayContaining([
+        { provider: 'google', label: ADDRESS },
+        { provider: 'email', label: ADDRESS },
+      ]),
+    );
+  });
+
+  test('a Pilote signed up by a link who signs in with Google on the same address is the same Pilote, with two Identités', async ({ page, scenario }) => {
+    await scenario('connexion');
+
+    const pilotId = await signInByLink(page);
+    expect(await signInWithGoogle(page)).toBe(pilotId);
+
+    const identities = await identitiesOf(page);
+    expect(identities).toHaveLength(2);
+    expect(identities).toEqual(
+      expect.arrayContaining([
+        { provider: 'email', label: ADDRESS },
+        { provider: 'google', label: ADDRESS },
+      ]),
+    );
+  });
+
+  test('a Google address not verified comes back to /connexion with its banner, nobody signed in', async ({ page, scenario, expectAccessible }) => {
+    await scenario('connexion-google-non-verifiee');
+
+    await page.locator('cd-page-connexion').getByRole('button', { name: 'Continuer avec Google' }).click();
+
+    await expect(page).toHaveURL('/connexion?erreur=google-unverified');
+    await expect(page.getByRole('alert')).toContainText('Ton adresse Google n’est pas vérifiée : vérifie-la chez Google, ou reçois un lien par e-mail.');
+    expect((await page.request.get('/api/me')).status()).toBe(401);
+    await expectAccessible(page);
   });
 
   test('a link by email: sent, opened, then « Se connecter » signs a new address up, on « Premiers pas »', async ({ page, scenario, expectAccessible, capture }) => {

@@ -928,7 +928,7 @@
         {
           "texte": "Le Runner n'exécute que ce qu'il a ouvert, pour ce Projet et cette Commande",
           "ref": "ADR 0013",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

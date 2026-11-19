@@ -27,6 +27,8 @@ github_app=(
   -e GITHUB_TOKEN_KEY="$(openssl rand -base64 32)" -e SESSION_SECRET="$(openssl rand -base64 48)"
   # The mail of the sign-in links: a relay that does not exist, the server only connects to it to send a link.
   -e SMTP_URL=smtp://smoke:smoke@smtp.crewdeck.invalid:587 -e "MAIL_FROM=Crewdeck <connexion@crewdeck.invalid>"
+  # The Google client of the sign-in: made up, the server only calls Google once a Pilote signs in with it.
+  -e GOOGLE_CLIENT_ID=smoke.apps.googleusercontent.com -e GOOGLE_CLIENT_SECRET=smoke
 )
 
 fail() {

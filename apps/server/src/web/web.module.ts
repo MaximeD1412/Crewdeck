@@ -5,7 +5,7 @@ import type { Env } from '../config/env.js';
 /**
  * The web build of the same commit, at `/` (ADR 0009, « Delivery »): its
  * files, and `index.html` for every other path, where the page's router takes
- * over. `/api`, `/runner/…` and `/fake-github` stay the server's: an unknown path there answers
+ * over. `/api`, `/runner/…`, `/fake-github` and `/fake-google` stay the server's: an unknown path there answers
  * 404 JSON, never the page; `/runner` itself is the page « Runner et Comptes IA ». Without `WEB_DIST_DIR` (development), Vite serves
  * the page and this module does nothing.
  */
@@ -18,7 +18,7 @@ export class WebModule {
       imports: [
         ServeStaticModule.forRoot({
           rootPath: env.WEB_DIST_DIR,
-          exclude: ['/api/{*path}', '/runner/*path', '/runner-dist/{*path}', '/fake-github/{*path}'],
+          exclude: ['/api/{*path}', '/runner/*path', '/runner-dist/{*path}', '/fake-github/{*path}', '/fake-google/{*path}'],
         }),
       ],
     };

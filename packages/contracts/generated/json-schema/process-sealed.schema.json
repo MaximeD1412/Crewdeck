@@ -11,7 +11,7 @@
             "type": "string"
           },
           "run": {
-            "maxLength": 4000,
+            "maxLength": 10000,
             "minLength": 1,
             "type": "string"
           },

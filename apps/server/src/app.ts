@@ -29,7 +29,8 @@ const serveDocs = (app: INestApplication): void => {
 
 /**
  * Every route under `/api`, but the fake GitHub's (`/fake-github`, mounted
- * with `CREWDECK_FAKES=1` only), at the path the page reads GitHub at, and
+ * with `CREWDECK_FAKES=1` only), at the path the page reads GitHub at, the
+ * fake Google's authorize page (`/fake-google`, the same), and
  * the Runner's install script and binaries (`/runner/…`, RUNNER-3); and
  * `/api/ws` (ADR 0007) on the same HTTP server, with `ws` (without an
  * adapter, Nest would look for socket.io). The webhooks' body is read raw,
@@ -45,7 +46,7 @@ export const mountApi = (app: INestApplication): void => {
   // In place of Nest's (100 kB): a Process's draft at its bounds with its sealed part (PROCESS-3).
   (app as NestExpressApplication).useBodyParser('json', { limit: JSON_BODY_LIMIT });
   app.use(toRunnerDist);
-  app.setGlobalPrefix('api', { exclude: ['fake-github/{*path}', `${RUNNER_DIST_ROUTE}/{*path}`] });
+  app.setGlobalPrefix('api', { exclude: ['fake-github/{*path}', 'fake-google/{*path}', `${RUNNER_DIST_ROUTE}/{*path}`] });
   app.useWebSocketAdapter(new WsAdapter(app));
 };
 

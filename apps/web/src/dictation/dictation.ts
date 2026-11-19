@@ -62,7 +62,8 @@ const transcriptOf = (results: SpeechRecognitionResultList): { text: string; fin
 export const startDictation = ({ lang, onTranscript, onEnd }: DictationOptions): DictationHandle => {
   const Speech = recognitionConstructor();
   let ended = false;
-  let timeout: ReturnType<typeof setTimeout> | undefined;
+  // Set once started: a dictation that failed at once ends before it.
+  const timer: { id?: ReturnType<typeof setTimeout> } = {};
   const recognition = Speech ? new Speech() : null;
 
   const onResult = (event: Event) => {
@@ -75,7 +76,7 @@ export const startDictation = ({ lang, onTranscript, onEnd }: DictationOptions):
   function finish(reason: DictationEnd): void {
     if (ended) return;
     ended = true;
-    clearTimeout(timeout);
+    clearTimeout(timer.id);
     if (recognition) {
       recognition.removeEventListener('result', onResult);
       recognition.removeEventListener('error', onError);
@@ -102,7 +103,7 @@ export const startDictation = ({ lang, onTranscript, onEnd }: DictationOptions):
     queueMicrotask(() => finish('failed'));
     return { stop: () => finish('stopped') };
   }
-  timeout = setTimeout(() => finish('timeout'), DICTATION_MAX_MS);
+  timer.id = setTimeout(() => finish('timeout'), DICTATION_MAX_MS);
   return { stop: () => finish('stopped') };
 };
 

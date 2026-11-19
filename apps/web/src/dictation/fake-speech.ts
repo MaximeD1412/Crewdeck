@@ -27,8 +27,9 @@ export const installFakeSpeech = (): void => {
     transcript: string;
     isFinal: boolean;
   }
-  let current: FakeSpeechRecognition | null = null;
-  let started = 0;
+  // Every recognition started, the last one the current.
+  const startedOnes: FakeSpeechRecognition[] = [];
+  const current = (): FakeSpeechRecognition | null => startedOnes.at(-1) ?? null;
 
   class FakeSpeechRecognition extends EventTarget {
     lang = '';
@@ -39,11 +40,10 @@ export const installFakeSpeech = (): void => {
     listening = false;
 
     start(): void {
-      if (current?.listening) throw new DOMException('La reconnaissance est déjà lancée.', 'InvalidStateError');
+      if (current()?.listening) throw new DOMException('La reconnaissance est déjà lancée.', 'InvalidStateError');
       this.listening = true;
       this.utterances = [];
-      current = this;
-      started += 1;
+      startedOnes.push(this);
       this.dispatchEvent(new Event('start'));
     }
 
@@ -72,24 +72,27 @@ export const installFakeSpeech = (): void => {
 
   const control: FakeSpeechControl = {
     get started() {
-      return started;
+      return startedOnes.length;
     },
     get listening() {
-      return current?.listening ?? false;
+      return current()?.listening ?? false;
     },
     get settings() {
-      return current && { lang: current.lang, continuous: current.continuous, interimResults: current.interimResults };
+      const last = current();
+      return last && { lang: last.lang, continuous: last.continuous, interimResults: last.interimResults };
     },
     say(text, final) {
-      if (current?.listening) current.hear(text, final);
+      const last = current();
+      if (last?.listening) last.hear(text, final);
     },
     fail(error) {
-      if (!current?.listening) return;
-      current.dispatchEvent(Object.assign(new Event('error'), { error, message: '' }));
-      current.finish();
+      const last = current();
+      if (!last?.listening) return;
+      last.dispatchEvent(Object.assign(new Event('error'), { error, message: '' }));
+      last.finish();
     },
     end() {
-      current?.finish();
+      current()?.finish();
     },
   };
   Object.assign(window, { SpeechRecognition: FakeSpeechRecognition, webkitSpeechRecognition: FakeSpeechRecognition, fakeSpeech: control });

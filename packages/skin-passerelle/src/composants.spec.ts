@@ -2,7 +2,7 @@
 // What the core loads before the Skin (apps/web/src/main.ts): the tokens and the document's ground.
 import './tokens.css';
 import './document.css';
-import { COMPOSANTS, t, zCdActionDetail } from '@crewdeck/sdk';
+import { actionSchema, COMPOSANTS, t, zCdActionDetail, type ActionDeclaration } from '@crewdeck/sdk';
 import type { LitElement } from 'lit';
 import { page } from 'vitest/browser';
 import { COPIED_MS } from './code-block.js';
@@ -128,6 +128,19 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
   'Phase.select': (el) => inside(el, 'header').click(),
   'PageProcessEditor.select': (el) => atPc(el, () => inside(el, 'cd-process-canvas', 'cd-step-card[data-step=analyse]', 'article').click()),
   'PageProcessEditor.tab': (el) => atPc(el, () => inside(el, 'cd-tabs', 'button[role=tab]:nth-of-type(3)').click()),
+  'PageProcessEditor.migrate': async (el) => {
+    const { width, height } = { width: window.innerWidth, height: window.innerHeight };
+    await page.viewport(1280, 800);
+    try {
+      el.data = COMPOSANTS.PageProcessEditor.examples.find((example) => example.name === 'les Sources')?.data;
+      await expect.poll(() => el.shadowRoot?.querySelector('cd-select[data-group=ticket]')?.shadowRoot?.querySelector('select') ?? null).not.toBeNull();
+      const select = inside(el, 'cd-select[data-group=ticket]', 'select') as HTMLSelectElement;
+      select.value = 'github';
+      for (const type of ['input', 'change']) select.dispatchEvent(new Event(type, { bubbles: true, composed: true }));
+    } finally {
+      await page.viewport(width, height);
+    }
+  },
   'PageProcessEditor.view': (el) => atPc(el, () => inside(el, 'cd-process-canvas', 'cd-icon-button.zoom-in', 'button').click()),
   'ProcessCanvas.select': (el) => inside(el, 'cd-step-card[data-step=analyse]', 'article').click(),
   'ProcessCanvas.view': (el) => inside(el, 'cd-icon-button.zoom-in', 'button').click(),
@@ -218,8 +231,8 @@ describe('the Passerelle Skin', () => {
           expect(details).toHaveLength(1);
           const detail = zCdActionDetail.parse(details[0]);
           expect(detail).toMatchObject({ composant: declaration.name, action });
-          const actions: Record<string, { safeParse: (value: unknown) => { success: boolean } }> = declaration.actions;
-          expect(actions[action]?.safeParse(detail.payload).success).toBe(true);
+          const declared: Record<string, ActionDeclaration> = declaration.actions;
+          expect(actionSchema(declared[action]!).safeParse(detail.payload).success).toBe(true);
         },
       );
     },

@@ -62,7 +62,6 @@ const OLD_PLACE: Readonly<Record<SourceGroup, Readonly<Record<'local' | 'github'
 };
 
 const LABEL_MAX = 120;
-const META_PART_MAX = 40;
 const cut = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, max - 1)}…`);
 
 const migrationNotFound = (): AppError => notFound('source-migration.not-found', MESSAGES['source-migration.not-found']);
@@ -431,7 +430,7 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
       subjectType: 'source-migration',
       subjectId: row.id,
       label: cut(`${GROUP_LABEL[row.group]} de ${project.displayName}`, LABEL_MAX),
-      metaParts: [cut(project.displayName, META_PART_MAX), 'Sources'],
+      metaParts: ['Sources'],
       tone: 'halt',
       link: `/projets/${project.id}/process?onglet=sources`,
       params: { migrationId: row.id, group: row.group, from: row.from, to: row.to, code },
@@ -457,7 +456,7 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
       subjectType: 'source-migration',
       subjectId: row.id,
       label: cut(`${GROUP_LABEL[row.group]} de ${project.displayName}`, LABEL_MAX),
-      metaParts: [cut(project.displayName, META_PART_MAX), OLD_PLACE[row.group][row.from]],
+      metaParts: [OLD_PLACE[row.group][row.from]],
       tone: 'caution',
       link: `/projets/${project.id}/process?onglet=sources`,
       params: { migrationId: row.id, group: row.group, from: row.from, to: row.to },

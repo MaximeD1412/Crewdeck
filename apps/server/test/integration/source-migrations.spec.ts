@@ -337,7 +337,7 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
       expect(decision).toMatchObject({
         kind: 'source-migration.failed',
         label: 'Ticket de fixture-app',
-        meta_parts: ['fixture-app', 'Sources'],
+        meta_parts: ['Sources'],
         tone: 'halt',
         link: `/projets/${projectId}/process?onglet=sources`,
         params: { migrationId: migration.id, group: 'ticket', from: 'local', to: 'github', code: 'github.unavailable' },
@@ -383,7 +383,7 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
       }
       socket.send({ type: 'migration.failed', migrationId: migration.id, stage: 'finish', code: 'runner.io' });
       await vi.waitFor(async () => expect((await openDecisions()).map((decision) => decision.kind)).toEqual(['source-migration.unfinished']));
-      expect((await openDecisions())[0]).toMatchObject({ tone: 'caution', meta_parts: ['fixture-app', 'tickets/ pas encore archivé'] });
+      expect((await openDecisions())[0]).toMatchObject({ tone: 'caution', meta_parts: ['tickets/ pas encore archivé'] });
       expect(await row(migration.id)).toMatchObject({ state: 'switched', finish_tries: 3 });
       expect(await ticketSource()).toBe('github');
 

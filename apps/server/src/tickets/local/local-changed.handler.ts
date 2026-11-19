@@ -25,8 +25,9 @@ const paramsKey = (params: unknown): string =>
  * `sourceAt` the item's `observedAt` (the latency measure of a webhook's); a
  * full report removes the Local rows it does not hold, changes of code too; « Fichier de Ticket
  * illisible » for each file the Runner could not read. A group of the Projet
- * on GitHub drops its items. One report after the other per Pilote; never a
- * text in clear here, nor in the logs.
+ * on GitHub drops its items, and a report sealed under another vault key
+ * version than the current one is not written. One report after the other
+ * per Pilote; never a text in clear here, nor in the logs.
  */
 @Injectable()
 export class LocalChangedHandler implements OnModuleInit {
@@ -77,7 +78,14 @@ export class LocalChangedHandler implements OnModuleInit {
     if (dropped > 0) this.logger.info({ projectId, dropped, ticketsLocal, codeLocal }, 'local.not-local');
 
     await this.transactions.run(async (tx) => {
+      // The Pilote's row, which a rotation holds while it moves the version: none commits between this check and the writes.
       await this.events.lock(tx, pilotId);
+      const current = (await tx.pilot.findUnique({ where: { id: pilotId }, select: { vaultKeyVersion: true } }))?.vaultKeyVersion ?? null;
+      if (current !== message.vaultKeyVersion) {
+        // Sealed under a key a rotation left (`docs/security/e2e.md`): nothing stored, the Runner reports every item again once it holds the new version.
+        this.logger.info({ projectId, vaultKeyVersion: message.vaultKeyVersion, current }, 'local.vault-stale');
+        return;
+      }
       const at = runnerAt(message.at);
       if (ticketsLocal) await this.writeTickets(tx, projectId, message.full, items, at);
       if (codeLocal) await this.writeChanges(tx, projectId, message.full, items.changes, at);

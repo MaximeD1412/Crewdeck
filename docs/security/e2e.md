@@ -737,7 +737,11 @@ POST /api/vault/rotations (the Runner: /api/runner/vault/rotations)
   slice an event moved. A later writer of a sealed
   item (the process versions and drafts, an Idée's analysis or reason, the
   Local Sources' texts) does the same, else an item sealed under a key no
-  holder keeps any more is stored and never opens.
+  holder keeps any more is stored and never opens. A `local.changed` names
+  its `vaultKeyVersion`; the server compares it under the Pilote's lock,
+  writes nothing of a report of another version (`local.vault-stale` in
+  the logs) and closes nothing: the Runner sends a full report of each
+  Local Projet as soon as its held vault moves to a new version.
 - The Runner's wrap of the new version reaches it in `vault.rotated`
   while it is connected, else in its next `hello.accepted`; it opens it from
   the key of the holder that rotated (one it holds), keeps it as

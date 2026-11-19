@@ -191,8 +191,8 @@ describe('a Local Projet’s folder followed, against PostgreSQL', () => {
     pathSealed: seal(projectId, path, `unreadable:${key}:path`),
   });
 
-  const report = (runner: FakeRunnerClient, projectId: string, items: unknown[], fields: { full?: boolean; unreadable?: unknown[] } = {}) =>
-    runner.send({ type: 'local.changed', projectId, full: fields.full ?? false, items, unreadable: fields.unreadable ?? [] } as never);
+  const report = (runner: FakeRunnerClient, projectId: string, items: unknown[], fields: { full?: boolean; unreadable?: unknown[]; vaultKeyVersion?: number } = {}) =>
+    runner.send({ type: 'local.changed', projectId, vaultKeyVersion: fields.vaultKeyVersion ?? 1, full: fields.full ?? false, items, unreadable: fields.unreadable ?? [] } as never);
 
   const eventsOf = (who: Pilot) =>
     sql<{ type: string; payload: Record<string, unknown>; source: string | null; source_at: Date | null; tx: string }>(
@@ -321,6 +321,27 @@ describe('a Local Projet’s folder followed, against PostgreSQL', () => {
     report(again, projectId, items, { full: true });
     await eventually(async () => expect(await sql('SELECT number, ticket_number FROM code_changes WHERE project_id = $1', [projectId])).toEqual([{ number: 31, ticket_number: 12 }]));
     expect((await tickets(projectId)).map((row) => row.number)).toEqual([12]);
+  });
+
+  it('writes nothing of a report sealed under a vault key version a rotation left, and the report under the new one', async () => {
+    const alice = await pilot('alice');
+    const runner = await online(alice);
+    const projectId = await localProject(alice);
+    report(runner, projectId, [ticket(projectId, 12)], { unreadable: [unreadable(projectId, 'AAECAwQFBgcICQoLDA0ODw', 'tickets/7-courses.md')] });
+    await eventually(async () => expect(await tickets(projectId)).toHaveLength(1));
+    const stored = () => sql('SELECT number, title_sealed, labels_sealed FROM tickets WHERE project_id = $1 ORDER BY number', [projectId]);
+    const decisions = () => sql('SELECT subject_id, params, state FROM decisions WHERE pilot_id = $1 ORDER BY subject_id', [alice.id]);
+
+    // A rotation moved the vault to version 2 (its item keys rewrapped); a report the Runner sealed under 1 arrives after it.
+    await sql('UPDATE pilots SET vault_key_version = 2 WHERE id = $1', [alice.id]);
+    const before = { tickets: await stored(), decisions: await decisions(), events: (await eventsOf(alice)).length };
+    report(runner, projectId, [ticket(projectId, 12), ticket(projectId, 13), milestone(projectId, 1), change(projectId, 31, 12)], { full: true, vaultKeyVersion: 1 });
+    await eventually(async () => expect(lines.some((line) => line.includes('local.vault-stale'))).toBe(true));
+    expect({ tickets: await stored(), decisions: await decisions(), events: (await eventsOf(alice)).length }).toEqual(before);
+    expect(JSON.parse(lines.find((line) => line.includes('local.vault-stale')) ?? '{}')).toMatchObject({ projectId, vaultKeyVersion: 1, current: 2 });
+
+    report(runner, projectId, [ticket(projectId, 12), ticket(projectId, 13)], { vaultKeyVersion: 2 });
+    await eventually(async () => expect((await tickets(projectId)).map((row) => row.number)).toEqual([12, 13]));
   });
 
   it('drops the items of a Projet whose ticket group is on GitHub, its changes kept while its code is Local', async () => {

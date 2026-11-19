@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { zSealedItem } from '../keys/sealed.js';
 import { zEngineId } from '../runner/engines.js';
 import { zGitBranch, zSessionError, zSessionOutcome, zSessionState, zSessionTitle } from '../runner/session.js';
 import { zCursorPage, zId, zInstant } from '../values.js';
@@ -13,8 +14,10 @@ export type SessionInterruptedReason = z.infer<typeof zSessionInterruptedReason>
 /**
  * A Session (RUNNER-9): one conversation of an agent in one Rôle, on the
  * Runner, with one Moteur, on its `branch`. What the server may read (ADR
- * 0003): its state and how it ended, its readable title; never its content,
- * which stays in the Runner's log (SESSION-1 relays it). `GET
+ * 0003): its state and how it ended, its readable title (a GitHub
+ * Projet's) or `titleSealed` (a Local one's, which the page opens, ADR
+ * 0012), one of the two; never its content, which stays in the Runner's log
+ * (SESSION-1 relays it). `GET
  * /api/sessions`, the `sessions` slice of `GET /api/state` and the payload
  * of `agent-session.upserted`.
  */
@@ -24,7 +27,8 @@ export const zAgentSession = z.object({
   role: zRoleId,
   engine: zEngineId,
   model: z.string().min(1),
-  title: zSessionTitle,
+  title: zSessionTitle.nullable(),
+  titleSealed: zSealedItem.nullable(),
   state: zSessionState,
   interruptedReason: zSessionInterruptedReason.nullable(),
   outcome: zSessionOutcome.nullable(),

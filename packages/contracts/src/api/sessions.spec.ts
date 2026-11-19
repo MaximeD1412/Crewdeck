@@ -7,6 +7,7 @@ const SESSION = {
   engine: 'claude-code',
   model: 'claude-opus-5-5',
   title: 'Le panier garde les articles',
+  titleSealed: null,
   state: 'interrupted',
   interruptedReason: 'runner-offline',
   outcome: null,
@@ -30,6 +31,12 @@ describe('zAgentSession', () => {
     expect(zAgentSession.parse(ended)).toEqual(ended);
     expect(zAgentSession.safeParse({ ...ended, error: 'it broke' }).success).toBe(false);
     expect(zAgentSession.safeParse({ ...SESSION, interruptedReason: 'pilot' }).success).toBe(false);
+  });
+
+  it('a Local Projet’s has its title sealed and no readable one (SOURCE-2)', () => {
+    const local = { ...SESSION, title: null, titleSealed: { key: 'a'.repeat(80), ciphertext: 'b'.repeat(40) } };
+    expect(zAgentSession.parse(local)).toEqual(local);
+    expect(zAgentSession.safeParse({ ...local, titleSealed: { key: 'a'.repeat(80), ciphertext: 'b'.repeat(40), plaintext: 'Le panier' } }).success).toBe(false);
   });
 
   it('may run no StepRun, and play a Rôle the Pilote added', () => {

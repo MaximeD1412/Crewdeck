@@ -5,7 +5,6 @@ package contracts
 import "encoding/json"
 import "errors"
 import "fmt"
-import "reflect"
 import "regexp"
 import "time"
 import "unicode/utf8"
@@ -24,7 +23,7 @@ type RunnerCommandRun struct {
 	IntegrationBranch string `json:"integrationBranch"`
 
 	// Origin corresponds to the JSON schema field "origin".
-	Origin RunnerCommandRunOrigin `json:"origin"`
+	Origin Origin `json:"origin"`
 
 	// ProjectId corresponds to the JSON schema field "projectId".
 	ProjectId string `json:"projectId"`
@@ -43,75 +42,6 @@ type RunnerCommandRun struct {
 
 	// WorktreeCommands corresponds to the JSON schema field "worktreeCommands".
 	WorktreeCommands *RunnerCommandRunWorktreeCommands `json:"worktreeCommands"`
-}
-
-type RunnerCommandRunOrigin struct {
-	// Kind corresponds to the JSON schema field "kind".
-	Kind RunnerCommandRunOriginKind `json:"kind"`
-
-	// Name corresponds to the JSON schema field "name".
-	Name string `json:"name"`
-
-	// Owner corresponds to the JSON schema field "owner".
-	Owner string `json:"owner"`
-}
-
-type RunnerCommandRunOriginKind string
-
-const RunnerCommandRunOriginKindGithub RunnerCommandRunOriginKind = "github"
-
-var enumValues_RunnerCommandRunOriginKind = []interface{}{
-	"github",
-}
-
-// UnmarshalJSON implements json.Unmarshaler.
-func (j *RunnerCommandRunOriginKind) UnmarshalJSON(value []byte) error {
-	var v string
-	if err := json.Unmarshal(value, &v); err != nil {
-		return err
-	}
-	var ok bool
-	for _, expected := range enumValues_RunnerCommandRunOriginKind {
-		if reflect.DeepEqual(v, expected) {
-			ok = true
-			break
-		}
-	}
-	if !ok {
-		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_RunnerCommandRunOriginKind, v)
-	}
-	*j = RunnerCommandRunOriginKind(v)
-	return nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler.
-func (j *RunnerCommandRunOrigin) UnmarshalJSON(value []byte) error {
-	var raw map[string]interface{}
-	if err := json.Unmarshal(value, &raw); err != nil {
-		return err
-	}
-	if _, ok := raw["kind"]; raw != nil && !ok {
-		return fmt.Errorf("field kind in RunnerCommandRunOrigin: required")
-	}
-	if _, ok := raw["name"]; raw != nil && !ok {
-		return fmt.Errorf("field name in RunnerCommandRunOrigin: required")
-	}
-	if _, ok := raw["owner"]; raw != nil && !ok {
-		return fmt.Errorf("field owner in RunnerCommandRunOrigin: required")
-	}
-	type Plain RunnerCommandRunOrigin
-	var plain Plain
-	if err := json.Unmarshal(value, &plain); err != nil {
-		return err
-	}
-	if matched, _ := regexp.MatchString(`^[A-Za-z0-9._-]{1,100}$`, string(plain.Name)); !matched {
-		return fmt.Errorf("field %s pattern match: must match %s", "Name", `^[A-Za-z0-9._-]{1,100}$`)
-	}
-	if matched, _ := regexp.MatchString(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$`, string(plain.Owner)); !matched {
-		return fmt.Errorf("field %s pattern match: must match %s", "Owner", `^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$`)
-	}
-	*j = RunnerCommandRunOrigin(plain)
-	return nil
 }
 
 type RunnerCommandRunRef struct {

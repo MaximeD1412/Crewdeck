@@ -44,7 +44,11 @@ export type SessionPermissionMode = z.infer<typeof zSessionPermissionMode>;
 export const zSessionStep = z.object({ stepRunId: zId, stepKind: zStepId });
 export type SessionStep = z.infer<typeof zSessionStep>;
 
-/** A Session's title: readable for a GitHub Projet (a Ticket's or a Conception's title, ADR 0003). */
+/**
+ * A Session's title: readable for a GitHub Projet (a Ticket's or a
+ * Conception's title, ADR 0003), `null` for a Local one, whose titles reach
+ * the server sealed (ADR 0012).
+ */
 export const zSessionTitle = z.string().min(1).max(300);
 
 /**
@@ -77,7 +81,7 @@ export const zSessionStart = runnerMessage('session.start', {
   role: zSessionRole,
   permissionMode: zSessionPermissionMode,
   step: zSessionStep.optional(),
-  title: zSessionTitle,
+  title: zSessionTitle.nullable(),
   worktreeCommands: zWorktreeCommandsSealed,
 });
 export type SessionStart = z.infer<typeof zSessionStart>;

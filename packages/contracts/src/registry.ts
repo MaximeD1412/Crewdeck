@@ -15,6 +15,7 @@ import { zMigrationCopy, zMigrationFailed, zMigrationFinish, zMigrationFinished,
 import { zGitHubChanged, zMirrorLive, zMirrorProjects, zMirrorResync, zMirrorToken, zMirrorTokenFailed, zMirrorTokenIssued } from './runner/mirror.js';
 import { zSessionAnswered, zSessionResume, zSessionStart, zSessionStateMessage, zSessionStop, zSessionWaiting } from './runner/session.js';
 import { zSessionInputPayload } from './runner/inputs.js';
+import { zOriginUnion } from './runner/origin.js';
 import { zRelay, zSessionInput, zSessionKeys, zSessionReplay } from './runner/relay.js';
 import { zStepVerdict } from './runner/step.js';
 import { zCommandKeys, zCommandOutput, zCommandOutputChunk, zCommandReplay, zCommandRun, zCommandStarted, zCommandStop, zCommandVerdict } from './runner/command.js';
@@ -127,7 +128,9 @@ const goUnion = <D extends string>(
   options: union.options.map((schema) => ({ value: schema.shape[discriminator].value, schema })),
 });
 
-export const goUnions: readonly GoUnion[] = [goUnion('engine-event', 'kind', zEngineEvent), goUnion('session-input', 'kind', zSessionInputPayload)];
+export const goUnions: readonly GoUnion[] = [goUnion('engine-event', 'kind', zEngineEvent), goUnion('session-input', 'kind', zSessionInputPayload),
+  goUnion('origin', 'kind', zOriginUnion),
+];
 
 /** Every schema written as JSON Schema and Go: the registry, then each option of the unions. */
 export const generatedEntries: readonly { name: string; schema: z.ZodType }[] = [

@@ -62,6 +62,7 @@ import { Toast } from './toast.js';
 import { Toggle } from './toggle.js';
 import { ToolCall } from './tool-call.js';
 import { ToolChip } from './tool-chip.js';
+import { UsageCard } from './usage-card.js';
 import { UsageMeter } from './usage-meter.js';
 
 export * from './action.js';
@@ -133,6 +134,7 @@ export * from './toggle.js';
 export * from './tone.js';
 export * from './tool-call.js';
 export * from './tool-chip.js';
+export * from './usage-card.js';
 export * from './usage-meter.js';
 
 /**
@@ -182,6 +184,7 @@ export const COMPOSANTS = {
   ToolChip,
   LoopBack,
   UsageMeter,
+  UsageCard,
   Stat,
   CheckRow,
   Capture,

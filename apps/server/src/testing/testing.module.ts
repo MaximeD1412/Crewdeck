@@ -3,6 +3,7 @@ import { DecisionsModule } from '../decisions/decisions.module.js';
 import { MAILER } from '../auth/mail/mailer.js';
 import { RunnersModule } from '../runners/runners.module.js';
 import { GITHUB_CLIENT } from '../github/github.client.js';
+import { FX_SOURCE } from '../usage/fx-source.js';
 import { FakeGitHubController } from './fake-github.controller.js';
 import { createFakes, FAKES, type Fakes } from './fakes.js';
 import { ScenariosService } from './scenarios.service.js';
@@ -26,7 +27,8 @@ import { TestingWaitingWorkController } from './testing-waiting-work.controller.
  * a dynamic `import()` (`AppModule`): without it, nothing of `src/testing/` is
  * loaded, and `/api/testing/*` and `/fake-github/*` give 404.
  *
- * Global: `GITHUB_CLIENT` is the fake GitHub, `MAILER` the fake mail, wherever a module injects them.
+ * Global: `GITHUB_CLIENT` is the fake GitHub, `MAILER` the fake mail, wherever a module injects them,
+ * `FX_SOURCE` the fake ECB.
  */
 @Global()
 @Module({})
@@ -40,9 +42,10 @@ export class TestingModule {
         ScenariosService,
         { provide: FAKES, useFactory: createFakes },
         { provide: GITHUB_CLIENT, inject: [FAKES], useFactory: (fakes: Fakes) => fakes.github },
+        { provide: FX_SOURCE, inject: [FAKES], useFactory: (fakes: Fakes) => fakes.fx },
         { provide: MAILER, inject: [FAKES], useFactory: (fakes: Fakes) => fakes.mail },
       ],
-      exports: [FAKES, GITHUB_CLIENT, MAILER],
+      exports: [FAKES, GITHUB_CLIENT, MAILER, FX_SOURCE],
     };
   }
 }

@@ -19,6 +19,8 @@ const (
 	TypeStepVerdict   = "step.verdict"
 	TypeCapabilities  = "capabilities"
 	TypeMcpServers    = "mcp.servers"
+	TypeUsage         = "usage"
+	TypeUsageAck      = "usage.ack"
 	// The Miroir's (ADR 0010): the server sends them, the Runner applies them (MIROIR-4).
 	TypeGitHubChanged  = "github.changed"
 	TypeMirrorResync   = "mirror.resync"
@@ -116,6 +118,26 @@ func NewMcpServers(servers []contracts.RunnerMcpServersServersElem) contracts.Ru
 		servers = []contracts.RunnerMcpServersServersElem{}
 	}
 	return contracts.RunnerMcpServers{Type: TypeMcpServers, Id: newID(at), At: at, Servers: servers}
+}
+
+// NewUsage is the usage message of one Compte IA (US-55): the windows the
+// Moteur last reported, measured at `measuredAt`, and the cost of a Session's
+// result when `spend` is set. Figures only, never content.
+func NewUsage(engine contracts.RunnerUsageEngine, kind contracts.RunnerUsageAccountKind, windows []contracts.RunnerUsageWindowsElem, spend *contracts.RunnerUsageSpend, measuredAt time.Time) contracts.RunnerUsage {
+	at := now()
+	if windows == nil {
+		windows = []contracts.RunnerUsageWindowsElem{}
+	}
+	return contracts.RunnerUsage{
+		Type:        TypeUsage,
+		Id:          newID(at),
+		At:          at,
+		Engine:      engine,
+		AccountKind: kind,
+		Windows:     windows,
+		Spend:       spend,
+		MeasuredAt:  measuredAt.UTC().Truncate(time.Millisecond),
+	}
 }
 
 // NewMirrorToken asks the server for the « Miroir » tokens (MIROIR-2).

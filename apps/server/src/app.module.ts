@@ -29,6 +29,7 @@ import { EngineModule } from './process/engine/engine.module.js';
 import { ScopeModule } from './scope/scope.module.js';
 import { SessionsModule } from './sessions/sessions.module.js';
 import { TicketsModule } from './tickets/tickets.module.js';
+import { UsageModule } from './usage/usage.module.js';
 import { SensitiveActionsModule } from './sensitive-actions/sensitive-actions.module.js';
 import { SettingsModule } from './settings/settings.module.js';
 import { WebModule } from './web/web.module.js';
@@ -85,6 +86,7 @@ export class AppModule {
         TicketsModule,
         DecisionsModule,
         IdeasModule,
+        UsageModule.forRoot(env),
         MetricsModule,
         SettingsModule,
         WebModule.forRoot(env),

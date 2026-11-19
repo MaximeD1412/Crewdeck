@@ -20,6 +20,7 @@ import type {
   State,
   StepRun,
   Ticket,
+  UsageAccount,
 } from '@crewdeck/contracts';
 import type { VaultState } from '../keys/vault.js';
 
@@ -73,6 +74,8 @@ export interface Slices {
   /** Their Sessions (RUNNER-9), by id, from the snapshot's `sessions`: those not ended, and those ended in the last 24 h. */
   readonly 'agent-session': ReadonlyMap<string, AgentSession>;
   readonly settings: AccountSettings | null;
+  /** The usage of the Comptes IA (RUNNER-13), by the Compte IA's id, from the snapshot's `usage`. */
+  readonly usage: ReadonlyMap<string, UsageAccount>;
 }
 
 export interface StoreState {

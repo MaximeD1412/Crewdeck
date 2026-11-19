@@ -242,7 +242,7 @@ func TestASessionClonesOnceFetchesBeforeTheNextAndRemovesItsWorktreeOnceEnded(t 
 		t.Fatalf("%d runs, want 1", len(runs))
 	}
 	opts := runs[0].Options()
-	if opts.Dir != s.worktree("feat/12-panier") || opts.PermissionMode != engine.PermissionBypass || opts.Model != "claude-opus-5-5" || opts.Role != "code" {
+	if opts.Dir != s.worktree("feat/12-panier") || opts.PermissionMode != engine.PermissionBypass || opts.Model != "claude-opus-5-5" || opts.Role != "code" || opts.SessionID != firstID {
 		t.Fatalf("options %+v", opts)
 	}
 	if !strings.Contains(opts.InitialPrompt, "Run the Étape code for the StepRun "+stepRunID+".") {
@@ -418,7 +418,7 @@ func TestStopThenResumeContinuesTheSameMoteurSessionAndTheLogsSeq(t *testing.T) 
 	s.reports.await(t, firstID, contracts.RunnerSessionStateStateActive)
 	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
 	runs := s.engine.Runs()
-	if len(runs) != 2 || runs[1].EngineSessionID() != "eng-1" || runs[1].Options().Dir != s.worktree("feat/12-panier") {
+	if len(runs) != 2 || runs[1].EngineSessionID() != "eng-1" || runs[1].Options().Dir != s.worktree("feat/12-panier") || runs[1].Options().SessionID != firstID {
 		t.Fatalf("runs %d, the second resuming %q", len(runs), runs[len(runs)-1].EngineSessionID())
 	}
 	waitForSeq(t, s.home, firstID, 5)

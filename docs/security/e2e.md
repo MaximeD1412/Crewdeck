@@ -115,6 +115,7 @@ authenticate who sealed it, so every wrap between holders is an
 | `crewdeck/v1/vault-wrap` | the vault key | each key holder (E2E-2, E2E-3, E2E-4) |
 | `crewdeck/v1/item-key` | an item key | an item, when it is wrapped for a holder rather than by the vault key |
 | `crewdeck/v1/session-key` | a Session key | each key holder opening the Session (SESSION-1) |
+| `crewdeck/v1/device-holder` | a new Appareil's public key | the Runner, from the Appareil's approver (E2E-3) |
 
 A wrap made for one use never opens as another: `info` enters `info_hash`,
 so the key and the nonce differ.
@@ -132,6 +133,7 @@ exact layout of each use is fixed by the ticket that introduces it:
 | The vault key for a holder | `"<holderId>:<vaultKeyVersion>"` (`dev_…:1`, `run_…:1`) | E2E-2 |
 | An item | the item's id and field | E2E-2, IDEE-1 |
 | A Session key for a holder | `"<sessionId>:<holderId>"`, `holderId` the base64url of the holder's public key | SESSION-1 |
+| A new Appareil's key for the Runner | the new Appareil's id | E2E-3 |
 
 ## Authenticated wraps
 
@@ -173,7 +175,8 @@ tag     = HMAC-SHA256(authKey, u16(len(info)) ‖ info ‖ u16(len(aad)) ‖ aad
 | The vault key, at the first pairing | the first Appareil | the Runner, and the Appareil itself | E2E-2: the Runner opens it with the `devicePublicKey` the device proof authenticated; the Appareil, at each boot, with its own key |
 | The vault key, for a new Appareil | the approving holder | the new Appareil | E2E-3: the new Appareil opens it with the approver's key the approval proof authenticated |
 | The vault key of a new version | the rotating holder | each holder kept | E2E-4: only from a holder that was not revoked |
-| A Session key | the Runner | each Appareil the Runner authenticated | SESSION-1: opened with the Runner's key the page kept once the Runner's pairing proof verified |
+| A new Appareil's public key | the approving holder | the Runner (the Runner approving seals it to itself) | E2E-3: the Runner opens it with a key it already holds, so the server can hide an Appareil from it, never add one |
+| A Session key | the Runner | each Appareil the Runner authenticated | SESSION-1: opened with the Runner's key the page kept once the Runner's pairing proof verified, or handed on by its approver with `proof_R` (E2E-3) |
 
 ## AES-256-GCM: items and Session frames
 
@@ -220,6 +223,8 @@ another:
 | The Runner, linking | `"crewdeck/v1/link/runner" ‖ shortId ‖ runnerPublicKey ‖ devicePublicKey` | E2E-2 |
 | The first Appareil, linking | `"crewdeck/v1/link/device" ‖ shortId ‖ devicePublicKey ‖ runnerPublicKey` | E2E-2 |
 | A new Appareil | `"crewdeck/v1/device/new" ‖ publicKey` | E2E-3 |
+| Its approver | `"crewdeck/v1/device/approve" ‖ newPublicKey ‖ approverPublicKey` | E2E-3 |
+| Its approver, handing on the Runner's key | `"crewdeck/v1/device/runner" ‖ newPublicKey ‖ runnerPublicKey` | E2E-3 |
 
 `shortId` enters as its 4 ASCII characters; the public keys as 32 raw bytes
 each. The secret is the 16 bytes the code's base32 decodes to.
@@ -253,7 +258,7 @@ copied or scanned, never typed (ADR 0003).
 | The server sees | It never sees |
 |---|---|
 | The key holders' public keys, the short ids, the proofs | A link secret, a private key |
-| The wraps `{ enc, ciphertext, tag }` of the vault key, the Session keys | The vault key, an item key, a Session key |
+| The wraps `{ enc, ciphertext, tag }` of the vault key, the Session keys, the new Appareils' keys for the Runner | The vault key, an item key, a Session key |
 | The items' ciphertext (stored), the Session frames (relayed, not stored), their nonces and lengths | Any plaintext of an Idée, a Session, a diff or a log |
 | The ids and numbers bound as additional data | |
 
@@ -270,6 +275,8 @@ The server logs neither a payload of the Runner protocol nor a ciphertext
 | The server moves a ciphertext to another item, holder, version or Session | The additional data binds those ids; the open fails |
 | The server replays or reorders Session frames | The frame's `seq` is in its additional data, so a frame does not open at another position; a tab drops a frame whose `seq` it already has, and reopens from the first missing one on a gap (SESSION-1) |
 | The server reuses a wrap for another use | `info` differs per use |
+| The server adds a key of its own among the Runner's Session holders | The Runner holds an Appareil only from a wrap that opens from a key it already holds (the first Appareil, its own) and yields the listed key, under the listed id (E2E-3); the server can hide one, not add one |
+| The server hands a new Appareil another Runner key | `proof_R` MACs it with the code's secret; the new page keeps nothing on a mismatch (E2E-3) |
 | Tampering with a ciphertext, a tag or `enc` | AES-GCM's tag; one opaque error |
 | A reused nonce | A fresh ephemeral key per HPKE seal; a random 96-bit nonce per AES-GCM seal |
 | A low-order X25519 point | The all-zero shared secret is refused (RFC 9180, §7.1.4), on both sides |
@@ -456,11 +463,122 @@ version or with `deviceVaultWrap` (422 `runner.link-pairing-invalid`).
 
 ## New Appareil (E2E-3)
 
-To be written by E2E-3: the QR code `crewdeck:appareil:<shortId>-<secret>`,
-the proof, the approval by a trusted Appareil or by the Runner. The new
-Appareil authenticates the approver's public key through the approval proof,
-then opens the vault wrap as an [authenticated wrap](#authenticated-wraps)
-from that key.
+A browser signed in to the account but holding no vault key (`vaultState`
+`no-device`: a phone, another profile) draws its own key pair and a 128-bit
+secret, and shows them as a code. An Appareil already trusted, or the Runner
+from its machine, checks the code against what the server relays and wraps
+the vault key for the new public key. No short code is ever typed: a secret
+short enough to type could be ground offline by the server.
+
+### The code
+
+```
+code = <shortId> "-" <secret>            7K2Q-ABCDEFGHJKMNPQRSTVWXYZ0120
+QR   = "crewdeck:appareil:" <code>
+```
+
+`shortId` is 4 Crockford characters the server draws, unique among the
+Pilote's live codes, so the approver can ask for the pending Appareil; the
+secret is 16 random bytes in 26 Crockford characters (the last one carries 2
+zero padding bits), drawn by the new page and never sent. A code lives 10
+minutes (`DEVICE_CODE_TTL_SECONDS`); a Pilote has at most 3 live codes
+(`PENDING_DEVICES_MAX`, 422 `devices.too-many-pending`). Both readers
+(`parseDeviceCode`, `apps/web/src/keys/approval.ts` and
+`cmd/crewdeck-runner/devices.go`) take the QR's text or the code alone, in any
+case, with spaces, and refuse a secret whose padding bits are not zero.
+
+### The flow
+
+```
+new page                            server                       approver (a trusted page, or the Runner)
+ │ draws skN (kept while it has no id) and secret
+ │ POST /api/devices
+ │  { publicKey: pkN, name, proof_N } ──▶ a pending Appareil, its code live 10 min
+ │ ◀── { id, shortId, expiresAt }
+ │ shows the QR and the code ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─▶ scanned or pasted
+ │                                    ◀── GET /api/devices/pending/:shortId
+ │                                        (the Runner: GET /api/runner/devices/pending/:shortId)
+ │                                    ──▶ { id, shortId, name, publicKey: pkN, proof_N, expiresAt }
+ │                                         checks proof_N; on a mismatch, approves nothing
+ │                                         asks « Approuver « name » ? »
+ │                                    ◀── POST /api/devices/:id/approve
+ │                                        (the Runner: POST /api/runner/devices/:id/approve)
+ │                                         { approver: { type, id }, vaultKeyVersion, wrap, proof_A,
+ │                                           runner?: { publicKey: pkR, proof_R }, holder? }
+ │                          in one transaction: the Appareil trusted, its wrap, the
+ │                          approver's public key and proof_A kept, device.upserted
+ │ ◀── device.upserted { state: trusted }
+ │ GET /api/devices/:id/approval ──▶ { approver: { type, id, publicKey: pkA }, proof_A, runner? }
+ │ checks proof_A over pkN ‖ pkA (and proof_R over pkN ‖ pkR); then keeps its id, pkA and pkR
+ │ GET /api/devices/:id/vault-key-wrap ──▶ opens it from pkA: the vault unlocked
+```
+
+The server takes `pkA` from what it already holds, never from the body: the
+trusted Appareil that sends the request (its `X-Crewdeck-Device`, 422
+`devices.not-trusted` otherwise), or the Runner of the Bearer token (its key
+from its link). It refuses a code expired or already used (409
+`devices.not-pending`), and a version other than the Pilote's current one
+(422 `devices.approval-invalid`).
+
+### The exact bytes
+
+With `secret` the 16 bytes of the code, `pkN` the new Appareil's public key
+and `pkA` the approver's (the trusted Appareil's, or the Runner's), raw (32
+bytes each):
+
+```
+proof_N = HMAC-SHA256(secret, "crewdeck/v1/device/new" ‖ pkN)
+proof_A = HMAC-SHA256(secret, "crewdeck/v1/device/approve" ‖ pkN ‖ pkA)
+
+wrap    = sealWrap(skA, pkN, vaultKey,
+                   "crewdeck/v1/vault-wrap", "<newDeviceId>:<vaultKeyVersion>")
+
+# for the Sessions, from an approver that holds the Runner's key pkR
+proof_R = HMAC-SHA256(secret, "crewdeck/v1/device/runner" ‖ pkN ‖ pkR)
+holder  = sealWrap(skA, pkR, pkN, "crewdeck/v1/device-holder", "<newDeviceId>")
+```
+
+**For the Sessions.** The new page reads the Sessions with the Runner's key
+(`runnerPublicKey`): when the Runner approves, it is `pkA` itself; when a
+trusted Appareil approves, that Appareil hands on the `pkR` it holds (from its
+pairing, or from its own approval) with `proof_R`, which the new page checks
+in constant time before keeping anything. The Runner learns `pkN` from
+`holder`, a wrap the approver seals to it (the Runner approving seals it to
+itself); the server keeps it with the Appareil and lists it on `GET
+/api/runner/devices/holders`. The server refuses (422
+`devices.approval-invalid`) a `runner` from the Runner approving, a `runner`
+without `holder`, and a `holder` without `runner` from an Appareil. An
+approver without the Runner's key (paired before SESSION-1) sends neither:
+the new vault opens, its Sessions do not.
+
+The approver compares `proof_N` in constant time before it asks the Pilote
+anything: a server that relays another public key cannot compute it without
+the secret, and nothing is wrapped. The new page compares `proof_A` in
+constant time and keeps nothing on a mismatch: a server that names another
+approver key cannot compute it either. The new page then opens its wrap from
+the `pkA` the proof authenticated (`openWrap(skN, pkA, …)`, the stored
+`senderPublicKey`), so a wrap the server sealed itself does not open.
+
+Vectors (in `approval.spec.ts` and `internal/keys/device_test.go`), with
+`secret = 00 01 … 0f`, `pkN = 11 × 32`, `pkA = 22 × 32`, in base64url:
+
+```
+proof_N = NULG3lc4ksC0AGvvSApBzn65aDVMCw9mpjhkRngplZE
+proof_A = txJX8MrtUMCD9-qgPpWAKf61I4PBvdBhEq27LOMt5mE
+```
+
+### What proves it
+
+| What | Test |
+|---|---|
+| Both proofs, byte for byte, on both sides | the vectors above, in `approval.spec.ts` and `TestNewDeviceProofsMatchTheirVectors` |
+| A trusted Appareil approves a new one: the new vault opens an item the trusted one sealed | `apps/web/src/keys/approval.spec.ts` |
+| A swapped `pkN` approves nothing; a swapped `pkA` or a wrong `proof_A` opens nothing | `approval.spec.ts`; `TestTheRunnerApprovesNothingWhenTheServerSwapsTheKey` |
+| The real `crewdeck-runner appareils approuver` approves a second browser, which opens what the first one sealed | `test/integration/devices-runner.spec.ts` |
+| The Runner's key handed on with `proof_R`: the new Appareil opens a Session's keys and frames; a swapped key keeps nothing | `approval.spec.ts` |
+| The Runner holds an Appareil only from a `holder` wrap that opens from a key it holds, in any order, read again at each wrap | `holders_test.go`; `devices-runner.spec.ts` (the holders listed after both approvals) |
+| The routes: their schemas, 401, another Pilote's Appareil, 409, 422 | `test/integration/devices-approval.spec.ts` |
+| The secret in no request | `approval.spec.ts`; `devices-runner.spec.ts` |
 
 ## Revocation (E2E-4)
 
@@ -481,9 +599,14 @@ its logs, not in memory once forwarded.
   runs, kept in its memory and in `sessions/<id>/key` of its folder (mode
   600), the same after a restart.
 - Its holders are the Appareils the Runner authenticated: the Appareil of
-  `vault.wrap` (the one the link's device proof authenticated, E2E-2), read
-  again at each wrap, so an Appareil approved later (E2E-3) gets its wrap at
-  its next open.
+  `vault.wrap` (the one the link's device proof authenticated, E2E-2), and
+  each Appareil approved later (E2E-3) whose `holder` wrap, listed by `GET
+  /api/runner/devices/holders`, opens from a key the Runner already holds
+  (that first Appareil, its own, or one held this way) and yields the listed
+  key under the listed id; at most 64. The list is read again and checked at
+  each wrap, so a new Appareil gets its wrap at its next open, after a
+  restart too; a server that does not answer leaves the first Appareil alone
+  (a `session.holders` warning in the log).
 - `session.keys` carries one [authenticated wrap](#authenticated-wraps) per
   holder, from the Runner: `{ holderId, enc, wrappedKey, tag }`, with
   `holderId` the base64url of the holder's X25519 public key, `info`
@@ -492,9 +615,10 @@ its logs, not in memory once forwarded.
 - The Appareil finds its own wrap by its public key and opens it with the
   **Runner's public key it authenticated at pairing**: the page keeps it in
   its Appareil's IndexedDB record once the Runner's proof verifies
-  (`confirmPairing`), never a key the server sends. An Appareil without one
-  (paired before SESSION-1) drops the keys with a console warning: E2E-3
-  vouches for the Runner's key then. The page keeps the Session key as a
+  (`confirmPairing`), never a key the server sends. An Appareil approved
+  later keeps the one its approver handed on with `proof_R` (E2E-3, « New
+  Appareil »). An Appareil without one (paired before SESSION-1, or approved
+  by such an Appareil) drops the keys with a console warning. The page keeps the Session key as a
   non-extractable `CryptoKey`, in memory only.
 
 ### The frames

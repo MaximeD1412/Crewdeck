@@ -19,7 +19,21 @@ export interface CanvasContext {
   /** The Pilote's own Rôles' names, by id (`settings.customRoles`). */
   readonly roleNames: Readonly<Record<string, string>>;
   readonly focus: { readonly id: string; readonly at: number } | null;
+  /** Whether the Pilote may edit it (PROCESS-8); read only by default. */
+  readonly editable?: boolean;
+  /** The Phase an Étape of the catalogue goes to, outlined; none by default. */
+  readonly target?: string | null;
 }
+
+/**
+ * The Phase an added Étape goes to (PROCESS-8): the selected Phase, else the
+ * selected Étape's, else the last one.
+ */
+export const targetPhaseOf = (definition: ProcessDefinition, selection: Selection | null): Phase | undefined => {
+  const phaseId =
+    selection?.kind === 'phase' ? selection.id : selection?.kind === 'step' ? definition.steps.find((step) => step.id === selection.id)?.phaseId : undefined;
+  return definition.phases.find((phase) => phase.id === phaseId) ?? definition.phases.at(-1);
+};
 
 /** The Étape and, for an Entrée, the port a Manque's `target` points at (`steps.<id>`, `steps.<id>.inputs.<port>`). */
 export const gapStep = (gap: Pick<ProcessGap, 'target'>): { stepId: string; inputId: string | null } | null => {
@@ -106,7 +120,7 @@ export const canvasOf = (definition: ProcessDefinition, gaps: readonly ProcessGa
   });
 
   return {
-    editable: false,
+    editable: context.editable ?? false,
     zoom: context.zoom,
     pan: { x: context.pan.x, y: context.pan.y },
     focus: context.focus ? { id: context.focus.id, at: context.focus.at } : null,
@@ -117,7 +131,7 @@ export const canvasOf = (definition: ProcessDefinition, gaps: readonly ProcessGa
         name: phase.name,
         forEach: phase.forEach === null ? null : t(`process.forEach.${phase.forEach}`),
         gaps: steps.reduce((sum, step) => sum + step.gaps, 0),
-        target: false,
+        target: phase.id === (context.target ?? null),
         selected: selected('phase', phase.id),
         col: phase.col,
         row: phase.row,

@@ -12,15 +12,31 @@ import { actionsOf, centreOf, defineSkin, drag, inside, pointer, render, settle,
 beforeAll(defineSkin);
 
 /** Runs `act` at 1280 px, once `el` has drawn its PC layout (the editor of « Gestion du process » exists only there). */
-const atPc = async (el: Element, act: () => void): Promise<void> => {
+const atPc = async (el: Element, act: () => unknown): Promise<void> => {
   const { width, height } = { width: window.innerWidth, height: window.innerHeight };
   await page.viewport(1280, 800);
   try {
     await expect.poll(() => el.shadowRoot?.querySelector('cd-process-canvas')?.shadowRoot?.querySelector('cd-step-card') ?? null).not.toBeNull();
-    act();
+    await act();
   } finally {
     await page.viewport(width, height);
   }
+};
+
+/** Runs `act` at 1280 px on the editor showing `PageProcessEditor`'s example `name` (an editable one). */
+const editing = async (el: Element & { data: unknown }, name: string, act: () => unknown): Promise<void> => {
+  const example = COMPOSANTS.PageProcessEditor.examples.find((candidate) => candidate.name === name);
+  if (!example) throw new Error(`PageProcessEditor lacks its example « ${name} »`);
+  el.data = example.data;
+  await settle(el);
+  await atPc(el, act);
+};
+
+/** Sets a native control's value as the Pilote would, then fires its `change`. */
+const choose = (control: HTMLInputElement | HTMLSelectElement, value: string): void => {
+  control.value = value;
+  control.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+  control.dispatchEvent(new Event('change'));
 };
 
 /** How each declared action is set off from the first example: a test fails for an action without one. */
@@ -128,6 +144,36 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
   'PageProcessEditor.select': (el) => atPc(el, () => inside(el, 'cd-process-canvas', 'cd-step-card[data-step=analyse]', 'article').click()),
   'PageProcessEditor.tab': (el) => atPc(el, () => inside(el, 'cd-tabs', 'button[role=tab]:nth-of-type(3)').click()),
   'PageProcessEditor.view': (el) => atPc(el, () => inside(el, 'cd-process-canvas', 'cd-icon-button.zoom-in', 'button').click()),
+  'PageProcessEditor.addPhase': (el) => editing(el, 'une Phase choisie', () => inside(el, 'cd-button.add-phase', 'button').click()),
+  'PageProcessEditor.openCatalogue': (el) => editing(el, 'une Phase choisie', () => inside(el, 'cd-button.add-step', 'button').click()),
+  'PageProcessEditor.closeMenu': (el) =>
+    editing(el, 'le catalogue ouvert', () =>
+      inside(el, 'cd-menu', '[role=menuitem]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true })),
+    ),
+  'PageProcessEditor.addStep': (el) => editing(el, 'le catalogue ouvert', () => inside(el, 'cd-menu', '[role=menuitem]').click()),
+  'PageProcessEditor.moveStep': (el) =>
+    editing(el, 'une Phase choisie', () => {
+      const canvas = inside(el, 'cd-process-canvas');
+      return drag(canvas, inside(canvas, 'cd-step-card[data-step=analyse]'), () => inside(canvas, '.cell[data-phase=ph-idee][data-col="1"][data-row="2"]'));
+    }),
+  'PageProcessEditor.moveStepToPhase': async (el) => {
+    const review = COMPOSANTS.PageProcessEditor.examples.find((candidate) => candidate.name === 'la Review choisie')!.data as { canvas: object };
+    el.data = { ...review, canvas: { ...review.canvas, editable: true } };
+    await settle(el);
+    await atPc(el, () => choose(inside(el, 'cd-select.step-phase', 'select'), 'ph-idee'));
+  },
+  'PageProcessEditor.removeStep': async (el) => {
+    const review = COMPOSANTS.PageProcessEditor.examples.find((candidate) => candidate.name === 'la Review choisie')!.data as { canvas: object; step: object };
+    el.data = { ...review, canvas: { ...review.canvas, editable: true }, step: { ...review.step, removeReason: null } };
+    await settle(el);
+    await atPc(el, () => inside(el, 'cd-button.remove-step', 'button').click());
+  },
+  'PageProcessEditor.renamePhase': (el) => editing(el, 'une Phase choisie', () => choose(inside(el, 'cd-text-field.phase-name', 'input'), 'Livraison')),
+  'PageProcessEditor.setForEach': (el) => editing(el, 'une Phase choisie', () => inside(el, 'cd-radio', 'input').click()),
+  'PageProcessEditor.removePhase': (el) => editing(el, 'retirer une Phase', () => inside(el, 'cd-button.remove-phase', 'button').click()),
+  'PageProcessEditor.cancelRemovePhase': (el) => editing(el, 'retirer une Phase', () => inside(el, 'cd-dialog', 'cd-icon-button', 'button').click()),
+  'PageProcessEditor.confirmRemovePhase': (el) =>
+    editing(el, 'retirer une Phase', () => inside(inside(el, 'cd-dialog').querySelector('cd-button.confirm')!, 'button').click()),
   'ProcessCanvas.select': (el) => inside(el, 'cd-step-card[data-step=analyse]', 'article').click(),
   'ProcessCanvas.view': (el) => inside(el, 'cd-icon-button.zoom-in', 'button').click(),
   'ProcessCanvas.moveStep': (el) =>

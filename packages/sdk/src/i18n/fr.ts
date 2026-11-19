@@ -866,6 +866,8 @@ export const fr = {
   'process.activate.failed': 'L’activation n’a pas abouti : réessaie.',
   'process.activate.hasGaps': 'Règle les Manques pour activer.',
   'process.activate.noChange': 'Aucun changement',
+  'process.activate.saving': 'Enregistrement du brouillon…',
+  'process.activate.unsaved': 'Le brouillon s’enregistrait pendant la confirmation : relis-le, puis active.',
   'process.activated': 'Version {number} active.',
   'process.back': '{projectName}',
   'process.catalogue.detail.approval': 'un document → le même, approuvé',

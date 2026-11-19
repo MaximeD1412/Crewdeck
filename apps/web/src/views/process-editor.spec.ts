@@ -10,7 +10,7 @@ import {
   type ProjectProcess,
   type Runner,
 } from '@crewdeck/contracts';
-import { t } from '@crewdeck/sdk';
+import { PageProcessEditor, t } from '@crewdeck/sdk';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createEditorUi } from '../process/editor-ui.js';
@@ -390,6 +390,17 @@ describe('processEditorView, editing (PROCESS-8)', () => {
     expect(data.canvas.phases.map((phase) => phase.name)).toEqual(['Idée', 'Conception', 'Livraison']);
     // PROCESS-10: the header counts the changes since the active version, the edits shown included.
     expect(data.title.count).toBe('brouillon · 1 changement');
+  });
+
+  it('disables « Activer » without a revision while an edit is being saved, the first one of a Projet without a draft included', () => {
+    const definition = structuredClone(PROCESS_CREWDECK);
+    definition.phases[2]!.name = 'Livraison';
+    // The first edit of a Process without a draft: shown at once on revision 0, its PUT in flight.
+    const data = view(stateOf(), {}, { shown: { ...PROCESS, draft: { ...draftOf(definition), revision: 0 } }, saving: true });
+    expect(data.activate).toEqual({ label: 'Activer la v4', revision: null, disabledReason: 'Enregistrement du brouillon…' });
+    expect(PageProcessEditor.data.safeParse(data).success).toBe(true);
+
+    expect(view(stateOf(), {}, { shown: { ...PROCESS, draft: draftOf(definition) }, saving: false }).activate).toEqual({ label: 'Activer la v4', revision: 2, disabledReason: null });
   });
 
   it('outlines the target Phase: the selected one, else the selected Étape’s, else the last one', () => {

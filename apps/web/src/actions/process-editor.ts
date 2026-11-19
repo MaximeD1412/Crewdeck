@@ -76,9 +76,10 @@ export const createEditorActions = ({ ui, editing, navigate, current, client, id
    * The Projet the open confirmation names, kept from its opening to its run:
    * the page may move to another Projet while the dialog stays open, and the
    * route must activate the Process the Pilote confirmed (the dispatcher opens
-   * one confirmation at a time).
+   * one confirmation at a time). With it, whether an edit was being saved:
+   * the draft confirmed was then not one the server holds.
    */
-  let confirming: string | null = null;
+  let confirming: { readonly projectId: string; readonly saving: boolean } | null = null;
   const selectBlock = (projectId: string, kind: 'step' | 'phase', id: string): void =>
     navigate(processHref(projectId, { selection: { kind, id }, tab: 'selection' }), { replace: true });
   const unselect = (projectId: string): void => navigate(processHref(projectId, { selection: null, tab: 'gaps' }), { replace: true });
@@ -115,9 +116,10 @@ export const createEditorActions = ({ ui, editing, navigate, current, client, id
     activate: {
       confirmation: (_payload: Payload<'activate'>, state: Pick<StoreState, 'slices'>): Confirmation => {
         const { projectId } = here();
-        confirming = projectId;
+        const edits = editing.edits(projectId);
+        confirming = { projectId, saving: edits.saving ?? false };
         // What the page shows (PROCESS-8): its edits not saved yet included.
-        const view = editing.edits(projectId).shown ?? state.slices.process?.get(projectId);
+        const view = edits.shown ?? state.slices.process?.get(projectId);
         const projectName = state.slices.project?.get(projectId)?.displayName ?? '';
         const active = view?.active ?? null;
         const next = (active?.number ?? 0) + 1;
@@ -142,11 +144,18 @@ export const createEditorActions = ({ ui, editing, navigate, current, client, id
         };
       },
       run: async ({ revision }: Payload<'activate'>, { seq }: { readonly seq: bigint }): Promise<void> => {
-        const projectId = confirming;
+        const confirmed = confirming;
         confirming = null;
-        if (!client || projectId === null) return;
+        if (!client || confirmed === null) return;
+        const { projectId } = confirmed;
+        const unsaved = confirmed.saving || (editing.edits(projectId).saving ?? false);
         // An edit still being saved lands first: its new revision then refuses the one confirmed (409).
         await editing.settled();
+        // The draft confirmed was being saved: saved, its revision is not the one sent; refused, the server holds another draft.
+        if (unsaved) {
+          ui.toast(projectId, { tone: 'halt', icon: 'block', text: t('process.activate.unsaved') });
+          return;
+        }
         try {
           const view = await activateProcess(client, projectId, { revision, seq });
           ui.toast(projectId, { tone: 'go', icon: 'check', text: t('process.activated', { number: view.active?.number ?? 1 }) });

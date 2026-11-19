@@ -53,6 +53,8 @@ export interface ProcessEditorState {
 export interface EditorEdits {
   /** The Process as the canvas shows it, its edits not saved yet included; `undefined`: the store's. */
   readonly shown?: ProjectProcess | undefined;
+  /** Whether `shown` holds an edit the server has not confirmed yet: its revision is not one to activate. */
+  readonly saving?: boolean;
   /** Whether the catalogue's Menu is open. */
   readonly catalogue: boolean;
   /** The Phase whose removal the Dialog asks. */
@@ -335,9 +337,17 @@ const footerOf = (view: ProjectProcess, changes: readonly ProcessChange[], roleN
   versions: versionsOf(view),
 });
 
-/** The header's « Activer la v{n+1} »: disabled without a change, with a Manque, during the Resynchronisation. */
-const activateOf = (state: ProcessEditorState, view: ProjectProcess, changes: readonly ProcessChange[], gaps: number): ProcessEditorData['activate'] => {
+/** The header's « Activer la v{n+1} »: disabled while an edit is saved, without a change, with a Manque, during the Resynchronisation. */
+const activateOf = (
+  state: ProcessEditorState,
+  view: ProjectProcess,
+  changes: readonly ProcessChange[],
+  gaps: number,
+  saving: boolean,
+): ProcessEditorData['activate'] => {
   const label = t('process.activate', { number: (view.active?.number ?? 0) + 1 });
+  // The shown draft carries the revision it rests on, not the one its save will give: none to confirm yet.
+  if (saving) return { label, revision: null, disabledReason: t('process.activate.saving') };
   const revision = view.draft?.revision ?? null;
   const unchanged = !view.draft || (view.active !== null && changes.length === 0);
   const disabledReason = unchanged
@@ -411,6 +421,6 @@ export const processEditorView = (state: ProcessEditorState, projectId: string, 
     removePhase: removePhaseDialog(definition, edits.removingPhase),
     sources: sourcesPanel(view, definition, project, slices.runner?.machine ?? t('process.sources.machine.none')),
     footer: footerOf(view, changes, roleNames),
-    activate: activateOf(state, view, changes, gaps.length),
+    activate: activateOf(state, view, changes, gaps.length, edits.saving ?? false),
   };
 };

@@ -321,6 +321,25 @@ describe('createEditorActions, editing (PROCESS-8)', () => {
     expect(editing.edits('p1').toast).toBe('« Conception » se répète pour chaque Idée retenue, comme « Idée »');
   });
 
+  it('activates nothing when an edit was being saved under the confirmation, even if its save fails', async () => {
+    let refuse: (error: unknown) => void = () => undefined;
+    const posts: unknown[] = [];
+    const { ui, actions, editing } = setup({}, () => new Promise((_resolve, reject) => (refuse = reject)), {
+      client: { command: vi.fn(async (...args: unknown[]) => posts.push(args)) } as never,
+    });
+    actions.addPhase();
+    expect(editing.edits('p1').saving).toBe(true);
+    actions.activate.confirmation({ revision: 0 }, stateOf({}));
+
+    const running = actions.activate.run({ revision: 0 }, { seq: 41n });
+    refuse(new ApiError({ status: 500, code: 'server.internal', message: 'Erreur.' }));
+    await running;
+
+    expect(editing.edits('p1').saving).toBe(false);
+    expect(posts).toEqual([]);
+    expect(ui.view('p1', {}).toast).toEqual({ tone: 'halt', icon: 'block', text: 'Le brouillon s’enregistrait pendant la confirmation : relis-le, puis active.' });
+  });
+
   it('says a draft another tab saved first, and shows the store’s again', async () => {
     const { actions, editing, shown } = setup({}, async () => {
       throw new ApiError({ status: 409, code: 'process.draft-stale', message: 'Brouillon périmé.' });

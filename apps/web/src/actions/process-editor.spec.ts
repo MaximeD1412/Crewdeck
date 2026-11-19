@@ -1,8 +1,8 @@
-import { PROCESS_CREWDECK, PROCESS_CREWDECK_NAME, type ProcessDraftInput, type ProjectProcess } from '@crewdeck/contracts';
+import { PROCESS_CREWDECK, PROCESS_CREWDECK_NAME, type ProcessDefinition, type ProcessDraftInput, type ProcessRunningWork, type Project, type ProjectProcess } from '@crewdeck/contracts';
 import { ApiError } from '../api/request.js';
 import { createEditing } from '../process/editing.js';
 import type { StoreState } from '../store/store.js';
-import { createEditorActions, createMigrateAction } from './process-editor.js';
+import { createEditorActions, createMigrateAction, type EditorActionsOptions } from './process-editor.js';
 import { createEditorUi } from '../process/editor-ui.js';
 
 const PROCESS: ProjectProcess = {
@@ -10,6 +10,7 @@ const PROCESS: ProjectProcess = {
   active: { number: 1, definition: PROCESS_CREWDECK, sealed: null, activatedAt: '2026-11-15T08:00:00.000Z', activatedBy: 'creation', templateName: PROCESS_CREWDECK_NAME },
   draft: null,
   sources: { ticket: { source: 'github', since: '2026-11-15T08:00:00.000Z' }, code: { source: 'github', since: '2026-11-15T08:00:00.000Z' } },
+  running: [],
 };
 
 const answered = (input: ProcessDraftInput): ProjectProcess => ({
@@ -17,7 +18,11 @@ const answered = (input: ProcessDraftInput): ProjectProcess => ({
   draft: { definition: input.definition, sealed: input.sealed, revision: input.revision + 1, baseVersion: input.baseVersion, updatedAt: '2026-11-15T09:00:00.000Z' },
 });
 
-const setup = (query: Record<string, string> = {}, answer: (input: ProcessDraftInput) => Promise<ProjectProcess> = async (input) => answered(input)) => {
+const setup = (
+  query: Record<string, string> = {},
+  answer: (input: ProcessDraftInput) => Promise<ProjectProcess> = async (input) => answered(input),
+  options: Partial<Omit<EditorActionsOptions, 'ui' | 'editing' | 'navigate' | 'current'>> = {},
+) => {
   const ui = createEditorUi();
   const puts: ProcessDraftInput[] = [];
   const client = {
@@ -28,10 +33,43 @@ const setup = (query: Record<string, string> = {}, answer: (input: ProcessDraftI
   };
   const editing = createEditing({ client, stored: () => PROCESS });
   const navigate = vi.fn<(url: string, options?: { replace?: boolean }) => void>();
-  const actions = createEditorActions({ ui, editing, navigate, current: () => ({ params: { id: 'p1' }, query }) });
+  const actions = createEditorActions({ ui, editing, navigate, current: () => ({ params: { id: 'p1' }, query }), ...options });
   const shown = () => editing.definition('p1')!;
   return { ui, navigate, actions, editing, puts, shown };
 };
+
+const SINCE = '2026-11-04T12:00:00.000Z';
+const PROJECT = { id: 'p1', displayName: 'Site mairie' } as Project;
+const VERSION_3: NonNullable<ProjectProcess['active']> = {
+  number: 3,
+  definition: PROCESS_CREWDECK,
+  sealed: null,
+  activatedAt: SINCE,
+  activatedBy: 'pilot',
+  templateName: PROCESS_CREWDECK_NAME,
+};
+const THREE_CHANGES: ProcessDefinition = (() => {
+  const draft = structuredClone(PROCESS_CREWDECK);
+  draft.steps.find((step) => step.id === 'st-maquettes')!.tools.push({ kind: 'mcp', name: 'Stitch' }, { kind: 'mcp', name: 'Figma' });
+  draft.loopBacks.find((loopBack) => loopBack.from === 'st-review')!.max = 5;
+  return draft;
+})();
+const draftOf = (definition: ProcessDefinition, baseVersion = 3): NonNullable<ProjectProcess['draft']> => ({ definition, sealed: null, revision: 4, baseVersion, updatedAt: SINCE });
+const work = (n: number, versionNumber: number, phaseId: string, ticketNumber: number | null): ProcessRunningWork => ({
+  phaseRunId: `019a6f00-0000-7000-8000-0000000001${n}0`,
+  versionNumber,
+  phaseId,
+  itemType: ticketNumber === null ? 'idea' : 'ticket',
+  itemId: `idea-${n}`,
+  ticketNumber,
+});
+const sources = { ticket: { source: 'github', since: SINCE }, code: { source: 'github', since: SINCE } } as const;
+const stateOf = (process: Partial<ProjectProcess>) => ({
+  slices: {
+    project: new Map([[PROJECT.id, PROJECT]]),
+    process: new Map([['p1', { id: 'p1', active: VERSION_3, draft: draftOf(THREE_CHANGES), sources, running: [], ...process }]]),
+  },
+});
 
 describe('createEditorActions', () => {
   it('selects a block of the canvas on its tab, in the URL’s query, without centring it', () => {
@@ -77,6 +115,105 @@ describe('createEditorActions', () => {
     actions.view({ zoom: 120, pan: { x: 10, y: 20 } });
     expect(ui.view('p1', {})).toMatchObject({ zoom: 120, pan: { x: 10, y: 20 } });
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  describe('activate', () => {
+    it('confirms the v4 with the three changes, and the work in progress by version, titled when the page has it', () => {
+      const running = [work(1, 2, 'ph-conception', null), work(2, 3, 'ph-dev', 53), work(3, 3, 'ph-dev', 57)];
+      const { actions } = setup({}, undefined, { ideaTitle: (id) => (id === 'idea-1' ? 'Actualités' : null) });
+
+      expect(actions.activate.confirmation({ revision: 4 }, stateOf({ running }))).toEqual({
+        title: 'Activer la v4 du Process de Site mairie ?',
+        confirmLabel: 'Activer la v4',
+        icon: 'check',
+        consequences: {
+          lead: '3 changements depuis la v3 :',
+          items: [
+            { strong: '', text: 'Serveur MCP « Stitch » attaché à « Maquettes » ;' },
+            { strong: '', text: 'Serveur MCP « Figma » attaché à « Maquettes » ;' },
+            { strong: '', text: 'Retour de « Review » vers « Code » : 5 fois au plus, au lieu de 3.' },
+          ],
+          note: 'Le travail qui démarre ensuite suit la v4. Ce qui est en cours finit sur la version où il a démarré : les Tickets #53 et #57 sur la v3, la Conception « Actualités » sur la v2.',
+        },
+      });
+    });
+
+    it('counts the work it cannot name, and says when none is in progress', () => {
+      const { actions } = setup();
+      const counted = actions.activate.confirmation({ revision: 4 }, stateOf({ running: [work(1, 3, 'ph-conception', null), work(2, 3, 'ph-idee', null), work(3, 3, 'ph-dev', 53)] }));
+      expect(counted.consequences.note).toBe(
+        'Le travail qui démarre ensuite suit la v4. Ce qui est en cours finit sur la version où il a démarré : le Ticket #53 sur la v3, 1 Conception sur la v3, 1 Idée sur la v3.',
+      );
+      expect(actions.activate.confirmation({ revision: 4 }, stateOf({})).consequences.note).toBe('Le travail qui démarre ensuite suit la v4. Aucun travail en cours.');
+    });
+
+    it('confirms a first version without a list of changes', () => {
+      const { actions } = setup();
+      expect(actions.activate.confirmation({ revision: 4 }, stateOf({ active: null, draft: draftOf(PROCESS_CREWDECK, 0) }))).toEqual({
+        title: 'Activer la v1 du Process de Site mairie ?',
+        confirmLabel: 'Activer la v1',
+        icon: 'check',
+        consequences: {
+          lead: 'La première version du Process de Site mairie : son travail pourra démarrer.',
+          note: 'Le travail qui démarre ensuite suit la v1. Aucun travail en cours.',
+        },
+      });
+    });
+
+    it('activates the revision with the seq of the dialog, then says « Version 4 active. »', async () => {
+      const command = vi.fn(async () => ({ id: 'p1', active: { ...VERSION_3, number: 4 }, draft: null, sources, running: [] }));
+      const { ui, actions } = setup({}, undefined, { client: { command } as never });
+      actions.activate.confirmation({ revision: 4 }, stateOf({}));
+      await actions.activate.run({ revision: 4 }, { seq: 41n });
+
+      expect(command).toHaveBeenCalledWith('POST', '/api/projects/p1/process/activate', { revision: 4, seq: 41n }, expect.anything());
+      expect(ui.view('p1', {}).toast).toEqual({ tone: 'go', icon: 'check', text: 'Version 4 active.' });
+    });
+
+    it('activates the Projet its confirmation named, even when the page moved to another one meanwhile', async () => {
+      const command = vi.fn(async () => ({ id: 'p1', active: { ...VERSION_3, number: 4 }, draft: null, sources, running: [] }));
+      let projectId = 'p1';
+      const ui = createEditorUi();
+      const editing = createEditing({ client: { command } as never, stored: () => undefined });
+      const actions = createEditorActions({ ui, editing, navigate: vi.fn(), current: () => ({ params: { id: projectId }, query: {} }), client: { command } as never });
+
+      expect(actions.activate.confirmation({ revision: 4 }, stateOf({})).title).toBe('Activer la v4 du Process de Site mairie ?');
+      projectId = 'p2';
+      await actions.activate.run({ revision: 4 }, { seq: 41n });
+
+      expect(command).toHaveBeenCalledWith('POST', '/api/projects/p1/process/activate', { revision: 4, seq: 41n }, expect.anything());
+      expect(command).toHaveBeenCalledTimes(1);
+      expect(ui.view('p1', {}).toast).toEqual({ tone: 'go', icon: 'check', text: 'Version 4 active.' });
+      expect(ui.view('p2', {}).toast).toBeNull();
+    });
+
+    it('sends nothing for a run its confirmation did not open', async () => {
+      const command = vi.fn();
+      const { actions } = setup({}, undefined, { client: { command } as never });
+      await actions.activate.run({ revision: 4 }, { seq: 41n });
+      expect(command).not.toHaveBeenCalled();
+    });
+
+    it('names a Rôle of the Pilote’s by its name in the list of changes', () => {
+      const draft = structuredClone(PROCESS_CREWDECK);
+      draft.steps.find((step) => step.id === 'st-maquettes')!.tools.push({ kind: 'role', roleId: 'r-abcdefgh' });
+      const state = stateOf({ draft: draftOf(draft) });
+      const settings = { customRoles: [{ id: 'r-abcdefgh', name: 'Designer' }] };
+      const { actions } = setup();
+
+      expect(actions.activate.confirmation({ revision: 4 }, { slices: { ...state.slices, settings } } as never).consequences.items).toEqual([
+        { strong: '', text: 'Rôle « Designer » attaché à « Maquettes ».' },
+      ]);
+    });
+
+    it('says a refusal in a halt Toast', async () => {
+      const refusal = new ApiError({ status: 422, code: 'process.has-gaps', message: 'Ce brouillon a des Manques : règle-les avant de l’activer.' });
+      const { ui, actions } = setup({}, undefined, { client: { command: vi.fn(async () => Promise.reject(refusal)) } as never });
+      actions.activate.confirmation({ revision: 4 }, stateOf({}));
+      await actions.activate.run({ revision: 4 }, { seq: 41n });
+
+      expect(ui.view('p1', {}).toast).toEqual({ tone: 'halt', icon: 'block', text: 'Ce brouillon a des Manques : règle-les avant de l’activer.' });
+    });
   });
 });
 
@@ -225,6 +362,25 @@ describe('createEditorActions, editing (PROCESS-8)', () => {
     expect(shown().phases[2]?.forEach).toBeNull();
     actions.setForEach({ phaseId: 'ph-idee', forEach: 'idea.retained' });
     expect(editing.edits('p1').toast).toBe('« Conception » se répète pour chaque Idée retenue, comme « Idée »');
+  });
+
+  it('activates nothing when an edit was being saved under the confirmation, even if its save fails', async () => {
+    let refuse: (error: unknown) => void = () => undefined;
+    const posts: unknown[] = [];
+    const { ui, actions, editing } = setup({}, () => new Promise((_resolve, reject) => (refuse = reject)), {
+      client: { command: vi.fn(async (...args: unknown[]) => posts.push(args)) } as never,
+    });
+    actions.addPhase();
+    expect(editing.edits('p1').saving).toBe(true);
+    actions.activate.confirmation({ revision: 0 }, stateOf({}));
+
+    const running = actions.activate.run({ revision: 0 }, { seq: 41n });
+    refuse(new ApiError({ status: 500, code: 'server.internal', message: 'Erreur.' }));
+    await running;
+
+    expect(editing.edits('p1').saving).toBe(false);
+    expect(posts).toEqual([]);
+    expect(ui.view('p1', {}).toast).toEqual({ tone: 'halt', icon: 'block', text: 'Le brouillon s’enregistrait pendant la confirmation : relis-le, puis active.' });
   });
 
   it('says a draft another tab saved first, and shows the store’s again', async () => {

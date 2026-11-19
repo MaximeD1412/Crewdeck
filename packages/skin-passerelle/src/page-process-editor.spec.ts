@@ -34,6 +34,8 @@ const sources = example('les Sources');
 const migrating = example('une migration de Source en cours');
 const noVersion = example('sans version active');
 const notFound = example('Projet introuvable');
+const toActivate = example('un brouillon à activer');
+const activated = example('la v4 activée');
 const editable = (data: Data): Data => ({ ...data, canvas: { ...data.canvas, editable: true } });
 type Control = HTMLElement & { value: string };
 
@@ -42,6 +44,7 @@ const root = (el: Element) => el.shadowRoot!;
 const tabs = (el: Element) => [...(inside(el, 'cd-tabs').shadowRoot?.querySelectorAll('button[role=tab]') ?? [])];
 const panel = (el: Element) => inside(el, '.panel-body');
 const parts = (item: Element) => ['b', '.mono', 'small'].map((part) => textOf(item.querySelector(part)) ?? null);
+const activateButton = (el: Element) => root(el).querySelector('cd-page-header cd-button.activate') as (HTMLElement & { data: unknown }) | null;
 const only = (details: { action: string; payload: unknown }[]) => details.map(({ action, payload }) => ({ action, payload }));
 const icon = (item: Element) => (item.querySelector('cd-icon') as HTMLElement & { data: { name: string } }).data.name;
 type SelectEl = HTMLElement & { value: string; data: { label: string; value: string; state: string | null; options: { label: string }[] } };
@@ -229,6 +232,38 @@ describe('PageProcessEditor', () => {
     expect([...foot.querySelectorAll('p')].map((p) => textOf(p))).toEqual(['Aucun changement depuis la v3.', 'v3 active depuis le 4 nov.']);
   });
 
+  it('puts « Activer la v4 » in the header, the primary, enabled for a draft to activate', async () => {
+    const el = await show(toActivate);
+    expect(activateButton(el)?.data).toEqual({ label: 'Activer la v4', variant: 'primary', size: 'sm', icon: 'check' });
+    expect([...inside(el, 'footer.foot').querySelectorAll('p')].map((p) => textOf(p))).toEqual([
+      '3 changements depuis la v3 : Serveur MCP « Stitch » attaché à « Maquettes » ; Serveur MCP « Figma » attaché à « Maquettes » ; Retour de « Review » vers « Code » : 5 fois au plus, au lieu de 3.',
+      'v3 active depuis le 4 nov. · 2 Tickets en cours finissent sur la v3 · 1 Conception en cours finit sur la v2',
+    ]);
+  });
+
+  it('disables « Activer » with its reason: no change, a Manque', async () => {
+    expect(activateButton(await show(active))?.data).toEqual({
+      label: 'Activer la v4',
+      variant: 'primary',
+      size: 'sm',
+      icon: 'check',
+      state: 'disabled',
+      disabledReason: 'Aucun changement',
+    });
+    document.body.replaceChildren();
+    expect(activateButton(await show(withGap))?.data).toMatchObject({ state: 'disabled', disabledReason: 'Règle les Manques pour activer.' });
+    document.body.replaceChildren();
+    expect(activateButton(await show(notFound))).toBeNull();
+  });
+
+  it('shows the Toast over the canvas, none without one', async () => {
+    const el = await show(activated);
+    const toast = inside(el, 'cd-process-canvas > cd-toast[slot=toast]') as HTMLElement & { data: unknown };
+    expect(toast.data).toEqual({ tone: 'go', icon: 'check', text: 'Version 4 active.' });
+    document.body.replaceChildren();
+    expect(root(await show(active)).querySelector('cd-toast')).toBeNull();
+  });
+
   it('says there is no active version yet under the header', async () => {
     const el = await show(noVersion);
     const banner = inside(el, 'cd-banner') as HTMLElement & { data: unknown };
@@ -265,6 +300,18 @@ describe('PageProcessEditor', () => {
       expect(details[0]?.payload).toMatchObject({ zoom: 100 });
     });
 
+    it('« Activer » with the draft’s revision', async () => {
+      const el = await show(toActivate);
+      const details = await actionsOf(() => inside(el, 'cd-page-header > cd-button', 'button').click());
+      expect(only(details)).toEqual([{ action: 'activate', payload: { revision: 4 } }]);
+    });
+
+    it('nothing from a disabled « Activer »', async () => {
+      const el = await show(active);
+      const details = await actionsOf(() => inside(el, 'cd-page-header > cd-button', 'button').click());
+      expect(details).toEqual([]);
+    });
+
     it('a tab chosen', async () => {
       const el = await show(active);
       const details = await actionsOf(() => (tabs(el)[2] as HTMLButtonElement).click());
@@ -281,7 +328,8 @@ describe('PageProcessEditor', () => {
 
     it('puts « Phase » and « Étape » in the header, the catalogue’s Menu under « Étape » while open', async () => {
       const el = await show(phase);
-      const buttons = [...inside(el, 'cd-page-header').querySelectorAll('.header-actions cd-button')] as (HTMLElement & { data: unknown })[];
+      // « Activer la v… » closes the header's actions (PROCESS-10): tested apart.
+      const buttons = [...inside(el, 'cd-page-header').querySelectorAll('.header-actions cd-button:not(.activate)')] as (HTMLElement & { data: unknown })[];
       expect(buttons.map((button) => button.data)).toEqual([
         { label: 'Phase', variant: 'secondary', size: 'sm', icon: 'plus' },
         { label: 'Étape', variant: 'secondary', size: 'sm', icon: 'plus' },

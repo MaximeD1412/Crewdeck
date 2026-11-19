@@ -176,6 +176,7 @@ describe('the Process of a Projet against PostgreSQL', () => {
         active: { number: 1, definition: PROCESS_CREWDECK, sealed: null, activatedAt: expect.any(String), activatedBy: 'creation', templateName: PROCESS_CREWDECK_NAME },
         draft: null,
         sources: { ticket: { source: 'github', since: expect.any(String) }, code: { source: 'github', since: expect.any(String) } },
+        running: [],
       });
       const events = await eventsOf(alice);
       const project = events.find((event) => event.type === 'project.upserted');

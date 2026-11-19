@@ -24,6 +24,7 @@ describe('zSensitiveActionId', () => {
       'schedule.resume',
       'document.approve',
       'inventory.approve',
+      'process.activate',
       'source.migrate',
     ]);
     expect(zSensitiveActionId.safeParse('loop.stop').success).toBe(false);

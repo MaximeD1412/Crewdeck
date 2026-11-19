@@ -9,6 +9,7 @@ const ACTIVE: ProjectProcess = {
   active: { number: 2, definition: PROCESS_CREWDECK, sealed: null, activatedAt: '2026-11-15T08:00:00.000Z', activatedBy: 'creation', templateName: PROCESS_CREWDECK_NAME },
   draft: null,
   sources: { ticket: { source: 'github', since: '2026-11-15T08:00:00.000Z' }, code: { source: 'github', since: '2026-11-15T08:00:00.000Z' } },
+  running: [],
 };
 
 const answered = (input: ProcessDraftInput): ProjectProcess => ({
@@ -132,6 +133,27 @@ describe('createDraftSaver', () => {
     const { saver, server } = setup({ ...ACTIVE, active: { ...(ACTIVE.active as NonNullable<ProjectProcess['active']>), definition: withCommand, sealed: sealed as never } });
     saver.edit(rename('Livraison'));
     expect(server.pending[0]?.input.sealed).toEqual(sealed);
+  });
+
+  it('says it is saving from the edit until the server holds it, or refused it', async () => {
+    const { saver, server } = setup();
+    expect(saver.saving()).toBe(false);
+    saver.edit(rename('Livraison'));
+    saver.edit(rename('Recette'));
+    expect(saver.saving()).toBe(true);
+    server.pending[0]?.resolve(answered(server.pending[0].input));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // The first answered, the second edit now in flight.
+    expect(server.pending).toHaveLength(2);
+    expect(saver.saving()).toBe(true);
+    server.pending[1]?.resolve(answered(server.pending[1].input));
+    await saver.settled();
+    expect(saver.saving()).toBe(false);
+
+    saver.edit(rename('Livraison'));
+    server.pending[2]?.reject(new TypeError('Failed to fetch'));
+    await saver.settled();
+    expect(saver.saving()).toBe(false);
   });
 
   it('says a stale draft, and shows the store’s again', async () => {

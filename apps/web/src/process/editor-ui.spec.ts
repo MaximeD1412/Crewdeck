@@ -1,4 +1,4 @@
-import { createEditorUi, editorQueryOf, processHref } from './editor-ui.js';
+import { createEditorUi, editorQueryOf, processHref, TOAST_MS } from './editor-ui.js';
 
 describe('editorQueryOf', () => {
   it('opens on « Manques » with nothing selected by default', () => {
@@ -43,6 +43,7 @@ describe('createEditorUi', () => {
       zoom: 90,
       pan: { x: 0, y: 0 },
       focus: { id: 'st-review', at: 0 },
+      toast: null,
       choice: null,
     });
     expect(ui.view('p2', {}).focus).toBeNull();
@@ -87,6 +88,29 @@ describe('createEditorUi', () => {
     ui.setView('p1', { zoom: 70, pan: { x: 0, y: 0 } });
 
     expect(listener).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows a Projet’s Toast, then removes it after a while, a newer one replacing it', () => {
+    vi.useFakeTimers();
+    try {
+      const ui = createEditorUi();
+      const listener = vi.fn();
+      ui.subscribe(listener);
+      ui.toast('p1', { tone: 'go', icon: 'check', text: 'Version 4 active.' });
+      expect(ui.view('p1', {}).toast).toEqual({ tone: 'go', icon: 'check', text: 'Version 4 active.' });
+      expect(ui.view('p2', {}).toast).toBeNull();
+
+      vi.advanceTimersByTime(TOAST_MS - 1000);
+      ui.toast('p1', { tone: 'halt', icon: 'block', text: 'Refusé.' });
+      vi.advanceTimersByTime(1000);
+      expect(ui.view('p1', {}).toast?.text).toBe('Refusé.');
+
+      vi.advanceTimersByTime(TOAST_MS);
+      expect(ui.view('p1', {}).toast).toBeNull();
+      expect(listener).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('holds the Source the Pilote picked while its migration is asked, for its Projet only, and tells its listeners', () => {

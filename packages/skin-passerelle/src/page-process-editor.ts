@@ -636,6 +636,23 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     </aside>`;
   }
 
+  /** The header's « Activer la v{n+1} », disabled with its reason; in the header's own actions while editing. */
+  private activateButton(slotted: boolean) {
+    const { activate } = this.data;
+    if (!activate) return nothing;
+    const disabled = activate.disabledReason !== null || activate.revision === null;
+    const button = { label: activate.label, variant: 'primary', size: 'sm', icon: 'check' } as const;
+    const data = disabled ? { ...button, state: 'disabled' as const, disabledReason: activate.disabledReason ?? undefined } : button;
+    return html`<cd-button
+      class="activate"
+      slot=${slotted ? 'actions' : nothing}
+      .data=${data}
+      @click=${() => {
+        if (!disabled && activate.revision !== null) this.emit('activate', { revision: activate.revision });
+      }}
+    ></cd-button>`;
+  }
+
   private headerActions(): TemplateResult {
     const { catalogue } = this.data;
     return html`<div slot="actions" class="header-actions">
@@ -652,6 +669,7 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
         ></cd-button>
         ${catalogue ? html`<cd-menu .data=${catalogue} @cd-action=${this.onMenu}></cd-menu>` : nothing}
       </span>
+      ${this.activateButton(false)}
     </div>`;
   }
 
@@ -684,7 +702,7 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     const editing = this.wide && canvas.editable;
     return html`<cd-page-header
         .data=${{ title: t('process.title'), count: title.count, back: { label: t('process.back', { projectName: title.projectName }), href: title.backHref } }}
-        >${editing ? this.headerActions() : nothing}</cd-page-header
+        >${editing ? this.headerActions() : this.activateButton(true)}</cd-page-header
       >
       ${hasVersion ? nothing : html`<cd-banner .data=${{ tone: 'caution', icon: 'alert', title: t('process.noVersion') }}></cd-banner>`}
       ${this.wide

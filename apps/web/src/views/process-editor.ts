@@ -1,5 +1,6 @@
 import {
   ARTIFACT_TYPES,
+  diffDefinitions,
   FOR_EACH,
   findGaps,
   processSourcesOf,
@@ -12,6 +13,7 @@ import {
   type CodeChange,
   type PhaseRun,
   type Port,
+  type ProcessChange,
   type ProcessDefinition,
   type ProcessGap,
   type Project,
@@ -27,8 +29,12 @@ import {
 import { formatDate, t, type ComposantData, type MessageKey, type PageProcessEditor } from '@crewdeck/sdk';
 import { canvasOf, gapStep, kindLabelOf, roleName, targetPhaseOf, typeLabel, type Selection } from '../process/canvas.js';
 import { catalogueMenu } from '../process/catalogue-menu.js';
+import { changeLabels } from '../process/diff-labels.js';
 import { canRemovePhase, canRemoveStep } from '../process/edit.js';
 import type { EditorUi, SourceChoice } from '../process/editor-ui.js';
+import { runningByVersion, type WorkKind } from '../process/running-work.js';
+import { sensitiveBlockedReason } from '../store/sensitive.js';
+import type { StoreState } from '../store/store.js';
 import { doneMeta, lastDoneOf, migrationBadge, migrationBanner, migrationMeta, runningMigrationOf, sourceLabel, type SourceMigrationReads } from './source-migration.js';
 
 export type ProcessEditorData = ComposantData<typeof PageProcessEditor>;
@@ -38,6 +44,8 @@ type SourceRow = ProcessEditorData['sources']['rows'][number];
 
 /** What « Gestion du process » reads of the store. */
 export interface ProcessEditorState {
+  /** The store's connection: « Activer » waits for the end of the Resynchronisation; without it (no store), it does not. */
+  readonly connection?: StoreState['connection'];
   readonly slices: {
     readonly project?: ReadonlyMap<string, Project>;
     readonly process?: ReadonlyMap<string, ProjectProcess>;
@@ -69,6 +77,8 @@ export const sourceReadsOf = (state: ProcessEditorState, project: Project, defin
 export interface EditorEdits {
   /** The Process as the canvas shows it, its edits not saved yet included; `undefined`: the store's. */
   readonly shown?: ProjectProcess | undefined;
+  /** Whether `shown` holds an edit the server has not confirmed yet: its revision is not one to activate. */
+  readonly saving?: boolean;
   /** Whether the catalogue's Menu is open. */
   readonly catalogue: boolean;
   /** The Phase whose removal the Dialog asks. */
@@ -337,21 +347,67 @@ const sourcesPanel = (view: ProjectProcess, definition: ProcessDefinition, reads
 /** The code's types in the order the panel lists them: the code's own first, then the documents. */
 const GROUP_ORDER: readonly ArtifactType[] = ['ticket', 'code-change', 'verdict', ...ARTIFACT_TYPES.filter((type) => !['ticket', 'code-change', 'verdict'].includes(type))];
 
-const countOf = (view: ProjectProcess, gaps: number): string => {
-  if (!view.active) return t('process.count.noVersion');
-  if (!view.draft) return t('process.count.active', { number: view.active.number });
-  if (gaps === 0) return t('process.count.draft');
-  return t(gaps === 1 ? 'process.count.draftGaps.one' : 'process.count.draftGaps.other', { count: gaps });
+/** `key.one` or `key.other` for `count`, its `{count}` filled. */
+const counted = (key: string, count: number, params: Readonly<Record<string, string | number>> = {}): string =>
+  t(`${key}.${count === 1 ? 'one' : 'other'}` as Parameters<typeof t>[0], { ...params, count });
+
+/** The header's count: the active version, or the draft with its changes (or « première version ») and its Manques. */
+const countOf = (view: ProjectProcess, changes: readonly ProcessChange[], gaps: number): string => {
+  if (view.active && !view.draft) return t('process.count.active', { number: view.active.number });
+  const parts = [t('process.count.draft')];
+  if (!view.active) parts.push(t('process.count.firstVersion'));
+  else if (changes.length > 0) parts.push(counted('process.count.changes', changes.length));
+  if (gaps > 0) parts.push(counted('process.count.gaps', gaps));
+  return parts.join(' · ');
 };
 
-const footerOf = (view: ProjectProcess): ProcessEditorData['footer'] => ({
+const WORK_KEYS: Readonly<Record<WorkKind, string>> = {
+  ticket: 'process.footer.running.ticket',
+  design: 'process.footer.running.design',
+  idea: 'process.footer.running.idea',
+  other: 'process.footer.running.other',
+};
+
+/** « v3 active depuis le 4 nov. », then what is at work by version (« · 2 Tickets en cours finissent sur la v3 »), or « · aucun travail en cours ». */
+const versionsOf = (view: ProjectProcess): string => {
+  if (!view.active) return t('process.footer.noVersion');
+  const since = t('process.footer.activeSince', { number: view.active.number, date: formatDate(view.active.activatedAt) });
+  const byVersion = runningByVersion(view.running, [view.active.definition, view.draft?.definition]);
+  const running = byVersion.flatMap(({ versionNumber, kinds }) => kinds.map(({ kind, works }) => counted(WORK_KEYS[kind], works.length, { number: versionNumber })));
+  return [since, ...(running.length > 0 ? running : [t('process.footer.running.none')])].join(' · ');
+};
+
+const footerOf = (view: ProjectProcess, changes: readonly ProcessChange[], roleNames: Readonly<Record<string, string>>): ProcessEditorData['footer'] => ({
   changes: !view.active
     ? t('process.footer.firstDraft')
-    : view.draft
-      ? t('process.footer.draft', { number: view.active.number })
+    : changes.length > 0
+      ? counted('process.footer.changes', changes.length, { number: view.active.number, list: changeLabels(changes, roleNames).join(' ; ') })
       : t('process.footer.unchanged', { number: view.active.number }),
-  versions: view.active ? t('process.footer.activeSince', { number: view.active.number, date: formatDate(view.active.activatedAt) }) : t('process.footer.noVersion'),
+  versions: versionsOf(view),
 });
+
+/** The header's « Activer la v{n+1} »: disabled while an edit is saved, without a change, with a Manque, during the Resynchronisation. */
+const activateOf = (
+  state: ProcessEditorState,
+  view: ProjectProcess,
+  changes: readonly ProcessChange[],
+  gaps: number,
+  saving: boolean,
+): ProcessEditorData['activate'] => {
+  const label = t('process.activate', { number: (view.active?.number ?? 0) + 1 });
+  // The shown draft carries the revision it rests on, not the one its save will give: none to confirm yet.
+  if (saving) return { label, revision: null, disabledReason: t('process.activate.saving') };
+  const revision = view.draft?.revision ?? null;
+  const unchanged = !view.draft || (view.active !== null && changes.length === 0);
+  const disabledReason = unchanged
+    ? t('process.activate.noChange')
+    : gaps > 0
+      ? t('process.activate.hasGaps')
+      : state.connection === undefined
+        ? null
+        : sensitiveBlockedReason({ connection: state.connection });
+  return { label, revision, disabledReason };
+};
 
 const EMPTY_DEFINITION: ProcessDefinition = { schemaVersion: 1, phases: [], steps: [], arrows: [], loopBacks: [], commands: [] };
 
@@ -366,10 +422,11 @@ const nothing = (found: boolean, ui: EditorUi): ProcessEditorData => ({
   step: null,
   phase: null,
   catalogue: null,
-  toast: null,
+  toast: ui.toast,
   removePhase: null,
   sources: { lead: t('process.sources.lead'), banner: null, rows: [] },
   footer: { changes: '', versions: '' },
+  activate: null,
 });
 
 /**
@@ -401,11 +458,13 @@ export const processEditorView = (
   const roleNames = Object.fromEntries((settings?.customRoles ?? []).map((role) => [role.id, role.name]));
   const context: Context = { definition, gaps, project, roleNames, settings, accounts: [...(slices['ai-account']?.values() ?? [])] };
   const step = selection?.kind === 'step' && selection.id ? stepById(definition, selection.id) : undefined;
+  // The page's own diff (ADR 0011): the server only refuses an empty one.
+  const changes = view.active && view.draft ? diffDefinitions(view.active.definition, view.draft.definition) : [];
   const target = targetPhaseOf(definition, selection);
 
   return {
     found: true,
-    title: { projectName: projectName(project), backHref: '/projets', count: countOf(view, gaps.length) },
+    title: { projectName: projectName(project), backHref: '/projets', count: countOf(view, changes, gaps.length) },
     hasVersion: view.active !== null,
     canvas: canvasOf(definition, gaps, selection, { zoom: ui.zoom, pan: ui.pan, roleNames, focus: ui.focus, editable: true, target: target?.id ?? null }),
     tab: ui.tab,
@@ -413,9 +472,11 @@ export const processEditorView = (
     step: step ? stepPanel(step, context) : null,
     phase: selection?.kind === 'phase' && selection.id ? phasePanel(selection.id, definition, edits) : null,
     catalogue: edits.catalogue && target ? catalogueMenu(definition, target.name) : null,
-    toast: edits.toast === null ? null : { tone: 'halt', icon: 'block', text: edits.toast },
+    // An edit's refusal, else the activation's Toast: the edit's goes first, cleared at the next edit.
+    toast: edits.toast === null ? ui.toast : { tone: 'halt', icon: 'block', text: edits.toast },
     removePhase: removePhaseDialog(definition, edits.removingPhase),
     sources: sourcesPanel(view, definition, sourceReadsOf(state, project, view.active?.definition ?? definition), ui.choice ?? null),
-    footer: footerOf(view),
+    footer: footerOf(view, changes, roleNames),
+    activate: activateOf(state, view, changes, gaps.length, edits.saving ?? false),
   };
 };

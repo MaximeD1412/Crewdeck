@@ -253,6 +253,12 @@ export const boot = async ({
       vaultTried = resolve;
     }),
   });
+  /** An Idée's title, the first line of its text, once the store holds it opened; its opening started otherwise. */
+  const ideaTitle = (ideaId: string): string | null => {
+    const idea = store.getState().slices.idea?.get(ideaId);
+    const text = idea ? plaintext.text(idea) : null;
+    return text?.status === 'open' ? text.text.split('\n', 1)[0]?.trim() || null : null;
+  };
   const names = createProjectNames({ vault: keys.vault, vaultState: () => store.getState().vaultState });
   const projectName = (project: Pick<Project, 'id' | 'displayName' | 'nameSealed'>) => names.projectName(project);
   const folderForm = createFolderForm({
@@ -406,6 +412,8 @@ export const boot = async ({
       }
       if (match.composant === PageProcessEditor) {
         const projectId = match.params['id'] ?? '';
+        // The Idées at work opened ahead: the activation's confirmation names them by their title, read when pressed.
+        for (const work of slices.process?.get(projectId)?.running ?? []) if (work.itemType === 'idea') ideaTitle(work.itemId);
         return processEditorView(store.getState(), projectId, editorUi.view(projectId, match.query), editing.edits(projectId), projectName);
       }
       if (match.composant === PageIdees) {
@@ -563,10 +571,19 @@ export const boot = async ({
       router.refresh();
     },
   });
-  const editor = createEditorActions({ ui: editorUi, editing, navigate: (url, options) => router.navigate(url, options), current: () => router.current });
+  const editor = createEditorActions({
+    ui: editorUi,
+    editing,
+    navigate: (url, options) => router.navigate(url, options),
+    current: () => router.current,
+    client,
+    ideaTitle,
+    projectName,
+  });
   dispatcher.registerAction(PageProcessEditor, 'select', { run: (payload) => editor.select(payload) });
   dispatcher.registerAction(PageProcessEditor, 'tab', { run: (payload) => editor.tab(payload) });
   dispatcher.registerAction(PageProcessEditor, 'view', { run: (payload) => editor.view(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'activate', editor.activate);
   dispatcher.registerAction(PageProcessEditor, 'migrate', createMigrateAction({ ui: editorUi, client, current: () => router.current }));
   dispatcher.registerAction(PageProcessEditor, 'addPhase', { run: () => editor.addPhase() });
   dispatcher.registerAction(PageProcessEditor, 'openCatalogue', { run: () => editor.openCatalogue() });

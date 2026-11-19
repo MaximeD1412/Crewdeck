@@ -2,21 +2,21 @@ package session
 
 import (
 	"context"
-	"crypto/ecdh"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
-	"github.com/maximed1412/crewdeck/apps/runner/internal/keys"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/engine"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/relay"
 )
 
 // The relay of a Session (SESSION-1, docs/security/e2e.md « Sessions »):
@@ -32,17 +32,11 @@ import (
 //   - input: the Pilote's, sealed by the tab under
 //     "<sessionId>:input:<inputId>", opened, checked against its schema, and
 //     handed to the Moteur once per inputId, recorded in `sessions/<id>/inputs`
-//     so that a Runner started again does not hand it twice.
+//     so that a Runner started again does not hand it twice. An answer
+//     (SESSION-3) reaches the Moteur only while its request waits.
 
 // RelayKeys are what the relay seals with.
-type RelayKeys struct {
-	// Runner is the Runner's X25519 key, the sender of every wrap.
-	Runner *ecdh.PrivateKey
-	// Holders gives the X25519 public keys of the Appareils the Runner
-	// authenticated (vault.wrap's), read at each wrap: an Appareil approved
-	// since gets its wrap at its next open.
-	Holders func() ([][]byte, error)
-}
+type RelayKeys = relay.Keys
 
 const keyFile = "key"
 
@@ -53,8 +47,6 @@ const inputsKept = 10_000
 // before each input reaches the Moteur: a Runner started again takes none of
 // them a second time.
 const inputsFile = "inputs"
-
-var b64 = base64.RawURLEncoding
 
 // relayState is the relay's memory: the Sessions' keys, the inputIds taken.
 type relayState struct {
@@ -105,7 +97,7 @@ func loadInputs(path string) (*seenInputs, error) {
 		seen.add(id)
 	}
 	if len(lines) > 2*inputsKept {
-		if err := writePrivate(path, []byte(strings.Join(seen.order, "\n")+"\n")); err != nil {
+		if err := relay.WritePrivate(path, []byte(strings.Join(seen.order, "\n")+"\n")); err != nil {
 			return nil, err
 		}
 	}
@@ -153,39 +145,12 @@ func (m *Manager) sessionKey(sessionID string) ([]byte, error) {
 	if key, ok := m.relay.keys[sessionID]; ok {
 		return key, nil
 	}
-	path := filepath.Join(sessionDir(m.cfg.Home, sessionID), keyFile)
-	key, err := os.ReadFile(path)
-	switch {
-	case err == nil && len(key) == 32:
-	case err == nil, errors.Is(err, fs.ErrNotExist):
-		if key, err = keys.GenerateAESKey(); err != nil {
-			return nil, err
-		}
-		if err := writePrivate(path, key); err != nil {
-			return nil, err
-		}
-	default:
+	key, err := relay.LoadOrCreateKey(filepath.Join(sessionDir(m.cfg.Home, sessionID), keyFile))
+	if err != nil {
 		return nil, err
 	}
 	m.relay.keys[sessionID] = key
 	return key, nil
-}
-
-// writePrivate writes data to path, mode 600, through a temporary file.
-func writePrivate(path string, data []byte) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), path)
 }
 
 // sendKeys sends the Session's key wrapped for each holder, to tabID (every
@@ -195,21 +160,13 @@ func (m *Manager) sendKeys(ctx context.Context, sessionID, tabID string) ([]byte
 	if err != nil {
 		return nil, err
 	}
-	holders, err := m.cfg.Keys.Holders()
+	wrapped, err := m.cfg.Keys.Wraps(key, func(holderID string) string { return sessionID + ":" + holderID })
 	if err != nil {
 		return nil, err
 	}
-	var wraps []contracts.RunnerSessionKeysWrapsElem
-	for _, holder := range holders {
-		holderID := b64.EncodeToString(holder)
-		w, err := keys.SealWrap(m.cfg.Keys.Runner, holder, key, []byte(keys.InfoSessionKey), []byte(sessionID+":"+holderID))
-		if err != nil {
-			return nil, err
-		}
-		wraps = append(wraps, contracts.RunnerSessionKeysWrapsElem{HolderId: holderID, Enc: b64.EncodeToString(w.Enc), WrappedKey: b64.EncodeToString(w.Ciphertext), Tag: b64.EncodeToString(w.Tag)})
-	}
-	if len(wraps) == 0 {
-		return nil, errors.New("no holder")
+	wraps := make([]contracts.RunnerSessionKeysWrapsElem, len(wrapped))
+	for i, w := range wrapped {
+		wraps[i] = contracts.RunnerSessionKeysWrapsElem(w)
 	}
 	return key, m.cfg.Send(ctx, protocol.NewSessionKeys(sessionID, tabID, wraps))
 }
@@ -222,11 +179,11 @@ func (m *Manager) sendEvent(ctx context.Context, key []byte, sessionID, tabID st
 		return err
 	}
 	seq := seqOf(event)
-	sealed, err := keys.AESGCMSeal(key, plain, []byte(sessionID+":"+strconv.Itoa(seq)))
+	nonce, ciphertext, err := relay.Seal(key, plain, sessionID+":"+strconv.Itoa(seq))
 	if err != nil {
 		return err
 	}
-	return m.cfg.Send(ctx, protocol.NewRelay(sessionID, tabID, seq, b64.EncodeToString(sealed[:12]), b64.EncodeToString(sealed[12:])))
+	return m.cfg.Send(ctx, protocol.NewRelay(sessionID, tabID, seq, nonce, ciphertext))
 }
 
 // withoutRaw is the event without the provider's raw event.
@@ -360,35 +317,73 @@ func (m *Manager) Input(message contracts.RunnerSessionInput) {
 	}
 	ctx, cancel := m.relayContext()
 	defer cancel()
-	if payload.Message != nil {
-		if err := run.Send(ctx, payload.Message.Text); err != nil {
-			m.cfg.Logger.Warn("session.input", "sessionId", message.SessionId, "inputId", message.InputId, "error", errorKind(err))
+	switch {
+	case payload.Message != nil:
+		err = run.Send(ctx, payload.Message.Text)
+	case payload.Answer != nil, payload.Permission != nil:
+		requestID, answer, ok := answerOf(s, payload)
+		if !ok {
+			// Answered already (from another tab), or not an answer to it.
+			return
 		}
+		if err = run.Answer(ctx, requestID, answer); errors.Is(err, engine.ErrNoSuchRequest) {
+			return
+		}
+	}
+	if err != nil {
+		m.cfg.Logger.Warn("session.input", "sessionId", message.SessionId, "inputId", message.InputId, "error", errorKind(err))
 	}
 }
 
+// answerOf is the Moteur's answer to the request the input answers, false
+// when that request does not wait or the input does not fit it: an option
+// out of its range, several for a question of one, a decision for a
+// question, a choice for a permission.
+func answerOf(s *live, payload contracts.SessionInput) (string, engine.Answer, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if p := payload.Permission; p != nil {
+		if req, ok := s.pending[p.RequestId]; !ok || req.kind != contracts.RunnerSessionWaitingKindPermission {
+			return "", engine.Answer{}, false
+		}
+		allow := p.Decision != contracts.SessionInputPermissionDecisionDeny
+		return p.RequestId, engine.Answer{Allow: &allow, ForSession: p.Decision == contracts.SessionInputPermissionDecisionAllowSession}, true
+	}
+	a := payload.Answer
+	req, ok := s.pending[a.RequestId]
+	if !ok || req.kind != contracts.RunnerSessionWaitingKindQuestion {
+		return "", engine.Answer{}, false
+	}
+	if a.Text != nil {
+		return a.RequestId, engine.Answer{Text: *a.Text}, true
+	}
+	if len(a.OptionIndexes) == 0 || (len(a.OptionIndexes) > 1 && !req.multiple) {
+		return "", engine.Answer{}, false
+	}
+	labels := make([]string, 0, len(a.OptionIndexes))
+	for _, i := range a.OptionIndexes {
+		if i < 0 || i >= len(req.options) || slices.Contains(labels, req.options[i]) {
+			return "", engine.Answer{}, false
+		}
+		labels = append(labels, req.options[i])
+	}
+	return a.RequestId, engine.Answer{Options: labels}, true
+}
+
 func (m *Manager) openInput(message contracts.RunnerSessionInput) (contracts.SessionInput, error) {
-	nonce, err := b64.Strict().DecodeString(message.Nonce)
-	if err != nil || len(nonce) != 12 {
-		return contracts.SessionInput{}, errors.New("nonce")
-	}
-	ciphertext, err := b64.Strict().DecodeString(message.Ciphertext)
-	if err != nil {
-		return contracts.SessionInput{}, err
-	}
 	// The Session's key is read, never drawn, for an input: a Session never
 	// run has no key a tab could have sealed with.
 	m.relayMu.Lock()
 	key, ok := m.relay.keys[message.SessionId]
 	m.relayMu.Unlock()
 	if !ok {
-		stored, err := os.ReadFile(filepath.Join(sessionDir(m.cfg.Home, message.SessionId), keyFile))
-		if err != nil || len(stored) != 32 {
+		stored, err := relay.ReadKey(filepath.Join(sessionDir(m.cfg.Home, message.SessionId), keyFile))
+		if err != nil {
 			return contracts.SessionInput{}, errors.New("no key")
 		}
 		key = stored
 	}
-	plain, err := keys.AESGCMOpen(key, append(nonce, ciphertext...), []byte(message.SessionId+":input:"+message.InputId))
+	plain, err := relay.Open(key, message.Nonce, message.Ciphertext, message.SessionId+":input:"+message.InputId)
 	if err != nil {
 		return contracts.SessionInput{}, err
 	}

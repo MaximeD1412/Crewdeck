@@ -19,7 +19,9 @@ var (
 
 // openVault opens the vault the link saved: vault.wrap, opened with
 // runner.key from the Appareil whose public key the link's device proof
-// authenticated (docs/security/e2e.md, « First Appareil »).
+// authenticated (docs/security/e2e.md, « First Appareil »), or, after a
+// rotation (E2E-4), from the sender it kept: itself, or the holder that
+// rotated.
 func openVault(store state.Store) (*keys.Vault, error) {
 	raw, err := store.LoadRunnerKey()
 	if errors.Is(err, state.ErrNotLinked) {
@@ -39,7 +41,7 @@ func openVault(store state.Store) (*keys.Vault, error) {
 	if err != nil {
 		return nil, errVaultClosed
 	}
-	vault, err := keys.Unlock(runner, w.DevicePublicKey, w.RunnerID, w.VaultKeyVersion, keys.Wrap{Enc: w.Enc, Ciphertext: w.Ciphertext, Tag: w.Tag})
+	vault, err := keys.Unlock(runner, w.Sender(), w.RunnerID, w.VaultKeyVersion, keys.Wrap{Enc: w.Enc, Ciphertext: w.Ciphertext, Tag: w.Tag})
 	if err != nil {
 		return nil, errVaultClosed
 	}
@@ -49,8 +51,9 @@ func openVault(store state.Store) (*keys.Vault, error) {
 // holdersTimeout bounds the read of the holders at a wrap.
 const holdersTimeout = 10 * time.Second
 
-// listHolders reads the Appareils an approval vouched for, from the server.
-type listHolders func(ctx context.Context) ([]contracts.RunnerDeviceHoldersHoldersElem, error)
+// listHolders reads the Appareils an approval vouched for, and the revoked
+// ones that vouch for others (E2E-4), from the server.
+type listHolders func(ctx context.Context) (contracts.RunnerDeviceHolders, error)
 
 // relayKeys are what the relay of the Sessions seals with (SESSION-1): the
 // Runner's key, and as holders, read again at each wrap, the Appareil of

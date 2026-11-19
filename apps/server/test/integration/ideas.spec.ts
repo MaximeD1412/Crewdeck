@@ -69,7 +69,8 @@ describe('the Idées against PostgreSQL', () => {
 
   const pilot = async (login = 'octocat'): Promise<Tab> => {
     const id = newId();
-    await sql(`WITH p AS (INSERT INTO pilots (id, display_name, time_zone) VALUES ($1, $3, 'Europe/Paris') RETURNING id) INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) SELECT gen_random_uuid(), id, 'github', $2::text, $3 FROM p`, [id, Math.floor(Math.random() * 1e9), login]);
+    // Its vault at version 1, as « Premiers pas » leave it: the texts are sealed under it.
+    await sql(`WITH p AS (INSERT INTO pilots (id, display_name, time_zone, vault_key_version) VALUES ($1, $3, 'Europe/Paris', 1) RETURNING id) INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) SELECT gen_random_uuid(), id, 'github', $2::text, $3 FROM p`, [id, Math.floor(Math.random() * 1e9), login]);
     const token = await runInPilotScope(id, () => app.get(WebSessions).open(prisma.scoped, id, undefined));
     unsubscribes.push(app.get(EventsBus).subscribe(id, (event) => published.push(event)));
     return { id, cookie: `${SESSION_COOKIE}=${token}` };
@@ -119,9 +120,10 @@ describe('the Idées against PostgreSQL', () => {
 
   const state = async (tab: Tab) => zState.parse(await (await call(tab, '/api/state')).json());
 
-  const noteBody = async (tab: Tab, input: Partial<{ id: string; text: unknown; projectId: string | null; seq: string }> = {}) => ({
+  const noteBody = async (tab: Tab, input: Partial<{ id: string; text: unknown; vaultKeyVersion: unknown; projectId: string | null; seq: string }> = {}) => ({
     id: newId(),
     text: sealed(),
+    vaultKeyVersion: 1,
     projectId: null,
     notedFrom: 'pc',
     dictated: false,
@@ -188,6 +190,8 @@ describe('the Idées against PostgreSQL', () => {
       await expectFields(await note(alice, { text: sealed(28) }), ['text.ciphertext']);
       await expectFields(await note(alice, { text: 'Pouvoir dupliquer une recette' }), ['text']);
       await expectFields(await call(alice, '/api/ideas', { ...(await noteBody(alice)), notedFrom: 'tablette' }), ['notedFrom']);
+      await expectFields(await note(alice, { vaultKeyVersion: undefined }), ['vaultKeyVersion']);
+      await expectFields(await note(alice, { vaultKeyVersion: 0 }), ['vaultKeyVersion']);
       expect(await sql(`SELECT count(*)::int AS n FROM ideas`)).toEqual([{ n: 0 }]);
     });
 
@@ -200,6 +204,23 @@ describe('the Idées against PostgreSQL', () => {
       await expectEnvelope(await note(alice, { id: idea.id }), 409, 'idea.id-taken');
       expect(await sql(`SELECT number FROM ideas`)).toEqual([{ number: 1 }]);
       expect(await sql(`SELECT idea_seq AS "ideaSeq" FROM pilots WHERE id = $1`, [alice.id])).toEqual([{ ideaSeq: 1 }]);
+    });
+
+    it('answers 409 vault.version-changed to a text sealed under an older vault key than the current one, and stores nothing (E2E-4)', async () => {
+      const alice = await pilot();
+      // The vault rotated to version 2 since the page sealed under version 1.
+      await sql('UPDATE pilots SET vault_key_version = 2 WHERE id = $1', [alice.id]);
+
+      await expectEnvelope(await note(alice), 409, 'vault.version-changed');
+      expect(await sql(`SELECT count(*)::int AS n FROM ideas`)).toEqual([{ n: 0 }]);
+      expect(await sql(`SELECT idea_seq AS "ideaSeq" FROM pilots WHERE id = $1`, [alice.id])).toEqual([{ ideaSeq: 0 }]);
+      expect(await sql(`SELECT count(*)::int AS n FROM events WHERE pilot_id = $1 AND type = 'idea.upserted'`, [alice.id])).toEqual([{ n: 0 }]);
+      // Nor a version the vault never reached.
+      await expectEnvelope(await note(alice, { vaultKeyVersion: 3 }), 409, 'vault.version-changed');
+
+      const res = await note(alice, { vaultKeyVersion: 2 });
+      expect(res.status).toBe(201);
+      expect(zIdea.parse(await res.json())).toMatchObject({ number: 1 });
     });
 
     it('answers 401 without a session', async () => {

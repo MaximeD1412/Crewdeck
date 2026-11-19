@@ -23,6 +23,19 @@ export const seedGitHubUser = ({ fakes }: ScenarioContext): ScenarioSeed => {
 export const PILOTE_ADDRESS = 'pilote@example.com';
 
 /**
+ * The Google account of the scenarios: the fake Google signs it in at once
+ * (`/fake-google/authorize`), on the address of the scenarios' sign-in links.
+ */
+export const GOOGLE_ACCOUNT = { sub: '110248495921238986420', email: PILOTE_ADDRESS, emailVerified: true } as const;
+
+/** Seeds the accounts that sign in from `/connexion`, the fake GitHub user and the fake Google account, nobody signed in yet. */
+export const seedSignIn = (ctx: ScenarioContext, { emailVerified = true }: { emailVerified?: boolean } = {}): ScenarioSeed => {
+  seedGitHubUser(ctx);
+  ctx.fakes.google.seedAccount({ ...GOOGLE_ACCOUNT, emailVerified });
+  return {};
+};
+
+/**
  * The Pilote of a scenario, signed in as the callback would leave them: their
  * Identités (`github` by default, its tokens stored as the fake GitHub gave
  * them: GitHub linked; `email` with `pilote@example.com`) and their

@@ -14,7 +14,7 @@ const APP_URL = 'https://crewdeck.example';
 const MIGRATIONS = resolve(import.meta.dirname, '../../prisma/migrations');
 const IDENTITIES = '20261201000000_identities';
 /** CORE-11's contract: it drops the columns the triggers below keep in step. */
-const DROP_GITHUB_COLUMNS = '20261205000000_drop_pilot_github_columns';
+const DROP_GITHUB_COLUMNS = '20261208000000_drop_pilot_github_columns';
 const OCTOCAT = { id: 583231, login: 'octocat', avatarUrl: 'https://avatars.example/u/583231' };
 const HUBOT = { id: 9100002, login: 'hubot', avatarUrl: 'https://avatars.example/u/9100002' };
 

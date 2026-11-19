@@ -5,10 +5,11 @@ import { placed } from './placed.js';
 /**
  * The sections of the Paramètres, in their order: each an Emplacement the
  * core fills with its Card, the ticket of each section its own (PARAM-2
- * `roles`, ATOI-4 `notifications`, E2E-3 `devices`, BOUCLE-8 `schedules`, PARAM-4
- * `optional-steps`, PARAM-3 `projects`).
+ * `roles`, ATOI-4 `notifications`, E2E-3 `devices`, BOUCLE-8 `schedules`,
+ * PARAM-3 `projects`). No Étapes optionnelles any more (PARAM-3): an Étape
+ * runs because it is in the Projet's Process.
  */
-export const SETTINGS_SECTIONS = ['roles', 'notifications', 'devices', 'schedules', 'optional-steps', 'projects', 'account', 'modders'] as const;
+export const SETTINGS_SECTIONS = ['roles', 'notifications', 'devices', 'schedules', 'projects', 'account', 'modders'] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 const TIME_ZONE = placed(
@@ -53,11 +54,12 @@ const MODDERS = placed(
  * Emplacement is hidden, its link too. On the phone one section shows at a
  * time, the one its link opens; at 1280 px all of them, the nav beside.
  * A form control of a section changing (its native `change`) emits `change`
- * with its `name` and its value (`checked` for a Toggle).
+ * with its `name` and its value (`checked` for a Toggle). Version 2
+ * (PARAM-3): the `optional-steps` Emplacement is gone.
  */
 export const PageParametres = defineComposant({
   name: 'PageParametres',
-  version: 1,
+  version: 2,
   tag: 'cd-page-parametres',
   category: 'page',
   description: 'Les Paramètres du compte, une section par Emplacement.',

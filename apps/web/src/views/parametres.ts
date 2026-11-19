@@ -8,7 +8,9 @@ import {
   type Device,
   type EngineId,
   type Me,
+  type Project,
   type RoleChoice,
+  type SettingsState,
 } from '@crewdeck/contracts';
 import { zLinkError, t, type AccountIdentities, type Card, type ComposantData, type Icon, type ListRow, type RoleSettings, type Select, type SettingRow } from '@crewdeck/sdk';
 import type { PlacedNode } from '../placed.js';
@@ -17,22 +19,41 @@ import { devicesCard } from './devices.js';
 /** The time zones the Pilote may pick: the IANA zones the browser knows. */
 export const timeZones = (): readonly string[] => Intl.supportedValuesOf('timeZone');
 
-const card = (slot: string, data: ComposantData<typeof Card>, children: readonly PlacedNode[]): PlacedNode => ({ tag: 'cd-card', slot, data, children });
+export const card = (slot: string, data: ComposantData<typeof Card>, children: readonly PlacedNode[]): PlacedNode => ({ tag: 'cd-card', slot, data, children });
+
+/** A ListRow, with the chevron of a row that leads to a page when it has its `href`, as the mockup draws it. */
+export const linkRow = (data: ComposantData<typeof ListRow>): PlacedNode => ({
+  tag: 'cd-list-row',
+  data,
+  ...(data.href ? { children: [{ tag: 'cd-icon', slot: 'trailing', data: { name: 'chevron-right', size: 'sm' } satisfies ComposantData<typeof Icon> }] } : {}),
+});
 
 const modders = (): PlacedNode =>
   card('modders', { title: t('settings.modders.title'), label: t('settings.modders.label'), flush: true }, [
-    {
-      tag: 'cd-list-row',
-      data: {
-        title: t('settings.modders.library.title'),
-        meta: t('settings.modders.library.meta'),
-        icon: 'layers',
-        href: '/parametres/composants',
-      } satisfies ComposantData<typeof ListRow>,
-      // The chevron of a row that leads to a page, as the mockup draws it.
-      children: [{ tag: 'cd-icon', slot: 'trailing', data: { name: 'chevron-right', size: 'sm' } satisfies ComposantData<typeof Icon> }],
-    },
+    linkRow({ title: t('settings.modders.library.title'), meta: t('settings.modders.library.meta'), icon: 'layers', href: '/parametres/composants' }),
   ]);
+
+/**
+ * « Par Projet » (PARAM-3): each Projet by name, what it changed over the
+ * account (its Rôles, its push), a link to its Paramètres; no Card without a
+ * Projet.
+ */
+const byProject = (settings: SettingsState, projects: readonly Project[]): readonly PlacedNode[] => {
+  if (projects.length === 0) return [];
+  const sorted = [...projects].sort((a, b) => a.displayName.localeCompare(b.displayName, 'fr') || a.fullName.localeCompare(b.fullName, 'fr'));
+  return [
+    card(
+      'projects',
+      { title: t('settings.projects.title'), label: t('settings.projects.label'), flush: true },
+      sorted.map((project) => {
+        const count = settings.projects.find((candidate) => candidate.projectId === project.id)?.changedCount ?? 0;
+        const meta =
+          count === 0 ? t('settings.projects.inherits') : t(count === 1 ? 'settings.projects.changed.one' : 'settings.projects.changed.other', { count });
+        return linkRow({ title: project.displayName, meta, href: `/projets/${encodeURIComponent(project.id)}/parametres` });
+      }),
+    ),
+  ];
+};
 
 const account = (settings: AccountSettings, zones: readonly string[]): PlacedNode => {
   const options = (zones.includes(settings.timeZone) ? [...zones] : [...zones, settings.timeZone].sort()).map((zone) => ({
@@ -73,7 +94,7 @@ export interface RolesLocal {
 
 export const NO_ROLES_LOCAL: RolesLocal = { adding: { open: false, busy: false, nameError: null, modelError: null }, errors: {} };
 
-const modelLabel = (engine: EngineId, label: string): string => t('settings.roles.model', { engine: t(`engine.${engine}`), label });
+export const modelLabel = (engine: EngineId, label: string): string => t('settings.roles.model', { engine: t(`engine.${engine}`), label });
 
 /**
  * « Rôles et modèles » (PARAM-2, US-39): the usable models, then the four
@@ -113,10 +134,11 @@ const roles = (settings: AccountSettings, accounts: readonly AiAccount[], local:
   return { tag: 'cd-role-settings', slot: 'roles', data };
 };
 
-/** What « Rôles et modèles » reads beside the settings: the Comptes IA the Runner reports, the page's own state. */
+/** What the Paramètres read beside the settings: the Comptes IA the Runner reports, the page's own state of the Rôles, the Projets. */
 export interface RolesInput {
   readonly accounts?: readonly AiAccount[];
   readonly local?: RolesLocal;
+  readonly projects?: readonly Project[];
 }
 
 /** What « Connexion » reads (CORE-11): the Pilote's Identités, and the URL's `?erreur=` after a failed « Relier GitHub ». */
@@ -143,17 +165,18 @@ export interface ParametresInput extends RolesInput, IdentitiesInput {
  * snapshot gave them, this page's own named (E2E-3); once the Pilote is
  * known, « Connexion » with their Identités (CORE-11); once the snapshot gave
  * the settings, « Rôles et modèles » (PARAM-2) and « Compte » with the time
- * zone (a zone the list lacks, an alias, kept among the options), then « Pour
- * les Moddeurs ». The other sections are their tickets'.
+ * zone (a zone the list lacks, an alias, kept among the options), « Par
+ * Projet » (PARAM-3), then « Pour les Moddeurs ». The other sections are
+ * their tickets'.
  */
 export const parametresView = (
-  settings: AccountSettings | null | undefined,
+  settings: SettingsState | null | undefined,
   zones: readonly string[],
-  { accounts = [], local = NO_ROLES_LOCAL, pilot, erreur, devices, currentDeviceId }: ParametresInput = {},
+  { accounts = [], local = NO_ROLES_LOCAL, projects = [], pilot, erreur, devices, currentDeviceId }: ParametresInput = {},
 ): readonly PlacedNode[] => [
   ...[devicesCard(devices, currentDeviceId)].filter((node) => node !== null),
   ...(settings ? [roles(settings, accounts, local)] : []),
   ...(pilot ? [identities(pilot, erreur)] : []),
-  ...(settings ? [account(settings, zones)] : []),
+  ...(settings ? [account(settings, zones), ...byProject(settings, projects)] : []),
   modders(),
 ];

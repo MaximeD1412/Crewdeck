@@ -16,7 +16,7 @@ describe('the page’s Paramètres', () => {
     store.registerSlice('pilot', { shape: 'single' });
     store.registerSlice('settings', { shape: 'single' });
     store.registerSlice('ai-account', { shape: 'collection' });
-    const settings = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' };
+    const settings = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] };
     const command = vi.fn<(...args: unknown[]) => Promise<never>>(async () => settings as never);
     const leave = vi.fn<(url: string) => void>();
     const app = await boot({
@@ -45,7 +45,7 @@ describe('the page’s Paramètres', () => {
       models: [{ id: 'gpt-5.5', label: 'GPT-5.5', usable: true }],
       reportedAt: '2026-11-11T08:30:00.000Z',
     };
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [codex], 'mcp-server': [], devices: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [codex], 'mcp-server': [], devices: [], vault: { version: 1, rotationPending: false }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings, usage: [] });
     expect(slotsOf()).toEqual(['roles', 'account', 'account', 'modders']);
     const identities = page.querySelector('cd-account-identities[slot=account]') as HTMLElement & { data: unknown };
     expect(identities.nextElementSibling?.matches('cd-card[slot=account]')).toBe(true);

@@ -17,6 +17,8 @@ const SESSION = {
   resumeDisabledReason: null,
   resumeLabel: null,
   resumeIcon: null,
+  status: null,
+  expandable: true,
 } as const;
 
 const message = (text: string) =>
@@ -86,6 +88,15 @@ describe('Session', () => {
     expect(textOf(inside(el, 'h2'))).toBe(SESSION.title);
   });
 
+  it('says, between its head and its log, that it is end-to-end encrypted, a lock beside it', async () => {
+    const el = await render(COMPOSANTS.Session, SESSION);
+    const strip = inside(el, 'header + .encrypted');
+    expect(textOf(strip)).toBe(t('session.encrypted'));
+    expect(t('session.encrypted')).toBe('Chiffrée de bout en bout entre ton Runner et ce navigateur');
+    expect((inside(strip, 'cd-icon') as HTMLElement & { data: unknown }).data).toMatchObject({ name: 'lock' });
+    expect(strip.nextElementSibling?.getAttribute('role')).toBe('log');
+  });
+
   it('puts its messages in a polite log, then its Composer', async () => {
     const composer = `<cd-composer data='{"placeholder":"Écrire","hint":null,"state":"idle","value":"","dictation":false}'></cd-composer>`;
     const el = await render(COMPOSANTS.Session, SESSION, { default: message('Bonjour'), composer });
@@ -96,6 +107,18 @@ describe('Session', () => {
     expect(slot?.assignedElements().map((node) => node.localName)).toEqual(['cd-message']);
     expect(log.querySelector('slot[name=composer]')).toBeNull();
     expect(el.shadowRoot?.querySelector<HTMLSlotElement>('slot[name=composer]')?.assignedElements()).toHaveLength(1);
+  });
+
+  it('says what the agent is doing under its log, a pulsing dot beside it', async () => {
+    const el = await render(COMPOSANTS.Session, { ...SESSION, status: 'Claude Code travaille · 42 s' }, { default: message('Bonjour') });
+    const status = inside(el, '[role=log] .status');
+    expect(textOf(status)).toBe('Claude Code travaille · 42 s');
+    expect((inside(status, 'cd-status-dot') as HTMLElement & { data: unknown }).data).toMatchObject({ tone: 'accent', pulse: true });
+  });
+
+  it('shows no status line without a status', async () => {
+    const el = await render(COMPOSANTS.Session, SESSION);
+    expect(el.shadowRoot?.querySelector('.status')).toBeNull();
   });
 
   describe('its close buttons', () => {
@@ -113,6 +136,15 @@ describe('Session', () => {
       expect(details).toEqual([{ composant: 'Session', action: 'close', payload: {} }]);
     });
 
+    it('keep « Reprendre » beside the title on a phone, the title wrapping', async () => {
+      await page.viewport(390, 844);
+      const el = await render(COMPOSANTS.Session, { ...SESSION, state: 'stopped', expandable: false });
+      const titles = inside(el, '.titles').getBoundingClientRect();
+      const resume = inside(el, 'cd-button.resume').getBoundingClientRect();
+      expect(resume.top).toBeLessThan(titles.bottom);
+      expect(resume.left).toBeGreaterThanOrEqual(titles.right);
+    });
+
     it('are « Agrandir » and « Fermer » at 1280 px', async () => {
       await page.viewport(1280, 800);
       const el = await render(COMPOSANTS.Session, SESSION);
@@ -127,6 +159,13 @@ describe('Session', () => {
         inside(close, 'button').click();
       });
       expect(details.map((detail) => detail.action)).toEqual(['expand', 'close']);
+    });
+
+    it('leaves out « Agrandir » when not expandable, « Fermer » kept', async () => {
+      await page.viewport(1280, 800);
+      const el = await render(COMPOSANTS.Session, { ...SESSION, expandable: false });
+      expect(el.shadowRoot?.querySelector('cd-icon-button.expand')).toBeNull();
+      expect(isShown(inside(el, 'cd-icon-button.close'))).toBe(true);
     });
   });
 

@@ -106,6 +106,8 @@ const keys = {
     return 'unlocked' as const;
   },
   approval: {} as PageKeys['approval'],
+  rotateVault: async () => 'not-pending' as const,
+  forgetDevice: async () => undefined,
 };
 let app: App;
 let root: HTMLElement;
@@ -150,7 +152,7 @@ describe('« Idées » follows the store', () => {
   });
 
   it('then lists the snapshot’s Idées in clear, the Cadre counting those to triage', async () => {
-    store.applySnapshot({ seq: 3, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], projects: [project], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [idea(63, 'Exporter le planning'), idea(50, 'Ancienne', { state: 'retained' })], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
+    store.applySnapshot({ seq: 3, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], vault: { version: 1, rotationPending: false }, projects: [project], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [idea(63, 'Exporter le planning'), idea(50, 'Ancienne', { state: 'retained' })], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
     store.markLive();
     await vi.waitFor(() => expect(pageData().ideas.map((row) => row.title)).toEqual(['Exporter le planning']));
     expect(pageData()).toMatchObject({ empty: false, toTriage: 1 });

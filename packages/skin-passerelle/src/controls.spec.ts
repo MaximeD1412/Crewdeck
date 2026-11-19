@@ -3,7 +3,7 @@ import './tokens.css';
 import './document.css';
 import { COMPOSANTS, t } from '@crewdeck/sdk';
 import { page, userEvent } from 'vitest/browser';
-import { deepActiveElement, defineSkin, inside, render, settle, textOf } from './testing/dom.js';
+import { actionsOf, deepActiveElement, defineSkin, inside, render, settle, textOf } from './testing/dom.js';
 
 beforeAll(defineSkin);
 
@@ -280,6 +280,22 @@ describe('SettingRow', () => {
     expect(textOf(inside(el, '.label'))).toBe('Nom du Projet');
     expect(textOf(inside(el, '.help'))).toBe('Son nom dans la console.');
     expect(inside<HTMLSlotElement>(el, 'slot').assignedElements().map((node) => textOf(node))).toEqual(['contrôle']);
+  });
+
+  it('offers « Revenir au compte » on a setting changed for the Projet, given its name, which emits revert', async () => {
+    const el = await render(COMPOSANTS.SettingRow, { label: 'Code', help: null, origin: 'projet', name: 'role:code' }, { default: '<span>contrôle</span>' });
+    const revert = inside<HTMLButtonElement>(el, 'button.revert');
+    expect(textOf(revert)).toBe(t('settingRow.revert'));
+    expect(revert.getAttribute('aria-label')).toBe(t('settingRow.revertLabel', { label: 'Code' }));
+
+    expect(await actionsOf(() => revert.click())).toEqual([{ composant: 'SettingRow', action: 'revert', payload: { name: 'role:code' } }]);
+  });
+
+  it('offers no « Revenir au compte » on a setting inherited, nor on one without a name', async () => {
+    const inherited = await render(COMPOSANTS.SettingRow, { label: 'Code', help: null, origin: 'compte', name: 'role:code' }, { default: '<span>contrôle</span>' });
+    expect(inherited.shadowRoot?.querySelector('button.revert')).toBeNull();
+    const nameless = await render(COMPOSANTS.SettingRow, { label: 'Code', help: null, origin: 'projet' }, { default: '<span>contrôle</span>' });
+    expect(nameless.shadowRoot?.querySelector('button.revert')).toBeNull();
   });
 
   it('puts its control under its text on the phone, beside it at 1280 px', async () => {

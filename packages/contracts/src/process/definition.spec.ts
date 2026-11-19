@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { z } from 'zod';
 import {
   FOR_EACH,
@@ -239,16 +241,28 @@ describe('the sealed part', () => {
     expect(refusedAt({ commands: {} }, zProcessSealedPayload)).toEqual([]);
   });
 
-  it('refuses a Commande with an empty text or one of 4001 characters, another place, a non-http address, an id that is not one', () => {
+  it('refuses a Commande with an empty text or one of 10001 characters, another place, a non-http address, an id that is not one', () => {
     const one = (command: object, id = 'cmd-tests') => ({ commands: { [id]: { run: 'pnpm test', where: 'worktree', ...command } } });
     expect(refusedAt(one({ run: '' }), zProcessSealedPayload)).toEqual([['commands', 'cmd-tests', 'run']]);
-    expect(refusedAt(one({ run: 'a'.repeat(4001) }), zProcessSealedPayload)).toEqual([['commands', 'cmd-tests', 'run']]);
-    expect(refusedAt(one({ run: 'a'.repeat(4000) }), zProcessSealedPayload)).toEqual([]);
+    expect(refusedAt(one({ run: 'a'.repeat(10001) }), zProcessSealedPayload)).toEqual([['commands', 'cmd-tests', 'run']]);
+    expect(refusedAt(one({ run: 'a'.repeat(10000) }), zProcessSealedPayload)).toEqual([]);
     expect(refusedAt(one({ where: 'home' }), zProcessSealedPayload)).toEqual([['commands', 'cmd-tests', 'where']]);
     expect(refusedAt(one({ healthUrl: 'ftp://localhost/health' }), zProcessSealedPayload)).toEqual([['commands', 'cmd-tests', 'healthUrl']]);
     expect(refusedAt(one({ healthUrl: 'https://localhost:5173' }), zProcessSealedPayload)).toEqual([]);
     expect(refusedAt(one({}, 'Tests'), zProcessSealedPayload)).not.toEqual([]);
     expect(refusedAt(one({ env: 'x' }), zProcessSealedPayload)).toEqual([['commands', 'cmd-tests']]);
+  });
+
+  it('refuses the health addresses the Runner refuses as zod does, the fixture both read', () => {
+    const urls: { accepted: string[]; refused: string[]; runnerRefuses: string[] } = JSON.parse(
+      readFileSync(join(import.meta.dirname, '../../fixtures/process-sealed/health-urls.json'), 'utf8'),
+    );
+    const accepts = (healthUrl: string) =>
+      zProcessSealedPayload.safeParse({ commands: { 'cmd-tests': { run: 'pnpm test', where: 'worktree', healthUrl } } }).success;
+    expect(urls.accepted.filter((url) => !accepts(url))).toEqual([]);
+    expect(urls.refused.filter(accepts)).toEqual([]);
+    // Stricter on the Runner: zod accepts them, the Runner refuses them; never the other way round.
+    expect(urls.runnerRefuses.filter((url) => !accepts(url))).toEqual([]);
   });
 
   it('is sealed with the Projet’s or the Modèle’s id as additional data', () => {

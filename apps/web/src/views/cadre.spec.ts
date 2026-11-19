@@ -41,6 +41,8 @@ describe('cadreView', () => {
     ['/a-toi', 'a-toi'],
     ['/idees/3f2a', 'idees'],
     ['/parametres/composants', 'parametres'],
+    ['/projets/3f2a', 'projets'],
+    ['/projets/3f2a/parametres', 'parametres'],
     ['/runner', 'runner'],
     ['/nope', null],
   ] as const)('on %s marks %s as the current entry, in the Cadre and in its MenuItem', (path, current) => {
@@ -125,6 +127,11 @@ describe('cadreView', () => {
     expect(countOf(open(9))).toBe(9);
     expect(countOf(open(0))).toBeNull();
     expect(cadreView(open(9), at('/a-toi')).menu.filter((item) => item.count !== null).map((item) => item.id)).toEqual(['a-toi']);
+  });
+
+  it('is compact on « Gestion du process », its entry « Projets »', () => {
+    expect(cadreView(empty, at('/projets/019a6f00-0000-7000-8000-000000000011/process')).cadre).toMatchObject({ variant: 'compact', current: 'projets' });
+    expect(cadreView(empty, at('/projets')).cadre).toMatchObject({ variant: 'default', current: 'projets' });
   });
 
   it('counts the Idées to triage on « Idées », not those already triaged, no count when none waits', () => {

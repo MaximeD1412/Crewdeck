@@ -72,6 +72,10 @@ type StartOptions struct {
 	// RUNNER-9), where the adapter keeps its side channels; empty, a
 	// temporary folder removed at the end of the run.
 	SessionDir string
+	// SessionID is Crewdeck's id of the Session (RUNNER-9), empty for a run
+	// outside one. The adapters do not read it: the Reporter names the
+	// spends of the run with it (accounts/usage.go).
+	SessionID string
 	// BinaryPath is the Moteur's executable; empty, the adapter's own (found
 	// on PATH). The tests set the fake binary here.
 	BinaryPath string
@@ -87,9 +91,12 @@ type ResumeOptions struct {
 // `permission-request`, the labels of the options chosen (Options) or a
 // text of their own (Text) for a `question`.
 type Answer struct {
-	Allow   *bool
-	Options []string
-	Text    string
+	Allow *bool
+	// ForSession, with Allow, is the Moteur's own « always allow » for the
+	// tool in this Session; nothing is remembered by Crewdeck.
+	ForSession bool
+	Options    []string
+	Text       string
 }
 
 // ErrRunEnded is what Send, Answer and Interrupt return once the run ended.

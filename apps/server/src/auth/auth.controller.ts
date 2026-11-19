@@ -19,18 +19,8 @@ import { GithubLinks } from './github-links.js';
 import { GithubTokens } from './github-tokens.js';
 import { isUniqueViolation, PilotIdentities } from './identities.js';
 import { newState, OAUTH_TTL_SECONDS, openOauthState, safeNext, safeTimeZone, sameState, sealOauthState, withError } from './oauth-state.js';
+import { failed, type Redirection, to } from './sign-in-redirect.js';
 import { SESSION_TTL_SECONDS, WebSessions } from './web-sessions.js';
-
-/** Why a sign-in failed, as `/connexion?erreur=` names it (the `PageConnexion`'s `error`). */
-type SignInError = 'state-mismatch' | 'denied' | 'github-unavailable';
-
-interface Redirection {
-  readonly url: string;
-  readonly statusCode: 302;
-}
-
-const to = (url: string): Redirection => ({ url, statusCode: 302 });
-const failed = (error: SignInError): Redirection => to(`/connexion?erreur=${error}`);
 
 /** The App's one callback URL (INFRA-11), for the sign-in and « Relier GitHub » alike. */
 export const githubCallbackUrl = (env: Env): string => `${appOrigin(env)}/api/auth/github/callback`;

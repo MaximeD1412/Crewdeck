@@ -7,12 +7,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/accounts"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/command"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/logging"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/mcp"
@@ -48,10 +50,12 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		return err
 	}
 	// The vault opens at start: a Runner that cannot open it does not run.
-	vault, err := openVault(store)
+	opened, err := openVault(store)
 	if err != nil {
 		return err
 	}
+	// The vault held, swapped by a rotation (E2E-4).
+	vault := newHeldVault(opened)
 	if server != "" {
 		linked.Server = server
 	}
@@ -65,7 +69,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		return err
 	}
 	logger := logging.New(cmd.ErrOrStderr())
-	logger.Info("vault.opened", "vaultKeyVersion", vault.Version)
+	logger.Info("vault.opened", "vaultKeyVersion", opened.Version)
 	// The holders of the Sessions' keys, read again from the server at each wrap.
 	relay, err := relayKeys(store, serverHolders(&http.Client{Timeout: holdersTimeout}, linked.Server, linked.Token), func(err error) {
 		logger.Warn("session.holders", "error", err)
@@ -87,6 +91,9 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	}
 	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// The vault key's rotation (E2E-4): the Runner rotates when it is the
+	// first holder online, and takes the new version a holder rotated to.
+	rotations := &rotator{store: store, held: vault, api: vaultAPI{http: &http.Client{Timeout: vaultTimeout}, server: linked.Server, token: linked.Token}, logger: logger}
 	// The Miroir (ADR 0010): the copy of the Projets' GitHub, its follower its
 	// only writer, fed by the server's envelopes on each connection.
 	follower, closeMirror, err := followMirror(ctx, logger)
@@ -96,18 +103,24 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	defer closeMirror()
 	// The client of the current connection: a new one after each update attempt.
 	var current atomic.Pointer[protocol.Client]
+	send := func(ctx context.Context, m any) error {
+		client := current.Load()
+		if client == nil {
+			return protocol.ErrNotConnected
+		}
+		return client.Send(ctx, m)
+	}
 	reporter := &accounts.Reporter{
-		Send: func(ctx context.Context, m contracts.RunnerCapabilities) error {
-			client := current.Load()
-			if client == nil {
-				return protocol.ErrNotConnected
-			}
-			return client.Send(ctx, m)
-		},
-		Logger: logger,
+		Send:      func(ctx context.Context, m contracts.RunnerCapabilities) error { return send(ctx, m) },
+		SendUsage: func(ctx context.Context, m contracts.RunnerUsage) error { return send(ctx, m) },
+		Logger:    logger,
+		// The cost of each Session so far and the spends not acked, beside
+		// runner.json: a Session resumed after a restart sends only what it
+		// adds, and no spend is lost.
+		SpentPath: filepath.Join(store.Dir, "spent.json"),
 	}
 	// The adapters, their Sessions watched: a limit or a sign-in they meet
-	// reaches the capabilities. The Sessions (RUNNER-9) start from this registry.
+	// reaches the capabilities, the usage they report reaches the server. The Sessions (RUNNER-9) start from this registry.
 	reporter.Engines = reporter.Watch(runnerEngines(keys))
 	// The Sessions the server asks for, those kept under ~/.crewdeck/sessions
 	// said in each hello: none alive after a restart.
@@ -117,18 +130,29 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		GitHubURL: sessionsGitHubURL,
 		Logger:    logger,
 		Keys:      relay,
-		Send: func(ctx context.Context, m any) error {
-			client := current.Load()
-			if client == nil {
-				return protocol.ErrNotConnected
-			}
-			return client.Send(ctx, m)
-		},
+		Send:      send,
+		// The Projet's « Préparer le worktree » and « Nettoyer le
+		// worktree » (RUNNER-20), around every worktree it makes.
+		Hooks: command.WorktreeHooks(vault),
 	})
 	if err != nil {
 		return err
 	}
 	defer sessions.Close()
+	// The Commandes the server asks for (RUNNER-18): opened with the vault,
+	// run in the places the Sessions' manager gives, ended before it closes.
+	commands, err := command.New(command.Config{
+		Home:   store.Dir,
+		Vault:  vault,
+		Places: sessions,
+		Keys:   relay,
+		Send:   send,
+		Logger: logger,
+	})
+	if err != nil {
+		return err
+	}
+	defer commands.Close()
 	// The Serveurs MCP declared here, as their last `add` or `test` left
 	// them: the Runner starts none of them to report them (US-73).
 	reportMCP := func(ctx context.Context) {
@@ -161,6 +185,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		}
 	}()
 	go reporter.Every(ctx, contracts.CapabilitiesEverySeconds*time.Second)
+	go reporter.UsageEvery(ctx, contracts.UsageEverySeconds*time.Second)
 	updater := &update.Updater{
 		Server: linked.Server,
 		Binary: binary,
@@ -175,11 +200,24 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			Token:   linked.Token,
 			Machine: described,
 			Logger:  logger,
-			// What each Moteur can run (US-38) and the Serveurs MCP (US-73), on each accepted connection.
-			OnConnected: report,
-			Sessions:    sessions.Hello,
+			// What each Moteur can run (US-38) and the Serveurs MCP (US-73), on
+			// each accepted connection, and the usage that waits: a spend not
+			// acked is sent again.
+			OnConnected: func(ctx context.Context) {
+				report(ctx)
+				reporter.FlushUsage(ctx)
+			},
+			Sessions:   sessions.Hello,
+			OnAccepted: rotations.accepted(ctx),
+		})
+		// A spend is forgotten once stored (usage.ack), not once written.
+		protocol.On(client, protocol.TypeUsageAck, func(_ context.Context, ack contracts.RunnerUsageAck) error {
+			reporter.UsageAcked(ack.UsageId)
+			return nil
 		})
 		sessions.Register(client)
+		commands.Register(client)
+		rotations.register(ctx, client)
 		current.Store(client)
 		err := client.Run(ctx)
 		var required *protocol.UpdateRequiredError
@@ -195,6 +233,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			continue
 		}
 		logger.Info("update.restart", "binary", binary)
+		commands.Close() // a run ends with this build: its verdict says stopped
 		sessions.Close() // their Moteurs end with this build; the next one reports them
 		return m.restart(ctx, binary)
 	}

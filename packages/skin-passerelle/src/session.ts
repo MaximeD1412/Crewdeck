@@ -18,9 +18,9 @@ const BOTTOM_SLACK = 24;
 /**
  * `cd-session`: its head (the back arrow on a phone, its state, « Arrêter »
  * or « Reprendre » (or its `resumeLabel` and `resumeIcon`, « Relancer » for a
- * failed Commande), « Agrandir » and « Fermer » at 1280 px), its messages in a
- * polite log that keeps to the bottom while the Pilote has not scrolled up,
- * then its Composer. Given a height, the log scrolls; without one, it grows.
+ * failed Commande), « Agrandir » (when `expandable`) and « Fermer » at 1280
+ * px), a strip that says it is end-to-end encrypted, its messages in a polite log that keeps to the bottom while the Pilote
+ * has not scrolled up, its status line under them, then its Composer. Given a height, the log scrolls; without one, it grows.
  */
 export class PasserelleSession extends PasserelleElement<typeof Session> {
   static override styles = [
@@ -45,9 +45,9 @@ export class PasserelleSession extends PasserelleElement<typeof Session> {
         background: var(--cd-panel);
         flex: none;
       }
-      /* The meta wraps rather than cut the Projet and the Moteur, as the title does on a phone; there, the actions go under them when they lack room. */
+      /* The meta wraps rather than cut the Projet and the Moteur, as the title does on a phone, the actions kept beside them; they go under them only when even that lacks room. */
       .titles {
-        flex: 1 1 12rem;
+        flex: 1 1 8rem;
         min-width: 0;
       }
       h2 {
@@ -91,7 +91,25 @@ export class PasserelleSession extends PasserelleElement<typeof Session> {
           display: block;
         }
       }
+      /* Every state says it: the conversation is the Runner's and this browser's alone. */
+      .encrypted {
+        display: flex;
+        align-items: center;
+        gap: var(--cd-space-2);
+        padding: var(--cd-space-2) var(--cd-space-4);
+        font: var(--cd-font-caption-weight) var(--cd-font-caption-size) / var(--cd-font-caption-line-height)
+          var(--cd-font-caption-family), sans-serif;
+        color: var(--cd-muted);
+        border-bottom: thin solid var(--cd-line);
+        background: var(--cd-side);
+        flex: none;
+      }
+      .encrypted cd-icon {
+        color: var(--cd-go);
+      }
+      /* Positioned: what its messages hold apart for screen readers scrolls with them, never past it. */
       [role='log'] {
+        position: relative;
         flex: 1;
         min-height: 0;
         overflow-y: auto;
@@ -102,6 +120,14 @@ export class PasserelleSession extends PasserelleElement<typeof Session> {
         flex-direction: column;
         gap: var(--cd-space-3);
         padding: var(--cd-space-4);
+      }
+      .status {
+        display: flex;
+        align-items: center;
+        gap: var(--cd-space-2);
+        font: var(--cd-font-body-sm-weight) var(--cd-font-body-sm-size) / var(--cd-font-body-sm-line-height)
+          var(--cd-font-body-sm-family), sans-serif;
+        color: var(--cd-muted);
       }
       .composer {
         flex: none;
@@ -167,7 +193,7 @@ export class PasserelleSession extends PasserelleElement<typeof Session> {
   }
 
   protected override render() {
-    const { title, meta, state, resumeLabel, resumeIcon, resumeDisabledReason } = this.data;
+    const { title, meta, state, resumeLabel, resumeIcon, resumeDisabledReason, status, expandable } = this.data;
     const { tone, label } = STATES[state];
     const running = state === 'active' || state === 'waiting';
     return html`<header part="head" class=${state}>
@@ -201,11 +227,13 @@ export class PasserelleSession extends PasserelleElement<typeof Session> {
                 }}
                 @click=${() => this.resume()}
               ></cd-button>`}
-          <cd-icon-button
-            class="expand wide"
-            .data=${{ icon: 'expand', label: t('session.expand') }}
-            @click=${() => this.emit('expand', {})}
-          ></cd-icon-button>
+          ${expandable
+            ? html`<cd-icon-button
+                class="expand wide"
+                .data=${{ icon: 'expand', label: t('session.expand') }}
+                @click=${() => this.emit('expand', {})}
+              ></cd-icon-button>`
+            : null}
           <cd-icon-button
             class="close wide"
             .data=${{ icon: 'x', label: t('session.close') }}
@@ -213,6 +241,7 @@ export class PasserelleSession extends PasserelleElement<typeof Session> {
           ></cd-icon-button>
         </div>
       </header>
+      <p class="encrypted"><cd-icon .data=${{ name: 'lock', size: 'sm' }}></cd-icon>${t('session.encrypted')}</p>
       <div
         part="log"
         role="log"
@@ -221,7 +250,15 @@ export class PasserelleSession extends PasserelleElement<typeof Session> {
         tabindex="0"
         @scroll=${() => this.onScroll()}
       >
-        <div class="stream"><slot @slotchange=${() => this.follow()}></slot></div>
+        <div class="stream">
+          <slot @slotchange=${() => this.follow()}></slot>
+          ${status === null
+            ? null
+            : // Its duration ticks: kept out of the log's announcements.
+              html`<p class="status" aria-live="off">
+                <cd-status-dot .data=${{ tone: 'accent', pulse: true, label: t('session.state.active') }}></cd-status-dot>${status}
+              </p>`}
+        </div>
       </div>
       <div part="composer" class="composer"><slot name="composer"></slot></div>`;
   }

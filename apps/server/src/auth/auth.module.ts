@@ -8,6 +8,7 @@ import { EmailLoginTokensSweep } from './email/email-login-tokens.sweep.js';
 import { SESSION_SECRET, sessionSecret, tokenCipher } from './auth.keys.js';
 import { GithubLinkController } from './github-link.controller.js';
 import { GithubLinks } from './github-links.js';
+import { GoogleAuthController } from './google/google-auth.controller.js';
 import { GithubTokenController } from './github-token.controller.js';
 import { GithubTokens } from './github-tokens.js';
 import { PilotIdentities } from './identities.js';
@@ -17,9 +18,9 @@ import { SessionWsAuthenticator } from './session.ws-authenticator.js';
 import { TokenCipher } from './token-cipher.js';
 import { WebSessions } from './web-sessions.js';
 
-/** Sign-in with GitHub or by a link sent by email (CORE-9), the Pilotes' Identités, the browser's sessions (and their sockets, CORE-5), the Pilote's GitHub tokens (CORE-4), « Relier GitHub » (CORE-11). */
+/** Sign-in with GitHub, by a link sent by email (CORE-9) or with Google (CORE-10), the Pilotes' Identités, the browser's sessions (and their sockets, CORE-5), the Pilote's GitHub tokens (CORE-4), « Relier GitHub » (CORE-11). */
 @Module({
-  controllers: [AuthController, GithubLinkController, EmailAuthController, GithubTokenController],
+  controllers: [AuthController, GithubLinkController, EmailAuthController, GoogleAuthController, GithubTokenController],
   providers: [
     WebSessions,
     PilotIdentities,

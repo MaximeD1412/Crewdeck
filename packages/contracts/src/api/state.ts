@@ -10,9 +10,11 @@ import { zProjectProcess } from './process.js';
 import { REPOSITORIES_MAX, zProject, zRepository } from './projects.js';
 import { zRunner } from './runner.js';
 import { zRunnerLink } from './runner-link.js';
+import { zSettingsState } from './project-settings.js';
 import { zAgentSession } from './sessions.js';
-import { zAccountSettings } from './settings.js';
 import { zCodeChange, zMilestone, zTicket } from './tickets.js';
+import { zUsageAccount } from './usage.js';
+import { zVaultState } from './vault.js';
 import { zSeq } from '../values.js';
 
 /**
@@ -32,6 +34,8 @@ export const STATE_SLICES = {
   'mcp-server': z.array(zMcpServer),
   /** The Pilote's Appareils (E2E-2), newest first; `current` is `false`, each page sets its own. */
   devices: z.array(zDevice),
+  /** The vault key's version and whether a revocation waits for its rotation (E2E-4). */
+  vault: zVaultState,
   /** The Pilote's Projets (PROJET-2), by name. */
   projects: z.array(zProject),
   /** The Process of each Projet (PROCESS-3): its active version and its draft, keyed by the Projet's id. */
@@ -55,7 +59,9 @@ export const STATE_SLICES = {
   /** The Sessions not ended, and those ended in the last 24 h (RUNNER-9). */
   sessions: z.array(zAgentSession),
   /** The Paramètres of the account. */
-  settings: zAccountSettings,
+  settings: zSettingsState,
+  /** The usage of the Pilote's Comptes IA that have one (RUNNER-13). */
+  usage: z.array(zUsageAccount),
 } as const;
 export type StateKey = keyof typeof STATE_SLICES;
 

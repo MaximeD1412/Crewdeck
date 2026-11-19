@@ -9,19 +9,27 @@ import (
 
 // SessionInput is one of the types below, told apart by "kind": exactly one field is set.
 type SessionInput struct {
-	Message *SessionInputMessage
+	Answer     *SessionInputAnswer
+	Message    *SessionInputMessage
+	Permission *SessionInputPermission
 }
 
 // The values of "kind" in SessionInput.
 const (
-	SessionInputKindMessage = "message"
+	SessionInputKindAnswer     = "answer"
+	SessionInputKindMessage    = "message"
+	SessionInputKindPermission = "permission"
 )
 
 // Kind is the "kind" of the type set, "" when none is.
 func (u SessionInput) Kind() string {
 	switch {
+	case u.Answer != nil:
+		return SessionInputKindAnswer
 	case u.Message != nil:
 		return SessionInputKindMessage
+	case u.Permission != nil:
+		return SessionInputKindPermission
 	}
 	return ""
 }
@@ -29,8 +37,12 @@ func (u SessionInput) Kind() string {
 // Value is the type set, as a pointer, nil when none is.
 func (u SessionInput) Value() any {
 	switch {
+	case u.Answer != nil:
+		return u.Answer
 	case u.Message != nil:
 		return u.Message
+	case u.Permission != nil:
+		return u.Permission
 	}
 	return nil
 }
@@ -38,9 +50,17 @@ func (u SessionInput) Value() any {
 // MarshalJSON implements json.Marshaler: the type set, its "kind" filled in.
 func (u SessionInput) MarshalJSON() ([]byte, error) {
 	switch {
+	case u.Answer != nil:
+		v := *u.Answer
+		v.Kind = SessionInputKindAnswer
+		return json.Marshal(v)
 	case u.Message != nil:
 		v := *u.Message
 		v.Kind = SessionInputKindMessage
+		return json.Marshal(v)
+	case u.Permission != nil:
+		v := *u.Permission
+		v.Kind = SessionInputKindPermission
 		return json.Marshal(v)
 	}
 	return nil, fmt.Errorf("SessionInput: no type set")
@@ -56,9 +76,15 @@ func (u *SessionInput) UnmarshalJSON(data []byte) error {
 	}
 	*u = SessionInput{}
 	switch head.Kind {
+	case SessionInputKindAnswer:
+		u.Answer = new(SessionInputAnswer)
+		return json.Unmarshal(data, u.Answer)
 	case SessionInputKindMessage:
 		u.Message = new(SessionInputMessage)
 		return json.Unmarshal(data, u.Message)
+	case SessionInputKindPermission:
+		u.Permission = new(SessionInputPermission)
+		return json.Unmarshal(data, u.Permission)
 	}
 	return fmt.Errorf("SessionInput: unknown kind %q", head.Kind)
 }

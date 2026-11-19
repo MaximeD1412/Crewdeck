@@ -65,6 +65,16 @@ func (v *Vault) SealItem(plaintext, aad []byte) (SealedItem, error) {
 
 // OpenItem opens what SealItem sealed, on either side. Any failure is ErrOpen.
 func (v *Vault) OpenItem(item SealedItem, aad []byte) ([]byte, error) {
+	itemKey, err := v.ItemKey(item, aad)
+	if err != nil {
+		return nil, err
+	}
+	return OpenItemContent(itemKey, item.Ciphertext, aad)
+}
+
+// ItemKey opens the item's own key alone: what a rotation rewraps under the
+// next vault key, the item's ciphertext unchanged. Any failure is ErrOpen.
+func (v *Vault) ItemKey(item SealedItem, aad []byte) ([]byte, error) {
 	if len(aad) == 0 {
 		return nil, ErrNoAdditionalData
 	}
@@ -72,5 +82,11 @@ func (v *Vault) OpenItem(item SealedItem, aad []byte) ([]byte, error) {
 	if err != nil {
 		return nil, ErrOpen
 	}
-	return AESGCMOpen(itemKey, item.Ciphertext, aad)
+	return itemKey, nil
+}
+
+// OpenItemContent opens an item's ciphertext with its own key, under its
+// additional data.
+func OpenItemContent(itemKey, ciphertext, aad []byte) ([]byte, error) {
+	return AESGCMOpen(itemKey, ciphertext, aad)
 }

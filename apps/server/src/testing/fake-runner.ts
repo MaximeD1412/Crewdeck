@@ -1,17 +1,27 @@
+import { randomBytes } from 'node:crypto';
 import {
+  type CommandRunReason,
   type EngineCapabilities,
+  type EngineEvent,
   HEARTBEAT_SECONDS,
   type McpServers,
   PROTOCOL_VERSION,
   type Runner,
   type RunnerToServer,
   type ServerToRunner,
+  SESSION_KEY_INFO,
+  type SessionInput,
+  type SessionInputPayload,
   type SessionOutcome,
+  type SessionReplay,
+  type TestingRunnerUsage,
   zServerToRunner,
+  zSessionInputPayload,
 } from '@crewdeck/contracts';
 import WebSocket from 'ws';
 import { newId } from '../ids.js';
 import type { Fake } from './fakes.js';
+import { openFrame, sealFrame, sealWrap } from './vault.js';
 
 /** How long `connect` waits for `hello.accepted`. */
 const ACCEPT_MS = 5_000;
@@ -22,6 +32,43 @@ export type RunnerMachine = Pick<Runner, 'machine' | 'os' | 'arch' | 'wsl' | 'ru
 const OWN_MACHINE: RunnerMachine = { runnerVersion: 'fake', machine: 'atelier', os: 'linux', arch: 'amd64', wsl: false };
 
 type WithoutEnvelope<T> = T extends unknown ? Omit<T, 'id' | 'at'> : never;
+type WithoutStamp<T> = T extends unknown ? Omit<T, 'seq' | 'at'> : never;
+
+type Request = Extract<EngineEvent, { kind: 'question' | 'permission-request' }>;
+type AnswerFields = Pick<Extract<EngineEvent, { kind: 'answer' }>, 'options' | 'text' | 'decision'>;
+
+/** The questions and permission requests of `log` no `answer` followed. */
+const pendingRequests = (log: readonly EngineEvent[]): Request[] => {
+  const answered = new Set(log.flatMap((event) => (event.kind === 'answer' ? [event.requestId] : [])));
+  return log.filter((event): event is Request => (event.kind === 'question' || event.kind === 'permission-request') && !answered.has(event.requestId));
+};
+
+/** The `answer` event's fields for `input` to `request`; `null` when it does not answer it (another kind, an option outside it). */
+const answerOf = (request: Request, input: Exclude<SessionInputPayload, { kind: 'message' }>): AnswerFields | null => {
+  if (input.kind === 'permission') return request.kind === 'permission-request' ? { decision: input.decision } : null;
+  if (request.kind !== 'question') return null;
+  if (input.text !== undefined) return { text: input.text };
+  const labels = (input.optionIndexes ?? []).map((index) => request.options[index]?.label);
+  return labels.length > 0 && labels.every((label) => label !== undefined) ? { options: labels as string[] } : null;
+};
+
+/** A Session whose log the fake Runner holds (`holdSession`), as a Runner that ran it. */
+export interface HeldSession {
+  /** The fake Runner's own X25519 private key (raw bytes), which authenticates the wraps of the Session's key. */
+  readonly runnerPrivateKey: Uint8Array;
+  /** The X25519 public keys (raw bytes) of the Appareils it wraps the Session's key for. */
+  readonly holders: readonly Uint8Array[];
+  /** Its log, `seq` 1, 2, … */
+  readonly events: readonly EngineEvent[];
+}
+
+/** What the fake Runner's agent answers to the Pilote's `text`. */
+export const heldReply = (text: string): string => `Noté : « ${text} ».`;
+/** How the fake Runner's runs of a Commande end: an exit code, or a reason without one. */
+export type FakeCommandEnd = { readonly reason: 'exited'; readonly exitCode: number } | { readonly reason: Exclude<CommandRunReason, 'exited'> };
+
+/** The two chunks of a fake run: opaque bytes, as the server sees a real one's. */
+const fakeChunk = (seq: number) => ({ seq, nonce: Buffer.alloc(12, seq).toString('base64url'), ciphertext: Buffer.alloc(32, 0xf0 + seq).toString('base64url') });
 
 /**
  * The Runner of the scenario's Pilote, for `pnpm dev` and the end-to-end
@@ -29,11 +76,23 @@ type WithoutEnvelope<T> = T extends unknown ? Omit<T, 'id' | 'at'> : never;
  * the scenario's token (`ScenarioSeed.runnerToken`), says `hello`, then
  * heartbeats every `HEARTBEAT_SECONDS`, so that the page sees it « en
  * ligne »; `report` sends its Moteurs' `capabilities` (RUNNER-7),
- * `reportMcpServers` its Serveurs MCP (RUNNER-16). Its Sessions (RUNNER-9):
+ * `reportMcpServers` its Serveurs MCP (RUNNER-16), `sendUsage` a Moteur's
+ * `usage` (RUNNER-13). Its Sessions (RUNNER-9):
  * `session.start` and `session.resume` answer `active` on the Session's own
  * Moteur id, then `ended` with the outcome `endSessionsWith` set (none: they
  * stay `active`); `session.stop` answers `stopped`; its `hello` tells the
- * Sessions it knows, none alive, as a relaunched Runner.
+ * Sessions it knows, none alive, as a relaunched Runner. The relay of a
+ * Session it holds (`holdSession`, SESSION-2): `session.replay` answers its
+ * key wrapped for its holders and its log from `fromSeq`, sealed, to the tab
+ * that asked; `session.input` adds the agent's `heldReply`, live to every tab;
+ * the answer to a question or a permission still pending in its log
+ * (SESSION-3) adds its `answer` event and says `session.answered` (the
+ * agent's `heldReply` to a question's), one already answered is ignored; its
+ * `session.start` and `session.resume` say `session.waiting` for each request
+ * still pending.
+ * Its Commandes (RUNNER-18): `command.run` answers `command.started`, two
+ * output chunks (opaque bytes) and the verdict `endCommandsWith` set (by
+ * default exited with 0); `command.replay` sends the tab those two chunks again.
  */
 export class FakeRunner implements Fake {
   private socket: WebSocket | undefined;
@@ -43,6 +102,9 @@ export class FakeRunner implements Fake {
   /** The Sessions it was asked to run, by id: their Moteur's id. */
   private readonly sessions = new Map<string, string>();
   private sessionsEnd: SessionOutcome | undefined;
+  /** The Sessions whose log it holds, by id: their key and log. */
+  private readonly held = new Map<string, HeldSession & { readonly key: Buffer; readonly log: EngineEvent[] }>();
+  private commandsEnd: FakeCommandEnd = { reason: 'exited', exitCode: 0 };
 
   /** Whether its `hello` was accepted and its socket is still open. */
   get connected(): boolean {
@@ -106,9 +168,26 @@ export class FakeRunner implements Fake {
     return true;
   }
 
+  /** Sends `usage` in a `usage` message; `false` while not connected. */
+  sendUsage(usage: TestingRunnerUsage): boolean {
+    if (!this.socket || !this.connected) return false;
+    this.send(this.socket, { type: 'usage', ...usage });
+    return true;
+  }
+
   /** How its Sessions end once `active`, from now on: `undefined`, they stay `active`; `error`, as a Moteur that failed. */
   endSessionsWith(outcome: SessionOutcome | undefined): void {
     this.sessionsEnd = outcome;
+  }
+
+  /** Holds the log of `sessionId` under a key of its own, for the tabs that open it from now on. */
+  holdSession(sessionId: string, session: HeldSession): void {
+    this.held.set(sessionId, { ...session, key: randomBytes(32), log: [...session.events] });
+  }
+
+  /** How its runs of a Commande end, from now on. */
+  endCommandsWith(end: FakeCommandEnd): void {
+    this.commandsEnd = end;
   }
 
   /** Connects again as its last `connect`, the Runner relaunched; `false` when it never connected since its reset. */
@@ -131,6 +210,8 @@ export class FakeRunner implements Fake {
     this.last = undefined;
     this.sessions.clear();
     this.sessionsEnd = undefined;
+    this.held.clear();
+    this.commandsEnd = { reason: 'exited', exitCode: 0 };
   }
 
   private answer(socket: WebSocket, message: ServerToRunner): void {
@@ -140,6 +221,7 @@ export class FakeRunner implements Fake {
         const engineSessionId = this.sessions.get(message.sessionId) ?? `fake-${newId()}`;
         this.sessions.set(message.sessionId, engineSessionId);
         this.send(socket, { type: 'session.state', sessionId: message.sessionId, state: 'active', engineSessionId });
+        this.sayWaiting(socket, message.sessionId);
         if (this.sessionsEnd === 'ok') this.send(socket, { type: 'session.state', sessionId: message.sessionId, state: 'ended', outcome: 'ok' });
         if (this.sessionsEnd === 'error') this.send(socket, { type: 'session.state', sessionId: message.sessionId, state: 'ended', outcome: 'error', error: 'engine-failed' });
         if (this.sessionsEnd) this.sessions.delete(message.sessionId);
@@ -148,8 +230,75 @@ export class FakeRunner implements Fake {
       case 'session.stop':
         if (this.sessions.has(message.sessionId)) this.send(socket, { type: 'session.state', sessionId: message.sessionId, state: 'stopped' });
         return;
+      case 'session.replay':
+        return this.replay(socket, message);
+      case 'session.input':
+        return this.reply(socket, message);
+      case 'command.run': {
+        const { runId } = message;
+        this.send(socket, { type: 'command.started', runId });
+        for (const seq of [1, 2]) this.send(socket, { type: 'command.output', runId, ...fakeChunk(seq) });
+        const end = this.commandsEnd;
+        const exitCode = end.reason === 'exited' ? end.exitCode : null;
+        this.send(socket, { type: 'command.verdict', runId, passed: exitCode === 0 || end.reason === 'healthy', exitCode, reason: end.reason, durationMs: 1200 });
+        return;
+      }
+      case 'command.replay':
+        for (const seq of [1, 2]) if (seq >= message.fromSeq) this.send(socket, { type: 'command.output', runId: message.runId, tabId: message.tabId, ...fakeChunk(seq) });
+        return;
       default:
         return;
+    }
+  }
+
+  private replay(socket: WebSocket, { sessionId, tabId, fromSeq }: SessionReplay): void {
+    const held = this.held.get(sessionId);
+    if (!held) return;
+    const wraps = held.holders.map((holder) => {
+      const holderId = Buffer.from(holder).toString('base64url');
+      const wrap = sealWrap(held.runnerPrivateKey, holder, held.key, SESSION_KEY_INFO, `${sessionId}:${holderId}`);
+      return { holderId, enc: wrap.enc.toString('base64url'), wrappedKey: wrap.ciphertext.toString('base64url'), tag: wrap.tag.toString('base64url') };
+    });
+    this.send(socket, { type: 'session.keys', sessionId, tabId, wraps });
+    for (const event of held.log.filter(({ seq }) => seq >= fromSeq)) {
+      this.send(socket, { type: 'relay', sessionId, tabId, seq: event.seq, ...sealFrame(held.key, JSON.stringify(event), `${sessionId}:${event.seq}`) });
+    }
+  }
+
+  private reply(socket: WebSocket, { sessionId, inputId, nonce, ciphertext }: SessionInput): void {
+    const held = this.held.get(sessionId);
+    if (!held) return;
+    let input: SessionInputPayload;
+    try {
+      input = zSessionInputPayload.parse(JSON.parse(openFrame(held.key, { nonce, ciphertext }, `${sessionId}:input:${inputId}`).toString('utf8')));
+    } catch {
+      return;
+    }
+    if (input.kind === 'message') return this.append(socket, sessionId, { kind: 'message', from: 'agent', text: heldReply(input.text), final: true });
+    const request = pendingRequests(held.log).find(({ requestId }) => requestId === input.requestId);
+    const answer = request && answerOf(request, input);
+    // Already answered (from another tab), or outside the request: ignored, as the Runner does.
+    if (!answer) return;
+    this.append(socket, sessionId, { kind: 'answer', requestId: input.requestId, ...answer });
+    this.send(socket, { type: 'session.answered', sessionId, requestId: input.requestId });
+    if (answer.decision === undefined) this.append(socket, sessionId, { kind: 'message', from: 'agent', text: heldReply(answer.text ?? answer.options?.join(', ') ?? ''), final: true });
+  }
+
+  /** Adds `event` to the log of the held Session and relays it live, to every tab. */
+  private append(socket: WebSocket, sessionId: string, event: WithoutStamp<EngineEvent>): void {
+    const held = this.held.get(sessionId);
+    if (!held) return;
+    const stamped = { ...event, seq: held.log.length + 1, at: new Date().toISOString() } as EngineEvent;
+    held.log.push(stamped);
+    this.send(socket, { type: 'relay', sessionId, seq: stamped.seq, ...sealFrame(held.key, JSON.stringify(stamped), `${sessionId}:${stamped.seq}`) });
+  }
+
+  /** The requests of the held Session still pending: `session.waiting` for each, as the Runner says them once its Moteur runs. */
+  private sayWaiting(socket: WebSocket, sessionId: string): void {
+    const held = this.held.get(sessionId);
+    if (!held) return;
+    for (const request of pendingRequests(held.log)) {
+      this.send(socket, { type: 'session.waiting', sessionId, requestId: request.requestId, kind: request.kind === 'question' ? 'question' : 'permission', seq: request.seq });
     }
   }
 

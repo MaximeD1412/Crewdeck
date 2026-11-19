@@ -4,11 +4,24 @@ import './tokens.css';
 import './document.css';
 import { COMPOSANTS, t, zCdActionDetail } from '@crewdeck/sdk';
 import type { LitElement } from 'lit';
+import { page } from 'vitest/browser';
 import { COPIED_MS } from './code-block.js';
 import passerelle from './index.js';
 import { actionsOf, centreOf, defineSkin, drag, inside, pointer, render, settle, textOf } from './testing/dom.js';
 
 beforeAll(defineSkin);
+
+/** Runs `act` at 1280 px, once `el` has drawn its PC layout (the editor of « Gestion du process » exists only there). */
+const atPc = async (el: Element, act: () => void): Promise<void> => {
+  const { width, height } = { width: window.innerWidth, height: window.innerHeight };
+  await page.viewport(1280, 800);
+  try {
+    await expect.poll(() => el.shadowRoot?.querySelector('cd-process-canvas')?.shadowRoot?.querySelector('cd-step-card') ?? null).not.toBeNull();
+    act();
+  } finally {
+    await page.viewport(width, height);
+  }
+};
 
 /** How each declared action is set off from the first example: a test fails for an action without one. */
 const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unknown>> = {
@@ -113,6 +126,9 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     pointer('pointerdown', handle, centreOf(handle));
   },
   'Phase.select': (el) => inside(el, 'header').click(),
+  'PageProcessEditor.select': (el) => atPc(el, () => inside(el, 'cd-process-canvas', 'cd-step-card[data-step=analyse]', 'article').click()),
+  'PageProcessEditor.tab': (el) => atPc(el, () => inside(el, 'cd-tabs', 'button[role=tab]:nth-of-type(3)').click()),
+  'PageProcessEditor.view': (el) => atPc(el, () => inside(el, 'cd-process-canvas', 'cd-icon-button.zoom-in', 'button').click()),
   'ProcessCanvas.select': (el) => inside(el, 'cd-step-card[data-step=analyse]', 'article').click(),
   'ProcessCanvas.view': (el) => inside(el, 'cd-icon-button.zoom-in', 'button').click(),
   'ProcessCanvas.moveStep': (el) =>
@@ -138,6 +154,12 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     native.value = 'Asia/Tokyo';
     native.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
     native.dispatchEvent(new Event('change', { bubbles: true }));
+  },
+  'PageParametresProjet.change': (el) => inside(el.querySelector('cd-toggle') as Element, 'button, input').click(),
+  'SettingRow.revert': async (el) => {
+    el.data = COMPOSANTS.SettingRow.examples[1]?.data;
+    await settle(el);
+    inside(el, 'button.revert').click();
   },
   'RoleSettings.choose': (el) => {
     const native = inside<HTMLSelectElement>(el, 'cd-setting-row cd-select', 'select');

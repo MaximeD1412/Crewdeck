@@ -33,12 +33,21 @@ export const zEngineEventToolCall = engineEvent('tool-call', {
 /** The outcome of the `tool-call` of the same `callId`. */
 export const zEngineEventToolResult = engineEvent('tool-result', { callId: z.string().min(1), ok: z.boolean(), detail: z.string().optional() });
 
-/** A question the agent asks the Pilote, answered with one option's label (several when `multiple`) or a text. */
+/**
+ * A question the agent asks the Pilote, answered with one option's label
+ * (several when `multiple`) or a text. One of several the same request asks
+ * (Claude's `AskUserQuestion`, one after the other) says which, `index` from
+ * 1 of their `count` (« Question 1 sur 3 »).
+ */
 export const zEngineEventQuestion = engineEvent('question', {
   requestId: z.string().min(1),
   title: z.string().min(1),
   options: z.array(z.object({ label: z.string().min(1), detail: z.string().optional() })),
   multiple: z.boolean(),
+  index: z.int().positive().optional(),
+  count: z.int().positive().optional(),
+}).refine(({ index, count }) => (index === undefined) === (count === undefined) && (index === undefined || count === undefined || index <= count), {
+  message: 'index and count go together, index at most count',
 });
 
 /** A tool call that waits for the Pilote's permission, answered allowed or not. */
@@ -46,6 +55,27 @@ export const zEngineEventPermissionRequest = engineEvent('permission-request', {
   requestId: z.string().min(1),
   tool: z.string().min(1),
   command: z.string(),
+});
+
+/** How the Pilote answers a permission: allowed once, allowed for the rest of the Session (the Moteur's own « always »), refused. */
+export const PERMISSION_DECISIONS = ['allow', 'allow-session', 'deny'] as const;
+export const zPermissionDecision = z.enum(PERMISSION_DECISIONS);
+export type PermissionDecision = z.infer<typeof zPermissionDecision>;
+
+/**
+ * The answer the Moteur took to the `question` or `permission-request` of
+ * `requestId` (SESSION-3): the labels of the options chosen or a text of the
+ * Pilote's, or the permission's decision; exactly one of them. The adapter
+ * emits it once the answer reached the Moteur, so that the log says, for any
+ * tab and after a reload, what was answered.
+ */
+export const zEngineEventAnswer = engineEvent('answer', {
+  requestId: z.string().min(1),
+  options: z.array(z.string().min(1)).min(1).optional(),
+  text: z.string().min(1).optional(),
+  decision: zPermissionDecision.optional(),
+}).refine(({ options, text, decision }) => [options, text, decision].filter((value) => value !== undefined).length === 1, {
+  message: 'one of options, text or decision',
 });
 
 /** The windows of a Compte IA by subscription: the 5-hour one and the weekly one. */
@@ -76,7 +106,10 @@ export const zEngineEventAuthRequired = engineEvent('auth-required', { reason: z
 
 /**
  * The end of a turn: `interrupted` after `Interrupt`. `engineSessionId` is the
- * Moteur's own id of the Session, what `Resume` takes.
+ * Moteur's own id of the Session, what `Resume` takes. `costUsdMicros` is
+ * the cost of the Session so far, cumulative over its turns and its resumes
+ * (Claude's `total_cost_usd`: 1 480 before a `--resume`, 1 784 after it, in
+ * 04-interrupt and 04-resume): the Runner sends what each result adds.
  */
 export const RESULT_STATUSES = ['ok', 'error', 'interrupted'] as const;
 export const zEngineEventResult = engineEvent('result', {
@@ -94,6 +127,7 @@ export const zEngineEvent = z.discriminatedUnion('kind', [
   zEngineEventToolResult,
   zEngineEventQuestion,
   zEngineEventPermissionRequest,
+  zEngineEventAnswer,
   zEngineEventUsage,
   zEngineEventLimitReached,
   zEngineEventAuthRequired,

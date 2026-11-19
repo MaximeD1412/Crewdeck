@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { zBytes32 } from '../keys/pairing.js';
 import { zCapabilities } from '../runner/capabilities.js';
 import { zMcpServers } from '../runner/mcp.js';
+import { zUsage } from '../runner/usage.js';
 import { zLinkCode } from './runner-link.js';
 import { zDecision, zDecisionKind } from './decisions.js';
 import { zWaitingProject } from './runner-offline.js';
@@ -10,12 +11,15 @@ import { zId } from '../values.js';
 /**
  * A trusted Appareil a scenario seeds, its keys base64url: the browser keeps
  * its private key as its own (`crewdeck-keys`) to open the vault and the
- * scenario's sealed texts. A test key, never a Pilote's.
+ * scenario's sealed texts. A test key, never a Pilote's. `runnerPublicKey`,
+ * when the scenario's fake Runner relays a Session (SESSION-2): the key the
+ * Appareil checks its Session keys come from, as a pairing would leave it.
  */
 export const zScenarioDevice = z.object({
   deviceId: zId,
   privateKey: zBytes32,
   publicKey: zBytes32,
+  runnerPublicKey: zBytes32.optional(),
 });
 export type ScenarioDevice = z.infer<typeof zScenarioDevice>;
 
@@ -111,6 +115,15 @@ export type TestingRunnerMcpServers = z.infer<typeof zTestingRunnerMcpServers>;
  */
 export const zTestingWaitingWork = z.object({ projects: z.array(zWaitingProject) });
 export type TestingWaitingWork = z.infer<typeof zTestingWaitingWork>;
+
+/**
+ * `POST /api/testing/runner/usage`, outside production only: the fake
+ * Runner of the scenario sends this `usage` message (RUNNER-13), as a Runner
+ * whose Moteur just reported its windows or a Session's cost. The end-to-end
+ * tests see the usage card change without a reload.
+ */
+export const zTestingRunnerUsage = zUsage.omit({ type: true, id: true, at: true });
+export type TestingRunnerUsage = z.infer<typeof zTestingRunnerUsage>;
 
 /**
  * `POST /api/testing/smoke/confirm` and `POST /api/testing/smoke/sessions`,

@@ -22,6 +22,15 @@ export const fieldStyles = css`
       var(--cd-font-label-family), sans-serif;
     color: var(--cd-ink);
   }
+  /* Its label, visually hidden where a container names the control already (a \`cd-setting-row\`), kept as its name. */
+  [part~='label'] {
+    position: var(--cd-field-label-position, static);
+    width: var(--cd-field-label-size, auto);
+    height: var(--cd-field-label-size, auto);
+    overflow: var(--cd-field-label-overflow, visible);
+    clip-path: var(--cd-field-label-clip, none);
+    white-space: var(--cd-field-label-white-space, normal);
+  }
   .control {
     width: 100%;
     min-height: var(--cd-touch);

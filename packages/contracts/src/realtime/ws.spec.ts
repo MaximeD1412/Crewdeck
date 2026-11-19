@@ -46,7 +46,7 @@ describe('withSeq', () => {
 
 describe('zState', () => {
   it('is the seq it reflects and one slice per registered key', () => {
-    const settings = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' };
+    const settings = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] };
     expect(Object.keys(STATE_SLICES)).toEqual([
       'pilot',
       'runner',
@@ -54,6 +54,7 @@ describe('zState', () => {
       'ai-account',
       'mcp-server',
       'devices',
+      'vault',
       'projects',
       'processes',
       'phaseRuns',
@@ -66,6 +67,7 @@ describe('zState', () => {
       'codeChanges',
       'sessions',
       'settings',
+      'usage',
     ]);
     const state = {
       seq: 3,
@@ -75,6 +77,7 @@ describe('zState', () => {
       'ai-account': [],
       'mcp-server': [],
       devices: [],
+      vault: { version: 1, rotationPending: false },
       projects: [],
       processes: [],
       phaseRuns: [],
@@ -87,6 +90,7 @@ describe('zState', () => {
       codeChanges: [],
       sessions: [],
       settings,
+      usage: [],
     };
     expect(zState.parse(state)).toEqual(state);
     expect(zState.safeParse({ seq: 3, pilot: PILOT }).success).toBe(false);

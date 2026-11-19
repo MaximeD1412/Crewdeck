@@ -1,6 +1,7 @@
 import type { Decision, DecisionKind } from '@crewdeck/contracts';
 import { t, type MessageKey } from '@crewdeck/sdk';
 import type { Client } from '../../api/client.js';
+import type { SessionEventRead } from '../../sessions/peek.js';
 
 /** What a Décision's button may do: move to another page of the app, or send its module's command. */
 export interface DecisionActionContext {
@@ -21,14 +22,24 @@ export interface DecisionAction {
   run(decision: Decision, context: DecisionActionContext): void | Promise<void>;
 }
 
+/** What a row may read beyond its Décision, which the server cannot know (ADR 0003). */
+export interface DecisionReads {
+  /** The Runner is « en ligne »: what it holds can be read. */
+  readonly runnerOnline: boolean;
+  /** The event `seq` of a Session, read from the Runner through the relay (SESSION-3). */
+  sessionEvent(sessionId: string, seq: number): SessionEventRead;
+  /** The name of a Rôle, a custom one's as the Pilote named it. */
+  roleName(role: string): string;
+}
+
 /** How « À toi » shows a kind of Décision: its module's ticket registers it. */
 export interface DecisionView {
   /** The row's title; the Décision's label by default. */
-  readonly title?: (decision: Decision) => string;
+  readonly title?: (decision: Decision, reads: DecisionReads) => string;
   /** The row's meta; the Projet, the Décision's `metaParts` and its relative time by default. */
   readonly meta?: (decision: Decision, now: Date) => string;
   /** The line under the meta; none by default. */
-  readonly context?: (decision: Decision) => string | null;
+  readonly context?: (decision: Decision, reads: DecisionReads) => string | null;
   readonly actions: readonly DecisionAction[];
 }
 

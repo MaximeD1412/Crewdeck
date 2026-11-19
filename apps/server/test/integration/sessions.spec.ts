@@ -52,6 +52,9 @@ interface Tab {
 
 const STEP = { stepRunId: '019a8f3c-2b4d-7e10-8a5b-6c7d8e9f0a1b', stepKind: 'code' } as const;
 
+/** The Projet's worktree Commandes as the page seals them: bytes the server only carries. */
+const WORKTREE_COMMANDS = { key: Buffer.alloc(60, 0xd1).toString('base64url'), ciphertext: Buffer.alloc(48, 0xd2).toString('base64url') };
+
 describe('the Sessions against PostgreSQL', () => {
   let app: INestApplication;
   let url: string;
@@ -203,12 +206,36 @@ describe('the Sessions against PostgreSQL', () => {
         permissionMode: 'bypass',
         step: STEP,
         title: 'Le panier garde ses articles',
+        worktreeCommands: null,
       });
       expect(zAgentSession.parse(session)).toMatchObject({ state: 'starting', stepRunId: STEP.stepRunId, outcome: null, error: null, endedAt: null });
       await vi.waitFor(() => expect(events).toHaveLength(1));
       stop();
       expect(events[0]?.payload).toEqual(session);
       expect(Number((await row(session.id))?.last_seq)).toBe(events[0]?.seq);
+    });
+
+    it('sends the Projet’s worktree Commandes sealed as stored, at its start, at its start again and once its Runner is back, and never in its view', async () => {
+      const alice = await pilot();
+      const projectId = await project(alice);
+      await sql(`INSERT INTO project_settings (project_id, pilot_id, roles, worktree_commands, updated_at) VALUES ($1, $2, '{}', $3, now())`, [projectId, alice.id, WORKTREE_COMMANDS]);
+      const { token } = await createLinkedRunner(prisma, alice.id);
+      const socket = await connect(token);
+
+      const session = await start(alice, input(projectId, { branch: 'feat/14-commandes' }));
+      expect(await socket.expect('session.start')).toMatchObject({ sessionId: session.id, worktreeCommands: WORKTREE_COMMANDS });
+      expect(JSON.stringify(session)).not.toContain(WORKTREE_COMMANDS.ciphertext);
+
+      const interrupted = await insert(alice, projectId, { state: 'interrupted' });
+      expect((await call(alice, 'POST', `/api/sessions/${interrupted}/resume`, { seq: '0' })).status).toBe(200);
+      expect(await socket.expect('session.start')).toMatchObject({ sessionId: interrupted, worktreeCommands: WORKTREE_COMMANDS });
+
+      await socket.close();
+      const meanwhile = await start(alice, input(projectId, { branch: 'feat/13-apres' }));
+      const back = await connect(token);
+      expect(await back.expect('session.start')).toMatchObject({ sessionId: meanwhile.id, worktreeCommands: WORKTREE_COMMANDS });
+      const listed = await call(alice, 'GET', `/api/sessions/${meanwhile.id}`);
+      expect(await listed.text()).not.toContain(WORKTREE_COMMANDS.ciphertext);
     });
 
     it('asks auto of a Session without an Étape, or of an Étape that does not work in its worktree, and starts it from the base given', async () => {
@@ -345,6 +372,112 @@ describe('the Sessions against PostgreSQL', () => {
     });
   });
 
+  describe('the Runner’s session.waiting and session.answered', () => {
+    const decisions = (sessionId: string) =>
+      sql<{ kind: string; subject_type: string; subject_id: string; label: string; meta_parts: string[]; project_name: string | null; tone: string; link: string; params: unknown; state: string; outcome: string | null }>(
+        `SELECT kind, subject_type, subject_id, label, meta_parts, project_name, tone, link, params, state, outcome FROM decisions WHERE params->>'sessionId' = $1 ORDER BY created_at, subject_id`,
+        [sessionId],
+      );
+
+    const QUESTION = 'Qui peut modifier un événement d’un agenda partagé ?';
+    const COMMAND = 'git push origin design/agenda-partage';
+
+    it('raises one Décision per request, the Session waiting, and the stored rows hold no question nor command', async () => {
+      const alice = await pilot();
+      const projectId = await project(alice);
+      const socket = await online(alice);
+      const session = await start(alice, input(projectId, { role: 'design', step: undefined }));
+      report(socket, { sessionId: session.id, state: 'active' });
+      await settle(session.id, 'active');
+
+      socket.send({ type: 'session.waiting', sessionId: session.id, requestId: 'toolu_q1', kind: 'question', seq: 4 });
+      socket.send({ type: 'session.waiting', sessionId: session.id, requestId: 'toolu_p1', kind: 'permission', seq: 6 });
+      await vi.waitFor(async () => expect(await decisions(session.id)).toHaveLength(2), { timeout: 5_000 });
+
+      expect(await decisions(session.id)).toEqual([
+        {
+          kind: 'agent-question',
+          subject_type: 'session-request',
+          subject_id: 'toolu_q1',
+          label: 'Le panier garde ses articles',
+          meta_parts: ['session'],
+          project_name: 'shop',
+          tone: 'accent',
+          link: `/a-toi?session=${session.id}`,
+          params: { sessionId: session.id, requestSeq: 4, role: 'design' },
+          state: 'open',
+          outcome: null,
+        },
+        expect.objectContaining({ kind: 'permission-requested', subject_id: 'toolu_p1', tone: 'caution', params: { sessionId: session.id, requestSeq: 6, role: 'design' } }),
+      ]);
+      expect((await row(session.id))?.state).toBe('waiting');
+      const stored = JSON.stringify(await sql(`SELECT * FROM decisions`)) + JSON.stringify(await sql(`SELECT * FROM agent_sessions`));
+      expect(stored).not.toContain(QUESTION);
+      expect(stored).not.toContain(COMMAND);
+    });
+
+    it('resolves the Décision answered, the Session active once no other request waits, and an answer again does nothing', async () => {
+      const alice = await pilot();
+      const projectId = await project(alice);
+      const socket = await online(alice);
+      const session = await start(alice, input(projectId, { step: undefined }));
+      report(socket, { sessionId: session.id, state: 'active' });
+      socket.send({ type: 'session.waiting', sessionId: session.id, requestId: 'toolu_q1', kind: 'question', seq: 2 });
+      socket.send({ type: 'session.waiting', sessionId: session.id, requestId: 'toolu_q2', kind: 'question', seq: 3 });
+      await vi.waitFor(async () => expect(await decisions(session.id)).toHaveLength(2), { timeout: 5_000 });
+
+      socket.send({ type: 'session.answered', sessionId: session.id, requestId: 'toolu_q1' });
+      await vi.waitFor(async () => expect((await decisions(session.id))[0]).toMatchObject({ subject_id: 'toolu_q1', state: 'resolved', outcome: 'answered' }), { timeout: 5_000 });
+      expect((await row(session.id))?.state).toBe('waiting');
+
+      socket.send({ type: 'session.answered', sessionId: session.id, requestId: 'toolu_q2' });
+      await settle(session.id, 'active');
+      socket.send({ type: 'session.answered', sessionId: session.id, requestId: 'toolu_q2' });
+      report(socket, { sessionId: session.id, state: 'active' });
+      await vi.waitFor(async () => expect((await decisions(session.id)).map((d) => d.state)).toEqual(['resolved', 'resolved']), { timeout: 5_000 });
+      expect(await sql(`SELECT count(*)::int AS n FROM decisions`)).toEqual([{ n: 2 }]);
+    });
+
+    it('keeps the Décisions of an interrupted Session open, and resolves them once it ended', async () => {
+      const alice = await pilot();
+      const projectId = await project(alice);
+      const socket = await online(alice);
+      const session = await start(alice, input(projectId, { step: undefined }));
+      report(socket, { sessionId: session.id, state: 'active' });
+      socket.send({ type: 'session.waiting', sessionId: session.id, requestId: 'toolu_p1', kind: 'permission', seq: 2 });
+      await settle(session.id, 'waiting');
+
+      await socket.close();
+      await settle(session.id, 'interrupted');
+      expect((await decisions(session.id)).map((d) => d.state)).toEqual(['open']);
+
+      await runInPilotScope(alice.id, () =>
+        sessions.report(alice.id, { type: 'session.state', id: newId(), at: new Date().toISOString(), sessionId: session.id, state: 'ended', outcome: 'ok' }),
+      );
+      expect(await decisions(session.id)).toEqual([expect.objectContaining({ state: 'resolved', outcome: 'ended' })]);
+    });
+
+    it('keeps the Décisions of a stopped Session open, and resolves them withdrawn once it resumes: the new run never takes them', async () => {
+      const alice = await pilot();
+      const projectId = await project(alice);
+      const socket = await online(alice);
+      const session = await start(alice, input(projectId, { step: undefined }));
+      report(socket, { sessionId: session.id, state: 'active', engineSessionId: 'eng-1' });
+      socket.send({ type: 'session.waiting', sessionId: session.id, requestId: 'toolu_q1', kind: 'question', seq: 2 });
+      await settle(session.id, 'waiting');
+
+      const stopped = await call(alice, 'POST', `/api/sessions/${session.id}/stop`, { seq: (await row(session.id))?.last_seq ?? '0' });
+      expect(stopped.status).toBe(200);
+      expect((await decisions(session.id)).map((d) => d.state)).toEqual(['open']);
+
+      const resumed = await call(alice, 'POST', `/api/sessions/${session.id}/resume`, { seq: (await row(session.id))?.last_seq ?? '0' });
+      expect(resumed.status).toBe(200);
+      expect(await decisions(session.id)).toEqual([expect.objectContaining({ subject_id: 'toolu_q1', state: 'resolved', outcome: 'withdrawn' })]);
+      const state = zState.parse(await (await call(alice, 'GET', '/api/state')).json());
+      expect(state.decisions.filter((decision) => decision.kind === 'agent-question')).toEqual([]);
+    });
+  });
+
   describe('the Runner away and back', () => {
     it('makes the live Sessions interrupted (runner-offline) when the Runner goes offline, and leaves the others', async () => {
       const alice = await pilot();
@@ -465,7 +598,7 @@ describe('the Sessions against PostgreSQL', () => {
       await expectFields(await call(alice, 'POST', `/api/sessions/${own}/resume`, {}), ['seq']);
     });
 
-    it('stops a live Session, the Runner told, its event written; 409 on a stale seq; 422 sessions.not-running for one not live', async () => {
+    it('stops a live Session, the Runner told, its event written, when kept in endedAt; 409 on a stale seq; 422 sessions.not-running for one not live', async () => {
       const alice = await pilot();
       const projectId = await project(alice);
       const socket = await online(alice);
@@ -478,9 +611,10 @@ describe('the Sessions against PostgreSQL', () => {
       const stopped = await call(alice, 'POST', `/api/sessions/${session.id}/stop`, { seq });
 
       expect(stopped.status).toBe(200);
-      expect(zAgentSession.parse(await stopped.json())).toMatchObject({ state: 'stopped' });
+      const body = zAgentSession.parse(await stopped.json());
+      expect(body).toMatchObject({ state: 'stopped', endedAt: expect.any(String) });
       expect((await socket.expect('session.stop')).sessionId).toBe(session.id);
-      expect(await row(session.id)).toMatchObject({ state: 'stopped', engine_session_id: 'eng-1' });
+      expect(await row(session.id)).toMatchObject({ state: 'stopped', engine_session_id: 'eng-1', ended_at: new Date(body.endedAt ?? '') });
       const state = zState.parse(await (await call(alice, 'GET', '/api/state')).json());
       expect(state.sessions).toEqual([expect.objectContaining({ id: session.id, state: 'stopped' })]);
       const again = await call(alice, 'POST', `/api/sessions/${session.id}/stop`, { seq: String(state.seq) });
@@ -488,10 +622,10 @@ describe('the Sessions against PostgreSQL', () => {
       expect(envelope.message).toBe('Cette Session ne tourne pas.');
     });
 
-    it('resumes a stopped Session on its Moteur’s id, starts again one without; 422 sessions.not-resumable for a live one, runner.offline when the Runner is away', async () => {
+    it('resumes a stopped Session on its Moteur’s id, its endedAt cleared, starts again one without; 422 sessions.not-resumable for a live one, runner.offline when the Runner is away', async () => {
       const alice = await pilot();
       const projectId = await project(alice);
-      const withId = await insert(alice, projectId, { state: 'stopped', engineSessionId: 'eng-1' });
+      const withId = await insert(alice, projectId, { state: 'stopped', engineSessionId: 'eng-1', endedAt: new Date() });
       const withoutId = await insert(alice, projectId, { state: 'interrupted' });
 
       await expectEnvelope(await call(alice, 'POST', `/api/sessions/${withId}/resume`, { seq: '0' }), 422, 'runner.offline');
@@ -500,11 +634,13 @@ describe('the Sessions against PostgreSQL', () => {
       const refused = await expectEnvelope(await call(alice, 'POST', `/api/sessions/${live}/resume`, { seq: '0' }), 422, 'sessions.not-resumable');
       expect(refused.message).toBe('Cette Session ne peut pas être reprise.');
 
-      expect((await call(alice, 'POST', `/api/sessions/${withId}/resume`, { seq: '0' })).status).toBe(200);
+      const resumed = await call(alice, 'POST', `/api/sessions/${withId}/resume`, { seq: '0' });
+      expect(resumed.status).toBe(200);
+      expect(zAgentSession.parse(await resumed.json())).toMatchObject({ state: 'starting', endedAt: null });
       expect((await socket.expect('session.resume')).sessionId).toBe(withId);
       expect((await call(alice, 'POST', `/api/sessions/${withoutId}/resume`, { seq: '0' })).status).toBe(200);
       expect(await socket.expect('session.start')).toMatchObject({ sessionId: withoutId, origin: { kind: 'github', owner: 'acme', name: 'shop' } });
-      expect((await row(withId))?.state).toBe('starting');
+      expect(await row(withId)).toMatchObject({ state: 'starting', ended_at: null });
     });
 
     it('gives in GET /api/state the Sessions not ended and those ended in the last 24 h', async () => {

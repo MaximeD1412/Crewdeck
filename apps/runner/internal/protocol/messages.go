@@ -19,6 +19,8 @@ const (
 	TypeStepVerdict   = "step.verdict"
 	TypeCapabilities  = "capabilities"
 	TypeMcpServers    = "mcp.servers"
+	TypeUsage         = "usage"
+	TypeUsageAck      = "usage.ack"
 	// The Miroir's (ADR 0010): the server sends them, the Runner applies them (MIROIR-4).
 	TypeGitHubChanged  = "github.changed"
 	TypeMirrorResync   = "mirror.resync"
@@ -33,6 +35,10 @@ const (
 	TypeSessionStop   = "session.stop"
 	TypeSessionResume = "session.resume"
 	TypeSessionState  = "session.state"
+	// The requests of a Session (SESSION-3): one waits for the Pilote, then it
+	// was answered.
+	TypeSessionWaiting  = "session.waiting"
+	TypeSessionAnswered = "session.answered"
 	// The relay of a Session (SESSION-1): the server asks a replay and hands
 	// the Pilote's input, the Runner sends the Session's key and its events,
 	// all sealed for the Appareils.
@@ -40,6 +46,20 @@ const (
 	TypeSessionInput  = "session.input"
 	TypeSessionKeys   = "session.keys"
 	TypeRelay         = "relay"
+	// The Commandes (RUNNER-18): the server asks a run, its stop and the
+	// replay of its output; the Runner says it started, its verdict, and
+	// sends its key and its output sealed for the Appareils.
+	TypeCommandRun     = "command.run"
+	TypeCommandStop    = "command.stop"
+	TypeCommandReplay  = "command.replay"
+	TypeCommandStarted = "command.started"
+	TypeCommandVerdict = "command.verdict"
+	TypeCommandKeys    = "command.keys"
+	TypeCommandOutput  = "command.output"
+	// The vault key's rotation (E2E-4): the server says one waits, and hands
+	// the Runner its wrap of the new version once a holder rotated.
+	TypeVaultRotationPending = "vault.rotation-pending"
+	TypeVaultRotated         = "vault.rotated"
 )
 
 // Machine is what the Runner says of itself in its hello.
@@ -108,6 +128,26 @@ func NewMcpServers(servers []contracts.RunnerMcpServersServersElem) contracts.Ru
 	return contracts.RunnerMcpServers{Type: TypeMcpServers, Id: newID(at), At: at, Servers: servers}
 }
 
+// NewUsage is the usage message of one Compte IA (US-55): the windows the
+// Moteur last reported, measured at `measuredAt`, and the cost of a Session's
+// result when `spend` is set. Figures only, never content.
+func NewUsage(engine contracts.RunnerUsageEngine, kind contracts.RunnerUsageAccountKind, windows []contracts.RunnerUsageWindowsElem, spend *contracts.RunnerUsageSpend, measuredAt time.Time) contracts.RunnerUsage {
+	at := now()
+	if windows == nil {
+		windows = []contracts.RunnerUsageWindowsElem{}
+	}
+	return contracts.RunnerUsage{
+		Type:        TypeUsage,
+		Id:          newID(at),
+		At:          at,
+		Engine:      engine,
+		AccountKind: kind,
+		Windows:     windows,
+		Spend:       spend,
+		MeasuredAt:  measuredAt.UTC().Truncate(time.Millisecond),
+	}
+}
+
 // NewMirrorToken asks the server for the « Miroir » tokens (MIROIR-2).
 func NewMirrorToken() contracts.RunnerMirrorToken {
 	at := now()
@@ -131,6 +171,19 @@ func NewSessionState(sessionID string, state contracts.RunnerSessionStateState, 
 	return message
 }
 
+// NewSessionWaiting says a request of the Session waits for the Pilote: its
+// id, its kind and the seq of its event in the Session's log, never its text.
+func NewSessionWaiting(sessionID, requestID string, kind contracts.RunnerSessionWaitingKind, seq int) contracts.RunnerSessionWaiting {
+	at := now()
+	return contracts.RunnerSessionWaiting{Type: TypeSessionWaiting, Id: newID(at), At: at, SessionId: sessionID, RequestId: requestID, Kind: kind, Seq: seq}
+}
+
+// NewSessionAnswered says the request was answered, from whatever tab.
+func NewSessionAnswered(sessionID, requestID string) contracts.RunnerSessionAnswered {
+	at := now()
+	return contracts.RunnerSessionAnswered{Type: TypeSessionAnswered, Id: newID(at), At: at, SessionId: sessionID, RequestId: requestID}
+}
+
 // NewSessionKeys sends the Session's key wrapped for each holder, to the tab
 // tabID of a replay, or to every tab of the Session when tabID is empty.
 func NewSessionKeys(sessionID, tabID string, wraps []contracts.RunnerSessionKeysWrapsElem) contracts.RunnerSessionKeys {
@@ -147,6 +200,50 @@ func NewSessionKeys(sessionID, tabID string, wraps []contracts.RunnerSessionKeys
 func NewRelay(sessionID, tabID string, seq int, nonce, ciphertext string) contracts.RunnerRelay {
 	at := now()
 	message := contracts.RunnerRelay{Type: TypeRelay, Id: newID(at), At: at, SessionId: sessionID, Seq: seq, Nonce: nonce, Ciphertext: ciphertext}
+	if tabID != "" {
+		message.TabId = &tabID
+	}
+	return message
+}
+
+// NewCommandStarted says the run's process started.
+func NewCommandStarted(runID string) contracts.RunnerCommandStarted {
+	at := now()
+	return contracts.RunnerCommandStarted{Type: TypeCommandStarted, Id: newID(at), At: at, RunId: runID}
+}
+
+// NewCommandVerdict is the run's verdict, figures only: exitCode nil unless
+// its process exited.
+func NewCommandVerdict(runID string, reason contracts.RunnerCommandVerdictReason, exitCode *int, duration time.Duration) contracts.RunnerCommandVerdict {
+	at := now()
+	message := contracts.RunnerCommandVerdict{Type: TypeCommandVerdict, Id: newID(at), At: at, RunId: runID, Reason: reason, DurationMs: int(max(duration, 0).Milliseconds())}
+	if exitCode != nil {
+		message.ExitCode = *exitCode
+		message.Passed = reason == contracts.RunnerCommandVerdictReasonExited && *exitCode == 0
+	}
+	// Healthy: its address answered 2xx, its process running on or exited 0.
+	if reason == contracts.RunnerCommandVerdictReasonHealthy {
+		message.Passed = true
+	}
+	return message
+}
+
+// NewCommandKeys sends the run's key wrapped for each holder, to the tab
+// tabID of a replay, or to every tab of the run when tabID is empty.
+func NewCommandKeys(runID, tabID string, wraps []contracts.RunnerCommandKeysWrapsElem) contracts.RunnerCommandKeys {
+	at := now()
+	message := contracts.RunnerCommandKeys{Type: TypeCommandKeys, Id: newID(at), At: at, RunId: runID, Wraps: wraps}
+	if tabID != "" {
+		message.TabId = &tabID
+	}
+	return message
+}
+
+// NewCommandOutput sends one sealed chunk of the run's output, to the tab
+// tabID of a replay, or live to every tab of the run when tabID is empty.
+func NewCommandOutput(runID, tabID string, seq int, nonce, ciphertext string) contracts.RunnerCommandOutput {
+	at := now()
+	message := contracts.RunnerCommandOutput{Type: TypeCommandOutput, Id: newID(at), At: at, RunId: runID, Seq: seq, Nonce: nonce, Ciphertext: ciphertext}
 	if tabID != "" {
 		message.TabId = &tabID
 	}

@@ -1,4 +1,4 @@
-import type { Me } from '@crewdeck/contracts';
+import type { Me, SignInProvider } from '@crewdeck/contracts';
 import type { RouteMatch } from './router.js';
 import { LINK_PATH } from './views/connexion-lien.js';
 
@@ -26,9 +26,9 @@ export const signInGuard =
     return `${SIGN_IN_PATH}?${new URLSearchParams({ next }).toString()}`;
   };
 
-/** The start of the GitHub sign-in (`GET /api/auth/github/start`), which comes back to `next`. */
-export const githubSignInHref = (next: string | undefined, timeZone: string): string =>
-  `/api/auth/github/start?${new URLSearchParams({ timeZone, next: next ?? HOME_PATH }).toString()}`;
+/** The start of the sign-in with `provider` (`GET /api/auth/<provider>/start`), which comes back to `next`. */
+export const providerSignInHref = (provider: SignInProvider, next: string | undefined, timeZone: string): string =>
+  `/api/auth/${provider}/start?${new URLSearchParams({ timeZone, next: next ?? HOME_PATH }).toString()}`;
 
 /** The start of « Relier GitHub » for the signed-in Pilote (`GET /api/auth/github/link`, CORE-11), which comes back to `next`. */
 export const githubLinkHref = (next: string): string => `/api/auth/github/link?${new URLSearchParams({ next }).toString()}`;

@@ -4,8 +4,9 @@ import { defineComposant } from './define.js';
 /**
  * The usage of a Compte IA against one of its limits (RUNNER-13): `value`
  * in percent, `detail` when it resets, `projection` what the current pace
- * leads to, the figures formatted by the view. Without `tone`, the bar is
- * `halt` at 100, `caution` from 80, `accent` below.
+ * leads to, the figures formatted by the view; `mark`, the percent the pace
+ * reaches by the reset, a tick on the bar. Without `tone`, the bar is `halt`
+ * at 100, `caution` from 80, `accent` below.
  */
 export const UsageMeter = defineComposant({
   name: 'UsageMeter',
@@ -18,6 +19,8 @@ export const UsageMeter = defineComposant({
     value: z.number().min(0).max(100),
     detail: z.string().nullable(),
     projection: z.string().nullable(),
+    // Optional: added after version 1, a Skin drawing no tick still fits.
+    mark: z.number().min(0).max(100).optional(),
     tone: z.enum(['accent', 'caution', 'halt']).nullable(),
   }),
   actions: {},
@@ -34,6 +37,7 @@ export const UsageMeter = defineComposant({
         value: 62,
         detail: 'lundi',
         projection: 'Au rythme actuel, la semaine tient jusqu’à jeudi.',
+        mark: 100,
         tone: null,
       },
     },

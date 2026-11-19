@@ -22,6 +22,7 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/mcp"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/service"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/source/local"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/update"
 	"github.com/spf13/cobra"
@@ -109,6 +110,9 @@ func newUninstallCommand(m *machine) *cobra.Command {
 			if m.holdsTheOnlyKey(cmd.Context()) {
 				fmt.Fprintln(out, noTrustedAppareil)
 			}
+			if localHoldsWork() {
+				fmt.Fprintln(out, localWorkLost)
+			}
 			if !yes {
 				fmt.Fprint(out, "Supprimer le Runner, ses clones et ~/.crewdeck ? (o/N) ")
 				if !accepted(cmd.InOrStdin()) {
@@ -126,6 +130,31 @@ func newUninstallCommand(m *machine) *cobra.Command {
 // noTrustedAppareil warns before an uninstall that leaves the Runner the only
 // holder of the vault key (risk OPS-1, E2E-4).
 const noTrustedAppareil = "Aucun Appareil de confiance : si tu réinstalles ensuite le Runner, le texte de tes Idées sera perdu."
+
+// localWorkLost warns before an uninstall that removes what the work wrote
+// on the Local Projets, original data kept nowhere else (risk OPS-10, SOURCE-2).
+const localWorkLost = "local.db contient ce que le travail a écrit sur tes Projets Locaux (commentaires, remarques, changements de code) : il sera supprimé avec le Runner."
+
+// localHoldsWork: ~/.crewdeck/local.db holds a comment, a change or a
+// review, or exists and cannot be read (of a newer Runner): read-only, the
+// running Runner being its only writer.
+func localHoldsWork() bool {
+	store, err := state.Default()
+	if err != nil {
+		return false
+	}
+	path := local.DefaultPath(store.Dir)
+	if _, err := os.Stat(path); err != nil {
+		return false
+	}
+	db, err := local.OpenReadOnly(path)
+	if err != nil {
+		return true
+	}
+	defer db.Close()
+	held, err := db.HoldsWork()
+	return held || err != nil
+}
 
 // uninstallVaultTimeout bounds the question uninstall asks the server.
 const uninstallVaultTimeout = 5 * time.Second

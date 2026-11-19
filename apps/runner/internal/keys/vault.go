@@ -90,3 +90,10 @@ func (v *Vault) ItemKey(item SealedItem, aad []byte) ([]byte, error) {
 func OpenItemContent(itemKey, ciphertext, aad []byte) ([]byte, error) {
 	return AESGCMOpen(itemKey, ciphertext, aad)
 }
+
+// DeriveKey is a key of its own for label: HMAC-SHA256 of the vault key and
+// the label (`crewdeck/v1/content-hash`, SOURCE-2). Never the vault key, and
+// another for each label and each vault key.
+func (v *Vault) DeriveKey(label string) []byte {
+	return HMACSHA256(v.key, []byte(label))
+}

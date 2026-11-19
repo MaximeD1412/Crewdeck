@@ -485,7 +485,7 @@ func newMiroirView(repo *string, pulls bool) *cobra.Command {
 				return err
 			}
 			m.beforeView(cmd.Context(), p, number)
-			object, err := m.store.View(p.Repository, number)
+			object, err := m.store.View(p.Repository, number, pulls)
 			if errors.Is(err, mirror.ErrNotFound) {
 				return fmt.Errorf("#%d n'existe pas dans %s.", number, p.DisplayName)
 			}

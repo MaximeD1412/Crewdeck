@@ -122,6 +122,29 @@ func (m *Mirror) ReconcileOpen(ctx context.Context, repository string) (Result, 
 			result.Checks++
 		}
 	}
+	// An object open in the copy but in neither walk was closed or merged
+	// while the follower was away: it is read again, never deleted on that
+	// absence alone (Refresh drops it only when GitHub says it is gone).
+	listed := map[int]bool{}
+	for _, l := range issues {
+		listed[l.Number] = true
+	}
+	for _, l := range pulls {
+		listed[l.Number] = true
+	}
+	stale := []int{}
+	for number, c := range local {
+		if c.state == "OPEN" && !listed[number] {
+			stale = append(stale, number)
+		}
+	}
+	sort.Ints(stale)
+	for _, number := range stale {
+		if _, err := m.Refresh(ctx, repository, number); err != nil {
+			return result, err
+		}
+		result.Fetched++
+	}
 	if err := m.Store.MarkSynced(repository, m.now()); err != nil {
 		return result, err
 	}
@@ -209,7 +232,20 @@ func (m *Mirror) List(ctx context.Context, repository string, f Filter) ([]map[s
 		if err != nil {
 			return nil, err
 		}
-		shape := Shape{URLOf: func(r Ref) string { return fmt.Sprintf("https://github.com/%s/issues/%d", r.Repository, r.Number) }}
+		if err := m.Store.closingOfLocalTickets(&o); err != nil {
+			return nil, err
+		}
+		shape := Shape{URLOf: func(r Ref) string { return m.Store.urlOf(r) }}
+		if o.Pull != nil && o.Pull.HeadOid != "" {
+			// The object carries only its rollup's state; the checks are their own read.
+			shape.Checks, err = m.GitHub.FetchChecks(ctx, repository, o.Pull.HeadOid)
+			if errors.Is(err, ErrGone) {
+				shape.Checks, err = nil, nil
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
 		if o.Milestone != 0 {
 			if collections, err := m.GitHub.FetchCollections(ctx, repository); err == nil {
 				shape.Milestones = map[int]Milestone{}

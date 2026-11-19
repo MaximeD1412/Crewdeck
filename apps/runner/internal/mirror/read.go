@@ -136,6 +136,9 @@ func (s *Store) fill(o *Object) error {
 	if p.ClosingIssues, err = s.refs("SELECT issue_repository, issue_number FROM closing_issues WHERE repository = ? AND number = ? ORDER BY issue_repository, issue_number", k, n); err != nil {
 		return err
 	}
+	if err := s.closingOfLocalTickets(o); err != nil {
+		return err
+	}
 	reviews, err := s.db.Query(`SELECT id, coalesce(author, ''), state, body, coalesce(commit_oid, ''), coalesce(submitted_at, '')
 		FROM reviews WHERE repository = ? AND number = ? ORDER BY submitted_at, id`, k, n)
 	if err != nil {
@@ -150,6 +153,20 @@ func (s *Store) fill(o *Object) error {
 		p.Reviews = append(p.Reviews, r)
 	}
 	reviews.Close()
+	return nil
+}
+
+// closingOfLocalTickets makes a GitHub PR's closing issues the Local
+// Tickets its body closes when its Projet's Tickets are Local.
+func (s *Store) closingOfLocalTickets(o *Object) error {
+	if o.Pull == nil || IsLocal(o.Repository) {
+		return nil
+	}
+	ticketKey, err := s.localTickets(o.Repository)
+	if err != nil || ticketKey == "" {
+		return err
+	}
+	o.Pull.ClosingIssues = closingRefs(o.Body, ticketKey)
 	return nil
 }
 
@@ -363,11 +380,15 @@ func splitMessage(message string) (string, string) {
 	return strings.TrimSpace(headline), strings.Trim(body, "\n")
 }
 
-// View reads the object and gives its gh answer.
-func (s *Store) View(key string, number int) (map[string]any, error) {
+// View reads the issue, or the PR when pull, and gives its gh answer; an
+// object of the other kind is not found, as with gh.
+func (s *Store) View(key string, number int, pull bool) (map[string]any, error) {
 	o, err := s.Object(key, number)
 	if err != nil {
 		return nil, err
+	}
+	if o.IsPull != pull { // gh's `pr view` of an issue, `issue view` of a PR
+		return nil, fmt.Errorf("%w: %s#%d", ErrNotFound, key, number)
 	}
 	return s.view(o)
 }

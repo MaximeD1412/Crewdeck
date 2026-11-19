@@ -420,7 +420,7 @@ func TestMiroirJqAndJsonWithoutFields(t *testing.T) {
 		t.Errorf("--jq: %v, %q", err, out)
 	}
 	out, stderr, err := runMiroir(t, dir, "issue", "view", "12", "--json")
-	if exitCode(err) != 1 {
+	if err == nil || exitCode(err) != 1 {
 		t.Errorf("--json without fields: exit %d (%v)", exitCode(err), err)
 	}
 	for _, field := range mirror.IssueFields {
@@ -428,7 +428,7 @@ func TestMiroirJqAndJsonWithoutFields(t *testing.T) {
 			t.Errorf("--json lacks %s:\n%s%s", field, out, stderr)
 		}
 	}
-	if _, _, err := runMiroir(t, dir, "issue", "view", "12", "--json", "nope"); exitCode(err) != 1 {
+	if _, _, err := runMiroir(t, dir, "issue", "view", "12", "--json", "nope"); err == nil || exitCode(err) != 1 {
 		t.Errorf("an unknown field: exit %d", exitCode(err))
 	}
 }
@@ -635,7 +635,7 @@ func TestMiroirSearchAndSQL(t *testing.T) {
 	if rows := jq(t, []byte(out), `.rows`); !reflect.DeepEqual(rows, []any{map[string]any{"n": 10.0}}) {
 		t.Errorf("sql rows %v:\n%s", rows, out)
 	}
-	if _, _, err := runMiroir(t, outside, "sql", "delete from issues"); exitCode(err) != 1 {
+	if _, _, err := runMiroir(t, outside, "sql", "delete from issues"); err == nil || exitCode(err) != 1 {
 		t.Errorf("sql delete: exit %d", exitCode(err))
 	}
 	out, _, _ = runMiroir(t, outside, "sql", "select count(*) as n from issues")
@@ -661,14 +661,20 @@ func TestMiroirRebuildRefillsALocalProjetAndLeavesLocalDBUnchanged(t *testing.T)
 	f := newMiroirFixture(t)
 	dir := f.sessionDir(t)
 	db := filepath.Join(f.home, "local.db")
+	// A Ticket edited by hand since the last scan: its new date and hash are not in local.db.
+	twelve := filepath.Join(f.folder, "tickets", "12-le-panier.md")
+	writeFiles(t, f.folder, map[string]string{"tickets/12-le-panier.md": strings.Replace(localTickets["tickets/12-le-panier.md"], "title: Le panier", "title: Le panier, revu", 1)})
+	if err := os.Chtimes(twelve, time.Now(), time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
 	before := readFiles(t, db, db+"-wal")
 
 	out, _, err := runMiroir(t, dir, "rebuild")
 	if err != nil || out != "Miroir reconstruit : remplissage en cours\n" {
 		t.Fatalf("rebuild: %v, %q", err, out)
 	}
-	out, stderr, err := runMiroir(t, dir, "issue", "list", "--json", "number", "--jq", "[.[].number]")
-	if err != nil || out != "[14,13,12]\n" {
+	out, stderr, err := runMiroir(t, dir, "issue", "list", "--json", "number,title", "--jq", `[.[] | "\(.number) \(.title)"]`)
+	if err != nil || out != `["14 Le README","13 Le paiement","12 Le panier, revu"]`+"\n" {
 		t.Errorf("issue list after rebuild: %v, %q, stderr %q", err, out, stderr)
 	}
 	if after := readFiles(t, db, db+"-wal"); !reflect.DeepEqual(before, after) {
@@ -735,5 +741,162 @@ func TestMiroirStatusAndSyncWithARunner(t *testing.T) {
 	}
 	if n := f.fake.Count("MirrorIssues"); n == 0 {
 		t.Error("sync did not walk GitHub")
+	}
+}
+
+// override answers a fixture of testdata/miroir/graphql again, with its
+// variables, as change makes its data.
+func (f *miroirFixture) override(t *testing.T, name string, change func(data map[string]any)) {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(miroirTestdata, "graphql", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Operation string         `json:"operation"`
+		Variables map[string]any `json:"variables"`
+		Data      map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	change(fixture.Data)
+	f.fake.Reply(fixture.Operation, fixture.Variables, fixture.Data)
+}
+
+// dig is the map at path in data.
+func dig(data map[string]any, path ...string) map[string]any {
+	for _, p := range path {
+		data = data[p].(map[string]any)
+	}
+	return data
+}
+
+func TestMiroirAnObjectClosedOrMergedWhileAwayIsReadAgain(t *testing.T) {
+	f := newMiroirFixture(t)
+	dir := githubDir(t)
+	// While the Runner was away, 12 was closed and PR 7 merged: neither is in
+	// GitHub's open lists any more.
+	f.override(t, "open-issues.json", func(d map[string]any) {
+		issues := dig(d, "repository", "issues")
+		issues["nodes"] = issues["nodes"].([]any)[1:]
+	})
+	f.override(t, "open-pulls.json", func(d map[string]any) { dig(d, "repository", "pullRequests")["nodes"] = []any{} })
+	f.override(t, "object-12.json", func(d map[string]any) {
+		o := dig(d, "repository", "issueOrPullRequest")
+		o["issueState"], o["stateReason"], o["closedAt"], o["updatedAt"] = "CLOSED", "COMPLETED", "2026-11-12T09:00:00Z", "2026-11-12T09:00:00Z"
+	})
+	f.override(t, "object-7.json", func(d map[string]any) {
+		o := dig(d, "repository", "issueOrPullRequest")
+		o["pullState"], o["mergedAt"], o["closedAt"], o["updatedAt"] = "MERGED", "2026-11-12T08:00:00Z", "2026-11-12T08:00:00Z", "2026-11-12T08:00:00Z"
+	})
+
+	out, stderr, err := runMiroir(t, dir, "issue", "list", "--state", "open", "--json", "number", "--jq", "[.[].number]")
+	if err != nil || stderr != "" || out != "[15,14,13]\n" {
+		t.Errorf("issue list after a closing while away: %v, %q, stderr %q", err, out, stderr)
+	}
+	out, _, err = runMiroir(t, dir, "pr", "list", "--json", "number", "--jq", "[.[].number]")
+	if err != nil || out != "[]\n" {
+		t.Errorf("pr list after a merge while away: %v, %q", err, out)
+	}
+	out, _, err = runMiroir(t, dir, "pr", "view", "7", "--json", "state", "--jq", ".state")
+	if err != nil || out != "MERGED\n" {
+		t.Errorf("pr view 7: %v, %q", err, out)
+	}
+	out, _, _ = runMiroir(t, dir, "ready", "--all", "--numbers", "13")
+	if got := readyLines(t, out); !reflect.DeepEqual(got, [][2]any{{13.0, true}}) {
+		t.Errorf("ready 13 once its blocker closed = %v", got)
+	}
+}
+
+func TestMiroirViewOfTheOtherKindIsNotFound(t *testing.T) {
+	f := newMiroirFixture(t)
+	f.states(t, map[string]mirror.KeyState{ghKey: {State: mirror.FreshnessLive, SyncedAt: at(time.Minute)}})
+	dir := githubDir(t)
+
+	for _, args := range [][]string{{"pr", "view", "12", "--json", "headRefOid"}, {"issue", "view", "7", "--json", "title"}} {
+		out, _, err := runMiroir(t, dir, args...)
+		if exitCode(err) != 1 || out != "" || err == nil || err.Error() != "#"+args[2]+" n'existe pas dans Atelier." {
+			t.Errorf("%v: exit %d, %v, %q", args, exitCode(err), err, out)
+		}
+	}
+}
+
+func TestMiroirAFillingKeyListsItsPullsWithTheirChecks(t *testing.T) {
+	f := newMiroirFixture(t)
+	f.states(t, map[string]mirror.KeyState{ghKey: {State: mirror.FreshnessFilling}})
+	f.fake.Reply("MirrorListPulls", map[string]any{"owner": "acme", "name": "atelier", "states": []any{"OPEN"}, "after": nil},
+		map[string]any{"repository": map[string]any{"pullRequests": map[string]any{
+			"pageInfo": map[string]any{"hasNextPage": false, "endCursor": nil},
+			"nodes": []any{map[string]any{"number": 7, "state": "OPEN", "headRefName": "feat/12-x",
+				"author": map[string]any{"login": "agent-bot"}, "labels": map[string]any{"nodes": []any{}}}},
+		}}})
+
+	out, stderr, err := runMiroir(t, githubDir(t), "pr", "list", "--json", "number,statusCheckRollup",
+		"--jq", `[.[] | {number, checks: [.statusCheckRollup[] | {name, conclusion}]}]`)
+	if err != nil {
+		t.Fatalf("pr list of a filling key: %v\n%s", err, stderr)
+	}
+	want := []any{map[string]any{"number": 7.0, "checks": []any{map[string]any{"name": "ci", "conclusion": "SUCCESS"}}}}
+	if got := jq(t, []byte(out), "."); !reflect.DeepEqual(got, want) {
+		t.Errorf("pr list = %v, want %v", got, want)
+	}
+	if n := f.fake.Count("MirrorListPulls"); n == 0 {
+		t.Error("the list did not come from GitHub")
+	}
+}
+
+func TestMiroirALocalCodeKeyWhoseFolderIsGoneAnswersFromTheCopyWithAWarning(t *testing.T) {
+	f := newMiroirFixture(t)
+	dir := f.sessionDir(t) // the Runner's clone stays, the Projet's folder goes
+	// local/P2 holds only the code: its reads never scan the Tickets' files.
+	if err := f.store.PutProjects([]mirror.Project{
+		{Repository: ghKey, ProjectID: "P1", Source: mirror.SourceGitHub, Groups: []string{mirror.GroupTicket, mirror.GroupCode},
+			GitHubRepoID: 1, InstallationID: 1, DisplayName: "Atelier", IntegrationBranch: "develop"},
+		{Repository: localKey, ProjectID: "P2", Source: mirror.SourceLocal, Groups: []string{mirror.GroupCode},
+			DisplayName: "Carnet", IntegrationBranch: "main", Folder: f.folder},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(f.folder); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := runMiroir(t, dir, "sync", "--repo", localKey); err == nil || exitCode(err) != 1 {
+		t.Errorf("sync of a folder gone: %v", err)
+	}
+	warning := "Miroir en retard pour Carnet : dernière synchro il y a moins d'une minute\n"
+	out, stderr, err := runMiroir(t, dir, "pr", "view", "7", "--json", "title", "--jq", ".title")
+	if err != nil || out != "Le panier, la PR\n" || stderr != warning {
+		t.Errorf("pr view of a folder gone: %v, %q, stderr %q", err, out, stderr)
+	}
+	out, stderr, err = runMiroir(t, dir, "pr", "list", "--json", "number", "--jq", "[.[].number]")
+	if err != nil || out != "[7]\n" || stderr != warning {
+		t.Errorf("pr list of a folder gone: %v, %q, stderr %q", err, out, stderr)
+	}
+}
+
+func TestMiroirAGitHubPRClosesALocalTicketByItsBody(t *testing.T) {
+	f := newMiroirFixtureOf(t, true)
+	dir := githubDir(t)
+	// PR 7 on a branch out of BOUCLE-1's rule, its body closing Ticket 14 of
+	// local/P3: GitHub has no issue 14, so no closing reference of its own.
+	f.override(t, "object-7.json", func(d map[string]any) {
+		o := dig(d, "repository", "issueOrPullRequest")
+		o["headRefName"], o["body"], o["updatedAt"] = "feature/readme", "Le README.\n\nCloses #14", "2026-11-12T08:00:00Z"
+		dig(o, "closingIssuesReferences")["nodes"] = []any{}
+	})
+
+	out, stderr, err := runMiroir(t, dir, "pr", "view", "7", "--json", "closingIssuesReferences", "--jq", "[.closingIssuesReferences[].number]")
+	if err != nil || out != "[14]\n" {
+		t.Errorf("pr view 7: %v, %q, stderr %q", err, out, stderr)
+	}
+	out, _, _ = runMiroir(t, dir, "ready", "--all")
+	available := map[any]any{}
+	for _, l := range readyLines(t, out) {
+		available[l[0]] = l[1]
+	}
+	if available[14.0] != false || available[12.0] != true {
+		t.Errorf("ready --all = %v, want 14 taken by PR 7 and 12 free", readyLines(t, out))
 	}
 }

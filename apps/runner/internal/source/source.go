@@ -161,6 +161,21 @@ type Reader interface {
 	History(ctx context.Context, number int) (History, error)
 }
 
+// Available says whether a Source can be read now: an error wrapping
+// os.ErrNotExist when a Local Projet's folder is gone (PROJET-6), whatever
+// group is read, before any read that would answer from elsewhere.
+type Available interface {
+	Available(ctx context.Context) error
+}
+
+// AsIs reads a Source's Tickets and milestones as they are, writing nothing
+// of its own (a Local Projet's local.db and files untouched): what a
+// rebuild of the Miroir reads (ADR 0012). A Ticket file not numbered yet is
+// left out until a read that numbers it.
+type AsIs interface {
+	TicketsAsIs(ctx context.Context) ([]Ticket, []Milestone, error)
+}
+
 // NewTicket is a Ticket to create.
 type NewTicket struct {
 	Title     string

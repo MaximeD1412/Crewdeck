@@ -64,15 +64,34 @@ type localRead struct {
 	changes    []source.Change
 }
 
+// readLocal reads the key's groups from its Source, after checking that the
+// Source can be read at all (a folder gone fails a code-only key too). A key
+// not filled yet (a first fill, the refill of a rebuild) reads the Tickets
+// as they are, so that filling the copy writes nothing of local.db.
 func (m *Mirror) readLocal(ctx context.Context, p Project, r source.Reader) (localRead, error) {
 	var out localRead
 	var err error
-	if p.Has(GroupTicket) {
-		if out.tickets, err = r.Tickets(ctx); err != nil {
+	if a, ok := r.(source.Available); ok {
+		if err := a.Available(ctx); err != nil {
 			return out, unavailable(err)
 		}
-		if out.milestones, err = r.Milestones(ctx); err != nil {
-			return out, unavailable(err)
+	}
+	if p.Has(GroupTicket) {
+		filled, err := m.Store.filledAt(p.Repository)
+		if err != nil {
+			return out, err
+		}
+		if asIs, ok := r.(source.AsIs); ok && !filled {
+			if out.tickets, out.milestones, err = asIs.TicketsAsIs(ctx); err != nil {
+				return out, unavailable(err)
+			}
+		} else {
+			if out.tickets, err = r.Tickets(ctx); err != nil {
+				return out, unavailable(err)
+			}
+			if out.milestones, err = r.Milestones(ctx); err != nil {
+				return out, unavailable(err)
+			}
 		}
 	}
 	if p.Has(GroupCode) {
@@ -342,15 +361,7 @@ func (m *Mirror) changeObject(ctx context.Context, p Project, r source.Reader, c
 		}
 	}
 	if ticketKey != "" {
-		seen := map[int]bool{}
-		for _, match := range closingKeywords.FindAllStringSubmatch(c.Body, -1) {
-			n, err := strconv.Atoi(match[1])
-			if err != nil || seen[n] {
-				continue
-			}
-			seen[n] = true
-			pull.ClosingIssues = append(pull.ClosingIssues, Ref{Repository: ticketKey, Number: n})
-		}
+		pull.ClosingIssues = closingRefs(c.Body, ticketKey)
 	}
 	reviews, err := r.Reviews(ctx, c.Number)
 	if err != nil {
@@ -393,6 +404,41 @@ func (s *Store) project(key string) (Project, error) {
 		return Project{}, fmt.Errorf("%w: %s", ErrNotAProject, key)
 	}
 	return projects[0], nil
+}
+
+// closingRefs are the Tickets under ticketKey a change's body closes, with
+// GitHub's keywords, in their order.
+func closingRefs(body, ticketKey string) []Ref {
+	var out []Ref
+	seen := map[int]bool{}
+	for _, match := range closingKeywords.FindAllStringSubmatch(body, -1) {
+		n, err := strconv.Atoi(match[1])
+		if err != nil || seen[n] {
+			continue
+		}
+		seen[n] = true
+		out = append(out, Ref{Repository: ticketKey, Number: n})
+	}
+	return out
+}
+
+// localTickets is the Local key of the Tickets of the GitHub key's Projet,
+// "" when they are on GitHub too: GitHub's closingIssuesReferences of a PR
+// under the key then name GitHub's issues, never the Local Tickets, which
+// only its body's keywords can close.
+func (s *Store) localTickets(key string) (string, error) {
+	p, err := s.project(key)
+	if errors.Is(err, ErrNotAProject) {
+		return "", nil
+	}
+	if err != nil || p.Source == SourceLocal || p.Has(GroupTicket) {
+		return "", err
+	}
+	ticketKey, err := s.keyOf(p.ProjectID, GroupTicket)
+	if err != nil || !IsLocal(ticketKey) {
+		return "", err
+	}
+	return ticketKey, nil
 }
 
 // keyOf is the key of the Projet's group, "" when the copy has none.

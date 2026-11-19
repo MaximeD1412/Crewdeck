@@ -153,6 +153,7 @@ type copied struct {
 	checksRead bool   // the checks of headOid were read…
 	readState  string // …when its rollup's state was this
 	blockedBy  string
+	state      string
 }
 
 func blockerKey(repository string, number int) string {
@@ -297,7 +298,7 @@ func (s *Store) filledAt(repository string) (bool, error) {
 
 // copied is the repository's objects as the copy has them, by number.
 func (s *Store) copied(repository string) (map[int]copied, error) {
-	rows, err := s.db.Query(`SELECT i.number, coalesce(i.updated_at, ''), coalesce(p.head_oid, ''), r.sha IS NOT NULL, coalesce(r.state, '')
+	rows, err := s.db.Query(`SELECT i.number, coalesce(i.updated_at, ''), coalesce(p.head_oid, ''), r.sha IS NOT NULL, coalesce(r.state, ''), i.state
 		FROM issues i LEFT JOIN pulls p ON p.repository = i.repository AND p.number = i.number
 		LEFT JOIN checks_read r ON r.repository = p.repository AND r.sha = p.head_oid
 		WHERE i.repository = ?`, repository)
@@ -308,7 +309,7 @@ func (s *Store) copied(repository string) (map[int]copied, error) {
 	for rows.Next() {
 		var number int
 		var c copied
-		if err := rows.Scan(&number, &c.updatedAt, &c.headOid, &c.checksRead, &c.readState); err != nil {
+		if err := rows.Scan(&number, &c.updatedAt, &c.headOid, &c.checksRead, &c.readState, &c.state); err != nil {
 			rows.Close()
 			return nil, err
 		}

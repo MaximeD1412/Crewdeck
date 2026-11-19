@@ -79,9 +79,11 @@ type Project struct {
 }
 
 var (
-	_ source.Reader  = (*Project)(nil)
-	_ source.Writer  = (*Project)(nil)
-	_ source.Watcher = (*Project)(nil)
+	_ source.Reader    = (*Project)(nil)
+	_ source.Writer    = (*Project)(nil)
+	_ source.Watcher   = (*Project)(nil)
+	_ source.Available = (*Project)(nil)
+	_ source.AsIs      = (*Project)(nil)
 )
 
 // Open is the Local Projet projectID, its folder an absolute path (the
@@ -125,6 +127,7 @@ type scanned struct {
 	Scan
 	files   map[int]file
 	changed []source.Changed
+	asIs    bool // nothing written: local.db, the files and what the Projet last saw as they are
 }
 
 // Scan reads `tickets/*.md` and `tickets/milestones.yml` from the folder's
@@ -134,7 +137,7 @@ type scanned struct {
 // `duplicate-number`; dates and hashes go to local.db.
 func (p *Project) Scan(ctx context.Context) (Scan, error) {
 	p.mu.Lock()
-	s, err := p.scan(ctx)
+	s, err := p.scan(ctx, false)
 	listeners := slices.Clone(p.listeners)
 	p.mu.Unlock()
 	if err != nil {
@@ -156,7 +159,7 @@ func notify(listeners []func(source.Changed), changes []source.Changed) {
 // listeners on what the scan and fn changed.
 func (p *Project) locked(ctx context.Context, fn func(s *scanned) error) error {
 	p.mu.Lock()
-	s, err := p.scan(ctx)
+	s, err := p.scan(ctx, false)
 	if err == nil {
 		err = fn(&s)
 	}
@@ -166,10 +169,29 @@ func (p *Project) locked(ctx context.Context, fn func(s *scanned) error) error {
 	return err
 }
 
-func (p *Project) scan(ctx context.Context) (scanned, error) {
-	s := scanned{files: map[int]file{}}
+// TicketsAsIs is the scan writing nothing: the numbered Tickets and the
+// milestones as the folder and local.db have them now; a file without a
+// number is left out, a Ticket local.db has not seen yet dated now.
+func (p *Project) TicketsAsIs(ctx context.Context) ([]source.Ticket, []source.Milestone, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	s, err := p.scan(ctx, true)
+	return s.Tickets, s.Milestones, err
+}
+
+// Available is nil when the Projet's folder is there, else an error
+// wrapping os.ErrNotExist.
+func (p *Project) Available(context.Context) error {
 	if info, err := os.Stat(p.folder); err != nil || !info.IsDir() {
-		return s, fmt.Errorf("local: the Projet's folder is gone: %w", errors.Join(err, os.ErrNotExist))
+		return fmt.Errorf("local: the Projet's folder is gone: %w", errors.Join(err, os.ErrNotExist))
+	}
+	return nil
+}
+
+func (p *Project) scan(ctx context.Context, asIs bool) (scanned, error) {
+	s := scanned{files: map[int]file{}, asIs: asIs}
+	if err := p.Available(ctx); err != nil {
+		return s, err
 	}
 	dir := filepath.Join(p.folder, TicketsDir)
 	entries, err := os.ReadDir(dir)
@@ -216,7 +238,9 @@ func (p *Project) scan(ctx context.Context) (scanned, error) {
 		return s, fmt.Errorf("local: scan: %w", err)
 	}
 	defer tx.Rollback()
-	if err := p.keepCounterAbove(ctx, tx, maxSeen); err != nil {
+	if asIs {
+		fresh = nil
+	} else if err := p.keepCounterAbove(ctx, tx, maxSeen); err != nil {
 		return s, err
 	}
 	for _, f := range fresh {
@@ -256,7 +280,7 @@ func (p *Project) scan(ctx context.Context) (scanned, error) {
 	}
 	slices.Sort(numbers)
 	for _, n := range numbers {
-		ticket, changed, err := p.record(ctx, tx, s.files[n], s.Milestones)
+		ticket, changed, err := p.record(ctx, tx, s.files[n], s.Milestones, !asIs)
 		if err != nil {
 			return s, err
 		}
@@ -264,6 +288,9 @@ func (p *Project) scan(ctx context.Context) (scanned, error) {
 		if changed {
 			s.changed = append(s.changed, source.Changed{ProjectID: p.id, Kind: source.KindTicket, Number: n})
 		}
+	}
+	if asIs {
+		return s, nil // the transaction rolls back: it wrote nothing
 	}
 	gone, err := p.forgetGone(ctx, tx, s.files)
 	if err != nil {
@@ -281,7 +308,8 @@ func (p *Project) scan(ctx context.Context) (scanned, error) {
 // record keeps what the file does not hold in local.db (its first sight,
 // its modification time, its first sight closed, its hash) and gives the
 // Ticket; changed says whether it is new or differs from the last scan.
-func (p *Project) record(ctx context.Context, tx *sql.Tx, f file, milestones []source.Milestone) (source.Ticket, bool, error) {
+// Without write, it only reads local.db.
+func (p *Project) record(ctx context.Context, tx *sql.Tx, f file, milestones []source.Milestone, write bool) (source.Ticket, bool, error) {
 	now := time.Now().UTC()
 	hash := source.ContentHash(p.vault(), f.file.Title, f.file.Body)
 	updated := f.mtime.UTC()
@@ -304,7 +332,7 @@ func (p *Project) record(ctx context.Context, tx *sql.Tx, f file, milestones []s
 		}
 	}
 	changed := !known || path != f.path || updatedAt != formatTime(updated) || oldHash != hash || closed != closedAt
-	if changed {
+	if changed && write {
 		_, err = tx.ExecContext(ctx, `INSERT INTO tickets (project_id, number, path, created_at, updated_at, closed_at, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (project_id, number) DO UPDATE SET path = excluded.path, updated_at = excluded.updated_at, closed_at = excluded.closed_at, content_hash = excluded.content_hash`,
 			p.id, f.file.Number, f.path, created, formatTime(updated), closedAt, hash)
@@ -417,7 +445,7 @@ func (p *Project) readMilestones(s *scanned) []source.Milestone {
 	if err != nil {
 		text = ""
 	}
-	if p.milestones == nil || *p.milestones != text {
+	if !s.asIs && (p.milestones == nil || *p.milestones != text) {
 		p.milestones = &text
 		s.changed = append(s.changed, source.Changed{ProjectID: p.id, Kind: source.KindMilestone})
 	}
@@ -722,7 +750,7 @@ func (p *Project) writeTicket(ctx context.Context, tx *sql.Tx, s *scanned, path 
 	if err != nil {
 		return source.Ticket{}, err
 	}
-	ticket, _, err := p.record(ctx, tx, file{path: path, file: written, mtime: mtime}, s.Milestones)
+	ticket, _, err := p.record(ctx, tx, file{path: path, file: written, mtime: mtime}, s.Milestones, true)
 	if err != nil {
 		return source.Ticket{}, err
 	}

@@ -495,7 +495,14 @@ func (f *Follower) Sync(ctx context.Context, repository string, openOnly bool) (
 		var err error
 		switch {
 		case IsLocal(k):
-			err = f.reconcileLocal(ctx, p, k, 0)
+			// Its documents too, before the answer: an agent searching
+			// after a commit finds it (MIROIR-5).
+			if err = f.reconcileLocal(ctx, p, k, 0); err == nil {
+				f.mu.Lock()
+				generation := p.docsWanted
+				f.mu.Unlock()
+				err = f.indexDocs(ctx, p, k, generation)
+			}
 		case openOnly:
 			if err = f.reconcileOpen(ctx, p, k); err == nil {
 				// The open walk reads no closed object: each one whose

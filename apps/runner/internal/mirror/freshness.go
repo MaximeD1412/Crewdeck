@@ -14,7 +14,8 @@ const (
 	// FreshnessLive: connected, the replay over, every envelope received applied.
 	FreshnessLive FreshnessState = "live"
 	// FreshnessLate: disconnected, replaying, resyncing, an envelope waits, or
-	// a refresh asked failed and none succeeded since.
+	// a refresh asked failed and none succeeded since, or the documentation
+	// index's last try failed (MIROIR-5).
 	FreshnessLate FreshnessState = "late"
 )
 
@@ -40,7 +41,7 @@ func (f *Follower) State(repository string) (Freshness, error) {
 	case p.project.Source == SourceLocal:
 		// Its Source is the disk: live once filled, while the Runner runs.
 		state = FreshnessLive
-	case f.connected && f.live && f.resync == nil && len(p.queue) == 0 && len(p.behind) == 0:
+	case f.connected && f.live && f.resync == nil && len(p.queue) == 0 && len(p.behind) == 0 && !p.docsFailed:
 		state = FreshnessLive
 	}
 	return Freshness{State: state, SyncedAt: p.synced}, nil

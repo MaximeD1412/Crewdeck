@@ -718,7 +718,7 @@ func newMiroirSearch(repo *string) *cobra.Command {
 	var limit int
 	cmd := &cobra.Command{
 		Use:   "search <text>",
-		Short: "Search the copy's issues, PRs, comments and reviews (every word required)",
+		Short: "Search the copy's issues, PRs, comments, reviews and documents (every word required)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if kind != "" && !contains(mirror.SearchKinds, kind) {
@@ -743,6 +743,9 @@ func newMiroirSearch(repo *string) *cobra.Command {
 					}
 				}
 			}
+			if kind == "" || kind == "doc" {
+				m.syncLocalDocs(cmd.Context(), keys)
+			}
 			rows, err := m.store.Search(args[0], kind, keys, limit)
 			if errors.Is(err, mirror.ErrBadQuery) {
 				return errors.New("La recherche demande au moins un mot.")
@@ -756,6 +759,25 @@ func newMiroirSearch(repo *string) *cobra.Command {
 	cmd.Flags().StringVar(&kind, "kind", "", "only rows of this kind: issue, comment or doc")
 	cmd.Flags().IntVarP(&limit, "limit", "L", 20, "maximum number of rows")
 	return cmd
+}
+
+// syncLocalDocs synchronizes each Local key of keys holding a Projet's code
+// while the Runner runs, its documents with it (MIROIR-5): a search finds
+// what was committed on its integration branch just before. A failed one
+// warns, the copy answers.
+func (m *miroir) syncLocalDocs(ctx context.Context, keys []string) {
+	for _, p := range m.projects {
+		if p.Source != mirror.SourceLocal || !p.Has(mirror.GroupCode) || !contains(keys, p.Repository) {
+			continue
+		}
+		f := m.freshness(ctx, p.Repository)
+		if !f.running {
+			continue
+		}
+		if err := m.call(ctx, mirror.OpSync, mirror.SyncRequest{Repository: p.Repository}, nil); err != nil {
+			m.warn(p, f)
+		}
+	}
 }
 
 func contains(list []string, s string) bool {

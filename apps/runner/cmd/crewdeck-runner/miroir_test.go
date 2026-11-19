@@ -194,8 +194,17 @@ func newMiroirFixtureOf(t *testing.T, mixed bool) *miroirFixture {
 	}
 
 	client := &mirror.Client{BaseURL: f.fake.URL, Logger: miroirLogger}
+	// The Runner's clones, a GitHub key's never made: no test reaches GitHub.
+	clones := mirrorClones(f.home, "", locals)
+	localOrigin := clones.Origin
+	clones.Origin = func(p mirror.Project, tokens github.TokenSource) mirror.Origin {
+		if p.Source != mirror.SourceLocal {
+			return nil
+		}
+		return localOrigin(p, tokens)
+	}
 	follower, err := mirror.NewFollower(mirror.FollowerConfig{Store: store, GitHub: client, Logger: miroirLogger,
-		Locals: locals, Folders: locals.folders,
+		Locals: locals, Folders: locals.folders, Clones: clones,
 		Tokens: func(string) github.TokenSource { return miroirToken("ghs_miroir") }})
 	if err != nil {
 		t.Fatal(err)
@@ -641,6 +650,32 @@ func TestMiroirSearchAndSQL(t *testing.T) {
 	out, _, _ = runMiroir(t, outside, "sql", "select count(*) as n from issues")
 	if !strings.Contains(out, `"n":10`) {
 		t.Errorf("the copy changed: %s", out)
+	}
+}
+
+func TestMiroirSearchKindDocFindsWhatALocalProjetJustCommitted(t *testing.T) {
+	f := newMiroirFixture(t)
+	outside := t.TempDir()
+	search := func() any {
+		t.Helper()
+		out, _, err := runMiroir(t, outside, "search", "vitrine carnet", "--kind", "doc")
+		if err != nil {
+			t.Fatalf("search: %v", err)
+		}
+		return jq(t, []byte(out), `[.rows[] | {repository, path, title, kind}]`)
+	}
+	if rows := search(); !reflect.DeepEqual(rows, []any{}) {
+		t.Fatalf("a document before its commit: %v", rows)
+	}
+
+	// Committed on main, the integration branch, the Runner watching nothing:
+	// the search synchronizes the Local key before reading the copy.
+	writeFiles(t, f.folder, map[string]string{"docs/guide.md": "# Le guide\n\nLa vitrine du carnet.\n", "notes.md": "vitrine carnet\n"})
+	gitIn(t, f.folder, "add", ".")
+	gitIn(t, f.folder, "commit", "-m", "docs : le guide")
+	want := []any{map[string]any{"repository": localKey, "path": "docs/guide.md", "title": "Le guide", "kind": "doc"}}
+	if rows := search(); !reflect.DeepEqual(rows, want) {
+		t.Errorf("search found %v, want %v", rows, want)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -243,8 +244,8 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	go locals.watch(ctx, local.WatchConfig{
 		Send:   func(ctx context.Context, m contracts.RunnerLocalChanged) error { return send(ctx, m) },
 		Logger: logger,
-		// A ref moved: nothing follows it yet (the documentation index, SOURCE-5).
-		OnRefsMoved: func(projectID string) { logger.Debug("local.refs.moved", "projectId", projectID) },
+		// A ref moved: the Miroir reindexes the Projet's documents (MIROIR-5).
+		OnRefsMoved: follower.RefsMoved,
 	})
 	go reporter.Every(ctx, contracts.CapabilitiesEverySeconds*time.Second)
 	go reporter.UsageEvery(ctx, contracts.UsageEverySeconds*time.Second)
@@ -317,7 +318,8 @@ func followMirror(ctx context.Context, logger *slog.Logger, locals *localSources
 	follower, err := mirror.NewFollower(mirror.FollowerConfig{
 		Store: store, GitHub: &mirror.Client{Logger: logger}, Logger: logger,
 		Locals: locals, Folders: locals.folders,
-		Vault: func() mirror.NameOpener { return vault },
+		Vault:  func() mirror.NameOpener { return vault },
+		Clones: mirrorClones(locals.store.Dir, sessionsGitHubURL, locals),
 	})
 	if err != nil {
 		store.Close()
@@ -334,6 +336,26 @@ func followMirror(ctx context.Context, logger *slog.Logger, locals *localSources
 		<-done
 		store.Close()
 	}, nil
+}
+
+// mirrorClones are the clones the Miroir's documentation index reads
+// (MIROIR-5): the Sessions' own, under ~/.crewdeck/repos, behind the same
+// lock; a GitHub one fetched with the repository's « Miroir » token, a Local
+// one from its folder.
+func mirrorClones(home, githubURL string, locals *localSources) mirror.Clones {
+	return mirror.Clones{
+		Origin: func(p mirror.Project, tokens github.TokenSource) mirror.Origin {
+			if p.Source == mirror.SourceLocal {
+				return session.LockedOrigin(locals.Origin(p.ProjectID))
+			}
+			owner, name, ok := strings.Cut(p.Repository, "/")
+			if !ok {
+				return nil
+			}
+			return &session.GitHubOrigin{Home: home, URL: githubURL, Owner: owner, Name: name, Tokens: tokens}
+		},
+		Lock: session.LockClone,
+	}
 }
 
 // sleepUntil waits for at, false when ctx ends first.

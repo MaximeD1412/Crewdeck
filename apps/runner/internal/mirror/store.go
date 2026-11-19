@@ -24,7 +24,7 @@ import (
 
 // SchemaVersion is schema.sql's version, kept in PRAGMA user_version; a copy
 // of another version is rebuilt.
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 // FileName is the copy's file in the Runner's folder.
 const FileName = "miroir.db"
@@ -303,7 +303,7 @@ func scanProjects(rows *sql.Rows) ([]Project, error) {
 var repositoryTables = []string{
 	"issues", "issue_labels", "issue_assignees", "comments", "sub_issues", "blocked_by",
 	"pulls", "pull_commits", "closing_issues", "reviews", "review_comments",
-	"checks", "checks_read", "repo_labels", "milestones", "releases", "search",
+	"checks", "checks_read", "repo_labels", "milestones", "releases", "search", "docs",
 }
 
 // PutProjects makes the copy's Projets these: adds the new ones (unfilled),

@@ -269,12 +269,22 @@ func follow(t *testing.T, store *Store, fake *githubtest.Server, server *runnerS
 // followThrough is follow, GitHub reached through transport (nil for the default).
 func followThrough(t *testing.T, store *Store, fake *githubtest.Server, server *runnerServer, transport http.RoundTripper) (f *Follower, stop func()) {
 	t.Helper()
+	return followWith(t, store, fake, server, transport, nil)
+}
+
+// followWith is followThrough, its config changed by configure (nil: none).
+func followWith(t *testing.T, store *Store, fake *githubtest.Server, server *runnerServer, transport http.RoundTripper, configure func(*FollowerConfig)) (f *Follower, stop func()) {
+	t.Helper()
 	client := &Client{BaseURL: fake.URL, Logger: testLogger}
 	if transport != nil {
 		client.HTTP = &http.Client{Transport: transport, Timeout: 10 * time.Second}
 	}
-	f, err := NewFollower(FollowerConfig{Store: store, GitHub: client, Logger: testLogger, Clock: server.clock,
-		Backoff: protocol.Backoff{Min: time.Second, Max: 4 * time.Second, Rand: func() float64 { return 0.999999 }}})
+	cfg := FollowerConfig{Store: store, GitHub: client, Logger: testLogger, Clock: server.clock,
+		Backoff: protocol.Backoff{Min: time.Second, Max: 4 * time.Second, Rand: func() float64 { return 0.999999 }}}
+	if configure != nil {
+		configure(&cfg)
+	}
+	f, err := NewFollower(cfg)
 	if err != nil {
 		t.Fatalf("NewFollower: %v", err)
 	}

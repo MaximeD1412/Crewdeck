@@ -50,8 +50,14 @@ export const formatRelative = (instant: Instant, now: Date = new Date()): string
 /** « 16:40 ». */
 export const formatHour = (instant: Instant): string => hourMinute.format(toDate(instant));
 
-/** « 10 nov. » for an instant of this year, « 10 nov. 2025 » for an older one, in the browser's time zone. */
-export const formatDate = (instant: Instant, now: Date = new Date()): string => {
+/** « 3 nov. » for an instant, its day in the browser's time zone. */
+export const formatDate = (instant: Instant): string => dayMonth.format(toDate(instant));
+
+/**
+ * « 10 nov. » for an instant of this year, « 10 nov. 2025 » for an older one,
+ * in the browser's time zone: a date that may be years old (« Suivi depuis »).
+ */
+export const formatDateOfAnyYear = (instant: Instant, now: Date = new Date()): string => {
   const date = toDate(instant);
   return date.getFullYear() === now.getFullYear() ? dayMonth.format(date) : dayMonthYear.format(date);
 };

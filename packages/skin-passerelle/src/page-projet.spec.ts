@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import './tokens.css';
-import { COMPOSANTS, formatDate, type ComposantData, type PageProjet } from '@crewdeck/sdk';
+import { COMPOSANTS, formatDateOfAnyYear, type ComposantData, type PageProjet } from '@crewdeck/sdk';
 import { actionsOf, defineSkin, inside, render, textOf } from './testing/dom.js';
 
 beforeAll(defineSkin);
@@ -44,7 +44,7 @@ describe('PageProjet', () => {
     expect(items(el)).toEqual([
       { label: 'Dossier', value: 'sur atelier-pc', mono: false },
       { label: 'Connecteurs', value: 'aucun : tout est Local', mono: false },
-      { label: 'Suivi depuis', value: formatDate(LOCAL.followedAt), mono: false },
+      { label: 'Suivi depuis', value: formatDateOfAnyYear(LOCAL.followedAt), mono: false },
     ]);
     expect(child(el, 'cd-banner').data).toEqual({ tone: 'neutral', icon: 'folder', title: 'Des fichiers que tu lis à la main' });
     expect(textOf(inside(el, 'cd-banner'))).toBe(
@@ -65,7 +65,7 @@ describe('PageProjet', () => {
     expect(items(el)).toEqual([
       { label: 'Dépôt GitHub', value: 'MaximeD1412/personal-os', mono: false },
       { label: 'Connecteurs', value: 'GitHub', mono: false },
-      { label: 'Suivi depuis', value: formatDate(GITHUB.followedAt), mono: false },
+      { label: 'Suivi depuis', value: formatDateOfAnyYear(GITHUB.followedAt), mono: false },
     ]);
     expect(el.shadowRoot?.querySelector('cd-banner')).toBeNull();
   });

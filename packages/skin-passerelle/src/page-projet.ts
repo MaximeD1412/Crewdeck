@@ -1,4 +1,4 @@
-import { formatDate, PageProjet, t, type ComposantData } from '@crewdeck/sdk';
+import { formatDateOfAnyYear, PageProjet, t, type ComposantData } from '@crewdeck/sdk';
 import { css, html, nothing } from 'lit';
 import { PasserelleElement, sharedStyles } from './base.js';
 
@@ -21,7 +21,7 @@ const rows = ({ fullName, folder, connectors, followedAt }: Data): { label: stri
     value: connectors.length === 0 ? t('projets.projet.connectors.none') : connectors.map((kind) => t(`projets.projet.connector.${kind}`)).join(', '),
     mono: false,
   },
-  { label: t('projets.projet.row.followedAt'), value: formatDate(followedAt), mono: false },
+  { label: t('projets.projet.row.followedAt'), value: formatDateOfAnyYear(followedAt), mono: false },
 ];
 
 /**

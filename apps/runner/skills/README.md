@@ -73,6 +73,7 @@ Runner's copy (ADR 0010), and writes through it too, never with `gh`:
 `skills_test.go` fails on an embedded Markdown file that calls `gh`
 outside `mirror`, whatever its command (`gh api …` among them) and its
 options before or after it (`gh -R <owner>/<repo> issue view …`); or that
-calls `mirror gh` with anything but a read of `issue|pr`: a write
-(`create|edit|comment|close|reopen|review`, options before the verb
-included), `api` or another command.
+calls `mirror gh` with anything but a read of `issue|pr`
+(`view|list|diff|checks|status`, an explicit list): a write (`merge`,
+`delete`, `create`…, options before the verb included), an unknown verb,
+`api` or another command.

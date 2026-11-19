@@ -29,9 +29,12 @@ var ghCommands = []string{
 // ghValueOptions are gh's options whose value is the next word.
 var ghValueOptions = []string{"-R", "--repo", "--hostname"}
 
-// mirrorWrites are the verbs a Skill writes with through `mirror issue|pr`
-// (MIROIR-7), never through `mirror gh`.
-var mirrorWrites = []string{"create", "edit", "comment", "close", "reopen", "review"}
+// ghReads are the verbs of `gh issue|pr` that only read: the only ones a
+// Skill may call through `mirror gh`. Any other verb writes (`merge`,
+// `delete`, `create`… as `internal/github/ghrefresh.go` lists them) or is
+// unknown, and is refused; a Skill writes through `mirror issue|pr`
+// (MIROIR-7).
+var ghReads = []string{"view", "list", "diff", "checks", "status"}
 
 // ghWords are the words of a gh call but its options and their values:
 // its command, its verb, its arguments.
@@ -53,8 +56,9 @@ func ghWords(call string) []string {
 
 // violations are the calls of text that do not read and write through the
 // Miroir: any gh call outside `mirror`, whatever its options before or
-// after its command; through `mirror gh`, one of `issue|pr` that writes,
-// or any other command (`api` among them).
+// after its command; through `mirror gh`, any call but a read of
+// `issue|pr` (`ghReads`): a write, an unknown verb, another command (`api`
+// among them).
 func violations(text string) []string {
 	text = strings.ReplaceAll(text, "\\\n", " ")
 	var found []string
@@ -74,7 +78,7 @@ func violations(text string) []string {
 			found = append(found, call)
 			continue
 		}
-		read := (words[0] == "issue" || words[0] == "pr") && (len(words) < 2 || !slices.Contains(mirrorWrites, words[1]))
+		read := (words[0] == "issue" || words[0] == "pr") && len(words) >= 2 && slices.Contains(ghReads, words[1])
 		if !read {
 			found = append(found, "mirror "+call)
 		}
@@ -84,33 +88,40 @@ func violations(text string) []string {
 
 func TestTheRuleOfTheMiroirFindsTheCallsOfGhOutsideIt(t *testing.T) {
 	for text, want := range map[string]int{
-		"Lis le Ticket : `gh issue view 12`.":                         1,
-		"Commente : `mirror gh issue comment 12 --body-file note.md`": 1,
-		"crewdeck-runner gh pr create --draft":                        1,
-		"```sh\ngh pr review 7 --approve\n```":                        1,
-		"`gh api repos/acme/shop/issues/12`":                          1,
-		"`gh api -X PATCH repos/acme/shop/issues/12 -f state=closed`": 1,
-		"`gh -R acme/shop issue view 12`":                             1,
-		"`gh --repo=acme/shop pr view 7`":                             1,
-		"`gh --repo acme/shop pr diff 7`":                             1,
-		"`gh repo view acme/shop`":                                    1,
-		"`/usr/bin/gh issue list`":                                    1,
-		"`echo ok | gh pr comment 7 --body-file -`":                   1,
-		"`n=$(gh pr view 7 --json number)`":                           1,
-		"```sh\ngh \\\n  issue view 12\n```":                          1,
-		"`mirror gh -R acme/shop issue comment 12 --body x`":          1,
-		"`mirror gh issue -R acme/shop comment 12`":                   1,
-		"`mirror gh --repo=acme/shop pr review 7 --approve`":          1,
-		"`mirror gh api repos/acme/shop/issues/12 -X PATCH`":          1,
-		"`mirror gh repo view`":                                       1,
-		"Lis le Ticket : `mirror issue view 12 --json title`.":        0,
-		"`mirror pr view 7 --json body` puis `mirror ready`":          0,
-		"`mirror gh issue view 12` lit à travers le Miroir":           0,
-		"`mirror gh -R acme/shop issue view 12 --json title`":         0,
-		"`mirror issue comment 12 --body-file note.md`":               0,
-		"Le gh de la machine n'est jamais appelé.":                    0,
-		"Jamais `gh` : le Miroir.":                                    0,
-		"high, ghost, crewdeck-gh issue":                              0,
+		"Lis le Ticket : `gh issue view 12`.":                           1,
+		"Commente : `mirror gh issue comment 12 --body-file note.md`":   1,
+		"crewdeck-runner gh pr create --draft":                          1,
+		"```sh\ngh pr review 7 --approve\n```":                          1,
+		"`gh api repos/acme/shop/issues/12`":                            1,
+		"`gh api -X PATCH repos/acme/shop/issues/12 -f state=closed`":   1,
+		"`gh -R acme/shop issue view 12`":                               1,
+		"`gh --repo=acme/shop pr view 7`":                               1,
+		"`gh --repo acme/shop pr diff 7`":                               1,
+		"`gh repo view acme/shop`":                                      1,
+		"`/usr/bin/gh issue list`":                                      1,
+		"`echo ok | gh pr comment 7 --body-file -`":                     1,
+		"`n=$(gh pr view 7 --json number)`":                             1,
+		"```sh\ngh \\\n  issue view 12\n```":                            1,
+		"`mirror gh -R acme/shop issue comment 12 --body x`":            1,
+		"`mirror gh issue -R acme/shop comment 12`":                     1,
+		"`mirror gh --repo=acme/shop pr review 7 --approve`":            1,
+		"`mirror gh api repos/acme/shop/issues/12 -X PATCH`":            1,
+		"`mirror gh repo view`":                                         1,
+		"`mirror gh pr merge 7 --squash`":                               1,
+		"`mirror gh issue delete 12 --yes`":                             1,
+		"`mirror gh pr ready 7`":                                        1,
+		"`mirror gh issue -R acme/shop lock 12`":                        1,
+		"`mirror gh pr`":                                                1,
+		"`mirror gh pr list --state open` puis `mirror gh pr diff 7`":   0,
+		"`mirror gh pr checks 7` et `mirror gh issue list --label bug`": 0,
+		"Lis le Ticket : `mirror issue view 12 --json title`.":          0,
+		"`mirror pr view 7 --json body` puis `mirror ready`":            0,
+		"`mirror gh issue view 12` lit à travers le Miroir":             0,
+		"`mirror gh -R acme/shop issue view 12 --json title`":           0,
+		"`mirror issue comment 12 --body-file note.md`":                 0,
+		"Le gh de la machine n'est jamais appelé.":                      0,
+		"Jamais `gh` : le Miroir.":                                      0,
+		"high, ghost, crewdeck-gh issue":                                0,
 	} {
 		if got := violations(text); len(got) != want {
 			t.Errorf("violations(%q) = %q, want %d", text, got, want)

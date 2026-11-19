@@ -154,6 +154,17 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await expect(page.locator('#app > cd-cadre > cd-session[slot=panel]')).toContainText('Conversation sur ton Runner');
     await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('Les sessions reprendront');
   },
+  // A question of the agent (SESSION-3), its first option chosen as the mockup shows it.
+  'session-question': async (page) => {
+    const question = page.locator('#app > cd-cadre > cd-session[slot=panel] cd-question');
+    await expect(question).toContainText('Qui peut modifier un événement');
+    await question.getByRole('radio', { name: 'Tous les membres de l’agenda' }).check();
+  },
+  // A `git push` waiting for the Pilote's permission (SESSION-3), its Décision's command read under the panel.
+  'session-permission': async (page) => {
+    await expect(page.locator('#app > cd-cadre > cd-session[slot=panel] cd-permission-request')).toContainText('git push origin design/agenda-partage');
+    await expect(page.locator('cd-page-a-toi cd-decision-row').filter({ hasText: 'Concevoir · Agenda partagé' })).toContainText('Bash : git push');
+  },
   // « Maximum de Retours atteint » (PROCESS-6) among the nine Décisions of `a-toi`.
   'a-toi-process': async (page) => {
     await expect(page.locator('cd-page-a-toi cd-decision-row')).toHaveCount(10);

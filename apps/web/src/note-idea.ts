@@ -3,6 +3,7 @@ import { t, type ComposantData, type NoteIdeaDialog } from '@crewdeck/sdk';
 import type { Client } from './api/client.js';
 import { noteIdea } from './api/ideas.js';
 import { ApiError } from './api/request.js';
+import { createDictationField } from './dictation/field.js';
 import { uuidv7 } from './ids.js';
 import { toBase64Url, utf8 } from './keys/bytes.js';
 import { sealedWrite } from './keys/sealed-write.js';
@@ -22,6 +23,8 @@ export interface NoteIdeaOptions {
   readonly width?: () => number;
   /** A new Idée's id: a UUIDv7 drawn here by default. */
   readonly newId?: () => string;
+  /** Where the notice on the dictation's service is kept read: `localStorage` by default. */
+  readonly storage?: Pick<Storage, 'getItem' | 'setItem'>;
 }
 
 export interface NoteIdea {
@@ -32,6 +35,10 @@ export interface NoteIdea {
   cancel(): void;
   /** Seals the text and notes the Idée; a refusal stays in the Dialog. */
   submit(input: { readonly text: string; readonly projectId: string | null }): Promise<void>;
+  /** « Dicter »: the transcript after `text`, what the field holds, in its `value`. */
+  dictateStart(input: { readonly text: string }): void;
+  /** « Arrêter la dictée »: the field keeps the text, editable. */
+  dictateStop(): void;
   subscribe(fn: () => void): () => void;
 }
 
@@ -52,14 +59,24 @@ const CLOSED: Local = { open: false, busy: false, error: null, defaultProjectId:
  * `telephone` below 1280 px, with the version of the vault key (sealed again
  * once under the new one when the vault rotated meanwhile, E2E-4). The
  * Dialog closes once the server noted it; the store shows it through
- * `idea.upserted`.
+ * `idea.upserted`. Dictated (IDEE-4): the transcript fills the field as it
+ * comes, and the Idée goes with `dictated: true` when some of its text came
+ * from a dictation of this opening.
  */
-export const createNoteIdea = ({ client, vault, store, width = () => innerWidth, newId = () => uuidv7() }: NoteIdeaOptions): NoteIdea => {
+export const createNoteIdea = ({ client, vault, store, width = () => innerWidth, newId = () => uuidv7(), storage }: NoteIdeaOptions): NoteIdea => {
   let state = CLOSED;
   const listeners = new Set<() => void>();
+  const notify = () => {
+    for (const listener of listeners) listener();
+  };
+  const dictation = createDictationField({ onChange: notify, ...(storage && { storage }) });
   const set = (next: Partial<Local>) => {
     state = { ...state, ...next };
-    for (const listener of listeners) listener();
+    notify();
+  };
+  const close = () => {
+    dictation.reset();
+    set(CLOSED);
   };
   const locked = () => store.getState().vaultState !== 'unlocked';
 
@@ -72,14 +89,24 @@ export const createNoteIdea = ({ client, vault, store, width = () => innerWidth,
           .sort((a, b) => a.displayName.localeCompare(b.displayName, 'fr'))
           .map((project) => ({ id: project.id, name: project.displayName })),
         locked: locked(),
+        value: dictation.text,
+        dictation: dictation.view(),
       };
     },
-    open: (defaultProjectId) => set({ open: true, busy: false, error: null, defaultProjectId }),
-    cancel() {
-      if (!state.busy) set(CLOSED);
+    open(defaultProjectId) {
+      dictation.reset();
+      set({ open: true, busy: false, error: null, defaultProjectId });
     },
+    cancel() {
+      if (!state.busy) close();
+    },
+    dictateStart({ text }) {
+      if (state.open && !state.busy && !locked()) dictation.start(text);
+    },
+    dictateStop: () => dictation.stop(),
     async submit({ text, projectId }) {
       if (state.busy) return;
+      dictation.stop();
       const trimmed = text.trim();
       if (locked()) return set({ error: t('idees.note.locked') });
       if (trimmed === '') return set({ error: t('idees.note.empty') });
@@ -95,10 +122,10 @@ export const createNoteIdea = ({ client, vault, store, width = () => innerWidth,
             vaultKeyVersion: sealed.vaultKeyVersion,
             projectId,
             notedFrom,
-            dictated: false,
+            dictated: dictation.dictated,
           });
         });
-        set(CLOSED);
+        close();
       } catch (error) {
         if (!(error instanceof ApiError)) {
           set({ busy: false });

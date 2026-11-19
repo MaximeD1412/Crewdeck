@@ -5,6 +5,8 @@ import type { Slices } from '../store/store.js';
 
 export type SessionData = ComposantData<typeof Session>;
 type ComposerData = ComposantData<typeof Composer>;
+/** What the core puts in the Composer: the text it sets, a dictation's transcript, and the dictation. */
+export type ComposerState = Pick<ComposerData, 'value' | 'dictation'>;
 
 /** A message the Pilote sent from this tab: the Runner keeps no log of it, the tab shows it after the event it followed. */
 export interface PilotMessage {
@@ -21,6 +23,8 @@ export interface SessionViewInput {
   readonly events: readonly EngineEvent[];
   readonly sent: readonly PilotMessage[];
   readonly now: Date;
+  /** The Composer's text and dictation; none, without a mic. */
+  readonly composer?: ComposerState;
 }
 
 /** The `Session` Composant's data and what the core places in it: the conversation, then its Composer. */
@@ -57,11 +61,13 @@ const roleName = (role: AgentSession['role'], settings: Slices['settings'] | und
 
 const engineName = (engine: AgentSession['engine']): string => t(`engine.${engine}` as MessageKey);
 
-const composer = (placeholder: MessageKey, state: ComposerData['state'] = 'idle'): PlacedNode => ({
+/** A Composer without dictation: the panel gives its own. */
+const NO_DICTATION: ComposerState = { value: '', dictation: { available: false, state: 'idle', elapsedSeconds: 0, error: null, notice: false } };
+
+const composer = (placeholder: MessageKey, { value, dictation }: ComposerState, state: ComposerData['state'] = 'idle'): PlacedNode => ({
   tag: Composer.tag,
   slot: 'composer',
-  // The microphone is IDEE-4's.
-  data: { placeholder: t(placeholder), hint: null, state, value: '', dictation: false } satisfies ComposerData,
+  data: { placeholder: t(placeholder), hint: null, state, value, dictation } satisfies ComposerData,
 });
 
 const button = (label: string, icon: 'server' | 'x'): PlacedNode => ({
@@ -149,7 +155,7 @@ const conversation = (events: readonly EngineEvent[], sent: readonly PilotMessag
  * not online, only its title and state: « Conversation sur ton Runner » in
  * place of the conversation, the Composer and « Reprendre » disabled.
  */
-export const sessionView = ({ session, slices, events, sent, now }: SessionViewInput): SessionView => {
+export const sessionView = ({ session, slices, events, sent, now, composer: composerState = NO_DICTATION }: SessionViewInput): SessionView => {
   const online = slices.runner?.state === 'online';
   const engine = engineName(session.engine);
   const base = t('session.meta', {
@@ -185,7 +191,7 @@ export const sessionView = ({ session, slices, events, sent, now }: SessionViewI
           text: t('session.offline.body'),
           children: [button(t('decision.runnerOffline.openRunner'), 'server')],
         },
-        composer('session.composer.offline', 'disabled'),
+        composer('session.composer.offline', composerState, 'disabled'),
       ],
     };
   }
@@ -197,8 +203,8 @@ export const sessionView = ({ session, slices, events, sent, now }: SessionViewI
       text: t('session.stopped.body'),
     });
   }
-  if (state === 'active' || state === 'waiting') children.push(composer('session.composer.running'));
-  else if (session.state !== 'ended') children.push(composer('session.composer.stopped'));
+  if (state === 'active' || state === 'waiting') children.push(composer('session.composer.running', composerState));
+  else if (session.state !== 'ended') children.push(composer('session.composer.stopped', composerState));
   return { data, children };
 };
 

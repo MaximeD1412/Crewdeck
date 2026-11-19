@@ -1,6 +1,7 @@
 import type { AgentSession } from '@crewdeck/contracts';
 import { Button, Composer, Empty, Session, t } from '@crewdeck/sdk';
 import type { Client } from './api/client.js';
+import { createDictationField } from './dictation/field.js';
 import { ApiError } from './api/request.js';
 import { getSession, resumeSession, stopSession } from './api/sessions.js';
 import { placeNode, type PlacedNode } from './placed.js';
@@ -21,6 +22,8 @@ export interface SessionPanelOptions {
   readonly now?: () => Date;
   /** How long a write to a stopped Session waits for it to run again, in ms. */
   readonly readyTimeout?: number;
+  /** Where the notice on the dictation's service is kept read: `localStorage` by default. */
+  readonly storage?: Pick<Storage, 'getItem' | 'setItem'>;
 }
 
 export interface SessionPanel {
@@ -31,6 +34,9 @@ export interface SessionPanel {
   resume(): Promise<void>;
   /** The Composer's text to the agent; a stopped or interrupted Session resumed first. Why it was not sent, in the Cadre. */
   send(text: string): Promise<void>;
+  /** The Composer's mic (IDEE-4): the transcript after `text` in its field, never sent by itself. */
+  dictateStart(text: string): void;
+  dictateStop(): void;
   dispose(): void;
 }
 
@@ -49,7 +55,9 @@ const SEND_FAILED: Readonly<Record<SessionInputError['code'], 'session.send.fail
  * the relay while the Runner is online, the relay closed while it is not
  * (only the title and state then), « <Moteur> travaille » counted each second
  * while it runs. The Pilote's messages stay in this tab, after the event they
- * followed: the Runner keeps no log of them.
+ * followed: the Runner keeps no log of them. Its Composer dictates (US-57):
+ * the transcript fills the field for the Pilote to correct and send; it
+ * stops with the Runner gone offline, another Session or a message sent.
  */
 export const createSessionPanel = ({
   store,
@@ -60,6 +68,7 @@ export const createSessionPanel = ({
   close,
   now = () => new Date(),
   readyTimeout = 15_000,
+  storage,
 }: SessionPanelOptions): SessionPanel => {
   let id: string | null = null;
   /** The Session read by its id when the store does not hold it; `not-found` for another's, or none. */
@@ -70,6 +79,13 @@ export const createSessionPanel = ({
   let element: (HTMLElement & { data?: unknown }) | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
   const waiters = new Set<() => void>();
+  let rendering = false;
+  const dictation = createDictationField({
+    onChange: () => {
+      if (!rendering) render();
+    },
+    ...(storage && { storage }),
+  });
 
   const sessionOf = (sessionId: string): AgentSession | null => {
     const held = store.getState().slices['agent-session']?.get(sessionId);
@@ -124,6 +140,15 @@ export const createSessionPanel = ({
   };
 
   function render(): void {
+    rendering = true;
+    try {
+      draw();
+    } finally {
+      rendering = false;
+    }
+  }
+
+  function draw(): void {
     for (const waiter of waiters) waiter();
     if (id === null) return;
     const session = sessionOf(id);
@@ -139,7 +164,8 @@ export const createSessionPanel = ({
     if (slices.runner?.state === 'online') follow(id);
     else if (subscription) {
       unfollow();
-      // What the Pilote typed and did not send goes too: the disabled Composer is a new one.
+      // What the Pilote typed or dictated and did not send goes too: the disabled Composer is a new one.
+      dictation.reset();
       element?.querySelector(`:scope > ${Composer.tag}`)?.remove();
     }
     if (subscription?.value.error() === 'session.not-found') {
@@ -147,12 +173,20 @@ export const createSessionPanel = ({
       mount(sessionNotFoundView(), close);
       return;
     }
-    const view = sessionView({ session, slices, events: subscription?.value.events() ?? [], sent, now: now() });
+    const view = sessionView({
+      session,
+      slices,
+      events: subscription?.value.events() ?? [],
+      sent,
+      now: now(),
+      composer: { value: dictation.text, dictation: dictation.view() },
+    });
     tick(view.data.status !== null);
     mount({ tag: Session.tag, data: view.data, children: view.children }, () => navigate('/runner'));
   }
 
   const reset = () => {
+    dictation.reset();
     unfollow();
     tick(false);
     fetched = null;
@@ -197,6 +231,9 @@ export const createSessionPanel = ({
       const sessionId = id;
       const session = sessionId === null ? null : sessionOf(sessionId);
       if (sessionId === null || !session) return;
+      // The Composer empties as it sends: the transcript the core set goes with it.
+      dictation.reset();
+      render();
       if (RESUMABLE.has(session.state)) await resumeSession(client, sessionId);
       if (!(await running(sessionId))) return shell.showError(t('session.send.notResumed'));
       const afterSeq = subscription?.value.events().at(-1)?.seq ?? 0;
@@ -210,6 +247,12 @@ export const createSessionPanel = ({
       sent = [...sent, { text, at: now().toISOString(), afterSeq }];
       render();
     },
+    dictateStart(text) {
+      const session = id === null ? null : sessionOf(id);
+      if (!session || session.state === 'ended' || store.getState().slices.runner?.state !== 'online') return;
+      dictation.start(text);
+    },
+    dictateStop: () => dictation.stop(),
     dispose() {
       unsubscribe();
       reset();

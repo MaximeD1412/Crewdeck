@@ -177,13 +177,13 @@ describe('sessionView', () => {
     expect(view({ session: { ...SESSION, state: 'waiting' } }).data.status).toBeNull();
   });
 
-  it('offers to write to the agent while it runs, the microphone hidden', () => {
+  it('offers to write to the agent while it runs, without a mic unless the panel gives its dictation', () => {
     for (const state of ['active', 'waiting'] as const) {
       const composer = composerOf(view({ session: { ...SESSION, state } }).children);
       expect(composer).toEqual({
         tag: 'cd-composer',
         slot: 'composer',
-        data: { placeholder: t('session.composer.running'), hint: null, state: 'idle', value: '', dictation: false },
+        data: { placeholder: t('session.composer.running'), hint: null, state: 'idle', value: '', dictation: { available: false, state: 'idle', elapsedSeconds: 0, error: null, notice: false } },
       });
       expect(COMPOSANTS.Composer.data.parse(composer?.data)).toEqual(composer?.data);
     }
@@ -240,7 +240,7 @@ describe('sessionView', () => {
       {
         tag: 'cd-composer',
         slot: 'composer',
-        data: { placeholder: t('session.composer.offline'), hint: null, state: 'disabled', value: '', dictation: false },
+        data: { placeholder: t('session.composer.offline'), hint: null, state: 'disabled', value: '', dictation: { available: false, state: 'idle', elapsedSeconds: 0, error: null, notice: false } },
       },
     ]);
   });

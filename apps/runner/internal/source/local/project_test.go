@@ -84,6 +84,7 @@ func read(t *testing.T, dir, name string) string {
 type opened struct {
 	*local.Project
 	db      *local.DB
+	vault   *keys.Vault
 	changes *[]source.Changed
 }
 
@@ -98,7 +99,7 @@ func open(t *testing.T, dir string) opened {
 	p := local.Open(db, func() *keys.Vault { return v }, projectID, dir)
 	var changes []source.Changed
 	p.OnChange(func(c source.Changed) { changes = append(changes, c) })
-	return opened{Project: p, db: db, changes: &changes}
+	return opened{Project: p, db: db, vault: v, changes: &changes}
 }
 
 func TestLocalScanNumbersANewFileAndRenamesItWithoutACommit(t *testing.T) {

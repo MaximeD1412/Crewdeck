@@ -10,7 +10,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func TestLocalDBIsCreatedMode600AtV1(t *testing.T) {
+func TestLocalDBIsCreatedMode600AtItsVersion(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "local.db")
 	db, err := local.OpenDB(path)
 	if err != nil {
@@ -24,8 +24,8 @@ func TestLocalDBIsCreatedMode600AtV1(t *testing.T) {
 	if info.Mode().Perm() != 0o600 {
 		t.Errorf("mode %v, want 600", info.Mode().Perm())
 	}
-	if v := userVersion(t, db.SQL()); v != 1 || local.SchemaVersion != 1 {
-		t.Errorf("user_version %d, SchemaVersion %d, want 1", v, local.SchemaVersion)
+	if v := userVersion(t, db.SQL()); v != 2 || local.SchemaVersion != 2 {
+		t.Errorf("user_version %d, SchemaVersion %d, want 2", v, local.SchemaVersion)
 	}
 	var mode string
 	if err := db.SQL().QueryRow("PRAGMA journal_mode").Scan(&mode); err != nil || mode != "wal" {
@@ -39,7 +39,7 @@ func TestLocalDBOfANewerVersionIsNeverOpened(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := raw.Exec("CREATE TABLE kept (x); INSERT INTO kept VALUES (1); PRAGMA user_version = 2"); err != nil {
+	if _, err := raw.Exec("CREATE TABLE kept (x); INSERT INTO kept VALUES (1); PRAGMA user_version = 3"); err != nil {
 		t.Fatal(err)
 	}
 	raw.Close()
@@ -53,7 +53,7 @@ func TestLocalDBOfANewerVersionIsNeverOpened(t *testing.T) {
 	}
 }
 
-func TestLocalMigrationAppliesV1OnAnEmptyFileAndKeepsRowsAcrossAReopen(t *testing.T) {
+func TestLocalMigrationAppliesEveryVersionOnAnEmptyFileAndKeepsRowsAcrossAReopen(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "local.db")
 	if err := os.WriteFile(path, nil, 0o600); err != nil {
 		t.Fatal(err)
@@ -62,7 +62,7 @@ func TestLocalMigrationAppliesV1OnAnEmptyFileAndKeepsRowsAcrossAReopen(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"projects", "tickets", "comments", "changes", "reviews", "review_comments"} {
+	for _, table := range []string{"projects", "tickets", "comments", "changes", "reviews", "review_comments", "reported"} {
 		if _, err := db.SQL().Exec("SELECT * FROM " + table + " LIMIT 0"); err != nil {
 			t.Errorf("table %s: %v", table, err)
 		}
@@ -80,7 +80,7 @@ func TestLocalMigrationAppliesV1OnAnEmptyFileAndKeepsRowsAcrossAReopen(t *testin
 	if err := db.SQL().QueryRow("SELECT body FROM comments WHERE id = 'c1'").Scan(&body); err != nil || body != "Fait." {
 		t.Errorf("comment after a re-open: %q, %v", body, err)
 	}
-	if v := userVersion(t, db.SQL()); v != 1 {
+	if v := userVersion(t, db.SQL()); v != local.SchemaVersion {
 		t.Errorf("user_version %d", v)
 	}
 }

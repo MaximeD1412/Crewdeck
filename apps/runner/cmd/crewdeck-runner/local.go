@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"sync"
+	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/keys"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/session"
@@ -20,7 +22,18 @@ type localSources struct {
 
 	mu       sync.Mutex
 	projects map[string]*local.Project
+	watched  map[string]*watched
 }
+
+// watched is a Local Projet's folder followed (SOURCE-3).
+type watched struct {
+	project *local.Project
+	watcher *local.Watcher
+	cancel  context.CancelFunc
+}
+
+// watchEvery is how often the Watchers follow runner.json's folders, attached or detached.
+const watchEvery = 2 * time.Second
 
 // openLocal opens ~/.crewdeck/local.db and the Local Projets runner.json names.
 func openLocal(store state.Store, vault func() *keys.Vault) (*localSources, error) {
@@ -28,7 +41,7 @@ func openLocal(store state.Store, vault func() *keys.Vault) (*localSources, erro
 	if err != nil {
 		return nil, err
 	}
-	l := &localSources{db: db, store: store, vault: vault, projects: map[string]*local.Project{}}
+	l := &localSources{db: db, store: store, vault: vault, projects: map[string]*local.Project{}, watched: map[string]*watched{}}
 	for id := range l.folders() {
 		l.Project(id)
 	}
@@ -84,4 +97,67 @@ func (l *localSources) Source(projectID string) (source.Reader, bool) {
 // clone: one attached again elsewhere is cloned from where it is now.
 func (l *localSources) Origin(projectID string) session.Origin {
 	return &local.Origin{Home: l.store.Dir, ProjectID: projectID, Folder: l.folder}
+}
+
+// watch follows each Local Projet's folder until ctx ends (SOURCE-3): one
+// Watcher per folder of runner.json, started with a full report and
+// stopped as folders are attached, moved or detached.
+func (l *localSources) watch(ctx context.Context, cfg local.WatchConfig) {
+	ticker := time.NewTicker(watchEvery)
+	defer ticker.Stop()
+	for {
+		l.follow(ctx, cfg)
+		select {
+		case <-ctx.Done():
+			l.mu.Lock()
+			for id, w := range l.watched {
+				w.cancel()
+				delete(l.watched, id)
+			}
+			l.mu.Unlock()
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+// follow starts a Watcher for each folder not followed yet, and stops those
+// of a folder gone or moved.
+func (l *localSources) follow(ctx context.Context, cfg local.WatchConfig) {
+	folders := l.folders()
+	for id := range folders {
+		p, ok := l.Project(id)
+		if !ok {
+			continue
+		}
+		l.mu.Lock()
+		if w := l.watched[id]; w == nil || w.project != p {
+			if w != nil {
+				w.cancel()
+			}
+			wctx, cancel := context.WithCancel(ctx)
+			w := &watched{project: p, watcher: local.Watch(p, cfg), cancel: cancel}
+			l.watched[id] = w
+			w.watcher.Full()
+			go w.watcher.Run(wctx)
+		}
+		l.mu.Unlock()
+	}
+	l.mu.Lock()
+	for id, w := range l.watched {
+		if folders[id] == "" {
+			w.cancel()
+			delete(l.watched, id)
+		}
+	}
+	l.mu.Unlock()
+}
+
+// full asks each Watcher for a report of every item: the server accepted a connection.
+func (l *localSources) full() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, w := range l.watched {
+		w.watcher.Full()
+	}
 }

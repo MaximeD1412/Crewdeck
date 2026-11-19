@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/keys"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/source/local"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
@@ -106,5 +109,52 @@ func TestLocalSourcesOpenLocalDBAndOneProjectPerFolderOfRunnerJSON(t *testing.T)
 	}
 	if got := locals.Origin("p1").Dir(); got != filepath.Join(dir, "repos", "local", "p1") {
 		t.Fatalf("origin of p1 at %s", got)
+	}
+}
+
+func TestWatchFollowsEachLocalFolderOfRunnerJSONWithAFullReport(t *testing.T) {
+	home := t.TempDir()
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "tickets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "tickets", "12-x.md"), []byte("---\nnumber: 12\ntitle: Un\n---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store := state.Store{Dir: home}
+	const id = "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a92"
+	if err := store.Save(state.State{Server: "http://localhost:3000", Token: "runner-token", Projects: map[string]string{id: dir}}); err != nil {
+		t.Fatal(err)
+	}
+	vault := miroirVault(t)
+	locals, err := openLocal(store, func() *keys.Vault { return vault })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer locals.Close()
+	got := make(chan contracts.RunnerLocalChanged, 10)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		locals.watch(ctx, local.WatchConfig{Send: func(_ context.Context, m contracts.RunnerLocalChanged) error { got <- m; return nil }})
+	}()
+	defer func() { cancel(); <-done }()
+	select {
+	case m := <-got:
+		if m.ProjectId != id || !m.Full || len(m.Items) != 1 || m.Items[0].Ticket == nil {
+			t.Fatalf("first report %+v", m)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("no report of the folder")
+	}
+	locals.full() // a connection accepted
+	select {
+	case m := <-got:
+		if !m.Full {
+			t.Fatalf("report %+v", m)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("no full report on a connection")
 	}
 }

@@ -1108,18 +1108,18 @@
       "categorie": "ops",
       "gravite": "moyenne",
       "titre": "Ce que le travail écrit sur un Projet Local (commentaires, remarques) disparaît avec le Runner",
-      "statut": "accepté",
-      "statutDepuis": "2026-11-14",
+      "statut": "implémenté",
+      "statutDepuis": "2026-11-19",
       "solutions": [
         {
           "texte": "Données originales dans local.db, jamais touchées par la reconstruction du Miroir",
           "ref": "ADR 0012",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "crewdeck-runner uninstall prévient avant de supprimer local.db",
           "ref": "ADR 0012",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

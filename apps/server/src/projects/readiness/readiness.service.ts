@@ -43,6 +43,8 @@ import { definitionOf, evaluateReadiness, type FolderFigures, type GitHubFigures
 export interface RecomputeReads {
   readonly github?: boolean;
   readonly folder?: boolean;
+  /** The Runner said `hello` again: the preparation sent to its connection before will not be answered. */
+  readonly reconnected?: boolean;
 }
 
 /** The names a figure of GitHub or of the folder was read for: read again once the Pilote changed a branch. */
@@ -51,6 +53,9 @@ interface BranchNames {
   readonly integration: string;
 }
 
+/** The GitHub figures as stored, with the groups of Sources read for them: a group moved to GitHub since is read again. */
+type StoredGitHubFigures = GitHubFigures & BranchNames & { readonly read?: { readonly labels: boolean; readonly branches: boolean } };
+
 /**
  * What the readiness last read of GitHub and of the folder, stored with it
  * (`projects.readiness_facts`): figures only, never a path nor a content.
@@ -58,7 +63,7 @@ interface BranchNames {
  * `error` the failure of the last one.
  */
 export interface ReadinessStoredFacts {
-  readonly github: (GitHubFigures & BranchNames) | null;
+  readonly github: StoredGitHubFigures | null;
   readonly folder: (FolderFigures & BranchNames) | null;
   readonly preparing: string | null;
   readonly error: ProjectFolderPrepareError | null;
@@ -132,7 +137,7 @@ export class ReadinessService implements OnModuleInit, OnModuleDestroy {
     this.removals.push(
       this.changes.onChanged((pilotId) => this.later(pilotId, null, { github: true })),
       this.folders.onFolderChanged((pilotId, projectId) => this.later(pilotId, projectId, { folder: true })),
-      this.connections.onAccepted((link) => this.later(link.pilotId, null, { folder: true })),
+      this.connections.onAccepted((link) => this.later(link.pilotId, null, { folder: true, reconnected: true })),
       this.bus.subscribeAll((pilotId, event) => this.published(pilotId, event)),
     );
     this.githubEvents.on('push', (event) => this.pushed(event));
@@ -296,11 +301,13 @@ export class ReadinessService implements OnModuleInit, OnModuleDestroy {
     const process = await readProjectProcess(this.prisma.scoped, projectId);
     const sources = processSourcesOf(process);
     const names = { release: row.releaseBranch, integration: row.integrationBranch };
-    // Read again on a trigger, when never read, and once a branch is renamed.
+    // Read again on a trigger, when never read, once a branch is renamed, and once a group moves to GitHub.
     const stale = (figures: BranchNames | null): boolean => figures === null || figures.release !== names.release || figures.integration !== names.integration;
 
     const repo = repoOf(row);
-    if (repo && !row.accessLost && (sources.ticket === 'github' || sources.code === 'github') && (reads.github || stale(stored.github))) {
+    const unread = (figures: StoredGitHubFigures | null): boolean =>
+      stale(figures) || (sources.ticket === 'github' && figures?.read?.labels !== true) || (sources.code === 'github' && figures?.read?.branches !== true);
+    if (repo && !row.accessLost && (sources.ticket === 'github' || sources.code === 'github') && (reads.github || unread(stored.github))) {
       const github = await this.readGitHub(repo, sources, names);
       if (github) stored = { ...stored, github };
     }
@@ -312,6 +319,8 @@ export class ReadinessService implements OnModuleInit, OnModuleDestroy {
       this.prisma.scoped.runner.findFirst({ where: { revokedAt: null }, select: { machine: true, state: true } }),
       this.prisma.scoped.mcpServer.findMany({ select: { name: true, state: true } }),
     ]);
+    // A preparation is awaited only from the connection it was sent to: once the Runner is offline or connected anew, « Corriger » again.
+    if (stored.preparing !== null && (reads.reconnected || runner?.state !== 'online')) stored = { ...stored, preparing: null };
     const project = toProject(row);
     const facts: ReadinessFacts = {
       projectId,
@@ -355,7 +364,7 @@ export class ReadinessService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** The labels and the branches the Sources put on GitHub; `null` when GitHub fails (the figures read before stay). */
-  private async readGitHub(repo: RepoRef, sources: ProcessSources, names: BranchNames): Promise<ReadinessStoredFacts['github']> {
+  private async readGitHub(repo: RepoRef, sources: ProcessSources, names: BranchNames): Promise<StoredGitHubFigures | null> {
     try {
       let labelsMissing = 0;
       if (sources.ticket === 'github') {
@@ -368,7 +377,7 @@ export class ReadinessService implements OnModuleInit, OnModuleDestroy {
         releaseBranch = (await this.github.getBranch(repo, names.release)) !== null;
         integrationBranch = (await this.github.getBranch(repo, names.integration)) !== null;
       }
-      return { labelsMissing, releaseBranch, integrationBranch, ...names };
+      return { labelsMissing, releaseBranch, integrationBranch, ...names, read: { labels: sources.ticket === 'github', branches: sources.code === 'github' } };
     } catch (error) {
       this.logger.warn({ code: error instanceof AppError ? error.code : undefined }, 'readiness: github not read');
       return null;

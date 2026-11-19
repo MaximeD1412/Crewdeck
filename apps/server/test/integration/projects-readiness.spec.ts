@@ -310,6 +310,24 @@ describe('the readiness of a Projet against PostgreSQL', () => {
       expect(ready.readiness?.ready).toBe(true);
     });
 
+    it('reads the labels once its Tickets move to GitHub, the figures read while they were Local not kept', async () => {
+      const alice = await pilot('octo-fixture', SENDER_ID);
+      const runner = await online(alice);
+      const project = await githubProject(alice);
+      await sql(`UPDATE artifact_sources SET source = 'local' WHERE project_id = $1 AND "group" = 'ticket'`, [project.id]);
+      await app.get(Reconciliation).run();
+      await readiness.settled();
+      expect(checkOf(await projectOf(alice, project.id), 'labels')).toBeUndefined();
+
+      await sql(`UPDATE artifact_sources SET source = 'github' WHERE project_id = $1 AND "group" = 'ticket'`, [project.id]);
+      runner.send({ type: 'capabilities', engines: [CLAUDE_CONNECTED] });
+
+      await eventually(async () => expect(checkOf(await projectOf(alice, project.id), 'engines')?.state).toBe('ok'));
+      const moved = await projectOf(alice, project.id);
+      expect(checkOf(moved, 'labels')).toMatchObject({ state: 'missing', facts: { missing: PROCESS_LABELS.length }, fix: 'auto' });
+      expect(moved.readiness?.ready).toBe(false);
+    });
+
     it('names the Serveur MCP an Étape uses and the Runner does not declare, and turns ok once it does', async () => {
       const alice = await pilot('octo-fixture', SENDER_ID);
       const runner = await online(alice);
@@ -376,6 +394,36 @@ describe('the readiness of a Projet against PostgreSQL', () => {
       runner.send({ type: 'project.folder.prepared', requestId: prepare.requestId, projectId: id, ok: true });
       runner.send(folderState(id, {}));
       await eventually(async () => expect(checkOf(await projectOf(alice, id), 'folder')).toMatchObject({ state: 'ok', fix: null }));
+    });
+
+    it('a preparation the Runner never answers, restarted before it could, no longer holds the row pending: « Corriger » again', async () => {
+      const alice = await pilot('alice');
+      const runner = await online(alice);
+      const { id } = await localProject(alice, runner);
+      runner.send(folderState(id, { isGit: false, hasCommits: false, releaseBranch: false, integrationBranch: false }));
+      await eventually(async () => expect(checkOf(await projectOf(alice, id), 'folder')?.fix).toBe('auto'));
+      await fix(alice, id, 'folder');
+      await runner.expect('project.folder.prepare');
+
+      const restarted = await online(alice);
+      await restarted.expect('project.folder.status');
+      restarted.send(folderState(id, { isGit: false, hasCommits: false, releaseBranch: false, integrationBranch: false }));
+
+      await eventually(async () => expect(checkOf(await projectOf(alice, id), 'folder')).toMatchObject({ state: 'missing', facts: { reason: 'not-git' }, fix: 'auto' }));
+    });
+
+    it('a preparation pending when the Runner goes offline is no longer awaited', async () => {
+      const alice = await pilot('alice');
+      const runner = await online(alice);
+      const { id } = await localProject(alice, runner);
+      runner.send(folderState(id, { isGit: false, hasCommits: false, releaseBranch: false, integrationBranch: false }));
+      await eventually(async () => expect(checkOf(await projectOf(alice, id), 'folder')?.fix).toBe('auto'));
+      await fix(alice, id, 'folder');
+      await runner.expect('project.folder.prepare');
+
+      await runner.close();
+
+      await eventually(async () => expect(checkOf(await projectOf(alice, id), 'folder')).toMatchObject({ state: 'missing', facts: { reason: 'not-git' }, fix: 'auto' }));
     });
 
     it('without a git identity on the machine, the row says what to set', async () => {

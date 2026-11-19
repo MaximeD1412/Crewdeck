@@ -54,7 +54,8 @@ func Status(path, release, integration string) Readiness {
 // Prepare makes the folder at path ready for the Process, as far as the
 // Runner may without touching the Pilote's work: « git init -b <release> »
 // for a folder that is not a repository, a first commit of its files for a
-// repository without one, and the integration branch from the release one
+// repository without one (on its current branch, the release branch from it
+// when that is another), and the integration branch from the release one
 // when it is missing. It never checks out, never moves the working tree's
 // branch, never commits in a repository that has commits, and leaves a
 // missing release branch of such a repository alone. "" when it went
@@ -76,18 +77,19 @@ func Prepare(path, release, integration string) contracts.RunnerProjectFolderPre
 		if !hasIdentity(dir) {
 			return contracts.RunnerProjectFolderPreparedErrorGitIdentityMissing
 		}
-		// No branch exists yet: HEAD names the release branch before its first commit.
-		if head, err := gitOutput(dir, "symbolic-ref", "-q", "HEAD"); err != nil || head != "refs/heads/"+release {
-			if _, err := gitOutput(dir, "symbolic-ref", "HEAD", "refs/heads/"+release); err != nil {
-				return contracts.RunnerProjectFolderPreparedErrorGitFailed
-			}
-		}
 		if _, err := gitWithin(dir, prepareTimeout, "add", "-A"); err != nil {
 			return contracts.RunnerProjectFolderPreparedErrorGitFailed
 		}
 		// The identity is the Pilote's config, never one git would guess.
 		if _, err := gitWithin(dir, prepareTimeout, "-c", "user.useConfigOnly=true", "commit", "-q", "--allow-empty", "-m", FirstCommit); err != nil {
 			return contracts.RunnerProjectFolderPreparedErrorGitFailed
+		}
+		// The first commit lands on the branch HEAD names, which stays the
+		// current one: the release branch starts from it when it is another.
+		if !hasBranch(dir, release) {
+			if _, err := gitOutput(dir, "branch", "--no-track", release, "HEAD"); err != nil {
+				return contracts.RunnerProjectFolderPreparedErrorGitFailed
+			}
 		}
 	}
 	if hasBranch(dir, release) && !hasBranch(dir, integration) {

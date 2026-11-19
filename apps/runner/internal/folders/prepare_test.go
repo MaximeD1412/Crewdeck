@@ -241,8 +241,9 @@ func TestPrepareLeavesAnAbsentReleaseBranchAlone(t *testing.T) {
 }
 
 // A repository without commits on another unborn branch gets its first
-// commit on the release branch: no branch existed to leave.
-func TestPrepareGivesAnEmptyRepositoryItsFirstCommitOnTheReleaseBranch(t *testing.T) {
+// commit on that branch, HEAD left where the Pilote put it, and the release
+// and integration branches from it.
+func TestPrepareGivesAnEmptyRepositoryItsFirstCommitWithoutMovingHead(t *testing.T) {
 	pilotGit(t, true)
 	path := folder(t)
 	mkdir(t, path)
@@ -252,11 +253,14 @@ func TestPrepareGivesAnEmptyRepositoryItsFirstCommitOnTheReleaseBranch(t *testin
 	assertPrepared(t, Prepare(path, "main", "develop"), "")
 
 	assertReadiness(t, Status(path, "main", "develop"), Readiness{Present: true, IsGit: true, HasCommits: true, ReleaseBranch: true, IntegrationBranch: true})
-	if got := git(t, path, "for-each-ref", "--format=%(refname:short)", "refs/heads/"); got != "develop\nmain" {
-		t.Fatalf("branches %q, want develop and main", got)
+	if got := git(t, path, "for-each-ref", "--format=%(refname:short)", "refs/heads/"); got != "develop\nmain\nmaster" {
+		t.Fatalf("branches %q, want develop, main and master", got)
 	}
-	if got := git(t, path, "symbolic-ref", "--short", "HEAD"); got != "main" {
-		t.Fatalf("HEAD on %q, want main", got)
+	if got := git(t, path, "symbolic-ref", "--short", "HEAD"); got != "master" {
+		t.Fatalf("HEAD on %q, want master", got)
+	}
+	if got := git(t, path, "status", "--porcelain"); got != "" {
+		t.Fatalf("working tree %q, want clean", got)
 	}
 }
 

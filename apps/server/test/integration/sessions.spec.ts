@@ -91,19 +91,20 @@ describe('the Sessions against PostgreSQL', () => {
   };
 
   /** A Projet `acme/shop` of `tab`, its code on `code` (a Local folder, or GitHub). */
-  const project = async (tab: Tab, code: 'github' | 'local' = 'github'): Promise<string> => {
+  const project = async (tab: Tab, code: 'github' | 'local' = 'github', ticket: 'github' | 'local' = 'github'): Promise<string> => {
     const id = newId();
     await sql(
       `INSERT INTO projects (id, pilot_id, repository_id, github_repo_id, owner, name, full_name, display_name, release_branch, integration_branch, has_code, inventory_state)
        VALUES ($1, $2, $3, $4, 'acme', 'shop', 'acme/shop', 'shop', 'main', 'develop', true, 'not-needed')`,
       [id, tab.id, newId(), Math.floor(Math.random() * 1e9)],
     );
-    await sql(`INSERT INTO artifact_sources (id, pilot_id, project_id, "group", source, since) VALUES ($1, $2, $3, 'ticket', 'github', now()), ($4, $2, $3, 'code', $5, now())`, [
+    await sql(`INSERT INTO artifact_sources (id, pilot_id, project_id, "group", source, since) VALUES ($1, $2, $3, 'ticket', $6, now()), ($4, $2, $3, 'code', $5, now())`, [
       newId(),
       tab.id,
       id,
       newId(),
       code,
+      ticket,
     ]);
     return id;
   };
@@ -302,34 +303,57 @@ describe('the Sessions against PostgreSQL', () => {
       expect((await socket.expect('session.start')).sessionId).toBe(session.id);
     });
 
-    it('starts a Local Projet’s Session from its folder: origin local, its title stored sealed and sent null (SOURCE-2)', async () => {
+    it('starts a Local Projet’s Session from its folder: origin local, its title stored sealed with its additional data and sent null (SOURCE-2)', async () => {
       const alice = await pilot();
-      const projectId = await project(alice, 'local');
+      const projectId = await project(alice, 'local', 'local');
       const socket = await online(alice);
-      const sealed = { key: 'a'.repeat(80), ciphertext: 'b'.repeat(40) };
+      const titleSealed = { key: 'a'.repeat(80), ciphertext: 'b'.repeat(40), aad: `ticket:${projectId}:3:title` };
 
-      const session = await start(alice, input(projectId, { title: sealed }));
+      const session = await start(alice, input(projectId, { title: titleSealed }));
 
-      expect(session).toMatchObject({ title: null, titleSealed: sealed });
+      expect(session).toMatchObject({ title: null, titleSealed });
       expect(zAgentSession.parse(session)).toEqual(session);
       const message = await socket.expect('session.start');
       expect(message).toMatchObject({ sessionId: session.id, origin: { kind: 'local' }, title: null });
-      expect(await sql('SELECT title, title_sealed FROM agent_sessions WHERE id = $1', [session.id])).toEqual([{ title: null, title_sealed: sealed }]);
+      expect(await sql('SELECT title, title_sealed, title_aad FROM agent_sessions WHERE id = $1', [session.id])).toEqual([
+        { title: null, title_sealed: { key: titleSealed.key, ciphertext: titleSealed.ciphertext }, title_aad: titleSealed.aad },
+      ]);
     });
 
-    it('never stores a readable title for a Local Projet nor a sealed one for GitHub, and refuses a Projet with no code Source with 422 sessions.no-origin', async () => {
+    it('takes the title as the Source of its artifact holds it, whatever the code’s: Tickets on GitHub and code Local, Tickets Local and code on GitHub', async () => {
       const alice = await pilot();
-      const local = await project(alice, 'local');
+      const codeLocal = await project(alice, 'local', 'github');
+      const codeGithub = await project(alice, 'github', 'local');
+      const socket = await online(alice);
+      const titleSealed = { key: 'a'.repeat(80), ciphertext: 'b'.repeat(40), aad: `ticket:${codeGithub}:3:title` };
+
+      const readable = await start(alice, input(codeLocal));
+      expect(readable).toMatchObject({ title: 'Le panier garde ses articles', titleSealed: null });
+      expect(await socket.expect('session.start')).toMatchObject({ sessionId: readable.id, origin: { kind: 'local' }, title: 'Le panier garde ses articles' });
+
+      const sealed = await start(alice, input(codeGithub, { title: titleSealed, branch: 'feat/13-caisse' }));
+      expect(sealed).toMatchObject({ title: null, titleSealed });
+      expect(await socket.expect('session.start')).toMatchObject({ sessionId: sealed.id, origin: { kind: 'github', owner: 'acme', name: 'shop' }, title: null });
+    });
+
+    it('refuses a Projet with no code Source with 422 sessions.no-origin, and the database a title both readable and sealed or neither', async () => {
+      const alice = await pilot();
       const github = await project(alice);
       await sql(`DELETE FROM artifact_sources WHERE project_id = $1 AND "group" = 'code'`, [github]);
       const withCode = await project(alice);
 
-      await expect(start(alice, input(local))).rejects.toThrow('a readable title for a Session on local');
-      await expect(start(alice, input(withCode, { title: { key: 'a'.repeat(80), ciphertext: 'b'.repeat(40) } }))).rejects.toThrow('a sealed title for a Session on github');
       const failure = await start(alice, input(github)).catch((error: unknown) => error);
       expect(failure).toBeInstanceOf(AppError);
       expect(failure).toMatchObject({ status: 422, code: 'sessions.no-origin', message: 'Ce Projet n’a pas de dépôt pour les Sessions.' });
       expect(await sql('SELECT id FROM agent_sessions')).toEqual([]);
+      const session = await start(alice, input(withCode));
+      await expect(sql(`UPDATE agent_sessions SET title_sealed = '{"key":"k","ciphertext":"c"}', title_aad = 'a' WHERE id = $1`, [session.id])).rejects.toThrow(
+        'agent_sessions_title_readable_or_sealed',
+      );
+      await expect(sql(`UPDATE agent_sessions SET title = NULL WHERE id = $1`, [session.id])).rejects.toThrow('agent_sessions_title_readable_or_sealed');
+      await expect(sql(`UPDATE agent_sessions SET title = NULL, title_sealed = '{"key":"k","ciphertext":"c"}' WHERE id = $1`, [session.id])).rejects.toThrow(
+        'agent_sessions_title_sealed_with_its_aad',
+      );
     });
   });
 

@@ -68,7 +68,7 @@ describe('sessionView', () => {
   });
 
   it('heads a Local Projet’s Session, its title sealed, as « Session d’un Projet local »', () => {
-    const sealed = { key: 'a'.repeat(80), ciphertext: 'b'.repeat(40) };
+    const sealed = { key: 'a'.repeat(80), ciphertext: 'b'.repeat(40), aad: `ticket:${SESSION.projectId}:3:title` };
     const { data } = view({ session: { ...SESSION, title: null, titleSealed: sealed } });
     expect(COMPOSANTS.Session.data.parse(data)).toEqual(data);
     expect(data.title).toBe(t('session.title.local'));

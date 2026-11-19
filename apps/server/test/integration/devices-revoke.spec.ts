@@ -204,7 +204,14 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
     await prisma.unscoped.artifactSource.createMany({
       data: (['ticket', 'code'] as const).map((group) => ({ id: newId(), pilotId: tab.id, projectId: localId, group, source: 'local' as const, since: new Date() })),
     });
-    return { projectId, versionId, ideas, localId };
+    // A Session on its Ticket (SOURCE-2): its title sealed as the Ticket's, under the Ticket's additional data.
+    const sessionId = newId();
+    await sql(
+      `INSERT INTO agent_sessions (id, pilot_id, project_id, role, engine, model, title_sealed, title_aad, branch, base, permission_mode, state, started_at)
+       VALUES ($1, $2, $3, 'code', 'claude-code', 'claude-opus-5-5', $4, $5, 'feat/3-panier', 'develop', 'bypass', 'ended', now())`,
+      [sessionId, tab.id, localId, JSON.stringify(sealed()), `ticket:${localId}:3:title`],
+    );
+    return { projectId, versionId, ideas, localId, sessionId };
   };
 
   const eventsOf = async (pilotId: string, type: string) =>
@@ -471,7 +478,7 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
       const first = await linked(alice);
       const second = await approved(alice, first);
       const third = await approved(alice, first);
-      const { versionId, ideas, localId } = await items(alice);
+      const { versionId, ideas, localId, sessionId } = await items(alice);
       await page(alice, `/api/devices/${third.deviceId}/revoke`, { body: { seq: await seq(alice) } });
       told.length = 0;
 
@@ -486,6 +493,7 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
       expect(keys.map(({ itemType, aad }) => `${itemType} ${aad}`).sort()).toEqual(
         [`idea.analysis ${ideas[1]}:analysis`, `idea.text ${ideas[0]}:text`, `idea.text ${ideas[1]}:text`, `process-version.sealed process:${(await sql<{ project_id: string }>('SELECT project_id FROM process_versions'))[0]?.project_id}`,
           `project.name project:${localId}:name`,
+          `agent-session.title ticket:${localId}:3:title`,
         ].sort(),
       );
       const before = await sql<{ text: { ciphertext: string } }>('SELECT text FROM ideas WHERE id = $1', [ideas[0]]);
@@ -502,6 +510,11 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
       expect(version?.sealed.key).toBe(rotation.items.find((item) => item.itemId === versionId)?.wrappedKey);
       const [local] = await sql<{ name_sealed: { key: string } }>('SELECT name_sealed FROM projects WHERE id = $1', [localId]);
       expect(local?.name_sealed.key).toBe(rotation.items.find((item) => item.itemId === localId && item.itemType === 'project.name')?.wrappedKey);
+      const sessionBefore = keys.find((item) => item.itemType === 'agent-session.title');
+      const [session] = await sql<{ title_sealed: { key: string; ciphertext: string }; title_aad: string }>('SELECT title_sealed, title_aad FROM agent_sessions WHERE id = $1', [sessionId]);
+      expect(session?.title_sealed.key).toBe(rotation.items.find((item) => item.itemId === sessionId && item.itemType === 'agent-session.title')?.wrappedKey);
+      expect(session?.title_sealed.key).not.toBe(sessionBefore?.wrappedKey);
+      expect(session?.title_aad).toBe(`ticket:${localId}:3:title`);
       expect((await eventsOf(alice.id, 'vault.upserted')).at(-1)).toEqual({ version: 2, rotationPending: false });
       const runnerWrap = rotation.wraps.find(({ holderType }) => holderType === 'runner');
       expect(told).toEqual([

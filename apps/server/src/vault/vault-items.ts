@@ -144,8 +144,35 @@ const projectNames: VaultItemKind = {
   },
 };
 
+/**
+ * A Session's title when its artifact is Local (SOURCE-2): a copy of that
+ * artifact's sealed title, rewrapped under the additional data it was sealed
+ * under, which the row keeps (`title_aad`).
+ */
+const sessionTitles: VaultItemKind = {
+  itemType: 'agent-session.title',
+  async list(tx, from, take) {
+    const rows = await tx.agentSession.findMany({
+      where: { ...after(from), titleSealed: { not: Prisma.DbNull } },
+      orderBy: { id: 'asc' },
+      take,
+      select: { id: true, titleSealed: true, titleAad: true },
+    });
+    return rows.flatMap(({ id, titleSealed, titleAad }) => {
+      const wrappedKey = keyOf(titleSealed);
+      return wrappedKey && titleAad ? [{ itemType: 'agent-session.title', itemId: id, aad: titleAad, wrappedKey }] : [];
+    });
+  },
+  async replace(tx, id, previousKey, wrappedKey) {
+    const row = await tx.agentSession.findUnique({ where: { id }, select: { titleSealed: true } });
+    return swap(row?.titleSealed, previousKey, wrappedKey, async (stored, value) => {
+      return (await tx.agentSession.updateMany({ where: { id, titleSealed: { equals: stored } }, data: { titleSealed: value } })).count;
+    });
+  },
+};
+
 /** The kinds of every sealed item the server stores today. */
-export const VAULT_ITEM_KINDS: readonly VaultItemKind[] = [ideaKind('text'), ideaKind('analysis'), ideaKind('reason'), processVersions, processDrafts, worktreeCommands, projectNames];
+export const VAULT_ITEM_KINDS: readonly VaultItemKind[] = [ideaKind('text'), ideaKind('analysis'), ideaKind('reason'), processVersions, processDrafts, worktreeCommands, projectNames, sessionTitles];
 
 /** Where a page of items starts: the kind's index and the last id read. */
 export interface VaultItemsCursor {

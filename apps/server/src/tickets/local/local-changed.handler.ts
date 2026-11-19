@@ -23,7 +23,7 @@ const paramsKey = (params: unknown): string =>
  * ADR 0012): its Tickets, milestones and changes of code written with
  * `source: 'local'` and their events in one transaction, each event's
  * `sourceAt` the item's `observedAt` (the latency measure of a webhook's); a
- * full report removes the Local rows it does not hold; « Fichier de Ticket
+ * full report removes the Local rows it does not hold, changes of code too; « Fichier de Ticket
  * illisible » for each file the Runner could not read. A group of the Projet
  * on GitHub drops its items. One report after the other per Pilote; never a
  * text in clear here, nor in the logs.
@@ -47,6 +47,11 @@ export class LocalChangedHandler implements OnModuleInit {
     this.dispatcher.registerRunnerHandler('local.changed', (message, context) => this.reported(context.pilotId, message));
   }
 
+  /**
+   * Queued after the Pilote's previous report. A write that failed rejects:
+   * the socket closes (the Runner kept what it sent as reported), and the
+   * Runner's full report on reconnection brings every item again.
+   */
   private reported(pilotId: string, message: LocalChanged): Promise<void> {
     const previous = this.queues.get(pilotId) ?? Promise.resolve();
     const run = previous.then(() => runInPilotScope(pilotId, () => this.write(pilotId, message)));
@@ -55,7 +60,7 @@ export class LocalChangedHandler implements OnModuleInit {
     void settled.then(() => {
       if (this.queues.get(pilotId) === settled) this.queues.delete(pilotId);
     });
-    return settled;
+    return run;
   }
 
   private async write(pilotId: string, message: LocalChanged): Promise<void> {
@@ -75,9 +80,7 @@ export class LocalChangedHandler implements OnModuleInit {
       await this.events.lock(tx, pilotId);
       const at = runnerAt(message.at);
       if (ticketsLocal) await this.writeTickets(tx, projectId, message.full, items, at);
-      if (codeLocal) {
-        for (const change of items.changes) await this.writer.upsertCodeChanges(tx, projectId, 'local', [changeInputOf(change)], runnerAt(change.observedAt));
-      }
+      if (codeLocal) await this.writeChanges(tx, projectId, message.full, items.changes, at);
       if (ticketsLocal) await this.writeUnreadable(tx, projectId, message.unreadable);
     });
   }
@@ -107,6 +110,15 @@ export class LocalChangedHandler implements OnModuleInit {
       if (milestone.titleSealed === null) continue;
       await this.writer.upsertMilestones(tx, projectId, 'local', [milestoneInputOf({ ...milestone, titleSealed: milestone.titleSealed }, counts)], at);
     }
+  }
+
+  /** The changes of code, each at its observedAt; a full report removes the Local ones it does not hold. */
+  private async writeChanges(tx: Tx, projectId: string, full: boolean, changes: readonly LocalChangeItem[], at: WriteOrigin): Promise<void> {
+    for (const change of changes) await this.writer.upsertCodeChanges(tx, projectId, 'local', [changeInputOf(change)], runnerAt(change.observedAt));
+    if (!full) return;
+    const held = changes.map((change) => change.number);
+    const gone = await tx.codeChange.findMany({ where: { projectId, source: 'local', number: { notIn: held } }, select: { number: true } });
+    for (const { number } of gone) await this.writer.removeCodeChange(tx, projectId, number, at);
   }
 
   /** The Projet's unreadable files are the message's whole set: a new one or a changed one raised, one gone resolved. */

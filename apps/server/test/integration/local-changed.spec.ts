@@ -15,6 +15,7 @@ import { sealItem } from '../../src/testing/vault.js';
 import { connectRunner, type FakeRunnerClient } from '../fakes/runner.js';
 import { connect, type WsClient } from '../fakes/ws-client.js';
 import { startApp } from '../route-baseline.js';
+import { TicketsWriter } from '../../src/tickets/tickets.writer.js';
 
 const databaseUrl = inject('databaseUrl');
 const env = parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: databaseUrl, CREWDECK_COMMIT: 'abc1234' });
@@ -268,14 +269,17 @@ describe('a Local Projet’s folder followed, against PostgreSQL', () => {
     expect((await eventsOf(alice)).slice(before).map((event) => event.type)).toEqual(['ticket.upserted']);
   });
 
-  it('removes a Ticket gone from the folder, and with a full report every Local row it does not hold, with their events', async () => {
+  it('removes a Ticket gone from the folder, and with a full report every Local row it does not hold (Tickets, milestones, changes of code), with their events in its transaction', async () => {
     const alice = await pilot('alice');
     const runner = await online(alice);
     const projectId = await localProject(alice);
-    report(runner, projectId, [ticket(projectId, 5), ticket(projectId, 7), ticket(projectId, 12), milestone(projectId, 1), milestone(projectId, 2)]);
-    await eventually(async () => expect(await tickets(projectId)).toHaveLength(3));
+    report(runner, projectId, [ticket(projectId, 5), ticket(projectId, 7), ticket(projectId, 12), milestone(projectId, 1), milestone(projectId, 2), change(projectId, 31, 12), change(projectId, 32, 7)]);
+    await eventually(async () => expect(await sql('SELECT number FROM code_changes WHERE project_id = $1', [projectId])).toHaveLength(2));
+    // A change of GitHub's stays, whatever a full report holds.
+    await sql(`UPDATE code_changes SET source = 'github', title = 'Panier partagé', title_sealed = NULL WHERE project_id = $1 AND number = 31`, [projectId]);
     const ids = Object.fromEntries((await sql<{ number: number; id: string }>('SELECT number, id FROM tickets WHERE project_id = $1', [projectId])).map((row) => [row.number, row.id]));
     const [second] = await sql<{ id: string }>('SELECT id FROM milestones WHERE project_id = $1 AND number = 2', [projectId]);
+    const [gone] = await sql<{ id: string }>('SELECT id FROM code_changes WHERE project_id = $1 AND number = 32', [projectId]);
 
     report(runner, projectId, [{ kind: 'ticket-removed', number: 5, observedAt: '2026-11-19T10:00:00.000Z' }]);
     await eventually(async () => expect((await tickets(projectId)).map((row) => row.number)).toEqual([7, 12]));
@@ -287,10 +291,36 @@ describe('a Local Projet’s folder followed, against PostgreSQL', () => {
     expect(after.filter((event) => event.type.endsWith('.removed')).map((event) => [event.type, event.payload])).toEqual([
       ['ticket.removed', { id: ids[7] }],
       ['milestone.removed', { id: second?.id }],
+      ['code-change.removed', { id: gone?.id }],
     ]);
+    expect(new Set(after.map((event) => event.tx)).size).toBe(1);
+    expect(await sql('SELECT number, source FROM code_changes WHERE project_id = $1', [projectId])).toEqual([{ number: 31, source: 'github' }]);
     expect(await sql('SELECT number, open_count FROM milestones WHERE project_id = $1', [projectId])).toEqual([{ number: 1, open_count: 1 }]);
     const removed = (await eventsOf(alice)).filter((event) => event.type === 'ticket.removed').map((event) => event.payload);
     expect(removed).toEqual([{ id: ids[5] }, { id: ids[7] }]);
+  });
+
+  it('rolls a report back whole when its write fails, and closes the Runner’s socket: its full report on reconnection writes every item', async () => {
+    const alice = await pilot('alice');
+    const runner = await online(alice);
+    const projectId = await localProject(alice);
+    const items = [ticket(projectId, 12), change(projectId, 31, 12)];
+
+    // The change of code fails after the Ticket was written, in the same transaction.
+    const failing = vi.spyOn(app.get(TicketsWriter), 'upsertCodeChanges').mockRejectedValueOnce(new Error('the connection is lost'));
+    try {
+      report(runner, projectId, items);
+      expect((await runner.closed()).code).toBe(1011);
+    } finally {
+      failing.mockRestore();
+    }
+    expect(await tickets(projectId)).toEqual([]);
+    expect((await eventsOf(alice)).filter((event) => event.type === 'ticket.upserted')).toEqual([]);
+
+    const again = await online(alice);
+    report(again, projectId, items, { full: true });
+    await eventually(async () => expect(await sql('SELECT number, ticket_number FROM code_changes WHERE project_id = $1', [projectId])).toEqual([{ number: 31, ticket_number: 12 }]));
+    expect((await tickets(projectId)).map((row) => row.number)).toEqual([12]);
   });
 
   it('drops the items of a Projet whose ticket group is on GitHub, its changes kept while its code is Local', async () => {

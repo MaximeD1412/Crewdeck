@@ -206,6 +206,14 @@ export class TicketsWriter {
     await this.events.write(tx, currentPilotId(), 'milestone.removed', { id: row.id }, origin);
   }
 
+  /** Deletes a change of code, its checks with it: `code-change.removed`. */
+  async removeCodeChange(tx: Tx, projectId: string, number: number, origin: WriteOrigin = {}): Promise<void> {
+    const row = await tx.codeChange.findFirst({ where: { projectId, number }, select: { id: true } });
+    if (!row) return;
+    await tx.codeChange.delete({ where: { id: row.id } });
+    await this.events.write(tx, currentPilotId(), 'code-change.removed', { id: row.id }, origin);
+  }
+
   /**
    * Writes changes of code: the Ticket each delivers from its head branch,
    * and, when its head moves, the `checks` of the new head from the rows

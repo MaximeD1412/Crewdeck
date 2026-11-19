@@ -187,7 +187,7 @@ export class Engine {
    * While a migration of Source runs on a group its Phase reads or writes
    * (SOURCE-7), the PhaseRun is created `waiting` on `source-migration`,
    * none of its Étapes started: `releaseHeld` starts it once the migration
-   * is `switched` or `failed`.
+   * is `done` or `failed`.
    */
   async admit(
     tx: Tx,
@@ -655,7 +655,9 @@ export class Engine {
     if (others.some((other) => other.state !== 'waiting' || other.waitingOn !== 'queue')) return;
     const next = others[0];
     if (!next) return;
-    if (await heldByMigration(tx, projectId, finished.definition, phaseId)) {
+    // The next one may be pinned to another version than the finished one: its own Phase says what it touches.
+    const pinned = await this.definitionFor(tx, await tx.phaseRun.findUniqueOrThrow({ where: { id: next.id }, select: { processVersionId: true, builtinTemplate: true } }));
+    if (await heldByMigration(tx, projectId, pinned, phaseId)) {
       await this.publishPhaseRun(tx, await tx.phaseRun.update({ where: { id: next.id }, data: { waitingOn: 'source-migration' }, select: PHASE_RUN_VIEW }));
       return;
     }

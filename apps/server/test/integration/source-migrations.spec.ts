@@ -1,4 +1,4 @@
-import { CATALOGUE, type SourceMigration, type StepKind, zDecision, zProjectList, zSourceMigration, zSourceMigrationPage, zState } from '@crewdeck/contracts';
+import { CATALOGUE, PROCESS_CREWDECK, type ProcessDefinition, type SourceMigration, type StepKind, zDecision, zProjectList, zSourceMigration, zSourceMigrationPage, zState } from '@crewdeck/contracts';
 import { type INestApplication, Inject, Module, type OnModuleInit } from '@nestjs/common';
 import pg from 'pg';
 import { inject } from 'vitest';
@@ -179,6 +179,27 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
   const eventsSince = (seq: string) => sql<EventRow>('SELECT seq::text, type, payload, xmin::text AS tx FROM events WHERE pilot_id = $1 AND seq > $2 ORDER BY seq', [alice.id, seq]);
   const openDecisions = async () => (await sql<{ kind: string; label: string; meta_parts: string[]; tone: string; params: Record<string, unknown>; link: string }>(`SELECT kind, label, meta_parts, tone, params, link FROM decisions WHERE pilot_id = $1 AND state = 'open'`, [alice.id]));
 
+  /** A version written beside the active one, as an activation does: the next number, its id. */
+  const writeVersion = async (definition: ProcessDefinition): Promise<string> => {
+    const id = newId();
+    await sql(
+      `INSERT INTO process_versions (id, pilot_id, project_id, number, definition, activated_at, activated_by)
+       SELECT $1, $2, $3, max(number) + 1, $4, now(), 'pilot' FROM process_versions WHERE project_id = $3`,
+      [id, alice.id, projectId, JSON.stringify(definition)],
+    );
+    return id;
+  };
+  /** A PhaseRun pinned to `versionId`, as the engine leaves one: its id. */
+  const insertRun = async (versionId: string, phaseId: string, itemType: string, itemId: string, runState: 'running' | 'waiting', waitingOn: string | null): Promise<string> => {
+    const id = newId();
+    await sql(
+      `INSERT INTO phase_runs (id, pilot_id, project_id, process_version_id, phase_id, item_type, item_id, state, waiting_on, started_at, loop_backs)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), '[]')`,
+      [id, alice.id, projectId, versionId, phaseId, itemType, itemId, runState, waitingOn],
+    );
+    return id;
+  };
+
   const migrate = async (group: 'ticket' | 'code', to: 'local' | 'github', seq?: string): Promise<Response> =>
     call('POST', `/api/projects/${projectId}/sources/${group}/migrate`, { to, seq: seq ?? (await lastSeq()) });
   const migrated = async (group: 'ticket' | 'code', to: 'local' | 'github'): Promise<SourceMigration> => {
@@ -228,6 +249,12 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
 
     it('answers 422 source.same, source.migration-running, source.target-missing and source.runner-cannot-migrate', async () => {
       await expectEnvelope(await migrate('ticket', 'local'), 422, 'source.same');
+      // Both groups on GitHub: no folder of the Projet declared, even for a group that holds nothing.
+      await sql(`UPDATE artifact_sources SET source = 'github' WHERE project_id = $1`, [projectId]);
+      await expectEnvelope(await migrate('ticket', 'local'), 422, 'source.target-missing');
+      await expectEnvelope(await migrate('code', 'local'), 422, 'source.target-missing');
+      expect(await sql('SELECT id FROM source_migrations')).toEqual([]);
+      await sql(`UPDATE artifact_sources SET source = 'local' WHERE project_id = $1 AND "group" = 'ticket'`, [projectId]);
       await sql('UPDATE projects SET access_lost = true WHERE id = $1', [projectId]);
       await expectEnvelope(await migrate('ticket', 'github'), 422, 'source.target-missing');
       await sql('UPDATE projects SET access_lost = false WHERE id = $1', [projectId]);
@@ -274,6 +301,37 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
       expect((await state()).sourceMigrations).toEqual([expect.objectContaining({ id: migration.id, waitingItems: [{ itemType: 'ticket', number: 12 }] })]);
     });
 
+    it('holds the next of a Phase without forEach by its own version’s Phase, not the finished one’s', async () => {
+      const delivery = (inputs: ProcessDefinition['steps'][number]['inputs']): ProcessDefinition => ({
+        ...PROCESS_CREWDECK,
+        phases: [...PROCESS_CREWDECK.phases, { id: 'ph-livraison', name: 'Livraison', col: 1, row: 4, forEach: null }],
+        steps: [...PROCESS_CREWDECK.steps, { id: 'st-lancer', phaseId: 'ph-livraison', kind: 'command', name: 'Lancer', col: 1, row: 1, inputs, outputs: [{ id: 'livraison', type: 'delivery' }], tools: [] }],
+      });
+      // v2: « Livraison » takes the code only; v3, activated meanwhile, also reads a Ticket.
+      const v2 = await writeVersion(delivery([{ id: 'changement', type: 'code-change' }]));
+      const v3 = await writeVersion(delivery([{ id: 'changement', type: 'code-change' }, { id: 'ticket', type: 'ticket' }]));
+      const first = await insertRun(v2, 'ph-livraison', 'code-change', '57', 'running', null);
+      const next = await insertRun(v3, 'ph-livraison', 'code-change', '58', 'waiting', 'queue');
+      await tickets(12);
+      const socket = await online();
+      const migration = await migrated('ticket', 'github');
+      await socket.expect('migration.copy');
+
+      await stop(first);
+      expect(await phaseRun(next)).toEqual({ state: 'waiting', waiting_on: 'source-migration' });
+      expect(await stepRunCount(next)).toBe(0);
+      expect((await row(migration.id))?.state).toBe('copying');
+    });
+
+    it('resumes, at the sweep, a migration left draining by a restart with nothing left to wait for', async () => {
+      const id = newId();
+      await sql(`INSERT INTO source_migrations (id, pilot_id, project_id, "group", "from", "to", state, waiting_items, created_at) VALUES ($1, $2, $3, 'ticket', 'local', 'github', 'draining', '[]', now())`, [id, alice.id, projectId]);
+      await app.get(FinishSweep).sweep();
+      await migrations.idle();
+      expect(await row(id)).toMatchObject({ state: 'done' });
+      expect(await ticketSource()).toBe('github');
+    });
+
     it('switches a group that holds nothing and makes it done at once, with no message to the Runner', async () => {
       const socket = await online();
       const before = await lastSeq();
@@ -292,7 +350,7 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
   });
 
   describe('the switch', () => {
-    it('writes the Source, the state, the hooks’ rows and the events in one transaction, then sends migration.finish; the held work starts on the new Source', async () => {
+    it('writes the Source, the state, the hooks’ rows and the events in one transaction, then sends migration.finish; the held work starts once the old place is frozen', async () => {
       const { migration, socket } = await copying();
       const held = await admit('14');
       expect(held.waitingOn).toBe('source-migration');
@@ -308,8 +366,14 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
       const switched = events.find((event) => event.type === 'source-migration.upserted');
       expect(switched?.payload).toMatchObject({ state: 'switched' });
       for (const type of ['process.upserted', 'project.upserted']) expect(events.find((event) => event.type === type)?.tx).toBe(switched?.tx);
-      expect(await phaseRun(held.id)).toEqual({ state: 'running', waiting_on: null });
       expect(await sql<{ source: string }>('SELECT DISTINCT source FROM tickets WHERE project_id = $1', [projectId])).toEqual([{ source: 'github' }]);
+      expect(await phaseRun(held.id)).toEqual({ state: 'waiting', waiting_on: 'source-migration' });
+      expect(await stepRunCount(held.id)).toBe(0);
+      expect((await admit('15')).waitingOn).toBe('source-migration');
+
+      socket.send({ type: 'migration.finished', migrationId: migration.id });
+      await vi.waitFor(async () => expect((await row(migration.id))?.state).toBe('done'));
+      expect(await phaseRun(held.id)).toEqual({ state: 'running', waiting_on: null });
     });
 
     it('rolls the whole switch back when a hook throws, then fails the migration on the old Source (switch-failed)', async () => {
@@ -356,6 +420,22 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
       expect(await row(migration.id)).toMatchObject({ state: 'copying', attempt: 2 });
       expect(await openDecisions()).toEqual([]);
       await expectEnvelope(await call('POST', `/api/source-migrations/${migration.id}/retry`, { seq: await lastSeq() }), 422, 'source-migration.not-failed');
+    });
+
+    it('refuses to retry a failed migration another one replaced, even once that one is done', async () => {
+      const { migration, socket } = await copying();
+      socket.send({ type: 'migration.failed', migrationId: migration.id, stage: 'copy', code: 'github.unavailable' });
+      await vi.waitFor(async () => expect((await row(migration.id))?.state).toBe('failed'));
+      const replacing = await migrated('ticket', 'github');
+      await socket.expect('migration.copy');
+      socket.send({ type: 'migration.switch', migrationId: replacing.id, fingerprints: [FINGERPRINT], renumbering: [] });
+      await socket.expect('migration.finish');
+      socket.send({ type: 'migration.finished', migrationId: replacing.id });
+      await vi.waitFor(async () => expect((await row(replacing.id))?.state).toBe('done'));
+
+      await expectEnvelope(await call('POST', `/api/source-migrations/${migration.id}/retry`, { seq: await lastSeq() }), 422, 'source-migration.replaced');
+      expect(await row(migration.id)).toMatchObject({ state: 'failed', attempt: 1 });
+      expect(socket.received().filter((message) => message.type === 'migration.copy')).toHaveLength(2);
     });
 
     it('a new migration resolves a failed one’s Décision (replaced)', async () => {
@@ -411,6 +491,8 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
   it('lists the Projet’s migrations, the newest first, by state, 404 for another Pilote’s Projet', async () => {
     const first = await migrated('ticket', 'github');
     await migrations.idle();
+    // The code Local: the Projet's folder, where the Tickets go back.
+    await sql(`UPDATE artifact_sources SET source = 'local' WHERE project_id = $1 AND "group" = 'code'`, [projectId]);
     const second = await migrated('ticket', 'local');
     await migrations.idle();
     const page = zSourceMigrationPage.parse(await (await call('GET', `/api/projects/${projectId}/source-migrations?limit=1`)).json());

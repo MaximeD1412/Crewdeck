@@ -6,6 +6,7 @@ import {
   RUNNING_SOURCE_MIGRATION_STATES,
   SOURCE_MIGRATION_WAITING_ITEMS_MAX,
   type SourceGroup,
+  type SourceKind,
   type SourceMigration,
   type SourceMigrationPage,
   type SourceMigrationQuery,
@@ -135,6 +136,14 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
     this.hooks.set(group, [...(this.hooks.get(group) ?? []), hook]);
   }
 
+  /**
+   * The drain check of `id`, from the sweep: a migration left `draining`
+   * by a restart (its check lived in memory only) goes on.
+   */
+  resumeDrain(id: string): Promise<void> {
+    return this.drain(currentPilotId(), id);
+  }
+
   /** Once every drain, message and resend started so far is done: for the tests. */
   async idle(): Promise<void> {
     while (this.pending.size > 0) await Promise.allSettled([...this.pending]);
@@ -159,8 +168,7 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
       if (source.source === to) throw unprocessable('source.same', MESSAGES['source.same']);
       const running = await tx.sourceMigration.count({ where: { projectId, state: { in: [...RUNNING_SOURCE_MIGRATION_STATES] } } });
       if (running > 0) throw unprocessable('source.migration-running', MESSAGES['source.migration-running']);
-      // A Projet follows one Dépôt GitHub (PROJET-2): GitHub lacks a place only once its access is lost; Local always has the clone's folder until PROJET-6.
-      if (to === 'github' && project.accessLost) throw unprocessable('source.target-missing', MESSAGES['source.target-missing']);
+      if (!(await this.hasPlace(tx, projectId, to, project.accessLost))) throw unprocessable('source.target-missing', MESSAGES['source.target-missing']);
       if ((await this.holdsSomething(tx, projectId, group, project.hasCode)) && this.runnerLacks(pilotId, group)) {
         throw unprocessable('source.runner-cannot-migrate', MESSAGES['source.runner-cannot-migrate']);
       }
@@ -187,10 +195,14 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
     const pilotId = currentPilotId();
     return this.transactions.run(async (tx) => {
       await this.events.lock(tx, pilotId);
-      const found = await tx.sourceMigration.findFirst({ where: { id }, select: { state: true, projectId: true, group: true, lastSeq: true } });
+      const found = await tx.sourceMigration.findFirst({ where: { id }, select: { state: true, projectId: true, group: true, from: true, createdAt: true, lastSeq: true } });
       if (!found) throw migrationNotFound();
       assertFresh(found.lastSeq, seq);
       if (found.state !== 'failed') throw unprocessable('source-migration.not-failed', MESSAGES['source-migration.not-failed']);
+      // A newer migration of the Projet replaced it, or its group left its old Source since: copying from there would undo what is now true.
+      const newer = await tx.sourceMigration.count({ where: { projectId: found.projectId, id: { not: id }, createdAt: { gte: found.createdAt } } });
+      const source = await tx.artifactSource.findFirstOrThrow({ where: { projectId: found.projectId, group: found.group }, select: { source: true } });
+      if (newer > 0 || source.source !== found.from) throw unprocessable('source-migration.replaced', MESSAGES['source-migration.replaced']);
       const running = await tx.sourceMigration.count({ where: { projectId: found.projectId, state: { in: [...RUNNING_SOURCE_MIGRATION_STATES] } } });
       if (running > 0) throw unprocessable('source.migration-running', MESSAGES['source.migration-running']);
       await this.decisions.resolve(tx, 'source-migration.failed', id, 'retried');
@@ -296,7 +308,7 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** `migration.finished`: the old place frozen, `done`; the Décision `unfinished` resolved. */
+  /** `migration.finished`: the old place frozen, `done`; the Décision `unfinished` resolved, the held work started on the new Source. */
   private finished(id: string): Promise<void> {
     return this.transactions.run(async (tx) => {
       const [row] = await tx.sourceMigration.updateManyAndReturn({
@@ -307,6 +319,7 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
       if (!row) return;
       await this.publish(tx, row);
       await this.decisions.resolve(tx, 'source-migration.unfinished', id, 'finished');
+      await this.engine.releaseHeld(tx, row.projectId);
     });
   }
 
@@ -386,8 +399,8 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
    * The switch, in `tx`: the group's Source since now, the migration
    * `state` (`switched`, or `done` for a group that held nothing), its
    * fingerprints, the group's hooks; the events of the migration, the
-   * Process's view and the Projet; the held work then starts on the new
-   * Source.
+   * Process's view and the Projet; for `done`, the held work then starts
+   * on the new Source.
    */
   private async switchIn(tx: Tx, row: SourceMigrationRow, message: SwitchMessage, state: 'switched' | 'done'): Promise<void> {
     const pilotId = currentPilotId();
@@ -411,7 +424,8 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
     const project = toProject(await tx.project.findUniqueOrThrow({ where: { id: row.projectId }, select: PROJECT_VIEW }));
     const projectSeq = await this.events.write(tx, pilotId, 'project.upserted', project);
     await tx.project.update({ where: { id: row.projectId }, data: { lastSeq: projectSeq } });
-    await this.engine.releaseHeld(tx, row.projectId);
+    // `switched` still holds the group's new work until the old place is frozen (`migration.finished`).
+    if (state === 'done') await this.engine.releaseHeld(tx, row.projectId);
   }
 
   /** `failed` with `code`, on the old Source: its Décision raised, the held work released. */
@@ -483,6 +497,18 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
       if (items.length === SOURCE_MIGRATION_WAITING_ITEMS_MAX) break;
     }
     return items;
+  }
+
+  /**
+   * Whether `to` has a place for the group: GitHub, the Projet's Dépôt
+   * (PROJET-2) while its access holds; Local, the Projet's folder on the
+   * Runner's machine, declared once one of its groups is Local (a Local
+   * Projet, or Tickets in its `tickets/`). The Runner's clone of a GitHub
+   * Projet is not one; SOURCE-9 lets the Pilote pick a folder.
+   */
+  private async hasPlace(tx: Pick<Tx, 'artifactSource'>, projectId: string, to: SourceKind, accessLost: boolean): Promise<boolean> {
+    if (to === 'github') return !accessLost;
+    return (await tx.artifactSource.count({ where: { projectId, source: 'local' } })) > 0;
   }
 
   /** Whether the group has something to copy: `ticket` a Ticket of the Projet; `code` its code or a change of code. */

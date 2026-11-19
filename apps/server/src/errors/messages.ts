@@ -73,6 +73,7 @@ export const MESSAGES = {
   'settings.role-choice-required': 'Un Rôle que tu as ajouté a toujours son modèle.',
   'source-migration.cursor-invalid': 'Ce curseur ne vient pas de la liste des migrations de Source.',
   'source-migration.not-failed': 'Cette migration n’a pas échoué : rien à réessayer.',
+  'source-migration.replaced': 'Une migration plus récente a remplacé celle-ci : rien à réessayer.',
   'source-migration.not-found': 'Cette migration de Source est introuvable.',
   'source.migration-running': 'Une migration de Source est déjà en cours sur ce Projet : attends qu’elle finisse.',
   'source.runner-cannot-migrate': 'Ton Runner ne sait pas encore migrer ce Type d’artefact : mets-le à jour, puis réessaie.',

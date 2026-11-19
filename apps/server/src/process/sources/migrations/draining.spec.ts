@@ -18,9 +18,9 @@ describe('heldByMigration', () => {
     expect(await heldByMigration(txWith([]).tx, 'p', PROCESS_CREWDECK, 'ph-dev')).toBe(false);
   });
 
-  it('reads only the migrations draining, copying or verifying: once switched, the new Source wins', async () => {
+  it('reads the migrations from draining to switched: the work waits until the old place is frozen', async () => {
     const { tx, findMany } = txWith([]);
     await heldByMigration(tx, 'p', PROCESS_CREWDECK, 'ph-dev');
-    expect(findMany).toHaveBeenCalledWith({ where: { projectId: 'p', state: { in: ['draining', 'copying', 'verifying'] } }, select: { group: true } });
+    expect(findMany).toHaveBeenCalledWith({ where: { projectId: 'p', state: { in: ['draining', 'copying', 'verifying', 'switched'] } }, select: { group: true } });
   });
 });

@@ -10,7 +10,8 @@ import { SourceMigrations } from './source-migrations.service.js';
 export const FINISH_SWEEP_EVERY_MS = 60_000;
 
 /**
- * Each minute, the migrations `switched` whose `migration.finish` is due
+ * Each minute, the migrations `draining` checked again, so that one whose
+ * check was lost with a restart goes on; then the migrations `switched` whose `migration.finish` is due
  * again (`nextFinishAt` past, after a failure of finishing) get it, each in
  * its Pilote's scope. Of every Pilote at once, so it reads their ids with
  * `prisma.unscoped` (ESLint allows this file), and nothing else.
@@ -33,8 +34,10 @@ export class FinishSweep {
     }
   }
 
-  /** How many finishes were sent again. */
+  /** How many finishes were sent again; the migrations left `draining` (by a restart) checked again first. */
   async sweep(now = this.clock.now()): Promise<number> {
+    const draining = await this.prisma.unscoped.sourceMigration.findMany({ where: { state: 'draining' }, select: { id: true, pilotId: true } });
+    for (const { id, pilotId } of draining) await runInPilotScope(pilotId, () => this.migrations.resumeDrain(id));
     const due = await this.prisma.unscoped.sourceMigration.findMany({
       where: { state: 'switched', nextFinishAt: { lte: now } },
       select: { pilotId: true },

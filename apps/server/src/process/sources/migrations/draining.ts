@@ -3,11 +3,11 @@ import type { Tx } from '../../../realtime/transactions.js';
 
 /**
  * The states of a migration of Source that hold its group's new work: from
- * `draining` to `verifying`. Once `switched`, the new Source wins (ADR 0012,
- * « Moving a Source »): the held work starts on it while finishing freezes
- * the old place.
+ * `draining` to `switched`. The held work starts once the migration is
+ * `done` (on the new Source, the old place frozen) or `failed` (on the old
+ * one): never while the old place can still be written (SOURCE-7).
  */
-export const HOLDING_SOURCE_MIGRATION_STATES = ['draining', 'copying', 'verifying'] as const satisfies readonly SourceMigrationState[];
+export const HOLDING_SOURCE_MIGRATION_STATES = ['draining', 'copying', 'verifying', 'switched'] as const satisfies readonly SourceMigrationState[];
 
 /** The groups of the Projet whose migration of Source holds the new work. At most one, one migration per Projet at a time. */
 export const drainingGroups = async (tx: Pick<Tx, 'sourceMigration'>, projectId: string): Promise<SourceGroup[]> =>

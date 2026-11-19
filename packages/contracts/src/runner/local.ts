@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { zBranchPrefix, zCodeChangeState, zSourceNumber, zTicketState, zTicketStateReason } from '../api/tickets.js';
 import { zSha } from '../github/index.js';
 import { zBytes } from '../keys/pairing.js';
-import { zSealedItem } from '../keys/sealed.js';
+import { type SealedItem, zSealedItem } from '../keys/sealed.js';
 import { zDay, zId, zInstant } from '../values.js';
 import { runnerMessage } from './envelope.js';
 
@@ -31,6 +31,23 @@ export const LOCAL_BLOCKED_BY_MAX = 500;
  * another place.
  */
 export const localTextAad = (projectId: string, place: string): string => `local:${projectId}:${place}`;
+
+const BASE64URL = /^[A-Za-z0-9_-]+$/;
+
+/**
+ * A sealed text as one flat param of a Décision (`params` hold no object):
+ * `<key>.<ciphertext>`, both base64url (`ticket.local-unreadable`'s path).
+ */
+export const localSealedParam = (sealed: SealedItem): string => `${sealed.key}.${sealed.ciphertext}`;
+
+/** The sealed text of a `localSealedParam`; null for any other value. */
+export const localSealedOfParam = (value: unknown): SealedItem | null => {
+  if (typeof value !== 'string') return null;
+  const parts = value.split('.');
+  if (parts.length !== 2) return null;
+  const [key = '', ciphertext = ''] = parts;
+  return BASE64URL.test(key) && BASE64URL.test(ciphertext) ? { key, ciphertext } : null;
+};
 
 /**
  * A Ticket, its file readable: its title sealed (`ticket:<n>:title`), its

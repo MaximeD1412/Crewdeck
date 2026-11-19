@@ -24,6 +24,7 @@ export const DECISION_KINDS = [
   'project.folder-missing',
   'source-migration.failed',
   'source-migration.unfinished',
+  'ticket.local-unreadable',
 ] as const;
 export const zDecisionKind = z.enum(DECISION_KINDS);
 export type DecisionKind = z.infer<typeof zDecisionKind>;

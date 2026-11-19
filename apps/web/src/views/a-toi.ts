@@ -26,6 +26,7 @@ const ICONS: Readonly<Record<DecisionKind, IconName>> = {
   'project.folder-missing': 'folder',
   'source-migration.failed': 'refresh',
   'source-migration.unfinished': 'folder',
+  'ticket.local-unreadable': 'doc',
 };
 
 export interface AToiOptions {

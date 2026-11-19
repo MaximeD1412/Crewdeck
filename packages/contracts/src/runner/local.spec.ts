@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { LOCAL_ITEM_KINDS, localTextAad, zLocalChanged, zRunnerToServer, zServerToRunner } from '../index.js';
+import { LOCAL_ITEM_KINDS, localSealedOfParam, localSealedParam, localTextAad, zLocalChanged, zRunnerToServer, zServerToRunner } from '../index.js';
 
 const FIXTURE = join(import.meta.dirname, '../../fixtures/runner/local/local.changed.json');
 const fixture = (): Record<string, unknown> & { items: Record<string, unknown>[]; unreadable: Record<string, unknown>[] } =>
@@ -50,5 +50,13 @@ describe('local.changed', () => {
 
   it('names the place of each sealed text in its additional data', () => {
     expect(localTextAad('019a6f00-0000-7000-8000-0000000000b1', 'ticket:12:title')).toBe('local:019a6f00-0000-7000-8000-0000000000b1:ticket:12:title');
+  });
+
+  it('carries a sealed text as one flat param of a Décision, and back', () => {
+    const sealed = zLocalChanged.parse(fixture()).unreadable[0]?.pathSealed;
+    if (!sealed) throw new Error('the fixture has no unreadable file');
+    expect(localSealedParam(sealed)).toBe(`${sealed.key}.${sealed.ciphertext}`);
+    expect(localSealedOfParam(localSealedParam(sealed))).toEqual(sealed);
+    for (const broken of ['', 'abc', 'a.b.c', 'a+b.c', null, 3]) expect(localSealedOfParam(broken)).toBeNull();
   });
 });

@@ -680,6 +680,7 @@ export const fr = {
   'decision.kind.runner-offline': 'Runner hors ligne',
   'decision.kind.source-migration.failed': 'Migration de Source échouée',
   'decision.kind.source-migration.unfinished': 'Ancienne Source pas encore figée',
+  'decision.kind.ticket.local-unreadable': 'Fichier de Ticket illisible',
   'decision.kind.step-failed': 'Étape échouée',
   'decision.kind.ticket-blocked': 'Ticket bloqué',
   'decision.kind.ticket-draft': 'Ticket à valider',

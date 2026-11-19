@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
+import { DecisionsModule } from '../decisions/decisions.module.js';
 import { ProjectsModule } from '../projects/projects.module.js';
+import { RunnersModule } from '../runners/runners.module.js';
+import { LocalChangedHandler } from './local/local-changed.js';
 import { TicketActivity } from './ticket-activity.js';
 import { TicketsController } from './tickets.controller.js';
 import { TicketsQueue } from './tickets.queue.js';
@@ -14,9 +17,9 @@ import { TicketsWriter } from './tickets.writer.js';
  * the Boucle, the GitHub side, the slices and the routes.
  */
 @Module({
-  imports: [ProjectsModule],
+  imports: [ProjectsModule, DecisionsModule, RunnersModule],
   controllers: [TicketsController],
-  providers: [TicketsWriter, TicketActivity, TicketsQueue, TicketsWebhooks, TicketsReconcile, TicketState, MilestoneState, CodeChangeState],
+  providers: [TicketsWriter, LocalChangedHandler, TicketActivity, TicketsQueue, TicketsWebhooks, TicketsReconcile, TicketState, MilestoneState, CodeChangeState],
   exports: [TicketsWriter, TicketActivity],
 })
 export class TicketsModule {}

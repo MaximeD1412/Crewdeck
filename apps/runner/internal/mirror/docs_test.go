@@ -533,6 +533,57 @@ func TestDocsAFailedIndexMakesTheGitHubKeyLateUntilOneSucceeds(t *testing.T) {
 	eventually(t, "live again", func() bool { s, _ := f.State("acme/atelier"); return s.State == FreshnessLive })
 }
 
+func TestDocsAGitHubSyncAnswersOnceTheDocumentsAreIndexed(t *testing.T) {
+	remote := newDocsRemote(t, docsFiles)
+	clock := newClock()
+	server := newRunnerServer(t, clock)
+	store, path := followedStore(t, 0, followedAtelier)
+	f := followDocs(t, store, server, remote, nil)
+	server.awaitHello()
+	awaitDoc(t, path, "acme/atelier", "AGENTS.md", "PRD")
+	time.Sleep(50 * time.Millisecond) // the worker idle
+
+	// develop moved without an envelope: the explicit sync indexes it before answering.
+	remote.commit(t, "develop", map[string]string{"AGENTS.md": "# Instructions\n\nLire le glossaire.\n"})
+	if _, err := f.Sync(context.Background(), "acme/atelier", false); err != nil {
+		t.Fatal(err)
+	}
+	if got := docContent(t, path, "acme/atelier", "AGENTS.md"); !strings.Contains(got, "glossaire") {
+		t.Errorf("the sync answered before the index: %q", got)
+	}
+}
+
+func TestDocsAFailedIndexMakesTheLocalKeyLateUntilOneSucceeds(t *testing.T) {
+	folder := newDocsFolder(t, map[string]string{"AGENTS.md": "# Instructions\n\nLire le PRD.\n"})
+	carnet := localCarnet(folder.work)
+	clock := newClock()
+	server := newRunnerServer(t, clock)
+	store, path := followedStore(t, 0, carnet)
+	f := followDocs(t, store, server, nil, emptySources{})
+	awaitDoc(t, path, carnet.Repository, "AGENTS.md", "PRD")
+	eventually(t, "live", func() bool { s, _ := f.State(carnet.Repository); return s.State == FreshnessLive })
+
+	// The folder gone, the watcher's index fails: the index is kept, the key late.
+	moved := folder.work + ".ailleurs"
+	if err := os.Rename(folder.work, moved); err != nil {
+		t.Fatal(err)
+	}
+	f.RefsMoved(carnet.ProjectID)
+	eventually(t, "late", func() bool { s, _ := f.State(carnet.Repository); return s.State == FreshnessLate })
+	if n := count(t, path, "SELECT count(*) FROM docs"); n != 1 {
+		t.Errorf("%d docs kept, want 1", n)
+	}
+
+	if err := os.Rename(moved, folder.work); err != nil {
+		t.Fatal(err)
+	}
+	folder.commit(t, "main", map[string]string{"CONTEXT.md": "# Glossaire\n"})
+	advanceUntil(t, clock, time.Second, "the index retried", func() bool {
+		return count(t, path, "SELECT count(*) FROM docs WHERE path = 'CONTEXT.md'") == 1
+	})
+	eventually(t, "live again", func() bool { s, _ := f.State(carnet.Repository); return s.State == FreshnessLive })
+}
+
 func TestDocsTheReconciliationReindexesWhenTheBranchMovedWithoutAnEnvelope(t *testing.T) {
 	t.Run("GitHub", func(t *testing.T) {
 		remote := newDocsRemote(t, docsFiles)

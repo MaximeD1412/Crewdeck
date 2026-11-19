@@ -817,6 +817,7 @@ func (f *Follower) reconcileProject(ctx context.Context, p *followed, repository
 	p.done, p.filled, p.synced = max(p.done, generation), m.filled, m.synced
 	p.caughtUp(0, begun)
 	p.docsWanted++ // the branch may have moved without an envelope
+	wake(p)
 	f.mu.Unlock()
 	return f.finishResync()
 }
@@ -839,6 +840,7 @@ func (f *Follower) reconcileLocal(ctx context.Context, p *followed, repository s
 	m := marks[repository]
 	p.done, p.filled, p.synced = max(p.done, generation), m.filled, m.synced
 	p.docsWanted++
+	wake(p)
 	f.mu.Unlock()
 	return nil
 }

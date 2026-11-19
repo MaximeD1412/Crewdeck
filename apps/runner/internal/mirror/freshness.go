@@ -39,8 +39,11 @@ func (f *Follower) State(repository string) (Freshness, error) {
 	case !p.filled:
 		state = FreshnessFilling
 	case p.project.Source == SourceLocal:
-		// Its Source is the disk: live once filled, while the Runner runs.
-		state = FreshnessLive
+		// Its Source is the disk: live once filled, while the Runner runs,
+		// unless its documents' last index failed (its folder gone).
+		if !p.docsFailed {
+			state = FreshnessLive
+		}
 	case f.connected && f.live && f.resync == nil && len(p.queue) == 0 && len(p.behind) == 0 && !p.docsFailed:
 		state = FreshnessLive
 	}

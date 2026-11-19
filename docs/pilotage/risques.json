@@ -367,7 +367,7 @@
         {
           "texte": "Usage remonté par le Runner en chiffres (US-55)",
           "ref": "ADR 0004",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [
@@ -449,7 +449,7 @@
         {
           "texte": "Avertissement avant de révoquer le dernier détenteur de clé",
           "ref": "ADR 0003",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Inviter à approuver un second Appareil dès les Premiers pas",
@@ -656,13 +656,13 @@
       "categorie": "biz",
       "gravite": "faible",
       "titre": "Le coût estimé en euros diffère de la facture",
-      "statut": "accepté",
-      "statutDepuis": "2026-11-10",
+      "statut": "implémenté",
+      "statutDepuis": "2026-11-14",
       "solutions": [
         {
           "texte": "Coût gardé en dollars tel que facturé, converti au taux BCE du jour de la dépense, affiché « estimé »",
           "ref": "ADR 0008",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [
@@ -928,7 +928,7 @@
         {
           "texte": "Le Runner n'exécute que ce qu'il a ouvert, pour ce Projet et cette Commande",
           "ref": "ADR 0013",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [
@@ -1131,13 +1131,13 @@
       "categorie": "ops",
       "gravite": "faible",
       "titre": "Un service lancé par une Commande reste actif et occupe la machine",
-      "statut": "solution choisie",
-      "statutDepuis": "2026-11-14",
+      "statut": "implémenté",
+      "statutDepuis": "2026-11-19",
       "solutions": [
         {
           "texte": "Services suivis par le Runner, arrêtés avant la relance de leur Commande et à la désinstallation",
           "ref": "ADR 0013",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

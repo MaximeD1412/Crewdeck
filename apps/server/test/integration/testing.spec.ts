@@ -101,7 +101,27 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
       expect(run.sessionCookie).toMatch(/^crewdeck_session=[\w-]{43}$/);
       const me = await fetch(`${await app.getUrl()}/api/me`, { headers: { cookie: run.sessionCookie ?? '' } });
       expect(me.status).toBe(200);
-      expect(await me.json()).toMatchObject({ displayName: 'octocat', timeZone: 'Europe/Paris', identities: [{ provider: 'github', label: 'octocat' }] });
+      expect(await me.json()).toMatchObject({ displayName: 'octocat', timeZone: 'Europe/Paris', identities: [{ provider: 'github', label: 'octocat', reconnect: false }], githubLinked: true });
+    });
+
+    it('signs the Pilote of « parametres » in by email, GitHub not linked; « Relier GitHub » then links the fake GitHub user', async () => {
+      const run = zScenarioRun.parse(await (await post(app, 'parametres')).json());
+      const base = await app.getUrl();
+      const cookie = run.sessionCookie ?? '';
+      const me = await fetch(`${base}/api/me`, { headers: { cookie } });
+      expect(await me.json()).toMatchObject({ displayName: 'pilote', identities: [{ provider: 'email', label: 'pilote@example.com', reconnect: false }], githubLinked: false });
+      const token = await fetch(`${base}/api/github/token`, { method: 'POST', headers: { cookie, origin: appOrigin(parseEnv({ CREWDECK_ENV: 'test', DATABASE_URL: databaseUrl })) } });
+      expect(token.status).toBe(409);
+
+      const start = await fetch(`${base}/api/auth/github/link?next=/parametres`, { redirect: 'manual', headers: { cookie } });
+      const state = new URL(start.headers.get('location') ?? '', base).searchParams.get('state') ?? '';
+      const oauth = start.headers.getSetCookie().find((line) => line.startsWith('crewdeck_oauth='))?.split(';')[0] ?? '';
+      const back = await fetch(`${base}/api/auth/github/callback?${new URLSearchParams({ code: 'fake-code', state })}`, {
+        redirect: 'manual',
+        headers: { cookie: `${oauth}; ${cookie}` },
+      });
+      expect(back.headers.get('location')).toBe('/parametres');
+      expect(await (await fetch(`${base}/api/me`, { headers: { cookie } })).json()).toMatchObject({ githubLinked: true });
     });
 
     it('trusts the Appareil of « Idées », whose wrap opens the vault, and the vault every Idée’s text', async () => {
@@ -120,21 +140,35 @@ describe('POST /api/testing/scenarios/:name against PostgreSQL', () => {
       expect(items.filter((idea) => idea.state === 'to-triage').map((idea) => idea.number).sort()).toEqual([61, 62, 63, 64]);
     });
 
-    it.each([
-      ['connexion', '/connexion'],
-      ['connexion-erreur', '/connexion?erreur=state-mismatch'],
-      ['connexion-lien-envoye', '/connexion'],
-    ])('opens %s signed out, with the fake GitHub user who signs in at once', async (name, path) => {
-      const run = zScenarioRun.parse(await (await post(app, name)).json());
-      expect(run).toEqual({ name, path, sessionCookie: null, runnerLink: null, device: null });
-
+    /** Signs in with `provider` through its fake, from `start` to the callback: where the callback sends the browser. */
+    const signInThrough = async (provider: 'github' | 'google'): Promise<string | null> => {
       const base = await app.getUrl();
-      const start = await fetch(`${base}/api/auth/github/start?timeZone=Europe%2FParis&next=%2Fa-toi`, { redirect: 'manual' });
+      const start = await fetch(`${base}/api/auth/${provider}/start?timeZone=Europe%2FParis&next=%2Fa-toi`, { redirect: 'manual' });
       const authorize = await fetch(new URL(start.headers.get('location') ?? '', base), { redirect: 'manual' });
       const callback = new URL(authorize.headers.get('location') ?? '');
       const cookie = start.headers.getSetCookie()[0]?.split(';')[0] ?? '';
       const signedIn = await fetch(`${base}${callback.pathname}${callback.search}`, { redirect: 'manual', headers: { cookie } });
-      expect(signedIn.headers.get('location')).toBe('/a-toi');
+      return signedIn.headers.get('location');
+    };
+
+    it.each([
+      ['connexion', '/connexion'],
+      ['connexion-erreur', '/connexion?erreur=state-mismatch'],
+      ['connexion-lien-envoye', '/connexion'],
+    ])('opens %s signed out, with the fake GitHub user and the fake Google account who sign in at once', async (name, path) => {
+      const run = zScenarioRun.parse(await (await post(app, name)).json());
+      expect(run).toEqual({ name, path, sessionCookie: null, runnerLink: null, device: null });
+
+      expect(await signInThrough('github')).toBe('/a-toi');
+      expect(await signInThrough('google')).toBe('/a-toi');
+    });
+
+    it('opens connexion-google-non-verifiee signed out, its Google account refused for its unverified address', async () => {
+      const run = zScenarioRun.parse(await (await post(app, 'connexion-google-non-verifiee')).json());
+      expect(run).toEqual({ name: 'connexion-google-non-verifiee', path: '/connexion', sessionCookie: null, runnerLink: null, device: null });
+
+      expect(await signInThrough('google')).toBe('/connexion?erreur=google-unverified');
+      expect(await sql('SELECT count(*)::int AS n FROM pilots')).toEqual([{ n: 0 }]);
     });
 
     it('opens connexion-lien on a link drawn for pilote@example.com, its token in the fragment: verified, it signs that address up', async () => {

@@ -10,11 +10,15 @@ import { zHeartbeat, zHeartbeatAck } from './runner/heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './runner/hello.js';
 import { zMcpServers } from './runner/mcp.js';
 import { zGitHubChanged, zMirrorLive, zMirrorProjects, zMirrorResync, zMirrorToken, zMirrorTokenFailed, zMirrorTokenIssued } from './runner/mirror.js';
-import { zSessionResume, zSessionStart, zSessionStateMessage, zSessionStop } from './runner/session.js';
+import { zSessionAnswered, zSessionResume, zSessionStart, zSessionStateMessage, zSessionStop, zSessionWaiting } from './runner/session.js';
 import { zSessionInputPayload } from './runner/inputs.js';
 import { zRelay, zSessionInput, zSessionKeys, zSessionReplay } from './runner/relay.js';
 import { zStepVerdict } from './runner/step.js';
+import { zCommandKeys, zCommandOutput, zCommandOutputChunk, zCommandReplay, zCommandRun, zCommandStarted, zCommandStop, zCommandVerdict } from './runner/command.js';
 import { zProcessSealedPayload } from './process/definition.js';
+import { USAGE_EVERY_SECONDS, zUsage, zUsageAck } from './runner/usage.js';
+import { zVaultRotated, zVaultRotationPending } from './runner/vault.js';
+import { zVault, zVaultItems, zVaultRotation, zVaultState } from './api/vault.js';
 import { HEARTBEAT_SECONDS, OFFLINE_AFTER_SECONDS, PROTOCOL_VERSION, RUNNER_WS_CLOSE, zProtocolError, zRunnerEnvelope } from './runner/protocol.js';
 
 /**
@@ -55,12 +59,32 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-session-stop', schema: zSessionStop },
   { name: 'runner-session-resume', schema: zSessionResume },
   { name: 'runner-session-state', schema: zSessionStateMessage },
+  { name: 'runner-session-waiting', schema: zSessionWaiting },
+  { name: 'runner-session-answered', schema: zSessionAnswered },
   { name: 'runner-session-replay', schema: zSessionReplay },
   { name: 'runner-session-input', schema: zSessionInput },
   { name: 'runner-session-keys', schema: zSessionKeys },
   { name: 'runner-relay', schema: zRelay },
+  { name: 'runner-command-run', schema: zCommandRun },
+  { name: 'runner-command-stop', schema: zCommandStop },
+  { name: 'runner-command-started', schema: zCommandStarted },
+  { name: 'runner-command-verdict', schema: zCommandVerdict },
+  { name: 'runner-command-replay', schema: zCommandReplay },
+  { name: 'runner-command-keys', schema: zCommandKeys },
+  { name: 'runner-command-output', schema: zCommandOutput },
+  // The plaintext of a chunk of a Commande's output, which the Runner seals.
+  { name: 'command-output-chunk', schema: zCommandOutputChunk },
   // The plaintext of a Process version's sealed part, once the Runner opened it (RUNNER-18).
   { name: 'process-sealed', schema: zProcessSealedPayload },
+  { name: 'runner-usage', schema: zUsage },
+  { name: 'runner-usage-ack', schema: zUsageAck },
+  // The vault key's rotation (E2E-4): its messages, and the Runner's HTTP routes.
+  { name: 'runner-vault-rotation-pending', schema: zVaultRotationPending },
+  { name: 'runner-vault-rotated', schema: zVaultRotated },
+  { name: 'runner-vault', schema: zVault },
+  { name: 'runner-vault-items', schema: zVaultItems },
+  { name: 'runner-vault-rotation', schema: zVaultRotation },
+  { name: 'runner-vault-state', schema: zVaultState },
 ];
 
 /**
@@ -110,4 +134,5 @@ export const goConstants: Readonly<Record<string, number>> = {
   LinkPollSeconds: LINK_POLL_SECONDS,
   LinkAttemptsPerMinute: LINK_ATTEMPTS_PER_MINUTE,
   CapabilitiesEverySeconds: CAPABILITIES_EVERY_SECONDS,
+  UsageEverySeconds: USAGE_EVERY_SECONDS,
 };

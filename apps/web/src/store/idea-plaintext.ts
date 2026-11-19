@@ -27,12 +27,13 @@ const decoder = new TextDecoder('utf-8', { fatal: true });
 /**
  * The Idées' texts in clear (ADR 0003), in this page's memory only: never
  * in the store, never written anywhere. Each is opened once with the vault
- * key, asynchronously, and kept by its Idée's id and ciphertext. A vault not
+ * key, asynchronously, and kept by its Idée's id, ciphertext and item key
+ * (a rotation of the vault key rewraps the key alone, E2E-4). A vault not
  * open makes every text unreadable, until it opens; a text that does not open
  * (another vault, a ciphertext moved) stays unreadable.
  */
 export const createIdeaPlaintext = ({ vault, vaultState, settled }: IdeaPlaintextOptions): IdeaPlaintext => {
-  const opened = new Map<string, { readonly ciphertext: string; result: IdeaText }>();
+  const opened = new Map<string, { readonly ciphertext: string; readonly key: string; result: IdeaText }>();
   const listeners = new Set<() => void>();
   let ready = false;
   const notify = () => {
@@ -44,7 +45,7 @@ export const createIdeaPlaintext = ({ vault, vaultState, settled }: IdeaPlaintex
   });
 
   const open = (idea: Pick<Idea, 'id' | 'text'>) => {
-    const entry: { readonly ciphertext: string; result: IdeaText } = { ciphertext: idea.text.ciphertext, result: OPENING };
+    const entry: { readonly ciphertext: string; readonly key: string; result: IdeaText } = { ciphertext: idea.text.ciphertext, key: idea.text.key, result: OPENING };
     opened.set(idea.id, entry);
     void (async () => {
       try {
@@ -63,7 +64,7 @@ export const createIdeaPlaintext = ({ vault, vaultState, settled }: IdeaPlaintex
     text(idea) {
       if (vaultState() !== 'unlocked') return ready ? UNREADABLE : OPENING;
       const entry = opened.get(idea.id);
-      if (entry?.ciphertext === idea.text.ciphertext) return entry.result;
+      if (entry?.ciphertext === idea.text.ciphertext && entry.key === idea.text.key) return entry.result;
       open(idea);
       return OPENING;
     },

@@ -3,6 +3,7 @@ import { Banner, Button, Cadre, CodeBlock, MenuItem } from '@crewdeck/sdk';
 import { announcer as pageAnnouncer, type Announcer } from './announcer.js';
 import type { VaultState } from './keys/vault.js';
 import type { RouteMatch } from './router.js';
+import type { StoreState } from './store/store.js';
 import { bannersView, type BannerAction, type BannerView } from './views/banners.js';
 import { cadreView, type CadreState } from './views/cadre.js';
 
@@ -19,6 +20,8 @@ export interface Shell {
   readonly showError: (message: string) => void;
   /** Adds an element of the core the pages share (« Noter une Idée »'s Dialog) to the Cadre, after the page, laid out as its own children. */
   readonly append: (element: HTMLElement) => void;
+  /** The panel over the page (the Session panel) in the Cadre's `panel` Emplacement, in place of the one before; `null` closes it. */
+  readonly setPanel: (element: HTMLElement | null) => void;
 }
 
 /** What the Cadre and its Banners read of the store. */
@@ -31,6 +34,8 @@ export interface ShellState extends CadreState {
     /** The open Décisions: « Runner hors ligne »'s Banner reads its own (ATOI-3). */
     readonly decision?: ReadonlyMap<string, Decision>;
     readonly device?: ReadonlyMap<string, Device>;
+    /** The vault's version: above 0, another Appareil or the Runner holds it (E2E-4). */
+    readonly vault?: StoreState['slices']['vault'];
   };
 }
 
@@ -81,6 +86,7 @@ export const mountShell = ({
   const banners = new Map<BannerView['key'], MountedBanner>();
   let route: RouteMatch | null = null;
   let error: string | null = null;
+  let panel: HTMLElement | null = null;
 
   const mountBanner = (key: BannerView['key']): MountedBanner => {
     const element = document.createElement(Banner.tag) as WithData;
@@ -123,10 +129,11 @@ export const mountShell = ({
         connection: current.connection ?? 'live',
         lostAt: current.lostAt ?? null,
         path: route?.path ?? null,
+        session: route?.panel.session != null,
         runner: current.slices.runner ?? null,
         decisions: current.slices.decision?.values() ?? [],
         ...(current.vaultState ? { vaultState: current.vaultState } : {}),
-        slices: current.slices.device ? { device: current.slices.device } : {},
+        slices: { ...(current.slices.device ? { device: current.slices.device } : {}), ...(current.slices.vault ? { vault: current.slices.vault } : {}) },
       },
       error,
     );
@@ -187,6 +194,13 @@ export const mountShell = ({
     append(element) {
       element.style.display = 'contents';
       cadre.insertBefore(element, announcer.element);
+    },
+    setPanel(element) {
+      if (panel && panel !== element) panel.remove();
+      panel = element;
+      if (!element) return;
+      element.slot = 'panel';
+      if (element.parentElement !== cadre) cadre.insertBefore(element, announcer.element);
     },
   };
 };

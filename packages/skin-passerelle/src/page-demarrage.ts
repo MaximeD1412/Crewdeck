@@ -39,7 +39,9 @@ const track = ({ step, failure, runner }: Data): { label: string; meta: null; st
  * Moteur, its Compte IA's badges, its models as ListRows with their badge,
  * and the command that connects it while it is not; without a usable Moteur,
  * the caution Banner above them and « Continuer » disabled. The Projets: the
- * RepositoryPicker of `picker`, whose « Plus tard » is the page's `continue`.
+ * RepositoryPicker of `picker`, whose « Plus tard » is the page's `continue`;
+ * without GitHub, the caution Banner above it and « Relier GitHub »
+ * (`linkGitHub`).
  */
 export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarrage> {
   static override styles = [
@@ -249,10 +251,20 @@ export class PasserellePageDemarrage extends PasserelleElement<typeof PageDemarr
     if (!this.data.busy) this.emit('continue', {});
   }
 
-  /** The Projets: the RepositoryPicker of `picker`, under the step's title and its explanation. */
+  /** The Projets: the RepositoryPicker of `picker`, under the step's title and its explanation; without GitHub, « Relier GitHub » above it. */
   private projectsStep(): TemplateResult {
-    const { picker, busy } = this.data;
+    const { picker, busy, githubLinked } = this.data;
     return html`${this.head(t('demarrage.projects.title'), t('demarrage.projects.lead'))}
+      ${githubLinked
+        ? nothing
+        : html`<cd-banner part="github" class="github" .data=${{ tone: 'caution', icon: 'github', title: t('demarrage.github.title') }}>
+            <cd-button
+              slot="actions"
+              class="link-github"
+              .data=${{ label: t('demarrage.github.link'), variant: 'secondary', size: 'sm', icon: 'github' }}
+              @click=${() => this.emit('linkGitHub', {})}
+            ></cd-button>
+          </cd-banner>`}
       <cd-repository-picker .data=${{ ...picker, busy: picker.busy || busy }} @cd-action=${this.onPicker}></cd-repository-picker>`;
   }
 

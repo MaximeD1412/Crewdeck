@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zEvent } from '../events/index.js';
+import { zTabCommandClose, zTabCommandError, zTabCommandKeys, zTabCommandOpen, zTabCommandOutput } from '../runner/command.js';
 import { zTabRelay, zTabSessionClose, zTabSessionError, zTabSessionInput, zTabSessionKeys, zTabSessionOpen } from '../runner/relay.js';
 import { zSeq } from '../values.js';
 
@@ -7,7 +8,8 @@ import { zSeq } from '../values.js';
  * The messages of `/api/ws` (ADR 0007), JSON, each with its `type`. The
  * socket never carries a command that changes the state: those are REST.
  * RUNNER-2 adds the Runner's protocol; SESSION-1 the relay of a Session
- * (`runner/relay.ts`), `session.*` and `relay` both ways.
+ * (`runner/relay.ts`), `session.*` and `relay` both ways; RUNNER-18 the
+ * relay of a Commande's output (`runner/command.ts`), `command.*`.
  */
 
 /**
@@ -22,6 +24,8 @@ export const zClientMessage = z.discriminatedUnion('type', [
   zTabSessionOpen,
   zTabSessionClose,
   zTabSessionInput,
+  zTabCommandOpen,
+  zTabCommandClose,
 ]);
 export type ClientMessage = z.infer<typeof zClientMessage>;
 
@@ -39,8 +43,16 @@ export const zServerMessage = z.discriminatedUnion('type', [
   zTabSessionKeys,
   zTabRelay,
   zTabSessionError,
+  zTabCommandKeys,
+  zTabCommandOutput,
+  zTabCommandError,
 ]);
 export type ServerMessage = z.infer<typeof zServerMessage>;
 
-/** The close codes of the socket: 4401 no principal, or its session ended (logout, expiry), 4400 a message that is not one of `zClientMessage`, 4408 silent too long. */
-export const WS_CLOSE = { unauthorized: 4401, invalidMessage: 4400, silent: 4408 } as const;
+/**
+ * The close codes of the socket: 4401 no principal, or its session ended
+ * (logout, expiry), 4400 a message that is not one of `zClientMessage`, 4408
+ * silent too long, 4403 the Appareil the tab named (`?device=<id>`) revoked
+ * (E2E-4): the page forgets it, then opens a socket without it.
+ */
+export const WS_CLOSE = { unauthorized: 4401, invalidMessage: 4400, silent: 4408, deviceRevoked: 4403 } as const;

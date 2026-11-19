@@ -17,6 +17,9 @@ type RunnerHelloAccepted struct {
 	// ProtocolVersion corresponds to the JSON schema field "protocolVersion".
 	ProtocolVersion int `json:"protocolVersion"`
 
+	// RotationPending corresponds to the JSON schema field "rotationPending".
+	RotationPending *bool `json:"rotationPending,omitempty,omitzero"`
+
 	// RunnerId corresponds to the JSON schema field "runnerId".
 	RunnerId string `json:"runnerId"`
 

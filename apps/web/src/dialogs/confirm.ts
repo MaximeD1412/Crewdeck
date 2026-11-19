@@ -13,8 +13,8 @@ export interface ConfirmConsequences {
   readonly note?: string;
 }
 
-export interface ConfirmOptions {
-  readonly action: SensitiveActionId;
+/** What the core's dialog asks, whatever it confirms. */
+export interface ConfirmDialogOptions {
   readonly title: string;
   readonly confirmLabel: string;
   /** The action button's icon; `check` by default. */
@@ -24,19 +24,27 @@ export interface ConfirmOptions {
   readonly consequences: ConfirmConsequences;
 }
 
+/** An Action sensible's confirmation (US-26). */
+export interface ConfirmOptions extends ConfirmDialogOptions {
+  readonly action: SensitiveActionId;
+}
+
 /**
- * `crewdeck-confirm`: the core's confirmation of an Action sensible. A
+ * `crewdeck-confirm`: the core's confirmation of an Action sensible, or of
+ * one of the product's own actions (E2E-4: « Retirer » an Appareil). A
  * native modal `<dialog role="alertdialog">` marked « Confirmé par Crewdeck »,
  * styled by the `--cd-*` tokens only and exposing no `part`, so a Skin can
  * neither replace nor restyle what the Pilote agrees to. Opened through
- * {@link confirmSensitiveAction}, never placed by a Composant.
+ * {@link confirmSensitiveAction} or {@link confirmProductAction}, never placed
+ * by a Composant.
  */
 export class CrewdeckConfirm extends LitElement {
   static override properties = { options: { attribute: false } };
 
   static override styles = coreDialogStyles;
 
-  declare options: ConfirmOptions;
+  /** With `action`, an Action sensible's, which the mark says. */
+  declare options: ConfirmDialogOptions & { readonly action?: SensitiveActionId };
 
   /** The Pilote's answer, once: true for the action's button, false otherwise. */
   answer: Promise<boolean>;
@@ -88,7 +96,7 @@ export class CrewdeckConfirm extends LitElement {
       @cancel=${this.onCancel}
     >
       <div class="box">
-        <div class="mark">${icon('shield')}<span>${t('confirm.mark')}</span></div>
+        <div class="mark">${icon('shield')}<span>${t(this.options.action === undefined ? 'confirm.mark.product' : 'confirm.mark')}</span></div>
         <h2 id="title">${title}</h2>
         <div class="body" id="consequences">
           ${consequences.lead === undefined ? nothing : html`<p>${consequences.lead}</p>`}
@@ -119,13 +127,8 @@ customElements.define(CONFIRM_TAG, CrewdeckConfirm);
 
 let current: CrewdeckConfirm | null = null;
 
-/**
- * Asks the Pilote to confirm an Action sensible in the core's dialog. Resolves
- * true once they confirm, false on « Annuler » or Escape, and false at once
- * while another confirmation is open.
- */
-export const confirmSensitiveAction = (options: ConfirmOptions): Promise<boolean> => {
-  zSensitiveActionId.parse(options.action);
+/** Opens the core's dialog, false at once while another one is open. */
+const openConfirm = (options: CrewdeckConfirm['options']): Promise<boolean> => {
   if (current?.isConnected) return Promise.resolve(false);
   const dialog = new CrewdeckConfirm();
   dialog.options = options;
@@ -133,3 +136,20 @@ export const confirmSensitiveAction = (options: ConfirmOptions): Promise<boolean
   current = dialog;
   return dialog.open();
 };
+
+/**
+ * Asks the Pilote to confirm an Action sensible in the core's dialog. Resolves
+ * true once they confirm, false on « Annuler » or Escape, and false at once
+ * while another confirmation is open.
+ */
+export const confirmSensitiveAction = (options: ConfirmOptions): Promise<boolean> => {
+  zSensitiveActionId.parse(options.action);
+  return openConfirm(options);
+};
+
+/**
+ * The same dialog for one of the product's own actions, which no Skin asks
+ * (« Retirer » an Appareil): marked « Confirmé par Crewdeck », not an Action
+ * sensible, and with no `seq` of its own.
+ */
+export const confirmProductAction = (options: ConfirmDialogOptions): Promise<boolean> => openConfirm(options);

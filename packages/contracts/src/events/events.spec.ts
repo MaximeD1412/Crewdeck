@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { eventPayloadSchema, registerEventPayload, zEvent, zEventType } from '../index.js';
 
-const PILOT = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
+const PILOT = { id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [], githubLinked: false };
 const AT = '2026-11-11T08:00:00.000Z';
 
 describe('zEventType', () => {
@@ -28,7 +28,7 @@ describe('the event payloads', () => {
   });
 
   it('has no payload for a resource whose module has not registered one', () => {
-    expect(eventPayloadSchema('usage.upserted')).toBeUndefined();
+    expect(eventPayloadSchema('design.upserted')).toBeUndefined();
   });
 
   it('refuses a second schema for the same resource', () => {

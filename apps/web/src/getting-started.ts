@@ -227,7 +227,7 @@ export const createGettingStarted = ({
       const me = pilot();
       const { slices } = store.getState();
       return demarrageView({
-        pilot: me ?? { displayName: '', gettingStartedStep: 'runner' },
+        pilot: me ?? { displayName: '', gettingStartedStep: 'runner', githubLinked: true },
         runner: slices.runner ?? null,
         system,
         code,

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "answer",
+      "type": "string"
+    },
+    "optionIndexes": {
+      "items": {
+        "maximum": 9007199254740991,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 100,
+      "minItems": 1,
+      "type": "array"
+    },
+    "requestId": {
+      "maxLength": 200,
+      "minLength": 1,
+      "type": "string"
+    },
+    "text": {
+      "maxLength": 100000,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "requestId"
+  ],
+  "title": "SessionInputAnswer",
+  "type": "object"
+}

@@ -18,8 +18,8 @@ const show = async (page: Page, section: string, viewport: { width: number } | n
 
 /**
  * US-82, US-18: the Paramètres of the account show only the sections that
- * have content, « Rôles et modèles », « Notifications », « Compte » with the
- * time zone and « Pour les Moddeurs »; on the phone one at a time, the one its link opens,
+ * have content, « Rôles et modèles », « Notifications », « Par Projet », « Compte »
+ * with the time zone and « Pour les Moddeurs »; on the phone one at a time, the one its link opens,
  * at 1280 px all. A time zone picked is saved, and another tab of the Pilote
  * shows it at once.
  */
@@ -31,7 +31,7 @@ test('the Paramètres: the sections with content only, the time zone saved and s
 }) => {
   await scenario('parametres');
   await expect(page.getByRole('heading', { level: 1, name: 'Paramètres' })).toBeVisible();
-  await expect(nav(page).getByRole('link')).toHaveText(['Rôles et modèles', 'Notifications', 'Compte', 'Pour les Moddeurs']);
+  await expect(nav(page).getByRole('link')).toHaveText(['Rôles et modèles', 'Notifications', 'Par Projet', 'Compte', 'Pour les Moddeurs']);
   await show(page, 'Compte', viewport);
   await expect(zone(page)).toHaveValue('Europe/Paris');
   await expectAccessible(page);
@@ -182,4 +182,28 @@ test('« Notifications » without PushManager: the help of the home screen inste
   await expect(page.locator('cd-push-settings').getByRole('button', { name: 'Activer sur cet appareil' })).toHaveCount(0);
   await expect(browsers(page)).toContainText(['Safari · iPhone']);
   await expectAccessible(page);
+});
+
+/**
+ * CORE-11, US-1: « Connexion » lists the Identités of a Pilote signed in by
+ * email; « Relier GitHub » goes through GitHub, comes back to the
+ * Paramètres and lists GitHub, the page still signed in.
+ */
+test('« Connexion »: the Identités, « Relier GitHub » through GitHub and back on the Paramètres, GitHub listed', async ({ page, scenario, expectAccessible, viewport }) => {
+  await scenario('parametres');
+  await show(page, 'Compte', viewport);
+  const connexion = page.locator('cd-account-identities');
+  await expect(connexion.getByText('pilote@example.com')).toBeVisible();
+  await expect(connexion.getByText('pas relié · pour suivre tes Dépôts GitHub')).toBeVisible();
+  await expectAccessible(page);
+
+  await connexion.getByRole('button', { name: 'Relier GitHub' }).click();
+
+  await expect(page).toHaveURL('/parametres');
+  await show(page, 'Compte', viewport);
+  await expect(connexion.getByText('octocat')).toBeVisible();
+  await expect(connexion.getByRole('button', { name: 'Relier GitHub' })).toHaveCount(0);
+  const me = (await (await page.request.get('/api/me')).json()) as { githubLinked: boolean; identities: { provider: string }[] };
+  expect(me.githubLinked).toBe(true);
+  expect(me.identities.map((identity) => identity.provider).sort()).toEqual(['email', 'github']);
 });

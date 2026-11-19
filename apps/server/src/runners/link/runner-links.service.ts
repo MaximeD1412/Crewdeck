@@ -30,6 +30,7 @@ import { RunnerOffline } from '../runner-offline.service.js';
 import { failureOf, LINK_VIEW, reasonOf, toRunnerLink } from './link-code.view.js';
 import { RunnerLinkLookup } from './link-lookup.js';
 import { RunnerLinkTokens } from './link-tokens.js';
+import { dropHolders } from '../../vault/vault-holders.js';
 
 /** A live code: one a Runner may still link with. */
 const LIVE = ['waiting', 'pending'] as const;
@@ -202,6 +203,8 @@ export class RunnerLinks {
       if (vault === 'not-trusted' || vault === 'invalid') return Devices.errorOf(vault);
       const previous = await tx.runner.findMany({ where: { revokedAt: null }, select: { id: true } });
       await tx.runner.updateMany({ where: { revokedAt: null }, data: { revokedAt: now, state: 'offline' } });
+      // The Runner it replaces holds the vault key no more: its wraps go, the rotation waits (E2E-4).
+      await dropHolders(this.events, tx, pilotId, 'runner', previous.map(({ id: runnerId }) => runnerId));
       const created = await tx.runner.create({
         data: {
           id: row.runnerId,

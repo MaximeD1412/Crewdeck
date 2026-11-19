@@ -82,6 +82,20 @@ export class Reconciliation {
     return true;
   }
 
+  /**
+   * Every hook over the installations of `pilotId` only, at once: a Pilote
+   * who just linked GitHub (« Relier GitHub ») sees the Dépôts GitHub of the
+   * installations they made before without waiting for the next run. Its
+   * caller does not wait on it: a failure is logged, never thrown.
+   */
+  async runFor(pilotId: string): Promise<void> {
+    try {
+      for (const target of await this.installations.linked(pilotId)) await this.reconcile(target);
+    } catch (error) {
+      this.logger.error({ err: error, pilotId }, 'reconciliation failed');
+    }
+  }
+
   private async reconcile(target: ReconcileTarget): Promise<void> {
     await runInPilotScope(target.pilotId, async () => {
       for (const hook of this.hooks.all()) {

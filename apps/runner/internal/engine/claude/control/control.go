@@ -43,9 +43,12 @@ type Request struct {
 // Reply is the Pilote's answer: Allow and, refused, Message for a
 // permission; Answers, each question's text to its answer, for a question.
 type Reply struct {
-	Allow   bool              `json:"allow"`
-	Message string            `json:"message,omitempty"`
-	Answers map[string]string `json:"answers,omitempty"`
+	Allow bool `json:"allow"`
+	// ForSession, allowed, makes Claude Code allow the tool for the rest of
+	// the Session (an `addRules` of destination `session`).
+	ForSession bool              `json:"forSession,omitempty"`
+	Message    string            `json:"message,omitempty"`
+	Answers    map[string]string `json:"answers,omitempty"`
 }
 
 // SocketPath is the control socket of a Session's folder.

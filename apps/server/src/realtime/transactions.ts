@@ -9,6 +9,8 @@ export type Tx = Parameters<Parameters<ScopedPrisma['$transaction']>[0]>[0];
 
 export interface TransactionOptions {
   readonly isolationLevel?: 'ReadCommitted' | 'RepeatableRead' | 'Serializable';
+  /** How long the transaction may run, in milliseconds (Prisma's default: 5 s). */
+  readonly timeout?: number;
 }
 
 /** What a transaction of `Transactions.run` has written so far: its place, per Pilote, in the order of publication. */

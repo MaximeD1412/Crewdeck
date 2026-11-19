@@ -2,7 +2,7 @@ import { DEFAULT_ACCOUNT_SETTINGS, type Event, type LatencyBatch, type Me, zLate
 import { createLatencyMeter, FLUSH_AFTER_MS, FLUSH_AT_SAMPLES, type LatencyMeter } from './latency.js';
 import { createStore, type Store } from './store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [], githubLinked: false };
 const NOW = Date.parse('2026-11-11T08:00:00.000Z');
 
 const ago = (ms: number): string => new Date(Date.now() - ms).toISOString();
@@ -21,7 +21,7 @@ describe('the latency meter', () => {
     vi.useFakeTimers({ now: NOW });
     store = createStore();
     store.registerSlice('pilot', { shape: 'single' });
-    store.applySnapshot({ seq: 0, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' } });
+    store.applySnapshot({ seq: 0, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
     sent = [];
     beacons = [];
     visibility = 'visible';

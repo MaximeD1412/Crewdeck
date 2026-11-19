@@ -8,6 +8,7 @@ import { openConfirm } from './confirm.js';
 import { expect, test } from './fixtures.js';
 import { linkFirstAppareil } from './runner-link.js';
 import { routeSocket } from './socket.js';
+import { becomeTrustedDevice } from './trusted-device.js';
 
 /** The nav's « Notifications » opened, then back at the top: the full-page shot keeps its sticky columns in place at 1280 px. */
 const openNotifications = async (page: Page) => {
@@ -87,6 +88,15 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await picker.getByRole('checkbox', { name: /^octocat\/site-mairie\b/ }).check();
     await expect(picker.getByRole('button', { name: 'Suivre 2 Projets' })).toBeEnabled();
   },
+  // « Gestion du process » once the snapshot drew its canvas (1280 px; the phone's list is PROCESS-11's).
+  ...Object.fromEntries(
+    ['process', 'process-manques', 'process-etape', 'process-sources', 'process-local'].map((name) => [
+      name,
+      async (page: Page, width: number) => {
+        if (width >= 1280) await expect(page.locator('cd-page-process-editor cd-process-canvas cd-step-card').first()).toBeVisible();
+      },
+    ]),
+  ),
   projets: async (page) => {
     await expect(page.locator('cd-page-projets cd-list-row')).toHaveCount(4);
   },
@@ -108,6 +118,12 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await openNotifications(page);
     await expect(page.getByText('Sur iPhone, ajoute Crewdeck à l’écran d’accueil', { exact: false })).toBeVisible();
   },
+  // On the trusted Appareil, the Code on Codex once the snapshot is there; at 1280 px, the worktree Commandes opened.
+  'parametres-projet': async (page, width) => {
+    await becomeTrustedDevice(page);
+    await expect(page.getByRole('combobox', { name: 'Moteur et modèle du Rôle Code' }).filter({ visible: true })).toHaveValue('codex:gpt-5.5');
+    if (width >= 1280) await expect(page.getByRole('textbox', { name: 'Préparer le worktree' })).toHaveValue('pnpm install --frozen-lockfile');
+  },
   // The Idées opened by the trusted Appareil the scenario installs.
   idees: async (page) => {
     await expect(page.locator('cd-page-idees cd-idea-row').first()).toContainText('Prévenir quand une Planification');
@@ -123,18 +139,51 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   },
   runner: async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('en ligne');
+    await expect(page.locator('cd-page-runner > cd-usage-card')).toContainText('au rythme actuel');
   },
   'runner-serveurs-mcp': async (page) => {
     await expect(page.locator('cd-page-runner cd-card.mcp cd-list-row')).toHaveCount(2);
   },
   'runner-hors-ligne': async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('hors ligne');
+    await expect(page.locator('cd-page-runner > cd-usage-card')).toContainText('Dernière mesure');
     await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner] cd-code-block')).toContainText('crewdeck-runner restart');
   },
-  // « Runner hors ligne » (ATOI-3): its row among the Décisions, and its banner.
+  // The card « Comptes IA » is filled once the snapshot is there (RUNNER-13).
+  'a-toi': async (page) => {
+    await expect(page.locator('cd-page-a-toi > cd-usage-card')).toContainText('Au rythme actuel');
+  },
+  'a-toi-vide': async (page) => {
+    await expect(page.locator('cd-page-a-toi > cd-usage-card')).toContainText('Au rythme actuel');
+  },
+  // « Runner hors ligne » (ATOI-3): its row among the Décisions, and its banner; the Comptes IA as last measured.
   'a-toi-runner-hors-ligne': async (page) => {
     await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('Ton Runner ne répond plus');
     await expect(page.locator('cd-page-a-toi cd-decision-row')).toHaveCount(10);
+    await expect(page.locator('cd-page-a-toi > cd-usage-card')).toContainText('Dernière mesure');
+  },
+  // The Session panel over « À toi » (SESSION-2): the conversation the fake Runner relays, opened by the scenario's Appareil.
+  session: async (page) => {
+    await expect(page.locator('#app > cd-cadre > cd-session[slot=panel]')).toContainText('96 lignes');
+  },
+  'session-arretee': async (page) => {
+    await expect(page.locator('#app > cd-cadre > cd-session[slot=panel]')).toContainText('96 lignes');
+    await expect(page.locator('#app > cd-cadre > cd-session[slot=panel]')).toContainText('Session arrêtée par toi à 15:12');
+  },
+  'session-runner-hors-ligne': async (page) => {
+    await expect(page.locator('#app > cd-cadre > cd-session[slot=panel]')).toContainText('Conversation sur ton Runner');
+    await expect(page.locator('#app > cd-cadre > cd-banner[slot=banner]')).toContainText('Les sessions reprendront');
+  },
+  // A question of the agent (SESSION-3), its first option chosen as the mockup shows it.
+  'session-question': async (page) => {
+    const question = page.locator('#app > cd-cadre > cd-session[slot=panel] cd-question');
+    await expect(question).toContainText('Qui peut modifier un événement');
+    await question.getByRole('radio', { name: 'Tous les membres de l’agenda' }).check();
+  },
+  // A `git push` waiting for the Pilote's permission (SESSION-3), its Décision's command read under the panel.
+  'session-permission': async (page) => {
+    await expect(page.locator('#app > cd-cadre > cd-session[slot=panel] cd-permission-request')).toContainText('git push origin design/agenda-partage');
+    await expect(page.locator('cd-page-a-toi cd-decision-row').filter({ hasText: 'Concevoir · Agenda partagé' })).toContainText('Bash : git push');
   },
   // « Maximum de Retours atteint » (PROCESS-6) among the nine Décisions of `a-toi`.
   'a-toi-process': async (page) => {

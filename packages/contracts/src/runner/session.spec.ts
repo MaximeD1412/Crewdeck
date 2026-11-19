@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { zHello, zRunnerToServer, zServerToRunner, zSessionStart, zSessionStateMessage } from '../index.js';
+import { zEngineEvent, zHello, zRunnerToServer, zServerToRunner, zSessionAnswered, zSessionStart, zSessionStateMessage, zSessionWaiting } from '../index.js';
 
 const FIXTURES = join(import.meta.dirname, '../../fixtures/runner');
 const fixture = <T = Record<string, unknown>>(type: string): T => JSON.parse(readFileSync(join(FIXTURES, `${type}.json`), 'utf8')) as T;
@@ -21,6 +21,16 @@ describe('the Sessions of the Runner protocol', () => {
     delete withoutStep.step;
     expect(zSessionStart.parse(withoutStep).step).toBeUndefined();
     expect(zSessionStart.safeParse({ ...start, step: { stepRunId: start.sessionId, stepKind: 'deploy' } }).success).toBe(false);
+  });
+
+  it('carries the Projet’s worktree Commandes sealed as stored, or null when the Pilote set neither, never in the clear', () => {
+    const start = fixture('session.start');
+    expect(zSessionStart.parse(start).worktreeCommands).toEqual(start.worktreeCommands);
+    expect(zSessionStart.parse({ ...start, worktreeCommands: null }).worktreeCommands).toBeNull();
+    const withoutThem = { ...start };
+    delete withoutThem.worktreeCommands;
+    expect(zSessionStart.safeParse(withoutThem).success).toBe(false);
+    expect(zSessionStart.safeParse({ ...start, worktreeCommands: { prepare: 'pnpm install', clean: null } }).success).toBe(false);
   });
 
   it('takes a default Rôle or one the Pilote added', () => {
@@ -67,5 +77,35 @@ describe('the Sessions of the Runner protocol', () => {
     expect(zHello.parse({ ...hello, sessions: [{ sessionId, alive: false }] }).sessions).toEqual([{ sessionId, alive: false }]);
     expect(zHello.parse(hello).sessions).toBeUndefined();
     expect(zHello.safeParse({ ...hello, sessions: [{ sessionId: 'x', alive: true }] }).success).toBe(false);
+  });
+
+  it('says to the server that a request waits in a Session, at its seq, and once it is answered, never its text', () => {
+    for (const type of ['session.waiting', 'session.answered']) {
+      expect(zRunnerToServer.parse(fixture(type))).toEqual(fixture(type));
+      expect(zServerToRunner.safeParse(fixture(type)).success).toBe(false);
+    }
+    const waiting = fixture('session.waiting');
+    expect(zSessionWaiting.parse({ ...waiting, kind: 'permission' })).toMatchObject({ kind: 'permission' });
+    expect(zSessionWaiting.safeParse({ ...waiting, kind: 'message' }).success).toBe(false);
+    expect(zSessionWaiting.safeParse({ ...waiting, seq: 0 }).success).toBe(false);
+    expect(zSessionWaiting.parse({ ...waiting, title: 'Quelle couleur ?' })).not.toHaveProperty('title');
+    expect(zSessionAnswered.safeParse({ ...fixture<Record<string, unknown>>('session.answered'), requestId: '' }).success).toBe(false);
+  });
+});
+
+describe('the recorded streams of a Session', () => {
+  const stream = (name: string) =>
+    readFileSync(join(FIXTURES, 'sessions', `${name}.jsonl`), 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => zEngineEvent.parse(JSON.parse(line)));
+
+  it.each([
+    ['question', 'question'],
+    ['permission', 'permission-request'],
+  ])('%s: events in seq order from 1, the last one the request that waits', (name, kind) => {
+    const events = stream(name);
+    expect(events.map(({ seq }) => seq)).toEqual(events.map((_, i) => i + 1));
+    expect(events.at(-1)?.kind).toBe(kind);
   });
 });

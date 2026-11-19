@@ -72,7 +72,7 @@ func TestTheLogOfAReplayedSessionHoldsNoTextOfIt(t *testing.T) {
 			kinds = append(kinds, entry["kind"].(string))
 		}
 	}
-	if strings.Join(kinds, ",") != "message,tool-call,question,result" {
+	if strings.Join(kinds, ",") != "message,tool-call,question,answer,result" {
 		t.Fatalf("the events logged are %v:\n%s", kinds, log.String())
 	}
 }

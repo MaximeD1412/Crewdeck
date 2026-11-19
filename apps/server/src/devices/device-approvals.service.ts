@@ -21,7 +21,7 @@ import { drawShortId, newId } from '../ids.js';
 import { EventsWriter } from '../realtime/events.writer.js';
 import { Transactions, type Tx } from '../realtime/transactions.js';
 import { DeviceClock } from './device-clock.js';
-import { bytesOf, DEVICE_VIEW, textOf, toDevice, wrapColumns, wrapOf } from './device.view.js';
+import { bytesOf, DEVICE_VIEW, textOf, toDevice, wrapColumns, wrapOf, writeDeviceUpserted } from './device.view.js';
 import { deviceNotTrusted, deviceUnknown } from './devices.service.js';
 
 const SHORT_ID_TRIES = 5;
@@ -83,7 +83,7 @@ export class DeviceApprovals {
             },
             select: { ...DEVICE_VIEW, shortId: true, expiresAt: true },
           });
-          await this.events.write(tx, pilotId, 'device.upserted', toDevice(row));
+          await writeDeviceUpserted(this.events, tx, pilotId, toDevice(row));
           return { id: row.id, shortId: row.shortId ?? '', expiresAt: row.expiresAt?.toISOString() ?? '' };
         });
       } catch (error) {
@@ -116,6 +116,8 @@ export class DeviceApprovals {
     const parsed = zId.safeParse(id);
     if (!parsed.success) throw deviceUnknown();
     return this.transactions.run(async (tx) => {
+      // The Pilote before the Appareil, as every writer of an Appareil (a revocation at once, E2E-4).
+      await this.events.lock(tx, pilotId);
       const now = this.clock.now();
       const device = await tx.device.findUnique({ where: { id: parsed.data }, select: { state: true, shortId: true, expiresAt: true } });
       if (!device) throw deviceUnknown();
@@ -149,7 +151,7 @@ export class DeviceApprovals {
       });
       const row = await tx.device.findUniqueOrThrow({ where: { id: parsed.data }, select: DEVICE_VIEW });
       const approved = toDevice(row);
-      await this.events.write(tx, pilotId, 'device.upserted', approved);
+      await writeDeviceUpserted(this.events, tx, pilotId, approved);
       return approved;
     });
   }
@@ -172,21 +174,27 @@ export class DeviceApprovals {
     });
   }
 
-  /** The current Pilote's trusted Appareils with a holder wrap, oldest approval first, for the Runner to authenticate. */
+  /**
+   * The current Pilote's trusted Appareils with a holder wrap, oldest approval
+   * first, for the Runner to authenticate; and, as `vouchers`, the revoked
+   * ones that had one (E2E-4): their approvals still vouch for the Appareils
+   * they approved while trusted, for the chain only, never as recipients.
+   */
   holders(): Promise<DeviceHolders> {
     return this.transactions.run(async (tx) => {
-      const rows = await tx.device.findMany({
-        where: { state: 'trusted', approverPublicKey: { not: null }, holderEnc: { not: null }, holderCiphertext: { not: null }, holderTag: { not: null } },
-        orderBy: [{ approvedAt: 'asc' }, { id: 'asc' }],
-        select: { id: true, publicKey: true, approverPublicKey: true, holderEnc: true, holderCiphertext: true, holderTag: true },
-      });
-      return {
-        holders: rows.flatMap(({ id, publicKey, approverPublicKey, holderEnc, holderCiphertext, holderTag }) =>
+      const listed = async (state: 'trusted' | 'revoked') => {
+        const rows = await tx.device.findMany({
+          where: { state, approverPublicKey: { not: null }, holderEnc: { not: null }, holderCiphertext: { not: null }, holderTag: { not: null } },
+          orderBy: [{ approvedAt: 'asc' }, { id: 'asc' }],
+          select: { id: true, publicKey: true, approverPublicKey: true, holderEnc: true, holderCiphertext: true, holderTag: true },
+        });
+        return rows.flatMap(({ id, publicKey, approverPublicKey, holderEnc, holderCiphertext, holderTag }) =>
           approverPublicKey && holderEnc && holderCiphertext && holderTag
             ? [{ deviceId: id, publicKey: textOf(publicKey), approverPublicKey: textOf(approverPublicKey), wrap: wrapOf({ enc: holderEnc, ciphertext: holderCiphertext, tag: holderTag }) }]
             : [],
-        ),
+        );
       };
+      return { holders: await listed('trusted'), vouchers: await listed('revoked') };
     });
   }
 

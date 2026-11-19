@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -379,5 +380,65 @@ func TestUpdateOfARunnerUpToDateDoesNothing(t *testing.T) {
 	}
 	if data, _ := os.ReadFile(f.binary); string(data) != "build" {
 		t.Fatalf("binary holds %q, want it untouched", data)
+	}
+}
+
+const lastAppareil = "Aucun Appareil de confiance : si tu réinstalles ensuite le Runner, le texte de tes Idées sera perdu."
+
+// Before it removes the Runner, uninstall asks the server for the vault's
+// holders: with no trusted Appareil left, the Runner held the only key, and
+// it says so (risk OPS-1), then goes on as asked. With one, or a server that
+// does not answer, it says nothing more.
+func TestUninstallWarnsWhenNoTrustedAppareilIsLeft(t *testing.T) {
+	runnerOnly := contracts.RunnerVault{Version: 2, Seq: 3, Holders: []contracts.RunnerVaultHoldersElem{
+		{Type: contracts.RunnerVaultHoldersElemTypeRunner, Id: runnerID, PublicKey: strings.Repeat("A", 43)},
+	}}
+	withLaptop := runnerOnly
+	withLaptop.Holders = append(append([]contracts.RunnerVaultHoldersElem{}, runnerOnly.Holders...), contracts.RunnerVaultHoldersElem{
+		Type: contracts.RunnerVaultHoldersElemTypeDevice, Id: laptopID, PublicKey: strings.Repeat("B", 43),
+	})
+	cases := map[string]struct {
+		vault contracts.RunnerVault
+		down  bool
+		warns bool
+	}{
+		"no Appareil left":              {vault: runnerOnly, warns: true},
+		"a trusted Appareil":            {vault: withLaptop},
+		"a server that does not answer": {down: true},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			var asked []string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				asked = append(asked, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
+				if c.down {
+					w.WriteHeader(http.StatusBadGateway)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(c.vault)
+			}))
+			t.Cleanup(srv.Close)
+			f, _ := uninstallable(t)
+			f.link(t, srv.URL)
+			f.vault = serverVault
+
+			out, err := f.execute(t, "o\n", "uninstall")
+			if err != nil {
+				t.Fatalf("uninstall: %v", err)
+			}
+			if got := strings.Contains(out, lastAppareil); got != c.warns {
+				t.Fatalf("uninstall printed %q, want the warning %v", out, c.warns)
+			}
+			if c.warns && strings.Index(out, lastAppareil) > strings.Index(out, "(o/N)") {
+				t.Fatalf("the warning comes after the question: %q", out)
+			}
+			if !reflect.DeepEqual(asked, []string{"GET /api/runner/vault Bearer rnr_token"}) {
+				t.Fatalf("asked %q", asked)
+			}
+			if _, err := os.Stat(f.state); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("%s: %v, want it removed", f.state, err)
+			}
+		})
 	}
 }

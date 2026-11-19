@@ -11,9 +11,12 @@ describe('the Idées API', () => {
   });
 
   it('reads a note with its id, its sealed text, its Projet or none, and the seq', () => {
-    const note = { id: '0193a4f2-7c1e-7a10-8c2c-000000000064', text: sealed(40), projectId: null, notedFrom: 'pc', dictated: false, seq: '12' };
-    expect(zNoteIdeaInput.parse(note)).toMatchObject({ projectId: null, seq: 12 });
+    const note = { id: '0193a4f2-7c1e-7a10-8c2c-000000000064', text: sealed(40), vaultKeyVersion: 2, projectId: null, notedFrom: 'pc', dictated: false, seq: '12' };
+    expect(zNoteIdeaInput.parse(note)).toMatchObject({ projectId: null, vaultKeyVersion: 2, seq: 12 });
     expect(zNoteIdeaInput.safeParse({ ...note, notedFrom: 'tablette' }).success).toBe(false);
+    // The version of the vault key the text was sealed under (E2E-4): the server refuses an older one.
+    expect(zNoteIdeaInput.safeParse({ ...note, vaultKeyVersion: undefined }).success).toBe(false);
+    expect(zNoteIdeaInput.safeParse({ ...note, vaultKeyVersion: 0 }).success).toBe(false);
   });
 
   it('needs `states`, one or several separated by commas', () => {

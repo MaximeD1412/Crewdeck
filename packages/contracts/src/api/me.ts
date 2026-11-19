@@ -16,15 +16,21 @@ export type GettingStartedStep = z.infer<typeof zGettingStartedStep>;
 export const nextGettingStartedStep = (step: GettingStartedStep): GettingStartedStep =>
   GETTING_STARTED_STEPS[Math.min(GETTING_STARTED_STEPS.indexOf(step) + 1, GETTING_STARTED_STEPS.length - 1)] as GettingStartedStep;
 
-/** An Identité of the Pilote, as the page shows it: its provider, and the address or GitHub's login. */
-export const zMeIdentity = z.object({ provider: zIdentityProvider, label: z.string() });
+/**
+ * An Identité of the Pilote, as the page shows it: its provider, the address
+ * or GitHub's login, and `reconnect` for a `github` one whose tokens are gone
+ * (GitHub refused their refresh): « Reconnecter GitHub » in the Paramètres.
+ */
+export const zMeIdentity = z.object({ provider: zIdentityProvider, label: z.string(), reconnect: z.boolean() });
 export type MeIdentity = z.infer<typeof zMeIdentity>;
 
 /**
  * `GET /api/me`: the signed-in Pilote, 401 `auth.required` for nobody (the
  * page then goes to `/connexion`), with the step of « Premiers pas » they
  * are at and their Identités (ADR 0014). `displayName` is their readable
- * name: GitHub's login, or their address's local part.
+ * name: GitHub's login, or their address's local part. `githubLinked`: a
+ * `github` Identité with its tokens, without which the Pilote follows no
+ * Dépôt GitHub (409 `github.not-linked`).
  */
 export const zMe = z.object({
   id: zId,
@@ -34,6 +40,7 @@ export const zMe = z.object({
   timeZone: z.string().min(1),
   gettingStartedStep: zGettingStartedStep,
   identities: z.array(zMeIdentity),
+  githubLinked: z.boolean(),
 });
 export type Me = z.infer<typeof zMe>;
 

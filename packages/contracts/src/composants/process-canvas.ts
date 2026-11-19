@@ -23,6 +23,11 @@ const zCanvasPhase = Phase.data.extend({ col: zCell, row: zCell, steps: z.array(
 const zArrow = z.object({ from: zPortRef, to: zPortRef, state: z.enum(['active', 'gap', 'refused']).nullable() });
 /** What the canvas shows of the view: its zoom in percent, and the offset of its top left corner, in the canvas's units. */
 const zView = z.object({ zoom: z.int().min(25).max(200), pan: z.object({ x: z.number(), y: z.number() }) });
+/**
+ * A block to centre: a Phase's or an Étape's id, and the page's count of its
+ * asks, so that asking again for the same block centres it again.
+ */
+const zFocus = z.object({ id: z.string().min(1), at: z.int().min(0) });
 
 type CanvasStep = z.input<typeof zCanvasStep>;
 type CanvasPhase = z.input<typeof zCanvasPhase>;
@@ -280,7 +285,8 @@ const local = {
  * top, a `menu` on its right edge. It takes the whole graph as data and
  * computes geometry only: whether a move, an arrow or a Retour is allowed is
  * the core's. `view` follows each zoom or pan gesture; `moveStep`, `connect`
- * and `loopBack` are emitted only while `editable`.
+ * and `loopBack` are emitted only while `editable`. A new `focus` pans the
+ * view to centre its block, once laid out, then emits `view`.
  */
 export const ProcessCanvas = defineComposant({
   name: 'ProcessCanvas',
@@ -290,6 +296,7 @@ export const ProcessCanvas = defineComposant({
   description: 'Le canevas du Process : les Phases, leurs Étapes, les flèches et les Retours, et son zoom.',
   data: zView.extend({
     editable: z.boolean(),
+    focus: zFocus.nullable().optional(),
     phases: z.array(zCanvasPhase),
     arrows: z.array(zArrow),
     loopBacks: z.array(

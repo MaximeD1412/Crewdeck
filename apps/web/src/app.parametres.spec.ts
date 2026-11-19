@@ -1,10 +1,10 @@
 import { type AiAccount, DEFAULT_ACCOUNT_SETTINGS, type Me } from '@crewdeck/contracts';
-import { emitAction, PageParametres, PushSettings, RoleSettings } from '@crewdeck/sdk';
+import { AccountIdentities, emitAction, PageParametres, PushSettings, RoleSettings } from '@crewdeck/sdk';
 import { createDispatcher } from './actions/dispatcher.js';
 import { boot } from './app.js';
 import { createStore } from './store/store.js';
 
-const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
+const PILOT: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [{ provider: 'email', label: 'pilote@example.com', reconnect: false }], githubLinked: false };
 
 const VAPID = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
 const ENDPOINT = 'https://fcm.googleapis.com/fcm/send/abc';
@@ -21,8 +21,8 @@ const push = {
 
 // Its own file: a page has one Skin, booted once.
 describe('the page’s Paramètres', () => {
-  it('open at /parametres: « Pour les Moddeurs », then « Rôles et modèles » and « Compte » once the store has the settings, following their events; a time zone picked is sent to PATCH /api/settings; the Rôles’ actions open « Nouveau Rôle », add, choose and remove a Rôle', async () => {
-    history.replaceState(null, '', '/parametres');
+  it('open at /parametres: « Pour les Moddeurs », then « Rôles et modèles », « Connexion » and « Compte » once the store has the settings, following their events; a time zone picked is sent to PATCH /api/settings; the Rôles’ actions open « Nouveau Rôle », add, choose and remove a Rôle; « Relier GitHub » leaves for the link', async () => {
+    history.replaceState(null, '', '/parametres?erreur=github-already-linked');
     const root = document.createElement('div');
     document.body.append(root);
     const store = createStore();
@@ -30,9 +30,11 @@ describe('the page’s Paramètres', () => {
     store.registerSlice('settings', { shape: 'single' });
     store.registerSlice('ai-account', { shape: 'collection' });
     store.registerSlice('push-subscription', { shape: 'collection', snapshotKey: 'push-subscriptions' });
-    const settings = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris' };
+    const settings = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] };
     const command = vi.fn<(...args: unknown[]) => Promise<never>>(async () => settings as never);
+    const leave = vi.fn<(url: string) => void>();
     const app = await boot({
+      leave,
       root,
       dispatcher: createDispatcher(),
       me: async () => PILOT,
@@ -58,8 +60,13 @@ describe('the page’s Paramètres', () => {
       models: [{ id: 'gpt-5.5', label: 'GPT-5.5', usable: true }],
       reportedAt: '2026-11-11T08:30:00.000Z',
     };
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [codex], 'mcp-server': [], devices: [], 'push-subscriptions': [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings });
-    expect(slotsOf()).toEqual(['roles', 'notifications', 'account', 'modders']);
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [codex], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings, usage: [] });
+    expect(slotsOf()).toEqual(['roles', 'notifications', 'account', 'account', 'modders']);
+    const identities = page.querySelector('cd-account-identities[slot=account]') as HTMLElement & { data: unknown };
+    expect(identities.nextElementSibling?.matches('cd-card[slot=account]')).toBe(true);
+    expect(identities.data).toEqual({ identities: PILOT.identities, error: 'github-already-linked' });
+    emitAction(identities, AccountIdentities, 'linkGitHub', {});
+    expect(leave).toHaveBeenCalledWith('/api/auth/github/link?next=%2Fparametres');
     const select = page.querySelector('cd-card[slot=account] cd-select') as HTMLElement & { data: { value: string } };
     expect(select.data.value).toBe('Europe/Paris');
 

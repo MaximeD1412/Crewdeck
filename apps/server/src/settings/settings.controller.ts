@@ -1,4 +1,4 @@
-import { type AccountSettings, withSeq, zAccountSettings, zAccountSettingsPatch } from '@crewdeck/contracts';
+import { type AccountSettings, type SettingsState as SettingsState_, withSeq, zAccountSettings, zAccountSettingsPatch } from '@crewdeck/contracts';
 import { Body, Controller, Get, Inject, Injectable, type OnModuleInit, Patch } from '@nestjs/common';
 import { createZodDto, ZodResponse } from 'nestjs-zod';
 import { STATE_CONTRIBUTORS, type StateContributor, type StateContributors } from '../realtime/state-contributors.js';
@@ -47,7 +47,7 @@ export class SettingsState implements StateContributor<'settings'>, OnModuleInit
     this.contributors.add(this);
   }
 
-  snapshot(tx: Tx, pilotId: string): Promise<AccountSettings> {
-    return this.settings.account(pilotId, tx);
+  snapshot(tx: Tx, pilotId: string): Promise<SettingsState_> {
+    return this.settings.state(pilotId, tx);
   }
 }

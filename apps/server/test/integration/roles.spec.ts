@@ -54,7 +54,7 @@ describe('the Rôles the Pilote adds against PostgreSQL', () => {
   /** A Pilote with a session, both Comptes IA connected unless `engines` says otherwise. */
   const pilot = async (login = 'octocat', engines = [CLAUDE_SUBSCRIPTION, CODEX_API_KEY]): Promise<{ id: string; cookie: string }> => {
     const id = newId();
-    await sql(`INSERT INTO pilots (id, github_user_id, login, time_zone) VALUES ($1, $2, $3, 'Europe/Paris')`, [id, Math.floor(Math.random() * 1e9), login]);
+    await sql(`WITH p AS (INSERT INTO pilots (id, display_name, time_zone) VALUES ($1, $3, 'Europe/Paris') RETURNING id) INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) SELECT gen_random_uuid(), id, 'github', $2::text, $3 FROM p`, [id, Math.floor(Math.random() * 1e9), login]);
     const prisma = app.get(PrismaService);
     await createAiAccounts(prisma, id, engines);
     const token = await runInPilotScope(id, () => app.get(WebSessions).open(prisma.scoped, id, undefined));

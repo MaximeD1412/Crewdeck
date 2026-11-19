@@ -42,3 +42,9 @@ export const mailEnv = (): Record<string, string> => ({
   SMTP_URL: 'smtps://crewdeck:test-password@smtp.mail.invalid:465',
   MAIL_FROM: 'Crewdeck <connexion@crewdeck.example>',
 });
+
+/** The Google OAuth client of the sign-in with Google (CORE-10), made up for the tests: never a real client's. */
+export const googleEnv = (): Record<string, string> => ({
+  GOOGLE_CLIENT_ID: 'crewdeck-test.apps.googleusercontent.com',
+  GOOGLE_CLIENT_SECRET: 'test-google-secret',
+});

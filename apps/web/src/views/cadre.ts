@@ -66,11 +66,20 @@ const STATIC_META: Partial<Record<NavId, () => string>> = {
 /** The pages without the menu: only the brand above them. */
 const BARE_PATHS: ReadonlySet<string> = new Set(['/connexion', '/connexion/lien', '/demarrage']);
 
+/** The pages of an editor that fills the height: the Cadre's narrow menu (« Gestion du process »). */
+const COMPACT_PATHS: readonly RegExp[] = [/^\/projets\/[^/]+\/process$/];
+
 const isNavId = (value: string | undefined): value is NavId => (NAV_IDS as readonly (string | undefined)[]).includes(value);
 
-/** The entry of a page URL: its first segment (`/idees/:id` is Idées, `/parametres/composants` Paramètres). */
+/**
+ * The entry of a page URL: its first segment (`/idees/:id` is Idées,
+ * `/parametres/composants` Paramètres), but a Projet's Paramètres
+ * (`/projets/:id/parametres`) are Paramètres, as their mockup marks them.
+ */
 const entryOf = (path: string): NavId | null => {
-  const [first] = path.split('/').filter(Boolean);
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length === 3 && segments[0] === 'projets' && segments[2] === 'parametres') return 'parametres';
+  const [first] = segments;
   return isNavId(first) ? first : null;
 };
 
@@ -113,7 +122,7 @@ export const cadreView = (state: CadreState, route: { readonly path: string }): 
     : runnerStatus(state.slices);
   return {
     cadre: {
-      variant: bare ? 'bare' : 'default',
+      variant: bare ? 'bare' : COMPACT_PATHS.some((pattern) => pattern.test(route.path)) ? 'compact' : 'default',
       current,
       screenLabel: current ? label(current) : t('cadre.brand'),
       status,

@@ -1,4 +1,4 @@
-import { formatDate, formatDay, formatEuros, formatHour, formatNumber, formatPercent, formatRelative } from './format.js';
+import { formatDate, formatDay, formatEuros, formatHour, formatNumber, formatPercent, formatRelative, formatWeekday, sameDay } from './format.js';
 
 const NNBSP = ' ';
 const NBSP = ' ';
@@ -37,10 +37,17 @@ describe('formatHour', () => {
   });
 });
 
-describe('formatDate', () => {
-  it('gives the day and the month of an instant, in the browser’s time zone', () => {
-    expect(formatDate(local(3, 23, 30))).toBe('3 nov.');
-    expect(formatDate(local(12, 0, 10).toISOString())).toBe('12 nov.');
+describe('formatWeekday', () => {
+  it('gives the day of the week, lower case', () => {
+    expect(formatWeekday(local(12, 16, 40))).toBe('jeudi');
+    expect(formatWeekday(local(16, 8).toISOString())).toBe('lundi');
+  });
+});
+
+describe('sameDay', () => {
+  it('compares the local days of two instants', () => {
+    expect(sameDay(local(12, 0, 5), local(12, 23, 55).toISOString())).toBe(true);
+    expect(sameDay(local(12, 23, 55), local(13, 0, 5))).toBe(false);
   });
 });
 

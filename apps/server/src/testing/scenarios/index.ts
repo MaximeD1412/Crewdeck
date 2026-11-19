@@ -13,17 +13,20 @@ import {
   composantsTextField,
   confirmDialog,
 } from './composants.js';
-import { connexion, connexionErreur, connexionLien, connexionLienEnvoye } from './connexion.js';
+import { connexion, connexionErreur, connexionGoogleNonVerifiee, connexionLien, connexionLienEnvoye } from './connexion.js';
 import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
 import { appareilAApprouver, appareilAApprouverCode, appareils, appareilsAjouter } from './devices.js';
 import type { Scenario } from './define.js';
 import { idees, ideesNouvelle, ideesVide } from './idees.js';
 import { menuPlus } from './menu-plus.js';
-import { demarrageProjets, projets, projetsVide } from './projets.js';
+import { demarrageProjets, demarrageProjetsSansGithub, projets, projetsVide } from './projets.js';
 import { parametres, parametresNotifications, parametresNotificationsIphone } from './parametres.js';
+import { parametresProjet } from './parametres-projet.js';
+import { processScenarios } from './process.js';
 import { resynchronisation } from './resynchronisation.js';
 import { runner, runnerServeursMcp } from './runner.js';
 import { aToiRunnerHorsLigne, runnerHorsLigne } from './runner-offline.js';
+import { session, sessionArretee, sessionPermission, sessionQuestion, sessionRunnerHorsLigne } from './session.js';
 import { smoke } from './smoke.js';
 
 export { defineScenario, type Scenario, type ScenarioContext, type ScenarioSeed } from './define.js';
@@ -38,10 +41,12 @@ const SCENARIOS: readonly Scenario[] = [
   aToiVide,
   aToiProcess,
   aToiRunnerHorsLigne,
+  aToiVide,
   blank,
   composants,
   connexion,
   connexionErreur,
+  connexionGoogleNonVerifiee,
   connexionLien,
   connexionLienEnvoye,
   demarrage,
@@ -50,6 +55,7 @@ const SCENARIOS: readonly Scenario[] = [
   demarrageComptesIa,
   demarrageComptesIaAucun,
   demarrageProjets,
+  demarrageProjetsSansGithub,
   idees,
   ideesNouvelle,
   ideesVide,
@@ -57,12 +63,18 @@ const SCENARIOS: readonly Scenario[] = [
   parametres,
   parametresNotifications,
   parametresNotificationsIphone,
+  parametresProjet,
   projets,
   projetsVide,
   resynchronisation,
   runner,
   runnerHorsLigne,
   runnerServeursMcp,
+  session,
+  sessionArretee,
+  sessionQuestion,
+  sessionPermission,
+  sessionRunnerHorsLigne,
   smoke,
   ...composantsRows,
   composantsTextField,
@@ -73,6 +85,7 @@ const SCENARIOS: readonly Scenario[] = [
   ...composantsSession,
   ...composantsProcess,
   ...composantsProcessList,
+  ...processScenarios,
 ];
 
 const byName = new Map(SCENARIOS.map((scenario) => [scenario.name, scenario]));

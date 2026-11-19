@@ -1,4 +1,6 @@
 import type { Device, Wrap } from '@crewdeck/contracts';
+import type { EventsWriter } from '../realtime/events.writer.js';
+import type { Tx } from '../realtime/transactions.js';
 
 /** What of a `devices` row the page sees: `GET /api/devices`, the `devices` slice, the payload of `device.upserted`. */
 export const DEVICE_VIEW = { id: true, name: true, state: true, approvedAt: true, revokedAt: true, lastSeenAt: true } as const;
@@ -36,3 +38,9 @@ export const wrapOf = (row: { enc: Uint8Array; ciphertext: Uint8Array; tag: Uint
   ciphertext: textOf(row.ciphertext),
   tag: textOf(row.tag),
 });
+
+/** Writes the Appareil's `device.upserted` and keeps its `seq` as the row's `lastSeq`, for a command on it (ADR 0007). */
+export const writeDeviceUpserted = async (events: EventsWriter, tx: Tx, pilotId: string, device: Device): Promise<void> => {
+  const seq = await events.write(tx, pilotId, 'device.upserted', device);
+  await tx.device.update({ where: { id: device.id }, data: { lastSeq: seq } });
+};

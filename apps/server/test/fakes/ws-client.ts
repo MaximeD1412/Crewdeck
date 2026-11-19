@@ -11,6 +11,8 @@ export interface ConnectOptions {
   readonly origin?: string;
   /** The Runner's token, sent as `Authorization: Bearer …` (RUNNER-2). */
   readonly token?: string;
+  /** The Appareil the tab names, as `?device=<id>` (E2E-4). */
+  readonly device?: string;
 }
 
 export interface WsClose {
@@ -52,8 +54,9 @@ const withTimeout = <T>(promise: Promise<T>, what: string): Promise<T> =>
   });
 
 /** Opens `/api/ws` of the app at `baseUrl` (`http://127.0.0.1:<port>`); resolves once the socket is open. */
-export const connect = async (baseUrl: string, { cookie, origin, token }: ConnectOptions = {}): Promise<WsClient> => {
+export const connect = async (baseUrl: string, { cookie, origin, token, device }: ConnectOptions = {}): Promise<WsClient> => {
   const url = new URL('/api/ws', baseUrl);
+  if (device) url.searchParams.set('device', device);
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
   const headers: Record<string, string> = {};
   if (cookie) headers['cookie'] = cookie;

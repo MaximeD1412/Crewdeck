@@ -11,6 +11,7 @@ import type { Env } from './config/env.js';
 import { readRawBody, WEBHOOKS_PATH } from './github/webhooks/raw-body.js';
 import { LATENCY_PATH, readBeaconBody } from './metrics/beacon-body.js';
 import { RUNNER_DIST_ROUTE, toRunnerDist } from './runners/distribution/runner-dist.controller.js';
+import { readRotationBody, VAULT_ROTATION_PATHS } from './vault/rotation-body.js';
 
 // The messages of a schema's issues reach the page through `fields`: French, as every error message.
 z.config(z.locales.fr());
@@ -29,23 +30,26 @@ const serveDocs = (app: INestApplication): void => {
 
 /**
  * Every route under `/api`, but the fake GitHub's (`/fake-github`, mounted
- * with `CREWDECK_FAKES=1` only), at the path the page reads GitHub at, and
+ * with `CREWDECK_FAKES=1` only), at the path the page reads GitHub at, the
+ * fake Google's authorize page (`/fake-google`, the same), and
  * the Runner's install script and binaries (`/runner/…`, RUNNER-3); and
  * `/api/ws` (ADR 0007) on the same HTTP server, with `ws` (without an
  * adapter, Nest would look for socket.io). The webhooks' body is read raw,
  * before the JSON parser Nest mounts at `init`: their signature is of its
  * bytes. The latency's `text/plain` body (`sendBeacon`) is read as JSON
- * before it too. The JSON parser is ours, at `JSON_BODY_LIMIT`.
+ * before it too, as a rotation of the vault key's (up to 10 MB, E2E-4). The
+ * JSON parser is ours, at `JSON_BODY_LIMIT`.
  */
 export const mountApi = (app: INestApplication): void => {
   // Behind the edge (ADR 0009): `request.ip` is the client's, from `X-Forwarded-For`, for the link's attempts by IP.
   (app as NestExpressApplication).set('trust proxy', 'loopback, uniquelocal');
   app.use(WEBHOOKS_PATH, readRawBody);
   app.use(LATENCY_PATH, readBeaconBody);
+  app.use(VAULT_ROTATION_PATHS, readRotationBody);
   // In place of Nest's (100 kB): a Process's draft at its bounds with its sealed part (PROCESS-3).
   (app as NestExpressApplication).useBodyParser('json', { limit: JSON_BODY_LIMIT });
   app.use(toRunnerDist);
-  app.setGlobalPrefix('api', { exclude: ['fake-github/{*path}', `${RUNNER_DIST_ROUTE}/{*path}`] });
+  app.setGlobalPrefix('api', { exclude: ['fake-github/{*path}', 'fake-google/{*path}', `${RUNNER_DIST_ROUTE}/{*path}`] });
   app.useWebSocketAdapter(new WsAdapter(app));
 };
 

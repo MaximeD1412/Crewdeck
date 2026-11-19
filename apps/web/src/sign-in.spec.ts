@@ -4,11 +4,11 @@ import { createDispatcher } from './actions/dispatcher.js';
 import { boot } from './app.js';
 import { matchRoute, NO_STATE } from './router.js';
 import { ROUTES } from './routes.js';
-import { githubSignInHref, signInGuard } from './sign-in.js';
+import { githubLinkHref, providerSignInHref, signInGuard } from './sign-in.js';
 
 type WithData = HTMLElement & { data: unknown; updateComplete: Promise<unknown> };
 
-const ME: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [] };
+const ME: Me = { id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b', displayName: 'octocat', avatarUrl: null, timeZone: 'Europe/Paris', gettingStartedStep: 'done', identities: [], githubLinked: false };
 
 /** The guard's answer for the page at `url`, where the browser is. */
 const guarded = (pilot: Me | null, url: string) => {
@@ -38,15 +38,22 @@ describe('signInGuard', () => {
   });
 });
 
-describe('githubSignInHref', () => {
-  it('starts the GitHub sign-in with the time zone and the page to come back to, « À toi » by default', () => {
+describe('providerSignInHref', () => {
+  it.each(['google', 'github'] as const)('starts the sign-in with %s, the time zone and the page to come back to, « À toi » by default', (provider) => {
     const query = (href: string) => {
       const url = new URL(href, 'http://crewdeck.invalid');
-      expect(url.pathname).toBe('/api/auth/github/start');
+      expect(url.pathname).toBe(`/api/auth/${provider}/start`);
       return Object.fromEntries(url.searchParams);
     };
-    expect(query(githubSignInHref('/idees?session=s1', 'Europe/Paris'))).toEqual({ timeZone: 'Europe/Paris', next: '/idees?session=s1' });
-    expect(query(githubSignInHref(undefined, 'America/Montreal'))).toEqual({ timeZone: 'America/Montreal', next: '/a-toi' });
+    expect(query(providerSignInHref(provider, '/idees?session=s1', 'Europe/Paris'))).toEqual({ timeZone: 'Europe/Paris', next: '/idees?session=s1' });
+    expect(query(providerSignInHref(provider, undefined, 'America/Montreal'))).toEqual({ timeZone: 'America/Montreal', next: '/a-toi' });
+  });
+});
+
+describe('githubLinkHref', () => {
+  it('starts « Relier GitHub », which comes back to the page it left', () => {
+    expect(githubLinkHref('/parametres')).toBe('/api/auth/github/link?next=%2Fparametres');
+    expect(githubLinkHref('/demarrage')).toBe('/api/auth/github/link?next=%2Fdemarrage');
   });
 });
 
@@ -55,6 +62,8 @@ describe('the /connexion route', () => {
     ['state-mismatch', 'state-mismatch'],
     ['denied', 'denied'],
     ['github-unavailable', 'github-unavailable'],
+    ['google-unavailable', 'google-unavailable'],
+    ['google-unverified', 'google-unverified'],
     ['autre', null],
   ])('gives PageConnexion the error of ?erreur=%s', (erreur, error) => {
     const match = matchRoute(ROUTES, `/connexion?erreur=${erreur}`);
@@ -104,10 +113,10 @@ describe('the page signed out', () => {
     expect(page().shadowRoot?.querySelector('h1')?.textContent).toBe(t('connexion.title'));
   });
 
-  it('signInWith leaves for GitHub with the browser’s time zone and the page to come back to', async () => {
-    action(page(), 'PageConnexion', 'signInWith', { provider: 'github' });
+  it.each(['google', 'github'] as const)('signInWith %s leaves for it with the browser’s time zone and the page to come back to', async (provider) => {
+    action(page(), 'PageConnexion', 'signInWith', { provider });
     await vi.waitFor(() => expect(leave).toHaveBeenCalledOnce());
-    expect(leave).toHaveBeenCalledWith(githubSignInHref('/idees?session=s1', Intl.DateTimeFormat().resolvedOptions().timeZone));
+    expect(leave).toHaveBeenCalledWith(providerSignInHref(provider, '/idees?session=s1', Intl.DateTimeFormat().resolvedOptions().timeZone));
   });
 
   it('requestLink asks for a link coming back to the page, then shows where it went; changeEmail brings the field back', async () => {

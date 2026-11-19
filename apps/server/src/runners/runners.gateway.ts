@@ -169,12 +169,12 @@ class RunnerSocket implements RunnerLink {
     }
     const protocolVersion = Math.min(hello.protocolVersion, this.protocol.version);
     this.connections.take(this)?.close(RUNNER_WS_CLOSE.replaced, 'replaced');
-    const vaultKeyWrap = await this.devices.runnerWrap(this.pilotId, this.runnerId);
+    const { vaultKeyWrap, rotationPending } = await this.devices.runnerVault(this.pilotId, this.runnerId);
     // hello.accepted before what the onOnline hooks send (RunnerCommands): the Runner reads nothing else until it.
     await this.presence.connected(this.pilotId, this.runnerId, hello, protocolVersion, () => {
       if (this.closed) return false;
       this.isAccepted = true;
-      this.reply({ type: 'hello.accepted', runnerId: this.runnerId, protocolVersion, ...(vaultKeyWrap ? { vaultKeyWrap } : {}) });
+      this.reply({ type: 'hello.accepted', runnerId: this.runnerId, protocolVersion, ...(vaultKeyWrap ? { vaultKeyWrap } : {}), ...(rotationPending ? { rotationPending } : {}) });
       return true;
     });
     if (this.isAccepted && !this.closed) this.connections.accepted(this, hello);

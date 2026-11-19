@@ -65,3 +65,28 @@ func TestTheKeysOfARunnerNeverLinkedAreMissing(t *testing.T) {
 		t.Errorf("a runner key of the wrong length loads: %v", err)
 	}
 }
+
+// After a rotation (E2E-4) vault.wrap keeps the key of the holder that sealed
+// the new wrap beside the first Appareil's; a file written before it has no
+// sender, and its sender is that Appareil.
+func TestTheVaultWrapKeepsItsSenderBesideTheFirstAppareil(t *testing.T) {
+	store := Store{Dir: t.TempDir()}
+	first, sender := bytes.Repeat([]byte{1}, 32), bytes.Repeat([]byte{5}, 32)
+	if err := os.WriteFile(filepath.Join(store.Dir, VaultWrapFile), []byte(`{"runnerId":"r","vaultKeyVersion":1,"devicePublicKey":"`+
+		"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="+`","enc":"","ciphertext":"","tag":""}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	old, err := store.LoadVaultWrap()
+	if err != nil || old.SenderPublicKey != nil || !bytes.Equal(old.Sender(), first) {
+		t.Fatalf("the file of before: %+v, %v, want the first Appareil as its sender", old, err)
+	}
+
+	rotated := VaultWrap{RunnerID: "r", VaultKeyVersion: 2, DevicePublicKey: first, SenderPublicKey: sender}
+	if err := store.SaveVaultWrap(rotated); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.LoadVaultWrap()
+	if err != nil || !bytes.Equal(got.DevicePublicKey, first) || !bytes.Equal(got.Sender(), sender) || got.VaultKeyVersion != 2 {
+		t.Fatalf("loaded %+v, %v", got, err)
+	}
+}

@@ -44,12 +44,14 @@ const NO_PICKER: z.input<typeof RepositoryPicker.data> = { context: 'demarrage',
  * (a Rôle can run on one of them), else disabled under the Banner « Aucun
  * Moteur utilisable ». The Projets' step shows the RepositoryPicker of
  * `picker` (PROJET-2): its `follow` goes up to the page's dispatcher, its
- * `later` becomes the page's `continue`. `command` is `null` until the page
+ * `later` becomes the page's `continue`; without `githubLinked` (CORE-11), a
+ * caution Banner above it, « Relier GitHub » (`linkGitHub`: the core leaves
+ * for `/api/auth/github/link`). `command` is `null` until the page
  * drew its code; `busy` while a command is on its way.
  */
 export const PageDemarrage = defineComposant({
   name: 'PageDemarrage',
-  version: 4,
+  version: 5,
   tag: 'cd-page-demarrage',
   category: 'page',
   description: 'Les Premiers pas : le Runner, les Comptes IA, les Projets.',
@@ -64,14 +66,15 @@ export const PageDemarrage = defineComposant({
     busy: z.boolean(),
     engines: z.array(zEngineAccount),
     usable: z.boolean(),
+    githubLinked: z.boolean(),
     picker: RepositoryPicker.data,
   }),
-  actions: { selectSystem: z.object({ system: zDemarrageSystem }), retry: z.object({}), continue: z.object({}) },
+  actions: { selectSystem: z.object({ system: zDemarrageSystem }), retry: z.object({}), continue: z.object({}), linkGitHub: z.object({}) },
   slots: [],
   examples: [
     {
       name: 'en attente du Runner',
-      data: { step: 'runner', displayName: 'octocat', system: 'linux', command: COMMAND, shortId: '7KQ4', failure: null, runner: null, busy: false, engines: [], usable: false, picker: NO_PICKER },
+      data: { step: 'runner', displayName: 'octocat', system: 'linux', command: COMMAND, shortId: '7KQ4', failure: null, runner: null, busy: false, engines: [], usable: false, githubLinked: true, picker: NO_PICKER },
     },
     {
       name: 'liaison échouée',
@@ -86,12 +89,13 @@ export const PageDemarrage = defineComposant({
         busy: false,
         engines: [],
         usable: false,
+        githubLinked: true,
         picker: NO_PICKER,
       },
     },
     {
       name: 'Runner relié',
-      data: { step: 'runner', displayName: 'octocat', system: 'wsl', command: null, shortId: null, failure: null, runner: RUNNER, busy: false, engines: [], usable: false, picker: NO_PICKER },
+      data: { step: 'runner', displayName: 'octocat', system: 'wsl', command: null, shortId: null, failure: null, runner: RUNNER, busy: false, engines: [], usable: false, githubLinked: true, picker: NO_PICKER },
     },
     {
       name: 'Comptes IA',
@@ -106,6 +110,7 @@ export const PageDemarrage = defineComposant({
         busy: false,
         engines: [...EXAMPLE_ENGINES],
         usable: true,
+        githubLinked: true,
         picker: NO_PICKER,
       },
     },
@@ -122,6 +127,7 @@ export const PageDemarrage = defineComposant({
         busy: false,
         engines: [...EXAMPLE_ENGINES_NONE],
         usable: false,
+        githubLinked: true,
         picker: NO_PICKER,
       },
     },
@@ -138,7 +144,25 @@ export const PageDemarrage = defineComposant({
         busy: false,
         engines: [],
         usable: false,
+        githubLinked: true,
         picker: PICKER,
+      },
+    },
+    {
+      name: 'Projets sans GitHub',
+      data: {
+        step: 'projects',
+        displayName: 'ada.lovelace',
+        system: 'linux',
+        command: null,
+        shortId: null,
+        failure: null,
+        runner: RUNNER,
+        busy: false,
+        engines: [],
+        usable: false,
+        githubLinked: false,
+        picker: NO_PICKER,
       },
     },
   ],

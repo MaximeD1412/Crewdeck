@@ -28,7 +28,7 @@ export interface Fixtures {
  * non-extractable, then the page loaded again to open the vault with it.
  */
 const installDevice = async (page: Page, device: ScenarioDevice): Promise<void> => {
-  await page.evaluate(async ({ deviceId, privateKey, publicKey }) => {
+  await page.evaluate(async ({ deviceId, privateKey, publicKey, runnerPublicKey }) => {
     const bytes = (text: string) => Uint8Array.from(atob(text.replaceAll('-', '+').replaceAll('_', '/')), (c) => c.charCodeAt(0));
     // PKCS #8 of an X25519 private key (RFC 8410): this prefix, then the 32 bytes.
     const pkcs8 = new Uint8Array([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x6e, 0x04, 0x22, 0x04, 0x20, ...bytes(privateKey)]);
@@ -41,7 +41,8 @@ const installDevice = async (page: Page, device: ScenarioDevice): Promise<void> 
     });
     await new Promise<void>((resolve, reject) => {
       const transaction = database.transaction('device', 'readwrite');
-      transaction.objectStore('device').put({ deviceId, privateKey: key, publicKey: bytes(publicKey) }, 'self');
+      // The Runner's key, as a pairing leaves it, when the scenario's fake Runner relays a Session (SESSION-2).
+      transaction.objectStore('device').put({ deviceId, privateKey: key, publicKey: bytes(publicKey), ...(runnerPublicKey ? { runnerPublicKey: bytes(runnerPublicKey) } : {}) }, 'self');
       transaction.oncomplete = () => resolve();
       transaction.onerror = transaction.onabort = () => reject(transaction.error ?? new Error('IndexedDB'));
     });

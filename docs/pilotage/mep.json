@@ -310,6 +310,20 @@
       "ajouteLe": "2026-11-14"
     },
     {
+      "id": "env-google-client",
+      "phase": "env",
+      "source": "#197",
+      "titre": "GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET dans le .env de la prod et du staging",
+      "pourquoi": "La connexion avec Google (CORE-10) passe par le client OAuth de chaque environnement ; le serveur refuse de démarrer sans GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET en production et en staging. Tant qu'ils manquent, le déploiement de develop au staging qui suit le merge de CORE-10 ne démarre pas. Les deux clients (écran de consentement, champs d'application openid et email, URI de redirection https://<hôte>/api/auth/google/callback) viennent d'INFRA-15 (#200).",
+      "etapes": [
+        "Dans /opt/crewdeck/prod/.env : GOOGLE_CLIENT_ID=<id du client crewdeck-prod-server>.apps.googleusercontent.com et GOOGLE_CLIENT_SECRET=<son secret>.",
+        "Dans /opt/crewdeck/staging/.env : la même chose avec le client du staging.",
+        "Vérifier après le déploiement suivant : le serveur est healthy, et « Continuer avec Google » sur https://staging.<domaine>/connexion revient connecté sur Crewdeck."
+      ],
+      "commande": "sudo grep -c '^\\(GOOGLE_CLIENT_ID\\|GOOGLE_CLIENT_SECRET\\)=.\\+' /opt/crewdeck/prod/.env /opt/crewdeck/staging/.env",
+      "ajouteLe": "2026-11-17"
+    },
+    {
       "id": "migration-identites",
       "phase": "db",
       "source": "#196",
@@ -417,6 +431,19 @@
       "ajouteLe": "2026-11-15"
     },
     {
+      "id": "migration-usage",
+      "phase": "db",
+      "source": "#67",
+      "titre": "Migration 20261205000000_usage : les tables usage_measures, spends et fx_rates",
+      "pourquoi": "L’usage des Comptes IA face à leurs limites et la dépense du mois d’une clé API (RUNNER-13, US-55) vivent dans trois nouvelles tables et un type usage_window_id. La migration ne fait qu’ajouter : la version précédente tourne dessus sans les lire.",
+      "etapes": [
+        "Rien à lancer à la main : le déploiement du staging, puis celui de la prod, appliquent la migration.",
+        "Vérifier après chaque déploiement que son journal montre la migration appliquée (20261205000000_usage), puis que GET /api/state contient la tranche usage."
+      ],
+      "commande": "docker compose -p crewdeck-staging --env-file /opt/crewdeck/staging/.env -f docker-compose.yml -f docker-compose.staging.yml run --rm server migrate",
+      "ajouteLe": "2026-11-15"
+    },
+    {
       "id": "migration-mcp-servers",
       "phase": "db",
       "source": "#182",
@@ -427,6 +454,19 @@
         "Vérifier sur chaque base (crewdeck-prod, puis crewdeck-staging) que la commande imprime une date : la migration est appliquée."
       ],
       "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261123000000_mcp_servers'\"",
+      "ajouteLe": "2026-11-14"
+    },
+    {
+      "id": "sortie-https-bce",
+      "phase": "vps",
+      "source": "#67",
+      "titre": "Laisser le serveur de la prod et du staging joindre www.ecb.europa.eu en HTTPS",
+      "pourquoi": "La dépense du mois en euros (US-55) convertit les dollars facturés au cours de référence de la BCE du jour de la dépense (risque BIZ-4) : le serveur lit chaque jour à 16:30, heure de Francfort, et à son démarrage tant qu'aucun cours n'est connu, le fichier quotidien https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml. Sans sortie vers ce domaine, la dépense d'une clé API reste « en attente du cours du jour », puis convertie au dernier cours connu ; le reste fonctionne.",
+      "etapes": [
+        "Si un pare-feu filtre la sortie du VPS ou du réseau Docker, autoriser le HTTPS (443) vers www.ecb.europa.eu pour les conteneurs server de crewdeck-prod et crewdeck-staging.",
+        "Vérifier après le déploiement suivant : le journal du serveur contient « fx rate » avec le jour et le cours, et aucun « fx rates failed »."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec server node -e \"fetch('https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml').then((r) => console.log(r.status))\"",
       "ajouteLe": "2026-11-14"
     },
     {
@@ -499,13 +539,13 @@
       "id": "migration-push-subscriptions",
       "phase": "db",
       "source": "#54",
-      "titre": "Appliquer la migration 20261205000000_push_subscriptions en staging puis en production",
+      "titre": "Appliquer la migration 20261209000000_push_subscriptions en staging puis en production",
       "pourquoi": "La table push_subscriptions garde les navigateurs qui reçoivent les notifications push de chaque Pilote (leur endpoint, leurs clés, leur libellé), et la colonne decisions.notified_at ce qui a déjà été poussé. Sans elles, « Notifications » des Paramètres et GET /api/state échouent. La migration ne fait qu'ajouter : la version précédente du serveur tourne sur la base migrée ; les Décisions déjà ouvertes ne sont jamais poussées.",
       "etapes": [
         "Rien à lancer à la main : deploy.sh répète la migration sur la dernière sauvegarde (rehearse.sh), puis l'applique au déploiement du staging, puis à celui de la production.",
         "Vérifier sur chaque base (crewdeck-prod, puis crewdeck-staging) que la commande imprime une date : la migration est appliquée."
       ],
-      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261205000000_push_subscriptions'\"",
+      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261209000000_push_subscriptions'\"",
       "ajouteLe": "2026-11-16"
     },
     {
@@ -520,6 +560,19 @@
         "Fermer tous les onglets Crewdeck, faire lever une Décision (couper le Runner alors que du travail attend : « Runner hors ligne ») : la notification arrive ; la toucher ouvre sa page dans l'app."
       ],
       "ajouteLe": "2026-11-16"
+    },
+    {
+      "id": "migration-drop-pilot-github-columns",
+      "phase": "db",
+      "source": "#198",
+      "titre": "Migration 20261208000000_drop_pilot_github_columns : retirer pilots.github_user_id et pilots.login",
+      "pourquoi": "Le contrat de la migration 20261201000000_identities (CORE-9) : les colonnes github_user_id et login des Pilotes, leur index et les déclencheurs qui les recopiaient disparaissent, l'Identité github devient la seule trace du compte GitHub. La version de CORE-9 ne lit déjà plus ces colonnes, mais celle d'avant CORE-9 en a besoin : la migration ne part en production qu'après une release qui contient CORE-9. Pas de migration descendante (ADR 0009) : un retour en arrière revient à la version de CORE-9, pas avant.",
+      "etapes": [
+        "Avant le merge develop → main qui contient CORE-11 : vérifier que la production a déjà la migration 20261201000000_identities (la commande imprime une date). Sinon, livrer d'abord une release de develop sans CORE-11, puis celle-ci.",
+        "Répéter la migration sur la dernière sauvegarde de la prod (deploy.sh, rehearse.sh), puis vérifier après le déploiement qu'une connexion GitHub retrouve le même Pilote et ses installations."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261201000000_identities'\"",
+      "ajouteLe": "2026-11-17"
     }
   ]
 }

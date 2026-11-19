@@ -12,8 +12,8 @@ export interface DrawnCode {
 }
 
 export interface DemarrageState {
-  /** The Pilote as the page knows them now: their name and their step. */
-  readonly pilot: Pick<Me, 'displayName' | 'gettingStartedStep'>;
+  /** The Pilote as the page knows them now: their name, their step, whether GitHub is linked. */
+  readonly pilot: Pick<Me, 'displayName' | 'gettingStartedStep' | 'githubLinked'>;
   readonly runner: Runner | null;
   readonly system: DemarrageSystem;
   /** `null` until the page drew its code. */
@@ -39,8 +39,8 @@ export const systemOfBrowser = (userAgent: string): DemarrageSystem =>
 /**
  * « Premiers pas »'s data (pure): the Pilote's step (`done` only for the
  * instant before the router leaves the page, read as its last step), the
- * command of the page's code, the Runner once linked, and its Moteurs with
- * whether a Rôle can run on one of them.
+ * command of the page's code, the Runner once linked, its Moteurs with
+ * whether a Rôle can run on one of them, and whether GitHub is linked.
  */
 export const demarrageView = ({ pilot, runner, system, code, failure, busy, origin, server, accounts }: DemarrageState): DemarrageView => ({
   step: pilot.gettingStartedStep === 'done' ? 'projects' : pilot.gettingStartedStep,
@@ -63,4 +63,5 @@ export const demarrageView = ({ pilot, runner, system, code, failure, busy, orig
   busy,
   engines: engineAccounts(accounts),
   usable: anyUsable(accounts),
+  githubLinked: pilot.githubLinked,
 });

@@ -418,6 +418,11 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 	defer log.close()
 	// The key goes to the tabs before any event of the run.
 	key := m.liveKeys(rec.SessionID)
+	if end, ended, err := log.endCut(time.Now()); err != nil {
+		m.cfg.Logger.Warn("session.log", "sessionId", rec.SessionID, "error", err)
+	} else if ended {
+		m.relayLive(key, rec.SessionID, end)
+	}
 	opts := engine.StartOptions{Dir: w.Dir, Model: rec.Model, Role: rec.Role, PermissionMode: engine.PermissionMode(rec.PermissionMode), SessionDir: dir, SessionID: rec.SessionID}
 	var run engine.Run
 	if rec.EngineSessionID != "" {

@@ -31,7 +31,9 @@ export interface BannerView {
 export interface BannersState extends Pick<StoreState, 'connection' | 'lostAt'> {
   /** The page's path (`/a-toi`); none before the first route. */
   readonly path?: string | null;
-  readonly runner?: Pick<Runner, 'state'> | null;
+  /** Whether a Session panel is open over the page (`?session=`). */
+  readonly session?: boolean;
+  readonly runner?: (Pick<Runner, 'state'> & Partial<Pick<Runner, 'lastSeenAt'>>) | null;
   readonly decisions?: Iterable<Decision>;
   readonly vaultState?: StoreState['vaultState'];
   readonly slices?: Pick<StoreState['slices'], 'device'>;
@@ -46,13 +48,24 @@ const runnerOfflineDecision = (decisions: Iterable<Decision>): Decision | undefi
   return undefined;
 };
 
+const OPEN_RUNNER: BannerAction = {
+  kind: 'button',
+  data: { label: t('decision.runnerOffline.openRunner'), variant: 'secondary', size: 'sm', icon: 'server' },
+  href: RUNNER_PAGE,
+};
+
 /**
- * « Runner hors ligne » (ATOI-3): on `/a-toi` while its Décision is open,
- * since when and what waits in each Projet, « Voir le Runner »; on `/runner`
- * while the linked Runner is offline, « Rien ne tourne » with the Projets
- * that wait (or none), and the command that relaunches it.
+ * « Runner hors ligne » (ATOI-3): over a Session panel (SESSION-2) while the
+ * linked Runner is offline, on any page, since it was last seen and that the
+ * Sessions resume with it, « Voir le Runner »; on `/a-toi` while its Décision
+ * is open, since when and what waits in each Projet, « Voir le Runner »; on
+ * `/runner` while the linked Runner is offline, « Rien ne tourne » with the
+ * Projets that wait (or none), and the command that relaunches it.
  */
-const runnerOfflineBanner = ({ path, runner, decisions = [] }: BannersState): BannerView | null => {
+const runnerOfflineBanner = ({ path, session = false, runner, decisions = [] }: BannersState): BannerView | null => {
+  if (session && runner && runner.state !== 'online' && runner.lastSeenAt !== undefined) {
+    return { key: 'runner-offline', data: RUNNER_OFFLINE, text: t('runnerOffline.session.body', { time: formatHour(runner.lastSeenAt) }), action: OPEN_RUNNER };
+  }
   const decision = runnerOfflineDecision(decisions);
   if (path === '/a-toi' && decision) {
     const projects = waitingProjectsOf(decision);
@@ -64,11 +77,7 @@ const runnerOfflineBanner = ({ path, runner, decisions = [] }: BannersState): Ba
         count: projectsCount(projects.length),
         projects: projects.map((project) => t('runnerOffline.aToi.project', { name: project.name, items: waitingItemsText(project) })).join(', '),
       }),
-      action: {
-        kind: 'button',
-        data: { label: t('decision.runnerOffline.openRunner'), variant: 'secondary', size: 'sm', icon: 'server' },
-        href: RUNNER_PAGE,
-      },
+      action: OPEN_RUNNER,
     };
   }
   if (path === RUNNER_PAGE && runner && runner.state !== 'online') {
@@ -89,10 +98,11 @@ const runnerOfflineBanner = ({ path, runner, decisions = [] }: BannersState): Ba
 /**
  * The core's Banners above the page (pure): the Resynchronisation's while the
  * page lost the state and is not `live` again (ADR 0007), the time of the
- * loss in its text; « Runner hors ligne » on `/a-toi` and `/runner`; then the
- * API error no caller handled, its `message` as is (ADR 0008); then, for a
- * browser with no Appareil while another one holds the vault, the offer to
- * approve it (E2E-3, US-60). The first boot, before any loss, shows none.
+ * loss in its text; « Runner hors ligne » over a Session panel, on `/a-toi`
+ * and `/runner`; then the API error no caller handled, its `message` as is
+ * (ADR 0008); then, for a browser with no Appareil while another one holds
+ * the vault, the offer to approve it (E2E-3, US-60). The first boot, before
+ * any loss, shows none.
  */
 export const bannersView = (state: BannersState, error: string | null): readonly BannerView[] => {
   const banners: BannerView[] = [];

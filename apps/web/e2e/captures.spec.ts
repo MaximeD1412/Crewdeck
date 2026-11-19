@@ -84,13 +84,21 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   },
   // « Gestion du process » once the snapshot drew its canvas (1280 px; the phone's list is PROCESS-11's).
   ...Object.fromEntries(
-    ['process', 'process-manques', 'process-etape', 'process-sources', 'process-local'].map((name) => [
+    ['process', 'process-manques', 'process-etape', 'process-phase', 'process-sources', 'process-local'].map((name) => [
       name,
       async (page: Page, width: number) => {
         if (width >= 1280) await expect(page.locator('cd-page-process-editor cd-process-canvas cd-step-card').first()).toBeVisible();
       },
     ]),
   ),
+  // The catalogue opened under « Étape », « Développement » chosen (1280 px: the header's actions are the editor's).
+  'process-catalogue': async (page, width) => {
+    if (width < 1280) return;
+    const editor = page.locator('cd-page-process-editor');
+    await expect(editor.locator('cd-process-canvas cd-step-card').first()).toBeVisible();
+    await editor.getByRole('button', { name: 'Étape', exact: true }).click();
+    await expect(editor.getByRole('menu', { name: 'Ajouter dans « Développement »' })).toBeVisible();
+  },
   projets: async (page) => {
     await expect(page.locator('cd-page-projets cd-list-row')).toHaveCount(4);
   },

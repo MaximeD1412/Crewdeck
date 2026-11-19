@@ -9,6 +9,7 @@ import {
   PageDemarrage,
   PageIdees,
   PageParametres,
+  PageParametresProjet,
   PageProcessEditor,
   PageProjets,
   PageRunner,
@@ -16,6 +17,7 @@ import {
   RoleSettings,
   Composer,
   Session,
+  SettingRow,
   type Skin,
 } from '@crewdeck/sdk';
 import passerelle from '@crewdeck/skin-passerelle';
@@ -33,13 +35,14 @@ import { createGettingStarted, gettingStartedGuard } from './getting-started.js'
 import { createPageKeys, type PageKeys } from './keys/index.js';
 import { createEditorUi } from './process/editor-ui.js';
 import { createNoteIdea } from './note-idea.js';
+import { createProjectSettings } from './project-settings.js';
 import { createProjects } from './projects.js';
 import { bootSkin } from './registry.js';
 import { createDeviceStore } from './keys/device-store.js';
 import { createRoleSettings } from './role-settings.js';
 import { createSessionPanel } from './session-panel.js';
 import { createSessionRelay, type SessionRelay } from './sessions/relay.js';
-import { routeData, routeSlots, startRouter, type Route, type Router } from './router.js';
+import { routeData, routeSlots, startRouter, type Route, type RouteMatch, type Router } from './router.js';
 import { aToiHref, composantsHref, ideesHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
 import { HOME_PATH, providerSignInHref, signInGuard } from './sign-in.js';
@@ -57,6 +60,7 @@ import { systemOfBrowser } from './views/demarrage.js';
 import { ADD_DEVICE_ID } from './views/devices.js';
 import { ideesQuery, ideesView } from './views/idees.js';
 import { parametresView, timeZones } from './views/parametres.js';
+import { parametresProjetView, type ParametresProjetView } from './views/parametres-projet.js';
 import { processEditorView } from './views/process-editor.js';
 import { projetsView } from './views/projets.js';
 import { runnerView } from './views/runner.js';
@@ -201,9 +205,36 @@ export const boot = async ({
     router.navigate(url.pathname + url.search + url.hash);
   };
   const sessionPanel = createSessionPanel({ store, client, relay, shell, navigate: (url) => router.navigate(url), close: closePanel });
+  const projectSettings = createProjectSettings({
+    client,
+    vault: keys.vault,
+    stored: { seq: () => store.getState().seq, subscribe: (fn) => store.subscribe(() => fn()) },
+  });
+  /** A Projet's Paramètres from the store and the page's own state; `null` until the store has the Projet and the settings. */
+  const projetParametres = (match: RouteMatch): ParametresProjetView | null => {
+    const { slices, vaultState } = store.getState();
+    const project = slices.project?.get(match.params['id'] ?? '');
+    if (!project || !slices.settings) return null;
+    const own = slices.settings.projects.find((candidate) => candidate.projectId === project.id);
+    // Its Étapes are the Gestion du process' (PROCESS-7).
+    const processHref = `/projets/${encodeURIComponent(project.id)}/process`;
+    return parametresProjetView({
+      project,
+      settings: slices.settings,
+      accounts: [...(slices['ai-account']?.values() ?? [])],
+      local: projectSettings.view(project.id, own?.worktreeCommands ?? null, vaultState),
+      processHref,
+    });
+  };
   // « Gestion du process »' own state: its view per Projet, the block to centre (PROCESS-7).
   const editorUi = createEditorUi();
   const signIn = signInGuard(pilot);
+  // A Projet the store does not have once the snapshot is there (removed, another Pilote's): the Projets.
+  const projectGuard = (match: RouteMatch): string | null => {
+    if (match.composant !== PageParametresProjet) return null;
+    const { seq, slices } = store.getState();
+    return seq !== null && slices.project && !slices.project.has(match.params['id'] ?? '') ? '/projets' : null;
+  };
   const started = gettingStartedGuard(gettingStarted.pilot);
   const pageData = routeData(routes, () => store.getState());
   const pageSlots = routeSlots(routes, () => store.getState());
@@ -215,18 +246,24 @@ export const boot = async ({
       shell.update(match);
       sessionPanel.show(match.panel.session);
     },
-    guard: (match) => started(match) ?? signIn(match),
+    guard: (match) => started(match) ?? signIn(match) ?? projectGuard(match),
     slots: (match) => {
+      if (match.composant === PageParametresProjet) return projetParametres(match)?.slots ?? [];
       if (match.composant !== PageParametres) return pageSlots(match);
       const { slices } = store.getState();
       return parametresView(slices.settings, timeZones(), {
         accounts: [...(slices['ai-account']?.values() ?? [])],
         local: roleSettings.view(),
+        projects: [...(slices.project?.values() ?? [])],
         devices: slices.device,
         currentDeviceId: currentDeviceId(),
       });
     },
     data: (match) => {
+      if (match.composant === PageParametresProjet) {
+        const project = store.getState().slices.project?.get(match.params['id'] ?? '');
+        return projetParametres(match)?.data ?? { project: project?.displayName ?? '', changedCount: 0, counts: {} };
+      }
       if (match.composant === PageDemarrage) return { ...gettingStarted.view(), picker: projects.picker('demarrage') };
       if (match.composant === PageConnexion) return connexion.view(match.query);
       if (match.composant === PageConnexionLien) return connexionLien.view();
@@ -276,6 +313,7 @@ export const boot = async ({
     projects.subscribe(() => router.refresh()),
     closedIdeas.subscribe(() => router.refresh()),
     roleSettings.subscribe(() => router.refresh()),
+    projectSettings.subscribe(() => router.refresh()),
     editorUi.subscribe(() => router.refresh()),
   ];
   if (pilot) {
@@ -306,6 +344,19 @@ export const boot = async ({
   dispatcher.registerAction(RoleSettings, 'add', { run: () => roleSettings.open() });
   dispatcher.registerAction(RoleSettings, 'create', { run: (body) => roleSettings.create(body) });
   dispatcher.registerAction(RoleSettings, 'cancel', { run: () => roleSettings.cancel() });
+  const currentProject = (): string | null => (router.current.composant === PageParametresProjet ? (router.current.params['id'] ?? null) : null);
+  dispatcher.registerAction(PageParametresProjet, 'change', {
+    run: ({ name, value }) => {
+      const projectId = currentProject();
+      return projectId ? projectSettings.change(projectId, name, value) : undefined;
+    },
+  });
+  dispatcher.registerAction(SettingRow, 'revert', {
+    run: ({ name }) => {
+      const projectId = currentProject();
+      return projectId ? projectSettings.revert(projectId, name) : undefined;
+    },
+  });
   dispatcher.registerAction(Cadre, 'openPilot', { run: () => router.navigate('/parametres') });
   const openDecision = (id: string) => store.getState().slices.decision?.get(id);
   dispatcher.registerAction(PageAToi, 'filter', { run: ({ projectId }) => router.navigate(aToiHref(projectId)) });

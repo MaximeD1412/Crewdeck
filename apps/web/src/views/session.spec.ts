@@ -1,4 +1,4 @@
-import type { AccountSettings, AgentSession, EngineEvent, Project, Runner } from '@crewdeck/contracts';
+import type { SettingsState, AgentSession, EngineEvent, Project, Runner } from '@crewdeck/contracts';
 import { COMPOSANTS, formatHour, t } from '@crewdeck/sdk';
 import type { PlacedNode } from '../placed.js';
 import { sessionNotFoundView, sessionView, type SessionViewInput } from './session.js';
@@ -26,7 +26,7 @@ const SESSION: AgentSession = {
 const PROJECT = { id: PROJECT_ID, displayName: 'Personal OS' } as Project;
 const ONLINE = { state: 'online', lastSeenAt: secondsAgo(5) } as Runner;
 const OFFLINE = { state: 'offline', lastSeenAt: secondsAgo(180) } as Runner;
-const SETTINGS = { customRoles: [{ id: 'r-abcdefgh', name: 'Sécurité', createdAt: secondsAgo(9999) }] } as unknown as AccountSettings;
+const SETTINGS = { customRoles: [{ id: 'r-abcdefgh', name: 'Sécurité', createdAt: secondsAgo(9999) }], projects: [] } as unknown as SettingsState;
 
 const toolCall = (seq: number, tool: string, target?: string, detail?: string): EngineEvent => ({
   kind: 'tool-call',

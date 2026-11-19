@@ -58,7 +58,3 @@ export const AGENT_ROLES = ['idea', 'design', 'code', 'review'] as const;
 export const zAgentRole = z.enum(AGENT_ROLES);
 export type AgentRole = z.infer<typeof zAgentRole>;
 
-/** An Étape of the Process the Pilote may turn off. */
-export const OPTIONAL_STEPS = ['mockups', 'visual-review', 'cross-review'] as const;
-export const zOptionalStep = z.enum(OPTIONAL_STEPS);
-export type OptionalStep = z.infer<typeof zOptionalStep>;

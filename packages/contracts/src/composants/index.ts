@@ -29,6 +29,7 @@ import { PageConnexion } from './page-connexion.js';
 import { PageConnexionLien } from './page-connexion-lien.js';
 import { PageDemarrage } from './page-demarrage.js';
 import { PageParametres } from './page-parametres.js';
+import { PageParametresProjet } from './page-parametres-projet.js';
 import { PageHeader } from './page-header.js';
 import { PageIntrouvable } from './page-introuvable.js';
 import { PageProcessEditor } from './page-process-editor.js';
@@ -100,6 +101,7 @@ export * from './page-connexion.js';
 export * from './page-connexion-lien.js';
 export * from './page-demarrage.js';
 export * from './page-parametres.js';
+export * from './page-parametres-projet.js';
 export * from './page-header.js';
 export * from './page-introuvable.js';
 export * from './page-process-editor.js';
@@ -156,6 +158,7 @@ export const COMPOSANTS = {
   PageConnexionLien,
   PageDemarrage,
   PageParametres,
+  PageParametresProjet,
   PageIntrouvable,
   PageProjets,
   PageProcessEditor,

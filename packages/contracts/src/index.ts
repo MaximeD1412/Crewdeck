@@ -22,6 +22,7 @@ export * from './api/runner-offline.js';
 export * from './api/sensitive-actions.js';
 export * from './api/sessions.js';
 export * from './api/settings.js';
+export * from './api/project-settings.js';
 export * from './api/state.js';
 export * from './api/testing.js';
 export * from './api/tickets.js';

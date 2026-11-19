@@ -41,6 +41,8 @@ describe('cadreView', () => {
     ['/a-toi', 'a-toi'],
     ['/idees/3f2a', 'idees'],
     ['/parametres/composants', 'parametres'],
+    ['/projets/3f2a', 'projets'],
+    ['/projets/3f2a/parametres', 'parametres'],
     ['/runner', 'runner'],
     ['/nope', null],
   ] as const)('on %s marks %s as the current entry, in the Cadre and in its MenuItem', (path, current) => {

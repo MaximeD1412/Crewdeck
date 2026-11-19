@@ -21,6 +21,7 @@ import { idees, ideesNouvelle, ideesVide } from './idees.js';
 import { menuPlus } from './menu-plus.js';
 import { demarrageProjets, projets, projetsVide } from './projets.js';
 import { parametres } from './parametres.js';
+import { parametresProjet } from './parametres-projet.js';
 import { processScenarios } from './process.js';
 import { resynchronisation } from './resynchronisation.js';
 import { runner, runnerServeursMcp } from './runner.js';
@@ -59,6 +60,7 @@ const SCENARIOS: readonly Scenario[] = [
   ideesVide,
   menuPlus,
   parametres,
+  parametresProjet,
   projets,
   projetsVide,
   resynchronisation,

@@ -56,14 +56,6 @@ export class PasserelleRoleSettings extends PasserelleElement<typeof RoleSetting
   static override styles = [
     sharedStyles,
     css`
-      cd-setting-row cd-select::part(label) {
-        position: absolute;
-        width: var(--cd-stroke);
-        height: var(--cd-stroke);
-        overflow: hidden;
-        clip-path: inset(50%);
-        white-space: nowrap;
-      }
       cd-button.remove {
         align-self: flex-start;
       }

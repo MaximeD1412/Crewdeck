@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { zEngineId } from '../runner/engines.js';
-import { AGENT_ROLES, type OptionalStep } from '../values.js';
+import { AGENT_ROLES } from '../values.js';
 import { zCustomRole, zCustomRoleId, zRoleId } from './roles.js';
 
 /** The Moteur and the model a Rôle runs with; `null` leaves it to the default. An unknown key is refused. */
@@ -23,7 +23,6 @@ const zRoles = z
     }
   });
 export type Roles = z.infer<typeof zRoles>;
-const zOptionalSteps = z.strictObject({ mockups: z.boolean(), 'visual-review': z.boolean(), 'cross-review': z.boolean() } satisfies Record<OptionalStep, z.ZodType>);
 
 /**
  * `GET /api/settings`: the Paramètres of the account, the default of each of
@@ -34,15 +33,15 @@ export const zAccountSettings = z.object({
   roles: zRoles,
   /** The Rôles the Pilote added, by their creation. */
   customRoles: z.array(zCustomRole),
-  optionalSteps: zOptionalSteps,
   notifications: z.object({ push: z.boolean() }),
   timeZone: z.string().min(1),
 });
 export type AccountSettings = z.infer<typeof zAccountSettings>;
 
 /**
- * The settings in effect for a Projet: today those of the account, a Projet's
- * own overriding them once it has some.
+ * The settings in effect for a Projet (PARAM-3, `SettingsService.effective`):
+ * the account's, the Projet's Rôles and push over them, each default Rôle
+ * with its computed Moteur and model.
  */
 export const zEffectiveSettings = zAccountSettings;
 export type EffectiveSettings = z.infer<typeof zEffectiveSettings>;
@@ -51,7 +50,6 @@ export type EffectiveSettings = z.infer<typeof zEffectiveSettings>;
 export const DEFAULT_ACCOUNT_SETTINGS: Omit<AccountSettings, 'timeZone'> = {
   roles: { idea: null, design: null, code: null, review: null },
   customRoles: [],
-  optionalSteps: { mockups: true, 'visual-review': true, 'cross-review': true },
   notifications: { push: false },
 };
 
@@ -62,7 +60,6 @@ export const DEFAULT_ACCOUNT_SETTINGS: Omit<AccountSettings, 'timeZone'> = {
  */
 export const zAccountSettingsPatch = z.strictObject({
   roles: z.partialRecord(zRoleId, zRoleChoice).optional(),
-  optionalSteps: zOptionalSteps.partial().optional(),
   notifications: z.strictObject({ push: z.boolean() }).partial().optional(),
   timeZone: z.string().min(1).optional(),
 });

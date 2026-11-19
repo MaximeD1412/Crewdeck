@@ -71,9 +71,15 @@ const COMPACT_PATHS: readonly RegExp[] = [/^\/projets\/[^/]+\/process$/];
 
 const isNavId = (value: string | undefined): value is NavId => (NAV_IDS as readonly (string | undefined)[]).includes(value);
 
-/** The entry of a page URL: its first segment (`/idees/:id` is Idées, `/parametres/composants` Paramètres). */
+/**
+ * The entry of a page URL: its first segment (`/idees/:id` is Idées,
+ * `/parametres/composants` Paramètres), but a Projet's Paramètres
+ * (`/projets/:id/parametres`) are Paramètres, as their mockup marks them.
+ */
 const entryOf = (path: string): NavId | null => {
-  const [first] = path.split('/').filter(Boolean);
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length === 3 && segments[0] === 'projets' && segments[2] === 'parametres') return 'parametres';
+  const [first] = segments;
   return isNavId(first) ? first : null;
 };
 

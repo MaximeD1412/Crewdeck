@@ -1,4 +1,4 @@
-import { type AgentSession, type Event, type SessionStateMessage, zAgentSession, zAgentSessionList, zState } from '@crewdeck/contracts';
+import { type AgentSession, type Event, type SessionStateMessage, type SessionStep, zAgentSession, zAgentSessionList, zState } from '@crewdeck/contracts';
 import type { INestApplication } from '@nestjs/common';
 import pg from 'pg';
 import { inject } from 'vitest';
@@ -50,7 +50,16 @@ interface Tab {
   cookie: string;
 }
 
-const STEP = { stepRunId: '019a8f3c-2b4d-7e10-8a5b-6c7d8e9f0a1b', stepKind: 'code' } as const;
+const STEP = {
+  stepRunId: '019a8f3c-2b4d-7e10-8a5b-6c7d8e9f0a1b',
+  stepKind: 'code',
+  skill: 'code',
+  contractId: null,
+  inputs: [
+    { portId: 'ticket', type: 'ticket', ref: { id: '12', number: 12 } },
+    { portId: 'maquettes', type: 'mockups', ref: null },
+  ],
+} satisfies SessionStep;
 
 /** The Projet's worktree Commandes as the page seals them: bytes the server only carries. */
 const WORKTREE_COMMANDS = { key: Buffer.alloc(60, 0xd1).toString('base64url'), ciphertext: Buffer.alloc(48, 0xd2).toString('base64url') };
@@ -239,6 +248,21 @@ describe('the Sessions against PostgreSQL', () => {
       expect(await listed.text()).not.toContain(WORKTREE_COMMANDS.ciphertext);
     });
 
+    it('sends the Étape’s Skill, Contrat, Entrées and Serveurs MCP as references, at its start and once its Runner is back', async () => {
+      const alice = await pilot();
+      const projectId = await project(alice);
+      const { token } = await createLinkedRunner(prisma, alice.id);
+      const socket = await connect(token);
+
+      const first = await start(alice, input(projectId, { mcpServers: ['stitch', 'figma'] }));
+      expect(await socket.expect('session.start')).toMatchObject({ sessionId: first.id, step: STEP, mcpServers: ['stitch', 'figma'] });
+
+      await socket.close();
+      const meanwhile = await start(alice, input(projectId, { step: { ...STEP, contractId: 'code' }, branch: 'feat/15-apres' }));
+      const back = await connect(token, [{ sessionId: first.id, alive: true }]);
+      expect(await back.expect('session.start')).toMatchObject({ sessionId: meanwhile.id, step: { ...STEP, contractId: 'code' }, mcpServers: [] });
+    });
+
     it('asks auto of a Session without an Étape, or of an Étape that does not work in its worktree, and starts it from the base given', async () => {
       const alice = await pilot();
       const projectId = await project(alice);
@@ -246,9 +270,9 @@ describe('the Sessions against PostgreSQL', () => {
 
       await start(alice, input(projectId, { step: undefined, role: 'r-a1b2c3d4', base: 'main' }));
       const free = await socket.expect('session.start');
-      await start(alice, input(projectId, { step: { stepRunId: STEP.stepRunId, stepKind: 'prd' }, branch: 'feat/13-prd' }));
+      await start(alice, input(projectId, { step: { ...STEP, stepKind: 'prd', skill: 'prd', inputs: [] }, branch: 'feat/13-prd' }));
       const prd = await socket.expect('session.start');
-      await start(alice, input(projectId, { step: { stepRunId: STEP.stepRunId, stepKind: 'review' }, branch: 'feat/14-review' }));
+      await start(alice, input(projectId, { step: { ...STEP, stepKind: 'review', skill: 'review', inputs: [] }, branch: 'feat/14-review' }));
       const review = await socket.expect('session.start');
 
       expect(free).toMatchObject({ permissionMode: 'auto', role: 'r-a1b2c3d4', base: 'main' });

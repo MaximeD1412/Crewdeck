@@ -1417,6 +1417,14 @@ model AgentSession {
   stepRunId         String?                        @map("step_run_id") @db.Uuid
   /// The Étape's kind of its StepRun, which the Runner builds the first message from.
   stepKind          String?                        @map("step_kind")
+  /// The Skill the Runner mounts for its StepRun (RUNNER-12): the Étape's `skill` Outil, else its kind's.
+  stepSkill         String?                        @map("step_skill")
+  /// The id of the Contrat the Runner checks at its end; null: none.
+  stepContractId    String?                        @map("step_contract_id")
+  /// Its StepRun's Entrées as references (`SessionStepInput[]`): ids, numbers, SHAs, never content.
+  stepInputs        Json?                          @map("step_inputs")
+  /// The names of its Étape's `mcp` Outils, in their order (RUNNER-17 mounts them).
+  mcpServers        Json                           @default("[]") @map("mcp_servers")
   /// The Moteur's own id of the Session, once the Runner reported it: what a resume takes.
   engineSessionId   String?                        @map("engine_session_id")
   startedAt         DateTime                       @map("started_at") @db.Timestamptz

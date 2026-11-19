@@ -35,7 +35,9 @@ import { SESSION_ROW, type SessionRow, startMessageOf, stored, toAgentSession } 
 
 /**
  * What starts a Session: `base` the Projet's integration branch unless given;
- * `step` the Étape it runs, none when the Pilote writes first; `title` the
+ * `step` the Étape it runs, none when the Pilote writes first (its Skill,
+ * Contrat and Entrées as references, RUNNER-12); `mcpServers` the names of
+ * its Étape's Serveurs MCP, none when not given; `title` the
  * Ticket's or Conception's as its Source holds it, whatever the code's:
  * readable on GitHub, sealed with the additional data it was sealed under
  * when Local (SOURCE-2, ADR 0012).
@@ -49,6 +51,7 @@ export interface StartSession {
   readonly branch: string;
   readonly base?: string;
   readonly step?: SessionStep;
+  readonly mcpServers?: readonly string[];
 }
 
 /** The Étapes that work in their worktree (ADR 0004's Code and Review): their Moteur acts without asking. */
@@ -154,6 +157,10 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
         state: 'starting',
         stepRunId: input.step?.stepRunId ?? null,
         stepKind: input.step?.stepKind ?? null,
+        stepSkill: input.step?.skill ?? null,
+        stepContractId: input.step?.contractId ?? null,
+        ...(input.step ? { stepInputs: input.step.inputs } : {}),
+        mcpServers: [...(input.mcpServers ?? [])],
         startedAt: this.clock.now(),
       },
       select: SESSION_ROW,

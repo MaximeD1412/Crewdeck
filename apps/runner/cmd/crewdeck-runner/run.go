@@ -125,6 +125,8 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		return err
 	}
 	defer locals.Close()
+	// A new vault version: each Local Projet's texts go again, sealed under it.
+	rotations.moved = locals.full
 	// The Miroir (ADR 0010, ADR 0012): the copy of every Projet's Sources,
 	// its follower its only writer, fed by the server's envelopes on each
 	// connection and by the Local Projets' folders.

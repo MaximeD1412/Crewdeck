@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { zBranchPrefix, zCodeChangeState, zSourceNumber, zTicketState, zTicketStateReason } from '../api/tickets.js';
 import { zSha } from '../github/index.js';
-import { zBytes } from '../keys/pairing.js';
+import { zBytes, zVaultKeyVersion } from '../keys/pairing.js';
 import { type SealedItem, zSealedItem } from '../keys/sealed.js';
 import { zDay, zId, zInstant } from '../values.js';
 import { runnerMessage } from './envelope.js';
@@ -147,10 +147,14 @@ export type LocalUnreadable = z.infer<typeof zLocalUnreadable>;
  * Runner → server: what changed in a Local Projet's folder since its last
  * report (`full: false`), or every item (`full: true`, once per Local Projet
  * on each accepted connection: a row absent from it is gone). `unreadable` is
- * always the Projet's whole current set.
+ * always the Projet's whole current set. `vaultKeyVersion` is the version
+ * its texts are sealed under: the server writes nothing of a report sealed
+ * under another than the vault's current one (a rotation since), and the
+ * Runner reports every item again once it holds the new one.
  */
 export const zLocalChanged = runnerMessage('local.changed', {
   projectId: zId,
+  vaultKeyVersion: zVaultKeyVersion,
   full: z.boolean(),
   items: z.array(zLocalItem).max(LOCAL_ITEMS_MAX),
   unreadable: z.array(zLocalUnreadable).max(LOCAL_ITEMS_MAX),

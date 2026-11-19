@@ -29,6 +29,9 @@ type RunnerLocalChanged struct {
 
 	// Unreadable corresponds to the JSON schema field "unreadable".
 	Unreadable []RunnerLocalChangedUnreadableElem `json:"unreadable"`
+
+	// VaultKeyVersion corresponds to the JSON schema field "vaultKeyVersion".
+	VaultKeyVersion int `json:"vaultKeyVersion"`
 }
 
 type RunnerLocalChangedUnreadableElem struct {
@@ -161,6 +164,9 @@ func (j *RunnerLocalChanged) UnmarshalJSON(value []byte) error {
 	if _, ok := raw["unreadable"]; raw != nil && !ok {
 		return fmt.Errorf("field unreadable in RunnerLocalChanged: required")
 	}
+	if _, ok := raw["vaultKeyVersion"]; raw != nil && !ok {
+		return fmt.Errorf("field vaultKeyVersion in RunnerLocalChanged: required")
+	}
 	type Plain RunnerLocalChanged
 	var plain Plain
 	if err := json.Unmarshal(value, &plain); err != nil {
@@ -180,6 +186,12 @@ func (j *RunnerLocalChanged) UnmarshalJSON(value []byte) error {
 	}
 	if len(plain.Unreadable) > 20000 {
 		return fmt.Errorf("field %s length: must be <= %d", "unreadable", 20000)
+	}
+	if 9007199254740991 < plain.VaultKeyVersion {
+		return fmt.Errorf("field %s: must be <= %v", "vaultKeyVersion", 9007199254740991)
+	}
+	if 0 >= plain.VaultKeyVersion {
+		return fmt.Errorf("field %s: must be > %v", "vaultKeyVersion", 0)
 	}
 	*j = RunnerLocalChanged(plain)
 	return nil

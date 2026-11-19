@@ -21,14 +21,20 @@ const projectID = "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a92"
 
 func testVault(t *testing.T) *keys.Vault {
 	t.Helper()
+	return testVaultAt(t, 1)
+}
+
+// testVaultAt is a vault of its own key at version.
+func testVaultAt(t *testing.T, version int) *keys.Vault {
+	t.Helper()
 	runner, _ := keys.GenerateKeyPair()
 	device, _ := keys.GenerateKeyPair()
 	vaultKey, _ := keys.GenerateAESKey()
-	w, err := keys.SealWrap(device, keys.PublicKeyBytes(runner), vaultKey, []byte(keys.InfoVaultWrap), keys.VaultWrapAAD("run_1", 1))
+	w, err := keys.SealWrap(device, keys.PublicKeyBytes(runner), vaultKey, []byte(keys.InfoVaultWrap), keys.VaultWrapAAD("run_1", version))
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, err := keys.Unlock(runner, keys.PublicKeyBytes(device), "run_1", 1, w)
+	v, err := keys.Unlock(runner, keys.PublicKeyBytes(device), "run_1", version, w)
 	if err != nil {
 		t.Fatal(err)
 	}

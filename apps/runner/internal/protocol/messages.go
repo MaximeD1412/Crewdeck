@@ -246,8 +246,9 @@ func NewProjectsFolders(present []string) contracts.RunnerProjectsFolders {
 }
 
 // NewLocalChanged reports what changed in a Local Projet's folder, every
-// item when full (once per connection).
-func NewLocalChanged(projectID string, full bool, items []contracts.LocalItem, unreadable []contracts.RunnerLocalChangedUnreadableElem) contracts.RunnerLocalChanged {
+// item when full (once per connection), its texts sealed under the vault
+// key's vaultKeyVersion.
+func NewLocalChanged(projectID string, vaultKeyVersion int, full bool, items []contracts.LocalItem, unreadable []contracts.RunnerLocalChangedUnreadableElem) contracts.RunnerLocalChanged {
 	at := now()
 	if items == nil {
 		items = []contracts.LocalItem{}
@@ -255,7 +256,7 @@ func NewLocalChanged(projectID string, full bool, items []contracts.LocalItem, u
 	if unreadable == nil {
 		unreadable = []contracts.RunnerLocalChangedUnreadableElem{}
 	}
-	return contracts.RunnerLocalChanged{Type: TypeLocalChanged, Id: newID(at), At: at, ProjectId: projectID, Full: full, Items: items, Unreadable: unreadable}
+	return contracts.RunnerLocalChanged{Type: TypeLocalChanged, Id: newID(at), At: at, ProjectId: projectID, VaultKeyVersion: vaultKeyVersion, Full: full, Items: items, Unreadable: unreadable}
 }
 
 // NewCommandStarted says the run's process started.

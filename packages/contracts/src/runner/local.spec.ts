@@ -26,6 +26,13 @@ describe('local.changed', () => {
     expect(zLocalChanged.parse(message).unreadable).toEqual([expect.objectContaining({ key: 'AAECAwQFBgcICQoLDA0ODw', reason: 'front-matter' })]);
   });
 
+  it('names the vault key version its texts are sealed under', () => {
+    const { vaultKeyVersion, ...message } = fixture();
+    expect(zLocalChanged.parse({ ...message, vaultKeyVersion }).vaultKeyVersion).toBe(1);
+    expect(zLocalChanged.safeParse(message).success).toBe(false);
+    expect(zLocalChanged.safeParse({ ...message, vaultKeyVersion: 0 }).success).toBe(false);
+  });
+
   it('holds only the product’s labels in clear, the others sealed', () => {
     expect(zLocalChanged.safeParse(withTicket({ labels: ['priority:P0', 'size:XL', 'ready-for-agent', 'needs-human'] })).success).toBe(true);
     expect(zLocalChanged.safeParse(withTicket({ labels: ['type:fix'] })).success).toBe(false);

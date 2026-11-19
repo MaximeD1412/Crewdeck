@@ -169,7 +169,7 @@ func (p *Project) Report(ctx context.Context, full bool, send func(context.Conte
 	if len(items) == 0 && !unreadableChanged && !full {
 		return false, nil
 	}
-	if err := send(ctx, protocol.NewLocalChanged(p.id, full, items, set)); err != nil {
+	if err := send(ctx, protocol.NewLocalChanged(p.id, vault.Version, full, items, set)); err != nil {
 		return false, err
 	}
 	return true, p.remember(ctx, write, gone, unreadableRows)

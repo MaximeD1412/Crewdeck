@@ -13,6 +13,7 @@ import (
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/keys"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/source/local"
 )
 
 // sent records the reports as the server would get them, encoded then decoded.
@@ -189,6 +190,40 @@ func TestReportFullSendsEveryItemAsLastSent(t *testing.T) {
 	// The same sealed texts: the server sees nothing changed.
 	if a, b := ticketItem(t, first, 12).TitleSealed, ticketItem(t, full, 12).TitleSealed; a != b {
 		t.Errorf("the title was sealed again: %v, %v", a, b)
+	}
+}
+
+// A report names the vault version its texts are sealed under; once the
+// vault moved (a rotation), every item goes again, sealed under the new one.
+func TestReportNamesItsVaultVersionAndSendsEveryItemAgainUnderANewOne(t *testing.T) {
+	dir := folder(t, map[string]string{"tickets/12-panier.md": "---\nnumber: 12\ntitle: Panier\n---\n", "tickets/milestones.yml": "- title: Bêta\n"})
+	db, err := local.OpenDB(filepath.Join(t.TempDir(), "local.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	v := testVaultAt(t, 1)
+	p := local.Open(db, func() *keys.Vault { return v }, projectID, dir)
+	var s sent
+	ctx := context.Background()
+	if _, err := p.Report(ctx, false, s.send); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.last(t).VaultKeyVersion; got != 1 {
+		t.Fatalf("vaultKeyVersion %d, want 1", got)
+	}
+
+	v = testVaultAt(t, 2)
+	if ok, err := p.Report(ctx, false, s.send); err != nil || !ok {
+		t.Fatalf("nothing sent under the new version: %v, %v", ok, err)
+	}
+	again := s.last(t)
+	if again.VaultKeyVersion != 2 || again.Full || !slices.Equal(kinds(again), []string{"milestone", "ticket"}) {
+		t.Fatalf("after the rotation %+v", again)
+	}
+	title := ticketItem(t, again, 12).TitleSealed
+	if got, err := openText(t, v, title.Key, title.Ciphertext, "ticket:12:title"); err != nil || got != "Panier" {
+		t.Fatalf("title under version 2: %q, %v", got, err)
 	}
 }
 

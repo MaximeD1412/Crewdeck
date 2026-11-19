@@ -52,6 +52,11 @@ func (h *heldVault) OpenItem(item keys.SealedItem, aad []byte) ([]byte, error) {
 	return h.Load().OpenItem(item, aad)
 }
 
+// ItemKey opens an item's own key with the vault held (command.ItemKeys).
+func (h *heldVault) ItemKey(item keys.SealedItem, aad []byte) ([]byte, error) {
+	return h.Load().ItemKey(item, aad)
+}
+
 // vaultAPI is the server's vault for the Runner, with its token.
 type vaultAPI struct {
 	http          *http.Client

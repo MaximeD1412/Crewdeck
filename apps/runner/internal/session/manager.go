@@ -178,6 +178,10 @@ func (m *Manager) Close() {
 // twice: alive or ended, its state is reported again; stopped or
 // interrupted, it is resumed.
 func (m *Manager) Start(message contracts.RunnerSessionStart) {
+	var commands *SealedCommands
+	if sealed := message.WorktreeCommands; sealed != nil {
+		commands = m.cfg.Hooks.keep(message.ProjectId, &SealedCommands{Key: sealed.Key, Ciphertext: sealed.Ciphertext})
+	}
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
@@ -202,9 +206,7 @@ func (m *Manager) Start(message contracts.RunnerSessionStart) {
 		Step:           message.Step,
 		State:          contracts.RunnerSessionStateStateStarting,
 	}}
-	if sealed := message.WorktreeCommands; sealed != nil {
-		s.rec.WorktreeCommands = &SealedCommands{Key: sealed.Key, Ciphertext: sealed.Ciphertext}
-	}
+	s.rec.WorktreeCommands = commands
 	if !uuid.MatchString(message.SessionId) {
 		m.mu.Unlock()
 		return // nothing to name it by, nor a folder to keep it in
@@ -509,22 +511,21 @@ func (m *Manager) fail(s *live, w Worktree, made bool, failure contracts.RunnerS
 	}
 }
 
-// failPrepare ends a Session whose worktree's preparation failed: its log
-// gets the `error` event that says why, relayed live, then it ends in
-// `setup-failed`, its worktree cleaned and removed. A Session stopped while
-// its worktree was being prepared, or a Runner that stops, removes the
-// worktree half prepared too: its resume makes it again, and prepares it.
+// failPrepare ends a Session whose worktree's preparation failed: its
+// worktree cleaned and removed first, whatever comes next, then its log gets
+// the `error` event that says why, relayed live, and it ends in
+// `setup-failed`. A Session stopped meanwhile, even while that event waits
+// on its relay, or a Runner that stops, has no worktree left: its resume
+// makes it again, and prepares it.
 func (m *Manager) failPrepare(s *live, w Worktree, err error) {
+	m.remove(w)
 	s.mu.Lock()
 	stopping := s.stopping
 	s.mu.Unlock()
-	if stopping || m.ctx.Err() != nil {
-		m.remove(w)
-		m.fail(s, w, false, contracts.RunnerSessionStateErrorSetupFailed, "prepare", err)
-		return
+	if !stopping && m.ctx.Err() == nil {
+		m.logSetupError(w.SessionID, setupFailed(err))
 	}
-	m.logSetupError(w.SessionID, setupFailed(err))
-	m.fail(s, w, true, contracts.RunnerSessionStateErrorSetupFailed, "prepare", err)
+	m.fail(s, w, false, contracts.RunnerSessionStateErrorSetupFailed, "prepare", err)
 }
 
 // logSetupError appends to the Session's log one `error` event

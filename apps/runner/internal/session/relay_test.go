@@ -2,9 +2,11 @@ package session_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdh"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -406,5 +408,56 @@ func TestRelayWithoutKeysRelaysNothing(t *testing.T) {
 	case f := <-s.reports.frames:
 		t.Fatalf("relayed %+v without keys", f)
 	default:
+	}
+}
+
+func TestASessionStoppedWhileItsSetupErrorIsRelayedIsPreparedAgainOnItsResume(t *testing.T) {
+	r := newRelayed(t, result("eng-1"))
+	holders := r.keys.Holders
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	r.keys.Holders = func() ([][]byte, error) {
+		once.Do(func() {
+			close(entered)
+			<-release
+		})
+		return holders()
+	}
+	var mu sync.Mutex
+	var prepared []bool
+	r.hooks.Prepare = func(_ context.Context, w session.Worktree) error {
+		mu.Lock()
+		defer mu.Unlock()
+		prepared = append(prepared, exists(filepath.Join(w.Dir, "PREPARED")))
+		if len(prepared) == 1 {
+			return errors.New("pnpm install failed")
+		}
+		return os.WriteFile(filepath.Join(w.Dir, "PREPARED"), nil, 0o600)
+	}
+	m := r.manager(t)
+
+	m.Start(start(firstID, "feat/12-panier"))
+	select {
+	case <-entered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the setup error was never relayed")
+	}
+	// The stop comes while the setup error waits on its relay.
+	m.Stop(firstID)
+	close(release)
+	r.reports.await(t, firstID, contracts.RunnerSessionStateStateStopped)
+	if exists(r.worktree("feat/12-panier")) {
+		t.Fatal("the worktree whose preparation failed is still there")
+	}
+
+	m.Resume(firstID)
+	r.reports.await(t, firstID, contracts.RunnerSessionStateStateEnded)
+	mu.Lock()
+	defer mu.Unlock()
+	if len(prepared) != 2 || prepared[1] {
+		t.Fatalf("Prepare %v, want it again on the resume, in a new worktree", prepared)
+	}
+	if runs := r.engine.Runs(); len(runs) != 1 {
+		t.Fatalf("the Moteur started %d times, want once, prepared", len(runs))
 	}
 }

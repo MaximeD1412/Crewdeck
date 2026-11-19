@@ -126,6 +126,7 @@ func (m *Manager) TicketWorktree(ctx context.Context, projectID, owner, name, br
 		unhold()
 		return nil, err
 	}
+	prep.Commands = m.cfg.Hooks.keep(projectID, prep.Commands)
 	w := Worktree{ProjectID: projectID, Dir: dir, Branch: branch, Clone: clone, Preparation: prep}
 	unlock := m.locks.lock(clone)
 	removeWorktree(ctx, clone, dir) // one a killed Runner left there

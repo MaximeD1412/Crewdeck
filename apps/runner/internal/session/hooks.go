@@ -22,11 +22,17 @@ type Worktree struct {
 }
 
 // SealedCommands is the Projet's worktree Commandes « Préparer le worktree »
-// and « Nettoyer le worktree » as the message gave them: base64url, sealed
-// under the vault key, additional data `settings:<projectId>` (RUNNER-20).
+// and « Nettoyer le worktree », base64url, additional data
+// `settings:<projectId>` (RUNNER-20): as the message gave them, Key their
+// item key sealed under the vault key; or as the Runner keeps them once the
+// Hooks' Keep opened that item key, ItemKey it and Key empty. A rotation of
+// the vault rewraps an item's key, never its ciphertext: the copy kept (a
+// Session's session.json, a run's worktree) still opens after one, even
+// after a restart.
 type SealedCommands struct {
-	Key        string `json:"key"`
+	Key        string `json:"key,omitempty"`
 	Ciphertext string `json:"ciphertext"`
+	ItemKey    string `json:"itemKey,omitempty"`
 }
 
 // Preparation is what the Hooks run around a worktree with.
@@ -78,9 +84,22 @@ func setupFailed(err error) *SetupError {
 // its error is logged, and the worktree removed anyway. A worktree kept (a
 // stopped Session's) is not prepared again. Nothing of the worktree itself
 // runs (no `.process.json`, ADR 0011).
+//
+// Keep turns the Commandes a message gave into the copy the Runner keeps for
+// the worktree's whole life, when Start takes the Session and before a run's
+// worktree is made; what it cannot open it gives back as it is.
 type Hooks struct {
+	Keep    func(projectID string, commands SealedCommands) SealedCommands
 	Prepare func(ctx context.Context, w Worktree) error
 	Clean   func(ctx context.Context, w Worktree) error
+}
+
+func (h Hooks) keep(projectID string, commands *SealedCommands) *SealedCommands {
+	if h.Keep == nil || commands == nil {
+		return commands
+	}
+	kept := h.Keep(projectID, *commands)
+	return &kept
 }
 
 func (h Hooks) prepare(ctx context.Context, w Worktree) error {

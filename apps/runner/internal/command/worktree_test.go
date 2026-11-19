@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/engine"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/engine/fake"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/keys"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/session"
 )
 
@@ -349,5 +352,161 @@ func TestAPrepareThatOutlastsItsBoundFailsAndIsKilled(t *testing.T) {
 	}
 	if exists(h.mark("ran")) || exists(h.worktree()) {
 		t.Fatal("the Commande ran, or the worktree stayed")
+	}
+}
+
+// rotatingVault is the vault the Runner holds, swapped by a rotation for
+// the next vault key: the server rewraps its own copies under it, never
+// the Runner's.
+type rotatingVault struct{ current atomic.Pointer[keys.Vault] }
+
+func holding(v *keys.Vault) *rotatingVault {
+	r := &rotatingVault{}
+	r.current.Store(v)
+	return r
+}
+
+func (r *rotatingVault) ItemKey(item keys.SealedItem, aad []byte) ([]byte, error) {
+	return r.current.Load().ItemKey(item, aad)
+}
+
+func (r *rotatingVault) rotate(t *testing.T) {
+	runner, _ := keys.GenerateKeyPair()
+	device, _ := keys.GenerateKeyPair()
+	next, _ := keys.GenerateAESKey()
+	version := r.current.Load().Version + 1
+	w, err := keys.SealWrap(device, keys.PublicKeyBytes(runner), next, []byte(keys.InfoVaultWrap), keys.VaultWrapAAD("runner-1", version))
+	if err != nil {
+		t.Fatal(err)
+	}
+	vault, err := keys.Unlock(runner, keys.PublicKeyBytes(device), "runner-1", version, w)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.current.Store(vault)
+}
+
+func TestTheWorktreeCommandsStillCleanTheWorktreeOnceTheVaultRotatedAfterItsPreparation(t *testing.T) {
+	h := newHarness(t)
+	h.remote.ticket(t)
+	h.worktreeHooks(t, projectID, "touch .prepared", "test -f .prepared && echo nettoyé > "+h.mark("cleaned"))
+	vault := holding(h.vault)
+	h.hooks = command.WorktreeHooks(vault)
+	// The vault rotates once the worktree is prepared, before it is cleaned.
+	h.probe = func(engine.StartOptions) { vault.rotate(t) }
+	h.start(t)
+
+	if s := h.startEndingSession(t); failure(s) != "" {
+		t.Fatalf("Session ended %+v", s)
+	}
+	if got := read(t, h.mark("cleaned")); got != "nettoyé" {
+		t.Fatalf("clean wrote %q, want it run after the rotation", got)
+	}
+	if records := h.logs.records("session.clean"); len(records) != 0 {
+		t.Fatalf("the Runner logged %v, want a cleaning that ran", records)
+	}
+}
+
+func TestAStoppedSessionResumedAfterARestartAndARotationIsStillCleaned(t *testing.T) {
+	h := newHarness(t)
+	h.remote.ticket(t)
+	h.engine.Events = []contracts.EngineEvent{{Question: &contracts.EngineEventQuestion{RequestId: "q1", Title: "Quelle couleur ?", Options: []contracts.EngineEventQuestionOptionsElem{{Label: "Bleu"}}}}}
+	h.worktreeHooks(t, projectID, "echo une >> "+h.mark("prepared"), "echo nettoyé > "+h.mark("cleaned"))
+	vault := holding(h.vault)
+	h.hooks = command.WorktreeHooks(vault)
+	h.start(t)
+	h.startSession(t)
+	h.manager.Stop(sessionID)
+	h.sent.await(t, "the Session stopped", func(m any) bool {
+		s, ok := m.(contracts.RunnerSessionState)
+		return ok && s.SessionId == sessionID && s.State == contracts.RunnerSessionStateStateStopped
+	})
+
+	// The Runner stops, the vault rotates, the Runner starts again.
+	h.commands.Close()
+	h.manager.Close()
+	vault.rotate(t)
+	h.engine.Events = []contracts.EngineEvent{{Result: &contracts.EngineEventResult{Status: contracts.EngineEventResultStatusOk}}}
+	h.start(t)
+	h.manager.Resume(sessionID)
+	h.sent.await(t, "the Session ended", func(m any) bool {
+		s, ok := m.(contracts.RunnerSessionState)
+		return ok && s.SessionId == sessionID && s.State == contracts.RunnerSessionStateStateEnded
+	})
+	if got := read(t, h.mark("prepared")); got != "une" {
+		t.Fatalf("prepare ran %q, want once", got)
+	}
+	if got := read(t, h.mark("cleaned")); got != "nettoyé" {
+		t.Fatalf("clean wrote %q, want it run after the restart and the rotation", got)
+	}
+}
+
+func TestAWorktreeRunIsStillCleanedOnceTheVaultRotatedDuringIt(t *testing.T) {
+	h := newHarness(t)
+	sha := h.remote.ticket(t)
+	h.worktreeHooks(t, projectID, nil, "echo nettoyé > "+h.mark("cleaned"))
+	vault := holding(h.vault)
+	h.hooks = command.WorktreeHooks(vault)
+	h.start(t)
+
+	// The run's own command waits until the vault rotated.
+	rotated := filepath.Join(h.marks, "rotated")
+	h.commands.Run(h.run(t, runID, "while ! test -f "+rotated+"; do sleep 0.05; done", "worktree", sha))
+	deadline := time.Now().Add(10 * time.Second)
+	for !exists(h.worktree()) {
+		if time.Now().After(deadline) {
+			t.Fatal("the run's worktree was never made")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	vault.rotate(t)
+	if err := os.WriteFile(rotated, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if v := h.sent.verdict(t, runID); !v.Passed {
+		t.Fatalf("verdict %+v", v)
+	}
+	if got := read(t, h.mark("cleaned")); got != "nettoyé" {
+		t.Fatalf("clean wrote %q, want it run after the rotation", got)
+	}
+}
+
+func TestTheCleaningOfAServicesWorktreeGoesToTheRunsLogRelayed(t *testing.T) {
+	h := newHarness(t)
+	h.relayed = true
+	sha := h.remote.ticket(t)
+	h.worktreeHooks(t, projectID, nil, "echo nettoyage du service")
+	h.start(t)
+	port := freePort(t)
+	text := server(t, port, 0)
+	message := h.run(t, runID, text, "worktree", sha)
+	message.Sealed = h.seal(t, projectID, map[string]commande{"cmd-tests": {Run: text, Where: "worktree", HealthURL: address(port)}})
+	h.commands.Run(message)
+	if v := h.sent.verdict(t, runID); v.Reason != contracts.RunnerCommandVerdictReasonHealthy {
+		t.Fatalf("verdict %+v, want healthy", v)
+	}
+
+	// The service ends: its worktree is cleaned, then removed.
+	if err := syscall.Kill(h.service(t).Pid, syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for exists(h.worktree()) {
+		if time.Now().After(deadline) {
+			t.Fatal("the service's worktree was never removed")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	log := filepath.Join(h.home, "commands", runID+".log")
+	h.sent.await(t, "the cleaning's output relayed", func(any) bool {
+		return strings.Contains(read(t, log), "nettoyage du service")
+	})
+	live := h.relayedTo(t, nil, 1)
+	relayed := false
+	for _, c := range live.chunks {
+		relayed = relayed || c.Text == "nettoyage du service\n"
+	}
+	if !relayed {
+		t.Fatalf("relayed %+v, want the cleaning's output", live.chunks)
 	}
 }

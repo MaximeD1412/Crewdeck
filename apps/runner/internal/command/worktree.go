@@ -31,6 +31,11 @@ const tailLines = 50
 // in UTF-16 code units.
 const worktreeMax = 4000
 
+// ItemKeys opens an item's own key with the vault held (keys.Vault.ItemKey).
+type ItemKeys interface {
+	ItemKey(item keys.SealedItem, aad []byte) ([]byte, error)
+}
+
 // WorktreeHooks are the Projet's Commandes « Préparer le worktree » and
 // « Nettoyer le worktree » (RUNNER-20, ADR 0013), run around every worktree
 // the Runner makes for a Session or a `where: worktree` run: opened with the
@@ -39,8 +44,11 @@ const worktreeMax = 4000
 // CREWDECK_* variables, its own process group), 15 and 10 min at most. A
 // part that does not open runs nothing: the preparation fails, the cleaning
 // is skipped.
-func WorktreeHooks(vault Vault) session.Hooks {
+func WorktreeHooks(vault ItemKeys) session.Hooks {
 	return session.Hooks{
+		Keep: func(projectID string, sealed session.SealedCommands) session.SealedCommands {
+			return keepWorktreeCommands(vault, projectID, sealed)
+		},
 		Prepare: func(ctx context.Context, w session.Worktree) error {
 			if w.Commands == nil {
 				return nil
@@ -98,23 +106,59 @@ func minutes(d time.Duration) string {
 	return fmt.Sprintf("%d min", int(d.Minutes()))
 }
 
+// keepWorktreeCommands is sealed with its item key opened in place of the
+// vault's wrap of it, once that key opens sealed's ciphertext; sealed as it
+// is otherwise, already kept or not for this Projet's vault.
+func keepWorktreeCommands(vault ItemKeys, projectID string, sealed session.SealedCommands) session.SealedCommands {
+	if sealed.ItemKey != "" || vault == nil || !uuid.MatchString(projectID) {
+		return sealed
+	}
+	wrapped, err1 := base64.RawURLEncoding.Strict().DecodeString(sealed.Key)
+	ciphertext, err2 := base64.RawURLEncoding.Strict().DecodeString(sealed.Ciphertext)
+	if err1 != nil || err2 != nil {
+		return sealed
+	}
+	aad := []byte("settings:" + projectID)
+	itemKey, err := vault.ItemKey(keys.SealedItem{Key: wrapped}, aad)
+	if err != nil {
+		return sealed
+	}
+	if _, err := keys.OpenItemContent(itemKey, ciphertext, aad); err != nil {
+		return sealed
+	}
+	return session.SealedCommands{Ciphertext: sealed.Ciphertext, ItemKey: base64.RawURLEncoding.EncodeToString(itemKey)}
+}
+
 // worktreeCommands are the opened zWorktreeCommands; "" is a Commande the
 // Pilote did not set.
 type worktreeCommands struct{ prepare, clean string }
 
-// openWorktreeCommands opens sealed under `settings:<projectID>` and checks
+// openWorktreeCommands opens sealed under `settings:<projectID>`, with its
+// item key kept or the vault's wrap of it, and checks
 // the whole of it against zWorktreeCommands: an object of `prepare` and
 // `clean`, both given, each null or a text of 1 to 4000, nothing else.
-func openWorktreeCommands(vault Vault, projectID string, sealed session.SealedCommands) (worktreeCommands, bool) {
+func openWorktreeCommands(vault ItemKeys, projectID string, sealed session.SealedCommands) (worktreeCommands, bool) {
 	if vault == nil || !uuid.MatchString(projectID) {
 		return worktreeCommands{}, false
 	}
-	key, err1 := base64.RawURLEncoding.Strict().DecodeString(sealed.Key)
-	ciphertext, err2 := base64.RawURLEncoding.Strict().DecodeString(sealed.Ciphertext)
-	if err1 != nil || err2 != nil {
+	ciphertext, err := base64.RawURLEncoding.Strict().DecodeString(sealed.Ciphertext)
+	if err != nil {
 		return worktreeCommands{}, false
 	}
-	plain, err := vault.OpenItem(keys.SealedItem{Key: key, Ciphertext: ciphertext}, []byte("settings:"+projectID))
+	aad := []byte("settings:" + projectID)
+	var itemKey []byte
+	if sealed.ItemKey != "" {
+		itemKey, err = base64.RawURLEncoding.Strict().DecodeString(sealed.ItemKey)
+	} else {
+		var wrapped []byte
+		if wrapped, err = base64.RawURLEncoding.Strict().DecodeString(sealed.Key); err == nil {
+			itemKey, err = vault.ItemKey(keys.SealedItem{Key: wrapped}, aad)
+		}
+	}
+	if err != nil {
+		return worktreeCommands{}, false
+	}
+	plain, err := keys.OpenItemContent(itemKey, ciphertext, aad)
 	if err != nil {
 		return worktreeCommands{}, false
 	}

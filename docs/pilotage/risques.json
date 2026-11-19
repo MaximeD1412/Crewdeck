@@ -259,7 +259,7 @@
         {
           "texte": "Web Speech API du navigateur, choix du Pilote ; à dire dans l'aide de la dictée",
           "ref": "ADR 0007",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

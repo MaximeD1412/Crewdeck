@@ -358,3 +358,26 @@ func TestEveryFixtureOfTheCommandesDecodesIntoItsGeneratedType(t *testing.T) {
 		t.Error("a health-timeout passes")
 	}
 }
+
+// The fixtures of each origin (SOURCE-2) are in origins/: a Local
+// Projet's session.start decodes with its origin local and no title.
+func TestTheSessionStartOfALocalOriginMatchesItsGeneratedType(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(fixturesDir, "origins", "session.start.local.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var message contracts.RunnerSessionStart
+	if err := json.Unmarshal(data, &message); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if message.Origin.Kind() != contracts.OriginKindLocal || message.Origin.Github != nil || message.Title != nil {
+		t.Fatalf("session.start %+v, want the local origin and no title", message)
+	}
+	back, err := json.Marshal(message.Origin)
+	if err != nil || string(back) != `{"kind":"local"}` {
+		t.Fatalf("origin written %s, %v", back, err)
+	}
+	if err := json.Unmarshal([]byte(`{"kind":"gitlab"}`), &message.Origin); err == nil {
+		t.Fatal("an origin of no kind the Runner knows decoded")
+	}
+}

@@ -17,7 +17,7 @@ import (
 type record struct {
 	SessionID       string                                     `json:"sessionId"`
 	ProjectID       string                                     `json:"projectId"`
-	Origin          contracts.RunnerSessionStartOrigin         `json:"origin"`
+	Origin          contracts.Origin                           `json:"origin"`
 	Branch          string                                     `json:"branch"`
 	Base            string                                     `json:"base"`
 	Worktree        string                                     `json:"worktree"`

@@ -25,29 +25,47 @@
       "type": "string"
     },
     "origin": {
-      "additionalProperties": false,
-      "properties": {
-        "kind": {
-          "enum": [
-            "github"
-          ],
-          "type": "string"
-        },
-        "name": {
-          "pattern": "^[A-Za-z0-9._-]{1,100}$",
-          "type": "string"
-        },
-        "owner": {
-          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$",
-          "type": "string"
-        }
+      "goJSONSchema": {
+        "type": "Origin"
       },
-      "required": [
-        "kind",
-        "name",
-        "owner"
-      ],
-      "type": "object"
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "github",
+              "type": "string"
+            },
+            "name": {
+              "pattern": "^[A-Za-z0-9._-]{1,100}$",
+              "type": "string"
+            },
+            "owner": {
+              "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "name",
+            "owner"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "local",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "projectId": {
       "format": "uuid",

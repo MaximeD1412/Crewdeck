@@ -123,15 +123,23 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	// The adapters, their Sessions watched: a limit or a sign-in they meet
 	// reaches the capabilities, the usage they report reaches the server. The Sessions (RUNNER-9) start from this registry.
 	reporter.Engines = reporter.Watch(runnerEngines(keys))
+	// The Local Projets (SOURCE-2): local.db, written by this Runner only, and
+	// their folders, which their Sessions clone.
+	locals, err := openLocal(store, vault.Load)
+	if err != nil {
+		return err
+	}
+	defer locals.Close()
 	// The Sessions the server asks for, those kept under ~/.crewdeck/sessions
 	// said in each hello: none alive after a restart.
 	sessions, err := session.New(session.Config{
-		Home:      store.Dir,
-		Engines:   reporter.Engines,
-		GitHubURL: sessionsGitHubURL,
-		Logger:    logger,
-		Keys:      relay,
-		Send:      send,
+		Home:        store.Dir,
+		Engines:     reporter.Engines,
+		GitHubURL:   sessionsGitHubURL,
+		LocalOrigin: locals.Origin,
+		Logger:      logger,
+		Keys:        relay,
+		Send:        send,
 		// The Projet's « Préparer le worktree » and « Nettoyer le
 		// worktree » (RUNNER-20), around every worktree it makes.
 		Hooks: command.WorktreeHooks(vault),

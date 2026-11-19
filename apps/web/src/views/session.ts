@@ -257,7 +257,8 @@ export const sessionView = ({ session, slices, events, sent, now, composer: comp
   const lastAt = events.at(-1)?.at ?? session.startedAt;
   const data: SessionData = {
     id: session.id,
-    title: session.title,
+    // A Local Projet's title is sealed (SOURCE-2): opened once its additional data is fixed with the Local Tickets'.
+    title: session.title ?? t('session.title.local'),
     meta: online ? base : t('session.meta.offline', { meta: base }),
     state,
     resumeDisabledReason: !online

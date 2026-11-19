@@ -5,6 +5,7 @@ import {
   LIVE_SESSION_STATES,
   RESUMABLE_SESSION_STATES,
   type RoleId,
+  type SealedSessionTitle,
   type SessionAnswered,
   type SessionPermissionMode,
   type SessionState,
@@ -32,13 +33,19 @@ import { raiseRequest, resolveOpenRequests, resolveRequest } from './requests.js
 import { SessionHooks } from './session-hooks.js';
 import { SESSION_ROW, type SessionRow, startMessageOf, stored, toAgentSession } from './session.view.js';
 
-/** What starts a Session: `base` the Projet's integration branch unless given; `step` the Étape it runs, none when the Pilote writes first. */
+/**
+ * What starts a Session: `base` the Projet's integration branch unless given;
+ * `step` the Étape it runs, none when the Pilote writes first; `title` the
+ * Ticket's or Conception's as its Source holds it, whatever the code's:
+ * readable on GitHub, sealed with the additional data it was sealed under
+ * when Local (SOURCE-2, ADR 0012).
+ */
 export interface StartSession {
   readonly projectId: string;
   readonly role: RoleId;
   readonly engine: EngineId;
   readonly model: string;
-  readonly title: string;
+  readonly title: string | SealedSessionTitle;
   readonly branch: string;
   readonly base?: string;
   readonly step?: SessionStep;
@@ -119,15 +126,17 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
   /**
    * Starts a Session of the current Pilote in `tx`: the row `starting` and
    * its event, then, once committed, `session.start` to the Runner (offline,
-   * once it is back). 404 `project.not-found`; 422 `sessions.no-origin` for
-   * a Projet whose code is not on GitHub (the Local origin is SOURCE-2's).
+   * once it is back), its origin the Projet's code Source (`originOf`). 404
+   * `project.not-found`; 422 `sessions.no-origin` for a Projet with no code
+   * Source. The title is as the Source of its artifact holds it, whatever
+   * the code's: readable, or sealed with its additional data (`title` null).
    */
   async start(tx: Tx, input: StartSession): Promise<AgentSession> {
     const pilotId = currentPilotId();
     const project = await tx.project.findUnique({ where: { id: input.projectId }, select: { integrationBranch: true } });
     if (!project) throw notFound('project.not-found', MESSAGES['project.not-found']);
-    const onGithub = await tx.artifactSource.count({ where: { projectId: input.projectId, group: 'code', source: 'github' } });
-    if (onGithub === 0) throw unprocessable('sessions.no-origin', MESSAGES['sessions.no-origin']);
+    const code = await tx.artifactSource.findUnique({ where: { projectId_group: { projectId: input.projectId, group: 'code' } }, select: { source: true } });
+    if (!code) throw unprocessable('sessions.no-origin', MESSAGES['sessions.no-origin']);
     const created = await tx.agentSession.create({
       data: {
         id: newId(),
@@ -136,7 +145,9 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
         role: input.role,
         engine: stored(input.engine),
         model: input.model,
-        title: input.title,
+        ...(typeof input.title === 'string'
+          ? { title: input.title }
+          : { title: null, titleSealed: { key: input.title.key, ciphertext: input.title.ciphertext }, titleAad: input.title.aad }),
         branch: input.branch,
         base: input.base ?? project.integrationBranch,
         permissionMode: permissionModeOf(input.step),

@@ -89,10 +89,6 @@ func (m *Manager) unhold(dir string) {
 	}
 }
 
-func (m *Manager) origin(owner, name string) *GitHubOrigin {
-	return &GitHubOrigin{Home: m.cfg.Home, URL: m.cfg.GitHubURL, Owner: owner, Name: name, Tokens: m.cfg.Tokens, locks: &m.locks}
-}
-
 // TicketWorktree is the worktree of the Ticket's branch at sha, for a run.
 // Absent, it is made detached at sha after a fetch, prepared by the Hooks
 // with prep as a Session's, then cleaned and removed at Release; a
@@ -100,7 +96,7 @@ func (m *Manager) origin(owner, name string) *GitHubOrigin {
 // Session's is used as it is when its HEAD is sha, not prepared again, and
 // kept. A live Session's, another run's, or one at another commit gives
 // ErrPlaceUnavailable.
-func (m *Manager) TicketWorktree(ctx context.Context, projectID, owner, name, branch, sha string, prep Preparation) (*Place, error) {
+func (m *Manager) TicketWorktree(ctx context.Context, projectID string, from contracts.Origin, branch, sha string, prep Preparation) (*Place, error) {
 	if !uuid.MatchString(projectID) || !validBranch(branch) || !gitSha.MatchString(sha) {
 		return nil, ErrPlaceUnavailable
 	}
@@ -120,7 +116,11 @@ func (m *Manager) TicketWorktree(ctx context.Context, projectID, owner, name, br
 		return &Place{Dir: dir, release: unhold}, nil
 	}
 
-	origin := m.origin(owner, name)
+	origin, err := m.originOf(projectID, from)
+	if err != nil {
+		unhold()
+		return nil, ErrPlaceUnavailable
+	}
 	clone, auth, err := origin.Clone(ctx)
 	if err != nil {
 		unhold()
@@ -158,7 +158,7 @@ func (m *Manager) TicketWorktree(ctx context.Context, projectID, owner, name, br
 // each run it is fetched, moved to sha (else to the head of
 // origin/<integrationBranch>) and cleaned of its untracked files, its
 // ignored ones (the dependencies) kept.
-func (m *Manager) IntegrationCheckout(ctx context.Context, projectID, owner, name, integrationBranch, sha string) (*Place, error) {
+func (m *Manager) IntegrationCheckout(ctx context.Context, projectID string, from contracts.Origin, integrationBranch, sha string) (*Place, error) {
 	if !uuid.MatchString(projectID) || !validBranch(integrationBranch) || (sha != "" && !gitSha.MatchString(sha)) {
 		return nil, ErrPlaceUnavailable
 	}
@@ -170,7 +170,12 @@ func (m *Manager) IntegrationCheckout(ctx context.Context, projectID, owner, nam
 		return nil, ErrPlaceUnavailable
 	}
 	unhold := func() { m.unhold(dir) }
-	clone, auth, err := m.origin(owner, name).Clone(ctx)
+	origin, err := m.originOf(projectID, from)
+	if err != nil {
+		unhold()
+		return nil, ErrPlaceUnavailable
+	}
+	clone, auth, err := origin.Clone(ctx)
 	if err != nil {
 		unhold()
 		return nil, err

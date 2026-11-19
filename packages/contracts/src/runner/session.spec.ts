@@ -56,7 +56,18 @@ describe('the Sessions of the Runner protocol', () => {
     expect(zSessionStart.safeParse({ ...fixture<Record<string, unknown>>('session.start'), branch }).success).toBe(valid);
   });
 
-  it('refuses an origin other than a GitHub repository, or a repository named . or ..', () => {
+  it('starts a Session of a Local Projet from its folder, its title then sealed and so null (SOURCE-2)', () => {
+    const local = fixture('origins/session.start.local');
+    expect(zServerToRunner.parse(local)).toEqual(local);
+    expect(zSessionStart.parse(local)).toMatchObject({ origin: { kind: 'local' }, title: null });
+    // The folder's path is the Runner's alone (PROJET-6): one in the message is never read.
+    expect(zSessionStart.parse({ ...local, origin: { kind: 'local', path: '/home/pilote/panier' } }).origin).toEqual({ kind: 'local' });
+    const withoutTitle = { ...local };
+    delete withoutTitle.title;
+    expect(zSessionStart.safeParse(withoutTitle).success).toBe(false);
+  });
+
+  it('refuses an origin other than a GitHub repository or a Local folder, or a repository named . or ..', () => {
     const start = fixture('session.start');
     expect(zSessionStart.safeParse({ ...start, origin: { kind: 'gitlab', owner: 'acme', name: 'shop' } }).success).toBe(false);
     expect(zSessionStart.safeParse({ ...start, origin: { kind: 'github', owner: 'acme', name: '..' } }).success).toBe(false);

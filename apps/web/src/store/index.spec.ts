@@ -26,6 +26,7 @@ const SESSION: AgentSession = {
   engine: 'claude-code',
   model: 'claude-opus-5-5',
   title: 'Le panier garde ses articles',
+  titleSealed: null,
   state: 'active',
   interruptedReason: null,
   outcome: null,

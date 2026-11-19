@@ -9,6 +9,7 @@ const SESSION = {
   engine: 'claude-code',
   model: 'claude-opus-5-5',
   title: 'Conception · agenda partagé',
+  titleSealed: null,
   state: 'stopped',
   interruptedReason: null,
   outcome: null,

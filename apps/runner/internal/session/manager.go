@@ -42,7 +42,10 @@ type Config struct {
 	GitHubURL string
 	// Tokens authenticates the clones (RUNNER-10); nil clones without one.
 	Tokens github.TokenSource
-	Hooks  Hooks
+	// LocalOrigin gives a Local Projet's Origin (source/local, SOURCE-2);
+	// nil, a Session of a Local Projet ends `clone-failed`.
+	LocalOrigin func(projectID string) Origin
+	Hooks       Hooks
 	// Send sends a message to the server (protocol.ErrNotConnected while
 	// offline: the report is lost, the hello says the Sessions again).
 	Send   func(ctx context.Context, message any) error
@@ -402,8 +405,12 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 		Stdout:   output,
 		Stderr:   output,
 	}}
-	origin := &GitHubOrigin{Home: m.cfg.Home, URL: m.cfg.GitHubURL, Owner: rec.Origin.Owner, Name: rec.Origin.Name, Tokens: m.cfg.Tokens, locks: &m.locks}
-	w.Clone = origin.dir()
+	origin, err := m.originOf(rec.ProjectID, rec.Origin)
+	if err != nil {
+		m.fail(s, w, false, contracts.RunnerSessionStateErrorCloneFailed, "clone", err)
+		return
+	}
+	w.Clone = origin.Dir()
 
 	if _, err := os.Stat(w.Dir); fresh || err != nil {
 		_, auth, err := origin.Clone(ctx)

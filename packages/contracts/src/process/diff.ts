@@ -20,13 +20,13 @@ export const PROCESS_CHANGE_KINDS = [
   'step.added',
   'step.removed',
   'step.moved',
+  'tool.attached',
+  'tool.detached',
   'arrow.added',
   'arrow.removed',
   'loop-back.added',
   'loop-back.removed',
   'loop-back.max-changed',
-  'tool.attached',
-  'tool.detached',
   'layout.changed',
 ] as const;
 export type ProcessChangeKind = (typeof PROCESS_CHANGE_KINDS)[number];

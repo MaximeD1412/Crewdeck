@@ -64,6 +64,7 @@ export const RUNNING_WORK_VIEW = {
 export interface RunningWorkRow {
   readonly id: string;
   readonly projectId: string | null;
+  readonly phaseId: string;
   readonly itemType: string;
   readonly itemId: string;
   readonly processVersion: { readonly number: number } | null;

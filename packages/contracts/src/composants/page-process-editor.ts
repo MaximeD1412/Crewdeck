@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { defineComposant } from './define.js';
 import { zIconName } from './icons.js';
 import { ProcessCanvas } from './process-canvas.js';
+import { sensitive } from './sensitive.js';
+import { Toast } from './toast.js';
 
 /** What the panel points at: an Étape, a Phase, or the Sources (`id` the Type d'artefact a Manque names, else `null`). */
 const zTarget = z.object({ kind: z.enum(['step', 'phase', 'sources']), id: z.string().min(1).nullable() });
@@ -34,6 +36,14 @@ const zData = z.object({
   phase: z.object({ name: z.string().min(1), count: z.string(), repeat: z.string() }).nullable(),
   sources: z.object({ lead: z.string(), rows: z.array(zRow.extend({ value: z.string() })) }),
   footer: z.object({ changes: z.string(), versions: z.string() }),
+  /**
+   * The header's « Activer la v{n+1} »: the draft's `revision` it activates
+   * (`null` without a draft), and why it is disabled (`null`: it is not);
+   * `null` without a Projet.
+   */
+  activate: z.object({ label: z.string().min(1), revision: z.int().min(1).nullable(), disabledReason: z.string().min(1).nullable() }).nullable(),
+  /** The Toast over the canvas (an activation, its refusal), the core's to remove. */
+  toast: Toast.data.nullable(),
 });
 
 // The examples: « Process Crewdeck » as the canvas's first example draws it, read only.
@@ -66,6 +76,8 @@ const active: Data = {
   phase: null,
   sources: SOURCES,
   footer: { changes: 'Aucun changement depuis la v3.', versions: 'v3 active depuis le 4 nov.' },
+  activate: { label: 'Activer la v4', revision: null, disabledReason: 'Aucun changement' },
+  toast: null,
 };
 
 const REVIEW: NonNullable<Data['step']> = {
@@ -95,7 +107,8 @@ const REVIEW: NonNullable<Data['step']> = {
  * and the Idée), and the versions at its foot. Below 1280 px the editor is
  * not rendered (the phone's list is PROCESS-11's). `select` comes from the
  * canvas (`centre: false`) or a Manque (`centre: true`); `view` is the
- * canvas's.
+ * canvas's; `activate`, the header's primary, is the Action sensible
+ * `process.activate` (PROCESS-10), confirmed by the core.
  */
 export const PageProcessEditor = defineComposant({
   name: 'PageProcessEditor',
@@ -108,6 +121,7 @@ export const PageProcessEditor = defineComposant({
     select: z.object({ target: zTarget.nullable(), centre: z.boolean() }),
     tab: z.object({ tab: zTab }),
     view: ProcessCanvas.actions.view,
+    activate: sensitive('process.activate', z.object({ revision: z.int().min(1) })),
   },
   slots: [],
   examples: [
@@ -125,7 +139,8 @@ export const PageProcessEditor = defineComposant({
             target: { kind: 'step', id: 'inventaire' },
           },
         ],
-        footer: { changes: 'Brouillon en cours sur la v3.', versions: 'v3 active depuis le 4 nov.' },
+        footer: { changes: '1 changement depuis la v3 : Étape « Inventaire » ajoutée à « Idée ».', versions: 'v3 active depuis le 4 nov. · aucun travail en cours' },
+        activate: { label: 'Activer la v4', revision: 2, disabledReason: 'Règle les Manques pour activer.' },
       },
     },
     {
@@ -143,11 +158,26 @@ export const PageProcessEditor = defineComposant({
       name: 'sans version active',
       data: {
         ...active,
-        title: { ...active.title, count: 'brouillon · pas encore de version active' },
+        title: { ...active.title, count: 'brouillon · première version' },
         hasVersion: false,
         footer: { changes: 'Ce brouillon deviendra la v1.', versions: 'aucune version active' },
+        activate: { label: 'Activer la v1', revision: 1, disabledReason: null },
       },
     },
-    { name: 'Projet introuvable', data: { ...active, found: false } },
+    { name: 'Projet introuvable', data: { ...active, found: false, activate: null } },
+    {
+      name: 'un brouillon à activer',
+      data: {
+        ...active,
+        title: { ...active.title, count: 'brouillon · 3 changements' },
+        footer: {
+          changes:
+            '3 changements depuis la v3 : Serveur MCP « Stitch » attaché à « Maquettes » ; Serveur MCP « Figma » attaché à « Maquettes » ; Retour de « Review » vers « Code » : 5 fois au plus, au lieu de 3.',
+          versions: 'v3 active depuis le 4 nov. · 2 Tickets en cours finissent sur la v3 · 1 Conception en cours finit sur la v2',
+        },
+        activate: { label: 'Activer la v4', revision: 4, disabledReason: null },
+      },
+    },
+    { name: 'la v4 activée', data: { ...active, title: { ...active.title, count: 'v4 active' }, toast: { tone: 'go', icon: 'check', text: 'Version 4 active.' } } },
   ],
 });

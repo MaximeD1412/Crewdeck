@@ -341,8 +341,24 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     </aside>`;
   }
 
+  /** The header's « Activer la v{n+1} », disabled with its reason. */
+  private activateButton() {
+    const { activate } = this.data;
+    if (!activate) return nothing;
+    const disabled = activate.disabledReason !== null || activate.revision === null;
+    const button = { label: activate.label, variant: 'primary', size: 'sm', icon: 'check' } as const;
+    const data = disabled ? { ...button, state: 'disabled' as const, disabledReason: activate.disabledReason ?? undefined } : button;
+    return html`<cd-button
+      slot="actions"
+      .data=${data}
+      @click=${() => {
+        if (!disabled && activate.revision !== null) this.emit('activate', { revision: activate.revision });
+      }}
+    ></cd-button>`;
+  }
+
   protected override render() {
-    const { found, title, hasVersion, canvas } = this.data;
+    const { found, title, hasVersion, canvas, toast } = this.data;
     if (!found) {
       return html`<cd-empty class="not-found" .data=${{ icon: 'folder', title: t('process.notFound') }}
         ><a slot="actions" href="/projets">${t('process.notFound.back')}</a></cd-empty
@@ -350,11 +366,14 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     }
     return html`<cd-page-header
         .data=${{ title: t('process.title'), count: title.count, back: { label: t('process.back', { projectName: title.projectName }), href: title.backHref } }}
-      ></cd-page-header>
+        >${this.activateButton()}</cd-page-header
+      >
       ${hasVersion ? nothing : html`<cd-banner .data=${{ tone: 'caution', icon: 'alert', title: t('process.noVersion') }}></cd-banner>`}
       ${this.wide
         ? html`<div class="editor" aria-label=${t('process.editor.label')} role="region">
-            <cd-process-canvas .data=${canvas} @cd-action=${this.onCanvas}></cd-process-canvas>
+            <cd-process-canvas .data=${canvas} @cd-action=${this.onCanvas}
+              >${toast ? html`<cd-toast slot="toast" .data=${toast}></cd-toast>` : nothing}</cd-process-canvas
+            >
             ${this.panel()}
           </div>`
         : nothing}`;

@@ -460,10 +460,21 @@ export const boot = async ({
   dispatcher.registerAction(PageDemarrage, 'retry', { run: () => gettingStarted.retry() });
   dispatcher.registerAction(PageDemarrage, 'continue', { run: () => gettingStarted.advance() });
   dispatcher.registerAction(PageDemarrage, 'linkGitHub', { run: () => leave(githubLinkHref('/demarrage')) });
-  const editor = createEditorActions({ ui: editorUi, navigate: (url, options) => router.navigate(url, options), current: () => router.current });
+  const editor = createEditorActions({
+    ui: editorUi,
+    navigate: (url, options) => router.navigate(url, options),
+    current: () => router.current,
+    client,
+    ideaTitle: (ideaId) => {
+      const idea = store.getState().slices.idea?.get(ideaId);
+      const text = idea ? plaintext.text(idea) : null;
+      return text?.status === 'open' ? text.text.split('\n', 1)[0]?.trim() || null : null;
+    },
+  });
   dispatcher.registerAction(PageProcessEditor, 'select', { run: (payload) => editor.select(payload) });
   dispatcher.registerAction(PageProcessEditor, 'tab', { run: (payload) => editor.tab(payload) });
   dispatcher.registerAction(PageProcessEditor, 'view', { run: (payload) => editor.view(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'activate', editor.activate);
   dispatcher.registerAction(PageProjets, 'add', { run: () => router.navigate('/projets/ajouter') });
   // In « Premiers pas » the Projets followed end it; on `/projets/ajouter` the list shows them.
   dispatcher.registerAction(RepositoryPicker, 'follow', {

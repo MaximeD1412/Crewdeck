@@ -1,8 +1,11 @@
-import { DEFAULT_ACCOUNT_SETTINGS, defaultStep, PROCESS_CREWDECK, PROCESS_CREWDECK_NAME, type ProcessDefinition, type SourceGroup, type Step } from '@crewdeck/contracts';
+import { DEFAULT_ACCOUNT_SETTINGS, defaultStep, ideaItemAad, PROCESS_CREWDECK, PROCESS_CREWDECK_NAME, type ProcessDefinition, type SourceGroup, type Step } from '@crewdeck/contracts';
 import { Prisma } from '../../generated/prisma/client.js';
+import { ideaStateRow } from '../../ideas/idea.view.js';
 import { newId } from '../../ids.js';
+import { sealItem } from '../vault.js';
 import type { ScenarioContext, ScenarioSeed } from './define.js';
 import { defineScenario } from './define.js';
+import { seedTrustedDevice } from './idees.js';
 import { seedRepositories } from './projets.js';
 import { RUNNER_MACHINE, withAccounts } from './runner.js';
 
@@ -102,7 +105,11 @@ const MAIRIE_VERSIONS = [new Date('2026-10-12T09:00:00.000Z'), new Date('2026-10
  * Review on Claude Code · Opus 5.5 in their Paramètres (as the mockup), and
  * « Site mairie » (GitHub) with `process`.
  */
-const mairie = async (ctx: ScenarioContext, process: Omit<ProjectProcess, 'versions'> = {}): Promise<ScenarioSeed> => {
+const mairie = async (
+  ctx: ScenarioContext,
+  process: Omit<ProjectProcess, 'versions'> = {},
+  more: (pilotId: string) => Promise<Partial<ScenarioSeed>> = async () => ({}),
+): Promise<ScenarioSeed> => {
   const { token, pilotId, ...seed } = await withAccounts(ctx);
   await ctx.prisma.unscoped.accountSettings.create({
     data: {
@@ -112,7 +119,7 @@ const mairie = async (ctx: ScenarioContext, process: Omit<ProjectProcess, 'versi
   });
   await seedRepositories(ctx, pilotId, [{ name: 'site-mairie', hasCode: true, project: 'Site mairie', projectId: PROCESS_SCENARIO_PROJECTS.mairie }]);
   await seedProcess(ctx, pilotId, PROCESS_SCENARIO_PROJECTS.mairie, { versions: MAIRIE_VERSIONS, ...process });
-  return { ...seed, runnerToken: token, runnerMachine: RUNNER_MACHINE };
+  return { ...seed, runnerToken: token, runnerMachine: RUNNER_MACHINE, ...(await more(pilotId)) };
 };
 
 const MAIRIE_PATH = `/projets/${PROCESS_SCENARIO_PROJECTS.mairie}/process`;
@@ -166,4 +173,96 @@ export const processSansVersion = defineScenario({
   },
 });
 
-export const processScenarios = [processScenario, processManques, processEtape, processSources, processLocal, processSansVersion];
+/** The draft of `process-activation`: Stitch and Figma attached to « Maquettes », the Review's Retour at 5 times instead of 3. */
+export const ACTIVATION_DRAFT: ProcessDefinition = crewdeck((draft) => {
+  stepOf(draft, 'st-maquettes').tools.push({ kind: 'mcp', name: 'Stitch' }, { kind: 'mcp', name: 'Figma' });
+  const review = draft.loopBacks.find((loopBack) => loopBack.from === 'st-review');
+  if (review === undefined) throw new Error('no Retour from st-review');
+  review.max = 5;
+});
+
+/**
+ * What is at work on « Site mairie »: Tickets #53 and #57 in « Développement »
+ * on the v3, the Conception of the Idée « Actualités » on the v2; the Idée
+ * sealed under the vault key of the Appareil the scenario trusts, so that
+ * the page names it.
+ */
+const seedRunningWork = async (ctx: ScenarioContext, pilotId: string, vaultKey: Buffer): Promise<void> => {
+  const db = ctx.prisma.unscoped;
+  const projectId = PROCESS_SCENARIO_PROJECTS.mairie;
+  const versions = new Map((await db.processVersion.findMany({ where: { projectId }, select: { id: true, number: true } })).map((row) => [row.number, row.id]));
+  const now = Date.now();
+  const at = (hours: number) => new Date(now - hours * 3_600_000);
+  const run = (processVersionId: string | undefined, phaseId: string, itemType: string, itemId: string, startedAt: Date) => ({
+    id: newId(),
+    pilotId,
+    projectId,
+    processVersionId: processVersionId ?? null,
+    phaseId,
+    itemType,
+    itemId,
+    state: 'running' as const,
+    startedAt,
+  });
+  for (const [number, title, hours] of [
+    [53, 'Afficher les horaires de la mairie', 6],
+    [57, 'Traduire la page des démarches', 2],
+  ] as const) {
+    const id = newId();
+    await db.ticket.create({
+      data: {
+        id,
+        pilotId,
+        projectId,
+        source: 'github',
+        number,
+        title,
+        state: 'open',
+        readyMark: true,
+        ready: true,
+        labels: ['ready-for-agent'],
+        blockedBy: [],
+        branchPrefix: 'feat',
+        visualReview: false,
+        sourceCreatedAt: at(48),
+        sourceUpdatedAt: at(hours),
+      },
+    });
+    await db.phaseRun.create({ data: run(versions.get(3), 'ph-dev', 'ticket', id, at(hours)) });
+  }
+  const ideaId = newId();
+  await db.idea.create({
+    data: {
+      id: ideaId,
+      pilotId,
+      number: 48,
+      projectId,
+      state: ideaStateRow('retained'),
+      text: { ...sealItem(vaultKey, 'Actualités\nUne page des actualités de la mairie, la plus récente en premier.', ideaItemAad(ideaId, 'text')) },
+      notedFrom: 'pc',
+      createdAt: at(24 * 10),
+      updatedAt: at(24 * 9),
+      triagedAt: at(24 * 9),
+    },
+  });
+  await db.pilot.update({ where: { id: pilotId }, data: { ideaSeq: 48 } });
+  await db.phaseRun.create({ data: run(versions.get(2), 'ph-conception', 'idea', ideaId, at(24 * 9)) });
+};
+
+/**
+ * Activating a draft (`process`, state `activation`): « Site mairie » on its
+ * v3 with a draft of three changes, two Tickets at work on the v3 and a
+ * Conception on the v2; the test presses « Activer la v4 ».
+ */
+export const processActivation = defineScenario({
+  name: 'process-activation',
+  path: MAIRIE_PATH,
+  seed: (ctx) =>
+    mairie(ctx, { draft: ACTIVATION_DRAFT }, async (pilotId) => {
+      const { device, vaultKey } = await seedTrustedDevice(ctx, pilotId);
+      await seedRunningWork(ctx, pilotId, vaultKey);
+      return { device };
+    }),
+});
+
+export const processScenarios = [processScenario, processManques, processEtape, processSources, processLocal, processSansVersion, processActivation];

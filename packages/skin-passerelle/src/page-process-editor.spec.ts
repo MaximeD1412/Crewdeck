@@ -18,14 +18,15 @@ afterEach(async () => {
 
 const { PageProcessEditor } = COMPOSANTS;
 type Data = ComposantData<typeof PageProcessEditor>;
-const [active, withGap, review, phase, sources, noVersion, notFound] = PageProcessEditor.examples.map((example) => example.data as Data);
-if (!active || !withGap || !review || !phase || !sources || !noVersion || !notFound) throw new Error('PageProcessEditor lacks its examples');
+const [active, withGap, review, phase, sources, noVersion, notFound, toActivate, activated] = PageProcessEditor.examples.map((example) => example.data as Data);
+if (!active || !withGap || !review || !phase || !sources || !noVersion || !notFound || !toActivate || !activated) throw new Error('PageProcessEditor lacks its examples');
 
 const show = async (data: Data) => render(PageProcessEditor, data);
 const root = (el: Element) => el.shadowRoot!;
 const tabs = (el: Element) => [...(inside(el, 'cd-tabs').shadowRoot?.querySelectorAll('button[role=tab]') ?? [])];
 const panel = (el: Element) => inside(el, '.panel-body');
 const parts = (item: Element) => ['b', '.mono', 'small'].map((part) => textOf(item.querySelector(part)) ?? null);
+const activateButton = (el: Element) => root(el).querySelector('cd-page-header > cd-button[slot=actions]') as (HTMLElement & { data: unknown }) | null;
 const only = (details: { action: string; payload: unknown }[]) => details.map(({ action, payload }) => ({ action, payload }));
 
 describe('PageProcessEditor', () => {
@@ -137,6 +138,38 @@ describe('PageProcessEditor', () => {
     expect([...foot.querySelectorAll('p')].map((p) => textOf(p))).toEqual(['Aucun changement depuis la v3.', 'v3 active depuis le 4 nov.']);
   });
 
+  it('puts « Activer la v4 » in the header, the primary, enabled for a draft to activate', async () => {
+    const el = await show(toActivate);
+    expect(activateButton(el)?.data).toEqual({ label: 'Activer la v4', variant: 'primary', size: 'sm', icon: 'check' });
+    expect([...inside(el, 'footer.foot').querySelectorAll('p')].map((p) => textOf(p))).toEqual([
+      '3 changements depuis la v3 : Serveur MCP « Stitch » attaché à « Maquettes » ; Serveur MCP « Figma » attaché à « Maquettes » ; Retour de « Review » vers « Code » : 5 fois au plus, au lieu de 3.',
+      'v3 active depuis le 4 nov. · 2 Tickets en cours finissent sur la v3 · 1 Conception en cours finit sur la v2',
+    ]);
+  });
+
+  it('disables « Activer » with its reason: no change, a Manque', async () => {
+    expect(activateButton(await show(active))?.data).toEqual({
+      label: 'Activer la v4',
+      variant: 'primary',
+      size: 'sm',
+      icon: 'check',
+      state: 'disabled',
+      disabledReason: 'Aucun changement',
+    });
+    document.body.replaceChildren();
+    expect(activateButton(await show(withGap))?.data).toMatchObject({ state: 'disabled', disabledReason: 'Règle les Manques pour activer.' });
+    document.body.replaceChildren();
+    expect(activateButton(await show(notFound))).toBeNull();
+  });
+
+  it('shows the Toast over the canvas, none without one', async () => {
+    const el = await show(activated);
+    const toast = inside(el, 'cd-process-canvas > cd-toast[slot=toast]') as HTMLElement & { data: unknown };
+    expect(toast.data).toEqual({ tone: 'go', icon: 'check', text: 'Version 4 active.' });
+    document.body.replaceChildren();
+    expect(root(await show(active)).querySelector('cd-toast')).toBeNull();
+  });
+
   it('says there is no active version yet under the header', async () => {
     const el = await show(noVersion);
     const banner = inside(el, 'cd-banner') as HTMLElement & { data: unknown };
@@ -171,6 +204,18 @@ describe('PageProcessEditor', () => {
       });
       expect(details.map(({ composant, action }) => `${composant}.${action}`)).toEqual(['PageProcessEditor.view']);
       expect(details[0]?.payload).toMatchObject({ zoom: 100 });
+    });
+
+    it('« Activer » with the draft’s revision', async () => {
+      const el = await show(toActivate);
+      const details = await actionsOf(() => inside(el, 'cd-page-header > cd-button', 'button').click());
+      expect(only(details)).toEqual([{ action: 'activate', payload: { revision: 4 } }]);
+    });
+
+    it('nothing from a disabled « Activer »', async () => {
+      const el = await show(active);
+      const details = await actionsOf(() => inside(el, 'cd-page-header > cd-button', 'button').click());
+      expect(details).toEqual([]);
     });
 
     it('a tab chosen', async () => {

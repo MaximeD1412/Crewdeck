@@ -57,6 +57,10 @@ const fakeStore = (session: AgentSession | null, runner: Runner = ONLINE) => {
       state = { ...state, slices: { ...state.slices, ...slices } };
       for (const fn of listeners) fn(state);
     },
+    setVault(vaultState: StoreState['vaultState']) {
+      state = { ...state, vaultState };
+      for (const fn of listeners) fn(state);
+    },
     listeners,
   };
 };
@@ -214,6 +218,27 @@ describe('the Session panel', () => {
     expect(offline).not.toBeNull();
     expect(offline).not.toBe(typedIn);
     expect(typedIn?.isConnected).toBe(false);
+  });
+
+  it('the Appareil approved while the panel is open: the relay opened again for its keys and replay, then read and written to', async () => {
+    const { store, relay, panel, shown } = setup();
+    store.setVault('no-device');
+    panel.show(SESSION.id);
+    // Not approved yet: the relay dropped the Session's keys, nothing to read.
+    expect(relay.relay.openSession).toHaveBeenCalledTimes(1);
+    store.set({});
+    expect(relay.relay.openSession).toHaveBeenCalledTimes(1);
+
+    store.setVault('unlocked');
+    expect(relay.relay.closeSession).toHaveBeenCalledWith(SESSION.id);
+    expect(relay.relay.openSession).toHaveBeenCalledTimes(2);
+    relay.push(agent(1, 'Les nuages flottent.'));
+    expect(textsOf(shown() as WithData).map((data) => data.text)).toEqual(['Les nuages flottent.']);
+    await panel.send('Merci.');
+    expect(relay.relay.sendInput).toHaveBeenCalledWith(SESSION.id, { kind: 'message', text: 'Merci.' });
+    // Opened once more only by another approval, not by any change of the store.
+    store.set({});
+    expect(relay.relay.openSession).toHaveBeenCalledTimes(2);
   });
 
   it('« Arrêter » and « Reprendre » post to the Session’s routes', async () => {

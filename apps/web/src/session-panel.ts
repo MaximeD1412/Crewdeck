@@ -64,7 +64,8 @@ export const createSessionPanel = ({
   let id: string | null = null;
   /** The Session read by its id when the store does not hold it; `not-found` for another's, or none. */
   let fetched: AgentSession | 'not-found' | 'reading' | null = null;
-  let subscription: { readonly value: SessionSubscription; readonly stop: () => void } | null = null;
+  /** The relay followed, and whether this Appareil's vault was open then: its keys need an approved Appareil. */
+  let subscription: { readonly value: SessionSubscription; readonly stop: () => void; readonly unlocked: boolean } | null = null;
   let sent: PilotMessage[] = [];
   let element: (HTMLElement & { data?: unknown }) | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
@@ -101,7 +102,7 @@ export const createSessionPanel = ({
   const follow = (sessionId: string) => {
     if (subscription) return;
     const value = relay.openSession(sessionId);
-    subscription = { value, stop: value.onChange(render) };
+    subscription = { value, stop: value.onChange(render), unlocked: store.getState().vaultState === 'unlocked' };
   };
 
   const tick = (running: boolean) => {
@@ -132,7 +133,9 @@ export const createSessionPanel = ({
       if (fetched === 'not-found') mount(sessionNotFoundView(), close);
       return;
     }
-    const { slices } = store.getState();
+    const { slices, vaultState } = store.getState();
+    // The Appareil approved while the panel is open: the keys the relay dropped before are asked again, with the replay.
+    if (subscription && !subscription.unlocked && vaultState === 'unlocked') unfollow();
     if (slices.runner?.state === 'online') follow(id);
     else if (subscription) {
       unfollow();

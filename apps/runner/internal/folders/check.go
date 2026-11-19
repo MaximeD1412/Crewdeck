@@ -6,10 +6,8 @@
 package folders
 
 import (
-	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -179,10 +177,5 @@ func gitEnv() []string {
 }
 
 func gitOutput(dir string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
-	cmd.Env = gitEnv()
-	out, err := cmd.Output()
-	return strings.TrimSpace(string(out)), err
+	return gitWithin(dir, gitTimeout, args...)
 }

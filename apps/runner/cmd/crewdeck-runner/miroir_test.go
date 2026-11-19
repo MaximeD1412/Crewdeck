@@ -900,3 +900,33 @@ func TestMiroirAGitHubPRClosesALocalTicketByItsBody(t *testing.T) {
 		t.Errorf("ready --all = %v, want 14 taken by PR 7 and 12 free", readyLines(t, out))
 	}
 }
+
+func TestMiroirAPRWhoseHeadMovedThenMergedWhileAwayKeepsItsLastHeadsChecks(t *testing.T) {
+	f := newMiroirFixture(t)
+	dir := githubDir(t)
+	head := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	// While the Runner was away, PR 7 got the head B, its CI failed, and it was merged.
+	f.override(t, "open-pulls.json", func(d map[string]any) { dig(d, "repository", "pullRequests")["nodes"] = []any{} })
+	f.override(t, "object-7.json", func(d map[string]any) {
+		o := dig(d, "repository", "issueOrPullRequest")
+		o["pullState"], o["mergedAt"], o["closedAt"], o["updatedAt"] = "MERGED", "2026-11-12T08:00:00Z", "2026-11-12T08:00:00Z", "2026-11-12T08:00:00Z"
+		o["headRefOid"], o["statusCheckRollup"] = head, map[string]any{"state": "FAILURE"}
+	})
+	f.override(t, "checks-b.json", func(d map[string]any) {
+		dig(d, "repository", "object")["statusCheckRollup"] = map[string]any{"contexts": map[string]any{
+			"pageInfo": map[string]any{"hasNextPage": false, "endCursor": nil},
+			"nodes": []any{map[string]any{"__typename": "CheckRun", "name": "ci", "status": "COMPLETED", "conclusion": "FAILURE",
+				"detailsUrl": "https://github.com/acme/atelier/actions/runs/8", "startedAt": "2026-11-11T09:01:00Z", "completedAt": "2026-11-11T09:05:00Z"}},
+		}}
+	})
+
+	out, stderr, err := runMiroir(t, dir, "pr", "list", "--state", "merged", "--json", "number,headRefOid,statusCheckRollup",
+		"--jq", `[.[] | select(.number == 7) | {number, headRefOid, checks: [.statusCheckRollup[] | {name, conclusion}]}]`)
+	if err != nil || stderr != "" {
+		t.Fatalf("pr list --state merged: %v\n%s", err, stderr)
+	}
+	want := []any{map[string]any{"number": 7.0, "headRefOid": head, "checks": []any{map[string]any{"name": "ci", "conclusion": "FAILURE"}}}}
+	if got := jq(t, []byte(out), "."); !reflect.DeepEqual(got, want) {
+		t.Errorf("pr list --state merged = %v, want %v", got, want)
+	}
+}

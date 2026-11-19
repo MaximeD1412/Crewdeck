@@ -140,10 +140,26 @@ func (m *Mirror) ReconcileOpen(ctx context.Context, repository string) (Result, 
 	}
 	sort.Ints(stale)
 	for _, number := range stale {
-		if _, err := m.Refresh(ctx, repository, number); err != nil {
+		f, err := m.fetchObject(ctx, repository, number)
+		if err != nil {
+			return result, err
+		}
+		if err := m.Store.Update(f.put); err != nil {
 			return result, err
 		}
 		result.Fetched++
+		if f.gone || !f.object.IsPull || f.object.Pull.HeadOid == "" {
+			continue
+		}
+		// A PR merged or closed meanwhile may have moved its head first: its
+		// last head's checks are read as an open PR's are.
+		p, c := f.object.Pull, local[number]
+		if c.headOid != p.HeadOid || !c.checksRead || c.readState != p.ChecksState {
+			if err := m.refreshChecks(ctx, repository, number, p.HeadOid, p.ChecksState); err != nil {
+				return result, err
+			}
+			result.Checks++
+		}
 	}
 	if err := m.Store.MarkSynced(repository, m.now()); err != nil {
 		return result, err

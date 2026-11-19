@@ -17,6 +17,8 @@ import { zStepVerdict } from './runner/step.js';
 import { zCommandKeys, zCommandOutput, zCommandOutputChunk, zCommandReplay, zCommandRun, zCommandStarted, zCommandStop, zCommandVerdict } from './runner/command.js';
 import { zProcessSealedPayload } from './process/definition.js';
 import { USAGE_EVERY_SECONDS, zUsage, zUsageAck } from './runner/usage.js';
+import { zVaultRotated, zVaultRotationPending } from './runner/vault.js';
+import { zVault, zVaultItems, zVaultRotation, zVaultState } from './api/vault.js';
 import { HEARTBEAT_SECONDS, OFFLINE_AFTER_SECONDS, PROTOCOL_VERSION, RUNNER_WS_CLOSE, zProtocolError, zRunnerEnvelope } from './runner/protocol.js';
 
 /**
@@ -76,6 +78,13 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'process-sealed', schema: zProcessSealedPayload },
   { name: 'runner-usage', schema: zUsage },
   { name: 'runner-usage-ack', schema: zUsageAck },
+  // The vault key's rotation (E2E-4): its messages, and the Runner's HTTP routes.
+  { name: 'runner-vault-rotation-pending', schema: zVaultRotationPending },
+  { name: 'runner-vault-rotated', schema: zVaultRotated },
+  { name: 'runner-vault', schema: zVault },
+  { name: 'runner-vault-items', schema: zVaultItems },
+  { name: 'runner-vault-rotation', schema: zVaultRotation },
+  { name: 'runner-vault-state', schema: zVaultState },
 ];
 
 /**

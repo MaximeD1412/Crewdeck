@@ -13,13 +13,15 @@ const PERSONAL_OS = '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a02';
 const TEXT = 'Pouvoir dupliquer une recette';
 const KEY = new Uint8Array(60).fill(7);
 
-const setup = ({ vaultState = 'unlocked' as VaultState, width = 1280, refuse = null as ApiError | null } = {}) => {
+const setup = ({ vaultState = 'unlocked' as VaultState, width = 1280, refuse = null as ApiError | null, refusals = [] as ApiError[] } = {}) => {
   const calls: { method: string; path: string; body: Record<string, unknown> }[] = [];
   const sealed: { plaintext: string; aad: string }[] = [];
   const client = {
     command: (async (method: string, path: string, body: object, schema?: z.ZodType) => {
       calls.push({ method, path, body: body as Record<string, unknown> });
       if (refuse) throw refuse;
+      const refusal = refusals.shift();
+      if (refusal) throw refusal;
       return schema?.parse({
         ...body,
         number: 65,
@@ -40,11 +42,17 @@ const setup = ({ vaultState = 'unlocked' as VaultState, width = 1280, refuse = n
       });
     }) as Client['command'],
   };
+  /** The version of the vault key held: a rotation elsewhere moves it at the next unlock. */
+  let held = 1;
   const vault = {
     sealItem: vi.fn(async (plaintext: Uint8Array, aad: Uint8Array) => {
       sealed.push({ plaintext: new TextDecoder().decode(plaintext), aad: new TextDecoder().decode(aad) });
       // Not the text: a ciphertext the server cannot read back.
-      return { key: KEY, ciphertext: new Uint8Array(12 + plaintext.length + 16).fill(9) };
+      return { key: KEY, ciphertext: new Uint8Array(12 + plaintext.length + 16).fill(9), vaultKeyVersion: held };
+    }),
+    unlockVault: vi.fn(async (): Promise<VaultState> => {
+      held = 2;
+      return 'unlocked';
     }),
   };
   const projects = new Map([
@@ -89,7 +97,7 @@ describe('createNoteIdea', () => {
     expect(calls).toHaveLength(1);
     const [{ method, path, body }] = calls as [(typeof calls)[number]];
     expect([method, path]).toEqual(['POST', '/api/ideas']);
-    expect(body).toMatchObject({ id: ID, projectId: PERSONAL_OS, notedFrom: 'pc', dictated: false });
+    expect(body).toMatchObject({ id: ID, projectId: PERSONAL_OS, notedFrom: 'pc', dictated: false, vaultKeyVersion: 1 });
     const text = body['text'] as { key: string; ciphertext: string };
     expect(fromBase64Url(text.key)).toEqual(KEY);
     expect(JSON.stringify(body)).not.toContain(TEXT);
@@ -135,11 +143,39 @@ describe('createNoteIdea', () => {
     expect(field.noteIdea.view().error).toBe('Trop court');
   });
 
+  it('the vault rotated since it was unlocked (409 vault.version-changed): unlocks it again, seals under the new version and sends once more, once (E2E-4)', async () => {
+    const changed = () => new ApiError({ status: 409, code: 'vault.version-changed', message: 'La clé du coffre a déjà changé : relis le coffre avant de recommencer.' });
+    const { noteIdea, calls, sealed, vault } = setup({ refusals: [changed()] });
+    noteIdea.open(null);
+    await noteIdea.submit({ text: TEXT, projectId: null });
+    expect(vault.unlockVault).toHaveBeenCalledTimes(1);
+    expect(sealed).toHaveLength(2);
+    expect(calls.map(({ body }) => [body['id'], body['vaultKeyVersion']])).toEqual([
+      [ID, 1],
+      [ID, 2],
+    ]);
+    expect(noteIdea.view()).toMatchObject({ open: false, error: null });
+
+    // Refused again: the message stays in the Dialog, nothing more is sent.
+    const twice = setup({ refusals: [changed(), changed()] });
+    twice.noteIdea.open(null);
+    await twice.noteIdea.submit({ text: TEXT, projectId: null });
+    expect(twice.calls).toHaveLength(2);
+    expect(twice.noteIdea.view()).toMatchObject({ open: true, busy: false, error: 'La clé du coffre a déjà changé : relis le coffre avant de recommencer.' });
+
+    // Another refusal is not retried.
+    const stale = setup({ refusals: [new ApiError({ status: 409, code: 'realtime.stale', message: 'Rafraîchis.' })] });
+    stale.noteIdea.open(null);
+    await stale.noteIdea.submit({ text: TEXT, projectId: null });
+    expect(stale.calls).toHaveLength(1);
+    expect(stale.vault.unlockVault).not.toHaveBeenCalled();
+  });
+
   it('is busy while the Idée is on its way, and takes no second submit nor cancel meanwhile', async () => {
     const { noteIdea, vault } = setup();
     let release: () => void = () => undefined;
     vault.sealItem.mockImplementationOnce(
-      () => new Promise((resolve) => (release = () => resolve({ key: KEY, ciphertext: new Uint8Array(40) }))),
+      () => new Promise((resolve) => (release = () => resolve({ key: KEY, ciphertext: new Uint8Array(40), vaultKeyVersion: 1 }))),
     );
     noteIdea.open(null);
     const first = noteIdea.submit({ text: TEXT, projectId: null });

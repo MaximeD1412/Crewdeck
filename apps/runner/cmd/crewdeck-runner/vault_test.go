@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ecdh"
 	"encoding/json"
 	"io"
 	"net/http/httptest"
@@ -133,6 +134,43 @@ func TestRunRefusesARunnerWhoseVaultDoesNotOpen(t *testing.T) {
 	}
 }
 
+// After a rotation (E2E-4) vault.wrap holds a wrap of a later version that
+// the Runner sealed for itself, or that the holder that rotated sealed: the
+// vault opens from that sender, the first Appareil's key kept beside it.
+func TestTheVaultOpensFromTheSenderOfAWrapOfALaterVersion(t *testing.T) {
+	home := t.TempDir()
+	linkedHome(t, home, "http://127.0.0.1:1")
+	store := state.Store{Dir: home}
+	w, err := store.LoadVaultWrap()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := store.LoadRunnerKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner, err := ecdh.X25519().NewPrivateKey(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	laptop, _ := keys.GenerateKeyPair()
+	for name, sender := range map[string]*ecdh.PrivateKey{"the Runner itself": runner, "an Appareil it authenticated": laptop} {
+		vaultKey, _ := keys.GenerateAESKey()
+		rotated, err := keys.SealWrap(sender, keys.PublicKeyBytes(runner), vaultKey, []byte(keys.InfoVaultWrap), keys.VaultWrapAAD(runnerID, 2))
+		if err != nil {
+			t.Fatal(err)
+		}
+		next := state.VaultWrap{RunnerID: runnerID, VaultKeyVersion: 2, DevicePublicKey: w.DevicePublicKey, SenderPublicKey: keys.PublicKeyBytes(sender), Enc: rotated.Enc, Ciphertext: rotated.Ciphertext, Tag: rotated.Tag}
+		if err := store.SaveVaultWrap(next); err != nil {
+			t.Fatal(err)
+		}
+		vault, err := openVault(store)
+		if err != nil || vault.Version != 2 {
+			t.Fatalf("%s: openVault = %v, %v, want version 2", name, vault, err)
+		}
+	}
+}
+
 // linkedHome writes what a link leaves: runner.json, runner.key and a
 // vault.wrap an Appareil sealed for this Runner.
 func linkedHome(t *testing.T, home, server string) {
@@ -195,13 +233,17 @@ type probeIn struct {
 }
 
 type probeOut struct {
-	Opened string    `json:"opened"`
-	Sealed probeItem `json:"sealed"`
+	// VaultKeyVersion is the version of the vault opened: past 1 once the
+	// Runner rotated or took a rotation (E2E-4).
+	VaultKeyVersion int       `json:"vaultKeyVersion"`
+	Opened          string    `json:"opened"`
+	Sealed          probeItem `json:"sealed"`
 }
 
-// TestVaultProbe is the Runner's side of the server's integration test of the
+// TestVaultProbe is the Runner's side of the server's integration tests of the
 // first Appareil (apps/server/test/integration/first-appareil.spec.ts), which
-// runs it once a real `crewdeck-runner link` linked a CREWDECK_HOME: as `run`
+// runs it once a real `crewdeck-runner link` linked a CREWDECK_HOME, and of the
+// rotation (vault-rotation-runner.spec.ts), once `run` rotated: as `run`
 // at start, it opens the vault from runner.key and vault.wrap, opens the
 // page's item of in.json and seals one for the page in out.json. Skipped
 // without CREWDECK_VAULT_PROBE.
@@ -230,7 +272,7 @@ func TestVaultProbe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, _ := json.Marshal(probeOut{Opened: string(opened), Sealed: probeItem{AAD: in.ToPage.AAD, Key: b64(sealed.Key), Ciphertext: b64(sealed.Ciphertext)}})
+	out, _ := json.Marshal(probeOut{VaultKeyVersion: vault.Version, Opened: string(opened), Sealed: probeItem{AAD: in.ToPage.AAD, Key: b64(sealed.Key), Ciphertext: b64(sealed.Ciphertext)}})
 	if err := os.WriteFile(dir+"/out.json", out, 0o600); err != nil {
 		t.Fatal(err)
 	}

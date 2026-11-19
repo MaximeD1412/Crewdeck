@@ -52,6 +52,9 @@ interface Tab {
 
 const STEP = { stepRunId: '019a8f3c-2b4d-7e10-8a5b-6c7d8e9f0a1b', stepKind: 'code' } as const;
 
+/** The Projet's worktree Commandes as the page seals them: bytes the server only carries. */
+const WORKTREE_COMMANDS = { key: Buffer.alloc(60, 0xd1).toString('base64url'), ciphertext: Buffer.alloc(48, 0xd2).toString('base64url') };
+
 describe('the Sessions against PostgreSQL', () => {
   let app: INestApplication;
   let url: string;
@@ -203,12 +206,36 @@ describe('the Sessions against PostgreSQL', () => {
         permissionMode: 'bypass',
         step: STEP,
         title: 'Le panier garde ses articles',
+        worktreeCommands: null,
       });
       expect(zAgentSession.parse(session)).toMatchObject({ state: 'starting', stepRunId: STEP.stepRunId, outcome: null, error: null, endedAt: null });
       await vi.waitFor(() => expect(events).toHaveLength(1));
       stop();
       expect(events[0]?.payload).toEqual(session);
       expect(Number((await row(session.id))?.last_seq)).toBe(events[0]?.seq);
+    });
+
+    it('sends the Projet’s worktree Commandes sealed as stored, at its start, at its start again and once its Runner is back, and never in its view', async () => {
+      const alice = await pilot();
+      const projectId = await project(alice);
+      await sql(`INSERT INTO project_settings (project_id, pilot_id, roles, worktree_commands, updated_at) VALUES ($1, $2, '{}', $3, now())`, [projectId, alice.id, WORKTREE_COMMANDS]);
+      const { token } = await createLinkedRunner(prisma, alice.id);
+      const socket = await connect(token);
+
+      const session = await start(alice, input(projectId, { branch: 'feat/14-commandes' }));
+      expect(await socket.expect('session.start')).toMatchObject({ sessionId: session.id, worktreeCommands: WORKTREE_COMMANDS });
+      expect(JSON.stringify(session)).not.toContain(WORKTREE_COMMANDS.ciphertext);
+
+      const interrupted = await insert(alice, projectId, { state: 'interrupted' });
+      expect((await call(alice, 'POST', `/api/sessions/${interrupted}/resume`, { seq: '0' })).status).toBe(200);
+      expect(await socket.expect('session.start')).toMatchObject({ sessionId: interrupted, worktreeCommands: WORKTREE_COMMANDS });
+
+      await socket.close();
+      const meanwhile = await start(alice, input(projectId, { branch: 'feat/13-apres' }));
+      const back = await connect(token);
+      expect(await back.expect('session.start')).toMatchObject({ sessionId: meanwhile.id, worktreeCommands: WORKTREE_COMMANDS });
+      const listed = await call(alice, 'GET', `/api/sessions/${meanwhile.id}`);
+      expect(await listed.text()).not.toContain(WORKTREE_COMMANDS.ciphertext);
     });
 
     it('asks auto of a Session without an Étape, or of an Étape that does not work in its worktree, and starts it from the base given', async () => {

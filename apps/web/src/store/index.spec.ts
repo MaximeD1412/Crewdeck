@@ -150,6 +150,7 @@ const SNAPSHOT: State = {
   'ai-account': [],
   'mcp-server': [],
   devices: [],
+  vault: { version: 1, rotationPending: false },
   projects: [],
   processes: [PROCESS],
   phaseRuns: [PHASE_RUN],
@@ -289,5 +290,12 @@ describe('the page’s store', () => {
     store.applyEvent({ seq: 2, type: 'agent-session.upserted', payload: interrupted, at: AT });
 
     expect(store.getState().slices['agent-session']?.get(SESSION.id)).toEqual(interrupted);
+  });
+
+  it('holds the vault’s version and its rotation pending (E2E-4), from the snapshot then vault.upserted', () => {
+    store.applySnapshot(SNAPSHOT);
+    expect(store.getState().slices.vault).toEqual({ version: 1, rotationPending: false });
+    store.applyEvent({ seq: 2, type: 'vault.upserted', payload: { version: 1, rotationPending: true }, at: AT });
+    expect(store.getState().slices.vault).toEqual({ version: 1, rotationPending: true });
   });
 });

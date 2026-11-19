@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { withSeq } from './commands.js';
-import { zBytes } from '../keys/pairing.js';
+import { zBytes, zVaultKeyVersion } from '../keys/pairing.js';
 import { zSealedItem } from '../keys/sealed.js';
 import { zCursorPage, zId, zInstant } from '../values.js';
 
@@ -78,11 +78,14 @@ export type Idea = z.infer<typeof zIdea>;
  * `id` (a UUIDv7) to seal the text under `ideaItemAad(id, 'text')` before it
  * exists; an id already taken is 409. `seq` is the chosen Projet's, the last
  * the page saw (409 `realtime.stale` when it changed since).
+ * `vaultKeyVersion` is the version of the vault key the text was sealed
+ * under: 409 `vault.version-changed` once the vault rotated past it (E2E-4).
  */
 export const zNoteIdeaInput = withSeq(
   z.object({
     id: zId,
     text: zIdeaText,
+    vaultKeyVersion: zVaultKeyVersion,
     projectId: zId.nullable(),
     notedFrom: zIdeaNotedFrom,
     dictated: z.boolean(),

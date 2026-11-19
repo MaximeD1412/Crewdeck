@@ -3,6 +3,7 @@ import { Banner, Button, Cadre, CodeBlock, MenuItem } from '@crewdeck/sdk';
 import { announcer as pageAnnouncer, type Announcer } from './announcer.js';
 import type { VaultState } from './keys/vault.js';
 import type { RouteMatch } from './router.js';
+import type { StoreState } from './store/store.js';
 import { bannersView, type BannerAction, type BannerView } from './views/banners.js';
 import { cadreView, type CadreState } from './views/cadre.js';
 
@@ -33,6 +34,8 @@ export interface ShellState extends CadreState {
     /** The open Décisions: « Runner hors ligne »'s Banner reads its own (ATOI-3). */
     readonly decision?: ReadonlyMap<string, Decision>;
     readonly device?: ReadonlyMap<string, Device>;
+    /** The vault's version: above 0, another Appareil or the Runner holds it (E2E-4). */
+    readonly vault?: StoreState['slices']['vault'];
   };
 }
 
@@ -130,7 +133,7 @@ export const mountShell = ({
         runner: current.slices.runner ?? null,
         decisions: current.slices.decision?.values() ?? [],
         ...(current.vaultState ? { vaultState: current.vaultState } : {}),
-        slices: current.slices.device ? { device: current.slices.device } : {},
+        slices: { ...(current.slices.device ? { device: current.slices.device } : {}), ...(current.slices.vault ? { vault: current.slices.vault } : {}) },
       },
       error,
     );

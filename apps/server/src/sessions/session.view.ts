@@ -1,4 +1,4 @@
-import type { AgentSession, EngineId, RoleId, SessionError, SessionInterruptedReason, SessionStart, StepId } from '@crewdeck/contracts';
+import { type AgentSession, type EngineId, type RoleId, type SessionError, type SessionInterruptedReason, type SessionStart, type StepId, zSealedItem } from '@crewdeck/contracts';
 import type { Prisma } from '../generated/prisma/client.js';
 
 /** What a Session's view, and the `session.start` it is sent with, read of its row. */
@@ -22,7 +22,8 @@ export const SESSION_ROW = {
   startedAt: true,
   endedAt: true,
   lastSeq: true,
-  project: { select: { owner: true, name: true } },
+  // The Projet's worktree Commandes, sealed as stored: `session.start` carries them, the view never (RUNNER-20).
+  project: { select: { owner: true, name: true, settings: { select: { worktreeCommands: true } } } },
 } as const satisfies Prisma.AgentSessionSelect;
 
 export type SessionRow = Prisma.AgentSessionGetPayload<{ select: typeof SESSION_ROW }>;
@@ -50,7 +51,7 @@ export const toAgentSession = (row: SessionRow): AgentSession => ({
   endedAt: row.endedAt?.toISOString() ?? null,
 });
 
-/** The `session.start` of the Session `row`: its origin the Projet's repository on GitHub (SOURCE-2 adds the Local one). */
+/** The `session.start` of the Session `row`: its origin the Projet's repository on GitHub (SOURCE-2 adds the Local one), its Projet's worktree Commandes sealed as stored, `null` when the Pilote set neither. */
 export const startMessageOf = (row: SessionRow): Omit<SessionStart, 'id' | 'at'> => ({
   type: 'session.start',
   sessionId: row.id,
@@ -64,4 +65,5 @@ export const startMessageOf = (row: SessionRow): Omit<SessionStart, 'id' | 'at'>
   permissionMode: row.permissionMode as SessionStart['permissionMode'],
   ...(row.stepRunId !== null && row.stepKind !== null ? { step: { stepRunId: row.stepRunId, stepKind: row.stepKind as StepId } } : {}),
   title: row.title,
+  worktreeCommands: row.project.settings?.worktreeCommands ? zSealedItem.parse(row.project.settings.worktreeCommands) : null,
 });

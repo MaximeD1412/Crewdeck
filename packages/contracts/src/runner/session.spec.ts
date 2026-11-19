@@ -23,6 +23,16 @@ describe('the Sessions of the Runner protocol', () => {
     expect(zSessionStart.safeParse({ ...start, step: { stepRunId: start.sessionId, stepKind: 'deploy' } }).success).toBe(false);
   });
 
+  it('carries the Projet’s worktree Commandes sealed as stored, or null when the Pilote set neither, never in the clear', () => {
+    const start = fixture('session.start');
+    expect(zSessionStart.parse(start).worktreeCommands).toEqual(start.worktreeCommands);
+    expect(zSessionStart.parse({ ...start, worktreeCommands: null }).worktreeCommands).toBeNull();
+    const withoutThem = { ...start };
+    delete withoutThem.worktreeCommands;
+    expect(zSessionStart.safeParse(withoutThem).success).toBe(false);
+    expect(zSessionStart.safeParse({ ...start, worktreeCommands: { prepare: 'pnpm install', clean: null } }).success).toBe(false);
+  });
+
   it('takes a default Rôle or one the Pilote added', () => {
     const start = fixture('session.start');
     expect(zSessionStart.safeParse({ ...start, role: 'r-a1b2c3d4' }).success).toBe(true);

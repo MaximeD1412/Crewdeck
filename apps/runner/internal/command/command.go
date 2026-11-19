@@ -59,7 +59,8 @@ type Vault interface {
 // Places gives the folders the runs run in (session.Manager): the Ticket's
 // worktree, the Projet's integration checkout, each held until released.
 type Places interface {
-	TicketWorktree(ctx context.Context, projectID, owner, name, branch, sha string) (*session.Place, error)
+	// TicketWorktree prepares the worktree it makes with prep (session.Hooks).
+	TicketWorktree(ctx context.Context, projectID, owner, name, branch, sha string, prep session.Preparation) (*session.Place, error)
 	IntegrationCheckout(ctx context.Context, projectID, owner, name, integrationBranch, sha string) (*session.Place, error)
 }
 

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,6 +81,9 @@ type machineFixture struct {
 	binary  string
 	service service.Config
 	engines []contracts.EngineCapabilities
+	// vault is the server's vault as uninstall reads it; by default, a
+	// server that does not answer: no test reaches a real one.
+	vault func(ctx context.Context, linked state.State) (contracts.RunnerVault, error)
 }
 
 func newMachineFixture(t *testing.T, cfg service.Config) *machineFixture {
@@ -123,6 +127,12 @@ func (f *machineFixture) machine() *machine {
 		executable: func() (string, error) { return f.binary, nil },
 		engines: func(context.Context) []contracts.EngineCapabilities {
 			return f.engines
+		},
+		vault: func(ctx context.Context, linked state.State) (contracts.RunnerVault, error) {
+			if f.vault == nil {
+				return contracts.RunnerVault{}, errors.New("the server does not answer")
+			}
+			return f.vault(ctx, linked)
 		},
 	}
 }

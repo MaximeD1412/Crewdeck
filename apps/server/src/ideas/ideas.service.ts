@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { EventsWriter } from '../realtime/events.writer.js';
 import { assertFresh } from '../realtime/freshness.js';
 import { Transactions, type Tx } from '../realtime/transactions.js';
+import { assertVaultVersion } from '../vault/sealed-write.js';
 import { decodeIdeaCursor, encodeIdeaCursor } from './idea-cursor.js';
 import { IDEA_VIEW, ideaStateRow, toIdea } from './idea.view.js';
 import { syncIdeasToTriage } from './triage-decision.js';
@@ -56,9 +57,10 @@ export class IdeasService {
   /**
    * 404 `project.not-found` for a Projet unknown or another Pilote's, 409
    * `realtime.stale` when the chosen Projet changed since `seq`, 409
-   * `idea.id-taken` for an id already an Idée's.
+   * `idea.id-taken` for an id already an Idée's, 409 `vault.version-changed`
+   * for a text sealed under another vault key than the current one.
    */
-  async note(pilotId: string, { id, text, projectId, notedFrom, dictated, seq }: NoteIdeaInput): Promise<Idea> {
+  async note(pilotId: string, { id, text, vaultKeyVersion, projectId, notedFrom, dictated, seq }: NoteIdeaInput): Promise<Idea> {
     try {
       return await this.transactions.run(async (tx) => {
         if (projectId !== null) {
@@ -67,6 +69,8 @@ export class IdeasService {
           assertFresh(project.lastSeq, BigInt(seq));
         }
         const { ideaSeq } = await tx.pilot.update({ where: { id: pilotId }, data: { ideaSeq: { increment: 1 } }, select: { ideaSeq: true } });
+        // The Pilote's row is now held: no rotation moves the vault before the commit.
+        await assertVaultVersion(tx, pilotId, vaultKeyVersion);
         const now = new Date();
         const row = await tx.idea.create({
           data: { id, pilotId, number: ideaSeq, projectId, state: 'to_triage', text, notedFrom, dictated, createdAt: now, updatedAt: now },

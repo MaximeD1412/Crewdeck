@@ -12,5 +12,6 @@
   "role": "code",
   "permissionMode": "bypass",
   "step": { "stepRunId": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a93", "stepKind": "code" },
-  "title": "Le panier garde les articles"
+  "title": "Le panier garde les articles",
+  "worktreeCommands": { "key": "CwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsL", "ciphertext": "DAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM" }
 }

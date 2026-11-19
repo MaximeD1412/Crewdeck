@@ -11,6 +11,7 @@ import { zGitHubChanged, zMirrorLive, zMirrorProjects, zMirrorResync, zMirrorTok
 import { zRelay, zSessionInput, zSessionKeys, zSessionReplay } from './relay.js';
 import { zStepVerdict } from './step.js';
 import { zUsage, zUsageAck } from './usage.js';
+import { zVaultRotated, zVaultRotationPending } from './vault.js';
 
 export { runnerMessage, type RunnerEnvelope, zRunnerEnvelope } from './envelope.js';
 
@@ -65,6 +66,8 @@ export const zServerToRunner = z.discriminatedUnion('type', [
   zCommandStop,
   zCommandReplay,
   zUsageAck,
+  zVaultRotationPending,
+  zVaultRotated,
 ]);
 export type ServerToRunner = z.infer<typeof zServerToRunner>;
 export type ServerToRunnerType = ServerToRunner['type'];

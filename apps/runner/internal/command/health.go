@@ -155,9 +155,15 @@ func (r *Runner) keep(message contracts.RunnerCommandRun, proc *leader, out *out
 		after: r.cfg.After,
 		ended: make(chan struct{}),
 		release: func() {
+			// What the service said goes in its log; what cleans its
+			// worktree, in the run's, relayed.
+			out.flush()
+			if err := out.takeBack(); err != nil {
+				r.cfg.Logger.Warn("command.log", "runId", message.RunId, "error", "not reopened")
+			}
+			place.Release()
 			out.flush()
 			out.close()
-			place.Release()
 			r.untrack(key, message.RunId)
 		},
 	}

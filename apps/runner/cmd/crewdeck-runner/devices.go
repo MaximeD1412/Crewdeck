@@ -176,14 +176,15 @@ func (a *approver) call(ctx context.Context, server, token, method, path string,
 }
 
 // serverHolders lists, with the Runner's token, the Appareils an approval
-// vouched for (GET /api/runner/devices/holders).
+// vouched for, and the revoked ones that vouch for others (GET
+// /api/runner/devices/holders).
 func serverHolders(client *http.Client, server, token string) listHolders {
-	return func(ctx context.Context) ([]contracts.RunnerDeviceHoldersHoldersElem, error) {
+	return func(ctx context.Context) (contracts.RunnerDeviceHolders, error) {
 		var answer contracts.RunnerDeviceHolders
 		if err := callServer(ctx, client, strings.TrimRight(server, "/"), token, http.MethodGet, "/api/runner/devices/holders", nil, &answer); err != nil {
-			return nil, err
+			return contracts.RunnerDeviceHolders{}, err
 		}
-		return answer.Holders, nil
+		return answer, nil
 	}
 }
 
@@ -216,7 +217,7 @@ func callServer(ctx context.Context, client *http.Client, server, token, method,
 	if err != nil {
 		return err
 	}
-	if response.StatusCode == http.StatusOK {
+	if response.StatusCode >= 200 && response.StatusCode < 300 {
 		if into == nil {
 			return nil
 		}
@@ -225,9 +226,20 @@ func callServer(ctx context.Context, client *http.Client, server, token, method,
 		}
 		return nil
 	}
+	refused := &serverError{Status: response.StatusCode, Message: fmt.Sprintf("Le serveur a répondu %d.", response.StatusCode)}
 	var envelope contracts.ErrorEnvelope
-	if err := json.Unmarshal(data, &envelope); err != nil || envelope.Message == "" {
-		return fmt.Errorf("Le serveur a répondu %d.", response.StatusCode)
+	if err := json.Unmarshal(data, &envelope); err == nil && envelope.Message != "" {
+		refused.Code, refused.Message = envelope.Code, envelope.Message
 	}
-	return errors.New(envelope.Message)
+	return refused
 }
+
+// serverError is a refusal of the server: its status, the code of its
+// envelope, and its message, what the Runner says.
+type serverError struct {
+	Status  int
+	Code    string
+	Message string
+}
+
+func (e *serverError) Error() string { return e.Message }

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { zBytes } from '../keys/pairing.js';
+import { zBytes, zVaultKeyVersion } from '../keys/pairing.js';
 import { zSealedItem } from '../keys/sealed.js';
 import { zId, zSeq } from '../values.js';
 import { zRoleId } from './roles.js';
@@ -102,14 +102,23 @@ export type ProjectSettingsUpdated = z.infer<typeof zProjectSettingsUpdated>;
  * `PATCH /api/projects/:id/settings`: what to change, any part of it; an
  * unknown key is refused at any depth. A Rôle's choice, or `null` back to
  * the account; push, or `null` back to the account; a branch; the whole
- * sealed `zWorktreeCommands`, or `null` to remove both.
+ * sealed `zWorktreeCommands`, or `null` to remove both. The sealed ones come
+ * with `vaultKeyVersion`, the version of the vault key they were sealed
+ * under (409 `vault.version-changed` once the vault rotated past it, E2E-4),
+ * and only they.
  */
-export const zProjectSettingsPatch = z.strictObject({
-  roles: z.partialRecord(zRoleId, zRoleChoice).optional(),
-  notifications: z.strictObject({ push: z.boolean().nullable() }).partial().optional(),
-  branches: z.strictObject({ integration: zBranchName, release: zBranchName }).partial().optional(),
-  worktreeCommands: zSealedWorktreeCommands.nullable().optional(),
-});
+export const zProjectSettingsPatch = z
+  .strictObject({
+    roles: z.partialRecord(zRoleId, zRoleChoice).optional(),
+    notifications: z.strictObject({ push: z.boolean().nullable() }).partial().optional(),
+    branches: z.strictObject({ integration: zBranchName, release: zBranchName }).partial().optional(),
+    worktreeCommands: zSealedWorktreeCommands.nullable().optional(),
+    vaultKeyVersion: zVaultKeyVersion.optional(),
+  })
+  .refine((patch) => (patch.worktreeCommands ? patch.vaultKeyVersion !== undefined : patch.vaultKeyVersion === undefined), {
+    path: ['vaultKeyVersion'],
+    message: 'vaultKeyVersion accompagne les Commandes scellées, et elles seules.',
+  });
 export type ProjectSettingsPatch = z.infer<typeof zProjectSettingsPatch>;
 
 /**

@@ -134,6 +134,31 @@
     "type": {
       "const": "command.run",
       "type": "string"
+    },
+    "worktreeCommands": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "ciphertext": {
+              "pattern": "^[A-Za-z0-9_-]*$",
+              "type": "string"
+            },
+            "key": {
+              "pattern": "^[A-Za-z0-9_-]*$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "ciphertext",
+            "key"
+          ],
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [
@@ -146,7 +171,8 @@
     "ref",
     "runId",
     "sealed",
-    "type"
+    "type",
+    "worktreeCommands"
   ],
   "title": "RunnerCommandRun",
   "type": "object"

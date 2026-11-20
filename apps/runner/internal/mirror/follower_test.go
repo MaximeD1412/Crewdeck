@@ -773,6 +773,55 @@ func TestWaitFilledWaitsForTheServersProjetsThenTheirFirstReconciliation(t *test
 	}
 }
 
+// IDEE-2: each connection's Projets are waited for again; a Projet made
+// while the Runner was away, sent late on the next connection, is waited for
+// rather than the copies of the last one read.
+func TestWaitFilledWaitsAgainForEachConnectionsProjets(t *testing.T) {
+	clock := newClock()
+	server := newRunnerServer(t, clock)
+	fake := newFake(t, "testdata/graphql", "testdata/outils")
+	store, path := followedStore(t, 0, followedAtelier)
+	server.sendLive(0)
+	server.set(func(s *runnerServer) { s.answer = func(int) any { return nil } })
+	f, _ := follow(t, store, fake, server)
+	server.awaitHello()
+	wait := func(d time.Duration) error {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(t.Context(), d)
+		defer cancel()
+		return f.WaitFilled(ctx)
+	}
+	server.send(mirrorProjects(followedAtelier))
+	server.send(server.issued(clock.Now().Add(time.Hour)))
+	awaitFilled(t, path, 1)
+	if err := wait(5 * time.Second); err != nil {
+		t.Fatalf("the first connection's Projet filled: %v", err)
+	}
+
+	// The connection drops; acme/outils is made meanwhile.
+	server.drop()
+	server.awaitHello()
+	if err := wait(50 * time.Millisecond); !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "never arrived") {
+		t.Fatalf("before the new connection's mirror.projects: %v, want its wait", err)
+	}
+	waited := make(chan error, 1)
+	go func() { waited <- wait(10 * time.Second) }()
+	// The first connection's token covers acme/outils: it fills at once.
+	server.send(mirrorProjects(followedAtelier, followedOutils))
+	select {
+	case err := <-waited:
+		if err != nil {
+			t.Fatalf("once acme/outils reconciled: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("WaitFilled still waits once acme/outils reconciled")
+	}
+	if got, _ := f.State("acme/outils"); got.State == FreshnessFilling {
+		t.Error("WaitFilled returned while acme/outils still filled")
+	}
+	awaitFilled(t, path, 2)
+}
+
 func TestAFailedRefreshLeavesItsCopyLateUntilARefreshOfItSucceeds(t *testing.T) {
 	clock := newClock()
 	server := newRunnerServer(t, clock)

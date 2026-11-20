@@ -37,15 +37,54 @@ const vaultItemsMax = 30_000
 // new version: the Commandes open with the vault held at each open.
 type heldVault struct {
 	current atomic.Pointer[keys.Vault]
+	mu      sync.Mutex
+	// moved is closed, then made again, at each swap (WaitVersion).
+	moved chan struct{}
 }
 
 func newHeldVault(v *keys.Vault) *heldVault {
-	h := &heldVault{}
+	h := &heldVault{moved: make(chan struct{})}
 	h.current.Store(v)
 	return h
 }
 
 func (h *heldVault) Load() *keys.Vault { return h.current.Load() }
+
+// store holds next from now on, and wakes the WaitVersion waiting.
+func (h *heldVault) store(next *keys.Vault) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.current.Store(next)
+	close(h.moved)
+	h.moved = make(chan struct{})
+}
+
+// WaitVersion returns once the vault held is of version or a later one: the
+// texts of a session.start sent after a rotation are under the new version,
+// which the rotator adopts off the connection's loop (ideaanalysis.Versioned).
+func (h *heldVault) WaitVersion(ctx context.Context, version int) error {
+	for {
+		h.mu.Lock()
+		held, moved := h.current.Load(), h.moved
+		h.mu.Unlock()
+		if held != nil && held.Version >= version {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("vault: version %d not held yet: %w", version, ctx.Err())
+		case <-moved:
+		}
+	}
+}
+
+// SealVersioned seals with the vault held, and says its version
+// (session.Config.Seal).
+func (h *heldVault) SealVersioned(plaintext, aad []byte) (keys.SealedItem, int, error) {
+	held := h.Load()
+	item, err := held.SealItem(plaintext, aad)
+	return item, held.Version, err
+}
 
 // SealItem seals with the vault held (folders.Vault).
 func (h *heldVault) SealItem(plaintext, aad []byte) (keys.SealedItem, error) {
@@ -127,7 +166,7 @@ type rotator struct {
 
 // swap holds next from now on, and says so.
 func (r *rotator) swap(next *keys.Vault) {
-	r.held.current.Store(next)
+	r.held.store(next)
 	if r.moved != nil {
 		r.moved()
 	}

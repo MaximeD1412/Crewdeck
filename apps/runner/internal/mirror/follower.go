@@ -106,7 +106,8 @@ type Follower struct {
 	started  time.Time
 	projects map[string]*followed
 	workers  sync.WaitGroup
-	// projectsKnown: a mirror.projects arrived since the Runner started;
+	// projectsKnown: a mirror.projects arrived on the current connection
+	// (those made while the Runner was away come with the next one's);
 	// fill is closed, then made again, each time a copy's fill may have
 	// moved (WaitFilled).
 	projectsKnown bool
@@ -345,6 +346,7 @@ func (f *Follower) wakeAll() {
 func (f *Follower) accepted() {
 	f.mu.Lock()
 	f.connected, f.live, f.resync = true, false, nil
+	f.projectsKnown = false
 	f.lastReceived = 0
 	if f.hasCursor {
 		f.lastReceived = f.cursor
@@ -360,6 +362,7 @@ func (f *Follower) accepted() {
 func (f *Follower) closed() {
 	f.mu.Lock()
 	f.connected, f.live = false, false
+	f.projectsKnown = false
 	f.mu.Unlock()
 }
 

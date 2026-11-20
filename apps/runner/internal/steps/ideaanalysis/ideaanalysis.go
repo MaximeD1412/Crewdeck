@@ -47,6 +47,14 @@ type Opener interface {
 	OpenItem(item keys.SealedItem, aad []byte) ([]byte, error)
 }
 
+// Versioned is an Opener that waits until it holds a version of the vault
+// key, or a later one (the held vault, whose new version a rotation done
+// while the Runner was away is adopted off the connection's loop).
+type Versioned interface {
+	Opener
+	WaitVersion(ctx context.Context, version int) error
+}
+
 // Context is `.crewdeck/context.json`.
 type Context struct {
 	Idea      Idea       `json:"idea"`
@@ -114,8 +122,9 @@ type Filling interface {
 	WaitFilled(ctx context.Context) error
 }
 
-// FillWait is how long a Session waits for the copy's first fill before
-// failing, rather than analyse an Idée against Projets half copied.
+// FillWait is how long a Session waits for the copy's first fill, then for
+// the vault key its Idées are sealed under, before failing, rather than
+// analyse an Idée against Projets half copied or a text that does not open.
 var FillWait = 5 * time.Minute
 
 // Kind is the session.StepKind of idea-analysis.
@@ -136,16 +145,21 @@ func New(store Store, vault Opener, fill Filling) *Kind {
 // ErrNoIdea is the error of a step without its Idées.
 var ErrNoIdea = errors.New("ideaanalysis: the step has no Idée")
 
-// Prepare writes the context in dir, once the copy was filled: the file
-// stays as it is for the whole Session. A copy still filling after FillWait,
-// or a Session stopped meanwhile (ctx), fails it.
+// Prepare writes the context in dir, once the copy was filled and the vault
+// held is of the version the Idées are sealed under: the file stays as it is
+// for the whole Session. Either still missing after FillWait, or a Session
+// stopped meanwhile (ctx), fails it.
 func (k *Kind) Prepare(ctx context.Context, dir string, step *contracts.RunnerSessionStartStep) error {
+	waiting, cancel := context.WithTimeout(ctx, FillWait)
+	defer cancel()
 	if k.fill != nil {
-		waiting, cancel := context.WithTimeout(ctx, FillWait)
-		err := k.fill.WaitFilled(waiting)
-		cancel()
-		if err != nil {
+		if err := k.fill.WaitFilled(waiting); err != nil {
 			return fmt.Errorf("ideaanalysis: the Miroir's copy: %w", err)
+		}
+	}
+	if v, ok := k.vault.(Versioned); ok && step != nil && step.Ideas != nil {
+		if err := v.WaitVersion(waiting, step.Ideas.VaultKeyVersion); err != nil {
+			return fmt.Errorf("ideaanalysis: the Idées' vault key: %w", err)
 		}
 	}
 	c, err := k.Context(step)

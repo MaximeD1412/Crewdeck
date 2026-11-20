@@ -335,10 +335,15 @@ func NewStepStarted(stepRunID string) contracts.RunnerStepStarted {
 }
 
 // NewStepReport is what the Skill reported (`etape report`): its readable
-// figures, and its free text sealed under the vault key, nil for none.
-func NewStepReport(stepRunID string, figures map[string]any, sealed *contracts.RunnerStepReportSealed) contracts.RunnerStepReport {
+// figures, and its free text sealed under the vault key of vaultKeyVersion,
+// nil for none.
+func NewStepReport(stepRunID string, figures map[string]any, sealed *contracts.RunnerStepReportSealed, vaultKeyVersion int) contracts.RunnerStepReport {
 	at := now()
-	return contracts.RunnerStepReport{Type: TypeStepReport, Id: newID(at), At: at, StepRunId: stepRunID, Figures: figures, Sealed: sealed}
+	m := contracts.RunnerStepReport{Type: TypeStepReport, Id: newID(at), At: at, StepRunId: stepRunID, Figures: figures, Sealed: sealed}
+	if sealed != nil {
+		m.VaultKeyVersion = &vaultKeyVersion
+	}
+	return m
 }
 
 // NewStepVerdict is the verdict of the Contrat of an Étape's Session, checked

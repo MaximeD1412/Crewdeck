@@ -59,8 +59,9 @@ func (f *Follower) fillMoved() {
 	f.fill = make(chan struct{})
 }
 
-// WaitFilled returns once the server's Projets arrived since the Runner
-// started and every one's copy was filled once (FreshnessFilling no more),
+// WaitFilled returns once the server's Projets arrived on the current
+// connection (a Projet made while the Runner was away is among them) and
+// every one's copy was filled once (FreshnessFilling no more),
 // so that what is read of the copy misses none of them; ctx's error, with
 // the keys still filling, if it ends first.
 func (f *Follower) WaitFilled(ctx context.Context) error {

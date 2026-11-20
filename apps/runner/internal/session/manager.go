@@ -80,9 +80,9 @@ type Config struct {
 	Skills fs.FS
 	// RunnerVersion is the version of Claude Code's plugin of the Skills.
 	RunnerVersion string
-	// Seal seals an Étape's report's content under the vault key; nil, a
-	// report with a content is refused.
-	Seal func(plaintext, aad []byte) (keys.SealedItem, error)
+	// Seal seals an Étape's report's content under the vault key held, and
+	// says its version; nil, a report with a content is refused.
+	Seal func(plaintext, aad []byte) (keys.SealedItem, int, error)
 	// ChangeOf is the change of code of the Session's branch, read from the
 	// Miroir, that the Étape's Contrat checks; nil (or none) no PR.
 	ChangeOf func(ctx context.Context, projectID, branch string) (*contrat.PullRequest, error)
@@ -136,6 +136,10 @@ type live struct {
 	// questions (step.go).
 	out  *runLog
 	asks map[string]*ask
+	// reportMu orders the sends of the Étape's report; report is the last
+	// one sealed and sent (step.go).
+	reportMu sync.Mutex
+	report   *sentReport
 }
 
 // request is a `question` or a `permission-request` that waits: what an

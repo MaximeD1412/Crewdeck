@@ -134,8 +134,6 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		return err
 	}
 	defer locals.Close()
-	// A new vault version: each Local Projet's texts go again, sealed under it.
-	rotations.moved = locals.full
 	// The Miroir (ADR 0010, ADR 0012): the copy of every Projet's Sources,
 	// its follower its only writer, fed by the server's envelopes on each
 	// connection and by the Local Projets' folders.
@@ -169,7 +167,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		// on the change of code the Miroir has of its branch.
 		Skills:        officialskills.FS,
 		RunnerVersion: version,
-		Seal:          vault.SealItem,
+		Seal:          vault.SealVersioned,
 		ChangeOf:      mirrorChanges{store: copied, follow: follower}.of,
 		// The analysis of an Idée (IDEE-2): its scratch folder given the
 		// context read from the Miroir, its texts opened with the vault, and
@@ -182,6 +180,12 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		return err
 	}
 	defer sessions.Close()
+	// A new vault version: each Local Projet's texts go again, sealed under
+	// it, and so does the last report of each running Étape (E2E-4).
+	rotations.moved = func() {
+		locals.full()
+		sessions.VaultMoved()
+	}
 	// The Commandes the server asks for (RUNNER-18): opened with the vault,
 	// run in the places the Sessions' manager gives, ended before it closes.
 	commands, err := command.New(command.Config{

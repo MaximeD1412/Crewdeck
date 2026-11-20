@@ -292,24 +292,18 @@ func (m *Manager) ServeSteps(sock *localsock.Server) {
 		if request.Content != nil && len(*request.Content) > StepReportContentMax {
 			return nil, codedError("too-long")
 		}
-		_, rec, err := m.stepSession(request.SessionID)
+		s, rec, err := m.stepSession(request.SessionID)
 		if err != nil {
 			return nil, err
 		}
 		stepRunID := rec.Step.StepRunId
-		var sealed *contracts.RunnerStepReportSealed
-		if request.Content != nil && *request.Content != "" {
-			if m.cfg.Seal == nil {
-				return nil, codedError("unavailable")
-			}
-			item, err := m.cfg.Seal([]byte(*request.Content), []byte(StepReportAAD(stepRunID)))
-			if err != nil {
-				m.cfg.Logger.Warn("session.step", "sessionId", rec.SessionID, "step", "seal", "error", errorKind(err))
-				return nil, codedError("unavailable")
-			}
-			sealed = &contracts.RunnerStepReportSealed{Key: base64.RawURLEncoding.EncodeToString(item.Key), Ciphertext: base64.RawURLEncoding.EncodeToString(item.Ciphertext)}
+		if request.Content == nil || *request.Content == "" {
+			return nil, m.sendStep(ctx, rec.SessionID, protocol.NewStepReport(stepRunID, figures, nil, 0))
 		}
-		return nil, m.sendStep(ctx, rec.SessionID, protocol.NewStepReport(stepRunID, figures, sealed))
+		if m.cfg.Seal == nil {
+			return nil, codedError("unavailable")
+		}
+		return nil, m.sendReport(ctx, s, rec.SessionID, sentReport{stepRunID: stepRunID, figures: figures, content: []byte(*request.Content), aad: StepReportAAD(stepRunID)})
 	})
 	sock.Handle(OpStepAsk, func(_ context.Context, raw json.RawMessage) (any, error) {
 		var request StepAskRequest
@@ -428,13 +422,88 @@ func (m *Manager) kindReport(ctx context.Context, rec record, kind StepKind) err
 	if n, err := jsonLength(report.Figures); err != nil || n > StepReportFiguresMax || len(report.Content) > StepReportContentMax {
 		return codedError("too-long")
 	}
-	item, err := m.cfg.Seal(report.Content, []byte(report.AAD))
+	s, _, err := m.stepSession(rec.SessionID)
 	if err != nil {
-		warn("seal", err)
+		return err
+	}
+	return m.sendReport(ctx, s, rec.SessionID, sentReport{stepRunID: rec.Step.StepRunId, figures: report.Figures, content: report.Content, aad: report.AAD})
+}
+
+// sentReport is an Étape's report as the Runner sent it: its content in
+// clear, sealed again when the vault held moves to a new version.
+type sentReport struct {
+	stepRunID string
+	figures   map[string]any
+	content   []byte
+	aad       string
+	// version is the vault key version it was last sealed under.
+	version int
+}
+
+// sendReport seals report's content under the vault held, sends it, and
+// keeps it as the Session's last report.
+func (m *Manager) sendReport(ctx context.Context, s *live, sessionID string, report sentReport) error {
+	s.reportMu.Lock()
+	defer s.reportMu.Unlock()
+	return m.sealAndSend(ctx, s, sessionID, report, 0)
+}
+
+// sealAndSend is sendReport, s.reportMu held; a vault held of a version not
+// past newerThan sends nothing.
+func (m *Manager) sealAndSend(ctx context.Context, s *live, sessionID string, report sentReport, newerThan int) error {
+	item, version, err := m.cfg.Seal(report.content, []byte(report.aad))
+	if err != nil {
+		m.cfg.Logger.Warn("session.step", "sessionId", sessionID, "step", "seal", "error", errorKind(err))
 		return codedError("unavailable")
 	}
+	if version <= newerThan {
+		return nil
+	}
 	sealed := &contracts.RunnerStepReportSealed{Key: base64.RawURLEncoding.EncodeToString(item.Key), Ciphertext: base64.RawURLEncoding.EncodeToString(item.Ciphertext)}
-	return m.sendStep(ctx, rec.SessionID, protocol.NewStepReport(rec.Step.StepRunId, report.Figures, sealed))
+	if err := m.sendStep(ctx, sessionID, protocol.NewStepReport(report.stepRunID, report.figures, sealed, version)); err != nil {
+		return err
+	}
+	report.version = version
+	s.mu.Lock()
+	s.report = &report
+	s.mu.Unlock()
+	return nil
+}
+
+// VaultMoved is told that the vault held moved to a new version: the last
+// report of each running Étape's Session, sealed under an older one, is
+// sealed again and sent once more, since the server keeps nothing sealed
+// under a version a rotation replaced (E2E-4), which a rotation done between
+// its seal and its reception left it.
+func (m *Manager) VaultMoved() {
+	if m.cfg.Seal == nil {
+		return
+	}
+	m.mu.Lock()
+	sessions := make([]*live, 0, len(m.sessions))
+	for _, s := range m.sessions {
+		sessions = append(sessions, s)
+	}
+	m.mu.Unlock()
+	for _, s := range sessions {
+		go m.resendReport(s)
+	}
+}
+
+func (m *Manager) resendReport(s *live) {
+	s.reportMu.Lock()
+	defer s.reportMu.Unlock()
+	s.mu.Lock()
+	report, running, sessionID := s.report, s.alive && s.run != nil, s.rec.SessionID
+	s.mu.Unlock()
+	if report == nil || !running {
+		return
+	}
+	ctx, cancel := context.WithTimeout(m.ctx, 10*time.Second)
+	defer cancel()
+	if err := m.sealAndSend(ctx, s, sessionID, *report, report.version); err != nil && m.ctx.Err() == nil {
+		m.cfg.Logger.Warn("session.step", "sessionId", sessionID, "step", "resend-report", "error", errorKind(err))
+	}
 }
 
 // failedRules is the refusal of a report whose Contrat failed the rules ids,

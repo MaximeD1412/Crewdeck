@@ -74,11 +74,13 @@ import { createConnexionLien, takeLinkToken } from './views/connexion-lien.js';
 import { aToiView } from './views/a-toi.js';
 import { actionsOf, decisionViews } from './views/decisions/registry.js';
 import './views/decisions/agent-question.js';
+import './views/decisions/contract-incomplete.js';
 import './views/decisions/local-unreadable.js';
 import './views/decisions/loop-back-exhausted.js';
 import './views/decisions/permission-requested.js';
 import './views/decisions/runner-offline.js';
 import './views/decisions/source-migration.js';
+import './views/decisions/step-failed.js';
 import { systemOfBrowser } from './views/demarrage.js';
 import { ADD_DEVICE_ID, isLastTrusted, revokeConfirmation, revokedDeviceOf } from './views/devices.js';
 import { ideesQuery, ideesView } from './views/idees.js';
@@ -408,6 +410,11 @@ export const boot = async ({
           sessionEvent: peek.read,
           roleName: (role) => roleName(role, slices.settings),
           localText: localTexts.openLocalText,
+          ticketTitle: (projectId, number) => {
+            const ticket = [...(slices.ticket?.values() ?? [])].find((candidate) => candidate.projectId === projectId && candidate.number === number);
+            if (!ticket) return null;
+            return ticket.title ?? (ticket.titleSealed ? localTexts.openLocalText(projectId, ticket.titleSealed, `ticket:${number}:title`) : null);
+          },
           projectName: (id) => {
             const project = projectOf(id);
             return project ? projectName(project) : null;

@@ -48,7 +48,8 @@
             "ciphertext": "DAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM"
           }
         }
-      ]
+      ],
+      "vaultKeyVersion": 2
     }
   },
   "title": null,

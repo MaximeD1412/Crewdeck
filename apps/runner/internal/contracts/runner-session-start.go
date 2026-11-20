@@ -154,6 +154,9 @@ type RunnerSessionStartStepIdeas struct {
 
 	// Open corresponds to the JSON schema field "open".
 	Open []RunnerSessionStartStepIdeasOpenElem `json:"open"`
+
+	// VaultKeyVersion corresponds to the JSON schema field "vaultKeyVersion".
+	VaultKeyVersion int `json:"vaultKeyVersion"`
 }
 
 type RunnerSessionStartStepIdeasIdea struct {
@@ -470,6 +473,9 @@ func (j *RunnerSessionStartStepIdeas) UnmarshalJSON(value []byte) error {
 	if _, ok := raw["open"]; raw != nil && !ok {
 		return fmt.Errorf("field open in RunnerSessionStartStepIdeas: required")
 	}
+	if _, ok := raw["vaultKeyVersion"]; raw != nil && !ok {
+		return fmt.Errorf("field vaultKeyVersion in RunnerSessionStartStepIdeas: required")
+	}
 	type Plain RunnerSessionStartStepIdeas
 	var plain Plain
 	if err := json.Unmarshal(value, &plain); err != nil {
@@ -477,6 +483,12 @@ func (j *RunnerSessionStartStepIdeas) UnmarshalJSON(value []byte) error {
 	}
 	if len(plain.Open) > 100 {
 		return fmt.Errorf("field %s length: must be <= %d", "open", 100)
+	}
+	if 9007199254740991 < plain.VaultKeyVersion {
+		return fmt.Errorf("field %s: must be <= %v", "vaultKeyVersion", 9007199254740991)
+	}
+	if 0 >= plain.VaultKeyVersion {
+		return fmt.Errorf("field %s: must be > %v", "vaultKeyVersion", 0)
 	}
 	*j = RunnerSessionStartStepIdeas(plain)
 	return nil

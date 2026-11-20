@@ -44,7 +44,10 @@ describe('the Sessions of the Runner protocol', () => {
     expect(parsed).toMatchObject({ projectId: null, origin: null, branch: null, base: null });
     expect(parsed.step?.ideas?.idea).toMatchObject({ number: 14, analysis: null });
     expect(parsed.step?.ideas?.open.map((idea) => idea.number)).toEqual([9]);
-    expect(zSessionStart.safeParse({ ...scratch, step: { ...(scratch.step as object), ideas: { idea: { id: scratch.sessionId, number: 1, text: 'en clair', analysis: null }, open: [] } } }).success).toBe(false);
+    expect(parsed.step?.ideas?.vaultKeyVersion).toBe(2);
+    const { vaultKeyVersion: _version, ...unversioned } = parsed.step?.ideas ?? {};
+    expect(zSessionStart.safeParse({ ...scratch, step: { ...(scratch.step as object), ideas: unversioned } }).success).toBe(false);
+    expect(zSessionStart.safeParse({ ...scratch, step: { ...(scratch.step as object), ideas: { idea: { id: scratch.sessionId, number: 1, text: 'en clair', analysis: null }, open: [], vaultKeyVersion: 2 } } }).success).toBe(false);
   });
 
   it('names the Serveurs MCP of the Étape, none as []', () => {

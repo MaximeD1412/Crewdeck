@@ -291,11 +291,17 @@
               },
               "maxItems": 100,
               "type": "array"
+            },
+            "vaultKeyVersion": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "type": "integer"
             }
           },
           "required": [
             "idea",
-            "open"
+            "open",
+            "vaultKeyVersion"
           ],
           "type": "object"
         },

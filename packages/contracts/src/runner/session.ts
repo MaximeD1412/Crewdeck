@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { zStepId } from '../contrats/define.js';
 import { zSha } from '../github/index.js';
+import { zVaultKeyVersion } from '../keys/pairing.js';
 import { zSealedItem } from '../keys/sealed.js';
 import { zArtifactType } from '../process/artifact-types.js';
 import { zProcessId } from '../process/definition.js';
@@ -86,6 +87,12 @@ export type SessionStepIdea = z.infer<typeof zSessionStepIdea>;
 export const zSessionStepIdeaContext = z.object({
   idea: zSessionStepIdea,
   open: z.array(zSessionStepIdea).max(SESSION_STEP_OPEN_IDEAS_MAX),
+  /**
+   * The vault key version their item keys are wrapped under (E2E-4): the
+   * Runner opens them once it holds it, a rotation done while it was away
+   * being adopted from its hello.
+   */
+  vaultKeyVersion: zVaultKeyVersion,
 });
 export type SessionStepIdeaContext = z.infer<typeof zSessionStepIdeaContext>;
 

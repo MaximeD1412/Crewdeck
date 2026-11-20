@@ -45,6 +45,11 @@
     "type": {
       "const": "step.report",
       "type": "string"
+    },
+    "vaultKeyVersion": {
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "type": "integer"
     }
   },
   "required": [

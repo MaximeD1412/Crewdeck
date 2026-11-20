@@ -74,19 +74,35 @@ func (w sourceWrites) Register(sock *localsock.Server) {
 			}
 			return nil, writeCode("failed")
 		}
-		// The write is done: a failed refresh leaves it so, silent, and
-		// leaves replyReserve of runner.sock's deadline to answer it.
-		budget := localsock.Timeout
-		if deadline, ok := ctx.Deadline(); ok {
-			budget = time.Until(deadline)
-		}
-		if budget -= replyReserve; budget > 0 {
-			fetchCtx, cancel := context.WithTimeout(ctx, budget)
-			defer cancel()
-			_ = w.fetch(fetchCtx, r.Key, written.Number)
-		}
+		// The write is done: a failed refresh leaves it so, silent.
+		w.refresh(ctx, r.Key, written.Number)
 		return written, nil
 	})
+}
+
+// refresh refreshes the object written, waiting for it until replyReserve
+// before runner.sock's deadline at most: a refresh that does not heed its
+// context (the copy's one connection held) goes on alone, and the write
+// still answers.
+func (w sourceWrites) refresh(ctx context.Context, key string, number int) {
+	budget := localsock.Timeout
+	if deadline, ok := ctx.Deadline(); ok {
+		budget = time.Until(deadline)
+	}
+	if budget -= replyReserve; budget <= 0 {
+		return
+	}
+	fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), budget)
+	done := make(chan struct{})
+	go func() {
+		defer cancel()
+		defer close(done)
+		_ = w.fetch(fetchCtx, key, number)
+	}()
+	select {
+	case <-done:
+	case <-fetchCtx.Done():
+	}
 }
 
 // refusalCode is the code of what a Source refuses, "" for anything else.

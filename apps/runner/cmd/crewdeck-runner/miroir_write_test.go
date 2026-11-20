@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/github/githubtest"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/localsock"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/session"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/source"
 	"gopkg.in/yaml.v3"
 )
 
@@ -498,25 +500,44 @@ func TestMiroirWriteAFailedRefreshAfterACreateKeepsGithubsURL(t *testing.T) {
 }
 
 // The Runner answers before runner.sock's deadline, however long the
-// refresh would take (R1-2).
+// refresh would take, even when it does not heed its context: here the
+// follower's one SQLite connection held by a reconciliation (R1-2, R2-1).
 func TestMiroirWriteLocalRefreshLeavesTimeToAnswerBeforeTheSocketsDeadline(t *testing.T) {
 	f := newMiroirFixture(t)
 	f.stop()
 	f.serve(t, &localsock.Server{Timeout: 2 * time.Second})
 	f.writes(t)
-	sourceWrites{
-		running: func(string) (string, string, bool) { return "P2", "code", true },
-		target:  f.locals.Target,
-		fetch: func(ctx context.Context, _ string, _ int) error {
-			<-ctx.Done()
-			return ctx.Err()
-		},
-	}.Register(f.sock)
+	held, release := make(chan struct{}), make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = f.store.Update(func(*sql.Tx) error {
+			close(held)
+			<-release
+			return nil
+		})
+	}()
+	<-held
+	t.Cleanup(func() { close(release); <-done })
 	inSession(t, localWriteSession)
 	dir := f.sessionDir(t)
+	start := time.Now()
 	out, stderr, err := runMiroir(t, dir, "issue", "comment", "12", "-b", "Lent.")
 	if err != nil || stderr != "" {
-		t.Fatalf("a comment whose refresh hangs: %q %v %q", out, err, stderr)
+		t.Fatalf("a comment whose refresh waits on the copy: %q %v %q", out, err, stderr)
+	}
+	if took := time.Since(start); took > 2*time.Second {
+		t.Errorf("answered in %v, after runner.sock's deadline", took)
+	}
+	target, ok := f.locals.Target("P2")
+	if !ok {
+		t.Fatal("no Local target")
+	}
+	comments, _ := target.(interface {
+		Comments(context.Context, int) ([]source.Comment, error)
+	}).Comments(context.Background(), 12)
+	if len(comments) != 2 || comments[1].Body != "Lent." {
+		t.Errorf("the comment is not written: %v", comments)
 	}
 }
 

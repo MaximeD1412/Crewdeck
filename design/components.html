@@ -126,6 +126,21 @@
           <ui-decision-row tone="caution" icon="gauge" kind="Limite atteinte" title="Claude · fenêtre de 5 h" meta="Personal OS · il y a 12 min">Réinitialisation à 16:40.<ui-button slot="actions" size="sm">Choisir</ui-button></ui-decision-row>
           <ui-decision-row tone="accent" icon="eye" kind="Revue visuelle" title="#38 Page Planning" meta="Personal OS · il y a 20 min">4 captures.<ui-button slot="actions" size="sm" variant="primary">Relire</ui-button></ui-decision-row>
         </ui-card></div>
+      <div class="specimen"><code>ui-decision-row tone="neutral" · Session sans progrès</code>
+        <ui-card flush>
+          <ui-decision-row tone="caution" icon="clock" kind="Session sans progrès" title="Code · #56 Rappels par e-mail" meta="Personal OS · Code · il y a 5 h">45 min d’activité sans progrès : aucun fichier modifié, aucune Sortie écrite.<ui-button slot="actions" size="sm">Relancer l’Étape</ui-button><ui-button slot="actions" size="sm">Ouvrir la Session</ui-button></ui-decision-row>
+          <ui-decision-row tone="neutral" icon="terminal" kind="Repris hors Crewdeck" title="#45 Filtre des Projets" meta="Crewdeck · Code · sur atelier-pc · hier">#46, qui en dépend, attend.<ui-button slot="actions" size="sm">Rendre la main</ui-button><ui-button slot="actions" size="sm">Rendre à la Boucle</ui-button></ui-decision-row>
+        </ui-card></div>
+      <div class="specimen"><code>ui-away-summary since · ui-away-row projet merged blocked raised settled spend window</code>
+        <ui-away-summary since="depuis 23:40 · il y a 9 h">
+          <ui-away-row projet="Personal OS" merged="3" blocked="0" raised="2" settled="1" spend="2,40 € de Codex" window="1,2 fenêtre de Claude"></ui-away-row>
+          <ui-away-row projet="Site mairie" merged="0" blocked="1" raised="1" settled="0" window="0,2 fenêtre de Claude"></ui-away-row>
+        </ui-away-summary></div>
+      <div class="specimen"><code>ui-spend-row step role value share retours</code>
+        <ui-card>
+          <ui-spend-row step="Code" role="Code · Claude Code · Opus 5.5" value="1,1 fenêtre" share="39" retours="41"></ui-spend-row>
+          <ui-spend-row step="Revue croisée du PRD" role="Review · Codex · clé API" value="0,84 €" share="2" retours="0"></ui-spend-row>
+        </ui-card></div>
       <div class="specimen"><code>ui-idea-row state · ui-ticket-row state</code>
         <ui-card flush>
           <ui-idea-row title="Exporter le planning en PDF" meta="Personal OS · il y a 2 j" state="analysee" impact="moyen" effort="faible" duplicates="doublon possible : #12">Le Pilote veut partager son planning hors de l’app.</ui-idea-row>
@@ -185,6 +200,11 @@
           <ui-message from="agent">Je lis le PRD avant de te poser les questions.</ui-message>
           <ui-message from="pilote">Commence par les rappels.</ui-message>
           <ui-composer></ui-composer>
+        </ui-session></div>
+      <div class="specimen"><code>ui-session state="handed-off" · « Continuer dans mon terminal » (absent with no-terminal)</code>
+        <ui-session title="Code · #45 Filtre des Projets" meta="Crewdeck · Claude Code" state="handed-off">
+          <ui-banner tone="neutral" icon="terminal" title="Reprise hors Crewdeck · commande copiée">#46, qui en dépend, attend.</ui-banner>
+          <ui-composer state="disabled" placeholder="Session reprise dans ton terminal"></ui-composer>
         </ui-session></div>
       <div class="specimen"><code>ui-question · ui-option · ui-permission-request · ui-composer state="dictating"</code>
         <div class="stack">

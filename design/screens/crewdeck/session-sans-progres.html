@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session — Session sans progrès</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* Session: title and meta wrap rather than cut; the page behind the panel stacks its cards */
+  .session-title b, .session-meta { white-space: normal; }
+  @media (min-width: 1280px) {
+    .shell--with-panel .layout { display: flex; flex-direction: column; }
+    .shell--with-panel .chips { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : contenu de la session, fichiers, heures et seuils fictifs -->
+<ui-app-shell screen="Session" current="a-toi" decisions="4" ideas="4" designs="2" loops="2">
+  <ui-page-header title="À toi" count="4 Décisions">
+    <ui-button variant="primary" icon="plus">Noter une Idée</ui-button>
+  </ui-page-header>
+  <ui-project-filter>
+    <ui-chip selected count="4">Tous les Projets</ui-chip>
+    <ui-chip count="2">Crewdeck</ui-chip>
+    <ui-chip count="2">Personal OS</ui-chip>
+  </ui-project-filter>
+  <div class="layout">
+    <ui-card title="Décisions" count="4" label="À toi / Décisions" flush>
+      <ui-decision-row tone="caution" icon="clock" kind="Session sans progrès" title="Code · #56 Rappels par e-mail" meta="Personal OS · Code · il y a 5 h">45 min d’activité sans progrès (aucun fichier modifié, aucune Sortie écrite) : la Session est interrompue ; la Boucle continue avec les Tickets qui n’en dépendent pas.<ui-button slot="actions" size="sm">Relancer l’Étape</ui-button><ui-button slot="actions" size="sm">Ouvrir la Session</ui-button></ui-decision-row>
+      <ui-decision-row tone="halt" icon="block" kind="Ticket bloqué" title="#42 Connexion GitHub" meta="Crewdeck · Code · il y a 4 min">L’agent ne trouve pas comment tester le renouvellement du jeton.<ui-button slot="actions" size="sm">Ouvrir</ui-button></ui-decision-row>
+      <ui-decision-row tone="caution" icon="shield" kind="Permission demandée" title="Code · #44 Liste des Projets" meta="Crewdeck · session · il y a 2 min">Bash : <code>git push origin feat/44-liste-des-projets</code><ui-button slot="actions" size="sm">Ouvrir</ui-button></ui-decision-row>
+      <ui-decision-row tone="accent" icon="info" kind="Question de l’agent" title="Concevoir · Agenda partagé" meta="Personal OS · session · il y a 3 min">Les membres de la famille voient-ils les agendas des autres en lecture seule ?<ui-button slot="actions" size="sm">Répondre</ui-button></ui-decision-row>
+    </ui-card>
+    <div class="layout-aside">
+      <ui-card title="Boucles en cours" count="2" label="À toi / Boucles en cours">
+        <ui-agent-row projet="Personal OS" ticket="#53 Export du planning" step="en review" engine="Codex" since="depuis 6 min"></ui-agent-row>
+        <ui-agent-row tone="caution" projet="Crewdeck" ticket="#44 Liste des Projets" step="attend ta permission" engine="Claude Code" since="depuis 18 min"></ui-agent-row>
+      </ui-card>
+      <ui-card title="Comptes IA" label="À toi / Comptes IA">
+        <ui-usage-meter label="Claude · 5 h" value="100" detail="16:40"></ui-usage-meter>
+        <ui-usage-meter label="Claude · semaine" value="62">Au rythme actuel, la semaine de Claude tient jusqu’à jeudi.</ui-usage-meter>
+
+      </ui-card>
+    </div>
+  </div>
+  <ui-session slot="panel" title="Code · #56 Rappels par e-mail" meta="Personal OS · Boucle · Claude Code" state="interrupted" no-resume>
+    <ui-message from="agent"><p>Les tests des rappels échouent encore. Je relance la suite pour voir si l’échec est stable.</p></ui-message>
+    <ui-tool-call tool="Bash" target="pnpm test reminders" detail="3 échecs"></ui-tool-call>
+    <ui-tool-call tool="Read" target="src/reminders/send.ts" detail="88 lignes"></ui-tool-call>
+    <ui-tool-call tool="Grep" target="sendReminder · src" detail="6 fichiers"></ui-tool-call>
+    <ui-tool-call tool="Bash" target="pnpm test reminders" detail="3 échecs"></ui-tool-call>
+    <ui-tool-call tool="Read" target="src/reminders/send.ts" detail="88 lignes"></ui-tool-call>
+    <ui-banner tone="caution" icon="clock" title="Session sans progrès · interrompue à 03:12">45 min d’activité sans progrès : aucun fichier de son worktree modifié, aucune Sortie écrite (seuil du Rôle Code). La Boucle a continué avec les Tickets qui n’en dépendent pas ; #58 attend.
+      <ui-button slot="actions" size="sm" variant="primary" icon="refresh">Relancer l’Étape</ui-button>
+      <ui-button slot="actions" size="sm" icon="play">Reprendre la Session</ui-button>
+      <ui-button slot="actions" size="sm" icon="block">Bloquer le Ticket</ui-button>
+    </ui-banner>
+    <ui-composer placeholder="Écrire pour reprendre la Session"></ui-composer>
+  </ui-session>
+</ui-app-shell>
+</body>
+</html>

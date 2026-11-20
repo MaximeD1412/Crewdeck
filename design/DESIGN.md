@@ -267,7 +267,8 @@ Each is a custom element `ui-<name>`; its root carries `data-name`.
 
 **Actions**
 - **Button** (`Button/Primary`, `Button/Secondary`, `Button/Ghost`,
-  `Button/Danger`): `variant`, `size="sm"`, `icon`, `state="disabled|loading"`.
+  `Button/Danger`): `variant`, `size="sm"`, `icon`, `state="disabled|loading"`,
+  `label` (accessible name and tooltip of a button that shows its icon only).
 - **IconButton** (`IconButton/Default`): `icon`, `label` (its accessible
   name).
 
@@ -282,8 +283,22 @@ Each is a custom element `ui-<name>`; its root carries `data-name`.
 **Rows and cards**
 - **Card** (`Card/Default`): `title` (a `section-label`), `count`, children;
   a `section` landmark when `label` is set.
-- **DecisionRow** (`DecisionRow/<Tone>`): `kind`, `title`, `meta`, `tone`,
-  `icon`; children context and actions (`slot="actions"`).
+- **DecisionRow** (`DecisionRow/<Tone>`): `kind`, `title`, `meta`, `tone`
+  (`neutral`, a `line-strong` rail: a **Ticket** « repris hors Crewdeck »,
+  which waits on nobody but the **Pilote**), `icon`; children context and
+  actions (`slot="actions"`). Beside a Session panel, the actions go under
+  the row, as at 390.
+- **AwaySummary** (`AwaySummary/Default`): « Depuis ta dernière visite »
+  (US-114), at the top of « À toi » under the page header, closed by its
+  `x`: `since`; children `ui-away-row`. A table at 1280 (one row per
+  **Projet**, a column per count, the spend last); at 390 a compact table:
+  the header row names the four counts, each **Projet** is one row, its
+  spend on a second line labelled « Dépense » (none when it spent nothing).
+- **AwayRow** (`AwayRow/Default`): `projet`, `merged`, `blocked`, `raised`,
+  `settled` (each a link to what it counts, a `go`, `halt` or `caution`
+  dot; `0` muted, no link), `spend` and `window`, written as shown, each
+  naming its **Compte IA** (« 2,40 € de Codex », « 1,2 fenêtre de
+  Claude »): one unit per kind of account, never a percent.
 - **IdeaRow** (`IdeaRow/<State>`): `title`, `meta`, `state="en-analyse|a-trier|analysee|retenue|fusionnee|rejetee"`, `impact`, `effort`, `duplicates`; children the summary, `slot="actions"`.
 - **TicketRow** (`TicketRow/<State>`): `number`, `title`, `meta`, `state`,
   `step`.
@@ -298,6 +313,14 @@ Each is a custom element `ui-<name>`; its root carries `data-name`.
 - **UsageMeter** (`UsageMeter/Default`, `UsageMeter/Caution`,
   `UsageMeter/Halt`): `label`, `value` (0 to 100), `detail`.
 - **Stat** (`Stat/Default`): `label`, `value`, `unit`, `detail`.
+- **SpendRow** (`SpendRow/Default`): the spend of one **Étape** (US-115):
+  `step`, `role` (« Rôle · Moteur · compte »), `value` (« 0,84 € », or
+  « 1,1 fenêtre » for a subscription), `share` (percent of its
+  **Compte IA**'s total over the period), `retours` (percent of it spent
+  after a **Retour**). The bar's length is `share`, so the rows of one
+  account compare (an API key and a subscription have no common unit);
+  inside it, `accent` first passes then `caution` **Retours**. Grouped by
+  **Phase** in `div.spend-group` with a `section-label`.
 - **CheckRow** (`CheckRow/<State>`): `name`, `state="passed|failed|running"`, `detail`.
 - **KeyValue** (`KeyValue/Default`): children `ui-kv` (`label`), a
   definition list.
@@ -310,7 +333,11 @@ Each is a custom element `ui-<name>`; its root carries `data-name`.
   `ui-timeline-row` (`label`, `start`, `span`, `tone`, `meta`).
 
 **Session (US-9)**
-- **Session** (`Session/Default`): `title`, `meta`, `state="active|waiting|stopped|interrupted|failed"`, `resume-disabled` (« Reprendre » disabled, e.g. while the Runner is offline), `resume-label` and `resume-icon` (« Relancer » for a **Commande**, whose output reads as a session, US-104); children messages, then `ui-composer` (none for a **Commande**).
+- **Session** (`Session/Default`): `title`, `meta`, `state="active|waiting|stopped|interrupted|failed|handed-off"`, `resume-disabled` (« Reprendre » and « Continuer dans mon terminal » disabled, e.g. while the Runner is offline), `resume-label` and `resume-icon` (« Relancer » for a **Commande**, whose output reads as a session, US-104), `no-terminal` (no « Continuer dans mon terminal », for a **Commande**), `no-resume` (no « Reprendre » in the header, when a Banner below carries it, as for a **Session sans progrès**); children messages, then `ui-composer` (none for a **Commande**). Under its title, an actions row: « Arrêter » or « Reprendre » first, then « Continuer dans mon terminal » (US-113, the `terminal` icon, labelled); `handed-off` (« reprise hors Crewdeck ») shows neither: the Session goes on in the Pilote's terminal, its panel shows the command, « Rendre la main » and « Rendre à la Boucle », and a disabled composer.
+- A **Session sans progrès** (US-112) is an `interrupted` Session whose
+  `caution` Banner says which threshold of its **Rôle** stopped it, with
+  « Relancer l'Étape » (primary), « Reprendre la Session », « Bloquer le
+  Ticket ».
 - **Message** (`Message/Agent`, `Message/Pilote`): `from`.
 - **ToolCall** (`ToolCall/Default`): `tool`, `target`, `detail`.
 - **Question** (`Question/Default`): `title`; children `ui-option`
@@ -370,7 +397,9 @@ Each is a custom element `ui-<name>`; its root carries `data-name`.
 - **StepRow** (`StepRow/Default`, `StepRow/Gap`): `name`, `kind`, `icon`,
   `tools`, `flow` (« Entrées → Sorties »), `loop-back`, `gap`.
 - **Stepper** (`Stepper/Default`): `label`, `value`, `unit`, `min`, `max`
-  (a **Retour**'s maximum, 1 to 10).
+  (a **Retour**'s maximum, 1 to 10; a **Rôle**'s « Sans événement » and
+  « Sans progrès » thresholds in minutes, in the **Paramètres**, with no
+  bounds the PRD does not state). Its buttons are 44 px at 390.
 - **Menu** (`Menu/Default`): `title`; children `ui-menu-group` (`label`)
   of `ui-menu-item` (`icon`, `detail`, `selected`, `state="disabled"`): the
   catalogue of **Étapes**, « Attacher un Outil ».

@@ -25,6 +25,7 @@
     .settings-body { gap: var(--space-6); }
     .settings-body > ui-card:not(.is-current) { display: block; }
   }
+  .pair-selects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
 </style>
 </head>
 <body>
@@ -45,6 +46,7 @@
         <ui-setting-row label="Conception" origin="compte"><ui-select value="Claude Code · Opus 5.5"></ui-select></ui-setting-row>
         <ui-setting-row label="Code" origin="projet"><ui-select value="Codex · GPT-5.5"></ui-select></ui-setting-row>
         <ui-setting-row label="Review" help="Sur un autre Moteur que le Code." origin="projet"><ui-select value="Claude Code · Opus 5.5"></ui-select></ui-setting-row>
+        <ui-setting-row label="Interruption des Sessions" help="Pour chaque Rôle : sans événement, ou active sans progrès, au-delà de ces durées." origin="compte"><div class="pair-selects"><ui-stepper label="Sans événement" value="15" unit="min"></ui-stepper><ui-stepper label="Sans progrès" value="45" unit="min"></ui-stepper></div></ui-setting-row>
       </ui-card>
       <ui-card title="Étapes" label="Paramètres du Projet / Étapes" id="etapes" flush>
         <ui-list-row icon="layers" title="Gestion du process" meta="Les Étapes s’ajoutent et se retirent dans la Gestion du process du Projet ; la Review et les checks restent avant chaque merge." link></ui-list-row>

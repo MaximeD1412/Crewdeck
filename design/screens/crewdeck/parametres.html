@@ -17,6 +17,7 @@
   .settings-body { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
   .pair-selects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
   .settings-body > ui-card:not(.is-current) { display: none; }
+  .roles-intro { margin: 0 0 var(--space-4); }
   @media (min-width: 1280px) {
     .settings { display: grid; grid-template-columns: var(--capture-w) minmax(0, 1fr); gap: var(--space-8); align-items: start; }
     .settings-nav { flex-direction: column; margin: 0; padding: 0; position: sticky; top: var(--space-8); gap: var(--space-1); }
@@ -41,17 +42,22 @@
     </nav>
     <div class="settings-body">
       <ui-card class="is-current" title="Rôles et modèles" label="Paramètres / Rôles et modèles" id="roles">
+        <p class="text-sm muted roles-intro">Une Session sans événement, ou active sans progrès (aucun fichier de son worktree modifié, aucune Sortie écrite), au-delà de ces durées est interrompue avec une Décision « Session sans progrès ». Une Session qui attend ta réponse ou ta permission ne compte pas.</p>
         <ui-setting-row label="Idée" help="Analyse chaque Idée notée.">
           <ui-select value="Claude Code · Sonnet 5.5"></ui-select>
+          <div class="pair-selects"><ui-stepper label="Sans événement" value="15" unit="min"></ui-stepper><ui-stepper label="Sans progrès" value="45" unit="min"></ui-stepper></div>
         </ui-setting-row>
         <ui-setting-row label="Conception" help="PRD, maquettes et conception technique, avec toi.">
           <ui-select value="Claude Code · Opus 5.5"></ui-select>
+          <div class="pair-selects"><ui-stepper label="Sans événement" value="15" unit="min"></ui-stepper><ui-stepper label="Sans progrès" value="45" unit="min"></ui-stepper></div>
         </ui-setting-row>
         <ui-setting-row label="Code" help="Implémente les Tickets dans la Boucle.">
           <ui-select value="Claude Code · Opus 5.5"></ui-select>
+          <div class="pair-selects"><ui-stepper label="Sans événement" value="15" unit="min"></ui-stepper><ui-stepper label="Sans progrès" value="45" unit="min"></ui-stepper></div>
         </ui-setting-row>
         <ui-setting-row label="Review" help="Relit chaque PR. Par défaut sur un autre Moteur que le Code.">
           <ui-select value="Codex · GPT-5.5"></ui-select>
+          <div class="pair-selects"><ui-stepper label="Sans événement" value="15" unit="min"></ui-stepper><ui-stepper label="Sans progrès" value="45" unit="min"></ui-stepper></div>
         </ui-setting-row>
       </ui-card>
       <ui-card title="Notifications" label="Paramètres / Notifications" id="notifications">

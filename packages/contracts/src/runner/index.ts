@@ -17,3 +17,4 @@ export * from './usage.js';
 export * from './vault.js';
 export * from './migration.js';
 export * from './local.js';
+export * from './merge.js';

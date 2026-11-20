@@ -3,6 +3,7 @@ import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod';
 import { AuthModule } from './auth/auth.module.js';
+import { ArtifactsModule } from './artifacts/artifacts.module.js';
 import { CommandsModule } from './commands/commands.module.js';
 import { GoogleModule } from './auth/google/google.module.js';
 import { MailModule } from './auth/mail/mail.module.js';
@@ -86,6 +87,7 @@ export class AppModule {
         VaultModule,
         SessionsModule,
         CommandsModule,
+        ArtifactsModule,
         RepositoriesModule,
         GitHubChangesModule,
         ProjectsModule,

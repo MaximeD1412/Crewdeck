@@ -43,6 +43,12 @@ func worktreeDir(home, projectID, branch string) string {
 	return filepath.Join(home, "worktrees", projectID, strings.ReplaceAll(branch, "/", "__"))
 }
 
+// scratchDir is `<home>/scratch/<sessionId>`: the folder of a Session
+// without code (IDEE-2), kept as a worktree is until the Session ends.
+func scratchDir(home, sessionID string) string {
+	return filepath.Join(home, "scratch", sessionID)
+}
+
 // addWorktree makes the worktree of `branch` in clone: from origin/<branch>
 // when the remote has it, else from origin/<base>. A folder a killed Runner
 // left there is removed first. auth is the Origin's environment: the

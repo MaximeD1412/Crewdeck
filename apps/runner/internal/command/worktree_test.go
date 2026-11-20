@@ -82,7 +82,7 @@ func (h *harness) startEndingSession(t *testing.T) contracts.RunnerSessionState 
 	h.manager.Start(contracts.RunnerSessionStart{
 		Type: "session.start", Id: "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6c20", At: time.Now().UTC(),
 		SessionId: sessionID, ProjectId: projectID,
-		Origin: contracts.Origin{Github: &contracts.OriginGithub{Owner: "acme", Name: "shop"}},
+		Origin: &contracts.Origin{Github: &contracts.OriginGithub{Owner: "acme", Name: "shop"}},
 		Branch: branch, Base: "develop", Engine: contracts.RunnerSessionStartEngineClaudeCode, Model: "claude-opus-5-5", Role: "code",
 		PermissionMode: contracts.RunnerSessionStartPermissionModeBypass, Title: "Le panier",
 		WorktreeCommands: sessionWorktreeCommands(h.worktreeCommands),

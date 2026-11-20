@@ -45,6 +45,13 @@ type Coded interface {
 	Code() string
 }
 
+// Detailed is a Coded error whose reply holds, beside its code, `details`:
+// what the caller needs to act on it (the rules a report failed).
+type Detailed interface {
+	Coded
+	Details() any
+}
+
 // Server serves the handlers on the socket.
 type Server struct {
 	// DefaultOp is the op of a request without one (accounts.refresh, the
@@ -99,8 +106,9 @@ func (s *Server) Serve(ctx context.Context, socket string) error {
 }
 
 type failure struct {
-	OK    bool   `json:"ok"`
-	Error string `json:"error"`
+	OK      bool            `json:"ok"`
+	Error   string          `json:"error"`
+	Details json.RawMessage `json:"details,omitempty"`
 }
 
 func (s *Server) answer(ctx context.Context, conn net.Conn) {
@@ -151,6 +159,14 @@ func (s *Server) reply(ctx context.Context, line []byte) []byte {
 		return marshal(failure{Error: CodeTimeout})
 	}
 	if r.err != nil {
+		var detailed Detailed
+		if errors.As(r.err, &detailed) {
+			details, err := json.Marshal(detailed.Details())
+			if err != nil {
+				return marshal(failure{Error: "bad-reply"})
+			}
+			return marshal(failure{Error: detailed.Code(), Details: details})
+		}
 		var coded Coded
 		if errors.As(r.err, &coded) {
 			return marshal(failure{Error: coded.Code()})
@@ -176,8 +192,12 @@ func marshal(v any) []byte {
 	return data
 }
 
-// Failed is a reply whose ok is false: Code is its error.
-type Failed struct{ Code string }
+// Failed is a reply whose ok is false: Code is its error, Details what a
+// Detailed error added (nil: none).
+type Failed struct {
+	Code    string
+	Details json.RawMessage
+}
 
 func (e *Failed) Error() string { return "the Runner: " + e.Code }
 
@@ -202,15 +222,12 @@ func Call(ctx context.Context, socket, op string, request, reply any) error {
 	if err != nil {
 		return err
 	}
-	var head struct {
-		OK    bool   `json:"ok"`
-		Error string `json:"error"`
-	}
+	var head failure
 	if err := json.Unmarshal(line, &head); err != nil {
 		return fmt.Errorf("localsock: %s: %w", op, err)
 	}
 	if !head.OK {
-		return &Failed{Code: head.Error}
+		return &Failed{Code: head.Error, Details: head.Details}
 	}
 	if reply != nil {
 		if err := json.Unmarshal(line, reply); err != nil {

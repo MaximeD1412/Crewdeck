@@ -143,6 +143,12 @@ type stepSetup struct {
 
 func newStepSetup(t *testing.T, config func(*session.Config)) *stepSetup {
 	t.Helper()
+	return newStepSetupOf(t, config, start(firstID, "feat/12-panier"))
+}
+
+// newStepSetupOf is newStepSetup for the Session message starts.
+func newStepSetupOf(t *testing.T, config func(*session.Config), begin contracts.RunnerSessionStart) *stepSetup {
+	t.Helper()
 	st := &stepSetup{relayed: newRelayed(t, message("au travail"), question("hold")), sealed: map[string]string{}}
 	st.config = func(c *session.Config) {
 		c.Seal = func(plaintext, aad []byte) (keys.SealedItem, error) {
@@ -157,7 +163,7 @@ func newStepSetup(t *testing.T, config func(*session.Config)) *stepSetup {
 	}
 	st.m = st.manager(t)
 	st.socket = serveSocket(t, st.m, st.home)
-	st.m.Start(start(firstID, "feat/12-panier"))
+	st.m.Start(begin)
 	st.key = st.openKeys(t, st.frame(t).(contracts.RunnerSessionKeys), st.holders[0])
 	st.waiting(t, "hold", contracts.RunnerSessionWaitingKindQuestion, 2)
 	return st
@@ -204,7 +210,7 @@ func TestEtapeStartSendsStepStartedAndGivesTheEtapesContext(t *testing.T) {
 		t.Fatalf("sent %+v, want the step.started of the StepRun", started)
 	}
 	if got.StepRunID != stepRunID || got.StepKind != contracts.RunnerSessionStartStepStepKindCode || got.Skill != "crewdeck-test" || got.ContractID != nil ||
-		got.ProjectID != projectID || got.Branch != "feat/12-panier" || got.Base != "develop" || got.Origin.Github == nil || got.Inputs == nil {
+		deref(got.ProjectID) != projectID || deref(got.Branch) != "feat/12-panier" || deref(got.Base) != "develop" || got.Origin == nil || got.Origin.Github == nil || got.Inputs == nil {
 		t.Fatalf("context %+v", got)
 	}
 	if code := failed(st.call(t, session.OpStepStart, session.StepRequest{SessionID: secondID}, nil)); code != "not-found" {
@@ -476,4 +482,12 @@ func TestOnlyAnEtapesTurnEndsItsSessionAndOneInErrorEndsItInError(t *testing.T) 
 		t.Fatalf("sent %+v, want no verdict", sent)
 	default:
 	}
+}
+
+// deref is *s, "" for null.
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

@@ -29,6 +29,7 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/session"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/source/local"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/steps/ideaanalysis"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/update"
 	officialskills "github.com/maximed1412/crewdeck/apps/runner/skills"
 	"github.com/spf13/cobra"
@@ -170,6 +171,12 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		RunnerVersion: version,
 		Seal:          vault.SealItem,
 		ChangeOf:      mirrorChanges{store: copied, follow: follower}.of,
+		// The analysis of an Idée (IDEE-2): its scratch folder given the
+		// context read from the Miroir, its texts opened with the vault, and
+		// its report sealed under the Idée's analysis.
+		Steps: map[contracts.RunnerSessionStartStepStepKind]session.StepKind{
+			contracts.RunnerSessionStartStepStepKindIdeaAnalysis: ideaanalysis.New(copied, vault),
+		},
 	})
 	if err != nil {
 		return err

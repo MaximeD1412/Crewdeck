@@ -38,7 +38,9 @@ first in its PATH:
 - `crewdeck-runner etape start`, first: the StepRun is `running`; it prints
   the Étape's context as JSON (`stepRunId`, `stepKind`, `skill`, `contractId`,
   `projectId`, `origin`, `branch`, `base`, `inputs`, each Entrée with the
-  reference of its Artefact or `null`).
+  reference of its Artefact or `null`). A Session without code (the
+  analysis of an Idée) runs in a scratch folder: its `projectId`, `origin`,
+  `branch` and `base` are `null`.
 - `crewdeck-runner etape ask --question '<json>'`: a question to the Pilote,
   `{ "title": "…", "options": [{ "label": "…", "detail": "…" }], "multiple":
   false }`; it waits for the answer and prints it, `{ "text": "…" }` or
@@ -49,7 +51,11 @@ first in its PATH:
   `{ "figures": { … }, "content": "…" }`. `figures` are what the server may
   read (ids, states, counts), checked against the report of the Étape's kind;
   `content` is the report's free text, sealed by the Runner before it leaves
-  the machine, never in `figures`.
+  the machine, never in `figures`. For an Étape the Runner reads itself
+  (`idea-analysis`), the file is the report its Contrat reads
+  (`.crewdeck/report.json`): the Runner checks the Contrat on the folder
+  first and refuses a report that fails it, each failed rule said, nothing
+  sent; the Skill fixes its report and sends it again.
 
 The end of the agent's turn is the end of the Étape: the Runner then ends
 the Moteur (Claude Code, which waits for its next message, has its input

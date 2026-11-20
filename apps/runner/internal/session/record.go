@@ -15,12 +15,17 @@ import (
 // keeps of a Session to report it after a restart and to resume it. Its
 // title is not kept: nothing reads it on the Runner.
 type record struct {
-	SessionID       string                                     `json:"sessionId"`
-	ProjectID       string                                     `json:"projectId"`
-	Origin          contracts.Origin                           `json:"origin"`
-	Branch          string                                     `json:"branch"`
-	Base            string                                     `json:"base"`
+	SessionID string `json:"sessionId"`
+	// ProjectID, Branch and Base are "" for a scratch Session without them,
+	// Origin nil (IDEE-2).
+	ProjectID string            `json:"projectId"`
+	Origin    *contracts.Origin `json:"origin"`
+	Branch    string            `json:"branch"`
+	Base      string            `json:"base"`
+	// Worktree is the Session's folder: its worktree, or its scratch
+	// folder when Scratch.
 	Worktree        string                                     `json:"worktree"`
+	Scratch         bool                                       `json:"scratch,omitempty"`
 	Engine          contracts.RunnerSessionStartEngine         `json:"engine"`
 	Model           string                                     `json:"model"`
 	Role            string                                     `json:"role"`

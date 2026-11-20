@@ -220,7 +220,7 @@ func start(id, branch string) contracts.RunnerSessionStart {
 		At:             time.Now().UTC(),
 		SessionId:      id,
 		ProjectId:      projectID,
-		Origin:         contracts.Origin{Github: &contracts.OriginGithub{Owner: "acme", Name: "shop"}},
+		Origin:         &contracts.Origin{Github: &contracts.OriginGithub{Owner: "acme", Name: "shop"}},
 		Branch:         branch,
 		Base:           "develop",
 		Engine:         contracts.RunnerSessionStartEngineClaudeCode,

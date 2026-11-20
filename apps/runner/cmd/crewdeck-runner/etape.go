@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/localsock"
@@ -48,7 +49,7 @@ func newEtapeCommand() *cobra.Command {
 	var file string
 	report := &cobra.Command{
 		Use:   "report --file <path>|-",
-		Short: `Report the Étape: {"figures": {…}, "content": "…"}, the content sealed by the Runner`,
+		Short: `Report the Étape: {"figures": {…}, "content": "…"}, the content sealed by the Runner; for an Étape the Runner reads itself (idea-analysis), its report file, checked against its Contrat`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			call, err := etapeCall(cmd)
@@ -63,11 +64,19 @@ func newEtapeCommand() *cobra.Command {
 				Figures json.RawMessage `json:"figures"`
 				Content *string         `json:"content"`
 			}
+			// Without figures, the report is the file of an Étape the
+			// Runner reads itself from the Session's folder (idea-analysis):
+			// the Runner checks it, a Session of another Étape refuses it.
 			if err := json.Unmarshal(data, &body); err != nil || len(body.Figures) == 0 {
+				body.Figures, body.Content = nil, nil
+			}
+			err = call.send(session.OpStepReport, session.StepReportRequest{SessionID: call.session, Figures: body.Figures, Content: body.Content}, nil)
+			var failed *localsock.Failed
+			if body.Figures == nil && errors.As(err, &failed) && failed.Code == "bad-request" {
 				return etapeFailed(cmd, `Le rapport n'est pas un objet JSON {"figures": {…}, "content": "…"}.`)
 			}
-			if err := call.do(session.OpStepReport, session.StepReportRequest{SessionID: call.session, Figures: body.Figures, Content: body.Content}, nil); err != nil {
-				return err
+			if err != nil {
+				return etapeFailed(cmd, etapeRefusal(err))
 			}
 			fmt.Fprintln(cmd.OutOrStdout(), "Le rapport est envoyé.")
 			return nil
@@ -144,12 +153,17 @@ func etapeCall(cmd *cobra.Command) (*etapeClient, error) {
 
 // do calls op; a refusal is printed in French, and the command exits 1.
 func (c *etapeClient) do(op string, request, reply any) error {
-	ctx, cancel := context.WithTimeout(c.cmd.Context(), localsock.Timeout+5*time.Second)
-	defer cancel()
-	if err := localsock.Call(ctx, c.socket, op, request, reply); err != nil {
+	if err := c.send(op, request, reply); err != nil {
 		return etapeFailed(c.cmd, etapeRefusal(err))
 	}
 	return nil
+}
+
+// send calls op, its refusal returned as it is.
+func (c *etapeClient) send(op string, request, reply any) error {
+	ctx, cancel := context.WithTimeout(c.cmd.Context(), localsock.Timeout+5*time.Second)
+	defer cancel()
+	return localsock.Call(ctx, c.socket, op, request, reply)
 }
 
 func readReport(stdin io.Reader, file string) ([]byte, error) {
@@ -212,8 +226,28 @@ func etapeRefusal(err error) string {
 			return "La demande n'est pas valide."
 		case "ended":
 			return "La Session a pris fin avant la réponse."
+		case "contract-failed":
+			return contractRefusal(failed.Details)
 		}
 		return fmt.Sprintf("Le Runner n'a pas pu le faire (%s).", failed.Code)
 	}
 	return "Le Runner n'a pas répondu."
+}
+
+// contractRefusal says the rules of its Contrat a report failed, each by its
+// label and its id, and that nothing was sent.
+func contractRefusal(raw json.RawMessage) string {
+	var details session.ContractFailedDetails
+	_ = json.Unmarshal(raw, &details)
+	var out strings.Builder
+	out.WriteString("Le rapport ne passe pas son Contrat :")
+	for _, rule := range details.FailedRules {
+		label := rule.Label
+		if label == "" {
+			label = rule.ID
+		}
+		fmt.Fprintf(&out, "\n- %s (%s)", label, rule.ID)
+	}
+	out.WriteString("\nRien n'est envoyé : corrige le rapport, puis envoie-le à nouveau.")
+	return out.String()
 }

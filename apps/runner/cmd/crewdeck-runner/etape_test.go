@@ -82,8 +82,9 @@ func (r opRefusal) Code() string  { return string(r) }
 
 // stepContext is the context of a Local Projet's code Étape.
 func stepContext(stepRunID string) session.StepContext {
-	return session.StepContext{StepRunID: stepRunID, StepKind: contracts.RunnerSessionStartStepStepKindCode, Skill: "code", ProjectID: "P2",
-		Origin: contracts.Origin{Local: &contracts.OriginLocal{}}, Branch: "feat/12-x", Base: "main", Inputs: []contracts.RunnerSessionStartStepInputsElem{}}
+	projectID, branch, base := "P2", "feat/12-x", "main"
+	return session.StepContext{StepRunID: stepRunID, StepKind: contracts.RunnerSessionStartStepStepKindCode, Skill: "code", ProjectID: &projectID,
+		Origin: &contracts.Origin{Local: &contracts.OriginLocal{}}, Branch: &branch, Base: &base, Inputs: []contracts.RunnerSessionStartStepInputsElem{}}
 }
 
 // runEtape runs `crewdeck-runner etape args…`, stdin given.
@@ -121,7 +122,14 @@ func TestEtapeStartPrintsTheEtapesContextTheRunnerGives(t *testing.T) {
 
 func TestEtapeReportSendsTheFileOrTheStandardInputToTheRunnerWhichSealsIt(t *testing.T) {
 	r := newEtapeRunner(t)
-	r.handle(session.OpStepReport, func(map[string]any) (any, error) { return nil, nil })
+	// As the Runner for a Session whose Étape it does not read itself: a
+	// report without figures is a bad request.
+	r.handle(session.OpStepReport, func(request map[string]any) (any, error) {
+		if request["figures"] == nil {
+			return nil, opRefusal("bad-request")
+		}
+		return nil, nil
+	})
 	file := filepath.Join(t.TempDir(), "report.json")
 	if err := os.WriteFile(file, []byte(`{"figures":{"tickets":3},"content":"Trois Tickets."}`), 0o600); err != nil {
 		t.Fatal(err)
@@ -139,12 +147,59 @@ func TestEtapeReportSendsTheFileOrTheStandardInputToTheRunnerWhichSealsIt(t *tes
 		t.Fatalf("requests %v", got)
 	}
 
-	// Not a report: nothing sent, exit 1 with why.
+	// Not a report: the Runner refuses it, exit 1 with why.
 	if _, stderr, err := runEtape(t, `["figures"]`, "report", "--file", "-"); err == nil || !strings.Contains(stderr, "objet JSON") {
 		t.Fatalf("%v, %q", err, stderr)
 	}
-	if len(r.requests()) != 2 {
-		t.Fatal("a bad report was sent")
+	if got := r.requests(); len(got) != 3 || got[2]["figures"] != nil || got[2]["content"] != nil {
+		t.Fatalf("requests %v, want the last without figures nor content", got)
+	}
+}
+
+// contractRefused is the Runner's refusal of a report its Contrat failed.
+type contractRefused session.ContractFailedDetails
+
+func (contractRefused) Error() string  { return "contract-failed" }
+func (contractRefused) Code() string   { return "contract-failed" }
+func (r contractRefused) Details() any { return session.ContractFailedDetails(r) }
+
+// The report of an Étape the Runner reads itself (idea-analysis) is its
+// file: sent without figures, the Runner checks its Contrat, and `etape`
+// says each rule it failed.
+func TestEtapeReportOfAnIdeaAnalysisSaysTheRulesItsContratFailed(t *testing.T) {
+	r := newEtapeRunner(t)
+	var refuse atomic.Bool
+	refuse.Store(true)
+	r.handle(session.OpStepReport, func(map[string]any) (any, error) {
+		if refuse.Load() {
+			return nil, contractRefused{FailedRules: []session.FailedRule{
+				{ID: "idea-analysis.report.schema", Label: "Le rapport a un titre et un résumé d’au plus 400 caractères"},
+				{ID: "idea-analysis.report.duplicates", Label: "Les doublons sont des Idées ouvertes"},
+			}}
+		}
+		return nil, nil
+	})
+	file := filepath.Join(t.TempDir(), "report.json")
+	if err := os.WriteFile(file, []byte(`{"title":"Exporter","summary":"…","impact":3}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, stderr, err := runEtape(t, "", "report", "--file", file)
+
+	want := "Le rapport ne passe pas son Contrat :\n" +
+		"- Le rapport a un titre et un résumé d’au plus 400 caractères (idea-analysis.report.schema)\n" +
+		"- Les doublons sont des Idées ouvertes (idea-analysis.report.duplicates)\n" +
+		"Rien n'est envoyé : corrige le rapport, puis envoie-le à nouveau.\n"
+	if exitCode(err) != 1 || stderr != want {
+		t.Fatalf("%v, stderr %q, want %q", err, stderr, want)
+	}
+	if got := r.requests(); len(got) != 1 || got[0]["figures"] != nil || got[0]["sessionId"] != ghSession {
+		t.Fatalf("requests %v, want the Session's, without figures", got)
+	}
+
+	refuse.Store(false)
+	if out, stderr, err := runEtape(t, "", "report", "--file", file); err != nil || !strings.Contains(out, "Le rapport est envoyé.") {
+		t.Fatalf("%v, %q, %q", err, out, stderr)
 	}
 }
 

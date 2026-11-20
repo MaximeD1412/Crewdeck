@@ -106,3 +106,32 @@ func TestLocalSockCallWithoutARunnerIsErrNoRunner(t *testing.T) {
 		t.Fatalf("Call on a stale socket = %v", err)
 	}
 }
+
+type refused struct{ rules []string }
+
+func (refused) Error() string  { return "the report fails its Contrat" }
+func (refused) Code() string   { return "contract-failed" }
+func (r refused) Details() any { return map[string]any{"failedRuleIds": r.rules} }
+
+// A Detailed error's reply holds its details beside its code, which Call
+// gives back in Failed.
+func TestADetailedErrorsReplyGivesItsDetailsToTheCaller(t *testing.T) {
+	s := &localsock.Server{}
+	s.Handle("step.report", func(context.Context, json.RawMessage) (any, error) {
+		return nil, refused{rules: []string{"idea-analysis.report.schema"}}
+	})
+	s.Handle("step.start", func(context.Context, json.RawMessage) (any, error) {
+		return nil, unavailable{}
+	})
+	socket := serve(t, s)
+
+	err := localsock.Call(context.Background(), socket, "step.report", nil, nil)
+	var failed *localsock.Failed
+	if !errors.As(err, &failed) || failed.Code != "contract-failed" || string(failed.Details) != `{"failedRuleIds":["idea-analysis.report.schema"]}` {
+		t.Fatalf("%v (%+v), want contract-failed with its rules", err, failed)
+	}
+	err = localsock.Call(context.Background(), socket, "step.start", nil, nil)
+	if !errors.As(err, &failed) || failed.Code != "unavailable" || failed.Details != nil {
+		t.Fatalf("%v (%+v), want unavailable without details", err, failed)
+	}
+}

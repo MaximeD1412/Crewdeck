@@ -32,7 +32,7 @@ func mergeable(t *testing.T, m merging) (head, state string) {
 	return c.HeadOid, c.Mergeable
 }
 
-func TestWatchFollowsAChangesBranchASessionPushesAndItsMergeability(t *testing.T) {
+func TestChangeFollowsTheBranchASessionPushesAndItsMergeabilityThroughTheWatcher(t *testing.T) {
 	for _, poll := range []bool{false, true} {
 		m := mergeFolder(t)
 		srv := newServer()

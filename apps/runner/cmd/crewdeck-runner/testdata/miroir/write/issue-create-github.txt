@@ -1,0 +1,4 @@
+POST /repos/acme/atelier/issues {"body":"B","labels":["ready-for-agent"],"title":"T"}
+GET /repos/acme/atelier/issues/3
+POST /repos/acme/atelier/issues/16/dependencies/blocked_by {"issue_id":9003}
+POST /repos/acme/atelier/issues/1/sub_issues {"sub_issue_id":9016}

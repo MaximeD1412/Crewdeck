@@ -975,3 +975,21 @@ func TestAStopAsARunGivesItsWorktreeBackCancelsTheResumeThatWaitedForIt(t *testi
 		t.Fatalf("states %v, want the Session stopped after the stop", states)
 	}
 }
+
+func TestRunningGivesTheProjetAndRoleOfASessionWhileItRunsOnly(t *testing.T) {
+	s := newSetup(t, question("q-1"))
+	m := s.manager(t)
+	if _, _, ok := m.Running(firstID); ok {
+		t.Fatal("a Session never started runs")
+	}
+	m.Start(start(firstID, "feat/12-panier"))
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateWaiting)
+	if project, role, ok := m.Running(firstID); !ok || project != projectID || role != "code" {
+		t.Fatalf("running: %q %q %v", project, role, ok)
+	}
+	m.Stop(firstID)
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateStopped)
+	if _, _, ok := m.Running(firstID); ok {
+		t.Fatal("a stopped Session runs")
+	}
+}

@@ -86,6 +86,18 @@ export class TicketsReconcile implements OnModuleInit {
     if (failure !== undefined) throw failure;
   }
 
+  /**
+   * The Tickets of one Projet read whole again, all of its issues (a
+   * migration's switch to GitHub, SOURCE-8: the titles of the rows it moved).
+   */
+  async reconcileProjectTickets(pilotId: string, projectId: string): Promise<void> {
+    const row = await this.prisma.scoped.project.findFirst({ where: { id: projectId, accessLost: false, githubRepoId: { not: null } }, select: { id: true, owner: true, name: true, fullName: true, githubRepoId: true } });
+    if (!row) return;
+    const { owner, name, fullName } = githubNamesOf(row);
+    this.lastRun.delete(projectId);
+    await this.queue.run(pilotId, () => this.reconcileProject({ id: row.id, repo: { owner, name, id: Number(row.githubRepoId) }, fullName }));
+  }
+
   private async projectsOf(installationId: number): Promise<WebhookProject[]> {
     const repositories = await this.prisma.scoped.repository.findMany({ where: { installationId: BigInt(installationId) }, select: { id: true } });
     const rows = await this.prisma.scoped.project.findMany({

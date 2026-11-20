@@ -21,6 +21,8 @@ export const TICKET_VIEW = {
   milestoneNumber: true,
   blockedBy: true,
   parentNumber: true,
+  formerNumber: true,
+  formerSource: true,
   branchPrefix: true,
   visualReview: true,
   sourceCreatedAt: true,

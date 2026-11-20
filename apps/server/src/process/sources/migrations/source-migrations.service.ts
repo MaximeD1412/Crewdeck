@@ -36,8 +36,8 @@ import { toProject, PROJECT_VIEW } from '../../../projects/project.view.js';
 import { decodeMigrationCursor, encodeMigrationCursor } from './migration-cursor.js';
 import { SOURCE_MIGRATION_VIEW, type SourceMigrationRow, toSourceMigration, waitingItemsOf } from './source-migration.view.js';
 
-/** What the switch carries to a hook: the Runner's fingerprints and new numbers, empty for a group that held nothing. */
-export type SwitchMessage = Pick<MigrationSwitch, 'fingerprints' | 'renumbering'>;
+/** What the switch carries to a hook: the Runner's fingerprints and new numbers (the milestones' too, SOURCE-8), empty for a group that held nothing. */
+export type SwitchMessage = Pick<MigrationSwitch, 'fingerprints' | 'renumbering' | 'milestones'>;
 
 /**
  * What a group adds to the switch, in its transaction (SOURCE-8: the

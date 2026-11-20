@@ -111,12 +111,12 @@ export interface CheckInput {
   readonly url?: string | null;
 }
 
-type TicketData = Omit<TicketRow, 'id' | 'projectId' | 'source' | 'number' | 'ready' | 'updatedAt'>;
+type TicketData = Omit<TicketRow, 'id' | 'projectId' | 'source' | 'number' | 'ready' | 'updatedAt' | 'formerNumber' | 'formerSource'>;
 
 /** What a stored row says of the Ticket, without what the writer sets itself. */
 const dataOf = (row: TicketRow): TicketData => {
   const data: Partial<TicketRow> = { ...row };
-  for (const key of ['id', 'projectId', 'source', 'number', 'ready', 'updatedAt'] as const) delete data[key];
+  for (const key of ['id', 'projectId', 'source', 'number', 'ready', 'updatedAt', 'formerNumber', 'formerSource'] as const) delete data[key];
   return data as TicketData;
 };
 
@@ -171,6 +171,63 @@ export class TicketsWriter {
     await tx.ticket.delete({ where: { id: row.id } });
     await this.events.write(tx, currentPilotId(), 'ticket.removed', { id: row.id }, origin);
     await this.writeTickets(tx, projectId, null, () => undefined, [number], origin);
+  }
+
+  /**
+   * A migration's switch of the Tickets (SOURCE-8, ADR 0012): every Ticket of
+   * the Projet to its number in `to` (`tickets`, old → new), its number and
+   * Source before kept (`formerNumber`, `formerSource`), its parent, blockers
+   * and milestone renumbered; every milestone to its new number
+   * (`milestones`). The texts of the old Source are cleared, the new one
+   * fills them. Numbers go negative first, so that none is held twice in
+   * between. Each row its event. The caller checks the maps cover the rows.
+   */
+  async moveTickets(
+    tx: Tx,
+    projectId: string,
+    move: { readonly from: TicketSource; readonly to: TicketSource; readonly tickets: ReadonlyMap<number, number>; readonly milestones: ReadonlyMap<number, number> },
+    origin: WriteOrigin = {},
+  ): Promise<void> {
+    const renumbered = (number: number | null, map: ReadonlyMap<number, number>): number | null => (number === null ? null : (map.get(number) ?? null));
+    const newNumber = (number: number, map: ReadonlyMap<number, number>): number => {
+      const next = map.get(number);
+      if (next === undefined) throw new Error(`no new number for ${number}`);
+      return next;
+    };
+    const milestones = await tx.milestone.findMany({ where: { projectId }, select: { id: true, number: true }, orderBy: { number: 'asc' } });
+    for (const [index, row] of milestones.entries()) await tx.milestone.update({ where: { id: row.id }, data: { number: -(index + 1) } });
+    for (const row of milestones) {
+      const number = newNumber(row.number, move.milestones);
+      const saved = await tx.milestone.update({
+        where: { id: row.id },
+        data: { number, rank: number, source: move.to, title: null, titleSealed: Prisma.DbNull },
+        select: MILESTONE_VIEW,
+      });
+      await this.events.write(tx, currentPilotId(), 'milestone.upserted', toMilestone(saved), origin);
+    }
+
+    const rows = await tx.ticket.findMany({ where: { projectId }, select: { id: true, number: true, labels: true, parentNumber: true, blockedBy: true, milestoneNumber: true }, orderBy: { number: 'asc' } });
+    for (const [index, row] of rows.entries()) await tx.ticket.update({ where: { id: row.id }, data: { number: -(index + 1) } });
+    for (const row of rows) {
+      const saved = await tx.ticket.update({
+        where: { id: row.id },
+        data: {
+          number: newNumber(row.number, move.tickets),
+          formerNumber: row.number,
+          formerSource: move.from,
+          source: move.to,
+          title: null,
+          titleSealed: Prisma.DbNull,
+          labelsSealed: Prisma.DbNull,
+          labels: move.to === 'local' ? productLabels(row.labels) : row.labels,
+          parentNumber: renumbered(row.parentNumber, move.tickets),
+          blockedBy: row.blockedBy.flatMap((number) => (move.tickets.has(number) ? [newNumber(number, move.tickets)] : [])).sort((a, b) => a - b),
+          milestoneNumber: renumbered(row.milestoneNumber, move.milestones),
+        },
+        select: TICKET_VIEW,
+      });
+      await this.emit(tx, saved, origin);
+    }
   }
 
   async upsertMilestones(tx: Tx, projectId: string, source: TicketSource, items: readonly MilestoneInput[], origin: WriteOrigin = {}): Promise<Milestone[]> {

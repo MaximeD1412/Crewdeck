@@ -339,6 +339,13 @@ type CopiedTicket struct {
 // migration never skips it (`local.unreadable`).
 var ErrUnreadable = errors.New("source: a Ticket's file does not parse")
 
+// RankedMilestones is a Copier whose milestone numbers are their rank in a
+// file (Local's milestones.yml), not an identity: a milestone the Pilote
+// moves in the file changes number.
+type RankedMilestones interface {
+	MilestonesByRank()
+}
+
 // Copier is a Projet's Tickets on one Source as a migration of Source reads
 // and writes them whole (SOURCE-8, ADR 0012): implemented for Local
 // (`local/`) and for GitHub (`github/`). The migration's copy, its passes of

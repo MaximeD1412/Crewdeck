@@ -800,3 +800,57 @@ func TestAMilestoneRenamedOnGitHubAfterTheSwitchIsRenamedInMilestonesYmlNotAdded
 		t.Errorf("ticket 1\n%s", ticket)
 	}
 }
+
+func TestALateTicketStaysInItsMilestoneWhenThePiloteSwapsTheMilestonesOfMilestonesYml(t *testing.T) {
+	e := newEnv(t, map[string]string{"README.md": "Le Projet.\n"})
+	e.gh.milestones = []fakeMilestone{{Number: 1, Title: "M1"}, {Number: 2, Title: "M2"}}
+	issue := e.gh.add(fakeIssue{Title: "Connexion GitHub", Milestone: 1})
+	e.gh.add(fakeIssue{Title: "Export", Milestone: 2})
+	h := e.handler()
+	h.Copy(context.Background(), copyMessage(contracts.RunnerMigrationCopyFromGithub, contracts.RunnerMigrationCopyFromLocal))
+	switched := sentOf[contracts.RunnerMigrationSwitch](e)
+	if len(switched) != 1 {
+		t.Fatalf("switches %d, failed %+v\n%s", len(switched), sentOf[contracts.RunnerMigrationFailed](e), e.logs.String())
+	}
+
+	// Once switched, the Pilote swaps the milestones in milestones.yml (their
+	// ranks, Local's numbers, with them); on GitHub, the issue of M1 changes late.
+	e.write("tickets/milestones.yml", "- title: M2\n- title: M1\n")
+	issue.Title = "Connexion GitHub, en retard"
+	h.Finish(context.Background(), finishMessage(switched[0]))
+	if failed := sentOf[contracts.RunnerMigrationFailed](e); len(failed) > 0 || len(sentOf[contracts.RunnerMigrationFinished](e)) != 1 {
+		t.Fatalf("failed %+v\n%s", failed, e.logs.String())
+	}
+	if ticket := e.read("tickets/1-connexion-github.md"); !strings.Contains(ticket, "Connexion GitHub, en retard") || !strings.Contains(ticket, "milestone: M1") {
+		t.Errorf("ticket 1\n%s", ticket)
+	}
+	if yml := e.read("tickets/milestones.yml"); yml != "- title: M2\n- title: M1\n" {
+		t.Errorf("milestones.yml %q", yml)
+	}
+}
+
+func TestMilestonesSwappedInTheOldMilestonesYmlAfterTheSwitchAreNotRenamedOnGitHub(t *testing.T) {
+	e := newEnv(t, thirtyTickets())
+	h := e.handler()
+	h.Copy(context.Background(), copyMessage(contracts.RunnerMigrationCopyFromLocal, contracts.RunnerMigrationCopyFromGithub))
+	switched := sentOf[contracts.RunnerMigrationSwitch](e)
+	if len(switched) != 1 {
+		t.Fatalf("switches %d, failed %+v\n%s", len(switched), sentOf[contracts.RunnerMigrationFailed](e), e.logs.String())
+	}
+
+	// Once switched, the Pilote swaps M1 and M2 in Local, and Ticket 5 changes late, still in M1.
+	e.write("tickets/milestones.yml", "- title: M2\n- title: M1\n  due_on: 2026-12-01\n")
+	e.write("tickets/5-ticket-5.md", "---\nnumber: 5\ntitle: Ticket 5, en retard\nlabels: [size:S]\nmilestone: M1\n---\n\nLe corps.\n")
+	h.Finish(context.Background(), finishMessage(switched[0]))
+	if failed := sentOf[contracts.RunnerMigrationFailed](e); len(failed) > 0 || len(sentOf[contracts.RunnerMigrationFinished](e)) != 1 {
+		t.Fatalf("failed %+v\n%s", failed, e.logs.String())
+	}
+	if len(e.gh.milestones) != 2 || e.gh.milestones[0].Title != "M1" || e.gh.milestones[0].DueOn == nil || e.gh.milestones[1].Title != "M2" || e.gh.milestones[1].DueOn != nil {
+		t.Errorf("milestones %+v", e.gh.milestones)
+	}
+	for _, is := range e.gh.Issues() {
+		if strings.Contains(is.Body, "local#5 -->") && (is.Title != "Ticket 5, en retard" || is.Milestone != 1) {
+			t.Errorf("5's issue %q in milestone %d", is.Title, is.Milestone)
+		}
+	}
+}

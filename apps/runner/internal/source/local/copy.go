@@ -48,6 +48,9 @@ func (c *Copier) Dir() string { return c.dir }
 // Kind is "local".
 func (c *Copier) Kind() string { return "local" }
 
+// MilestonesByRank says a milestone's number is its rank in milestones.yml.
+func (c *Copier) MilestonesByRank() {}
+
 // ReadAll is every Ticket of the folder, by number, with its comments, and
 // the milestones; source.ErrUnreadable when a file, or milestones.yml, does
 // not parse (or two files hold one number). In `tickets/`, a file without

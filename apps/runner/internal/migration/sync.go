@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -46,33 +47,40 @@ func syncPass(ctx context.Context, from, to source.Copier, p *progress, late *la
 
 	// The milestones, by title, with their due date.
 	milestones := map[string]source.Milestone{}
-	byNumber := map[int]source.Milestone{}
 	for _, m := range dstMilestones {
 		if _, ok := milestones[m.Title]; !ok {
 			milestones[m.Title] = m
 		}
-		byNumber[m.Number] = m
 	}
+	_, srcRanked := from.(source.RankedMilestones)
+	_, dstRanked := to.(source.RankedMilestones)
+	mapped := maps.Clone(p.Milestones)
 	for _, m := range srcMilestones {
 		found, ok := milestones[m.Title]
 		want := m
 		if late != nil {
 			// Since the switch, the new Source is the Projet's: its milestone found
-			// by the number recorded (renamed there, maybe), and only what changed
-			// in the old place written over it.
-			if n, mapped := p.Milestones[m.Number]; mapped {
-				found, ok = byNumber[n]
+			// as the switch copied it (renamed or moved there, maybe), and only
+			// what changed in the old place written over it.
+			n, was, seen := switchedAs(m, srcMilestones, p.Switched, srcRanked)
+			if dn, copied := mapped[n]; seen && copied {
+				found, ok = copiedTo(dn, was, dstMilestones, p.Switched, dstRanked)
+			} else if !srcRanked {
+				if dn, copied := mapped[m.Number]; copied {
+					found, ok = copiedTo(dn, was, dstMilestones, p.Switched, false)
+				}
 			}
+			changed := late.milestones[m.Number] && (!seen || was.Title != m.Title || was.Due != due(m))
 			if ok {
 				want = found
-				if was, seen := p.Switched[m.Number]; !seen || was.Title != m.Title {
+				if !seen || was.Title != m.Title {
 					want.Title = m.Title
 				}
-				if was, seen := p.Switched[m.Number]; !seen || was.Due != due(m) {
+				if !seen || was.Due != due(m) {
 					want.DueOn = m.DueOn
 				}
 			}
-			if !late.milestones[m.Number] {
+			if !changed {
 				// Unchanged in the old place: the new Source has it as it is, or
 				// has it no more.
 				if ok {
@@ -184,6 +192,61 @@ func syncPass(ctx context.Context, from, to source.Copier, p *progress, late *la
 		out.writes++
 	}
 	return out, nil
+}
+
+// switchedAs is the number m had in the old place at the switch, and how
+// it was then: its number, unless the old place numbers its milestones by
+// rank, where one moved in the file is found by its title, and one renamed
+// where it stands by its rank (when no milestone of now has its old title).
+func switchedAs(m source.Milestone, now []source.Milestone, switched map[int]switchedMilestone, ranked bool) (int, switchedMilestone, bool) {
+	if !ranked {
+		was, ok := switched[m.Number]
+		return m.Number, was, ok
+	}
+	if n := titled(switched, m.Title); n > 0 {
+		return n, switched[n], true
+	}
+	was, ok := switched[m.Number]
+	if !ok || slices.ContainsFunc(now, func(c source.Milestone) bool { return c.Title == was.Title }) {
+		return 0, switchedMilestone{}, false
+	}
+	return m.Number, was, true
+}
+
+// copiedTo is the milestone of the new Source the switch had at number n,
+// was's copy: n itself, unless the new Source numbers its milestones by
+// rank, where it is the one at n still titled as at the switch, else the
+// one so titled (moved), else the one at n when its title is no other
+// switched milestone's (renamed where it stands).
+func copiedTo(n int, was switchedMilestone, dst []source.Milestone, switched map[int]switchedMilestone, ranked bool) (source.Milestone, bool) {
+	at := slices.IndexFunc(dst, func(m source.Milestone) bool { return m.Number == n })
+	if !ranked || was.Title == "" {
+		if at < 0 {
+			return source.Milestone{}, false
+		}
+		return dst[at], true
+	}
+	if at >= 0 && dst[at].Title == was.Title {
+		return dst[at], true
+	}
+	if moved := slices.IndexFunc(dst, func(m source.Milestone) bool { return m.Title == was.Title }); moved >= 0 {
+		return dst[moved], true
+	}
+	if at >= 0 && titled(switched, dst[at].Title) == 0 {
+		return dst[at], true
+	}
+	return source.Milestone{}, false
+}
+
+// titled is the lowest number of switched titled title, 0 for none.
+func titled(switched map[int]switchedMilestone, title string) int {
+	found := 0
+	for n, was := range switched {
+		if was.Title == title && (found == 0 || n < found) {
+			found = n
+		}
+	}
+	return found
 }
 
 // switchedMilestone is a milestone of the old place as the switch saw it.

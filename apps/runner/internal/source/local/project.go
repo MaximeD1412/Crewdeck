@@ -76,12 +76,13 @@ type Project struct {
 	reporting sync.Mutex // one report at a time (report.go)
 	gitMu     sync.Mutex // one merge, or one look at the changes' branches, at a time in the clone (merge.go, follow.go)
 
-	mu         sync.Mutex
-	clone      string         // the Runner's clone of the folder, "" when unknown
-	worktrees  string         // the folder of the Runner's worktrees of the Projet, "" for a temporary one
-	followed   map[int]string // a change number: the heads its mergeability was computed at (follow.go)
-	listeners  []func(source.Changed)
-	milestones *string // milestones.yml as last seen; nil before the first scan
+	mu                sync.Mutex
+	clone             string         // the Runner's clone of the folder, "" when unknown
+	worktrees         string         // the folder of the Runner's worktrees of the Projet, "" for a temporary one
+	followed          map[int]string // a change number: the heads its mergeability was computed at (follow.go)
+	beforeFastForward func()         // tests only (export_test.go)
+	listeners         []func(source.Changed)
+	milestones        *string // milestones.yml as last seen; nil before the first scan
 }
 
 var (

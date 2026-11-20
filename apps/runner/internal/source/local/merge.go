@@ -1,10 +1,12 @@
 package local
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -217,6 +219,22 @@ func (p *Project) moveBase(ctx context.Context, clone string, number int, branch
 		return nil, errHeadMoved
 	}
 	if head, err := gitOutput(ctx, p.folder, "symbolic-ref", "--quiet", "HEAD"); err == nil && head == "refs/heads/"+branch {
+		// The change's branch locked at sha until the fast-forward is done:
+		// a Session's push meanwhile is refused (git's `cannot lock ref`).
+		release, err := holdRef(ctx, p.folder, "refs/heads/"+headRef, sha)
+		if err != nil {
+			if headMoved() {
+				return nil, errHeadMoved
+			}
+			return nil, err
+		}
+		defer release()
+		p.mu.Lock()
+		before := p.beforeFastForward
+		p.mu.Unlock()
+		if before != nil {
+			before()
+		}
 		// --no-autostash: the Pilote's merge.autoStash would stash their
 		// work and apply it again over the merge, conflicts and all.
 		out, err := gitCommand(ctx, p.folder, "merge", "--ff-only", "--no-autostash", "--quiet", squash).CombinedOutput()
@@ -243,6 +261,41 @@ func (p *Project) moveBase(ctx context.Context, clone string, number int, branch
 		return nil, &gitError{command: "update-ref", err: err}
 	}
 	return nil, nil
+}
+
+// holdRef locks ref in dir as long as it is at oid, until release: an
+// `update-ref --stdin` transaction verifying it, prepared (its lock taken)
+// and aborted on release, changing nothing.
+func holdRef(ctx context.Context, dir, ref, oid string) (release func(), err error) {
+	cmd := gitCommand(context.WithoutCancel(ctx), dir, "update-ref", "--stdin")
+	in, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, &gitError{command: "update-ref", err: err}
+	}
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, &gitError{command: "update-ref", err: err}
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, &gitError{command: "update-ref", err: err}
+	}
+	release = func() {
+		_, _ = io.WriteString(in, "abort\n")
+		_ = in.Close()
+		_ = cmd.Wait()
+	}
+	if _, err := io.WriteString(in, "start\nverify "+ref+" "+oid+"\nprepare\n"); err != nil {
+		release()
+		return nil, &gitError{command: "update-ref", err: err}
+	}
+	lines := bufio.NewScanner(out)
+	for lines.Scan() {
+		if lines.Text() == "prepare: ok" {
+			return release, nil
+		}
+	}
+	release()
+	return nil, &gitError{command: "update-ref", err: errors.New("not prepared")}
 }
 
 // overwritten are the files git names when a merge would overwrite the

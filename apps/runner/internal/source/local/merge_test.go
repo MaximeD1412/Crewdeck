@@ -3,6 +3,7 @@ package local_test
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -355,4 +356,32 @@ func TestMergeIsStaleWhenTheChangesHeadMovesBeforeTheSquashIsApplied(t *testing.
 			t.Errorf("checked out %v: refs left %q", checkedOut, got)
 		}
 	}
+}
+
+func TestMergeRefusesAPushOfTheChangeDuringTheFastForward(t *testing.T) {
+	ctx := context.Background()
+	m := mergeFolder(t)
+	write(t, m.clone, "n.txt", "nouveau, encore\n")
+	git(t, m.clone, "commit", "--quiet", "-am", "feat : encore")
+	var pushed error
+	// A Session pushes after the last look at the head, before the squash is applied.
+	m.BeforeFastForward(func() {
+		pushed = exec.Command("git", "-C", m.clone, "push", "--quiet", "origin", "feat/3-x").Run()
+	})
+
+	result, err := m.Merge(ctx, 3, m.head)
+	if err != nil || result.Outcome != local.MergeMerged {
+		t.Fatalf("result %+v, %v", result, err)
+	}
+	if pushed == nil {
+		t.Error("the Session's push went through during the fast-forward")
+	}
+	if got := git(t, m.dir, "rev-parse", "feat/3-x"); got != m.head {
+		t.Errorf("feat/3-x at %s, merged at %s", got, m.head)
+	}
+	if got := git(t, m.dir, "rev-parse", "develop"); got != result.MergeSha {
+		t.Errorf("develop at %s, the squash %s", got, result.MergeSha)
+	}
+	// Once merged, the push goes through.
+	git(t, m.clone, "push", "--quiet", "origin", "feat/3-x")
 }

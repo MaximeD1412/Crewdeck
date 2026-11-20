@@ -159,3 +159,4 @@ export default defineSkin({
     Toggle: PasserelleToggle,
   },
 });
+// Temporary (test/ci-browsers-apt): makes this project affected. Never merged.

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zErrorCode } from '../api/errors.js';
+import { zArtifactContent, zArtifactError, zArtifactRead } from './artifact.js';
 import { zCapabilities } from './capabilities.js';
 import { zCommandKeys, zCommandOutput, zCommandReplay, zCommandRun, zCommandStarted, zCommandStop, zCommandVerdict } from './command.js';
 import { runnerMessage } from './envelope.js';
@@ -26,7 +27,7 @@ export { runnerMessage, type RunnerEnvelope, zRunnerEnvelope } from './envelope.
  * one before; an older Runner is told to update. Each later ticket adds its
  * messages to the two unions below, and its fixtures to
  * `fixtures/runner/<type>.json` (the relay's in `fixtures/runner/relay/`, the Commandes' in
- * `fixtures/runner/command/`).
+ * `fixtures/runner/command/`, the read artefacts' in `fixtures/runner/artifact/`).
  */
 export const PROTOCOL_VERSION = 1;
 
@@ -45,7 +46,7 @@ export const zProtocolError = runnerMessage('error', { code: zErrorCode });
 export type ProtocolError = z.infer<typeof zProtocolError>;
 
 /** Every message the Runner sends. */
-export const zRunnerToServer = z.discriminatedUnion('type', [zHello, zHeartbeat, zCapabilities, zMcpServers, zStepStarted, zStepReport, zStepVerdict, zMirrorToken, zSessionStateMessage, zSessionWaiting, zSessionAnswered, zSessionKeys, zRelay, zFolderChecked, zProjectsFolders, zCommandStarted, zCommandVerdict, zCommandKeys, zCommandOutput, zUsage, zMigrationProgress, zMigrationSwitch, zMigrationFinished, zMigrationFailed, zLocalChanged, zMergeLocalResult]);
+export const zRunnerToServer = z.discriminatedUnion('type', [zHello, zHeartbeat, zCapabilities, zMcpServers, zStepStarted, zStepReport, zStepVerdict, zMirrorToken, zSessionStateMessage, zSessionWaiting, zSessionAnswered, zSessionKeys, zRelay, zFolderChecked, zProjectsFolders, zCommandStarted, zCommandVerdict, zCommandKeys, zCommandOutput, zUsage, zMigrationProgress, zMigrationSwitch, zMigrationFinished, zMigrationFailed, zLocalChanged, zMergeLocalResult, zArtifactContent, zArtifactError]);
 export type RunnerToServer = z.infer<typeof zRunnerToServer>;
 export type RunnerToServerType = RunnerToServer['type'];
 
@@ -77,6 +78,7 @@ export const zServerToRunner = z.discriminatedUnion('type', [
   zMigrationCopy,
   zMigrationFinish,
   zMergeLocal,
+  zArtifactRead,
 ]);
 export type ServerToRunner = z.infer<typeof zServerToRunner>;
 export type ServerToRunnerType = ServerToRunner['type'];

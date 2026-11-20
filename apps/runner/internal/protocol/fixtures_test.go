@@ -350,3 +350,63 @@ func TestTheSessionStartOfALocalOriginMatchesItsGeneratedType(t *testing.T) {
 		t.Fatal("an origin of no kind the Runner knows decoded")
 	}
 }
+
+// The read artefacts' fixtures (SOURCE-4) are in artifact/, beside the
+// tab's: each of the Runner's decodes into its generated type, and the
+// constructors write what the schema reads back.
+func TestEveryFixtureOfTheArtefactsDecodesIntoItsGeneratedType(t *testing.T) {
+	decoders := map[string]func([]byte) error{
+		TypeArtifactRead:    decodeInto[contracts.RunnerArtifactRead],
+		TypeArtifactContent: decodeInto[contracts.RunnerArtifactContent],
+		TypeArtifactError:   decodeInto[contracts.RunnerArtifactError],
+	}
+	dir := filepath.Join(fixturesDir, "artifact")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := 0
+	for _, entry := range entries {
+		typ := strings.TrimSuffix(entry.Name(), ".json")
+		if strings.HasPrefix(typ, "tab.") {
+			continue
+		}
+		decode, ok := decoders[typ]
+		if !ok {
+			t.Errorf("fixture %s: no generated type maps it", entry.Name())
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := decode(data); err != nil {
+			t.Errorf("fixture %s: %v", entry.Name(), err)
+		}
+		if got, err := typeOf(data); err != nil || got != typ {
+			t.Errorf("fixture %s: envelope type %q, %v", entry.Name(), got, err)
+		}
+		seen++
+	}
+	if seen != len(decoders) {
+		t.Errorf("%d fixtures, want one per type of %d", seen, len(decoders))
+	}
+
+	wrap := contracts.RunnerArtifactContentWrap{HolderId: "h", Enc: "e", WrappedKey: "w", Tag: "t"}
+	for _, message := range []any{
+		NewArtifactContent("019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6d11", "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6aa1", wrap, "n", "c"),
+		NewArtifactError("019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6d11", "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6aa1", contracts.RunnerArtifactErrorCodeArtifactNotFound),
+	} {
+		data, err := json.Marshal(message)
+		if err != nil {
+			t.Fatal(err)
+		}
+		typ, err := typeOf(data)
+		if err != nil || decoders[typ] == nil {
+			t.Fatalf("%s: type %q, %v", data, typ, err)
+		}
+		if err := decoders[typ](data); err != nil {
+			t.Errorf("%s: %v", data, err)
+		}
+	}
+}

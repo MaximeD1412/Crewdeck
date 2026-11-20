@@ -87,6 +87,12 @@ const (
 	// attempt ended.
 	TypeMergeLocal       = "merge.local"
 	TypeMergeLocalResult = "merge.local.result"
+	// Reading content in the page (SOURCE-4, ADR 0012): the server asks an
+	// artefact for a tab, the Runner answers it sealed for the Appareil the
+	// tab named, or says why not.
+	TypeArtifactRead    = "artifact.read"
+	TypeArtifactContent = "artifact.content"
+	TypeArtifactError   = "artifact.error"
 )
 
 // Machine is what the Runner says of itself in its hello.
@@ -340,4 +346,20 @@ func NewStepReport(stepRunID string, figures map[string]any, sealed *contracts.R
 func NewStepVerdict(stepRunID string, verdict contracts.ContratVerdict) contracts.RunnerStepVerdict {
 	at := now()
 	return contracts.RunnerStepVerdict{Type: TypeStepVerdict, Id: newID(at), At: at, StepRunId: stepRunID, Verdict: verdict}
+}
+
+// NewArtifactContent answers the read requestID of the tab tabID: the key
+// wrapped for its Appareil, the content sealed under it.
+func NewArtifactContent(requestID, tabID string, wrap contracts.RunnerArtifactContentWrap, nonce, ciphertext string) contracts.RunnerArtifactContent {
+	at := now()
+	return contracts.RunnerArtifactContent{
+		Type: TypeArtifactContent, Id: newID(at), At: at, RequestId: requestID, TabId: tabID,
+		Wrap: wrap, Nonce: nonce, Ciphertext: ciphertext,
+	}
+}
+
+// NewArtifactError says why the read requestID of the tab tabID was not answered.
+func NewArtifactError(requestID, tabID string, code contracts.RunnerArtifactErrorCode) contracts.RunnerArtifactError {
+	at := now()
+	return contracts.RunnerArtifactError{Type: TypeArtifactError, Id: newID(at), At: at, RequestId: requestID, TabId: tabID, Code: code}
 }

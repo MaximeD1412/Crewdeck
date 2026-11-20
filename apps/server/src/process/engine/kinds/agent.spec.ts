@@ -40,6 +40,7 @@ const CODE = PROCESS_CREWDECK.steps.find((step) => step.id === 'st-code') as Ste
 const ANALYSE = PROCESS_CREWDECK.steps.find((step) => step.id === 'st-analyse') as Step;
 const IDEA_ID = '019a8f3c-2b4d-7e10-8a5b-6c7d8e9f0b01';
 const SEALED = { key: 'k'.repeat(80), ciphertext: 'c'.repeat(120) };
+const SEALED_TITLE = { ...SEALED, aad: `${IDEA_ID}:text` };
 /** « Code » with a Rôle of the Pilote's, another Skill, two Serveurs MCP and an Entrée « maquettes » nothing fed. */
 const TOOLED: Step = {
   ...CODE,
@@ -224,13 +225,13 @@ describe('the agent Étapes', () => {
   it('starts a scratch Session for a kind without a branch: no Projet, the account’s Rôles, its step’s context', async () => {
     const { steps, sessions, settings } = setup({ roles: { idea: { engine: 'claude-code', model: 'claude-sonnet-5-5' } } });
     const ideas = { idea: { id: IDEA_ID, number: 3, text: SEALED, analysis: null }, open: [] };
-    const scratch = steps.defineAgentKind({ kind: 'idea-analysis', title: () => null, branch: () => null, outputs: () => [], stepContext: () => Promise.resolve({ ideas }), waitingWork: 'own' });
+    const scratch = steps.defineAgentKind({ kind: 'idea-analysis', title: () => SEALED_TITLE, branch: () => null, outputs: () => [], stepContext: () => Promise.resolve({ ideas }), waitingWork: 'own' });
     const run = { ...runOf({ sessionId: null, stepId: 'st-analyse', kind: 'idea-analysis', inputs: [] }, ANALYSE), phaseRun: { id: 'p', projectId: null } as PhaseRun };
 
     expect(await asPilot(() => scratch.start(TX, run))).toBe('running');
 
     expect(settings.effective).toHaveBeenCalledWith(PILOT_ID, undefined);
-    expect(sessions.start).toHaveBeenCalledWith(TX, expect.objectContaining({ projectId: null, branch: null, role: 'idea', engine: 'claude-code', title: null }));
+    expect(sessions.start).toHaveBeenCalledWith(TX, expect.objectContaining({ projectId: null, branch: null, role: 'idea', engine: 'claude-code', title: SEALED_TITLE }));
     expect(sessions.start.mock.calls[0]?.[1].step).toMatchObject({ stepKind: 'idea-analysis', skill: 'idea-analysis', contractId: 'idea-analysis', ideas });
   });
 
@@ -431,7 +432,7 @@ describe('the agent Étapes', () => {
 
   it('leaves out of step-runs the kinds that list their own waiting work', async () => {
     const { steps, providers, prisma } = setup();
-    steps.defineAgentKind({ kind: 'idea-analysis', title: () => null, branch: () => null, outputs: () => [], waitingWork: 'own' });
+    steps.defineAgentKind({ kind: 'idea-analysis', title: () => SEALED_TITLE, branch: () => null, outputs: () => [], waitingWork: 'own' });
 
     await providers.find((candidate) => candidate.key === 'step-runs')?.projectsWaiting(PROJECT_ID);
 

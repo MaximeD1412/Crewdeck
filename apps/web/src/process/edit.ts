@@ -1,12 +1,17 @@
 import {
   CATALOGUE,
   defaultStep,
+  LOOP_BACK_MAX_DEFAULT,
+  type Arrow,
   type ForEach,
   type Phase,
   type ProcessDefinition,
   type RefusalKind,
   type Step,
+  type StepFamily,
   type StepKind,
+  type Tool,
+  type ToolKind,
   validateDefinition,
 } from '@crewdeck/contracts';
 import { t } from '@crewdeck/sdk';
@@ -166,4 +171,146 @@ export const setForEach = (definition: ProcessDefinition, phaseId: string, forEa
   const phase = definition.phases.find((candidate) => candidate.id === phaseId);
   if (phase?.forEach === forEach) return { ok: true, definition };
   return validated({ ...definition, phases: definition.phases.map((candidate) => (candidate.id === phaseId ? { ...candidate, forEach } : candidate)) });
+};
+
+/** An arrow's end: a port of an Étape. */
+export type PortRef = Arrow['from'];
+
+const sameRef = (a: PortRef, b: PortRef): boolean => a.stepId === b.stepId && a.portId === b.portId;
+const isArrow = (arrow: Arrow, from: PortRef, to: PortRef): boolean => sameRef(arrow.from, from) && sameRef(arrow.to, to);
+
+const connected = (definition: ProcessDefinition, from: PortRef, to: PortRef): ProcessDefinition => ({
+  ...definition,
+  arrows: [...definition.arrows, { from: { stepId: from.stepId, portId: from.portId }, to: { stepId: to.stepId, portId: to.portId } }],
+});
+
+/** Draws an arrow from a Sortie to an Entrée (US-94): refused between two types, onto an Entrée already fed, or closing a cycle. */
+export const connect = (definition: ProcessDefinition, from: PortRef, to: PortRef): EditResult => validated(connected(definition, from, to));
+
+/** Removes the arrow from `from` to `to`. */
+export const disconnect = (definition: ProcessDefinition, from: PortRef, to: PortRef): EditResult => {
+  if (!definition.arrows.some((arrow) => isArrow(arrow, from, to))) return { ok: true, definition };
+  return validated({ ...definition, arrows: definition.arrows.filter((arrow) => !isArrow(arrow, from, to)) });
+};
+
+/** « Alimentée par »: the Sorties `connect` would accept onto `input`, in the definition's order, by running it without applying it. */
+export const candidates = (definition: ProcessDefinition, input: PortRef): PortRef[] =>
+  definition.steps.flatMap((step) =>
+    step.outputs.map((port) => ({ stepId: step.id, portId: port.id })).filter((from) => checked(connected(definition, from, input)).ok),
+  );
+
+const LOOP_BACK_MIN = 1;
+const LOOP_BACK_MAX = 10;
+
+const loopedBack = (definition: ProcessDefinition, from: string, to: string): ProcessDefinition => ({
+  ...definition,
+  loopBacks: [...definition.loopBacks, { from, to, max: LOOP_BACK_MAX_DEFAULT }],
+});
+
+/** Draws a Retour (US-95), `max` 3: refused from an Étape that does not judge, to another Phase, to one not before it, or a second one. */
+export const addLoopBack = (definition: ProcessDefinition, from: string, to: string): EditResult => validated(loopedBack(definition, from, to));
+
+/** The Retour's maximum, 1 to 10. */
+export const setLoopBackMax = (definition: ProcessDefinition, from: string, max: number): EditResult => {
+  if (!Number.isInteger(max) || max < LOOP_BACK_MIN || max > LOOP_BACK_MAX) return refuse(t('process.loopBack.range', { min: LOOP_BACK_MIN, max: LOOP_BACK_MAX }));
+  if (definition.loopBacks.find((loop) => loop.from === from)?.max === max) return { ok: true, definition };
+  return validated({ ...definition, loopBacks: definition.loopBacks.map((loop) => (loop.from === from ? { ...loop, max } : loop)) });
+};
+
+/** Removes the Retour leaving `from`. */
+export const removeLoopBack = (definition: ProcessDefinition, from: string): EditResult => {
+  if (!definition.loopBacks.some((loop) => loop.from === from)) return { ok: true, definition };
+  return validated({ ...definition, loopBacks: definition.loopBacks.filter((loop) => loop.from !== from) });
+};
+
+/** « Poser un Retour vers »: the Étapes `addLoopBack` would accept from `stepId`, in the definition's order. */
+export const loopBackTargets = (definition: ProcessDefinition, stepId: string): string[] =>
+  definition.steps.filter((step) => step.id !== stepId && checked(loopedBack(definition, stepId, step.id)).ok).map((step) => step.id);
+
+/** An Outil as the Pilote attaches it: a Commande's id is the edit's to give. */
+export type AttachedTool = Exclude<Tool, { kind: 'command' }> | { readonly kind: 'command' };
+
+/** What the edit reads of the Projet: its Dépôt GitHub, `null` for a Local Projet. */
+export interface ToolContext {
+  readonly repository: string | null;
+}
+
+/** What each family takes (ADR 0011): an agent its Rôle, Skill, Serveurs MCP and Connecteur; the Checks a Connecteur or Commandes; a Commande Étape Commandes; a gate and the Merge nothing. */
+const TAKES: Readonly<Record<StepFamily | 'checks', readonly ToolKind[]>> = {
+  agent: ['role', 'skill', 'mcp', 'connector'],
+  checks: ['connector', 'command'],
+  command: ['command'],
+  gate: [],
+  core: [],
+};
+
+/** Whether an Étape of `kind` takes Outils of `tool`'s kind. */
+export const takesTool = (kind: StepKind, tool: ToolKind): boolean => TAKES[kind === 'checks' ? 'checks' : CATALOGUE[kind].family].includes(tool);
+
+/** Whether an Étape of `kind` takes any Outil: « Attacher un Outil » is absent on a gate and on the Merge. */
+export const takesTools = (kind: StepKind): boolean => TAKES[kind === 'checks' ? 'checks' : CATALOGUE[kind].family].length > 0;
+
+const TOOLS_MAX = 10;
+
+const sameTool = (a: Tool, b: Tool): boolean => toolKey(a) === toolKey(b);
+const toolKey = (tool: Tool): string => {
+  switch (tool.kind) {
+    case 'role':
+      return `role:${tool.roleId}`;
+    case 'skill':
+      return `skill:${tool.skillId}`;
+    case 'mcp':
+      return `mcp:${tool.name}`;
+    case 'command':
+      return `command:${tool.commandId}`;
+    case 'connector':
+      return `connector:${tool.connector}`;
+  }
+};
+
+/** `cmd-<n>`, the first free in the definition's Commandes and blocks. */
+const commandId = (definition: ProcessDefinition): string => {
+  const ids = new Set([...idsOf(definition), ...definition.commands.map((command) => command.id)]);
+  let n = 1;
+  while (ids.has(`cmd-${n}`)) n += 1;
+  return `cmd-${n}`;
+};
+
+const withTools = (definition: ProcessDefinition, stepId: string, tools: (step: Step) => Tool[]): ProcessDefinition => ({
+  ...definition,
+  steps: definition.steps.map((step) => (step.id === stepId ? { ...step, tools: tools(step) } : step)),
+});
+
+/**
+ * Attaches an Outil to an Étape (US-93, US-73): one Rôle and one Skill (the
+ * one attached replaces the other), a Serveur MCP once by name, the
+ * Connecteur GitHub for a Projet with a repository, a Commande as a new entry
+ * of the definition with its Outil; only what the Étape's family takes, ten
+ * at most.
+ */
+export const attachTool = (definition: ProcessDefinition, stepId: string, tool: AttachedTool, context: ToolContext): EditResult => {
+  const step = definition.steps.find((candidate) => candidate.id === stepId);
+  if (!step) return validated(definition);
+  if (!takesTool(step.kind, tool.kind)) return refuse(t('process.tools.notTaken', { step: step.name, tool: t(`process.tools.kind.${tool.kind}`) }));
+  if (tool.kind === 'connector' && context.repository === null) return refuse(t('process.tools.noRepository'));
+  const id = tool.kind === 'command' ? commandId(definition) : null;
+  const attached: Tool = tool.kind === 'command' ? { kind: 'command', commandId: id! } : tool;
+  if (step.tools.some((held) => sameTool(held, attached))) return { ok: true, definition };
+  const replaced = attached.kind === 'role' || attached.kind === 'skill';
+  const kept = replaced ? step.tools.filter((held) => held.kind !== attached.kind) : step.tools;
+  if (kept.length >= TOOLS_MAX) return refuse(t('process.tools.tooMany', { step: step.name, max: TOOLS_MAX }));
+  const index = replaced ? step.tools.findIndex((held) => held.kind === attached.kind) : -1;
+  const tools = index === -1 ? [...step.tools, attached] : step.tools.map((held, at) => (at === index ? attached : held));
+  const next = withTools(definition, stepId, () => tools);
+  return validated(id === null ? next : { ...next, commands: [...next.commands, { id }] });
+};
+
+/** Detaches an Outil from an Étape; a Commande no other Étape uses leaves the definition with it. */
+export const detachTool = (definition: ProcessDefinition, stepId: string, tool: Tool): EditResult => {
+  const step = definition.steps.find((candidate) => candidate.id === stepId);
+  if (!step?.tools.some((held) => sameTool(held, tool))) return { ok: true, definition };
+  const next = withTools(definition, stepId, (held) => held.tools.filter((candidate) => !sameTool(candidate, tool)));
+  if (tool.kind !== 'command') return validated(next);
+  const used = next.steps.some((other) => other.tools.some((held) => held.kind === 'command' && held.commandId === tool.commandId));
+  return validated(used ? next : { ...next, commands: next.commands.filter((command) => command.id !== tool.commandId) });
 };

@@ -21,6 +21,8 @@ const BROWSER_SPECS = [
   'src/page-composants.spec.ts',
   'src/page-a-toi.spec.ts',
   'src/page-idees.spec.ts',
+  'src/page-idee.spec.ts',
+  'src/idea-analysis.spec.ts',
   'src/note-idea-dialog.spec.ts',
   'src/page-connexion.spec.ts',
   'src/page-connexion-lien.spec.ts',

@@ -12,8 +12,8 @@ afterEach(async () => {
   await page.viewport(1280, 800);
 });
 
-const [four, chosen, emptyTab, none, older] = COMPOSANTS.PageIdees.examples;
-if (!four || !chosen || !emptyTab || !none || !older) throw new Error('PageIdees lacks its examples');
+const [four, chosen, emptyTab, none, older, failed] = COMPOSANTS.PageIdees.examples;
+if (!four || !chosen || !emptyTab || !none || !older || !failed) throw new Error('PageIdees lacks its examples');
 
 const rows = (el: Element) => [...(el.shadowRoot?.querySelectorAll('cd-idea-row') ?? [])];
 const chips = (el: Element) => [...(inside(el, 'cd-project-filter').shadowRoot?.querySelectorAll('cd-chip') ?? [])];
@@ -115,14 +115,15 @@ describe('PageIdees', () => {
     expect((await render(COMPOSANTS.PageIdees, four.data)).shadowRoot?.querySelector('cd-button.more')).toBeNull();
   });
 
-  it('sets its aside beside the list from 1280 px, below it on a phone, and drops an empty one', async () => {
+  it('sets its aside beside the list from 1280 px, hides it narrower, and drops an empty one', async () => {
     const el = await render(COMPOSANTS.PageIdees, four.data, { aside: '<p>Analyse</p>' });
     const aside = inside(el, '.aside');
     expect(aside.hidden).toBe(false);
     expect(aside.getBoundingClientRect().left).toBeGreaterThan(inside(el, 'cd-card.list').getBoundingClientRect().right);
     await page.viewport(390, 800);
     await settle(el);
-    expect(aside.getBoundingClientRect().top).toBeGreaterThan(inside(el, 'cd-card.list').getBoundingClientRect().bottom - 1);
+    expect(aside.checkVisibility()).toBe(false);
+    expect(inside(el, 'cd-card.list').checkVisibility()).toBe(true);
 
     const bare = await render(COMPOSANTS.PageIdees, four.data);
     expect(inside(bare, '.aside').hidden).toBe(true);
@@ -132,5 +133,20 @@ describe('PageIdees', () => {
     const el = await render(COMPOSANTS.PageIdees, four.data, { list: '<p class="mine">Ma liste</p>' });
     const slot = inside<HTMLSlotElement>(el, 'slot[name="list"]');
     expect(slot.assignedElements().map((node) => node.className)).toEqual(['mine']);
+  });
+  it('marks the row whose analysis failed « Analyse échouée », with « Relancer l’analyse », which emits reanalyse and opens nothing', async () => {
+    const el = await render(COMPOSANTS.PageIdees, failed.data);
+    const [first, second] = rows(el);
+    if (!first || !second) throw new Error('no rows');
+    const badge = first.querySelector('cd-status-badge') as (HTMLElement & { data: { tone: string; label: string } }) | null;
+    expect(badge?.slot).toBe('actions');
+    expect(badge?.data).toEqual({ tone: 'halt', label: 'Analyse échouée' });
+    expect(textOf(inside(el, 'cd-idea-row cd-button.reanalyse', 'button'))).toBe('Relancer l’analyse');
+    expect(textOf(inside(first, '.context'))).toBe('L’analyse a échoué : son Contrat n’est pas rempli.');
+    expect(inside(first, '.open').getAttribute('aria-current')).toBe('true');
+    expect(second.querySelector('cd-button.reanalyse')).toBeNull();
+    expect(await actionsOf(() => inside(el, 'cd-idea-row cd-button.reanalyse', 'button').click())).toEqual([
+      { composant: 'PageIdees', action: 'reanalyse', payload: { id: failed.data.ideas[0]?.id } },
+    ]);
   });
 });

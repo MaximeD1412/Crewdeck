@@ -20,6 +20,7 @@ import { PasserelleDecisionRow } from './decision-row.js';
 import { PasserelleDialog } from './dialog.js';
 import { PasserelleEmpty } from './empty.js';
 import { PasserelleFolderProjectForm } from './folder-project-form.js';
+import { PasserelleIdeaAnalysis } from './idea-analysis.js';
 import { PasserelleIdeaRow } from './idea-row.js';
 import { PasserelleNoteIdeaDialog } from './note-idea-dialog.js';
 import { PasserelleIconButton } from './icon-button.js';
@@ -32,6 +33,7 @@ import { PasserelleMenuItem } from './menu-item.js';
 import { PasserelleMessage } from './message.js';
 import { PasserellePageAToi } from './page-a-toi.js';
 import { PasserellePageAjouterProjet } from './page-ajouter-projet.js';
+import { PasserellePageIdee } from './page-idee.js';
 import { PasserellePageIdees } from './page-idees.js';
 import { PasserellePageComposants } from './page-composants.js';
 import { PasserellePageConnexion } from './page-connexion.js';
@@ -90,6 +92,7 @@ export default defineSkin({
     ProjectFilter: PasserelleProjectFilter,
     PageAToi: PasserellePageAToi,
     PageAjouterProjet: PasserellePageAjouterProjet,
+    PageIdee: PasserellePageIdee,
     PageIdees: PasserellePageIdees,
     PageComposants: PasserellePageComposants,
     PageConnexion: PasserellePageConnexion,
@@ -120,6 +123,7 @@ export default defineSkin({
     Composer: PasserelleComposer,
     SettingRow: PasserelleSettingRow,
     DecisionRow: PasserelleDecisionRow,
+    IdeaAnalysis: PasserelleIdeaAnalysis,
     IdeaRow: PasserelleIdeaRow,
     NoteIdeaDialog: PasserelleNoteIdeaDialog,
     TicketRow: PasserelleTicketRow,

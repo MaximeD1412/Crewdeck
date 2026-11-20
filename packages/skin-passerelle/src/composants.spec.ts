@@ -126,6 +126,21 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     await settle(el);
     inside(el, 'cd-button.more', 'button').click();
   },
+  'PageIdees.reanalyse': async (el) => {
+    el.data = COMPOSANTS.PageIdees.examples.find((example) => example.name === 'une analyse échouée')?.data;
+    await settle(el);
+    inside(el, 'cd-idea-row cd-button.reanalyse', 'button').click();
+  },
+  'IdeaAnalysis.target': async (el) => {
+    inside(el, 'cd-button.change', 'button').click();
+    await settle(el);
+    inside(el, 'cd-menu', '[role=menuitem]').click();
+  },
+  'IdeaAnalysis.reanalyse': async (el) => {
+    el.data = COMPOSANTS.IdeaAnalysis.examples.find((example) => example.name === 'son Contrat incomplet')?.data;
+    await settle(el);
+    inside(el, 'cd-button.reanalyse', 'button').click();
+  },
   'NoteIdeaDialog.submit': (el) => {
     const field = inside<HTMLTextAreaElement>(el, 'cd-text-field.text', 'textarea');
     field.value = 'Pouvoir dupliquer une recette';
@@ -475,11 +490,14 @@ describe('Card', () => {
 });
 
 describe('ListRow', () => {
-  it('with href is a link on the whole row', async () => {
+  it('with href is a link on the whole row, ending with its chevron', async () => {
     const el = await render(COMPOSANTS.ListRow, { title: 'Runner', href: '/runner' }, { trailing: '<span>ok</span>' });
     const link = inside<HTMLAnchorElement>(el, 'a');
     expect(link.getAttribute('href')).toBe('/runner');
     expect(link.querySelector('slot[name=trailing]')).not.toBeNull();
+    expect((link.lastElementChild?.querySelector('cd-icon') as (HTMLElement & { data: { name: string } }) | null)?.data.name).toBe('chevron-right');
+    const plain = await render(COMPOSANTS.ListRow, { title: 'Runner' });
+    expect(plain.shadowRoot?.querySelector('.chevron')).toBeNull();
   });
 });
 

@@ -9,9 +9,13 @@ import { isFilled, PasserelleElement, sharedStyles } from './base.js';
  * tab. With no Idée at all, only the header and a Card « Aucune Idée pour
  * l’instant » whose « Noter une Idée » emits `note` too
  * (`idees-vide.html`). Under the list, while older Idées remain (`older`),
- * « Afficher les plus anciennes » emits `more`. From 1280 px the Emplacement `aside` stands beside the
- * list; `list` replaces it. The rows', chips' and tabs' own actions stop
- * here: the page emits `open`, `filter` and `tab` instead.
+ * « Afficher les plus anciennes » emits `more`. A row whose analysis failed
+ * holds the `halt` badge « Analyse échouée » and « Relancer l'analyse »
+ * (`reanalyse`) in its Emplacement `actions`
+ * (`idees-analyse-echouee.html`). From 1280 px the Emplacement `aside`
+ * stands beside the list, hidden narrower (a phone opens the Idée's own
+ * page instead); `list` replaces the list. The rows', chips' and tabs'
+ * own actions stop here: the page emits `open`, `filter` and `tab` instead.
  */
 export class PasserellePageIdees extends PasserelleElement<typeof PageIdees> {
   static override properties = { filled: { state: true } };
@@ -29,19 +33,19 @@ export class PasserellePageIdees extends PasserelleElement<typeof PageIdees> {
         gap: var(--cd-space-4);
       }
       .aside {
-        display: flex;
+        display: none;
         flex-direction: column;
         gap: var(--cd-space-4);
         min-width: 0;
-      }
-      .aside[hidden] {
-        display: none;
       }
       .older {
         display: flex;
         justify-content: center;
       }
       @media (min-width: 1280px) {
+        .aside:not([hidden]) {
+          display: flex;
+        }
         .layout.with-aside {
           display: grid;
           grid-template-columns: minmax(0, 1fr) var(--cd-aside-width);
@@ -102,6 +106,20 @@ export class PasserellePageIdees extends PasserelleElement<typeof PageIdees> {
     </div>`;
   }
 
+  /** The signals of a row whose analysis failed, in its Emplacement `actions`. */
+  private failed(id: string) {
+    return html`<cd-status-badge slot="actions" .data=${{ tone: 'halt', label: t('idees.analyse.failed') }}></cd-status-badge>
+      <cd-button
+        slot="actions"
+        class="reanalyse"
+        .data=${{ label: t('idees.analyse.reanalyse'), variant: 'secondary', size: 'sm', icon: 'refresh' }}
+        @click=${(event: Event) => {
+          event.stopPropagation();
+          this.emit('reanalyse', { id });
+        }}
+      ></cd-button>`;
+  }
+
   private list() {
     const { tabs, ideas } = this.data;
     const tab = tabs.find((candidate) => candidate.selected);
@@ -113,7 +131,7 @@ export class PasserellePageIdees extends PasserelleElement<typeof PageIdees> {
     >
       ${ideas.length === 0
         ? html`<cd-empty .data=${{ icon: 'bulb', title: t('idees.tabEmpty.title') }}>${t('idees.tabEmpty.body')}</cd-empty>`
-        : ideas.map((idea) => html`<cd-idea-row data-id=${idea.id} .data=${idea}></cd-idea-row>`)}
+        : ideas.map((idea) => html`<cd-idea-row data-id=${idea.id} .data=${idea}>${idea.failed ? this.failed(idea.id) : nothing}</cd-idea-row>`)}
     </cd-card>`;
   }
 

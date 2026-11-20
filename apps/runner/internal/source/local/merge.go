@@ -177,14 +177,19 @@ func squash(ctx context.Context, clone, dir, base, sha, message string, who iden
 	if err := runGit(ctx, clone, "worktree", "add", "--quiet", "--detach", dir, base); err != nil {
 		return "", err
 	}
-	if err := runGit(ctx, dir, "merge", "--squash", "--quiet", sha); err != nil {
+	// The identity for the merge too: one that is not a fast-forward wants a
+	// committer, even squashed, and the machine may have none.
+	ident := []string{"GIT_AUTHOR_NAME=" + who.name, "GIT_AUTHOR_EMAIL=" + who.email, "GIT_COMMITTER_NAME=" + who.name, "GIT_COMMITTER_EMAIL=" + who.email}
+	merge := gitCommand(ctx, dir, "merge", "--squash", "--quiet", sha)
+	merge.Env = append(merge.Env, ident...)
+	if err := merge.Run(); err != nil {
 		if unmerged, _ := gitOutput(ctx, dir, "diff", "--name-only", "--diff-filter=U"); unmerged != "" {
 			return "", errConflict
 		}
-		return "", err
+		return "", &gitError{command: "merge", err: err}
 	}
 	commit := gitCommand(ctx, dir, "commit", "--quiet", "--no-verify", "--no-gpg-sign", "--allow-empty", "-m", message)
-	commit.Env = append(commit.Env, "GIT_AUTHOR_NAME="+who.name, "GIT_AUTHOR_EMAIL="+who.email, "GIT_COMMITTER_NAME="+who.name, "GIT_COMMITTER_EMAIL="+who.email)
+	commit.Env = append(commit.Env, ident...)
 	if err := commit.Run(); err != nil {
 		return "", &gitError{command: "commit", err: err}
 	}

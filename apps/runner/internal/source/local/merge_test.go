@@ -279,6 +279,9 @@ func TestMergeCommitsAsCrewdeckWhenTheFolderHasNoIdentity(t *testing.T) {
 	m := mergeFolder(t)
 	git(t, m.dir, "config", "--unset", "user.name")
 	git(t, m.dir, "config", "--unset", "user.email")
+	// develop moved since the change branched: a squash that is not a fast-forward.
+	write(t, m.dir, "b.txt", "b, du Pilote\n")
+	git(t, m.dir, "-c", "user.name=Pilote", "-c", "user.email=p@example.test", "commit", "--quiet", "-am", "Un commit du Pilote")
 
 	result, err := m.Merge(context.Background(), 3, m.head)
 	if err != nil || result.Outcome != local.MergeMerged {

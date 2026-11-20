@@ -1,8 +1,9 @@
-import { zProcessTemplateId, type EmailLinkVerified, type Me, type Project } from '@crewdeck/contracts';
+import { zProcessTemplateId, type EmailLinkVerified, type Idea, type Me, type Project } from '@crewdeck/contracts';
 import {
   AccountIdentities,
   Cadre,
   FolderProjectForm,
+  IdeaAnalysis,
   PageAjouterProjet,
   PageAToi,
   PageComposants,
@@ -10,6 +11,7 @@ import {
   PageConnexion,
   PageConnexionLien,
   PageDemarrage,
+  PageIdee,
   PageIdees,
   PageParametres,
   PageParametresProjet,
@@ -34,6 +36,7 @@ import { createEditorActions, createMigrateAction } from './actions/process-edit
 import { me as readMe, requestLink as postLinkRequest, verifyLink as postLinkVerify } from './api/auth.js';
 import type { Client } from './api/client.js';
 import { ApiError, currentDeviceId, deviceRevoked, onDeviceRevoked } from './api/request.js';
+import { reanalyseIdea, setIdeaTarget } from './api/ideas.js';
 import { updateSettings } from './api/settings.js';
 import { createInPageBridge, type InPageBridge } from './bridge/in-page.js';
 import { confirmProductAction } from './dialogs/confirm.js';
@@ -61,7 +64,7 @@ import { createSessionPanel } from './session-panel.js';
 import { createSessionPeek } from './sessions/peek.js';
 import { createSessionRelay, type SessionRelay } from './sessions/relay.js';
 import { routeData, routeSlots, startRouter, type Route, type RouteMatch, type Router } from './router.js';
-import { ajouterHref, aToiHref, composantsHref, ideesHref, projetHref, ROUTES } from './routes.js';
+import { ajouterHref, aToiHref, composantsHref, ideeHref, ideesHref, projetHref, ROUTES } from './routes.js';
 import { mountShell } from './shell.js';
 import { githubLinkHref, HOME_PATH, providerSignInHref, signInGuard } from './sign-in.js';
 import { client as pageClient, connection as pageConnection, store as pageStore } from './store/index.js';
@@ -83,7 +86,8 @@ import './views/decisions/source-migration.js';
 import './views/decisions/step-failed.js';
 import { systemOfBrowser } from './views/demarrage.js';
 import { ADD_DEVICE_ID, isLastTrusted, revokeConfirmation, revokedDeviceOf } from './views/devices.js';
-import { ideesQuery, ideesView } from './views/idees.js';
+import { ideeView } from './views/idee.js';
+import { ideesAside, ideesQuery, ideesView } from './views/idees.js';
 import { parametresView, timeZones } from './views/parametres.js';
 import { parametresProjetView, type ParametresProjetView } from './views/parametres-projet.js';
 import { processEditorView } from './views/process-editor.js';
@@ -257,6 +261,13 @@ export const boot = async ({
       vaultTried = resolve;
     }),
   });
+  /** An Idée the page has: in the slice, else among the closed ones read beyond it. */
+  const ideaOf = (id: string | undefined) =>
+    id === undefined ? undefined : (store.getState().slices.idea?.get(id) ?? closedIdeas.view().ideas.find((idea) => idea.id === id));
+  /** What the views of the Idées read beside the store: the Projets' names, the analyses in clear. */
+  const ideasOptions = () => ({ projectName, analysis: (idea: Pick<Idea, 'id' | 'analysis'>) => plaintext.analysis(idea) });
+  /** An Idée's analysis beside the list from 1280 px (`?idee=`), its page otherwise. */
+  const wide = () => typeof window.matchMedia === 'function' && window.matchMedia('(min-width: 1280px)').matches;
   /** An Idée's title, the first line of its text, once the store holds it opened; its opening started otherwise. */
   const ideaTitle = (ideaId: string): string | null => {
     const idea = store.getState().slices.idea?.get(ideaId);
@@ -360,10 +371,16 @@ export const boot = async ({
       if (elsewhere) return elsewhere;
       // A Projet the Pilote does not have (removed, another's): the list, once the store knows them.
       if (match.composant === PageProjet && store.getState().slices.project !== undefined && !projectOf(match.params['id'])) return '/projets';
+      // An Idée the page does not have (another Pilote's, closed long ago): « Idées », once the store knows them.
+      if (match.composant === PageIdee && store.getState().slices.idea !== undefined && !ideaOf(match.params['id'])) return '/idees';
       return null;
     },
     slots: (match) => {
       if (match.composant === PageParametresProjet) return projetParametres(match)?.slots ?? [];
+      if (match.composant === PageIdees) {
+        const { slices } = store.getState();
+        return ideesAside(slices, (idea) => plaintext.text(idea), ideesQuery(match.query).selectedId, ideasOptions());
+      }
       if (match.composant !== PageParametres) return pageSlots(match);
       const { slices } = store.getState();
       return parametresView(slices.settings, timeZones(), {
@@ -430,7 +447,11 @@ export const boot = async ({
       if (match.composant === PageIdees) {
         // The Idées merged or rejected beyond the slice's 90 days: their first page as the page first shows.
         closedIdeas.ensure();
-        return ideesView(slices, (idea) => plaintext.text(idea), { ...ideesQuery(match.query), closed: closedIdeas.view(), projectName });
+        return ideesView(slices, (idea) => plaintext.text(idea), { ...ideesQuery(match.query), closed: closedIdeas.view(), ...ideasOptions() });
+      }
+      if (match.composant === PageIdee) {
+        const idea = ideaOf(match.params['id']);
+        return idea ? ideeView(idea, slices, (shown) => plaintext.text(shown), ideasOptions()) : undefined;
       }
       if (match.composant !== PageRunner) return pageData(match);
       return runnerView({
@@ -567,8 +588,28 @@ export const boot = async ({
   dispatcher.registerAction(PageIdees, 'filter', { run: ({ projectId }) => router.navigate(ideesHref(projectId, ideesFilter().tab)) });
   dispatcher.registerAction(PageIdees, 'more', { run: () => closedIdeas.more() });
   dispatcher.registerAction(PageIdees, 'tab', { run: ({ tab }) => router.navigate(ideesHref(ideesFilter().projectFilter, tab)) });
-  // The Idée's page (`/idees/:id`) and its analysis beside the list come with their tickets: a row leads nowhere yet.
-  dispatcher.registerAction(PageIdees, 'open', { run: () => undefined });
+  // A row opens its analysis beside the list from 1280 px (`?idee=`), its page on a narrower screen (IDEE-2).
+  dispatcher.registerAction(PageIdees, 'open', {
+    run: ({ id }) => {
+      const { projectFilter, tab } = ideesFilter();
+      router.navigate(wide() ? ideesHref(projectFilter, tab, id) : ideeHref(id));
+    },
+  });
+  dispatcher.registerAction(PageIdees, 'reanalyse', {
+    run: async ({ id }) => {
+      await reanalyseIdea(client, id);
+    },
+  });
+  dispatcher.registerAction(IdeaAnalysis, 'target', {
+    run: async ({ id, projectId }) => {
+      await setIdeaTarget(client, id, projectId);
+    },
+  });
+  dispatcher.registerAction(IdeaAnalysis, 'reanalyse', {
+    run: async ({ id }) => {
+      await reanalyseIdea(client, id);
+    },
+  });
   dispatcher.registerAction(NoteIdeaDialog, 'submit', { run: (input) => noteIdea.submit(input) });
   dispatcher.registerAction(NoteIdeaDialog, 'cancel', { run: () => noteIdea.cancel() });
   dispatcher.registerAction(NoteIdeaDialog, 'dictate-start', { run: (input) => noteIdea.dictateStart(input) });

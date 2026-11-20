@@ -1,4 +1,4 @@
-import { DEFAULT_ACCOUNT_SETTINGS, type Idea, type Me, type Project } from '@crewdeck/contracts';
+import { DEFAULT_ACCOUNT_SETTINGS, type Idea, type IdeaAnalysisContent, type Me, type Project } from '@crewdeck/contracts';
 import { MenuItem } from '@crewdeck/sdk';
 import type { z } from 'zod';
 import { createDispatcher } from './actions/dispatcher.js';
@@ -53,6 +53,7 @@ const idea = (number: number, text: string, fields: Partial<Idea> = {}): Idea =>
   updatedAt: AT,
   analysedAt: null,
   triagedAt: null,
+  analysisRun: null,
   ...fields,
 });
 
@@ -91,6 +92,8 @@ const client = {
   }) as Client['query'],
   command: (async (_method: string, path: string, body: object, schema?: z.ZodType) => {
     commands.push({ path, body: body as Record<string, unknown> });
+    // « Changer » and « Relancer l'analyse » answer with the Idée as the store has it.
+    if (/\/(target|reanalyse)$/.test(path)) return schema?.parse(store.getState().slices.idea?.get(path.split('/')[3] ?? ''));
     const sent = body as { id: string; text: Idea['text']; projectId: string | null };
     return schema?.parse(idea(65, '', { id: sent.id, text: sent.text, projectId: sent.projectId }));
   }) as Client['command'],
@@ -216,5 +219,76 @@ describe('« Idées » follows the store', () => {
     expect(dialogData()).toMatchObject({ open: true, locked: true });
     act('NoteIdeaDialog', 'cancel', {});
     store.setVaultState('unlocked');
+  });
+});
+
+describe('an Idée’s analysis (IDEE-2)', () => {
+  const CONTENT: IdeaAnalysisContent = {
+    title: 'Exporter le planning en PDF pour le client',
+    summary: 'Un bouton qui produit le planning de la semaine en PDF.',
+    projectWhy: 'Le planning est dans Personal OS',
+    impactWhy: 'le client le demande',
+    effortWhy: 'seul l’export manque',
+    duplicates: [],
+    questions: [],
+  };
+  const ANALYSED = idea(66, 'Pouvoir exporter le planning en PDF', {
+    state: 'analysed',
+    projectId: null,
+    targetProjectId: PERSONAL_OS,
+    analysis: { key: toBase64Url(new Uint8Array(60)), ciphertext: toBase64Url(utf8(JSON.stringify(CONTENT))) },
+    impact: 3,
+    effort: 1,
+    analysisRun: {
+      stepRunId: '0193a4f2-7c1e-7a10-8c2c-0000000000aa',
+      status: 'passed',
+      role: 'idea',
+      engine: 'claude-code',
+      at: AT,
+      contractId: 'idea-analysis',
+      contractVersion: 1,
+      failedRuleIds: [],
+    },
+  });
+  const wide = (matches: boolean) => vi.spyOn(window, 'matchMedia').mockReturnValue({ matches } as MediaQueryList);
+  const ideePage = () => root.querySelector<WithData>('cd-page-idee')?.data as { title: string; analysis: { summary: string; target: { label: string } } };
+  const placed = () => root.querySelector<WithData>('cd-page-idees > cd-idea-analysis[slot="aside"]');
+  afterEach(() => vi.restoreAllMocks());
+
+  it('titles its row by the analysis opened with the vault key, with its summary, impact and effort', async () => {
+    store.applyEvent({ seq: 5, type: 'idea.upserted', payload: ANALYSED, at: AT });
+    app.router.navigate('/idees');
+    await vi.waitFor(() => expect(pageData().ideas[0]).toMatchObject({ title: CONTENT.title, summary: CONTENT.summary, impact: 'moyen', effort: 'faible' }));
+  });
+
+  it('a row opens the Idée’s page on a narrow screen, whose « Changer » and « Relancer » call their routes', async () => {
+    wide(false);
+    act('PageIdees', 'open', { id: ANALYSED.id });
+    expect(location.pathname + location.search).toBe(`/idees/${ANALYSED.id}`);
+    await vi.waitFor(() => expect(ideePage()).toMatchObject({ title: CONTENT.title, analysis: { summary: CONTENT.summary, target: { label: 'Personal OS' } } }));
+    await act('IdeaAnalysis', 'target', { id: ANALYSED.id, projectId: null });
+    await act('IdeaAnalysis', 'reanalyse', { id: ANALYSED.id });
+    await vi.waitFor(() => expect(commands.slice(-2)).toEqual([
+      { path: `/api/ideas/${ANALYSED.id}/target`, body: { projectId: null } },
+      { path: `/api/ideas/${ANALYSED.id}/reanalyse`, body: {} },
+    ]));
+  });
+
+  it('from 1280 px, a row opens « Analyse · #66 » beside the list, the row selected; a failed row’s « Relancer » calls its route', async () => {
+    app.router.navigate('/idees');
+    wide(true);
+    act('PageIdees', 'open', { id: ANALYSED.id });
+    expect(location.pathname + location.search).toBe(`/idees?idee=${ANALYSED.id}`);
+    await vi.waitFor(() => expect((placed()?.data as { title: string; heading: string }) ?? null).toMatchObject({ title: 'Analyse · #66', heading: CONTENT.title }));
+    expect(pageData().ideas.find((row) => row.id === ANALYSED.id)).toMatchObject({ selected: true });
+    await act('PageIdees', 'reanalyse', { id: ANALYSED.id });
+    await vi.waitFor(() => expect(commands.at(-1)).toEqual({ path: `/api/ideas/${ANALYSED.id}/reanalyse`, body: {} }));
+    app.router.navigate('/idees');
+    await vi.waitFor(() => expect(placed()).toBeNull());
+  });
+
+  it('leads an Idée the page does not have back to « Idées »', async () => {
+    app.router.navigate('/idees/0193a4f2-7c1e-7a10-8c2c-0000000000ff');
+    await vi.waitFor(() => expect(location.pathname).toBe('/idees'));
   });
 });

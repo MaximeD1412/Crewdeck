@@ -49,6 +49,7 @@ const setup = ({
         updatedAt: '2026-11-16T10:00:00.000Z',
         analysedAt: null,
         triagedAt: null,
+        analysisRun: null,
       });
     }) as Client['command'],
   };

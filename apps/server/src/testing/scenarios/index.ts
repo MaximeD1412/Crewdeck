@@ -18,6 +18,7 @@ import { connexion, connexionErreur, connexionGoogleNonVerifiee, connexionLien, 
 import { demarrage, demarrageComptesIa, demarrageComptesIaAucun, demarrageLiaisonEchouee, demarrageRunnerRelie } from './demarrage.js';
 import { appareilAApprouver, appareilAApprouverCode, appareils, appareilsAjouter } from './devices.js';
 import type { Scenario } from './define.js';
+import { idee, ideesAnalyseEchouee } from './idee.js';
 import { idees, ideesDictee, ideesNouvelle, ideesVide } from './idees.js';
 import { menuPlus } from './menu-plus.js';
 import { demarrageProjets, demarrageProjetsDossier, demarrageProjetsSansGithub, projetLocal, projets, projetsVide } from './projets.js';
@@ -60,7 +61,9 @@ const SCENARIOS: readonly Scenario[] = [
   demarrageProjets,
   demarrageProjetsDossier,
   demarrageProjetsSansGithub,
+  idee,
   idees,
+  ideesAnalyseEchouee,
   ideesNouvelle,
   ideesDictee,
   ideesVide,

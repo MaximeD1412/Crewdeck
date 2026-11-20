@@ -1,7 +1,7 @@
-import type { Idea, IdeaState } from '@crewdeck/contracts';
+import type { Idea, IdeaAnalysisContent, IdeaAnalysisRun, IdeaState } from '@crewdeck/contracts';
 import { COMPOSANTS, t } from '@crewdeck/sdk';
-import type { IdeaText } from '../store/idea-plaintext.js';
-import { ideasToTriage, ideesQuery, ideesView, type IdeesSlices } from './idees.js';
+import type { IdeaAnalysisText, IdeaText } from '../store/idea-plaintext.js';
+import { ideasToTriage, ideesAside, ideesQuery, ideesView, type IdeesSlices } from './idees.js';
 
 const NOW = new Date('2026-11-16T10:00:00.000Z');
 const minutesAgo = (n: number) => new Date(NOW.getTime() - n * 60_000).toISOString();
@@ -32,6 +32,7 @@ const idea = (number: number, state: IdeaState, fields: Partial<Idea> = {}): Ide
   updatedAt: minutesAgo(100 - number),
   analysedAt: null,
   triagedAt: null,
+  analysisRun: null,
   ...fields,
 });
 
@@ -190,7 +191,140 @@ describe('ideesView', () => {
 
 describe('ideesQuery', () => {
   it('reads ?projet= and ?onglet=, « À trier » by default', () => {
-    expect(ideesQuery({})).toEqual({ projectFilter: null, tab: 'a-trier' });
-    expect(ideesQuery({ projet: CREWDECK, onglet: 'rejetees' })).toEqual({ projectFilter: CREWDECK, tab: 'rejetees' });
+    expect(ideesQuery({})).toEqual({ projectFilter: null, tab: 'a-trier', selectedId: null });
+    expect(ideesQuery({ projet: CREWDECK, onglet: 'rejetees' })).toEqual({ projectFilter: CREWDECK, tab: 'rejetees', selectedId: null });
+  });
+
+  it('reads the Idée beside the list from ?idee=', () => {
+    expect(ideesQuery({ idee: 'x' }).selectedId).toBe('x');
+  });
+});
+
+const ANALYSED_SEALED = { key: 'a'.repeat(80), ciphertext: 'b'.repeat(40) };
+const run = (status: IdeaAnalysisRun['status'], fields: Partial<IdeaAnalysisRun> = {}): IdeaAnalysisRun => ({
+  stepRunId: '0193a4f2-7c1e-7a10-8c2c-0000000000aa',
+  status,
+  role: 'idea',
+  engine: 'claude-code',
+  at: minutesAgo(4),
+  contractId: 'idea-analysis',
+  contractVersion: 1,
+  failedRuleIds: [],
+  ...fields,
+});
+const CONTENT: IdeaAnalysisContent = {
+  title: 'Exporter le planning en PDF pour le client',
+  summary: 'Un bouton qui produit le planning de la semaine en PDF, à envoyer au client.',
+  projectWhy: 'Le planning est dans Personal OS',
+  impactWhy: 'le client le demande à chaque fin de semaine',
+  effortWhy: 'le planning existe déjà, seul l’export manque',
+  duplicates: [{ id: '0193a4f2-7c1e-7a10-8c2c-000000000058', why: 'Le même planning, imprimé' }],
+  questions: [],
+};
+const ANALYSED = [
+  idea(64, 'to-triage', { createdAt: minutesAgo(5), analysisRun: run('incomplete', { failedRuleIds: ['idea-analysis.report.schema', 'idea-analysis.report.figures'] }) }),
+  idea(63, 'analysed', {
+    projectId: null,
+    targetProjectId: PERSONAL_OS,
+    analysis: ANALYSED_SEALED,
+    impact: 3,
+    effort: 1,
+    duplicateIds: ['0193a4f2-7c1e-7a10-8c2c-000000000058'],
+    analysisRun: run('passed'),
+    createdAt: minutesAgo(120),
+  }),
+  idea(58, 'analysed', { projectId: PERSONAL_OS, createdAt: minutesAgo(9 * 24 * 60) }),
+];
+const opened = (shown: Idea): IdeaAnalysisText => (shown.analysis === null ? { status: 'none' } : { status: 'open', content: CONTENT });
+const online = (given: IdeesSlices, state: 'online' | 'offline' = 'online'): IdeesSlices => ({ ...given, runner: { state } as IdeesSlices['runner'] });
+const TEXTS_58 = (shown: Idea): IdeaText => (shown.number === 58 ? { status: 'open', text: 'Imprimer le planning de la semaine' } : plaintext(shown));
+
+describe('ideesView, analysed (IDEE-2)', () => {
+  it('titles an analysed row by its analysis, with its summary, impact and effort in a word, and « doublon possible : #58 »', () => {
+    const data = ideesView(online(slices(ANALYSED)), plaintext, { ...ideesQuery({}), now: NOW, analysis: opened });
+    expect(COMPOSANTS.PageIdees.data.parse(data)).toEqual(data);
+    expect(data.ideas[1]).toMatchObject({
+      title: CONTENT.title,
+      summary: CONTENT.summary,
+      impact: 'moyen',
+      effort: 'faible',
+      duplicates: 'doublon possible : #58',
+      failed: false,
+    });
+    expect(data.ideas[2]).toMatchObject({ summary: null, impact: null, effort: null, duplicates: null });
+  });
+
+  it('marks a failed analysis, its Contrat incomplete or its Session failed, with what failed under its title', () => {
+    const data = ideesView(online(slices(ANALYSED)), plaintext, { ...ideesQuery({}), now: NOW, analysis: opened });
+    expect(data.ideas[0]).toMatchObject({ state: 'a-trier', summary: 'L’analyse a échoué : son Contrat n’est pas rempli.', failed: true });
+    const session = ideesView(online(slices([idea(64, 'to-triage', { analysisRun: run('failed') })])), plaintext, { ...ideesQuery({}), now: NOW });
+    expect(session.ideas[0]).toMatchObject({ summary: 'L’analyse a échoué : sa Session n’a pas abouti.', failed: true });
+  });
+
+  it('says « L’analyse est en cours. » of one at work, « En attente du Runner » while the Runner is not online', () => {
+    const working = [idea(64, 'analysing', { analysisRun: run('running') })];
+    expect(ideesView(online(slices(working)), plaintext, { ...ideesQuery({}), now: NOW }).ideas[0]?.summary).toBe('L’analyse est en cours.');
+    expect(ideesView(online(slices(working), 'offline'), plaintext, { ...ideesQuery({}), now: NOW }).ideas[0]?.summary).toBe('En attente du Runner');
+    expect(ideesView(slices(working), plaintext, { ...ideesQuery({}), now: NOW }).ideas[0]?.summary).toBe('En attente du Runner');
+  });
+
+  it('selects the Idée of ?idee=', () => {
+    const data = ideesView(slices(ANALYSED), plaintext, { ...ideesQuery({ idee: ANALYSED[1]?.id ?? '' }), now: NOW });
+    expect(data.ideas.map((row) => row.selected)).toEqual([false, true, false]);
+  });
+});
+
+describe('ideesAside', () => {
+  const aside = (selectedId: string | null, given = online(slices(ANALYSED))) => ideesAside(given, TEXTS_58, selectedId, { now: NOW, analysis: opened });
+
+  it('places « Analyse · #63 » beside the list: its title, summary, Projet visé, impact and effort in a word, each duplicate a link', () => {
+    const [node, ...rest] = aside(ANALYSED[1]?.id ?? null);
+    expect(rest).toEqual([]);
+    expect(node).toMatchObject({ tag: 'cd-idea-analysis', slot: 'aside' });
+    const data = COMPOSANTS.IdeaAnalysis.data.parse(node?.data);
+    expect(data).toMatchObject({
+      title: 'Analyse · #63',
+      label: 'Idées / Analyse',
+      heading: CONTENT.title,
+      status: 'passed',
+      summary: CONTENT.summary,
+      impact: 'moyen',
+      effort: 'faible',
+      failure: null,
+      run: null,
+      duplicates: [{ id: '0193a4f2-7c1e-7a10-8c2c-000000000058', label: '#58 Imprimer le planning de la semaine', href: '/idees/0193a4f2-7c1e-7a10-8c2c-000000000058' }],
+    });
+    expect(data.target).toEqual({
+      label: 'Personal OS',
+      choices: [
+        { projectId: CREWDECK, label: 'Crewdeck', selected: false },
+        { projectId: PERSONAL_OS, label: 'Personal OS', selected: true },
+        { projectId: SITE_MAIRIE, label: 'Site mairie', selected: false },
+        { projectId: '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a04', label: 'Tennis Manager', selected: false },
+        { projectId: null, label: 'nouveau', selected: false },
+      ],
+    });
+  });
+
+  it('beside a failed analysis, lists the labels of the rules not met and its run', () => {
+    const data = COMPOSANTS.IdeaAnalysis.data.parse(aside(ANALYSED[0]?.id ?? null)[0]?.data);
+    expect(data).toMatchObject({
+      title: 'Analyse · #64',
+      heading: 'Prévenir quand une Planification démarre la Boucle',
+      status: 'failed',
+      summary: null,
+      target: null,
+      failure: {
+        kind: 'incomplete',
+        rules: ['Le rapport a un titre et un résumé d’au plus 400 caractères', 'L’impact et l’effort vont de 1 à 5, chacun avec sa raison'],
+      },
+      run: 'Rôle Idée · Claude Code · il y a 4 min',
+    });
+  });
+
+  it('places nothing without ?idee=, for an Idée the page does not have, or one without an analysis', () => {
+    expect(aside(null)).toEqual([]);
+    expect(aside('0193a4f2-7c1e-7a10-8c2c-0000000000ff')).toEqual([]);
+    expect(aside(ANALYSED[2]?.id ?? null)).toEqual([]);
   });
 });

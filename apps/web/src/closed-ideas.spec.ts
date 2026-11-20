@@ -23,6 +23,7 @@ const merged = (number: number): Idea => ({
   updatedAt: '2026-07-01T08:00:00.000Z',
   analysedAt: null,
   triagedAt: null,
+  analysisRun: null,
 });
 
 const setup = (answer: (path: string) => Promise<IdeaList>) => {

@@ -19,7 +19,8 @@ export const TICKET_TONES: Readonly<Record<State, Tone>> = {
 };
 
 /**
- * `cd-ticket-row`: a Ticket. `#<number>` in mono, its title, meta and
+ * `cd-ticket-row`: a Ticket. `#<number>` in mono, « #57 (ex-#12) » once a
+ * migration renumbered it, its title, meta and
  * context, then its badge on the right; a rail only when it is blocked or
  * waits for the Pilote. With `href` its title is the link, stretched over the
  * row and named by its number and title; the page's buttons (`actions`) go
@@ -70,15 +71,16 @@ export class PasserelleTicketRow extends PasserelleElement<typeof TicketRow> {
   }
 
   protected override render() {
-    const { number, title, meta, state, label, context, href } = this.data;
+    const { number, formerNumber, title, meta, state, label, context, href } = this.data;
     const tone = TICKET_TONES[state];
+    const shown = formerNumber === null ? `#${number}` : t('ticketRow.former', { number, former: formerNumber });
     return html`<div part="row" class="row ${tone}">
       <span class="rail"></span>
-      <span class="number" aria-hidden=${href === null ? nothing : 'true'}>#${number}</span>
+      <span class="number" aria-hidden=${href === null ? nothing : 'true'}>${shown}</span>
       <div class="main">
         ${href === null
           ? html`<span class="title">${title}</span>`
-          : html`<a class="open title" href=${href}><span class="visually-hidden">#${number} </span>${title}</a>`}
+          : html`<a class="open title" href=${href}><span class="visually-hidden">${shown} </span>${title}</a>`}
         ${meta === null ? nothing : html`<span class="meta">${meta}</span>`}
         ${context === null ? nothing : html`<span class="context">${context}</span>`}
       </div>

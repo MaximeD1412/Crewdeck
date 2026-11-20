@@ -12,6 +12,7 @@ const ready = {
   title: 'Agenda des conseils municipaux',
   meta: 'jalon Actualités',
   state: 'pret',
+  formerNumber: null,
   label: null,
   context: null,
   href: null,
@@ -69,6 +70,14 @@ describe('TicketRow', () => {
     expect(textOf(inside(el, '.title'))).toBe(ready.title);
     expect(textOf(inside(el, '.meta'))).toBe(ready.meta);
     expect(textOf(inside(el, '.context'))).toBe('Le Runner s’est arrêté pendant le Code.');
+  });
+
+  it('once migrated, shows its number before « (ex-#<n>) », in its link’s name too (SOURCE-8)', async () => {
+    const el = await render(TicketRow, { ...ready, number: 57, formerNumber: 12, href: '/boucle?ticket=57' });
+    expect(textOf(inside(el, '.number'))).toBe('#57 (ex-#12)');
+    expect(textOf(inside(el, 'a.open'))).toBe('#57 (ex-#12) Agenda des conseils municipaux');
+    const plain = await render(TicketRow, ready);
+    expect(textOf(inside(plain, '.number'))).toBe('#48');
   });
 
   it('without meta nor context, has neither line', async () => {

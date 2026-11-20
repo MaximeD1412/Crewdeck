@@ -1,6 +1,6 @@
 ---
 id: BIZ-2
-title: "Demand validation: a sign-up page outside the repository and 5 interviews, the page up before 2026-11-20"
+title: "Demand validation: a sign-up page outside the repository and 5 interviews, the page up while Conductor's cloud users move"
 epic: BIZ
 type: externe
 priority: P1
@@ -13,11 +13,12 @@ stories: []
 screens: []
 revue_visuelle: false
 video: false
+reprend: 56
 ---
 
 ## Context
 
-The PRD's « Open questions »: demand validation is « a sign-up page and 5 interviews, run alongside the technical design (ticket `externe`) ». Conductor, the closest product, stops its cloud on 2026-11-20 and its local app in early 2027 (`docs/research/2026-11-08-ai-providers-and-competitors.md`): the sign-up page should be up before then (risk BIZ-3). The interviews also test whether the Skins are worth it to a solo developer, the PRD's riskiest bet (risk BIZ-1). The page is built by the founder with a hosted tool, outside this repository (decided at the split, 2026-11-10).
+The PRD's « Open questions »: demand validation is « a sign-up page and 5 interviews, run alongside the technical design (ticket `externe`) ». Conductor, the closest product, shuts its cloud down « over the next few weeks » but keeps developing its local app (announcement read on 2026-11-19, which no longer gives the dates of 2026-11-08; PRD « Open questions »): the sign-up page should be up while its cloud users move, as soon as possible, with no fixed date (risk BIZ-3). The interviews also test whether the Skins are worth it to a solo developer, the PRD's riskiest bet (risk BIZ-1). The page is built by the founder with a hosted tool, outside this repository (decided at the split, 2026-11-10).
 
 ## Current state of the code
 
@@ -26,9 +27,9 @@ The PRD's « Open questions »: demand validation is « a sign-up page and 5 int
 
 ## To do
 
-- [ ] **Page** (before 2026-11-20), with a hosted tool (Tally, Carrd, Framaforms or similar), in French, served at `inscription.<domain>` (CNAME from BIZ-1):
+- [ ] **Page** (as soon as possible), with a hosted tool (Tally, Carrd, Framaforms or similar), in French, served at `inscription.<domain>` (CNAME from BIZ-1):
   - what Crewdeck does in three lines (from `README.md`): the Process from the Idée to the merged PR, in real time, the agents on your own machine and your own Comptes IA, an interface you can reshape;
-  - one line for Conductor's users (« ton outil ferme le 20 novembre ? »), without naming another product in a misleading way;
+  - one line for Conductor's cloud users (« ton outil ferme son cloud ? »), without naming another product in a misleading way;
   - an email field, an optional « quels outils d'agents utilises-tu ? » and « accepterais-tu un entretien de 20 min ? »;
   - GDPR: what the email is for (beta invitation, interview), who holds it, how to be removed; no tracking beyond the tool's own counts (risk BIZ-5).
 - [ ] Share it where solo developers using agents are (the founder's networks, a few communities); keep a count of sign-ups per week.
@@ -39,12 +40,13 @@ The PRD's « Open questions »: demand validation is « a sign-up page and 5 int
 
 ## Decisions already made
 
+- No fixed deadline any more: Conductor's announcement of 2026-11-19 gives no date for its cloud's end (rewritten on 2026-11-20).
 - The page is outside the repository and outside the product's server: no code, no deploy dependency, it can be up in an hour.
 - No paid advertising for this validation.
 
 ## Acceptance criteria
 
-- [ ] The page is reachable at `inscription.<domain>` on or before 2026-11-20 (or at the tool's own URL if the domain is late, moved to the domain later).
+- [ ] The page is reachable at `inscription.<domain>` (or at the tool's own URL if the domain is late, moved to the domain later); the date it went up is written in a comment here.
 - [ ] Five interviews are done and summarised in `docs/research/2026-11-interviews.md`, merged.
 
 ## Verification

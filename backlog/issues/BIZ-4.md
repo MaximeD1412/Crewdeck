@@ -6,13 +6,14 @@ type: externe
 priority: P2
 size: S
 milestone: M7 Statistics and switchover
-blocked_by: [PILOTAGE-3, BOUCLE-8]
+blocked_by: [PILOTAGE-3, BOUCLE-8, SESSION-4]
 adr: []
 risques: [AGT-6]
 stories: []
 screens: []
 revue_visuelle: false
 video: false
+reprend: 85
 ---
 
 ## Context
@@ -29,7 +30,7 @@ The MVP is done when « the founder drives the Process of all their projects, fr
 - [ ] Bring every Projet the console follows into Crewdeck (US-3, US-68 for those with code), link the Runner on the founder's machine, connect the Comptes IA.
 - [ ] Day 1: stop the console's `agent-loop` and Planifications for these Projets; start their Boucles or Planifications in Crewdeck.
 - [ ] For 4 consecutive weeks, use only Crewdeck for Idées, Conceptions, Tickets, « À toi » and the Boucle. Each time the console's Process pages are needed, note why as an Idée in Crewdeck (Projet Crewdeck), and the 4 weeks restart from the next day.
-- [ ] Each Friday, a comment here: the week's Tickets merged by Crewdeck's Boucle, the Décisions taken, the returns to the console (with their Idée), Crewdeck's statistics page (US-61) for the week.
+- [ ] Each Friday, a comment here: the week's Tickets merged by Crewdeck's Boucle, the Décisions taken, the returns to the console (with their Idée), Crewdeck's statistics page (US-61) for the week, and the Sessions that stayed more than 15 minutes past their threshold without their « Session sans progrès » (US-112; from the Sessions' history: `AgentSession.interruptedReason`, `endedAt` and the Décision's `createdAt`), which must be none.
 - [ ] At the end, a comment « 4 semaines tenues » with the dates, then update `docs/pilotage/risques.json` AGT-6 (closed) in a PR.
 
 ## Decisions already made
@@ -39,6 +40,7 @@ The MVP is done when « the founder drives the Process of all their projects, fr
 ## Acceptance criteria
 
 - [ ] Four consecutive weekly comments with no return to the console's Process pages.
+- [ ] Over those four weeks, no Session stayed more than 15 minutes past its threshold without its « Session sans progrès » (US-112, PRD « Success criteria »).
 
 ## Verification
 
@@ -56,3 +58,4 @@ Nothing.
 
 - PILOTAGE-3.
 - BOUCLE-8.
+- SESSION-4.

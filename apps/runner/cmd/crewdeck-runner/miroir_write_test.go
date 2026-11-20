@@ -12,9 +12,11 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/github"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/github/githubtest"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/localsock"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/session"
 	"gopkg.in/yaml.v3"
 )
@@ -471,6 +473,157 @@ func TestMiroirWriteAFailedRefreshLeavesTheWriteDoneAndExitsZero(t *testing.T) {
 	}
 	if f.fake.Count("MirrorObject") == 0 {
 		t.Error("no refresh asked")
+	}
+}
+
+// A create whose refresh fails still prints the URL GitHub answered (R1-3).
+func TestMiroirWriteAFailedRefreshAfterACreateKeepsGithubsURL(t *testing.T) {
+	f := newMiroirFixture(t)
+	f.writes(t)
+	inSession(t, ghWriteSession)
+	f.fake.REST(http.MethodPost, "/repos/acme/atelier/issues", http.StatusCreated, `{"id": 9016, "number": 16, "html_url": "https://github.com/acme/atelier/issues/16"}`)
+	f.fake.REST(http.MethodPost, "/repos/acme/atelier/pulls", http.StatusCreated, `{"id": 7020, "number": 20, "html_url": "https://github.com/acme/atelier/pull/20"}`)
+	f.fake.Fail("MirrorObject", githubtest.BadGateway(), 100)
+	out, stderr, err := runMiroir(t, githubDir(t), "issue", "create", "-t", "T", "--json", "number,url")
+	if err != nil || stderr != "" {
+		t.Fatalf("issue create: %v %q", err, stderr)
+	}
+	if got := jq(t, []byte(out), "."); !reflect.DeepEqual(got, map[string]any{"number": 16.0, "url": "https://github.com/acme/atelier/issues/16"}) {
+		t.Errorf("--json number,url: %v", got)
+	}
+	out, stderr, err = runMiroir(t, githubDir(t), "pr", "create", "-H", "feat/15-x", "-t", "x")
+	if err != nil || out != "https://github.com/acme/atelier/pull/20\n" {
+		t.Errorf("pr create: %q %v %q", out, err, stderr)
+	}
+}
+
+// The Runner answers before runner.sock's deadline, however long the
+// refresh would take (R1-2).
+func TestMiroirWriteLocalRefreshLeavesTimeToAnswerBeforeTheSocketsDeadline(t *testing.T) {
+	f := newMiroirFixture(t)
+	f.stop()
+	f.serve(t, &localsock.Server{Timeout: 2 * time.Second})
+	f.writes(t)
+	sourceWrites{
+		running: func(string) (string, string, bool) { return "P2", "code", true },
+		target:  f.locals.Target,
+		fetch: func(ctx context.Context, _ string, _ int) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	}.Register(f.sock)
+	inSession(t, localWriteSession)
+	dir := f.sessionDir(t)
+	out, stderr, err := runMiroir(t, dir, "issue", "comment", "12", "-b", "Lent.")
+	if err != nil || stderr != "" {
+		t.Fatalf("a comment whose refresh hangs: %q %v %q", out, err, stderr)
+	}
+}
+
+// issue edit and pr edit take gh's -b and -F, stdin included (R1-5).
+func TestMiroirWriteEditsTakeTheShortBodyFlags(t *testing.T) {
+	f := newMiroirFixture(t)
+	f.writes(t)
+	inSession(t, localWriteSession)
+	dir := f.sessionDir(t)
+	body := func(args ...string) any {
+		t.Helper()
+		out, stderr, err := runMiroir(t, dir, args...)
+		if err != nil {
+			t.Fatalf("%v: %v\n%s", args, err, stderr)
+		}
+		return jq(t, []byte(out), ".body")
+	}
+	if _, stderr, err := runMiroir(t, dir, "issue", "edit", "12", "-b", "Par -b."); err != nil {
+		t.Fatalf("issue edit -b: %v %q", err, stderr)
+	}
+	if got := body("issue", "view", "12", "--json", "body"); got != "Par -b." {
+		t.Errorf("issue edit -b: %v", got)
+	}
+	if _, stderr, err := runMiroirIn(t, dir, "Par stdin.", "issue", "edit", "12", "-F", "-"); err != nil {
+		t.Fatalf("issue edit -F -: %v %q", err, stderr)
+	}
+	if got := body("issue", "view", "12", "--json", "body"); got != "Par stdin." {
+		t.Errorf("issue edit -F -: %v", got)
+	}
+	writeFiles(t, dir, map[string]string{"corps.md": "Par fichier."})
+	if _, stderr, err := runMiroir(t, dir, "pr", "edit", "7", "-F", "corps.md"); err != nil {
+		t.Fatalf("pr edit -F: %v %q", err, stderr)
+	}
+	if got := body("pr", "view", "7", "--json", "body"); got != "Par fichier." {
+		t.Errorf("pr edit -F: %v", got)
+	}
+}
+
+// A body over the limit is refused before anything is written, not cut (R1-1).
+func TestMiroirWriteRefusesABodyOverItsLimitBeforeWriting(t *testing.T) {
+	f := newMiroirFixture(t)
+	f.writes(t)
+	inSession(t, localWriteSession)
+	dir := f.sessionDir(t)
+	ticket := filepath.Join(f.folder, "tickets", "12-le-panier.md")
+	before, _ := os.ReadFile(ticket)
+	big := strings.Repeat("x", bodyLimit+1)
+	writeFiles(t, dir, map[string]string{"gros.md": big})
+	refused := func(err error) bool {
+		return isExit(err, 1) && err.Error() == "Le corps dépasse 1 Mio : rien n'est écrit."
+	}
+	if _, _, err := runMiroir(t, dir, "issue", "edit", "12", "-F", "gros.md"); !refused(err) {
+		t.Errorf("a file over the limit: %v", err)
+	}
+	if _, _, err := runMiroirIn(t, dir, big, "issue", "comment", "12", "-F", "-"); !refused(err) {
+		t.Errorf("stdin over the limit: %v", err)
+	}
+	if after, _ := os.ReadFile(ticket); string(after) != string(before) {
+		t.Errorf("the Ticket changed:\n%s", after)
+	}
+	out, _, _ := runMiroir(t, dir, "issue", "view", "12", "--json", "comments")
+	if n := jq(t, []byte(out), ".comments | length"); n != 1 {
+		t.Errorf("%v comments, want the fixture's one", n)
+	}
+	// Exactly the limit is written.
+	writeFiles(t, dir, map[string]string{"juste.md": big[:bodyLimit]})
+	if _, stderr, err := runMiroir(t, dir, "issue", "edit", "12", "-F", "juste.md"); err != nil {
+		t.Errorf("a file at the limit: %v %q", err, stderr)
+	}
+}
+
+// Reopening a Local change refuses while another is open on its branch (R1-4).
+func TestMiroirWriteLocalPrReopenRefusesWhileAnotherChangeIsOpenOnItsBranch(t *testing.T) {
+	f := newMiroirFixture(t)
+	f.writes(t)
+	inSession(t, localWriteSession)
+	dir := f.sessionDir(t)
+	gitIn(t, dir, "checkout", "--quiet", "-b", "feat/15-x")
+	gitIn(t, dir, "push", "--quiet", "origin", "feat/15-x")
+	create := []string{"pr", "create", "-H", "feat/15-x", "-t", "x", "--json", "number"}
+	out, stderr, err := runMiroir(t, dir, create...)
+	if err != nil {
+		t.Fatalf("A: %v %q", err, stderr)
+	}
+	a := int(jq(t, []byte(out), ".number").(float64))
+	if _, stderr, err := runMiroir(t, dir, "pr", "close", fmt.Sprint(a)); err != nil {
+		t.Fatalf("close A: %v %q", err, stderr)
+	}
+	out, stderr, err = runMiroir(t, dir, create...)
+	if err != nil {
+		t.Fatalf("B: %v %q", err, stderr)
+	}
+	b := int(jq(t, []byte(out), ".number").(float64))
+	_, stderr, err = runMiroir(t, dir, "pr", "reopen", fmt.Sprint(a))
+	if want := fmt.Sprintf("Un changement est déjà ouvert pour feat/15-x : #%d.\n", b); !isExit(err, 1) || stderr != want {
+		t.Errorf("reopen A beside B: %v %q, want %q", err, stderr, want)
+	}
+	out, _, _ = runMiroir(t, dir, "pr", "view", fmt.Sprint(a), "--json", "state")
+	if got := jq(t, []byte(out), ".state"); got != "CLOSED" {
+		t.Errorf("A is %v", got)
+	}
+	// Once B is closed, A reopens.
+	if _, stderr, err := runMiroir(t, dir, "pr", "close", fmt.Sprint(b)); err != nil {
+		t.Fatalf("close B: %v %q", err, stderr)
+	}
+	if _, stderr, err := runMiroir(t, dir, "pr", "reopen", fmt.Sprint(a)); err != nil {
+		t.Errorf("reopen A alone: %v %q", err, stderr)
 	}
 }
 

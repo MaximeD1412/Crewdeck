@@ -31,6 +31,10 @@ type sourceWrites struct {
 	logger *slog.Logger
 }
 
+// replyReserve is the time a write keeps to answer before runner.sock's
+// deadline, whatever its refresh takes.
+const replyReserve = time.Second
+
 // writeCode is a refusal of a write, its code the client says in French.
 type writeCode string
 
@@ -60,7 +64,7 @@ func (w sourceWrites) Register(sock *localsock.Server) {
 		if role == "" {
 			role = "agent"
 		}
-		number, err := source.Apply(ctx, target, r.Op, r.Number, r.Fields, role, r.SessionID)
+		written, err := source.Apply(ctx, target, r.Op, r.Number, r.Fields, role, r.SessionID)
 		if code := refusalCode(err); code != "" {
 			return nil, writeCode(code)
 		}
@@ -70,11 +74,18 @@ func (w sourceWrites) Register(sock *localsock.Server) {
 			}
 			return nil, writeCode("failed")
 		}
-		// The write is done: a failed refresh leaves it so, silent.
-		fetchCtx, cancel := context.WithTimeout(ctx, localsock.Timeout-5*time.Second)
-		defer cancel()
-		_ = w.fetch(fetchCtx, r.Key, number)
-		return source.WriteReply{Number: number}, nil
+		// The write is done: a failed refresh leaves it so, silent, and
+		// leaves replyReserve of runner.sock's deadline to answer it.
+		budget := localsock.Timeout
+		if deadline, ok := ctx.Deadline(); ok {
+			budget = time.Until(deadline)
+		}
+		if budget -= replyReserve; budget > 0 {
+			fetchCtx, cancel := context.WithTimeout(ctx, budget)
+			defer cancel()
+			_ = w.fetch(fetchCtx, r.Key, written.Number)
+		}
+		return written, nil
 	})
 }
 
@@ -88,7 +99,7 @@ func refusalCode(err error) string {
 	case errors.As(err, &missing):
 		return "branch-missing"
 	case errors.As(err, &open):
-		return "change-open:" + strconv.Itoa(open.Number)
+		return "change-open:" + strconv.Itoa(open.Number) + ":" + open.Branch
 	case errors.Is(err, source.ErrNotFound):
 		return "not-found"
 	case errors.Is(err, source.ErrUnknownMilestone):
@@ -112,7 +123,12 @@ func refusalCode(err error) string {
 // writeRefusal says in French why a write was refused: code is a
 // refusalCode or source.write's own; where names the Projet.
 func writeRefusal(code string, number int, branch, milestone, where string, local bool) string {
-	if n, ok := strings.CutPrefix(code, "change-open:"); ok {
+	if rest, ok := strings.CutPrefix(code, "change-open:"); ok {
+		// change-open:<n>:<branch>, a branch having no ":".
+		n, open, found := strings.Cut(rest, ":")
+		if found {
+			branch = open
+		}
 		return fmt.Sprintf("Un changement est déjà ouvert pour %s : #%s.", branch, n)
 	}
 	switch code {

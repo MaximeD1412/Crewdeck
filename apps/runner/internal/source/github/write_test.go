@@ -68,8 +68,8 @@ func TestGithubIssueCreateCallsTheCreateDependencyAndSubIssueEndpoints(t *testin
 	n, err := source.Apply(context.Background(), writer(fake), source.IssueCreate, 0, source.WriteFields{
 		Title: &title, Body: &body, Labels: []string{"size:S", "ready-for-agent"}, Milestone: &milestone, BlockedBy: []int{3}, Parent: &parent,
 	}, "code", "s-1")
-	if err != nil || n != 16 {
-		t.Fatalf("created %d, %v", n, err)
+	if err != nil || n != (source.WriteReply{Number: 16, URL: "https://github.com/acme/atelier/issues/16"}) {
+		t.Fatalf("created %v, %v", n, err)
 	}
 	want := []string{
 		`POST /repos/acme/atelier/issues {"body":"B","labels":["size:S","ready-for-agent"],"milestone":1,"title":"T"}`,
@@ -146,8 +146,8 @@ func TestGithubPullCreateReviewAtTheCopysHeadAndCloseDeletingItsBranch(t *testin
 	ctx := context.Background()
 	title, base, body := "Le x", "develop", "x"
 	n, err := source.Apply(ctx, w, source.PrCreate, 0, source.WriteFields{Title: &title, Body: &body, Head: "feat/12-x", Base: &base, Draft: true, Labels: []string{"conception"}}, "code", "")
-	if err != nil || n != 7 {
-		t.Fatalf("created %d, %v", n, err)
+	if err != nil || n != (source.WriteReply{Number: 7, URL: "https://github.com/acme/atelier/pull/7"}) {
+		t.Fatalf("created %v, %v", n, err)
 	}
 	if _, err := source.Apply(ctx, w, source.PrReview, 7, source.WriteFields{Review: source.ReviewChangesRequested, Body: &body}, "review", ""); err != nil {
 		t.Fatal(err)

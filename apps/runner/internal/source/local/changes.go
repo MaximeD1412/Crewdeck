@@ -40,14 +40,8 @@ func (p *Project) CreateChange(ctx context.Context, change source.NewChange) (so
 		if !ok {
 			return &source.BranchMissingError{Branch: change.Head}
 		}
-		var open int
-		err := p.db.db.QueryRowContext(ctx, `SELECT number FROM changes WHERE project_id = ? AND head_ref = ? AND state = 'open' ORDER BY number LIMIT 1`,
-			p.id, change.Head).Scan(&open)
-		if err == nil {
-			return &source.ChangeOpenError{Branch: change.Head, Number: open}
-		}
-		if !errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("local: read the open changes: %w", err)
+		if err := p.noOtherOpen(ctx, change.Head, 0); err != nil {
+			return err
 		}
 		tx, err := p.db.db.BeginTx(ctx, nil)
 		if err != nil {
@@ -120,6 +114,12 @@ func (p *Project) SetChangeState(ctx context.Context, number int, state source.C
 		if c.State == source.ChangeMerged {
 			return source.ErrMerged
 		}
+		if c.State != state && state == source.ChangeOpen {
+			// One open change a branch, as CreateChange keeps it.
+			if err := p.noOtherOpen(ctx, c.HeadRef, number); err != nil {
+				return err
+			}
+		}
 		if c.State != state {
 			c.State = state
 			c.ClosedAt = nil
@@ -155,6 +155,21 @@ func (p *Project) SetChangeState(ctx context.Context, number int, state source.C
 }
 
 // updateChange reads the change, applies fn and writes it back.
+// noOtherOpen refuses while a change but except is open on head: one open
+// change a branch. Under p.locked.
+func (p *Project) noOtherOpen(ctx context.Context, head string, except int) error {
+	var open int
+	err := p.db.db.QueryRowContext(ctx, `SELECT number FROM changes WHERE project_id = ? AND head_ref = ? AND state = 'open' AND number != ? ORDER BY number LIMIT 1`,
+		p.id, head, except).Scan(&open)
+	if err == nil {
+		return &source.ChangeOpenError{Branch: head, Number: open}
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("local: read the open changes: %w", err)
+	}
+	return nil
+}
+
 func (p *Project) updateChange(ctx context.Context, number int, fn func(*source.Change) error) (source.Change, error) {
 	err := p.locked(ctx, func(s *scanned) error {
 		c, err := p.Change(ctx, number)

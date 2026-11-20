@@ -79,6 +79,8 @@ type WriteRequest struct {
 // WriteReply is OpWrite's reply: the number written (the new one of a create).
 type WriteReply struct {
 	Number int `json:"number"`
+	// URL is a create's, as its Source answered it; "" when it has none.
+	URL string `json:"url,omitempty"`
 }
 
 // Target is what a Source writes.
@@ -91,15 +93,16 @@ type Target interface {
 var ErrUnknownOp = errors.New("source: unknown write")
 
 // Apply does op on number (none for a create) with fields, written by
-// author for the Session sessionID; it returns the number written.
-func Apply(ctx context.Context, t Target, op WriteOp, number int, f WriteFields, author, sessionID string) (int, error) {
+// author for the Session sessionID; it returns the number written, and a
+// create's URL.
+func Apply(ctx context.Context, t Target, op WriteOp, number int, f WriteFields, author, sessionID string) (WriteReply, error) {
 	switch op {
 	case IssueCreate:
 		ticket := NewTicket{Title: value(f.Title), Body: value(f.Body), Milestone: value(f.Milestone), BlockedBy: f.BlockedBy,
 			Parent: f.Parent, Assignees: f.Assignees}
 		ticket.Labels, ticket.Ready = withoutReady(f.Labels)
 		created, err := t.CreateTicket(ctx, ticket)
-		return created.Number, err
+		return WriteReply{Number: created.Number, URL: created.URL}, err
 	case IssueEdit:
 		edit := TicketEdit{Title: f.Title, Body: f.Body, Milestone: f.Milestone, AddBlockedBy: f.AddBlockedBy, RemoveBlockedBy: f.RemoveBlockedBy,
 			Parent: f.Parent, AddAssignees: f.AddAssignees, RemoveAssignees: f.RemoveAssignees}
@@ -113,14 +116,14 @@ func Apply(ctx context.Context, t Target, op WriteOp, number int, f WriteFields,
 			edit.Ready = &no
 		}
 		_, err := t.EditTicket(ctx, number, edit)
-		return number, err
+		return WriteReply{Number: number}, err
 	case IssueComment:
 		_, err := t.Comment(ctx, number, author, value(f.Body), sessionID)
-		return number, err
+		return WriteReply{Number: number}, err
 	case IssueClose, IssueReopen:
 		if f.Comment != "" {
 			if _, err := t.Comment(ctx, number, author, f.Comment, sessionID); err != nil {
-				return number, err
+				return WriteReply{Number: number}, err
 			}
 		}
 		state, reason := TicketOpen, ReasonNone
@@ -128,25 +131,25 @@ func Apply(ctx context.Context, t Target, op WriteOp, number int, f WriteFields,
 			state, reason = TicketClosed, f.Reason
 		}
 		_, err := t.SetTicketState(ctx, number, state, reason)
-		return number, err
+		return WriteReply{Number: number}, err
 	case PrCreate:
 		created, err := t.CreateChange(ctx, NewChange{Title: value(f.Title), Body: value(f.Body), Head: f.Head, Base: value(f.Base),
 			Draft: f.Draft, Labels: f.Labels, Assignees: f.Assignees, Milestone: value(f.Milestone), Author: author, SessionID: sessionID})
-		return created.Number, err
+		return WriteReply{Number: created.Number, URL: created.URL}, err
 	case PrEdit:
 		_, err := t.EditChange(ctx, number, ChangeEdit{Title: f.Title, Body: f.Body, Base: f.Base, AddLabels: f.AddLabels, RemoveLabels: f.RemoveLabels,
 			AddAssignees: f.AddAssignees, RemoveAssignees: f.RemoveAssignees, Milestone: f.Milestone})
-		return number, err
+		return WriteReply{Number: number}, err
 	case PrComment:
 		_, err := t.CommentChange(ctx, number, author, value(f.Body), sessionID)
-		return number, err
+		return WriteReply{Number: number}, err
 	case PrReview:
 		_, err := t.Review(ctx, number, NewReview{State: f.Review, Body: value(f.Body), Author: author, SessionID: sessionID})
-		return number, err
+		return WriteReply{Number: number}, err
 	case PrClose, PrReopen:
 		if f.Comment != "" {
 			if _, err := t.CommentChange(ctx, number, author, f.Comment, sessionID); err != nil {
-				return number, err
+				return WriteReply{Number: number}, err
 			}
 		}
 		state := ChangeOpen
@@ -154,9 +157,9 @@ func Apply(ctx context.Context, t Target, op WriteOp, number int, f WriteFields,
 			state = ChangeClosed
 		}
 		_, err := t.SetChangeState(ctx, number, state, op == PrClose && f.DeleteBranch)
-		return number, err
+		return WriteReply{Number: number}, err
 	}
-	return 0, ErrUnknownOp
+	return WriteReply{}, ErrUnknownOp
 }
 
 // withoutReady are the labels but ReadyLabel, and whether it was there.

@@ -221,8 +221,14 @@ func newMiroirFixtureOf(t *testing.T, mixed bool) *miroirFixture {
 // start serves runner.sock as the running Runner does.
 func (f *miroirFixture) start(t *testing.T) {
 	t.Helper()
+	f.serve(t, &localsock.Server{})
+}
+
+// serve serves runner.sock with sock, the follower registered.
+func (f *miroirFixture) serve(t *testing.T, sock *localsock.Server) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
-	f.sock = &localsock.Server{}
+	f.sock = sock
 	f.follower.Register(f.sock)
 	socket := filepath.Join(f.home, localsock.SocketName)
 	done := make(chan struct{})
@@ -282,12 +288,18 @@ func (f *miroirFixture) sessionDir(t *testing.T) string {
 // runMiroir runs `crewdeck-runner miroir args…` in dir.
 func runMiroir(t *testing.T, dir string, args ...string) (string, string, error) {
 	t.Helper()
+	return runMiroirIn(t, dir, "", args...)
+}
+
+// runMiroirIn runs `crewdeck-runner miroir args…` in dir, stdin given.
+func runMiroirIn(t *testing.T, dir, stdin string, args ...string) (string, string, error) {
+	t.Helper()
 	t.Chdir(dir)
 	var stdout, stderr bytes.Buffer
 	root := newRoot(&machine{})
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
-	root.SetIn(strings.NewReader(""))
+	root.SetIn(strings.NewReader(stdin))
 	root.SetArgs(append([]string{"miroir"}, args...))
 	err := root.Execute()
 	return stdout.String(), stderr.String(), err

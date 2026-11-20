@@ -36,6 +36,9 @@ var miroirGitHubAPI = github.API
 // createFields are what `create --json` prints.
 var createFields = []string{"number", "url"}
 
+// bodyLimit is the most a body read from a file or stdin may weigh.
+const bodyLimit = 1 << 20
+
 // addIssueWrites adds the issue's writes to `miroir issue`.
 func addIssueWrites(issue *cobra.Command, repo *string) {
 	issue.AddCommand(newIssueCreate(repo), newIssueEdit(repo), newWriteComment(repo, false),
@@ -86,14 +89,9 @@ type body struct {
 	text, file string
 }
 
-func (b *body) add(cmd *cobra.Command, short bool) {
-	if short {
-		cmd.Flags().StringVarP(&b.text, "body", "b", "", "the body")
-		cmd.Flags().StringVarP(&b.file, "body-file", "F", "", "read the body from the file (\"-\" for stdin)")
-	} else {
-		cmd.Flags().StringVar(&b.text, "body", "", "the body")
-		cmd.Flags().StringVar(&b.file, "body-file", "", "read the body from the file (\"-\" for stdin)")
-	}
+func (b *body) add(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&b.text, "body", "b", "", "the body")
+	cmd.Flags().StringVarP(&b.file, "body-file", "F", "", "read the body from the file (\"-\" for stdin)")
 	cmd.MarkFlagsMutuallyExclusive("body", "body-file")
 }
 
@@ -109,9 +107,12 @@ func (b *body) value(cmd *cobra.Command) (*string, error) {
 			defer f.Close()
 			in = f
 		}
-		data, err := io.ReadAll(io.LimitReader(in, 1<<20))
+		data, err := io.ReadAll(io.LimitReader(in, bodyLimit+1))
 		if err != nil {
 			return nil, &exitError{code: 1, err: errors.New("Le corps ne se lit pas.")}
+		}
+		if len(data) > bodyLimit {
+			return nil, &exitError{code: 1, err: errors.New("Le corps dépasse 1 Mio : rien n'est écrit.")}
 		}
 		text := string(data)
 		return &text, nil
@@ -187,7 +188,7 @@ func newIssueCreate(repo *string) *cobra.Command {
 	}
 	f := cmd.Flags()
 	f.StringVarP(&title, "title", "t", "", "the title")
-	b.add(cmd, true)
+	b.add(cmd)
 	f.StringSliceVarP(&labels, "label", "l", nil, "add labels (ready-for-agent sets the Ticket ready)")
 	f.StringSliceVarP(&assignees, "assignee", "a", nil, "assign people by their login")
 	f.StringVarP(&milestone, "milestone", "m", "", "the milestone, by its title")
@@ -231,7 +232,7 @@ func newIssueEdit(repo *string) *cobra.Command {
 	}
 	f := cmd.Flags()
 	f.StringVarP(&title, "title", "t", "", "the title")
-	b.add(cmd, false)
+	b.add(cmd)
 	l.add(cmd)
 	f.IntSliceVar(&addBlockedBy, "add-blocked-by", nil, "add Tickets this one is blocked by, N,…")
 	f.IntSliceVar(&removeBlockedBy, "remove-blocked-by", nil, "remove Tickets this one is blocked by, N,…")
@@ -262,7 +263,7 @@ func newWriteComment(repo *string, pulls bool) *cobra.Command {
 			return runWrite(cmd, *repo, writeOf{op: op, arg: firstArg(args), fields: source.WriteFields{Body: text}})
 		},
 	}
-	b.add(cmd, true)
+	b.add(cmd)
 	return cmd
 }
 
@@ -326,7 +327,7 @@ func newPullCreate(repo *string) *cobra.Command {
 	}
 	f := cmd.Flags()
 	f.StringVarP(&title, "title", "t", "", "the title")
-	b.add(cmd, true)
+	b.add(cmd)
 	f.StringVarP(&base, "base", "B", "", "the branch to merge into (default: the Projet's integration branch)")
 	f.StringVarP(&head, "head", "H", "", "the branch of the change (default: the current branch)")
 	f.BoolVarP(&draft, "draft", "d", false, "open it as a draft")
@@ -356,7 +357,7 @@ func newPullEdit(repo *string) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&title, "title", "t", "", "the title")
-	b.add(cmd, false)
+	b.add(cmd)
 	l.add(cmd)
 	cmd.Flags().StringVarP(&base, "base", "B", "", "the branch to merge into")
 	return cmd
@@ -396,7 +397,7 @@ func newPullReview(repo *string) *cobra.Command {
 	f.BoolVarP(&request, "request-changes", "r", false, "request changes")
 	f.BoolVarP(&comment, "comment", "c", false, "comment without a verdict")
 	cmd.MarkFlagsMutuallyExclusive("approve", "request-changes", "comment")
-	b.add(cmd, true)
+	b.add(cmd)
 	return cmd
 }
 
@@ -497,12 +498,12 @@ func runWrite(cmd *cobra.Command, repo string, w writeOf) error {
 	if err := m.complete(ctx, p, &w); err != nil {
 		return err
 	}
-	number, err := m.writeTo(ctx, cmd, p, w, sessionID)
+	written, err := m.writeTo(ctx, cmd, p, w, sessionID)
 	if err != nil {
 		return err
 	}
-	url := ""
-	if object, err := m.store.View(p.Repository, number, w.pulls()); err == nil {
+	number, url := written.Number, written.URL
+	if object, err := m.store.View(p.Repository, number, w.pulls()); err == nil && url == "" {
 		url, _ = object["url"].(string)
 	}
 	if url == "" {
@@ -577,7 +578,7 @@ func currentBranch(ctx context.Context) (string, error) {
 
 // writeTo writes on the key's Source; a refusal is printed in French, and
 // the command exits 1.
-func (m *miroir) writeTo(ctx context.Context, cmd *cobra.Command, p mirror.Project, w writeOf, sessionID string) (int, error) {
+func (m *miroir) writeTo(ctx context.Context, cmd *cobra.Command, p mirror.Project, w writeOf, sessionID string) (source.WriteReply, error) {
 	refused := func(code string) error {
 		fmt.Fprintln(cmd.ErrOrStderr(), writeRefusal(code, w.number, w.fields.Head, valueOf(w.fields.Milestone), p.DisplayName, p.Source == mirror.SourceLocal))
 		return silentExit(1)
@@ -589,13 +590,13 @@ func (m *miroir) writeTo(ctx context.Context, cmd *cobra.Command, p mirror.Proje
 		switch {
 		case errors.Is(err, localsock.ErrNoRunner):
 			fmt.Fprintln(cmd.ErrOrStderr(), notStarted)
-			return 0, silentExit(1)
+			return source.WriteReply{}, silentExit(1)
 		case errors.As(err, &failed):
-			return 0, refused(failed.Code)
+			return source.WriteReply{}, refused(failed.Code)
 		case err != nil:
-			return 0, refused("")
+			return source.WriteReply{}, refused("")
 		}
-		return reply.Number, nil
+		return reply, nil
 	}
 
 	tokenCtx, cancel := context.WithTimeout(ctx, localsock.Timeout)
@@ -608,27 +609,27 @@ func (m *miroir) writeTo(ctx context.Context, cmd *cobra.Command, p mirror.Proje
 		} else {
 			fmt.Fprintln(cmd.ErrOrStderr(), "Le jeton GitHub de cette Session n'est pas disponible : le Runner tourne-t-il ?")
 		}
-		return 0, silentExit(1)
+		return source.WriteReply{}, silentExit(1)
 	}
 	owner, name, _ := strings.Cut(p.Repository, "/")
 	writer := &ghsource.Writer{BaseURL: miroirGitHubAPI, Token: token, Owner: owner, Name: name, Copy: copyOf{m.store, p.Repository}}
-	number, err := source.Apply(ctx, writer, w.op, w.number, w.fields, "", sessionID)
+	written, err := source.Apply(ctx, writer, w.op, w.number, w.fields, "", sessionID)
 	var refusal *ghsource.HTTPError
 	switch {
 	case errors.As(err, &refusal):
 		fmt.Fprintln(cmd.ErrOrStderr(), refusal.Error())
-		return 0, silentExit(1)
+		return source.WriteReply{}, silentExit(1)
 	case refusalCode(err) != "":
-		return 0, refused(refusalCode(err))
+		return source.WriteReply{}, refused(refusalCode(err))
 	case err != nil:
 		fmt.Fprintf(cmd.ErrOrStderr(), "GitHub n'a pas répondu : %v\n", err)
-		return 0, silentExit(1)
+		return source.WriteReply{}, silentExit(1)
 	}
 	// The write is done: a failed refresh leaves it so, silent.
 	fetchCtx, cancel := context.WithTimeout(ctx, localsock.Timeout)
 	defer cancel()
-	_ = localsock.Call(fetchCtx, m.socket, mirror.OpFetch, mirror.FetchRequest{Repository: p.Repository, Number: number}, nil)
-	return number, nil
+	_ = localsock.Call(fetchCtx, m.socket, mirror.OpFetch, mirror.FetchRequest{Repository: p.Repository, Number: written.Number}, nil)
+	return written, nil
 }
 
 func valueOf(s *string) string {

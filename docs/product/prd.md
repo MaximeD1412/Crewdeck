@@ -3,7 +3,8 @@
 > Ideas: DCCM-IDEA#29, #30; US-112 to US-123 from the survey of AI
 > orchestrators of 2026-11-19 ([research](../research/2026-11-19-ai-orchestrators.md)).
 > Approved: <PR link> (<date>). Features:
-> [Gestion du process](features/gestion-du-process.md).
+> [Gestion du process](features/gestion-du-process.md),
+> [Collaboration](features/collaboration.md).
 
 ## Problem
 
@@ -35,6 +36,7 @@
 |---|---|---|
 | **Pilote** | A solo developer with their own machine and their own Claude or Codex account, driving several Projets with agents, with the tools they choose (GitHub or none, a ticket tracker, a documentation tool); the first one is the founder | Compose the Process of each Projet, follow Idées, Conceptions, Tickets and agents in real time, and decide at the Process's gates, from the PC or the phone |
 | **Visiteur** | Someone who discovers Crewdeck before signing up | Understand what the product does in five minutes, without connecting anything |
+| **Membre** | Someone a **Pilote** invites onto one of their **Projets** with an **Accès**: a client who reviews (Relecteur), someone of the project team (Contributeur), a developer who drives the agents with them (Co-pilote, Administrateur) | Review what is submitted to them, take part in the **Projet**, or drive it with the **Pilote** ([Collaboration](features/collaboration.md)) |
 | **Moddeur** | A **Pilote** who writes their own **Skin** with the SDK, or their own **Skill** for an **Étape** | Change the look of the product, or how its agents work, a little or completely, while keeping its logic and its gates |
 
 ## Principles
@@ -74,7 +76,9 @@
 - **The code, the agents and the AI accounts stay with the Pilote.** Agents
   run on the **Pilote**'s machine through the **Runner**, on the official
   agent programs the **Pilote** signs in to themselves, with their own
-  **Comptes IA**; the product never holds an AI credential, nor the secrets
+  **Comptes IA** (API keys only in a **Projet d'équipe**, a subscription
+  being personal: [Collaboration](features/collaboration.md)); the product
+  never holds an AI credential, nor the secrets
   of a **Serveur MCP** or a **Commande**. Conversations, code and diffs
   travel encrypted end to end between the **Runner** and the **Pilote**'s
   browser; our servers keep only the state of the **Process** (states,
@@ -158,7 +162,7 @@ when they are away.
 What the Pilote sees is the state of now.
 - **US-20** (MVP) As a Pilote, I want a change at a Source of my Projets (a file of a Projet's folder, GitHub) or from an agent on screen in under 2 s, without reloading, so that I can trust what I see.
 - **US-21** (MVP) As a Pilote, I want to see « resynchronisation… » after a lost connection until the state is sure again, with the Actions sensibles unavailable until then, so that I never act on a stale state.
-- **US-60** (MVP) As a Pilote, I want my conversations, code and diffs to travel encrypted end to end between my Runner and my browser, the product's servers keeping only the state of the Process, the titles of what lives only on my machine or in a tool other than GitHub encrypted too, a session or an artefact showing only its title and state while the Runner is offline, a session interrupted until I resume it once the Runner is back, so that my code and my local work never sit readable on someone else's server.
+- **US-60** (MVP) As a Pilote, I want my conversations, code and diffs to travel encrypted end to end between my Runner and my browser, the product's servers keeping only the state of the Process, the titles of what lives only on my machine or in a tool other than GitHub encrypted too, a session or an artefact showing only its title and state while the Runner is offline, a session interrupted until I resume it once the Runner is back (readable while the Runner is off from the Lancement, US-140), so that my code and my local work never sit readable on someone else's server.
 
 ### Skins
 The Pilote chooses how the product looks, in the Marketplace or with a
@@ -200,7 +204,7 @@ bill.
 - **US-66** (next) As a Pilote, I want a summary of what was delivered since a date, written for my client in plain words, so that I report without rewriting commits.
 - **US-76** (next) As a Pilote, I want a read-only Lien de suivi for a client (planning, progress, what is ready to try), which I can revoke, so that the client sees progress without asking.
 - **US-77** (next) As a Pilote, I want a weekly report of all my Projets (delivered, blocked, cost), in the product and by email, so that I keep the big picture.
-- **US-78** (next) As a Pilote, I want a searchable Journal des Décisions (every approval, refusal and answer, with its reason and date), so that months later I know why something was done.
+- **US-78** (next) As a Pilote, I want a searchable Journal des Décisions (every approval, refusal and answer, with its reason, its date and who decided), so that months later I know why something was done.
 - **US-120** (next) As a Pilote, I want the Journal des Décisions of a Local Projet written as a Copie in its folder, Markdown files I read with my usual tools, and that of any Projet into a folder of my choice once Copies exist (US-100), so that a Projet's history stays readable on my machine.
 
 ### Quality
@@ -244,8 +248,8 @@ The Pilote sets their account once, and each Projet differs where it needs.
 - **US-79** (next) As a Pilote, I want each Skill of the Marketplace rated on its real results (share of outputs that meet the Contrat, share of Tickets merged without a request for changes), so that I choose on facts, not on stars.
 
 ### Later
-- **US-32** (later) As a Pilote, I want agents to run in the product's cloud instead of my machine, so that they work when my PC is off.
-- **US-33** (later) As a Pilote, I want to invite teammates with roles, so that a team drives its Projets together.
+- **US-32** (later) As a Pilote, I want agents to run in a machine hosted by the product and billed to me, on my API keys, or on my client's own infrastructure, instead of my machine, so that they work when my PC is off.
+- ~~**US-33**~~ removed: replaced by the stories of [Collaboration](features/collaboration.md) (US-124 to US-142), Membres and their Accès.
 - **US-35** (next) As a Pilote, I want to add Étapes of my own to a Process (a security review after the Code, for instance), with their Skill, their Entrées and Sorties and their Contrat's rules written from the canvas, so that it fits how I work beyond the catalogue.
 - **US-37** (later) As a Pilote, I want to host the product on my own server, so that my Projets' state never leaves my infrastructure.
 - **US-47** (later) As a Moddeur, I want to sell my Skin in the Marketplace, the product taking a commission, so that my work pays.
@@ -258,9 +262,9 @@ The Pilote sets their account once, and each Projet differs where it needs.
 | Version | Contains | Done when |
 |---|---|---|
 | MVP (`MVP`) | US-1 to US-21, US-23, US-26, US-36, US-38 to US-40, US-48, US-55 to US-57, US-60 to US-63, US-68, US-73, US-82, US-88, US-91 to US-99, US-102 to US-106, US-111 to US-115: the founder's own use. One-person account, sign-in without GitHub, **Projets** from a local folder or a GitHub repository, **Runner** with the **Pilote**'s **Comptes IA** and their **Rôles**; « Gestion du process »: the canvas, the « Process Crewdeck » **Modèle**, the catalogue's **Étapes**, checked arrows, « pour chaque » and **Retours**, versioned activation; **Sources** Local and GitHub and their migration; **Commandes** (checks and launch of a local **Projet**) and **Serveurs MCP**; Idées (dictated or typed, straight to a Ticket when small), Conception, Tickets, Boucle, « À toi »; limits and **Planifications**; statistics, planning and ticket tree, the spend per **Étape**; « Session sans progrès », « Continuer dans mon terminal », « Depuis ta dernière visite »; real time, end-to-end encryption; the default sober **Skin** built on the library of **Composants**; every **Étape** checked against its **Contrat**; **Paramètres** | the success criteria of the MVP below are met |
-| Bêta (`next`) | US-22, US-24, US-25, US-27 to US-29, US-41 to US-46, US-65 to US-67, US-70 to US-72, US-74 to US-78, US-80, US-84, US-86, US-100, US-101, US-116 to US-121: what external testers need. **Thèmes**, **Skins** (inheritance, **Emplacements**, versioned contracts), the **Marketplace** with the isometric and « Terminal » **Skins**, private **Skins**; French and English; client feedback, reports and **Lien de suivi**, **Journal des Décisions**; user tests, visual audit, previews; **Runner** on a server; Slack, Discord, Telegram; **Copies** (another tool, or a folder such as an Obsidian vault); more **Moteurs** (Gemini CLI first); **Plafonds**; the demonstration **Projet**; the live canvas, zones on a capture, « Essayer » a Ticket, search, the Journal in the folder, an Idée from a channel | 5 external beta testers are active every week; the three official **Skins** use the public library only |
-| Lancement (`next`) | US-30, US-31, US-34, US-35, US-49 to US-54, US-58, US-64, US-69, US-79, US-85, US-87, US-90, US-110, US-122, US-123: acceptance, release and operations (with production alerts as Idées), a paid plan, third-party **Skins** and **Skills** after review, the **Pilote**'s own **Skills** and **Étapes**, parallel **Boucles**, progression, architecture and risks, dependency PRs, **Skill** ratings, design tools (Penpot, Pencil, Figma), own models, **Connecteurs** for ticket trackers and documentation tools (Jira, Confluence and the like) and code hosts (GitLab, Gitea), the **Amendement** | a first paying **Pilote**; a first **Skin** and a first **Skill** published by someone outside the team; the second extreme case of [Gestion du process](features/gestion-du-process.md#success-criteria) runs |
-| later | US-32, US-33, US-37, US-47, US-59, US-81, US-89, US-107 to US-109: agents in our cloud, teams, self-hosting, paid **Skins**, agents' learnings, project templates, third-party **Connecteurs**, n8n workflows, the **Pilote**'s own **Types d'artefact**, a **Modèle**'s changes offered to its **Projets** | — |
+| Bêta (`next`) | US-22, US-24, US-25, US-27 to US-29, US-41 to US-46, US-65 to US-67, US-70 to US-72, US-74 to US-78, US-80, US-84, US-86, US-100, US-101, US-116 to US-121, US-124 to US-126, US-129 to US-133, US-141: what external testers need. **Thèmes**, **Skins** (inheritance, **Emplacements**, versioned contracts), the **Marketplace** with the isometric and « Terminal » **Skins**, private **Skins**; French and English; client feedback, reports and **Lien de suivi**, **Journal des Décisions**; **Membres** with the **Accès** « Relecteur », the **Version soumise** and the clients' **Avis**, the **Historique** of the review; user tests, visual audit, previews; **Runner** on a server; Slack, Discord, Telegram; **Copies** (another tool, or a folder such as an Obsidian vault); more **Moteurs** (Gemini CLI first); **Plafonds**; the demonstration **Projet**; the live canvas, zones on a capture, « Essayer » a Ticket, search, the Journal in the folder, an Idée from a channel | 5 external beta testers are active every week; the three official **Skins** use the public library only |
+| Lancement (`next`) | US-30, US-31, US-34, US-35, US-49 to US-54, US-58, US-64, US-69, US-79, US-85, US-87, US-90, US-110, US-122, US-123, US-127, US-128, US-134 to US-140, US-142: acceptance, release and operations (with production alerts as Idées), a paid plan, third-party **Skins** and **Skills** after review, the **Pilote**'s own **Skills** and **Étapes**, parallel **Boucles**, progression, architecture and risks, dependency PRs, **Skill** ratings, design tools (Penpot, Pencil, Figma), own models, **Connecteurs** for ticket trackers and documentation tools (Jira, Confluence and the like) and code hosts (GitLab, Gitea), the **Amendement**; teams (the **Accès** and the **Pilote**'s own, Contributeurs and Co-pilotes, the **Projet d'équipe** on API keys, the **Runner partagé**, **Sessions** readable with the **Runner** off, the whole **Historique**), sold with the paid plan | a first paying **Pilote**; a first **Skin** and a first **Skill** published by someone outside the team; the second extreme case of [Gestion du process](features/gestion-du-process.md#success-criteria) runs |
+| later | US-32, US-37, US-47, US-59, US-81, US-89, US-107 to US-109: agents in a machine hosted by us and billed, self-hosting, paid **Skins**, agents' learnings, project templates, third-party **Connecteurs**, n8n workflows, the **Pilote**'s own **Types d'artefact**, a **Modèle**'s changes offered to its **Projets** | — |
 
 **Out**:
 - Reselling AI usage: the **Pilote** brings their own **Comptes IA**.
@@ -370,3 +374,4 @@ The Pilote sets their account once, and each Projet differs where it needs.
 | File | What | Stories |
 |---|---|---|
 | [features/gestion-du-process.md](features/gestion-du-process.md) | The canvas of the Process, Sources and Copies, Commandes and Serveurs MCP | US-92 to US-111, US-116 |
+| [features/collaboration.md](features/collaboration.md) | Membres and their Accès, a client's review, working as a team, the Historique | US-124 to US-142 |

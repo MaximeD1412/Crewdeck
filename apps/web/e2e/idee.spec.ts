@@ -97,3 +97,26 @@ test('« Idées », #64’s analysis failed: its row says so, the aside names th
   await failed.getByRole('button', { name: 'Relancer l’analyse' }).click();
   expect(Object.keys((await fromRow).postDataJSON() as object)).toEqual(['seq']);
 });
+
+/** US-6: an Idée noted runs its analysis; the fake Runner's recorded report makes it « Analysée », in clear, within 2 s. */
+test('« Noter une Idée » with the Runner online: the analysis runs, the row « Analysée » with its summary within 2 s, accessible', async ({
+  page,
+  scenario,
+  expectAccessible,
+}) => {
+  await scenario('idees-analyse');
+  await expect(page.locator('cd-page-idees cd-idea-row')).toHaveCount(4);
+  await page.locator('cd-page-idees cd-page-header').getByRole('button', { name: 'Noter une Idée' }).click();
+  await page.locator('cd-note-idea-dialog').getByRole('textbox', { name: 'Ton Idée, en une phrase' }).fill('Exporter les factures pour la comptable');
+  await page.locator('cd-note-idea-dialog').getByRole('button', { name: 'Noter', exact: true }).click();
+
+  const noted = row(page, 65);
+  await expect(noted).toContainText('Analysée', { timeout: 2_000 });
+  await expect(noted).toContainText('Export CSV des factures');
+  if ((test.info().project.use.viewport?.width ?? 0) >= 1280) {
+    await expect(noted).toContainText('Exporter les factures du mois en CSV pour la comptable');
+    await expect(noted).toContainText('Impact fort');
+    await expect(noted).toContainText('Effort faible');
+  }
+  await expectAccessible(page);
+});

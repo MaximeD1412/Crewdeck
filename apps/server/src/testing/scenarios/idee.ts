@@ -1,9 +1,11 @@
-import { ideaItemAad, type IdeaAnalysisContent, type IdeaAnalysisRun } from '@crewdeck/contracts';
+import { DEFAULT_ACCOUNT_SETTINGS, ideaItemAad, type IdeaAnalysisContent, type IdeaAnalysisRun } from '@crewdeck/contracts';
 import { ideaStateRow } from '../../ideas/idea.view.js';
 import { newId } from '../../ids.js';
+import { createLinkedRunner } from '../runners.js';
 import { sealItem } from '../vault.js';
 import { defineScenario, type ScenarioContext } from './define.js';
 import { MOCKUP, seedIdeas, seedProjects, seedTrustedDevice } from './idees.js';
+import { RUNNER_MACHINE } from './runner.js';
 import { signInPilot } from './sign-in.js';
 
 const MINUTE = 60_000;
@@ -161,5 +163,24 @@ export const ideesAnalyseEchouee = defineScenario({
       data: { analysisRun: { ...analysisRun('incomplete', at, ['idea-analysis.report.schema', 'idea-analysis.report.figures']) }, updatedAt: at },
     });
     return { ...seed, device, path: `/idees?idee=${failed}` };
+  },
+});
+
+/**
+ * « Idées » with the Runner online, the Rôle Idée on Claude Code, the fake
+ * Runner holding the vault key: an Idée noted runs its analysis, which the
+ * fake Runner answers with its recorded report (IDEE-2, US-6).
+ */
+export const ideesAnalyse = defineScenario({
+  name: 'idees-analyse',
+  path: '/idees',
+  seed: async (ctx) => {
+    const { seed, device, vaultKey } = await seedMockup(ctx);
+    await ctx.prisma.unscoped.accountSettings.create({
+      data: { pilotId: seed.pilotId, roles: { ...DEFAULT_ACCOUNT_SETTINGS.roles, idea: { engine: 'claude-code', model: 'claude-sonnet-5-5' } } },
+    });
+    const { token } = await createLinkedRunner(ctx.prisma, seed.pilotId, RUNNER_MACHINE);
+    ctx.fakes.runner.useVault(vaultKey);
+    return { ...seed, device, runnerToken: token, runnerMachine: RUNNER_MACHINE };
   },
 });

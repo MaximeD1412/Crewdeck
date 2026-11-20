@@ -1,6 +1,7 @@
-import { contratLabel, type Idea, type IdeaAnalysisRun } from '@crewdeck/contracts';
+import { contratLabel, IDEA_ANALYSIS_NO_ENGINE, type Idea, type IdeaAnalysisRun } from '@crewdeck/contracts';
 import { formatRelative, t, type ComposantData, type IdeaAnalysis, type MessageKey } from '@crewdeck/sdk';
 import type { IdeaAnalysisText } from '../store/idea-plaintext.js';
+import { reportRuleLabel } from './report-rules.js';
 import { ratingLabel, ratingReason } from './rating.js';
 
 export type IdeaAnalysisData = ComposantData<typeof IdeaAnalysis>;
@@ -34,11 +35,16 @@ export const analysisFailed = (idea: Pick<AnalysedIdea, 'analysisRun'>): 'incomp
 export const targetOf = (idea: Pick<AnalysedIdea, 'projectId' | 'targetProjectId' | 'targetIsNew'>): string | 'new' | null =>
   idea.targetIsNew ? 'new' : (idea.targetProjectId ?? idea.projectId);
 
-/** The labels of the rules its Contrat did not meet, by `contratLabel`; an id the catalogue does not know as itself. */
+/** The labels of the rules its Contrat did not meet, by `contratLabel`, then the report's own the server checks; an id neither knows as itself. */
 const failedRules = (run: IdeaAnalysisRun): string[] =>
-  run.failedRuleIds.map((ruleId) =>
-    run.contractId !== null && run.contractVersion !== null ? (contratLabel(run.contractId, run.contractVersion, ruleId) ?? ruleId) : ruleId,
+  run.failedRuleIds.map(
+    (ruleId) =>
+      (run.contractId !== null && run.contractVersion !== null ? contratLabel(run.contractId, run.contractVersion, ruleId) : undefined) ?? reportRuleLabel(ruleId) ?? ruleId,
   );
+
+/** What the banner of a failed analysis says: its Contrat's rules, its Session's failure, or no Moteur to start one. */
+const failureKind = (failed: 'incomplete' | 'failed', run: IdeaAnalysisRun): 'incomplete' | 'failed' | 'no-engine' =>
+  failed === 'failed' && run.failure === IDEA_ANALYSIS_NO_ENGINE ? 'no-engine' : failed;
 
 /** « Rôle Idée · Claude Code · il y a 4 min ». */
 const runLine = (run: IdeaAnalysisRun, roleName: (role: IdeaAnalysisRun['role']) => string, now: Date): string => {
@@ -113,7 +119,7 @@ export const ideaAnalysisData = (idea: AnalysedIdea, where: 'page' | 'aside', co
             const label = context.ideaLabel(id);
             return label === null ? [] : [{ id, label, href: `/idees/${id}` }];
           }),
-    failure: failed === null || run === null ? null : { kind: failed, rules: failed === 'incomplete' ? failedRules(run) : [] },
+    failure: failed === null || run === null ? null : { kind: failureKind(failed, run), rules: failed === 'incomplete' ? failedRules(run) : [] },
     run: (where === 'aside' && passed) || run === null || status === 'waiting' ? null : runLine(run, context.roleName, context.now),
   };
 };

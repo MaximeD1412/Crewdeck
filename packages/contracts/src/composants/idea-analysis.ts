@@ -72,7 +72,7 @@ export const IdeaAnalysis = defineComposant({
     impact: z.string().nullable(),
     effort: z.string().nullable(),
     duplicates: z.array(z.object({ id: zId, label: z.string().min(1), href: z.string().min(1) })),
-    failure: z.object({ kind: z.enum(['incomplete', 'failed']), rules: z.array(z.string().min(1)) }).nullable(),
+    failure: z.object({ kind: z.enum(['incomplete', 'failed', 'no-engine']), rules: z.array(z.string().min(1)) }).nullable(),
     run: z.string().nullable(),
   }),
   actions: {

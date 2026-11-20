@@ -99,6 +99,7 @@ describe('the « Contrat incomplet » Décision in « À toi »', () => {
     expect(view.context?.(incomplete({ failedRuleIds: 'code.tests', failedCount: 1, contractVersion: 1 }), READS)).toBe('Des tests existent');
     expect(view.context?.(incomplete({ failedRuleIds: 'code.lint,code.tests,code.pr', failedCount: 3 }), READS)).toBe('Le lint passe et 2 autres');
     expect(view.context?.(incomplete({ failedRuleIds: 'report.schema', failedCount: 1 }), READS)).toBe('Le rapport de l’Étape ne suit pas son format');
+    expect(view.context?.(incomplete({ failedRuleIds: 'report.missing', failedCount: 1 }), READS)).toBe('L’Étape n’a pas rendu son rapport');
     expect(view.context?.(incomplete({ failedRuleIds: 'code.pr', failedCount: 1 }), READS)).toBe('Règle « code.pr »');
     expect(view.context?.(incomplete({ failedRuleIds: '', failedCount: 0 }), READS)).toBeNull();
   });

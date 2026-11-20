@@ -6,12 +6,14 @@ import { STEP_RUN_ACTIONS, stepRunTitle, textParam } from './step-run.js';
 const CONTEXTS: Readonly<Record<string, MessageKey>> = {
   'session-error': 'decision.stepFailed.context.session-error',
   'session-stopped': 'decision.stepFailed.context.session-stopped',
+  'no-engine': 'decision.stepFailed.context.no-engine',
 };
 
 /**
  * « Étape échouée » in « À toi » (ATOI-2, ADR 0005): the Étape (and its
  * item), the Phase in the meta, « La session s’est arrêtée en erreur. » or
- * « Le Runner a arrêté la session. »; « Relancer l’Étape », « Voir ».
+ * « Le Runner a arrêté la session. », or that its Rôle had no Moteur to start
+ * one; « Relancer l’Étape », « Voir ».
  */
 export const stepFailedView: DecisionView = {
   title: stepRunTitle,

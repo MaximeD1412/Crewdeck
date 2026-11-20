@@ -56,6 +56,7 @@ describe('the « Étape échouée » Décision in « À toi »', () => {
 
   it('says the Runner stopped the Session; nothing for a failure it does not know', () => {
     expect(stepFailedView.context?.(failed('session-stopped'), READS)).toBe('Le Runner a arrêté la session.');
+    expect(stepFailedView.context?.(failed('no-engine'), READS)).toBe('Aucun Moteur pour le Rôle de cette Étape : connecte un Compte IA dans les Paramètres.');
     expect(stepFailedView.context?.(failed('engine-gone'), READS)).toBeNull();
   });
 

@@ -162,6 +162,10 @@ describe('ideeView', () => {
     expect(data.duplicates).toEqual([]);
     const session = view({ ...failed, analysisRun: run('failed', { engine: null }) }).analysis;
     expect(session).toMatchObject({ failure: { kind: 'failed', rules: [] }, run: 'Rôle Idée · il y a 2 h' });
+    const noEngine = view({ ...failed, analysisRun: run('failed', { engine: null, failure: 'no-engine' }) }).analysis;
+    expect(noEngine).toMatchObject({ failure: { kind: 'no-engine', rules: [] } });
+    const missing = view({ ...failed, analysisRun: run('incomplete', { failedRuleIds: ['report.missing'] }) }).analysis;
+    expect(missing).toMatchObject({ failure: { kind: 'incomplete', rules: ['L’Étape n’a pas rendu son rapport'] } });
   });
 
   it('at work, is running, or waiting while the Runner is not online (without its run line)', () => {

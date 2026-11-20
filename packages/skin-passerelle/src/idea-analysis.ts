@@ -176,7 +176,7 @@ export class PasserelleIdeaAnalysis extends PasserelleElement<typeof IdeaAnalysi
                 ${failure.rules.map((rule) => html`<li>${rule}</li>`)}
               </ul>
               ${t('idees.analyse.failed.incomplete.decision')}`
-          : html`${t('idees.analyse.failed.failed')} ${t('idees.analyse.failed.failed.decision')}`}
+          : html`${t(failure.kind === 'no-engine' ? 'idees.analyse.failed.no-engine' : 'idees.analyse.failed.failed')} ${t('idees.analyse.failed.failed.decision')}`}
       </cd-banner>`;
   }
 

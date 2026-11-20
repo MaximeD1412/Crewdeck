@@ -114,6 +114,14 @@ describe('IdeaAnalysis', () => {
     expect(inside(el, '.actions').hidden).toBe(true);
   });
 
+  it('failed for want of a Moteur, says to connect a Compte IA, then to run it again', async () => {
+    const el = await render(IdeaAnalysis, { ...incomplete.data, failure: { kind: 'no-engine', rules: [] } });
+    const banner = inside(el, 'cd-banner.failure');
+    expect(banner.querySelector('ul')).toBeNull();
+    expect(textOf(banner)).toContain('Aucun Moteur n’est disponible pour le Rôle Idée : connecte un Compte IA dans les Paramètres, puis relance l’analyse.');
+    expect(textOf(banner)).toContain('Une Décision « Étape échouée » t’attend aussi dans « À toi ».');
+  });
+
   it('running, says « L’analyse est en cours. »; waiting, « En attente du Runner »', async () => {
     const el = await render(IdeaAnalysis, running.data);
     expect(textOf(inside(el, '.running'))).toBe('L’analyse est en cours.');

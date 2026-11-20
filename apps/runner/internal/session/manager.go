@@ -11,6 +11,7 @@
 //	repos/github/<owner>/<name>              the clones, one per repository
 //	worktrees/<projectId>/<branch, / as __>  one worktree per live Session or Commande's run
 //	worktrees/<projectId>/integration        the integration checkout of the Commandes `project`
+//	scratch/<sessionId>/                     the folder of a Session without code (IDEE-2's analysis)
 //	sessions/<id>/                           session.json, log.jsonl, key (the relay's), the Moteur's socket
 package session
 
@@ -79,15 +80,18 @@ type Config struct {
 	Skills fs.FS
 	// RunnerVersion is the version of Claude Code's plugin of the Skills.
 	RunnerVersion string
-	// Seal seals an Étape's report's content under the vault key; nil, a
-	// report with a content is refused.
-	Seal func(plaintext, aad []byte) (keys.SealedItem, error)
+	// Seal seals an Étape's report's content under the vault key held, and
+	// says its version; nil, a report with a content is refused.
+	Seal func(plaintext, aad []byte) (keys.SealedItem, int, error)
 	// ChangeOf is the change of code of the Session's branch, read from the
 	// Miroir, that the Étape's Contrat checks; nil (or none) no PR.
 	ChangeOf func(ctx context.Context, projectID, branch string) (*contrat.PullRequest, error)
 	// AskPoll is how long one wait for an answer of `etape ask` lasts; zero,
 	// 25 s.
 	AskPoll time.Duration
+	// Steps are the kinds of Étape the Runner prepares and reports itself
+	// (IDEE-2's idea-analysis); a kind absent runs its Skill alone.
+	Steps map[contracts.RunnerSessionStartStepStepKind]StepKind
 }
 
 // Manager runs the Sessions: one goroutine per running Session.
@@ -132,6 +136,10 @@ type live struct {
 	// questions (step.go).
 	out  *runLog
 	asks map[string]*ask
+	// reportMu orders the sends of the Étape's report; report is the last
+	// one sealed and sent (step.go).
+	reportMu sync.Mutex
+	report   *sentReport
 }
 
 // request is a `question` or a `permission-request` that waits: what an
@@ -228,9 +236,15 @@ func (m *Manager) Close() {
 // twice: alive or ended, its state is reported again; stopped or
 // interrupted, it is resumed.
 func (m *Manager) Start(message contracts.RunnerSessionStart) {
+	projectID, _ := message.ProjectId.(string)
+	branch, _ := message.Branch.(string)
+	base, _ := message.Base.(string)
+	// A Session without origin, branch nor base runs in a scratch folder of
+	// its own (IDEE-2): no clone, no worktree, no worktree Commandes.
+	scratch := message.Origin == nil && message.Branch == nil && message.Base == nil
 	var commands *SealedCommands
-	if sealed := message.WorktreeCommands; sealed != nil {
-		commands = m.cfg.Hooks.keep(message.ProjectId, &SealedCommands{Key: sealed.Key, Ciphertext: sealed.Ciphertext})
+	if sealed := message.WorktreeCommands; sealed != nil && !scratch {
+		commands = m.cfg.Hooks.keep(projectID, &SealedCommands{Key: sealed.Key, Ciphertext: sealed.Ciphertext})
 	}
 	m.mu.Lock()
 	if m.closed {
@@ -242,13 +256,18 @@ func (m *Manager) Start(message contracts.RunnerSessionStart) {
 		m.revive(s)
 		return
 	}
+	dir := worktreeDir(m.cfg.Home, projectID, branch)
+	if scratch {
+		dir = scratchDir(m.cfg.Home, message.SessionId)
+	}
 	s := &live{rec: record{
 		SessionID:      message.SessionId,
-		ProjectID:      message.ProjectId,
+		ProjectID:      projectID,
 		Origin:         message.Origin,
-		Branch:         message.Branch,
-		Base:           message.Base,
-		Worktree:       worktreeDir(m.cfg.Home, message.ProjectId, message.Branch),
+		Branch:         branch,
+		Base:           base,
+		Worktree:       dir,
+		Scratch:        scratch,
 		Engine:         message.Engine,
 		Model:          message.Model,
 		Role:           message.Role,
@@ -264,7 +283,7 @@ func (m *Manager) Start(message contracts.RunnerSessionStart) {
 	m.sessions[message.SessionId] = s
 	failure := contracts.RunnerSessionStateError("")
 	switch {
-	case !uuid.MatchString(message.ProjectId) || !validBranch(message.Branch) || !validBranch(message.Base):
+	case !validStart(message, scratch):
 		failure = contracts.RunnerSessionStateErrorSetupFailed
 	case m.busy(s):
 		failure = contracts.RunnerSessionStateErrorBranchBusy
@@ -284,6 +303,19 @@ func (m *Manager) Start(message contracts.RunnerSessionStart) {
 		return
 	}
 	run()
+}
+
+// validStart: a worktree's Session names its Projet, its origin, its branch
+// and its base; a scratch one none of the three, its Projet a uuid or none.
+// Anything else, or a mix of both, is no Session the Runner runs.
+func validStart(message contracts.RunnerSessionStart, scratch bool) bool {
+	projectID, isString := message.ProjectId.(string)
+	if scratch {
+		return message.ProjectId == nil || isString && uuid.MatchString(projectID)
+	}
+	branch, _ := message.Branch.(string)
+	base, _ := message.Base.(string)
+	return message.Origin != nil && uuid.MatchString(projectID) && validBranch(branch) && validBranch(base)
 }
 
 // busy: another Session not ended holds the worktree (a stopped one keeps
@@ -437,50 +469,22 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 	rec := s.rec
 	s.mu.Unlock()
 	output := prepareLog{path: filepath.Join(sessionDir(m.cfg.Home, rec.SessionID), PrepareLogFile)}
-	w := Worktree{SessionID: rec.SessionID, ProjectID: rec.ProjectID, Dir: rec.Worktree, Branch: rec.Branch, Preparation: Preparation{
+	w := Worktree{SessionID: rec.SessionID, ProjectID: rec.ProjectID, Dir: rec.Worktree, Branch: rec.Branch, scratch: rec.Scratch, Preparation: Preparation{
 		Commands: rec.WorktreeCommands,
 		Stdout:   output,
 		Stderr:   output,
 	}}
-	origin, err := m.originOf(rec.ProjectID, rec.Origin)
-	if err != nil {
-		m.fail(s, w, false, contracts.RunnerSessionStateErrorCloneFailed, "clone", err)
-		return
-	}
-	w.Clone = origin.Dir()
 	var gitEnv []string
-	if gh, ok := origin.(*GitHubOrigin); ok {
-		// Never the machine's credentials: the Session's token, or none.
-		gitEnv = github.NoMachineCredentials()
-		if m.cfg.GitHubTokens != nil {
-			// A token refused, its Projet's access lost included, ends the
-			// Session before its clone and its Moteur.
-			_, end, err := m.sessionToken(ctx, s, rec.SessionID)
-			if err != nil {
-				m.fail(s, w, false, contracts.RunnerSessionStateErrorCloneFailed, "github-token", err)
-				return
-			}
-			defer end()
-			gitEnv = github.GitEnv(m.runnerPath(), m.cfg.Home, rec.SessionID)
-			gh.Tokens, gh.Env = nil, gitEnv
-		}
-	}
-
-	if _, err := os.Stat(w.Dir); fresh || err != nil {
-		_, auth, err := origin.Clone(ctx)
-		if err != nil {
-			m.fail(s, w, false, contracts.RunnerSessionStateErrorCloneFailed, "clone", err)
+	if rec.Scratch {
+		if !m.makeScratch(ctx, s, w, rec, fresh) {
 			return
 		}
-		unlock := LockClone(w.Clone)
-		err = addWorktree(ctx, w.Clone, auth, w.Dir, rec.Branch, rec.Base)
-		unlock()
-		if err != nil {
-			m.fail(s, w, true, contracts.RunnerSessionStateErrorSetupFailed, "worktree", err)
-			return
-		}
-		if err := m.cfg.Hooks.prepare(ctx, withEnv(ctx, w)); err != nil {
-			m.failPrepare(s, w, err)
+	} else {
+		var end func()
+		var ok bool
+		gitEnv, end, ok = m.makeWorktree(ctx, s, &w, rec, fresh)
+		defer end() // the token released once the Session's run ends
+		if !ok {
 			return
 		}
 	}
@@ -598,6 +602,77 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 	}
 }
 
+// makeWorktree clones the Projet's code and makes the Session's worktree
+// when it has none (always for a new Session), its GitHub token asked
+// first; false when the Session ended. end releases the token, called once
+// the Session's run ends, whatever it gives.
+func (m *Manager) makeWorktree(ctx context.Context, s *live, w *Worktree, rec record, fresh bool) (gitEnv []string, end func(), ok bool) {
+	end = func() {}
+	origin, err := m.originOf(rec.ProjectID, *rec.Origin)
+	if err != nil {
+		m.fail(s, *w, false, contracts.RunnerSessionStateErrorCloneFailed, "clone", err)
+		return nil, end, false
+	}
+	w.Clone = origin.Dir()
+	if gh, ok := origin.(*GitHubOrigin); ok {
+		// Never the machine's credentials: the Session's token, or none.
+		gitEnv = github.NoMachineCredentials()
+		if m.cfg.GitHubTokens != nil {
+			// A token refused, its Projet's access lost included, ends the
+			// Session before its clone and its Moteur.
+			_, release, err := m.sessionToken(ctx, s, rec.SessionID)
+			if err != nil {
+				m.fail(s, *w, false, contracts.RunnerSessionStateErrorCloneFailed, "github-token", err)
+				return nil, end, false
+			}
+			end = release
+			gitEnv = github.GitEnv(m.runnerPath(), m.cfg.Home, rec.SessionID)
+			gh.Tokens, gh.Env = nil, gitEnv
+		}
+	}
+
+	if _, err := os.Stat(w.Dir); fresh || err != nil {
+		_, auth, err := origin.Clone(ctx)
+		if err != nil {
+			m.fail(s, *w, false, contracts.RunnerSessionStateErrorCloneFailed, "clone", err)
+			return nil, end, false
+		}
+		unlock := LockClone(w.Clone)
+		err = addWorktree(ctx, w.Clone, auth, w.Dir, rec.Branch, rec.Base)
+		unlock()
+		if err != nil {
+			m.fail(s, *w, true, contracts.RunnerSessionStateErrorSetupFailed, "worktree", err)
+			return nil, end, false
+		}
+		if err := m.cfg.Hooks.prepare(ctx, withEnv(ctx, *w)); err != nil {
+			m.failPrepare(s, *w, err)
+			return nil, end, false
+		}
+	}
+	return gitEnv, end, true
+}
+
+// makeScratch makes the scratch folder of a Session without code when it
+// has none (always for a new Session), and writes in it what its Étape's
+// kind gives its Skill to read (Config.Steps); false when the Session ended.
+func (m *Manager) makeScratch(ctx context.Context, s *live, w Worktree, rec record, fresh bool) bool {
+	if _, err := os.Stat(w.Dir); !fresh && err == nil {
+		return true
+	}
+	_ = os.RemoveAll(w.Dir) // one a killed Runner left there
+	if err := os.MkdirAll(w.Dir, 0o700); err != nil {
+		m.fail(s, w, false, contracts.RunnerSessionStateErrorSetupFailed, "scratch", err)
+		return false
+	}
+	if kind := m.stepKind(rec); kind != nil {
+		if err := kind.Prepare(ctx, w.Dir, rec.Step); err != nil {
+			m.fail(s, w, true, contracts.RunnerSessionStateErrorSetupFailed, "step-prepare", err)
+			return false
+		}
+	}
+	return true
+}
+
 // fail ends a Session that could not start, unless it was stopped meanwhile
 // or the Runner stops. Only the step that failed is logged, never git's
 // output nor a hook's.
@@ -656,6 +731,11 @@ func (m *Manager) logSetupError(sessionID string, setup *SetupError) {
 // contexts of their own, the Session's or the run's may be gone. The
 // cleaning's failure is logged, and the worktree removed anyway.
 func (m *Manager) remove(w Worktree) {
+	if w.scratch {
+		// No clone, no Commandes: the folder alone.
+		_ = os.RemoveAll(w.Dir)
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), cleanBound)
 	defer cancel()
 	if err := m.cfg.Hooks.clean(ctx, withEnv(ctx, w)); err != nil {

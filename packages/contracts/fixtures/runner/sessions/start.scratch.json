@@ -1,0 +1,58 @@
+{
+  "type": "session.start",
+  "id": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6aa0",
+  "at": "2026-11-11T09:00:00.000Z",
+  "sessionId": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6aa1",
+  "projectId": null,
+  "origin": null,
+  "branch": null,
+  "base": null,
+  "engine": "claude-code",
+  "model": "claude-opus-5-5",
+  "role": "idea",
+  "permissionMode": "auto",
+  "step": {
+    "stepRunId": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6aa2",
+    "stepKind": "idea-analysis",
+    "skill": "idea-analysis",
+    "contractId": "idea-analysis",
+    "inputs": [
+      {
+        "portId": "idee",
+        "type": "idea",
+        "ref": {
+          "id": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6aa3"
+        }
+      }
+    ],
+    "ideas": {
+      "idea": {
+        "id": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6aa3",
+        "number": 14,
+        "text": {
+          "key": "CwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsL",
+          "ciphertext": "DAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM"
+        },
+        "analysis": null
+      },
+      "open": [
+        {
+          "id": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6aa4",
+          "number": 9,
+          "text": {
+            "key": "CwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsL",
+            "ciphertext": "DAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM"
+          },
+          "analysis": {
+            "key": "CwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsL",
+            "ciphertext": "DAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM"
+          }
+        }
+      ],
+      "vaultKeyVersion": 2
+    }
+  },
+  "title": null,
+  "worktreeCommands": null,
+  "mcpServers": []
+}

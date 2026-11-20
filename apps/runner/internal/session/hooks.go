@@ -19,6 +19,8 @@ type Worktree struct {
 	Branch    string
 	Clone     string
 	Preparation
+	// scratch is a scratch Session's folder: no clone, no Hooks.
+	scratch bool
 }
 
 // SealedCommands is the Projet's worktree Commandes « Préparer le worktree »

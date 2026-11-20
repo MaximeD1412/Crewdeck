@@ -1,4 +1,4 @@
-import { type Idea, type IdeaState, zSealedItem } from '@crewdeck/contracts';
+import { type Idea, type IdeaState, zIdeaAnalysisRun, zSealedItem } from '@crewdeck/contracts';
 import type { IdeaState as IdeaStateRow } from '../generated/prisma/client.js';
 
 /** The database spells `to-triage` `to_triage` (Prisma's enum names), mapped to the contracts' value. */
@@ -10,6 +10,9 @@ const STATE_OF_ROW: Readonly<Record<IdeaStateRow, IdeaState>> = {
   merged: 'merged',
   rejected: 'rejected',
 };
+
+/** A row's state as the contracts spell it. */
+export const ideaStateOf = (state: IdeaStateRow): IdeaState => STATE_OF_ROW[state];
 
 export const ideaStateRow = (state: IdeaState): IdeaStateRow =>
   (Object.entries(STATE_OF_ROW) as [IdeaStateRow, IdeaState][]).find(([, value]) => value === state)?.[0] ?? 'to_triage';
@@ -36,6 +39,7 @@ export const IDEA_VIEW = {
   updatedAt: true,
   analysedAt: true,
   triagedAt: true,
+  analysisRun: true,
 } as const;
 
 export interface IdeaRow {
@@ -59,6 +63,7 @@ export interface IdeaRow {
   updatedAt: Date;
   analysedAt: Date | null;
   triagedAt: Date | null;
+  analysisRun: unknown;
 }
 
 /** A sealed field as stored (`{ key, ciphertext }`, written from a checked body): read back through its schema. */
@@ -75,4 +80,5 @@ export const toIdea = (row: IdeaRow): Idea => ({
   updatedAt: row.updatedAt.toISOString(),
   analysedAt: row.analysedAt?.toISOString() ?? null,
   triagedAt: row.triagedAt?.toISOString() ?? null,
+  analysisRun: row.analysisRun === null ? null : zIdeaAnalysisRun.parse(row.analysisRun),
 });

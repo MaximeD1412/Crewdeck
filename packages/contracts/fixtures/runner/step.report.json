@@ -13,5 +13,6 @@
   "sealed": {
     "key": "CwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsL",
     "ciphertext": "DAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM"
-  }
+  },
+  "vaultKeyVersion": 1
 }

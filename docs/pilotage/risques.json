@@ -221,6 +221,11 @@
           "texte": "Messages WebSocket jamais journalisés (seulement leur type et leur taille)",
           "ref": "ADR 0003",
           "fait": true
+        },
+        {
+          "texte": "Le rapport d'une analyse d'Idée (step.report) journalisé par ses ids seulement : ni chiffres ni phrases scellées dans les logs, testé",
+          "ref": "ADR 0003",
+          "fait": true
         }
       ],
       "tickets": [
@@ -420,6 +425,11 @@
         },
         {
           "texte": "Décision « Contrat incomplet » pour relancer",
+          "ref": "ADR 0005",
+          "fait": true
+        },
+        {
+          "texte": "Rapport de l'analyse d'une Idée vérifié par le Runner contre son Contrat avant l'envoi ; refusé, l'Idée reste à trier avec « Relancer l'analyse »",
           "ref": "ADR 0005",
           "fait": true
         }

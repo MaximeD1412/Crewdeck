@@ -1,0 +1,140 @@
+{
+  "id": "idea-analysis",
+  "version": 1,
+  "step": "idea-analysis",
+  "rules": [
+    {
+      "id": "idea-analysis.report.schema",
+      "label": "Le rapport a un titre et un résumé d’au plus 400 caractères",
+      "severity": "bloquant",
+      "kind": "json",
+      "path": ".crewdeck/report.json",
+      "schema": {
+        "type": "object",
+        "required": [
+          "title",
+          "summary",
+          "projectId",
+          "projectWhy",
+          "duplicates",
+          "questions"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "projectId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "projectWhy": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "duplicates": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "why"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 60
+                },
+                "why": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 400
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "questions": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "idea-analysis.report.figures",
+      "label": "L’impact et l’effort vont de 1 à 5, chacun avec sa raison",
+      "severity": "bloquant",
+      "kind": "json",
+      "path": ".crewdeck/report.json",
+      "schema": {
+        "type": "object",
+        "required": [
+          "impact",
+          "impactWhy",
+          "effort",
+          "effortWhy"
+        ],
+        "properties": {
+          "impact": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "impactWhy": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "effort": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "effortWhy": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "idea-analysis.report.project",
+      "label": "Le Projet visé est un de tes Projets ou « nouveau »",
+      "severity": "bloquant",
+      "kind": "check",
+      "name": "idea-project",
+      "params": {
+        "report": ".crewdeck/report.json",
+        "context": ".crewdeck/context.json"
+      }
+    },
+    {
+      "id": "idea-analysis.report.duplicates",
+      "label": "Les doublons sont des Idées ouvertes",
+      "severity": "bloquant",
+      "kind": "check",
+      "name": "idea-duplicates",
+      "params": {
+        "report": ".crewdeck/report.json",
+        "context": ".crewdeck/context.json"
+      }
+    }
+  ]
+}

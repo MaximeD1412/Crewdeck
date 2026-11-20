@@ -1,0 +1,12 @@
+{
+  "title": "Exporter le planning en PDF",
+  "summary": "Un bouton qui produit le planning de la semaine en PDF, à envoyer au client.",
+  "projectId": "nouveau",
+  "projectWhy": "Le planning vit dans Carnet.",
+  "impact": 3,
+  "impactWhy": "Un gain clair chaque semaine.",
+  "effort": 2,
+  "effortWhy": "Un seul écran change.",
+  "duplicates": [],
+  "questions": []
+}

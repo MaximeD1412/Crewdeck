@@ -7,14 +7,15 @@ const ID = '0193a4f2-7c1e-7a10-8c2c-000000000064';
 const OTHER = '0193a4f2-7c1e-7a10-8c2c-000000000063';
 const sealedOf = (text: string) => ({ key: toBase64Url(utf8('key')), ciphertext: toBase64Url(utf8(text)) });
 
-/** A vault that « opens » an item whose ciphertext is its text in UTF-8, under the additional data of `ID` only. */
+/** A vault that « opens » an item whose ciphertext is its text in UTF-8, under the additional data of `ID`'s text or analysis only. */
 const fakeVault = () => {
   const calls: string[] = [];
   return {
     calls,
     openItem: vi.fn(async (item: SealedItem, aad: Uint8Array) => {
       calls.push(new TextDecoder().decode(aad));
-      if (new TextDecoder().decode(aad) !== ideaItemAad(ID, 'text')) throw new Error('OperationError');
+      const under = new TextDecoder().decode(aad);
+      if (under !== ideaItemAad(ID, 'text') && under !== ideaItemAad(ID, 'analysis')) throw new Error('OperationError');
       return new Uint8Array(item.ciphertext);
     }),
   };
@@ -88,5 +89,37 @@ describe('createIdeaPlaintext', () => {
     await vi.waitFor(() => expect(changed).toHaveBeenCalled());
     expect(localStorage.length).toBe(0);
     expect(sessionStorage.length).toBe(0);
+  });
+  it('opens an analysis under "<id>:analysis", read as its schema; none while the Idée has none; illisible when not of its shape', async () => {
+    const { plaintext, vault, changed } = setup();
+    const content = {
+      title: 'Exporter le planning en PDF',
+      summary: 'Un bouton qui produit la semaine en PDF.',
+      projectWhy: 'Le planning est dans Personal OS.',
+      impactWhy: 'Le client le demande.',
+      effortWhy: 'Seul l’export manque.',
+      duplicates: [{ id: OTHER, why: 'Le même planning.' }],
+      questions: [],
+    };
+    expect(plaintext.analysis({ id: ID, analysis: null })).toEqual({ status: 'none' });
+    const idea = { id: ID, analysis: sealedOf(JSON.stringify(content)) };
+    expect(plaintext.analysis(idea)).toEqual({ status: 'opening' });
+    await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+    expect(plaintext.analysis(idea)).toEqual({ status: 'open', content });
+    expect(vault.calls).toEqual([`${ID}:analysis`]);
+
+    // The text and the analysis of one Idée are kept apart.
+    plaintext.text({ id: ID, text: sealedOf('Pouvoir exporter le planning') });
+    await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(2));
+    expect(plaintext.analysis(idea)).toEqual({ status: 'open', content });
+
+    const broken = { id: ID, analysis: sealedOf(JSON.stringify({ ...content, summary: '' })) };
+    plaintext.analysis(broken);
+    await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(3));
+    expect(plaintext.analysis(broken)).toEqual({ status: 'unreadable' });
+    const moved = { id: OTHER, analysis: sealedOf(JSON.stringify(content)) };
+    plaintext.analysis(moved);
+    await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(4));
+    expect(plaintext.analysis(moved)).toEqual({ status: 'unreadable' });
   });
 });

@@ -174,6 +174,19 @@ export class Engine {
   }
 
   /**
+   * The Phase repeating for `forEach` of the definition a new PhaseRun of
+   * `projectId` would be pinned to (its active version, or « Process
+   * Crewdeck » without a Projet), with its Étapes; `null` when it has none.
+   * What a module reads before it admits (IDEE-2: an Idée whose analysis
+   * cannot start is not admitted).
+   */
+  async admissionFor(tx: Tx, projectId: string | null, forEach: ForEach): Promise<{ phaseId: string; steps: Step[] } | null> {
+    const definition = projectId === null ? BUILTIN_TEMPLATES[WITHOUT_PROJECT] : (await this.activeVersion(tx, projectId))?.definition;
+    const phase = definition?.phases.find((candidate) => candidate.forEach === forEach);
+    return definition && phase ? { phaseId: phase.id, steps: definition.steps.filter((step) => step.phaseId === phase.id) } : null;
+  }
+
+  /**
    * An item enters a Phase: a `running` PhaseRun pinned to the active
    * version, then its first Étapes started. An unfinished PhaseRun of the
    * same item and Phase is returned as is (a double click, a retry), whatever
@@ -714,10 +727,12 @@ export class Engine {
     });
     let stepRun = toStepRun(row, loaded.definition);
     if (handler) {
-      const state = await handler.start(tx, this.contextOf(loaded, stepRun));
+      const started = await handler.start(tx, this.contextOf(loaded, stepRun));
+      const data: Prisma.StepRunUpdateInput | null =
+        started === 'running' ? null : started === 'waiting' ? { state: started } : { state: 'failed', failure: started.failure, endedAt: new Date() };
       // Read again whatever the state: the handler may have written the StepRun's Session (`recordSession`).
       stepRun = toStepRun(
-        state === 'running' ? await tx.stepRun.findUniqueOrThrow({ where: { id: stepRun.id }, select: STEP_RUN_VIEW }) : await tx.stepRun.update({ where: { id: stepRun.id }, data: { state }, select: STEP_RUN_VIEW }),
+        data === null ? await tx.stepRun.findUniqueOrThrow({ where: { id: stepRun.id }, select: STEP_RUN_VIEW }) : await tx.stepRun.update({ where: { id: stepRun.id }, data, select: STEP_RUN_VIEW }),
         loaded.definition,
       );
     }

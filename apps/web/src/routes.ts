@@ -7,6 +7,7 @@ import {
   PageConnexion,
   PageConnexionLien,
   PageDemarrage,
+  PageIdee,
   PageIdees,
   PageParametres,
   PageParametresProjet,
@@ -46,14 +47,22 @@ const projetView = (id: string | undefined, state: StoreState) => {
   return parametresProjetView({ project, settings: state.slices.settings, accounts: [...(state.slices['ai-account']?.values() ?? [])] });
 };
 
-/** « Idées », every Projet's or one Projet's (`?projet=`), on a tab (`?onglet=`, « À trier » by default). */
-export const ideesHref = (projectId: string | null, tab: IdeesTab): string => {
+/**
+ * « Idées », every Projet's or one Projet's (`?projet=`), on a tab
+ * (`?onglet=`, « À trier » by default), an Idée's analysis beside the list
+ * (`?idee=`).
+ */
+export const ideesHref = (projectId: string | null, tab: IdeesTab, ideaId: string | null = null): string => {
   const query = new URLSearchParams();
   if (projectId) query.set('projet', projectId);
   if (tab !== 'a-trier') query.set('onglet', tab);
+  if (ideaId) query.set('idee', ideaId);
   const search = query.toString();
   return search ? `/idees?${search}` : '/idees';
 };
+
+/** « Une Idée », its page. */
+export const ideeHref = (ideaId: string): string => `/idees/${encodeURIComponent(ideaId)}`;
 
 const usageOf = (state: StoreState): UsageState => ({ usage: state.slices.usage?.values() ?? [], runner: state.slices.runner ?? null });
 /** The usage card in the Emplacement `slot`, or nothing when there is no usage to show. */
@@ -69,7 +78,8 @@ const usageSlot = (slot: string, data: UsageCardData | null): readonly PlacedNod
  * `views/connexion-lien.ts`); `/demarrage` → `PageDemarrage`, whose data `app.ts` gives
  * from « Premiers pas »' state (`getting-started.ts`); `/idees` → `PageIdees`,
  * whose data `app.ts` gives from the store and the texts in clear
- * (`views/idees.ts`); `/runner` →
+ * (`views/idees.ts`), and `/idees/:id` → `PageIdee` likewise
+ * (`views/idee.ts`); `/runner` →
  * `PageRunner`, whose data `app.ts` gives from the store
  * (`views/runner.ts`); `/projets` → `PageProjets`, `/projets/ajouter` →
  * `PageAjouterProjet` (its folder's form and its RepositoryPicker;
@@ -94,6 +104,7 @@ export const ROUTES: readonly Route[] = [
     slots: (_match, state) => usageSlot('ai-accounts', usageCardCompact(usageOf(state))),
   },
   { path: '/idees', composant: PageIdees },
+  { path: '/idees/:id', composant: PageIdee },
   { path: '/connexion', composant: PageConnexion, data: (match) => connexionView(match.query) },
   { path: '/connexion/lien', composant: PageConnexionLien },
   { path: '/demarrage', composant: PageDemarrage },

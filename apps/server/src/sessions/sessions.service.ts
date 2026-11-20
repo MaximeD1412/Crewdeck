@@ -31,7 +31,7 @@ import { RunnerPresence } from '../runners/runner-presence.service.js';
 import { currentPilotId, runInPilotScope } from '../scope/scope.context.js';
 import { raiseRequest, resolveOpenRequests, resolveRequest } from './requests.js';
 import { SessionHooks } from './session-hooks.js';
-import { SESSION_ROW, type SessionRow, startMessageOf, stored, toAgentSession } from './session.view.js';
+import { SESSION_ROW, type SessionRow, startMessageOf, stepIdeasOf, stepIdeasRow, stored, toAgentSession } from './session.view.js';
 
 /**
  * What starts a Session: `base` the Projet's integration branch unless given;
@@ -40,15 +40,17 @@ import { SESSION_ROW, type SessionRow, startMessageOf, stored, toAgentSession } 
  * its Étape's Serveurs MCP, none when not given; `title` the
  * Ticket's or Conception's as its Source holds it, whatever the code's:
  * readable on GitHub, sealed with the additional data it was sealed under
- * when Local (SOURCE-2, ADR 0012).
+ * when Local (SOURCE-2, ADR 0012). `branch` `null`: a scratch Session
+ * (IDEE-2), in a directory of its own on the Runner, of a Projet or of none
+ * (`projectId` `null`), which reads no code.
  */
 export interface StartSession {
-  readonly projectId: string;
+  readonly projectId: string | null;
   readonly role: RoleId;
   readonly engine: EngineId;
   readonly model: string;
   readonly title: string | SealedSessionTitle;
-  readonly branch: string;
+  readonly branch: string | null;
   readonly base?: string;
   readonly step?: SessionStep;
   readonly mcpServers?: readonly string[];
@@ -133,13 +135,11 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
    * `project.not-found`; 422 `sessions.no-origin` for a Projet with no code
    * Source. The title is as the Source of its artifact holds it, whatever
    * the code's: readable, or sealed with its additional data (`title` null).
+   * A scratch Session (`branch` null) needs no code Source, nor a Projet.
    */
   async start(tx: Tx, input: StartSession): Promise<AgentSession> {
     const pilotId = currentPilotId();
-    const project = await tx.project.findUnique({ where: { id: input.projectId }, select: { integrationBranch: true } });
-    if (!project) throw notFound('project.not-found', MESSAGES['project.not-found']);
-    const code = await tx.artifactSource.findUnique({ where: { projectId_group: { projectId: input.projectId, group: 'code' } }, select: { source: true } });
-    if (!code) throw unprocessable('sessions.no-origin', MESSAGES['sessions.no-origin']);
+    const base = await this.baseOf(tx, input);
     const created = await tx.agentSession.create({
       data: {
         id: newId(),
@@ -152,7 +152,7 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
           ? { title: input.title }
           : { title: null, titleSealed: { key: input.title.key, ciphertext: input.title.ciphertext }, titleAad: input.title.aad }),
         branch: input.branch,
-        base: input.base ?? project.integrationBranch,
+        base,
         permissionMode: permissionModeOf(input.step),
         state: 'starting',
         stepRunId: input.step?.stepRunId ?? null,
@@ -160,14 +160,26 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
         stepSkill: input.step?.skill ?? null,
         stepContractId: input.step?.contractId ?? null,
         ...(input.step ? { stepInputs: input.step.inputs } : {}),
+        ...(input.step?.ideas ? { stepIdeas: stepIdeasRow(input.step.ideas) } : {}),
         mcpServers: [...(input.mcpServers ?? [])],
         startedAt: this.clock.now(),
       },
       select: SESSION_ROW,
     });
     const row = await this.written(tx, pilotId, created);
-    afterCommit(tx, () => this.trySend(pilotId, startMessageOf(row)));
+    afterCommit(tx, () => this.trySend(pilotId, startMessageOf(row, input.step?.ideas)));
     return toAgentSession(row);
+  }
+
+  /** The base of the Session `input` starts: its Projet's integration branch unless given; none for a scratch Session. */
+  private async baseOf(tx: Tx, input: StartSession): Promise<string | null> {
+    const project = input.projectId === null ? null : await tx.project.findUnique({ where: { id: input.projectId }, select: { integrationBranch: true } });
+    if (input.projectId !== null && !project) throw notFound('project.not-found', MESSAGES['project.not-found']);
+    if (input.branch === null) return null;
+    if (input.projectId === null || !project) throw new Error('A Session in a worktree needs its Projet.');
+    const code = await tx.artifactSource.findUnique({ where: { projectId_group: { projectId: input.projectId, group: 'code' } }, select: { source: true } });
+    if (!code) throw unprocessable('sessions.no-origin', MESSAGES['sessions.no-origin']);
+    return input.base ?? project.integrationBranch;
   }
 
   /** Every live Session of `pilotId` becomes `interrupted` (`runner-offline`), in `tx`: their Runner went away. */
@@ -219,7 +231,7 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
         const resumed = await this.change(tx, pilotId, id, { state: 'starting', interruptedReason: null, endedAt: null });
         // The requests of the turn the stop cut: kept open while stopped, withdrawn as the new run starts (SESSION-3).
         await resolveOpenRequests(tx, this.decisions, id, 'withdrawn');
-        const message: OutgoingRunnerMessage = resumed.engineSessionId === null ? startMessageOf(resumed) : { type: 'session.resume', sessionId: id };
+        const message: OutgoingRunnerMessage = resumed.engineSessionId === null ? startMessageOf(resumed, await stepIdeasOf(tx, pilotId, resumed)) : { type: 'session.resume', sessionId: id };
         afterCommit(tx, () => this.trySend(pilotId, message));
         return toAgentSession(resumed);
       }),
@@ -282,7 +294,7 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
           select: { id: true, projectId: true, role: true, title: true, state: true, project: { select: { displayName: true } } },
         });
         if (!row || !LIVE.includes(row.state)) return;
-        await raiseRequest(tx, this.decisions, { ...row, projectName: row.project.displayName }, message);
+        await raiseRequest(tx, this.decisions, { ...row, projectName: row.project?.displayName ?? null }, message);
         if (row.state !== 'waiting') await this.change(tx, pilotId, row.id, { state: 'waiting', interruptedReason: null });
       }),
     );
@@ -342,10 +354,14 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
 
   private async sendStarting(pilotId: string, ids: readonly string[]): Promise<void> {
     if (ids.length === 0) return;
-    const rows = await this.transactions.run((tx) =>
-      tx.agentSession.findMany({ where: { id: { in: [...ids] }, state: 'starting' }, select: SESSION_ROW, orderBy: { startedAt: 'asc' } }),
-    );
-    for (const row of rows) this.trySend(pilotId, row.engineSessionId === null ? startMessageOf(row) : { type: 'session.resume', sessionId: row.id });
+    // A start reads its Idées as they are now: a rotation may have replaced their item keys meanwhile (E2E-4).
+    const messages = await this.transactions.run(async (tx) => {
+      const rows = await tx.agentSession.findMany({ where: { id: { in: [...ids] }, state: 'starting' }, select: SESSION_ROW, orderBy: { startedAt: 'asc' } });
+      const sent: OutgoingRunnerMessage[] = [];
+      for (const row of rows) sent.push(row.engineSessionId === null ? startMessageOf(row, await stepIdeasOf(tx, pilotId, row)) : { type: 'session.resume', sessionId: row.id });
+      return sent;
+    });
+    for (const message of messages) this.trySend(pilotId, message);
   }
 
   /** The Session `id` of the current Pilote, at `seq` or later: 404 `sessions.not-found`, 409 `realtime.stale`. */

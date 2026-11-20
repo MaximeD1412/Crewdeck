@@ -34,7 +34,7 @@ func (e *pushing) Start(ctx context.Context, opts engine.StartOptions) (engine.R
 // localStart is the session.start of a Local Projet: no repository, no title.
 func localStart(id, branch string) contracts.RunnerSessionStart {
 	message := start(id, branch)
-	message.Origin = contracts.Origin{Local: &contracts.OriginLocal{}}
+	message.Origin = &contracts.Origin{Local: &contracts.OriginLocal{}}
 	message.Base = "main"
 	message.Title = nil
 	return message

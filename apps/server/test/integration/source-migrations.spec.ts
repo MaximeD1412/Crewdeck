@@ -1,5 +1,5 @@
 import { CATALOGUE, PROCESS_CREWDECK, type ProcessDefinition, type SourceMigration, type StepKind, zDecision, zProjectList, zProjectProcess, zSourceMigration, zSourceMigrationPage, zState } from '@crewdeck/contracts';
-import { type INestApplication, Inject, Module, type OnModuleInit } from '@nestjs/common';
+import { type INestApplication, Inject, Module, type OnApplicationBootstrap, type OnModuleInit } from '@nestjs/common';
 import pg from 'pg';
 import { inject } from 'vitest';
 import { SESSION_COOKIE } from '../../src/auth/cookies.js';
@@ -62,11 +62,16 @@ let hookMode: 'pass' | 'throw' = 'pass';
 const hookCalls: string[] = [];
 
 @Module({ imports: [EngineModule] })
-class TestHandlersModule implements OnModuleInit {
+class TestHandlersModule implements OnModuleInit, OnApplicationBootstrap {
   constructor(@Inject(STEP_KIND_HANDLERS) private readonly handlers: StepKindHandlers) {}
 
   onModuleInit(): void {
-    for (const kind of HANDLED) this.handlers.add(handler(kind));
+    for (const kind of HANDLED) if (kind !== 'idea-analysis') this.handlers.add(handler(kind));
+  }
+
+  /** In place of the app's own `idea-analysis` (IDEE-2), once every module added its handler. */
+  onApplicationBootstrap(): void {
+    this.handlers.replace(handler('idea-analysis'));
   }
 }
 

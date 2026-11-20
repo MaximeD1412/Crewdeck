@@ -185,6 +185,16 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   'idees-vide': async (page) => {
     await expect(page.locator('cd-page-idees cd-empty')).toContainText('Aucune Idée pour l’instant');
   },
+  // #64's analysis failed, selected beside the list, the others' analyses opened.
+  'idees-analyse-echouee': async (page) => {
+    await expect(page.locator('cd-page-idees > cd-idea-analysis[slot="aside"]')).toContainText('Analyse · #64');
+    await expect(page.locator('cd-page-idees cd-idea-row').nth(1)).toContainText('doublon possible : #58');
+  },
+  // #63 on its page, its analysis opened.
+  idee: async (page) => {
+    await expect(page.locator('cd-page-idee cd-idea-analysis .impact')).toContainText('moyen : ');
+    await expect(page.locator('cd-page-idee cd-card.duplicates')).toContainText('#58');
+  },
   runner: async (page) => {
     await expect(page.locator('cd-page-runner cd-card.runner')).toContainText('en ligne');
     await expect(page.locator('cd-page-runner > cd-usage-card')).toContainText('au rythme actuel');

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zVerdict } from '../contrats/define.js';
+import { zVaultKeyVersion } from '../keys/pairing.js';
 import { zSealedItem } from '../keys/sealed.js';
 import { zId } from '../values.js';
 import { runnerMessage } from './envelope.js';
@@ -20,7 +21,10 @@ export const STEP_REPORT_FIGURES_MAX = 16_384;
 
 /**
  * The additional data a report's `sealed` is sealed under: its StepRun's, so
- * that a ciphertext moved to another StepRun does not open.
+ * that a ciphertext moved to another StepRun does not open. An
+ * `idea-analysis` report is sealed under its Idée's own field instead,
+ * `ideaItemAad(ideaId, 'analysis')` (IDEE-2), which the Idée then stores as
+ * is and a rotation of the vault rewraps.
  */
 export const stepReportAad = (stepRunId: string): string => `step.report:${stepRunId}`;
 
@@ -37,6 +41,12 @@ export const zStepReport = runnerMessage('step.report', {
     .record(z.string(), z.unknown())
     .refine((figures) => JSON.stringify(figures).length <= STEP_REPORT_FIGURES_MAX, { message: 'figures too long' }),
   sealed: zSealedItem.optional(),
+  /**
+   * The vault key version `sealed` is sealed under (E2E-4): a report sealed
+   * under a version a rotation replaced since is kept nowhere, the Runner
+   * seals it again once it holds the new one.
+   */
+  vaultKeyVersion: zVaultKeyVersion.optional(),
 });
 export type StepReport = z.infer<typeof zStepReport>;
 

@@ -55,7 +55,7 @@ describe('the Commandes of the Runner', () => {
   });
 
   it('gives command.run the same origin as session.start', () => {
-    expect(zCommandRun.shape.origin).toBe(zSessionStart.shape.origin);
+    expect(zCommandRun.shape.origin).toBe(zSessionStart.shape.origin.unwrap());
   });
 
   it('takes a run outside a Ticket (no ticket, branch nor SHA), and refuses a SHA that is not a full one', () => {

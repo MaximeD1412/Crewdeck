@@ -249,7 +249,8 @@ export const sessionView = ({ session, slices, events, sent, now, composer: comp
   const online = slices.runner?.state === 'online';
   const engine = engineName(session.engine);
   const base = t('session.meta', {
-    project: slices.project?.get(session.projectId)?.displayName ?? '',
+    // A Session of no Projet (an Idée's analysis, IDEE-2) names none.
+    project: (session.projectId === null ? undefined : slices.project?.get(session.projectId))?.displayName ?? '',
     role: roleName(session.role, slices.settings),
     engine,
   });

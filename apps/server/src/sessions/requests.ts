@@ -20,7 +20,8 @@ export const requestDecisionKind = (kind: SessionRequestKind): (typeof REQUEST_D
 /** What the Décision of a request reads of its Session: all of it readable by the server. */
 export interface RequestSession {
   readonly id: string;
-  readonly projectId: string;
+  /** Null for a Session of no Projet (an Idée's analysis, IDEE-2). */
+  readonly projectId: string | null;
   readonly role: string;
   /** Null for a Local Projet's, whose title the server cannot read (SOURCE-2). */
   readonly title: string | null;

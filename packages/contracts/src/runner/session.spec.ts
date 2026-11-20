@@ -37,6 +37,19 @@ describe('the Sessions of the Runner protocol', () => {
     expect(zSessionStart.safeParse({ ...start, step: withoutContract }).success).toBe(false);
   });
 
+  it('starts an Idée’s analysis in a scratch directory: no Projet, origin, branch nor base, the Idées it reads sealed', () => {
+    const scratch = fixture('sessions/start.scratch');
+    expect(zServerToRunner.parse(scratch)).toEqual(scratch);
+    const parsed = zSessionStart.parse(scratch);
+    expect(parsed).toMatchObject({ projectId: null, origin: null, branch: null, base: null });
+    expect(parsed.step?.ideas?.idea).toMatchObject({ number: 14, analysis: null });
+    expect(parsed.step?.ideas?.open.map((idea) => idea.number)).toEqual([9]);
+    expect(parsed.step?.ideas?.vaultKeyVersion).toBe(2);
+    const { vaultKeyVersion: _version, ...unversioned } = parsed.step?.ideas ?? {};
+    expect(zSessionStart.safeParse({ ...scratch, step: { ...(scratch.step as object), ideas: unversioned } }).success).toBe(false);
+    expect(zSessionStart.safeParse({ ...scratch, step: { ...(scratch.step as object), ideas: { idea: { id: scratch.sessionId, number: 1, text: 'en clair', analysis: null }, open: [], vaultKeyVersion: 2 } } }).success).toBe(false);
+  });
+
   it('names the Serveurs MCP of the Étape, none as []', () => {
     const start = fixture('session.start');
     expect(zSessionStart.parse(start).mcpServers).toEqual(['stitch', 'figma']);

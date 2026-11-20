@@ -15,10 +15,10 @@ type RunnerSessionStart struct {
 	At time.Time `json:"at"`
 
 	// Base corresponds to the JSON schema field "base".
-	Base string `json:"base"`
+	Base interface{} `json:"base"`
 
 	// Branch corresponds to the JSON schema field "branch".
-	Branch string `json:"branch"`
+	Branch interface{} `json:"branch"`
 
 	// Engine corresponds to the JSON schema field "engine".
 	Engine RunnerSessionStartEngine `json:"engine"`
@@ -33,13 +33,13 @@ type RunnerSessionStart struct {
 	Model string `json:"model"`
 
 	// Origin corresponds to the JSON schema field "origin".
-	Origin Origin `json:"origin"`
+	Origin *Origin `json:"origin"`
 
 	// PermissionMode corresponds to the JSON schema field "permissionMode".
 	PermissionMode RunnerSessionStartPermissionMode `json:"permissionMode"`
 
 	// ProjectId corresponds to the JSON schema field "projectId".
-	ProjectId string `json:"projectId"`
+	ProjectId interface{} `json:"projectId"`
 
 	// Role corresponds to the JSON schema field "role".
 	Role string `json:"role"`
@@ -59,6 +59,10 @@ type RunnerSessionStart struct {
 	// WorktreeCommands corresponds to the JSON schema field "worktreeCommands".
 	WorktreeCommands *RunnerSessionStartWorktreeCommands `json:"worktreeCommands"`
 }
+
+type RunnerSessionStartBase_0 *string
+
+type RunnerSessionStartBranch_0 *string
 
 type RunnerSessionStartEngine string
 
@@ -120,9 +124,14 @@ func (j *RunnerSessionStartPermissionMode) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+type RunnerSessionStartProjectId_0 *string
+
 type RunnerSessionStartStep struct {
 	// ContractId corresponds to the JSON schema field "contractId".
 	ContractId interface{} `json:"contractId"`
+
+	// Ideas corresponds to the JSON schema field "ideas".
+	Ideas *RunnerSessionStartStepIdeas `json:"ideas,omitempty,omitzero"`
 
 	// Inputs corresponds to the JSON schema field "inputs".
 	Inputs []RunnerSessionStartStepInputsElem `json:"inputs"`
@@ -138,6 +147,352 @@ type RunnerSessionStartStep struct {
 }
 
 type RunnerSessionStartStepContractId_0 *string
+
+type RunnerSessionStartStepIdeas struct {
+	// Idea corresponds to the JSON schema field "idea".
+	Idea RunnerSessionStartStepIdeasIdea `json:"idea"`
+
+	// Open corresponds to the JSON schema field "open".
+	Open []RunnerSessionStartStepIdeasOpenElem `json:"open"`
+
+	// VaultKeyVersion corresponds to the JSON schema field "vaultKeyVersion".
+	VaultKeyVersion int `json:"vaultKeyVersion"`
+}
+
+type RunnerSessionStartStepIdeasIdea struct {
+	// Analysis corresponds to the JSON schema field "analysis".
+	Analysis *RunnerSessionStartStepIdeasIdeaAnalysis `json:"analysis"`
+
+	// Id corresponds to the JSON schema field "id".
+	Id string `json:"id"`
+
+	// Number corresponds to the JSON schema field "number".
+	Number int `json:"number"`
+
+	// Text corresponds to the JSON schema field "text".
+	Text RunnerSessionStartStepIdeasIdeaText `json:"text"`
+}
+
+type RunnerSessionStartStepIdeasIdeaAnalysis struct {
+	// Ciphertext corresponds to the JSON schema field "ciphertext".
+	Ciphertext string `json:"ciphertext"`
+
+	// Key corresponds to the JSON schema field "key".
+	Key string `json:"key"`
+}
+
+type RunnerSessionStartStepIdeasIdeaAnalysis_0 struct {
+	// Ciphertext corresponds to the JSON schema field "ciphertext".
+	Ciphertext string `json:"ciphertext"`
+
+	// Key corresponds to the JSON schema field "key".
+	Key string `json:"key"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerSessionStartStepIdeasIdeaAnalysis_0) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["ciphertext"]; raw != nil && !ok {
+		return fmt.Errorf("field ciphertext in RunnerSessionStartStepIdeasIdeaAnalysis_0: required")
+	}
+	if _, ok := raw["key"]; raw != nil && !ok {
+		return fmt.Errorf("field key in RunnerSessionStartStepIdeasIdeaAnalysis_0: required")
+	}
+	type Plain RunnerSessionStartStepIdeasIdeaAnalysis_0
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Ciphertext)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Ciphertext", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Key)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Key", `^[A-Za-z0-9_-]*$`)
+	}
+	*j = RunnerSessionStartStepIdeasIdeaAnalysis_0(plain)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerSessionStartStepIdeasIdeaAnalysis) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	var runnerSessionStartStepIdeasIdeaAnalysis_0 RunnerSessionStartStepIdeasIdeaAnalysis_0
+	var errs []error
+	if err := runnerSessionStartStepIdeasIdeaAnalysis_0.UnmarshalJSON(value); err != nil {
+		errs = append(errs, err)
+	}
+	if len(errs) == 1 {
+		return fmt.Errorf("all validators failed: %s", errors.Join(errs...))
+	}
+	type Plain RunnerSessionStartStepIdeasIdeaAnalysis
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	*j = RunnerSessionStartStepIdeasIdeaAnalysis(plain)
+	return nil
+}
+
+type RunnerSessionStartStepIdeasIdeaText struct {
+	// Ciphertext corresponds to the JSON schema field "ciphertext".
+	Ciphertext string `json:"ciphertext"`
+
+	// Key corresponds to the JSON schema field "key".
+	Key string `json:"key"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerSessionStartStepIdeasIdeaText) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["ciphertext"]; raw != nil && !ok {
+		return fmt.Errorf("field ciphertext in RunnerSessionStartStepIdeasIdeaText: required")
+	}
+	if _, ok := raw["key"]; raw != nil && !ok {
+		return fmt.Errorf("field key in RunnerSessionStartStepIdeasIdeaText: required")
+	}
+	type Plain RunnerSessionStartStepIdeasIdeaText
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Ciphertext)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Ciphertext", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Key)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Key", `^[A-Za-z0-9_-]*$`)
+	}
+	*j = RunnerSessionStartStepIdeasIdeaText(plain)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerSessionStartStepIdeasIdea) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["analysis"]; raw != nil && !ok {
+		return fmt.Errorf("field analysis in RunnerSessionStartStepIdeasIdea: required")
+	}
+	if _, ok := raw["id"]; raw != nil && !ok {
+		return fmt.Errorf("field id in RunnerSessionStartStepIdeasIdea: required")
+	}
+	if _, ok := raw["number"]; raw != nil && !ok {
+		return fmt.Errorf("field number in RunnerSessionStartStepIdeasIdea: required")
+	}
+	if _, ok := raw["text"]; raw != nil && !ok {
+		return fmt.Errorf("field text in RunnerSessionStartStepIdeasIdea: required")
+	}
+	type Plain RunnerSessionStartStepIdeasIdea
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`, string(plain.Id)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Id", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
+	}
+	if 9007199254740991 < plain.Number {
+		return fmt.Errorf("field %s: must be <= %v", "number", 9007199254740991)
+	}
+	if 0 >= plain.Number {
+		return fmt.Errorf("field %s: must be > %v", "number", 0)
+	}
+	*j = RunnerSessionStartStepIdeasIdea(plain)
+	return nil
+}
+
+type RunnerSessionStartStepIdeasOpenElem struct {
+	// Analysis corresponds to the JSON schema field "analysis".
+	Analysis *RunnerSessionStartStepIdeasOpenElemAnalysis `json:"analysis"`
+
+	// Id corresponds to the JSON schema field "id".
+	Id string `json:"id"`
+
+	// Number corresponds to the JSON schema field "number".
+	Number int `json:"number"`
+
+	// Text corresponds to the JSON schema field "text".
+	Text RunnerSessionStartStepIdeasOpenElemText `json:"text"`
+}
+
+type RunnerSessionStartStepIdeasOpenElemAnalysis struct {
+	// Ciphertext corresponds to the JSON schema field "ciphertext".
+	Ciphertext string `json:"ciphertext"`
+
+	// Key corresponds to the JSON schema field "key".
+	Key string `json:"key"`
+}
+
+type RunnerSessionStartStepIdeasOpenElemAnalysis_0 struct {
+	// Ciphertext corresponds to the JSON schema field "ciphertext".
+	Ciphertext string `json:"ciphertext"`
+
+	// Key corresponds to the JSON schema field "key".
+	Key string `json:"key"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerSessionStartStepIdeasOpenElemAnalysis_0) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["ciphertext"]; raw != nil && !ok {
+		return fmt.Errorf("field ciphertext in RunnerSessionStartStepIdeasOpenElemAnalysis_0: required")
+	}
+	if _, ok := raw["key"]; raw != nil && !ok {
+		return fmt.Errorf("field key in RunnerSessionStartStepIdeasOpenElemAnalysis_0: required")
+	}
+	type Plain RunnerSessionStartStepIdeasOpenElemAnalysis_0
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Ciphertext)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Ciphertext", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Key)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Key", `^[A-Za-z0-9_-]*$`)
+	}
+	*j = RunnerSessionStartStepIdeasOpenElemAnalysis_0(plain)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerSessionStartStepIdeasOpenElemAnalysis) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	var runnerSessionStartStepIdeasOpenElemAnalysis_0 RunnerSessionStartStepIdeasOpenElemAnalysis_0
+	var errs []error
+	if err := runnerSessionStartStepIdeasOpenElemAnalysis_0.UnmarshalJSON(value); err != nil {
+		errs = append(errs, err)
+	}
+	if len(errs) == 1 {
+		return fmt.Errorf("all validators failed: %s", errors.Join(errs...))
+	}
+	type Plain RunnerSessionStartStepIdeasOpenElemAnalysis
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	*j = RunnerSessionStartStepIdeasOpenElemAnalysis(plain)
+	return nil
+}
+
+type RunnerSessionStartStepIdeasOpenElemText struct {
+	// Ciphertext corresponds to the JSON schema field "ciphertext".
+	Ciphertext string `json:"ciphertext"`
+
+	// Key corresponds to the JSON schema field "key".
+	Key string `json:"key"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerSessionStartStepIdeasOpenElemText) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["ciphertext"]; raw != nil && !ok {
+		return fmt.Errorf("field ciphertext in RunnerSessionStartStepIdeasOpenElemText: required")
+	}
+	if _, ok := raw["key"]; raw != nil && !ok {
+		return fmt.Errorf("field key in RunnerSessionStartStepIdeasOpenElemText: required")
+	}
+	type Plain RunnerSessionStartStepIdeasOpenElemText
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Ciphertext)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Ciphertext", `^[A-Za-z0-9_-]*$`)
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]*$`, string(plain.Key)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Key", `^[A-Za-z0-9_-]*$`)
+	}
+	*j = RunnerSessionStartStepIdeasOpenElemText(plain)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerSessionStartStepIdeasOpenElem) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["analysis"]; raw != nil && !ok {
+		return fmt.Errorf("field analysis in RunnerSessionStartStepIdeasOpenElem: required")
+	}
+	if _, ok := raw["id"]; raw != nil && !ok {
+		return fmt.Errorf("field id in RunnerSessionStartStepIdeasOpenElem: required")
+	}
+	if _, ok := raw["number"]; raw != nil && !ok {
+		return fmt.Errorf("field number in RunnerSessionStartStepIdeasOpenElem: required")
+	}
+	if _, ok := raw["text"]; raw != nil && !ok {
+		return fmt.Errorf("field text in RunnerSessionStartStepIdeasOpenElem: required")
+	}
+	type Plain RunnerSessionStartStepIdeasOpenElem
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`, string(plain.Id)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Id", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
+	}
+	if 9007199254740991 < plain.Number {
+		return fmt.Errorf("field %s: must be <= %v", "number", 9007199254740991)
+	}
+	if 0 >= plain.Number {
+		return fmt.Errorf("field %s: must be > %v", "number", 0)
+	}
+	*j = RunnerSessionStartStepIdeasOpenElem(plain)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerSessionStartStepIdeas) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["idea"]; raw != nil && !ok {
+		return fmt.Errorf("field idea in RunnerSessionStartStepIdeas: required")
+	}
+	if _, ok := raw["open"]; raw != nil && !ok {
+		return fmt.Errorf("field open in RunnerSessionStartStepIdeas: required")
+	}
+	if _, ok := raw["vaultKeyVersion"]; raw != nil && !ok {
+		return fmt.Errorf("field vaultKeyVersion in RunnerSessionStartStepIdeas: required")
+	}
+	type Plain RunnerSessionStartStepIdeas
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if len(plain.Open) > 100 {
+		return fmt.Errorf("field %s length: must be <= %d", "open", 100)
+	}
+	if 9007199254740991 < plain.VaultKeyVersion {
+		return fmt.Errorf("field %s: must be <= %v", "vaultKeyVersion", 9007199254740991)
+	}
+	if 0 >= plain.VaultKeyVersion {
+		return fmt.Errorf("field %s: must be > %v", "vaultKeyVersion", 0)
+	}
+	*j = RunnerSessionStartStepIdeas(plain)
+	return nil
+}
 
 type RunnerSessionStartStepInputsElem struct {
 	// PortId corresponds to the JSON schema field "portId".
@@ -520,24 +875,6 @@ func (j *RunnerSessionStart) UnmarshalJSON(value []byte) error {
 	if err := json.Unmarshal(value, &plain); err != nil {
 		return err
 	}
-	if matched, _ := regexp.MatchString(`^[A-Za-z0-9._/-]+$`, string(plain.Base)); !matched {
-		return fmt.Errorf("field %s pattern match: must match %s", "Base", `^[A-Za-z0-9._/-]+$`)
-	}
-	if utf8.RuneCountInString(string(plain.Base)) < 1 {
-		return fmt.Errorf("field %s length: must be >= %d", "base", 1)
-	}
-	if utf8.RuneCountInString(string(plain.Base)) > 200 {
-		return fmt.Errorf("field %s length: must be <= %d", "base", 200)
-	}
-	if matched, _ := regexp.MatchString(`^[A-Za-z0-9._/-]+$`, string(plain.Branch)); !matched {
-		return fmt.Errorf("field %s pattern match: must match %s", "Branch", `^[A-Za-z0-9._/-]+$`)
-	}
-	if utf8.RuneCountInString(string(plain.Branch)) < 1 {
-		return fmt.Errorf("field %s length: must be >= %d", "branch", 1)
-	}
-	if utf8.RuneCountInString(string(plain.Branch)) > 200 {
-		return fmt.Errorf("field %s length: must be <= %d", "branch", 200)
-	}
 	if matched, _ := regexp.MatchString(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`, string(plain.Id)); !matched {
 		return fmt.Errorf("field %s pattern match: must match %s", "Id", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
 	}
@@ -549,9 +886,6 @@ func (j *RunnerSessionStart) UnmarshalJSON(value []byte) error {
 	}
 	if utf8.RuneCountInString(string(plain.Model)) > 200 {
 		return fmt.Errorf("field %s length: must be <= %d", "model", 200)
-	}
-	if matched, _ := regexp.MatchString(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`, string(plain.ProjectId)); !matched {
-		return fmt.Errorf("field %s pattern match: must match %s", "ProjectId", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
 	}
 	if matched, _ := regexp.MatchString(`^(?:idea|design|code|review|r-[a-z0-9]{8})$`, string(plain.Role)); !matched {
 		return fmt.Errorf("field %s pattern match: must match %s", "Role", `^(?:idea|design|code|review|r-[a-z0-9]{8})$`)

@@ -16,6 +16,7 @@ import { Dialog } from './dialog.js';
 import { Empty } from './empty.js';
 import { IconButton } from './icon-button.js';
 import { Icon } from './icon.js';
+import { IdeaAnalysis } from './idea-analysis.js';
 import { IdeaRow } from './idea-row.js';
 import { KeyValue } from './key-value.js';
 import { ListRow } from './list-row.js';
@@ -25,6 +26,7 @@ import { Message } from './message.js';
 import { NoteIdeaDialog } from './note-idea-dialog.js';
 import { PageAToi } from './page-a-toi.js';
 import { PageAjouterProjet } from './page-ajouter-projet.js';
+import { PageIdee } from './page-idee.js';
 import { PageIdees } from './page-idees.js';
 import { PageComposants } from './page-composants.js';
 import { PageConnexion } from './page-connexion.js';
@@ -95,6 +97,7 @@ export * from './folder-project-form.js';
 export * from './icon-button.js';
 export * from './icon.js';
 export * from './icons.js';
+export * from './idea-analysis.js';
 export * from './idea-row.js';
 export * from './key-value.js';
 export * from './list-row.js';
@@ -104,6 +107,7 @@ export * from './message.js';
 export * from './note-idea-dialog.js';
 export * from './page-a-toi.js';
 export * from './page-ajouter-projet.js';
+export * from './page-idee.js';
 export * from './page-idees.js';
 export * from './page-composants.js';
 export * from './page-connexion.js';
@@ -164,6 +168,7 @@ export const COMPOSANTS = {
   ProjectFilter,
   PageAToi,
   PageAjouterProjet,
+  PageIdee,
   PageIdees,
   PageComposants,
   PageConnexion,
@@ -194,6 +199,7 @@ export const COMPOSANTS = {
   Composer,
   SettingRow,
   DecisionRow,
+  IdeaAnalysis,
   IdeaRow,
   NoteIdeaDialog,
   TicketRow,

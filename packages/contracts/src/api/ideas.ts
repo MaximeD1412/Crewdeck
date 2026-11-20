@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import { withSeq } from './commands.js';
+import { zRoleId } from './roles.js';
+import { IDEA_ANALYSIS_LIMITS, IDEA_ANALYSIS_NEW_PROJECT } from '../contrats/idea-analysis.js';
 import { zBytes, zVaultKeyVersion } from '../keys/pairing.js';
 import { zSealedItem } from '../keys/sealed.js';
+import { zEngineId } from '../runner/engines.js';
 import { zCursorPage, zId, zInstant } from '../values.js';
 
 /**
@@ -41,6 +44,70 @@ export const ideaItemAad = (ideaId: string, field: 'text' | 'analysis' | 'reason
  */
 export const zIdeaText = z.strictObject({ key: zSealedItem.shape.key, ciphertext: zBytes(29, 12 + IDEA_TEXT_MAX * 4 + 16) });
 
+/** An impact or an effort (US-6): a figure from 1 to 5, which the page says « faible », « moyen » or « fort ». */
+export const zIdeaRating = z.int().min(1).max(5);
+
+/**
+ * The readable figures of an analysis (ADR 0003), the `figures` of the
+ * `step.report` of an `idea-analysis` StepRun: the Runner reads them from the
+ * report its Contrat passed, `projectId` being the Projet visé or
+ * `nouveau`, `duplicateIds` the open Idées it may repeat.
+ */
+export const zIdeaAnalysisFigures = z.strictObject({
+  impact: zIdeaRating,
+  effort: zIdeaRating,
+  projectId: z.union([zId, z.literal(IDEA_ANALYSIS_NEW_PROJECT)]),
+  duplicateIds: z.array(zId).max(IDEA_ANALYSIS_LIMITS.duplicates),
+});
+export type IdeaAnalysisFigures = z.infer<typeof zIdeaAnalysisFigures>;
+
+const zAnalysisText = (max: number) => z.string().min(1).max(max);
+
+/**
+ * The sentences of an analysis, the plaintext of an Idée's `analysis`: the
+ * Runner seals them under `ideaItemAad(ideaId, 'analysis')` before they leave
+ * it (ADR 0003), the page opens them with the vault key.
+ */
+export const zIdeaAnalysisContent = z.object({
+  title: zAnalysisText(IDEA_ANALYSIS_LIMITS.title),
+  summary: zAnalysisText(IDEA_ANALYSIS_LIMITS.summary),
+  projectWhy: zAnalysisText(IDEA_ANALYSIS_LIMITS.why),
+  impactWhy: zAnalysisText(IDEA_ANALYSIS_LIMITS.why),
+  effortWhy: zAnalysisText(IDEA_ANALYSIS_LIMITS.why),
+  duplicates: z.array(z.object({ id: zId, why: zAnalysisText(IDEA_ANALYSIS_LIMITS.why) })).max(IDEA_ANALYSIS_LIMITS.duplicates),
+  questions: z.array(zAnalysisText(IDEA_ANALYSIS_LIMITS.question)).max(IDEA_ANALYSIS_LIMITS.questions),
+});
+export type IdeaAnalysisContent = z.infer<typeof zIdeaAnalysisContent>;
+
+/** Where the last analysis of an Idée stands: running, passed, its Contrat incomplete, or its Session failed. */
+export const IDEA_ANALYSIS_STATUSES = ['running', 'passed', 'incomplete', 'failed'] as const;
+export const zIdeaAnalysisStatus = z.enum(IDEA_ANALYSIS_STATUSES);
+export type IdeaAnalysisStatus = z.infer<typeof zIdeaAnalysisStatus>;
+
+/**
+ * The last `idea-analysis` StepRun of an Idée (US-48), as its page shows it:
+ * the Rôle and Moteur that ran it (« Rôle Idée · Claude Code · il y a
+ * 4 min »), when it started or ended (`at`), and, when its Contrat was
+ * incomplete, the failed rules' ids (the page reads their labels with
+ * `contratLabel`); when it failed, its StepRun's failure (`no-engine`: its
+ * Rôle had no Moteur, no Session ran). Ids and codes only.
+ */
+export const zIdeaAnalysisRun = z.object({
+  stepRunId: zId,
+  status: zIdeaAnalysisStatus,
+  role: zRoleId,
+  engine: zEngineId.nullable(),
+  at: zInstant,
+  contractId: z.string().min(1).nullable(),
+  contractVersion: z.int().positive().nullable(),
+  failedRuleIds: z.array(z.string().min(1)),
+  failure: z.string().min(1).max(60).optional(),
+});
+
+/** The failure of an analysis whose Rôle had no Moteur: no Session ran (IDEE-2). */
+export const IDEA_ANALYSIS_NO_ENGINE = 'no-engine';
+export type IdeaAnalysisRun = z.infer<typeof zIdeaAnalysisRun>;
+
 /**
  * An Idée (US-5): a sentence the Pilote noted, sealed in their browser
  * (ADR 0003): the server stores its ciphertext and never reads it. `number`
@@ -58,8 +125,8 @@ export const zIdea = z.object({
   state: zIdeaState,
   text: zSealedItem,
   analysis: zSealedItem.nullable(),
-  impact: z.int().min(1).max(5).nullable(),
-  effort: z.int().min(1).max(5).nullable(),
+  impact: zIdeaRating.nullable(),
+  effort: zIdeaRating.nullable(),
   duplicateIds: z.array(zId),
   notedFrom: zIdeaNotedFrom,
   dictated: z.boolean(),
@@ -70,6 +137,8 @@ export const zIdea = z.object({
   updatedAt: zInstant,
   analysedAt: zInstant.nullable(),
   triagedAt: zInstant.nullable(),
+  /** Its last analysis, `null` when its Process has none (an Idée to triage without analysis). */
+  analysisRun: zIdeaAnalysisRun.nullable(),
 });
 export type Idea = z.infer<typeof zIdea>;
 
@@ -110,3 +179,21 @@ export type ListIdeasQuery = z.infer<typeof zListIdeasQuery>;
 
 export const zIdeaList = zCursorPage(zIdea);
 export type IdeaList = z.infer<typeof zIdeaList>;
+
+/**
+ * `POST /api/ideas/:id/target` (session, « Changer »): the Projet visé set by
+ * the Pilote, `null` for « nouveau », without running the analysis again;
+ * `seq` is the Idée's. 404 for a Projet of another Pilote, 422
+ * `ideas.not-triageable` for an Idée merged or rejected.
+ */
+export const zSetIdeaTargetInput = withSeq(z.object({ projectId: zId.nullable() }));
+export type SetIdeaTargetInput = z.infer<typeof zSetIdeaTargetInput>;
+
+/**
+ * `POST /api/ideas/:id/reanalyse` (session, « Relancer l'analyse »): the
+ * last `idea-analysis` StepRun of the Idée run again, as the Décision's
+ * rerun does; `seq` is the Idée's. 422 `ideas.analysis-running`,
+ * `ideas.not-triageable`, `ideas.no-analysis-step`.
+ */
+export const zReanalyseIdeaInput = withSeq(z.object({}));
+export type ReanalyseIdeaInput = z.infer<typeof zReanalyseIdeaInput>;

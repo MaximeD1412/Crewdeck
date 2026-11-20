@@ -16,24 +16,46 @@ const PROJECTS = {
   tennisManager: '019a6f1e-7c3d-7e4f-9a1b-2c3d4e5f6a04',
 };
 
-const row = (n: number, title: string, meta: string, state: 'en-analyse' | 'analysee') => ({
+type Analysed = { summary: string; impact: string; effort: string; duplicates?: string };
+
+const row = (n: number, title: string, meta: string, state: 'en-analyse' | 'a-trier' | 'analysee', analysed?: Analysed) => ({
   id: id(n),
   title,
   meta: `#${n} · ${meta}`,
   state,
-  summary: null,
-  impact: null,
-  effort: null,
-  duplicates: null,
+  summary: analysed?.summary ?? (state === 'en-analyse' ? 'L’analyse est en cours.' : null),
+  impact: analysed?.impact ?? null,
+  effort: analysed?.effort ?? null,
+  duplicates: analysed?.duplicates ?? null,
   selected: false,
+  failed: false,
 });
 
-/** The Idées of the mockup (`design/screens/crewdeck/idees.html`), the parts of their analysis not built yet left out. */
+/** The Idées of the mockup (`design/screens/crewdeck/idees.html`). */
 const MOCKUP = [
   row(64, 'Prévenir quand une Planification démarre la Boucle', 'Crewdeck · il y a 5 min', 'en-analyse'),
-  row(63, 'Exporter le planning en PDF pour le client', 'Personal OS · il y a 2 h', 'analysee'),
-  row(62, 'Corriger la date des actualités sur le téléphone', 'Site mairie · hier', 'analysee'),
-  row(61, 'Chercher dans les recettes par ingrédient', 'Personal OS · il y a 3 j', 'analysee'),
+  row(63, 'Exporter le planning en PDF pour le client', 'Personal OS · il y a 2 h', 'analysee', {
+    summary: 'Un bouton qui produit le planning de la semaine en PDF, à envoyer au client.',
+    impact: 'moyen',
+    effort: 'faible',
+    duplicates: 'doublon possible : #58',
+  }),
+  row(62, 'Corriger la date des actualités sur le téléphone', 'Site mairie · hier', 'analysee', {
+    summary: 'La date des actualités s’affiche en anglais sur le téléphone.',
+    impact: 'faible',
+    effort: 'faible',
+  }),
+  row(61, 'Chercher dans les recettes par ingrédient', 'Personal OS · il y a 3 j', 'analysee', {
+    summary: 'Une recherche des recettes qui contiennent un ingrédient donné.',
+    impact: 'moyen',
+    effort: 'moyen',
+  }),
+];
+
+/** `idees-analyse-echouee.html`: #64's analysis failed, it is selected. */
+const FAILED = [
+  { ...row(64, 'Prévenir quand une Planification démarre la Boucle', 'Crewdeck · il y a 5 min', 'a-trier'), summary: 'L’analyse a échoué : son Contrat n’est pas rempli.', selected: true, failed: true },
+  ...MOCKUP.slice(1),
 ];
 
 const chips = (selected: string | null) => [
@@ -60,13 +82,15 @@ const tabs = (counts: readonly [number, number, number, number], selected: Idees
  * les Projets » first, `projectId: null`), each with the count of the tab's
  * Idées of its Projet; the tabs (`tab`), each with its count; then the tab's
  * Idées, newest first, in a Card titled by the tab (a row's click: `open`).
+ * A row whose analysis `failed` holds the `halt` badge « Analyse échouée »
+ * and « Relancer l'analyse » (`reanalyse`).
  * `empty` (no Idée at all) shows only its empty state, whose « Noter une
  * Idée » also emits `note`; an empty tab says so. `older`: on « Fusionnées »
  * and « Rejetées », whether older Idées remain on the server, beyond the 90
  * days the page holds: `available`, « Afficher les plus anciennes » under
  * the list emits `more`; `loading`, it waits. Its Emplacement `aside`
- * stands beside the list from 1280 px (an Idée's analysis, later), `list`
- * replaces the list.
+ * stands beside the list from 1280 px (the selected Idée's analysis),
+ * hidden narrower; `list` replaces the list.
  */
 export const PageIdees = defineComposant({
   name: 'PageIdees',
@@ -81,7 +105,7 @@ export const PageIdees = defineComposant({
       z.object({ projectId: zId.nullable(), label: z.string().min(1), count: z.number().int().positive().optional(), selected: z.boolean() }),
     ),
     tabs: z.array(z.object({ id: zIdeesTab, label: z.string().min(1), count: z.number().int().nonnegative(), selected: z.boolean() })),
-    ideas: z.array(IdeaRow.data),
+    ideas: z.array(IdeaRow.data.extend({ failed: z.boolean() })),
     older: z.enum(['none', 'available', 'loading']),
   }),
   actions: {
@@ -90,6 +114,7 @@ export const PageIdees = defineComposant({
     filter: z.object({ projectId: zId.nullable() }),
     tab: z.object({ tab: zIdeesTab }),
     more: z.object({}),
+    reanalyse: z.object({ id: zId }),
   },
   slots: ['list', 'aside'],
   examples: [
@@ -133,6 +158,10 @@ export const PageIdees = defineComposant({
         ideas: [{ ...row(57, 'Envoyer le planning par e-mail', 'Personal OS · 7 nov.', 'analysee'), state: 'fusionnee' as const }],
         older: 'available',
       },
+    },
+    {
+      name: 'une analyse échouée',
+      data: { toTriage: 4, empty: false, projects: chips(null), tabs: tabs([4, 3, 1, 2]), ideas: FAILED, older: 'none' },
     },
   ],
 });

@@ -9,6 +9,7 @@ import { EventsWriter } from '../realtime/events.writer.js';
 import { assertFresh } from '../realtime/freshness.js';
 import { Transactions, type Tx } from '../realtime/transactions.js';
 import { assertVaultVersion } from '../vault/sealed-write.js';
+import { IdeaAnalysis } from './analysis.js';
 import { decodeIdeaCursor, encodeIdeaCursor } from './idea-cursor.js';
 import { IDEA_VIEW, ideaStateRow, toIdea } from './idea.view.js';
 import { syncIdeasToTriage } from './triage-decision.js';
@@ -52,13 +53,16 @@ export class IdeasService {
     private readonly transactions: Transactions,
     private readonly events: EventsWriter,
     private readonly decisions: DecisionsService,
+    private readonly analysis: IdeaAnalysis,
   ) {}
 
   /**
    * 404 `project.not-found` for a Projet unknown or another Pilote's, 409
    * `realtime.stale` when the chosen Projet changed since `seq`, 409
    * `idea.id-taken` for an id already an Idée's, 409 `vault.version-changed`
-   * for a text sealed under another vault key than the current one.
+   * for a text sealed under another vault key than the current one. The
+   * Idée then enters the `idea.noted` Phase of its Process (IDEE-2), its
+   * analysis making it `analysing`; without one, it stays `to-triage`.
    */
   async note(pilotId: string, { id, text, vaultKeyVersion, projectId, notedFrom, dictated, seq }: NoteIdeaInput): Promise<Idea> {
     try {
@@ -76,6 +80,10 @@ export class IdeasService {
           data: { id, pilotId, number: ideaSeq, projectId, state: 'to_triage', text, notedFrom, dictated, createdAt: now, updatedAt: now },
           select: IDEA_VIEW,
         });
+        await this.analysis.admit(tx, id, projectId);
+        const admitted = await tx.idea.findUniqueOrThrow({ where: { id }, select: { ...IDEA_VIEW, lastSeq: true } });
+        // Its analysis started wrote its `idea.upserted` already.
+        if (admitted.lastSeq > 0n) return toIdea(admitted);
         const idea = toIdea(row);
         const ideaSeqOfEvent = await this.events.write(tx, pilotId, 'idea.upserted', idea);
         await tx.idea.update({ where: { id }, data: { lastSeq: ideaSeqOfEvent } });

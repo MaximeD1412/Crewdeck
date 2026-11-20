@@ -189,12 +189,11 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
       tab.id,
       JSON.stringify(sealed()),
     ]);
-    await sql(`INSERT INTO ideas (id, pilot_id, number, state, text, analysis, noted_from, created_at, updated_at) VALUES ($1, $2, 2, 'analysed', $3, $4, 'pc', now(), now())`, [
-      ideas[1],
-      tab.id,
-      JSON.stringify(sealed()),
-      JSON.stringify(sealed()),
-    ]);
+    // Analysed, and analysed again: the report of the running analysis waits for its Contrat (IDEE-2), its sentences sealed.
+    await sql(
+      `INSERT INTO ideas (id, pilot_id, number, state, text, analysis, analysis_pending, noted_from, created_at, updated_at) VALUES ($1, $2, 2, 'analysing', $3, $4, $5, 'pc', now(), now())`,
+      [ideas[1], tab.id, JSON.stringify(sealed()), JSON.stringify(sealed()), JSON.stringify({ stepRunId: newId(), figures: { impact: 3, effort: 2, projectId: 'new', duplicateIds: [] }, sealed: sealed() })],
+    );
     // A Local Projet (PROJET-6): its name sealed, rewrapped as the others.
     const localId = newId();
     await sql(
@@ -515,7 +514,7 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
       ]);
       const keys = await allItems((cursor) => page(alice, `/api/vault/items${cursor ? `?cursor=${cursor}` : ''}`, { deviceId: first.deviceId }));
       expect(keys.map(({ itemType, aad }) => `${itemType} ${aad}`).sort()).toEqual(
-        [`idea.analysis ${ideas[1]}:analysis`, `idea.text ${ideas[0]}:text`, `idea.text ${ideas[1]}:text`, `process-version.sealed process:${(await sql<{ project_id: string }>('SELECT project_id FROM process_versions'))[0]?.project_id}`,
+        [`idea.analysis ${ideas[1]}:analysis`, `idea.analysis-pending ${ideas[1]}:analysis`, `idea.text ${ideas[0]}:text`, `idea.text ${ideas[1]}:text`, `process-version.sealed process:${(await sql<{ project_id: string }>('SELECT project_id FROM process_versions'))[0]?.project_id}`,
           `project.name project:${localId}:name`,
           `agent-session.title ticket:${localId}:3:title`,
           `ticket.title local:${localId}:ticket:3:title`,
@@ -526,6 +525,7 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
         ].sort(),
       );
       const before = await sql<{ text: { ciphertext: string } }>('SELECT text FROM ideas WHERE id = $1', [ideas[0]]);
+      const [pendingBefore] = await sql<{ analysis_pending: { sealed: { ciphertext: string } } }>('SELECT analysis_pending FROM ideas WHERE id = $1', [ideas[1]]);
       const localSealed = async () => {
         const [ticket] = await sql<{ title_sealed: unknown; labels_sealed: unknown }>('SELECT title_sealed, labels_sealed FROM tickets WHERE id = $1', [localRows.ticketId]);
         const [milestone] = await sql<{ title_sealed: unknown }>('SELECT title_sealed FROM milestones WHERE id = $1', [localRows.milestoneId]);
@@ -550,6 +550,12 @@ describe('revoking an Appareil and rotating the vault key against PostgreSQL', (
       expect(await wrapsOf(alice.id)).toEqual([`device:${first.deviceId}:2`, `device:${second.deviceId}:2`, `runner:${first.runnerId}:2`].sort());
       const [idea] = await sql<{ text: { key: string; ciphertext: string } }>('SELECT text FROM ideas WHERE id = $1', [ideas[0]]);
       expect(idea?.text).toEqual({ key: rotation.items.find((item) => item.itemId === ideas[0] && item.itemType === 'idea.text')?.wrappedKey, ciphertext: before[0]?.text.ciphertext });
+      // The pending report keeps its figures and its ciphertext, under the new item key.
+      const [pending] = await sql<{ analysis_pending: unknown }>('SELECT analysis_pending FROM ideas WHERE id = $1', [ideas[1]]);
+      expect(pending?.analysis_pending).toEqual({
+        ...pendingBefore?.analysis_pending,
+        sealed: { key: rotation.items.find((item) => item.itemId === ideas[1] && item.itemType === 'idea.analysis-pending')?.wrappedKey, ciphertext: pendingBefore?.analysis_pending.sealed.ciphertext },
+      });
       const [version] = await sql<{ sealed: { key: string } }>('SELECT sealed FROM process_versions WHERE id = $1', [versionId]);
       expect(version?.sealed.key).toBe(rotation.items.find((item) => item.itemId === versionId)?.wrappedKey);
       const [local] = await sql<{ name_sealed: { key: string } }>('SELECT name_sealed FROM projects WHERE id = $1', [localId]);

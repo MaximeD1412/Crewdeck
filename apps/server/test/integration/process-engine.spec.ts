@@ -9,7 +9,7 @@ import {
   zProjectList,
   zState,
 } from '@crewdeck/contracts';
-import { type INestApplication, Inject, Module, type OnModuleInit } from '@nestjs/common';
+import { type INestApplication, Inject, Module, type OnApplicationBootstrap, type OnModuleInit } from '@nestjs/common';
 import pg from 'pg';
 import { inject } from 'vitest';
 import { createApp } from '../../src/app.js';
@@ -93,15 +93,20 @@ let held = false;
 const guard: StartGuard = (_tx, { kind }) => Promise.resolve(!held || CATALOGUE[kind].family === 'gate' || kind === 'merge');
 
 @Module({ imports: [EngineModule] })
-class TestHandlersModule implements OnModuleInit {
+class TestHandlersModule implements OnModuleInit, OnApplicationBootstrap {
   constructor(
     @Inject(STEP_KIND_HANDLERS) private readonly handlers: StepKindHandlers,
     private readonly engine: Engine,
   ) {}
 
   onModuleInit(): void {
-    for (const kind of HANDLED) this.handlers.add(handler(kind));
+    for (const kind of HANDLED) if (kind !== 'idea-analysis') this.handlers.add(handler(kind));
     this.engine.registerStartGuard('ticket.ready', guard);
+  }
+
+  /** In place of the app's own `idea-analysis` (IDEE-2), once every module added its handler. */
+  onApplicationBootstrap(): void {
+    this.handlers.replace(handler('idea-analysis'));
   }
 }
 
@@ -480,6 +485,24 @@ describe('the engine against PostgreSQL', () => {
 
     expect(await stepRuns(run.id)).toEqual([expect.objectContaining({ step_id: 'st-code', state: 'failed', failure: 'no-handler' })]);
     expect(await phaseRunState(run.id)).toBe('failed');
+  });
+
+  it('fails an Étape whose handler could not begin its work with the handler’s code, and its PhaseRun; retry starts it again', async () => {
+    const handlers = app.get<StepKindHandlers>(STEP_KIND_HANDLERS);
+    handlers.replace({ ...handler('code'), start: () => Promise.resolve({ state: 'failed', failure: 'no-engine' }) });
+    try {
+      const run = await admit('42');
+
+      const failed = await stepRun(run.id, 'st-code');
+      expect(failed).toMatchObject({ state: 'failed', failure: 'no-engine' });
+      expect(await phaseRunState(run.id)).toBe('failed');
+
+      handlers.replace(handler('code'));
+      expect(await inAlice((tx) => engine.retry(tx, failed.id))).toMatchObject({ stepId: 'st-code', state: 'running' });
+      expect(await phaseRunState(run.id)).toBe('running');
+    } finally {
+      handlers.replace(handler('code'));
+    }
   });
 
   it('stops every open StepRun through its handler, then the PhaseRun', async () => {

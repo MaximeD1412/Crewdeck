@@ -25,6 +25,9 @@ type RunnerStepReport struct {
 
 	// Type corresponds to the JSON schema field "type".
 	Type string `json:"type"`
+
+	// VaultKeyVersion corresponds to the JSON schema field "vaultKeyVersion".
+	VaultKeyVersion *int `json:"vaultKeyVersion,omitempty,omitzero"`
 }
 
 type RunnerStepReportFigures map[string]interface{}
@@ -98,6 +101,12 @@ func (j *RunnerStepReport) UnmarshalJSON(value []byte) error {
 	}
 	if plain.Type != "step.report" {
 		return fmt.Errorf("field %s: must be equal to %s", "type", "step.report")
+	}
+	if plain.VaultKeyVersion != nil && 9007199254740991 < *plain.VaultKeyVersion {
+		return fmt.Errorf("field %s: must be <= %v", "vaultKeyVersion", 9007199254740991)
+	}
+	if plain.VaultKeyVersion != nil && 0 >= *plain.VaultKeyVersion {
+		return fmt.Errorf("field %s: must be > %v", "vaultKeyVersion", 0)
 	}
 	*j = RunnerStepReport(plain)
 	return nil

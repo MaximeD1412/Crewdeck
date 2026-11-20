@@ -8,7 +8,9 @@ export const IDEA_ROW_STATES = ['en-analyse', 'a-trier', 'analysee', 'retenue', 
 /**
  * An Idée in the Idées (IDEE-1): its state in a badge, the summary of its
  * analysis, its impact, its effort and its possible duplicates. A click on
- * the row outside its buttons (`actions`) emits `open`.
+ * the row outside its buttons (`actions`) emits `open`. One whose analysis
+ * `failed` (IDEE-2) shows it instead of its state: a `halt` rail and icon,
+ * its summary on a phone too, its page's signals in `actions`.
  */
 export const IdeaRow = defineComposant({
   name: 'IdeaRow',
@@ -26,6 +28,7 @@ export const IdeaRow = defineComposant({
     effort: z.string().nullable(),
     duplicates: z.string().nullable(),
     selected: z.boolean(),
+    failed: z.boolean().optional(),
   }),
   actions: { open: z.object({ id: zId }) },
   slots: ['actions'],
@@ -56,6 +59,7 @@ export const IdeaRow = defineComposant({
         effort: null,
         duplicates: null,
         selected: false,
+        failed: true,
       },
       slots: {
         actions: `<cd-status-badge data='{"tone":"halt","label":"Analyse échouée"}'></cd-status-badge><cd-button data='{"label":"Relancer l’analyse","variant":"secondary","size":"sm","icon":"refresh"}'></cd-button>`,

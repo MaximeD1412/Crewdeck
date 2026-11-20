@@ -10,6 +10,12 @@ export class Registry<T> {
     this.items.push(item);
   }
 
+  /** Removes `item`, when it was added. */
+  remove(item: T): void {
+    const index = this.items.indexOf(item);
+    if (index >= 0) this.items.splice(index, 1);
+  }
+
   all(): readonly T[] {
     return this.items;
   }

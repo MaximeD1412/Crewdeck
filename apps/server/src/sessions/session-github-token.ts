@@ -22,12 +22,15 @@ export class SessionGithubTokens {
   /**
    * The token of the Pilote's Session `id`: `sessions.not-found` for none,
    * `sessions.ended` once ended, `sessions.no-repository` when its Projet has
-   * no repository it still reaches (a Local one, or its access lost).
+   * no repository it still reaches (a Local one, or its access lost), or none
+   * at all (a scratch Session of no Projet).
    */
   async issue(id: string): Promise<SessionGithubToken> {
     const session = await this.prisma.scoped.agentSession.findUnique({ where: { id }, select: { state: true, projectId: true } });
     if (!session) throw notFound('sessions.not-found', MESSAGES['sessions.not-found']);
     if (session.state === 'ended') throw unprocessable('sessions.ended', MESSAGES['sessions.ended']);
+    // A Session of no Projet (an Idée's analysis, IDEE-2) reaches no repository.
+    if (session.projectId === null) throw unprocessable('sessions.no-repository', MESSAGES['sessions.no-repository']);
     const project = await this.prisma.scoped.project.findUnique({
       where: { id: session.projectId },
       select: { repositoryId: true, githubRepoId: true, accessLost: true },

@@ -25,13 +25,19 @@ import (
 //
 //   - start: step.started goes to the server, the Étape's context comes back;
 //   - report: the figures go as they are, the content sealed under the vault
-//     key with the additional data "step.report:<stepRunId>";
+//     key with the additional data "step.report:<stepRunId>"; for a kind of
+//     Étape the Runner knows (Config.Steps, IDEE-2's idea-analysis), the
+//     Runner checks the Étape's Contrat on the Session's folder first,
+//     refuses a report that fails it (`contract-failed`, its rules in the
+//     reply's details) and reads the figures and the content from the folder
+//     itself (StepKind.Report);
 //   - ask: a normalised `question` in the Session's stream, waiting as a
 //     Moteur's (SESSION-3); the Pilote's answer comes back through `answer`,
 //     never to the Moteur.
 //
 // Once the Session ended ok, its Contrat is checked on its worktree and its
-// change of code, and step.verdict goes before its end (sendVerdict).
+// change of code (a scratch folder has none), and step.verdict goes before
+// its end (sendVerdict).
 
 // The runner.sock ops of `crewdeck-runner etape`.
 const (
@@ -63,18 +69,58 @@ type StepRequest struct {
 	SessionID string `json:"sessionId"`
 }
 
-// StepContext is what `etape start` prints: the Étape the Session runs.
+// StepContext is what `etape start` prints: the Étape the Session runs; a
+// Session without code (its scratch folder) has no Projet, Origin, branch
+// nor base: null.
 type StepContext struct {
 	StepRunID  string                                       `json:"stepRunId"`
 	StepKind   contracts.RunnerSessionStartStepStepKind     `json:"stepKind"`
 	Skill      string                                       `json:"skill"`
 	ContractID *string                                      `json:"contractId"`
-	ProjectID  string                                       `json:"projectId"`
-	Origin     contracts.Origin                             `json:"origin"`
-	Branch     string                                       `json:"branch"`
-	Base       string                                       `json:"base"`
+	ProjectID  *string                                      `json:"projectId"`
+	Origin     *contracts.Origin                            `json:"origin"`
+	Branch     *string                                      `json:"branch"`
+	Base       *string                                      `json:"base"`
 	Inputs     []contracts.RunnerSessionStartStepInputsElem `json:"inputs"`
 }
+
+// StepKind is what the Runner does itself for one kind of Étape, beside its
+// Skill (Config.Steps): it prepares the Session's scratch folder before the
+// Moteur runs, and reads the report the Skill wrote there once the Étape's
+// Contrat passed on it.
+type StepKind interface {
+	// Prepare writes in dir what the Skill reads (IDEE-2's context.json).
+	Prepare(ctx context.Context, dir string, step *contracts.RunnerSessionStartStep) error
+	// Report reads the report in dir: an error when it is none the kind
+	// sends.
+	Report(dir string, step *contracts.RunnerSessionStartStep) (StepReport, error)
+}
+
+// StepReport is what a StepKind sends: the figures the server reads, and the
+// content sealed under the vault key with the additional data AAD.
+type StepReport struct {
+	Figures map[string]any
+	Content []byte
+	AAD     string
+}
+
+// FailedRule is a rule of the Contrat a report failed, its French label.
+type FailedRule struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
+
+// ContractFailedDetails are the details of a `contract-failed` reply.
+type ContractFailedDetails struct {
+	FailedRules []FailedRule `json:"failedRules"`
+}
+
+// contractFailed refuses a report its Contrat fails, with the failed rules.
+type contractFailed ContractFailedDetails
+
+func (contractFailed) Error() string  { return "session: contract-failed" }
+func (contractFailed) Code() string   { return "contract-failed" }
+func (e contractFailed) Details() any { return ContractFailedDetails(e) }
 
 // StepReportRequest is `etape report`'s: the figures the server reads, the
 // content it never does.
@@ -223,13 +269,18 @@ func (m *Manager) ServeSteps(sock *localsock.Server) {
 		}
 		return StepContext{
 			StepRunID: step.StepRunId, StepKind: step.StepKind, Skill: step.Skill, ContractID: contractID,
-			ProjectID: rec.ProjectID, Origin: rec.Origin, Branch: rec.Branch, Base: rec.Base, Inputs: inputs,
+			ProjectID: orNull(rec.ProjectID), Origin: rec.Origin, Branch: orNull(rec.Branch), Base: orNull(rec.Base), Inputs: inputs,
 		}, nil
 	})
 	sock.Handle(OpStepReport, func(ctx context.Context, raw json.RawMessage) (any, error) {
 		var request StepReportRequest
 		if err := json.Unmarshal(raw, &request); err != nil {
 			return nil, codedError("bad-request")
+		}
+		if _, rec, err := m.stepSession(request.SessionID); err == nil {
+			if kind := m.stepKind(rec); kind != nil {
+				return nil, m.kindReport(ctx, rec, kind)
+			}
 		}
 		var figures map[string]any
 		if err := json.Unmarshal(request.Figures, &figures); err != nil || figures == nil {
@@ -241,24 +292,18 @@ func (m *Manager) ServeSteps(sock *localsock.Server) {
 		if request.Content != nil && len(*request.Content) > StepReportContentMax {
 			return nil, codedError("too-long")
 		}
-		_, rec, err := m.stepSession(request.SessionID)
+		s, rec, err := m.stepSession(request.SessionID)
 		if err != nil {
 			return nil, err
 		}
 		stepRunID := rec.Step.StepRunId
-		var sealed *contracts.RunnerStepReportSealed
-		if request.Content != nil && *request.Content != "" {
-			if m.cfg.Seal == nil {
-				return nil, codedError("unavailable")
-			}
-			item, err := m.cfg.Seal([]byte(*request.Content), []byte(StepReportAAD(stepRunID)))
-			if err != nil {
-				m.cfg.Logger.Warn("session.step", "sessionId", rec.SessionID, "step", "seal", "error", errorKind(err))
-				return nil, codedError("unavailable")
-			}
-			sealed = &contracts.RunnerStepReportSealed{Key: base64.RawURLEncoding.EncodeToString(item.Key), Ciphertext: base64.RawURLEncoding.EncodeToString(item.Ciphertext)}
+		if request.Content == nil || *request.Content == "" {
+			return nil, m.sendStep(ctx, rec.SessionID, protocol.NewStepReport(stepRunID, figures, nil, 0))
 		}
-		return nil, m.sendStep(ctx, rec.SessionID, protocol.NewStepReport(stepRunID, figures, sealed))
+		if m.cfg.Seal == nil {
+			return nil, codedError("unavailable")
+		}
+		return nil, m.sendReport(ctx, s, rec.SessionID, sentReport{stepRunID: stepRunID, figures: figures, content: []byte(*request.Content), aad: StepReportAAD(stepRunID)})
 	})
 	sock.Handle(OpStepAsk, func(_ context.Context, raw json.RawMessage) (any, error) {
 		var request StepAskRequest
@@ -340,6 +385,156 @@ func (m *Manager) ServeSteps(sock *localsock.Server) {
 		}
 		return StepAnswerReply{Answered: true, Answer: reply}, nil
 	})
+}
+
+// kindReport sends the report of a Session whose kind of Étape the Runner
+// knows: its Contrat checked on the Session's folder, `contract-failed` when
+// it fails, then the report the kind reads there, its content sealed under
+// the kind's additional data. Nothing is sent when the report is refused.
+func (m *Manager) kindReport(ctx context.Context, rec record, kind StepKind) error {
+	warn := func(step string, err error) {
+		m.cfg.Logger.Warn("session.step", "sessionId", rec.SessionID, "step", step, "error", errorKind(err))
+	}
+	if m.cfg.Seal == nil {
+		return codedError("unavailable")
+	}
+	if id, ok := rec.Step.ContractId.(string); ok && id != "" {
+		c, err := contrat.Get(id)
+		if err != nil {
+			warn("contrat", err)
+			return codedError("unavailable")
+		}
+		checkCtx, cancel := context.WithTimeout(ctx, verdictBound)
+		verdict, err := contrat.Check(checkCtx, c, contrat.Target{Dir: rec.Worktree})
+		cancel()
+		if err != nil {
+			warn("check", err)
+			return codedError("unavailable")
+		}
+		if verdict.Status != contracts.ContratVerdictStatusPassed {
+			return failedRules(c, verdict.FailedRuleIds)
+		}
+	}
+	report, err := kind.Report(rec.Worktree, rec.Step)
+	if err != nil {
+		return codedError("bad-request")
+	}
+	if n, err := jsonLength(report.Figures); err != nil || n > StepReportFiguresMax || len(report.Content) > StepReportContentMax {
+		return codedError("too-long")
+	}
+	s, _, err := m.stepSession(rec.SessionID)
+	if err != nil {
+		return err
+	}
+	return m.sendReport(ctx, s, rec.SessionID, sentReport{stepRunID: rec.Step.StepRunId, figures: report.Figures, content: report.Content, aad: report.AAD})
+}
+
+// sentReport is an Étape's report as the Runner sent it: its content in
+// clear, sealed again when the vault held moves to a new version.
+type sentReport struct {
+	stepRunID string
+	figures   map[string]any
+	content   []byte
+	aad       string
+	// version is the vault key version it was last sealed under.
+	version int
+}
+
+// sendReport seals report's content under the vault held, sends it, and
+// keeps it as the Session's last report.
+func (m *Manager) sendReport(ctx context.Context, s *live, sessionID string, report sentReport) error {
+	s.reportMu.Lock()
+	defer s.reportMu.Unlock()
+	return m.sealAndSend(ctx, s, sessionID, report, 0)
+}
+
+// sealAndSend is sendReport, s.reportMu held; a vault held of a version not
+// past newerThan sends nothing.
+func (m *Manager) sealAndSend(ctx context.Context, s *live, sessionID string, report sentReport, newerThan int) error {
+	item, version, err := m.cfg.Seal(report.content, []byte(report.aad))
+	if err != nil {
+		m.cfg.Logger.Warn("session.step", "sessionId", sessionID, "step", "seal", "error", errorKind(err))
+		return codedError("unavailable")
+	}
+	if version <= newerThan {
+		return nil
+	}
+	sealed := &contracts.RunnerStepReportSealed{Key: base64.RawURLEncoding.EncodeToString(item.Key), Ciphertext: base64.RawURLEncoding.EncodeToString(item.Ciphertext)}
+	if err := m.sendStep(ctx, sessionID, protocol.NewStepReport(report.stepRunID, report.figures, sealed, version)); err != nil {
+		return err
+	}
+	report.version = version
+	s.mu.Lock()
+	s.report = &report
+	s.mu.Unlock()
+	return nil
+}
+
+// VaultMoved is told that the vault held moved to a new version: the last
+// report of each running Étape's Session, sealed under an older one, is
+// sealed again and sent once more, since the server keeps nothing sealed
+// under a version a rotation replaced (E2E-4), which a rotation done between
+// its seal and its reception left it.
+func (m *Manager) VaultMoved() {
+	if m.cfg.Seal == nil {
+		return
+	}
+	m.mu.Lock()
+	sessions := make([]*live, 0, len(m.sessions))
+	for _, s := range m.sessions {
+		sessions = append(sessions, s)
+	}
+	m.mu.Unlock()
+	for _, s := range sessions {
+		go m.resendReport(s)
+	}
+}
+
+func (m *Manager) resendReport(s *live) {
+	s.reportMu.Lock()
+	defer s.reportMu.Unlock()
+	s.mu.Lock()
+	report, running, sessionID := s.report, s.alive && s.run != nil, s.rec.SessionID
+	s.mu.Unlock()
+	if report == nil || !running {
+		return
+	}
+	ctx, cancel := context.WithTimeout(m.ctx, 10*time.Second)
+	defer cancel()
+	if err := m.sealAndSend(ctx, s, sessionID, *report, report.version); err != nil && m.ctx.Err() == nil {
+		m.cfg.Logger.Warn("session.step", "sessionId", sessionID, "step", "resend-report", "error", errorKind(err))
+	}
+}
+
+// failedRules is the refusal of a report whose Contrat failed the rules ids,
+// each with its label.
+func failedRules(c contrat.Contrat, ids []string) contractFailed {
+	labels := map[string]string{}
+	for _, rule := range c.Rules {
+		labels[rule.ID] = rule.Label
+	}
+	failed := contractFailed{FailedRules: make([]FailedRule, 0, len(ids))}
+	for _, id := range ids {
+		failed.FailedRules = append(failed.FailedRules, FailedRule{ID: id, Label: labels[id]})
+	}
+	return failed
+}
+
+// stepKind is the kind of Étape of the Session the Runner knows, nil for
+// one it only runs the Skill of.
+func (m *Manager) stepKind(rec record) StepKind {
+	if rec.Step == nil {
+		return nil
+	}
+	return m.cfg.Steps[rec.Step.StepKind]
+}
+
+// orNull is s, null when empty.
+func orNull(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // StepReportAAD is the additional data a report's content is sealed under
@@ -490,7 +685,7 @@ func (m *Manager) sendVerdict(w Worktree, rec record) {
 	ctx, cancel := context.WithTimeout(m.ctx, verdictBound)
 	defer cancel()
 	var pr *contrat.PullRequest
-	if m.cfg.ChangeOf != nil {
+	if m.cfg.ChangeOf != nil && rec.Branch != "" {
 		if pr, err = m.cfg.ChangeOf(ctx, rec.ProjectID, rec.Branch); err != nil {
 			warn("change-unread")
 			return

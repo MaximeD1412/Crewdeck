@@ -8,6 +8,11 @@ import {
   type FolderCheck,
   type FolderCheckResult,
   HEARTBEAT_SECONDS,
+  IDEA_ANALYSIS_CONTRAT,
+  IDEA_ANALYSIS_NEW_PROJECT,
+  type IdeaAnalysisContent,
+  type IdeaAnalysisFigures,
+  ideaItemAad,
   type McpServers,
   projectFolderAad,
   PROTOCOL_VERSION,
@@ -20,6 +25,7 @@ import {
   type SessionInputPayload,
   type SessionOutcome,
   type SessionReplay,
+  type SessionStart,
   type TestingRunnerUsage,
   zFolderCheck,
   zServerToRunner,
@@ -85,6 +91,23 @@ export type FakeCommandEnd = { readonly reason: 'exited'; readonly exitCode: num
 /** The two chunks of a fake run: opaque bytes, as the server sees a real one's. */
 const fakeChunk = (seq: number) => ({ seq, nonce: Buffer.alloc(12, seq).toString('base64url'), ciphertext: Buffer.alloc(32, 0xf0 + seq).toString('base64url') });
 
+/** How the fake Runner answers an analysis of an Idée: its report and its Contrat passed, its Contrat incomplete, or as any Session. */
+export type FakeIdeaAnalysis = 'passed' | 'incomplete' | undefined;
+
+/** The recorded analysis the fake Runner reports: its figures (the Projet visé and the duplicates are the Session's), its sentences. */
+export const FAKE_IDEA_ANALYSIS = {
+  figures: { impact: 4, effort: 2 },
+  content: {
+    title: 'Export CSV des factures',
+    summary: 'Exporter les factures du mois en CSV pour la comptable, depuis la liste des factures.',
+    projectWhy: 'Les factures vivent dans ce Projet.',
+    impactWhy: 'La comptable le demande chaque mois.',
+    effortWhy: 'Une route et un bouton, la liste existe déjà.',
+    questions: ['Faut-il les avoirs dans le même fichier ?'],
+  },
+  duplicateWhy: 'Elle parle aussi de l’export des factures.',
+} as const;
+
 /**
  * The Runner of the scenario's Pilote, for `pnpm dev` and the end-to-end
  * run (`CREWDECK_FAKES=1`): it connects to this server's own `/api/ws` with
@@ -113,6 +136,12 @@ const fakeChunk = (seq: number) => ({ seq, nonce: Buffer.alloc(12, seq).toString
  * Its Commandes (RUNNER-18): `command.run` answers `command.started`, two
  * output chunks (opaque bytes) and the verdict `endCommandsWith` set (by
  * default exited with 0); `command.replay` sends the tab those two chunks again.
+ * Its analyses of an Idée (IDEE-2): a `session.start` of `idea-analysis`
+ * answers, after `active`, `step.started`, then by `analyseIdeasWith`
+ * (`passed` by default) the recorded report (`FAKE_IDEA_ANALYSIS`, its
+ * sentences sealed with the vault key when it has one) and its Contrat
+ * passed, or the Contrat incomplete on `idea-analysis.report.schema` (a
+ * summary of 401 characters) without report; then `ended` `ok`.
  */
 export class FakeRunner implements Fake {
   private socket: WebSocket | undefined;
@@ -130,6 +159,7 @@ export class FakeRunner implements Fake {
   /** The Sessions whose log it holds, by id: their key and log. */
   private readonly held = new Map<string, HeldSession & { readonly key: Buffer; readonly log: EngineEvent[] }>();
   private commandsEnd: FakeCommandEnd = { reason: 'exited', exitCode: 0 };
+  private analyses: FakeIdeaAnalysis = 'passed';
 
   /** Whether its `hello` was accepted and its socket is still open. */
   get connected(): boolean {
@@ -236,6 +266,11 @@ export class FakeRunner implements Fake {
     this.held.set(sessionId, { ...session, key: randomBytes(32), log: [...session.events] });
   }
 
+  /** How its analyses of an Idée end, from now on: `undefined`, as any Session (`endSessionsWith`). */
+  analyseIdeasWith(outcome: FakeIdeaAnalysis): void {
+    this.analyses = outcome;
+  }
+
   /** How its runs of a Commande end, from now on. */
   endCommandsWith(end: FakeCommandEnd): void {
     this.commandsEnd = end;
@@ -266,6 +301,7 @@ export class FakeRunner implements Fake {
     this.projects.clear();
     this.held.clear();
     this.commandsEnd = { reason: 'exited', exitCode: 0 };
+    this.analyses = 'passed';
   }
 
   private answer(socket: WebSocket, message: ServerToRunner): void {
@@ -276,6 +312,10 @@ export class FakeRunner implements Fake {
         this.sessions.set(message.sessionId, engineSessionId);
         this.send(socket, { type: 'session.state', sessionId: message.sessionId, state: 'active', engineSessionId });
         this.sayWaiting(socket, message.sessionId);
+        if (message.type === 'session.start' && message.step?.stepKind === 'idea-analysis' && this.analyses) {
+          this.analyse(socket, message, this.analyses);
+          return;
+        }
         if (this.sessionsEnd === 'ok') this.send(socket, { type: 'session.state', sessionId: message.sessionId, state: 'ended', outcome: 'ok' });
         if (this.sessionsEnd === 'error') this.send(socket, { type: 'session.state', sessionId: message.sessionId, state: 'ended', outcome: 'error', error: 'engine-failed' });
         if (this.sessionsEnd) this.sessions.delete(message.sessionId);
@@ -321,6 +361,32 @@ export class FakeRunner implements Fake {
   }
 
   /** What `sealed` holds, its path trimmed as the Runner reads it; `undefined` without the vault key or for what does not open. */
+  /** The analysis of the Idée of `start`, as the Runner sends it once its Skill reported and its Contrat was checked. */
+  private analyse(socket: WebSocket, start: SessionStart, outcome: Exclude<FakeIdeaAnalysis, undefined>): void {
+    const step = start.step;
+    const ideas = step?.ideas;
+    if (!step || !ideas) return;
+    const stepRunId = step.stepRunId;
+    const contract = { contractId: IDEA_ANALYSIS_CONTRAT.id, version: IDEA_ANALYSIS_CONTRAT.version, warningRuleIds: [] };
+    this.send(socket, { type: 'step.started', stepRunId });
+    if (outcome === 'passed') {
+      const duplicate = ideas.open[0];
+      const figures: IdeaAnalysisFigures = {
+        ...FAKE_IDEA_ANALYSIS.figures,
+        projectId: start.projectId ?? IDEA_ANALYSIS_NEW_PROJECT,
+        duplicateIds: duplicate ? [duplicate.id] : [],
+      };
+      const content: IdeaAnalysisContent = { ...FAKE_IDEA_ANALYSIS.content, questions: [...FAKE_IDEA_ANALYSIS.content.questions], duplicates: duplicate ? [{ id: duplicate.id, why: FAKE_IDEA_ANALYSIS.duplicateWhy }] : [] };
+      const sealed = this.vaultKey ? sealItem(this.vaultKey, JSON.stringify(content), ideaItemAad(ideas.idea.id, 'analysis')) : undefined;
+      this.send(socket, { type: 'step.report', stepRunId, figures, ...(sealed ? { sealed, vaultKeyVersion: ideas.vaultKeyVersion } : {}) });
+      this.send(socket, { type: 'step.verdict', stepRunId, verdict: { ...contract, status: 'passed', failedRuleIds: [] } });
+    } else {
+      this.send(socket, { type: 'step.verdict', stepRunId, verdict: { ...contract, status: 'incomplete', failedRuleIds: ['idea-analysis.report.schema'] } });
+    }
+    this.send(socket, { type: 'session.state', sessionId: start.sessionId, state: 'ended', outcome: 'ok' });
+    this.sessions.delete(start.sessionId);
+  }
+
   private open(sealed: SealedItem, aad: string): FolderCheck | undefined {
     if (!this.vaultKey) return undefined;
     try {

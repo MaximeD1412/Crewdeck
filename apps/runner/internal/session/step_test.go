@@ -136,20 +136,28 @@ type stepSetup struct {
 	m      *session.Manager
 	socket string
 	key    []byte
-	// sealed are the contents the vault sealed, by their additional data.
-	mu     sync.Mutex
-	sealed map[string]string
+	// sealed are the contents the vault sealed, by their additional data;
+	// version is the vault's, 1 unless moved.
+	mu      sync.Mutex
+	sealed  map[string]string
+	version int
 }
 
 func newStepSetup(t *testing.T, config func(*session.Config)) *stepSetup {
 	t.Helper()
-	st := &stepSetup{relayed: newRelayed(t, message("au travail"), question("hold")), sealed: map[string]string{}}
+	return newStepSetupOf(t, config, start(firstID, "feat/12-panier"))
+}
+
+// newStepSetupOf is newStepSetup for the Session message starts.
+func newStepSetupOf(t *testing.T, config func(*session.Config), begin contracts.RunnerSessionStart) *stepSetup {
+	t.Helper()
+	st := &stepSetup{relayed: newRelayed(t, message("au travail"), question("hold")), sealed: map[string]string{}, version: 1}
 	st.config = func(c *session.Config) {
-		c.Seal = func(plaintext, aad []byte) (keys.SealedItem, error) {
+		c.Seal = func(plaintext, aad []byte) (keys.SealedItem, int, error) {
 			st.mu.Lock()
 			defer st.mu.Unlock()
 			st.sealed[string(aad)] = string(plaintext)
-			return keys.SealedItem{Key: bytes.Repeat([]byte{1}, 60), Ciphertext: bytes.Repeat([]byte{2}, 32)}, nil
+			return keys.SealedItem{Key: bytes.Repeat([]byte{byte(st.version)}, 60), Ciphertext: bytes.Repeat([]byte{2}, 32)}, st.version, nil
 		}
 		if config != nil {
 			config(c)
@@ -157,7 +165,7 @@ func newStepSetup(t *testing.T, config func(*session.Config)) *stepSetup {
 	}
 	st.m = st.manager(t)
 	st.socket = serveSocket(t, st.m, st.home)
-	st.m.Start(start(firstID, "feat/12-panier"))
+	st.m.Start(begin)
 	st.key = st.openKeys(t, st.frame(t).(contracts.RunnerSessionKeys), st.holders[0])
 	st.waiting(t, "hold", contracts.RunnerSessionWaitingKindQuestion, 2)
 	return st
@@ -204,7 +212,7 @@ func TestEtapeStartSendsStepStartedAndGivesTheEtapesContext(t *testing.T) {
 		t.Fatalf("sent %+v, want the step.started of the StepRun", started)
 	}
 	if got.StepRunID != stepRunID || got.StepKind != contracts.RunnerSessionStartStepStepKindCode || got.Skill != "crewdeck-test" || got.ContractID != nil ||
-		got.ProjectID != projectID || got.Branch != "feat/12-panier" || got.Base != "develop" || got.Origin.Github == nil || got.Inputs == nil {
+		deref(got.ProjectID) != projectID || deref(got.Branch) != "feat/12-panier" || deref(got.Base) != "develop" || got.Origin == nil || got.Origin.Github == nil || got.Inputs == nil {
 		t.Fatalf("context %+v", got)
 	}
 	if code := failed(st.call(t, session.OpStepStart, session.StepRequest{SessionID: secondID}, nil)); code != "not-found" {
@@ -244,6 +252,9 @@ func TestEtapeReportSendsTheFiguresAndTheContentSealedUnderItsStepRun(t *testing
 	if report.Sealed == nil || report.Sealed.Key != b64.EncodeToString(bytes.Repeat([]byte{1}, 60)) || report.Sealed.Ciphertext != b64.EncodeToString(bytes.Repeat([]byte{2}, 32)) {
 		t.Fatalf("sealed %+v, want the vault's item in base64url", report.Sealed)
 	}
+	if report.VaultKeyVersion == nil || *report.VaultKeyVersion != 1 {
+		t.Fatalf("vaultKeyVersion %v, want the vault's 1", report.VaultKeyVersion)
+	}
 	st.mu.Lock()
 	sealed := st.sealed["step.report:"+stepRunID]
 	st.mu.Unlock()
@@ -262,6 +273,52 @@ func TestEtapeReportSendsTheFiguresAndTheContentSealedUnderItsStepRun(t *testing
 	select {
 	case m := <-st.reports.steps:
 		t.Fatalf("sent %+v", m)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+// E2E-4: a rotation done between a report's seal and its reception leaves
+// it kept nowhere; once the vault held moves, the last report of a running
+// Étape goes again, sealed under the new version. A move to no new version
+// sends nothing.
+func TestTheLastReportGoesAgainSealedUnderTheVaultsNewVersion(t *testing.T) {
+	st := newStepSetup(t, nil)
+	if err := st.call(t, session.OpStepReport, map[string]any{"sessionId": firstID, "figures": map[string]any{"read": 1}, "content": "Le Ticket est lu."}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if first := st.step(t).(contracts.RunnerStepReport); *first.VaultKeyVersion != 1 {
+		t.Fatalf("first report under %d", *first.VaultKeyVersion)
+	}
+
+	st.m.VaultMoved()
+	select {
+	case m := <-st.reports.steps:
+		t.Fatalf("the vault held still 1, sent %+v", m)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	st.mu.Lock()
+	st.version = 2
+	delete(st.sealed, "step.report:"+stepRunID)
+	st.mu.Unlock()
+	st.m.VaultMoved()
+	again, ok := st.step(t).(contracts.RunnerStepReport)
+	if !ok || again.StepRunId != stepRunID || again.Figures["read"] != float64(1) || again.VaultKeyVersion == nil || *again.VaultKeyVersion != 2 {
+		t.Fatalf("sent again %+v", again)
+	}
+	if again.Sealed == nil || again.Sealed.Key != base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{2}, 60)) {
+		t.Fatalf("sealed again %+v, want under the version 2", again.Sealed)
+	}
+	st.mu.Lock()
+	sealed := st.sealed["step.report:"+stepRunID]
+	st.mu.Unlock()
+	if sealed != "Le Ticket est lu." {
+		t.Fatalf("sealed again %q", sealed)
+	}
+	st.m.VaultMoved()
+	select {
+	case m := <-st.reports.steps:
+		t.Fatalf("already under 2, sent %+v", m)
 	case <-time.After(100 * time.Millisecond):
 	}
 }
@@ -476,4 +533,12 @@ func TestOnlyAnEtapesTurnEndsItsSessionAndOneInErrorEndsItInError(t *testing.T) 
 		t.Fatalf("sent %+v, want no verdict", sent)
 	default:
 	}
+}
+
+// deref is *s, "" for null.
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

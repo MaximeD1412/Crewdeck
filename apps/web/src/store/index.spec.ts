@@ -296,6 +296,7 @@ describe('the page’s store', () => {
       updatedAt: new Date().toISOString(),
       analysedAt: null,
       triagedAt: null,
+      analysisRun: null,
     };
     store.applySnapshot({ ...SNAPSHOT, ideas: [idea] });
     expect(store.getState().slices.idea?.get(idea.id)).toEqual(idea);

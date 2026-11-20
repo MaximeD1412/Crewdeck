@@ -22,11 +22,13 @@ import { SessionHooks } from '../../../sessions/session-hooks.js';
 import type { SessionsService, StartSession } from '../../../sessions/sessions.service.js';
 import type { SettingsService } from '../../../settings/settings.service.js';
 import type { Engine } from '../engine.js';
-import { AgentSteps, type AgentKindSpec, type AgentSignal, mcpServersOf, REPORT_SCHEMA_RULE, sessionInputsOf } from './agent.js';
+import { AgentSteps, type AgentKindSpec, type AgentSignal, mcpServersOf, REPORT_MISSING_RULE, REPORT_SCHEMA_RULE, sessionInputsOf } from './agent.js';
 import type { StepKindHandler, StepResult, StepRunContext } from './handler.js';
 import { type StepRunFinished, StepRunHooks } from './step-run-hooks.js';
 
-const TX = {} as Tx;
+/** The vault key's current version, which the Pilote's row says. */
+const VAULT_VERSION = 2;
+const TX = { pilot: { update: () => Promise.resolve({ vaultKeyVersion: VAULT_VERSION }) } } as unknown as Tx;
 const STEP_RUN_ID = '019a8f3c-2b4d-7e10-8a5b-6c7d8e9f0a1b';
 const SESSION_ID = '019a8f3c-2b4d-7e10-8a5b-6c7d8e9f0a2c';
 const PROJECT_ID = '019a8f3c-2b4d-7e10-8a5b-6c7d8e9f0a3d';
@@ -37,6 +39,10 @@ const CHANGE: ArtifactRef = { portId: 'changement', type: 'code-change', id: '57
 const SHA = 'b'.repeat(40);
 
 const CODE = PROCESS_CREWDECK.steps.find((step) => step.id === 'st-code') as Step;
+const ANALYSE = PROCESS_CREWDECK.steps.find((step) => step.id === 'st-analyse') as Step;
+const IDEA_ID = '019a8f3c-2b4d-7e10-8a5b-6c7d8e9f0b01';
+const SEALED = { key: 'k'.repeat(80), ciphertext: 'c'.repeat(120) };
+const SEALED_TITLE = { ...SEALED, aad: `${IDEA_ID}:text` };
 /** « Code » with a Rôle of the Pilote's, another Skill, two Serveurs MCP and an Entrée « maquettes » nothing fed. */
 const TOOLED: Step = {
   ...CODE,
@@ -156,7 +162,7 @@ const setup = (options: { roles?: Record<string, { engine: 'claude-code' | 'code
   );
   steps.onModuleInit();
   const handler: StepKindHandler = steps.defineAgentKind(SPEC);
-  const signal = (run: StepRunContext, value: AgentSignal): Promise<StepResult | null> => handler.onSignal(TX, run, value);
+  const signal = (run: StepRunContext, value: AgentSignal): Promise<StepResult | null> => asPilot(() => handler.onSignal(TX, run, value));
   return { steps, handler, signal, engine, sessions, sessionHooks, settings, finished, providers, prisma, logger, dispatcher };
 };
 
@@ -215,6 +221,37 @@ describe('the agent Étapes', () => {
     const { handler, sessions } = setup({ roles: { code: null } });
 
     await expect(asPilot(() => handler.start(TX, runOf({ sessionId: null })))).rejects.toMatchObject({ code: 'step-run.no-engine' } satisfies Partial<AppError>);
+    expect(sessions.start).not.toHaveBeenCalled();
+  });
+
+  it('fails no-engine a StepRun of a kind the Process starts on its own while its Rôle has no Moteur: no Session, StepRunHooks.onFinished once', async () => {
+    const { steps, sessions, finished } = setup({ roles: { code: null } });
+    const own = steps.defineAgentKind({ ...SPEC, kind: 'review', withoutEngine: 'fail' });
+
+    expect(await asPilot(() => own.start(TX, runOf({ sessionId: null, kind: 'review' })))).toEqual({ state: 'failed', failure: 'no-engine' });
+
+    expect(sessions.start).not.toHaveBeenCalled();
+    expect(finished).toEqual([{ stepRun: expect.objectContaining({ id: STEP_RUN_ID }), finished: { status: 'failed', failure: 'no-engine' } }]);
+  });
+
+  it('starts a scratch Session for a kind without a branch: no Projet, the account’s Rôles, its step’s context', async () => {
+    const { steps, sessions, settings } = setup({ roles: { idea: { engine: 'claude-code', model: 'claude-sonnet-5-5' } } });
+    const ideas = { idea: { id: IDEA_ID, number: 3, text: SEALED, analysis: null }, open: [], vaultKeyVersion: VAULT_VERSION };
+    const scratch = steps.defineAgentKind({ kind: 'idea-analysis', title: () => SEALED_TITLE, branch: () => null, outputs: () => [], stepContext: () => Promise.resolve({ ideas }), waitingWork: 'own' });
+    const run = { ...runOf({ sessionId: null, stepId: 'st-analyse', kind: 'idea-analysis', inputs: [] }, ANALYSE), phaseRun: { id: 'p', projectId: null } as PhaseRun };
+
+    expect(await asPilot(() => scratch.start(TX, run))).toBe('running');
+
+    expect(settings.effective).toHaveBeenCalledWith(PILOT_ID, undefined);
+    expect(sessions.start).toHaveBeenCalledWith(TX, expect.objectContaining({ projectId: null, branch: null, role: 'idea', engine: 'claude-code', title: SEALED_TITLE }));
+    expect(sessions.start.mock.calls[0]?.[1].step).toMatchObject({ stepKind: 'idea-analysis', skill: 'idea-analysis', contractId: 'idea-analysis', ideas });
+  });
+
+  it('refuses to start a Session with a branch for a StepRun of no Projet', async () => {
+    const { handler, sessions } = setup();
+    const run = { ...runOf({ sessionId: null }), phaseRun: { id: 'p', projectId: null } as PhaseRun };
+
+    await expect(asPilot(() => handler.start(TX, run))).rejects.toThrow(/no Projet/);
     expect(sessions.start).not.toHaveBeenCalled();
   });
 
@@ -284,12 +321,24 @@ describe('the agent Étapes', () => {
   it('gives a valid report’s figures and sealed content to its kind’s module; an invalid one writes report.schema, the StepRun failed incomplete only once its Session ended', async () => {
     const { steps, signal, engine, finished } = setup();
     const stored: unknown[] = [];
-    steps.registerStepReport('code', z.strictObject({ tickets: z.int().min(0) }), (_tx, _run, report) => {
-      stored.push(report);
-      return Promise.resolve();
-    });
+    steps.registerStepReport(
+      'code',
+      z.strictObject({ tickets: z.int().min(0) }),
+      (_tx, _run, report) => {
+        stored.push(report);
+        return Promise.resolve();
+      },
+      () => Promise.resolve(stored.length > 0),
+    );
     const sealed = { key: 'k'.repeat(80), ciphertext: 'c'.repeat(24) };
-    const report = (figures: Record<string, unknown>) => ({ kind: 'step.report', report: { type: 'step.report', id: STEP_RUN_ID, at: '2026-11-19T10:00:00.000Z', stepRunId: STEP_RUN_ID, figures, sealed } }) as const;
+    const report = (figures: Record<string, unknown>, vaultKeyVersion: number | null = VAULT_VERSION) =>
+      ({ kind: 'step.report', report: { type: 'step.report', id: STEP_RUN_ID, at: '2026-11-19T10:00:00.000Z', stepRunId: STEP_RUN_ID, figures, sealed, ...(vaultKeyVersion ? { vaultKeyVersion } : {}) } }) as const;
+
+    // Sealed under a version a rotation replaced since, or under none said: kept nowhere (E2E-4).
+    expect(await signal(runOf(), report({ tickets: 3 }, VAULT_VERSION - 1))).toBeNull();
+    expect(await signal(runOf(), report({ tickets: 3 }, null))).toBeNull();
+    expect(stored).toEqual([]);
+    expect(engine.recordContratVerdict).not.toHaveBeenCalled();
 
     expect(await signal(runOf(), report({ tickets: 3 }))).toBeNull();
     expect(stored).toEqual([{ figures: { tickets: 3 }, sealed }]);
@@ -303,6 +352,23 @@ describe('the agent Étapes', () => {
 
     expect(await signal(runOf({ contratVerdict: written }), { kind: 'session', session: sessionOf({ state: 'ended', outcome: 'ok' }) })).toEqual({ state: 'failed', failure: 'contract-incomplete' });
     expect(finished.map(({ finished: outcome }) => outcome)).toEqual([{ status: 'incomplete', verdict: written, failure: 'contract-incomplete' }]);
+  });
+
+  it('fails incomplete, rule report.missing, a StepRun whose Contrat passed but whose kind’s report never came', async () => {
+    const { steps, signal, engine, finished } = setup();
+    const received = vi.fn(() => Promise.resolve(false));
+    steps.registerStepReport('code', z.strictObject({ tickets: z.int() }), () => Promise.resolve(), received);
+    const passed = runOf({ contratVerdict: verdictOf('passed') });
+
+    expect(await signal(passed, { kind: 'session', session: sessionOf({ state: 'ended', outcome: 'ok' }) })).toEqual({ state: 'failed', failure: 'contract-incomplete' });
+
+    const missing = verdictOf('incomplete', [REPORT_MISSING_RULE]);
+    expect(received).toHaveBeenCalledWith(TX, passed);
+    expect(engine.recordContratVerdict).toHaveBeenCalledWith(TX, passed, missing);
+    expect(finished.map(({ finished: outcome }) => outcome)).toEqual([{ status: 'incomplete', verdict: missing, failure: 'contract-incomplete' }]);
+
+    received.mockResolvedValue(true);
+    expect(await signal(passed, { kind: 'session', session: sessionOf({ state: 'ended', outcome: 'ok' }) })).toEqual({ state: 'done', outputs: [CHANGE] });
   });
 
   it('keeps report.schema in the Runner’s verdict that follows a refused report, passed or not', async () => {
@@ -326,7 +392,7 @@ describe('the agent Étapes', () => {
 
   it('writes a report.schema verdict of the kind’s Contrat when none was checked yet', async () => {
     const { steps, signal, engine } = setup();
-    steps.registerStepReport('code', z.strictObject({ tickets: z.int() }), () => Promise.resolve());
+    steps.registerStepReport('code', z.strictObject({ tickets: z.int() }), () => Promise.resolve(), () => Promise.resolve(true));
 
     await signal(runOf(), { kind: 'step.report', report: { type: 'step.report', id: STEP_RUN_ID, at: '2026-11-19T10:00:00.000Z', stepRunId: STEP_RUN_ID, figures: {} } });
 
@@ -338,8 +404,8 @@ describe('the agent Étapes', () => {
 
     expect(await signal(runOf(), { kind: 'step.report', report: { type: 'step.report', id: STEP_RUN_ID, at: '2026-11-19T10:00:00.000Z', stepRunId: STEP_RUN_ID, figures: {} } })).toBeNull();
     expect(logger.warn).toHaveBeenCalled();
-    steps.registerStepReport('code', z.object({}), () => Promise.resolve());
-    expect(() => steps.registerStepReport('code', z.object({}), () => Promise.resolve())).toThrow(/code/);
+    steps.registerStepReport('code', z.object({}), () => Promise.resolve(), () => Promise.resolve(true));
+    expect(() => steps.registerStepReport('code', z.object({}), () => Promise.resolve(), () => Promise.resolve(true))).toThrow(/code/);
   });
 
   it('ignores the Skill’s messages before its Session is written, and any signal not its own', async () => {
@@ -403,5 +469,16 @@ describe('the agent Étapes', () => {
       { projectId: '019a8f3c-2b4d-7e10-8a5b-6c7d8e9f0a5f', name: 'Projet local', items: [{ kind: 'step-queued', count: 1 }] },
     ]);
     expect(prisma.scoped.agentSession.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { state: 'starting', stepRunId: { not: null } } }));
+  });
+
+  it('leaves out of step-runs the kinds that list their own waiting work', async () => {
+    const { steps, providers, prisma } = setup();
+    steps.defineAgentKind({ kind: 'idea-analysis', title: () => SEALED_TITLE, branch: () => null, outputs: () => [], waitingWork: 'own' });
+
+    await providers.find((candidate) => candidate.key === 'step-runs')?.projectsWaiting(PROJECT_ID);
+
+    expect(prisma.scoped.agentSession.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { state: 'starting', stepRunId: { not: null }, stepKind: { notIn: ['idea-analysis'] } } }),
+    );
   });
 });

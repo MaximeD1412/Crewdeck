@@ -20,7 +20,9 @@ const TONES: Readonly<Record<State, Tone>> = {
  * `bulb`), its title (the button that opens it, stretched over the row), its
  * meta, the summary of its analysis, its facts, then its state's badge on the
  * right. The page's buttons (`actions`) go under it, on the right from 1280 px.
- * Selected, it is raised and marked current.
+ * Selected, it is raised and marked current. Its analysis `failed`, it has a
+ * `halt` rail and icon, its summary at every width, and no state badge: the
+ * page's own in `actions` says it (`idees-analyse-echouee.html`).
  */
 export class PasserelleIdeaRow extends PasserelleElement<typeof IdeaRow> {
   static override properties = { hasActions: { state: true } };
@@ -43,6 +45,12 @@ export class PasserelleIdeaRow extends PasserelleElement<typeof IdeaRow> {
       .context,
       .facts {
         display: none;
+      }
+      .failed .context {
+        display: -webkit-box;
+      }
+      .halt .icon {
+        color: var(--cd-halt);
       }
       @media (min-width: 1280px) {
         .row {
@@ -71,13 +79,13 @@ export class PasserelleIdeaRow extends PasserelleElement<typeof IdeaRow> {
   }
 
   protected override render() {
-    const { id, title, meta, state, summary, impact, effort, duplicates, selected } = this.data;
+    const { id, title, meta, state, summary, impact, effort, duplicates, selected, failed } = this.data;
     const facts = [
       impact === null ? null : t('ideaRow.impact', { impact }),
       effort === null ? null : t('ideaRow.effort', { effort }),
       duplicates,
     ].filter((fact) => fact !== null);
-    return html`<div part="row" class="row ${selected ? 'selected' : ''}">
+    return html`<div part="row" class="row ${selected ? 'selected' : ''} ${failed ? 'failed halt' : ''}">
       <span class="rail"></span>
       <span class="icon"><cd-icon .data=${{ name: state === 'en-analyse' ? 'spark' : 'bulb', size: 'sm' }}></cd-icon></span>
       <div class="main">
@@ -93,9 +101,11 @@ export class PasserelleIdeaRow extends PasserelleElement<typeof IdeaRow> {
         ${summary === null ? nothing : html`<span class="context">${summary}</span>`}
         ${facts.length === 0 ? nothing : html`<span class="facts">${facts.map((fact) => html`<span>${fact}</span>`)}</span>`}
       </div>
-      <span class="aside badge">
-        <cd-status-badge .data=${{ tone: TONES[state], label: t(`ideaRow.state.${state}`) }}></cd-status-badge>
-      </span>
+      ${failed
+        ? nothing
+        : html`<span class="aside badge">
+            <cd-status-badge .data=${{ tone: TONES[state], label: t(`ideaRow.state.${state}`) }}></cd-status-badge>
+          </span>`}
       <div class="aside actions over" ?hidden=${!this.hasActions}>
         <slot name="actions" @slotchange=${(e: Event) => (this.hasActions = isFilled(e.target as HTMLSlotElement))}></slot>
       </div>

@@ -1,10 +1,8 @@
 import { type ContratRegistry, contratLabel, type Decision } from '@crewdeck/contracts';
 import { t } from '@crewdeck/sdk';
+import { reportRuleLabel } from '../report-rules.js';
 import { registerDecisionView, type DecisionView } from './registry.js';
 import { STEP_RUN_ACTIONS, stepRunTitle, textParam } from './step-run.js';
-
-/** The rule a refused `step.report` fails (RUNNER-12): no Contrat declares it. */
-const REPORT_SCHEMA_RULE = 'report.schema';
 
 const numberParam = (decision: Pick<Decision, 'params'>, name: string): number | null => {
   const value = decision.params[name];
@@ -24,7 +22,7 @@ export const createContractIncompleteView = (labels: Pick<ContratRegistry, 'labe
     const version = numberParam(decision, 'contractVersion');
     const declared = contractId === null || version === null ? undefined : labels.label(contractId, version, ruleId);
     if (declared !== undefined) return declared;
-    return ruleId === REPORT_SCHEMA_RULE ? t('decision.contractIncomplete.reportSchema') : t('decision.contractIncomplete.unknownRule', { id: ruleId });
+    return reportRuleLabel(ruleId) ?? t('decision.contractIncomplete.unknownRule', { id: ruleId });
   };
   return {
     title: stepRunTitle,

@@ -74,6 +74,36 @@ const ideaKind = (field: IdeaField): VaultItemKind => ({
   },
 });
 
+/**
+ * The report of an Idée's running analysis (IDEE-2), kept until its Contrat
+ * passed: its sentences sealed by the Runner under the Idée's `analysis`
+ * additional data, which become the Idée's analysis as they are.
+ */
+const pendingAnalyses: VaultItemKind = {
+  itemType: 'idea.analysis-pending',
+  async list(tx, from, take) {
+    const rows = await tx.idea.findMany({
+      where: { ...after(from), analysisPending: { path: ['sealed', 'key'], string_starts_with: '' } },
+      orderBy: { id: 'asc' },
+      take,
+      select: { id: true, analysisPending: true },
+    });
+    return rows.flatMap(({ id, analysisPending }) => {
+      const wrappedKey = keyOf((analysisPending as { sealed?: unknown } | null)?.sealed);
+      return wrappedKey ? [{ itemType: 'idea.analysis-pending', itemId: id, aad: ideaItemAad(id, 'analysis'), wrappedKey }] : [];
+    });
+  },
+  async replace(tx, id, previousKey, wrappedKey) {
+    const row = await tx.idea.findUnique({ where: { id }, select: { analysisPending: true } });
+    const pending = row?.analysisPending;
+    if (pending === null || typeof pending !== 'object' || Array.isArray(pending)) return 'missing';
+    return swap(pending['sealed'], previousKey, wrappedKey, async (_stored, value) => {
+      const written = { ...pending, sealed: value } as Prisma.InputJsonValue;
+      return (await tx.idea.updateMany({ where: { id, analysisPending: { equals: pending as Prisma.InputJsonValue } }, data: { analysisPending: written } })).count;
+    });
+  },
+};
+
 const processVersions: VaultItemKind = {
   itemType: 'process-version.sealed',
   async list(tx, from, take) {
@@ -278,6 +308,7 @@ export const VAULT_ITEM_KINDS: readonly VaultItemKind[] = [
   milestoneTitles,
   changeTitles,
   unreadablePaths,
+  pendingAnalyses,
 ];
 
 /** Where a page of items starts: the kind's index and the last id read. */

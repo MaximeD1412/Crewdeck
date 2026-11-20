@@ -101,6 +101,21 @@ describe('IdeaRow', () => {
     expect(await actionsOf(() => userEvent.click(el.querySelector('button') as HTMLElement))).toEqual([]);
   });
 
+  it.each([390, 1280])('whose analysis failed, shows it at %i px: a halt rail and icon, its summary, no state badge', async (width) => {
+    await page.viewport(width, 800);
+    const failed = { ...untriaged, summary: 'L’analyse a échoué : son Contrat n’est pas rempli.', failed: true };
+    const el = await render(IdeaRow, failed);
+    expect(inside(el, '[part=row]').classList).toContain('halt');
+    const rail = getComputedStyle(inside(el, '.rail')).backgroundColor;
+    expect(rail).not.toBe('rgba(0, 0, 0, 0)');
+    expect(getComputedStyle(inside(el, '.icon')).color).toBe(rail);
+    expect(inside(el, '.context').checkVisibility()).toBe(true);
+    expect(el.shadowRoot?.querySelector('.badge')).toBeNull();
+    const other = await render(IdeaRow, untriaged);
+    expect(inside(other, '[part=row]').classList).not.toContain('halt');
+    expect(badgeOf(other).checkVisibility()).toBe(true);
+  });
+
   it('hides the row of its buttons without buttons', async () => {
     const el = await render(IdeaRow, untriaged);
     expect(inside(el, '.actions').hidden).toBe(true);

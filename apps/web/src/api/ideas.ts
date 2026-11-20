@@ -17,3 +17,18 @@ export const noteIdea = (client: Pick<Client, 'command'>, body: Omit<NoteIdeaInp
  */
 export const listClosedIdeas = (client: Pick<Client, 'query'>, cursor?: string): Promise<IdeaList> =>
   client.query(`/api/ideas?states=${IDEA_CLOSED_STATES.join(',')}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, zIdeaList);
+
+/**
+ * `POST /api/ideas/:id/target` (IDEE-2, « Changer »): the Projet visé the
+ * Pilote sets, `null` for « nouveau », without analysing the Idée again. The
+ * answer is the Idée, whose `idea.upserted` the store gets too.
+ */
+export const setIdeaTarget = (client: Pick<Client, 'command'>, id: string, projectId: string | null): Promise<Idea> =>
+  client.command('POST', `/api/ideas/${encodeURIComponent(id)}/target`, { projectId }, zIdea);
+
+/**
+ * `POST /api/ideas/:id/reanalyse` (IDEE-2, « Relancer l'analyse »): its last
+ * analysis run again. The answer is the Idée, its analysis running.
+ */
+export const reanalyseIdea = (client: Pick<Client, 'command'>, id: string): Promise<Idea> =>
+  client.command('POST', `/api/ideas/${encodeURIComponent(id)}/reanalyse`, {}, zIdea);

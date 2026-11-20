@@ -29,7 +29,7 @@ export const seedTrustedDevice = async (ctx: ScenarioContext, pilotId: string): 
   return { device: { deviceId, privateKey: privateKey.toString('base64url'), publicKey: publicKey.toString('base64url') }, vaultKey };
 };
 
-interface SeededIdea {
+export interface SeededIdea {
   readonly number: number;
   readonly project: string | null;
   readonly state: IdeaState;
@@ -44,7 +44,7 @@ interface SeededIdea {
  * is beyond the snapshot's 90 days, for « Rejetées » to read it from
  * `GET /api/ideas`.
  */
-const MOCKUP: readonly SeededIdea[] = [
+export const MOCKUP: readonly SeededIdea[] = [
   { number: 52, project: 'Tennis Manager', state: 'rejected', text: 'Un classement par âge des joueurs', age: 120 * 24 * 60 },
   { number: 55, project: 'Site mairie', state: 'rejected', text: 'Un thème sombre pour le site de la mairie', age: 12 * 24 * 60 },
   { number: 57, project: 'Personal OS', state: 'merged', text: 'Envoyer le planning par e-mail', age: 9 * 24 * 60 },
@@ -75,7 +75,7 @@ const MOCKUP: readonly SeededIdea[] = [
 ];
 
 /** The mockup's four Projets, as « Projets » follows them. */
-const seedProjects = async (ctx: ScenarioContext, pilotId: string): Promise<Map<string, string>> => {
+export const seedProjects = async (ctx: ScenarioContext, pilotId: string): Promise<Map<string, string>> => {
   await seedRepositories(ctx, pilotId, [
     { name: 'crewdeck', hasCode: true, project: 'Crewdeck' },
     { name: 'personal-os', hasCode: true, project: 'Personal OS' },
@@ -91,7 +91,7 @@ const seedProjects = async (ctx: ScenarioContext, pilotId: string): Promise<Map<
  * (`"<id>:text"`), the count of Idées noted their last number, and the
  * Décision « N Idées à trier » as `syncIdeasToTriage` leaves it.
  */
-const seedIdeas = async (ctx: ScenarioContext, pilotId: string, vaultKey: Buffer, projects: Map<string, string>, ideas: readonly SeededIdea[]): Promise<void> => {
+export const seedIdeas = async (ctx: ScenarioContext, pilotId: string, vaultKey: Buffer, projects: Map<string, string>, ideas: readonly SeededIdea[]): Promise<void> => {
   const now = Date.now();
   for (const { number, project, state, text, age } of ideas) {
     const id = newId();

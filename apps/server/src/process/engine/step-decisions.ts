@@ -12,8 +12,8 @@ import { type StepRunFinished, StepRunHooks } from './kinds/step-run-hooks.js';
 /** The two Décisions a pass of an agent Étape raises (ATOI-2, ADR 0005), each about one StepRun. */
 export const STEP_DECISION_KINDS = ['contract-incomplete', 'step-failed'] as const satisfies readonly DecisionKind[];
 
-/** The failures of a Session that raise « Étape échouée »: any other one is a bug, logged. */
-const SESSION_FAILURES: ReadonlySet<string> = new Set([AGENT_STEP_FAILURES.sessionError, AGENT_STEP_FAILURES.sessionStopped]);
+/** The failures that raise « Étape échouée », a Session's or a Rôle without a Moteur: any other one is a bug, logged. */
+const SESSION_FAILURES: ReadonlySet<string> = new Set([AGENT_STEP_FAILURES.sessionError, AGENT_STEP_FAILURES.sessionStopped, AGENT_STEP_FAILURES.noEngine]);
 
 /** The failures « Relancer l'Étape » answers: those that raised one of the two Décisions. */
 export const RERUNNABLE_FAILURES: ReadonlySet<string> = new Set([AGENT_STEP_FAILURES.contractIncomplete, ...SESSION_FAILURES]);

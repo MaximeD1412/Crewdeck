@@ -8,16 +8,30 @@
       "type": "string"
     },
     "base": {
-      "maxLength": 200,
-      "minLength": 1,
-      "pattern": "^[A-Za-z0-9._/-]+$",
-      "type": "string"
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._/-]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "branch": {
-      "maxLength": 200,
-      "minLength": 1,
-      "pattern": "^[A-Za-z0-9._/-]+$",
-      "type": "string"
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._/-]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "engine": {
       "enum": [
@@ -46,47 +60,57 @@
       "type": "string"
     },
     "origin": {
-      "goJSONSchema": {
-        "type": "Origin"
-      },
-      "oneOf": [
+      "anyOf": [
         {
-          "additionalProperties": false,
-          "properties": {
-            "kind": {
-              "const": "github",
-              "type": "string"
-            },
-            "name": {
-              "pattern": "^[A-Za-z0-9._-]{1,100}$",
-              "type": "string"
-            },
-            "owner": {
-              "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$",
-              "type": "string"
-            }
+          "goJSONSchema": {
+            "type": "Origin"
           },
-          "required": [
-            "kind",
-            "name",
-            "owner"
-          ],
-          "type": "object"
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "github",
+                  "type": "string"
+                },
+                "name": {
+                  "pattern": "^[A-Za-z0-9._-]{1,100}$",
+                  "type": "string"
+                },
+                "owner": {
+                  "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "name",
+                "owner"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "local",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            }
+          ]
         },
         {
-          "additionalProperties": false,
-          "properties": {
-            "kind": {
-              "const": "local",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind"
-          ],
-          "type": "object"
+          "type": "null"
         }
-      ]
+      ],
+      "goJSONSchema": {
+        "type": "*Origin"
+      }
     },
     "permissionMode": {
       "enum": [
@@ -96,9 +120,16 @@
       "type": "string"
     },
     "projectId": {
-      "format": "uuid",
-      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-      "type": "string"
+      "anyOf": [
+        {
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "role": {
       "pattern": "^(?:idea|design|code|review|r-[a-z0-9]{8})$",
@@ -123,6 +154,156 @@
               "type": "null"
             }
           ]
+        },
+        "ideas": {
+          "additionalProperties": false,
+          "properties": {
+            "idea": {
+              "additionalProperties": false,
+              "properties": {
+                "analysis": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ciphertext": {
+                          "pattern": "^[A-Za-z0-9_-]*$",
+                          "type": "string"
+                        },
+                        "key": {
+                          "pattern": "^[A-Za-z0-9_-]*$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "ciphertext",
+                        "key"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "id": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+                  "type": "string"
+                },
+                "number": {
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "type": "integer"
+                },
+                "text": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "ciphertext": {
+                      "pattern": "^[A-Za-z0-9_-]*$",
+                      "type": "string"
+                    },
+                    "key": {
+                      "pattern": "^[A-Za-z0-9_-]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ciphertext",
+                    "key"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "analysis",
+                "id",
+                "number",
+                "text"
+              ],
+              "type": "object"
+            },
+            "open": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "analysis": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "ciphertext": {
+                            "pattern": "^[A-Za-z0-9_-]*$",
+                            "type": "string"
+                          },
+                          "key": {
+                            "pattern": "^[A-Za-z0-9_-]*$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "ciphertext",
+                          "key"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "id": {
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+                    "type": "string"
+                  },
+                  "number": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "type": "integer"
+                  },
+                  "text": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "ciphertext": {
+                        "pattern": "^[A-Za-z0-9_-]*$",
+                        "type": "string"
+                      },
+                      "key": {
+                        "pattern": "^[A-Za-z0-9_-]*$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "ciphertext",
+                      "key"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "analysis",
+                  "id",
+                  "number",
+                  "text"
+                ],
+                "type": "object"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            "vaultKeyVersion": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "idea",
+            "open",
+            "vaultKeyVersion"
+          ],
+          "type": "object"
         },
         "inputs": {
           "items": {

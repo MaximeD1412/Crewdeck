@@ -1,0 +1,33 @@
+{
+  "idea": {
+    "id": "7a1c2e4d-0000-4000-8000-000000000001",
+    "number": 64,
+    "text": "Exporter le planning en PDF\nUn bouton qui produit le planning de la semaine en PDF."
+  },
+  "projects": [
+    {
+      "id": "5e0f9a3b-0000-4000-8000-000000000001",
+      "name": "Carnet",
+      "tickets": [
+        {
+          "number": 12,
+          "title": "Le panier"
+        }
+      ]
+    }
+  ],
+  "openIdeas": [
+    {
+      "id": "7a1c2e4d-0000-4000-8000-000000000001",
+      "number": 64,
+      "title": "Exporter le planning en PDF",
+      "summary": "Un bouton qui produit le planning de la semaine en PDF."
+    },
+    {
+      "id": "7a1c2e4d-0000-4000-8000-000000000002",
+      "number": 58,
+      "title": "Imprimer le planning de la semaine",
+      "summary": "Imprimer le planning de la semaine"
+    }
+  ]
+}

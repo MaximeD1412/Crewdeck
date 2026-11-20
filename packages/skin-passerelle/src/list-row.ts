@@ -5,7 +5,7 @@ import { PasserelleElement, sharedStyles } from './base.js';
 /**
  * `cd-list-row`: a generic row, its icon in a box of its tone, its title and
  * meta, then its `trailing` Emplacement. With `href` the whole row is an `<a>`
- * the router intercepts. A row after another draws the hairline between them.
+ * the router intercepts, ending with a chevron. A row after another draws the hairline between them.
  */
 export class PasserelleListRow extends PasserelleElement<typeof ListRow> {
   static override styles = [
@@ -22,6 +22,16 @@ export class PasserelleListRow extends PasserelleElement<typeof ListRow> {
       }
       .row.with-icon {
         grid-template-columns: auto minmax(0, 1fr) auto;
+      }
+      a.row {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+      }
+      a.row.with-icon {
+        grid-template-columns: auto minmax(0, 1fr) auto auto;
+      }
+      .chevron {
+        display: grid;
+        color: var(--cd-muted);
       }
       :host(:not(:first-child)) .row {
         border-top: thin solid var(--cd-line);
@@ -101,6 +111,8 @@ export class PasserelleListRow extends PasserelleElement<typeof ListRow> {
     `;
     return href === undefined
       ? html`<div part="row" class=${classes}>${content}</div>`
-      : html`<a part="row" class=${classes} href=${href}>${content}</a>`;
+      : html`<a part="row" class=${classes} href=${href}
+          >${content}<span class="chevron"><cd-icon .data=${{ name: 'chevron-right', size: 'sm' }}></cd-icon></span
+        ></a>`;
   }
 }

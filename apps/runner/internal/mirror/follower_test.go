@@ -721,6 +721,58 @@ func TestAProjetsFreshnessFollowsItsCopy(t *testing.T) {
 	eventually(t, "late once disconnected", func() bool { return state().State == FreshnessLate })
 }
 
+// IDEE-2: what reads the copy at a Session's start waits for the server's
+// Projets, then for each one's first reconciliation, delayed here until the
+// Miroir's token arrives; a context that ends first says which still fill.
+func TestWaitFilledWaitsForTheServersProjetsThenTheirFirstReconciliation(t *testing.T) {
+	clock := newClock()
+	server := newRunnerServer(t, clock)
+	fake := newFake(t, "testdata/graphql", "testdata/outils")
+	store, path := followedStore(t, 0, followedAtelier)
+	server.sendLive(0)
+	server.set(func(s *runnerServer) { s.answer = func(int) any { return nil } })
+	f, _ := follow(t, store, fake, server)
+	server.awaitHello()
+
+	wait := func(d time.Duration) error {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(t.Context(), d)
+		defer cancel()
+		return f.WaitFilled(ctx)
+	}
+	if err := wait(50 * time.Millisecond); !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "never arrived") {
+		t.Errorf("before mirror.projects, the copy's Projets of the last run: %v, want their wait for the server's", err)
+	}
+
+	asked := server.tokensAsked()
+	server.send(mirrorProjects(followedAtelier, followedOutils))
+	eventually(t, "mirror.projects handled", func() bool { return server.tokensAsked() > asked })
+	if err := wait(50 * time.Millisecond); !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "still filling acme/atelier, acme/outils") {
+		t.Errorf("with no token yet, no reconciliation: %v, want both still filling", err)
+	}
+
+	waited := make(chan error, 1)
+	go func() { waited <- wait(10 * time.Second) }()
+	server.send(server.issued(clock.Now().Add(time.Hour)))
+	awaitFilled(t, path, 2)
+	select {
+	case err := <-waited:
+		if err != nil {
+			t.Fatalf("once both reconciled: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("WaitFilled still waits once both reconciled")
+	}
+	for _, repository := range []string{"acme/atelier", "acme/outils"} {
+		if got, _ := f.State(repository); got.State == FreshnessFilling {
+			t.Errorf("%s still filling", repository)
+		}
+	}
+	if err := wait(time.Second); err != nil {
+		t.Errorf("filled, it returns at once: %v", err)
+	}
+}
+
 func TestAFailedRefreshLeavesItsCopyLateUntilARefreshOfItSucceeds(t *testing.T) {
 	clock := newClock()
 	server := newRunnerServer(t, clock)

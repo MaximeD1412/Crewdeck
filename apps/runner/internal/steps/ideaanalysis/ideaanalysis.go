@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contrat/target"
@@ -107,23 +108,46 @@ type content struct {
 	Questions  []string    `json:"questions"`
 }
 
+// Filling is what says when the copy holds every Projet: the Miroir's
+// follower, filling the copies the Runner's first hello asks for.
+type Filling interface {
+	WaitFilled(ctx context.Context) error
+}
+
+// FillWait is how long a Session waits for the copy's first fill before
+// failing, rather than analyse an Idée against Projets half copied.
+var FillWait = 5 * time.Minute
+
 // Kind is the session.StepKind of idea-analysis.
 type Kind struct {
 	store Store
 	vault Opener
+	fill  Filling
 }
 
 var _ session.StepKind = (*Kind)(nil)
 
-// New is the kind reading the Projets from store and opening the Idées with
-// vault.
-func New(store Store, vault Opener) *Kind { return &Kind{store: store, vault: vault} }
+// New is the kind reading the Projets from store, once fill says the copy
+// holds them all (nil: at once), and opening the Idées with vault.
+func New(store Store, vault Opener, fill Filling) *Kind {
+	return &Kind{store: store, vault: vault, fill: fill}
+}
 
 // ErrNoIdea is the error of a step without its Idées.
 var ErrNoIdea = errors.New("ideaanalysis: the step has no Idée")
 
-// Prepare writes the context in dir.
-func (k *Kind) Prepare(_ context.Context, dir string, step *contracts.RunnerSessionStartStep) error {
+// Prepare writes the context in dir, once the copy was filled: the file
+// stays as it is for the whole Session. A copy still filling after FillWait,
+// or a Session stopped meanwhile (ctx), fails it.
+func (k *Kind) Prepare(ctx context.Context, dir string, step *contracts.RunnerSessionStartStep) error {
+	if k.fill != nil {
+		waiting, cancel := context.WithTimeout(ctx, FillWait)
+		err := k.fill.WaitFilled(waiting)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("ideaanalysis: the Miroir's copy: %w", err)
+		}
+	}
 	c, err := k.Context(step)
 	if err != nil {
 		return err

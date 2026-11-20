@@ -106,6 +106,11 @@ type Follower struct {
 	started  time.Time
 	projects map[string]*followed
 	workers  sync.WaitGroup
+	// projectsKnown: a mirror.projects arrived since the Runner started;
+	// fill is closed, then made again, each time a copy's fill may have
+	// moved (WaitFilled).
+	projectsKnown bool
+	fill          chan struct{}
 
 	cursor       int64
 	hasCursor    bool
@@ -204,6 +209,7 @@ func NewFollower(cfg FollowerConfig) (*Follower, error) {
 		kick:      make(chan struct{}, 1),
 		projects:  map[string]*followed{},
 		tokens:    map[string]installationToken{},
+		fill:      make(chan struct{}),
 	}
 	if f.logger == nil {
 		f.logger = (&Mirror{}).logger()
@@ -425,6 +431,8 @@ func (f *Follower) projectsChanged(_ context.Context, m contracts.RunnerMirrorPr
 		f.projects[key(p.Repository)] = added
 		f.start(added)
 	}
+	f.projectsKnown = true
+	f.fillMoved()
 	f.mu.Unlock()
 	sort.Slice(orphans, func(i, j int) bool { return orphans[i].seq < orphans[j].seq })
 	for _, c := range orphans {
@@ -815,6 +823,7 @@ func (f *Follower) reconcileProject(ctx context.Context, p *followed, repository
 	f.mu.Lock()
 	m := marks[repository]
 	p.done, p.filled, p.synced = max(p.done, generation), m.filled, m.synced
+	f.fillMoved()
 	p.caughtUp(0, begun)
 	p.docsWanted++ // the branch may have moved without an envelope
 	wake(p)
@@ -839,6 +848,7 @@ func (f *Follower) reconcileLocal(ctx context.Context, p *followed, repository s
 	f.mu.Lock()
 	m := marks[repository]
 	p.done, p.filled, p.synced = max(p.done, generation), m.filled, m.synced
+	f.fillMoved()
 	p.docsWanted++
 	wake(p)
 	f.mu.Unlock()

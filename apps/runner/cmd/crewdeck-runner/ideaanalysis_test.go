@@ -32,7 +32,7 @@ func TestTheContextOfAnAnalysisListsTheOpenTicketsOfALocalProjetAsOfAGitHubOne(t
 		},
 	}
 
-	got, err := ideaanalysis.New(f.store, vault).Context(step)
+	got, err := ideaanalysis.New(f.store, vault, nil).Context(step)
 	if err != nil {
 		t.Fatal(err)
 	}

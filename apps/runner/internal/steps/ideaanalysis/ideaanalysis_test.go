@@ -1,6 +1,7 @@
 package ideaanalysis_test
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/keys"
@@ -99,7 +101,7 @@ var opened = vault{
 
 func TestTheContextHoldsTheIdeeEachProjetWithItsOpenTicketsAndTheOtherOpenIdees(t *testing.T) {
 	s := &store{}
-	got, err := ideaanalysis.New(s, opened).Context(step())
+	got, err := ideaanalysis.New(s, opened, nil).Context(step())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +132,7 @@ func TestAnOpenIdeeWhoseAnalysisDoesNotOpenIsListedByItsText(t *testing.T) {
 		v[aad] = plain
 	}
 	delete(v, otherID+":analysis")
-	got, err := ideaanalysis.New(&store{}, v).Context(step())
+	got, err := ideaanalysis.New(&store{}, v, nil).Context(step())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,20 +144,20 @@ func TestAnOpenIdeeWhoseAnalysisDoesNotOpenIsListedByItsText(t *testing.T) {
 func TestAnIdeeWhoseTextDoesNotOpenHasNoContext(t *testing.T) {
 	v := vault{otherID + ":text": "Imprimer le planning"}
 	dir := t.TempDir()
-	if err := ideaanalysis.New(&store{}, v).Prepare(t.Context(), dir, step()); err == nil {
+	if err := ideaanalysis.New(&store{}, v, nil).Prepare(t.Context(), dir, step()); err == nil {
 		t.Fatal("prepared a context without the Idée's text")
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".crewdeck", "context.json")); !os.IsNotExist(err) {
 		t.Fatal("a context was written")
 	}
-	if _, err := ideaanalysis.New(&store{}, opened).Context(&contracts.RunnerSessionStartStep{}); !errors.Is(err, ideaanalysis.ErrNoIdea) {
+	if _, err := ideaanalysis.New(&store{}, opened, nil).Context(&contracts.RunnerSessionStartStep{}); !errors.Is(err, ideaanalysis.ErrNoIdea) {
 		t.Fatalf("%v, want ErrNoIdea for a step without its Idées", err)
 	}
 }
 
 func TestPrepareWritesTheContextInTheScratchFolder(t *testing.T) {
 	dir := t.TempDir()
-	if err := ideaanalysis.New(&store{}, opened).Prepare(t.Context(), dir, step()); err != nil {
+	if err := ideaanalysis.New(&store{}, opened, nil).Prepare(t.Context(), dir, step()); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(filepath.Join(dir, ".crewdeck", "context.json"))
@@ -172,6 +174,71 @@ func TestPrepareWritesTheContextInTheScratchFolder(t *testing.T) {
 	}
 }
 
+// filling is the Miroir's follower whose copy fills once filled is closed.
+type filling struct {
+	filled chan struct{}
+}
+
+func (f *filling) WaitFilled(ctx context.Context) error {
+	select {
+	case <-f.filled:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func TestPrepareReadsTheCopyOnlyOnceFilled(t *testing.T) {
+	dir := t.TempDir()
+	s := &store{}
+	fill := &filling{filled: make(chan struct{})}
+	prepared := make(chan error, 1)
+	go func() { prepared <- ideaanalysis.New(s, opened, fill).Prepare(t.Context(), dir, step()) }()
+
+	select {
+	case err := <-prepared:
+		t.Fatalf("prepared while the copy fills: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".crewdeck", "context.json")); !os.IsNotExist(err) {
+		t.Fatal("a context was written before the copy was filled")
+	}
+
+	close(fill.filled)
+	if err := <-prepared; err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(s.listed, []string{"acme/atelier", "local/P2"}) {
+		t.Errorf("listed %v once filled", s.listed)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".crewdeck", "context.json")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestASessionStoppedOrACopyStillFillingAfterFillWaitPreparesNothing(t *testing.T) {
+	stopped, stop := context.WithCancel(t.Context())
+	stop()
+	dir := t.TempDir()
+	s := &store{}
+	if err := ideaanalysis.New(s, opened, &filling{filled: make(chan struct{})}).Prepare(stopped, dir, step()); !errors.Is(err, context.Canceled) {
+		t.Fatalf("a stopped Session: %v, want context.Canceled", err)
+	}
+
+	before := ideaanalysis.FillWait
+	ideaanalysis.FillWait = 20 * time.Millisecond
+	t.Cleanup(func() { ideaanalysis.FillWait = before })
+	if err := ideaanalysis.New(s, opened, &filling{filled: make(chan struct{})}).Prepare(t.Context(), dir, step()); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("a copy still filling: %v, want context.DeadlineExceeded", err)
+	}
+	if len(s.listed) != 0 {
+		t.Errorf("read the copy %v", s.listed)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".crewdeck", "context.json")); !os.IsNotExist(err) {
+		t.Fatal("a context was written")
+	}
+}
+
 func TestTheReportGivesItsFiguresAndSealsItsSentencesUnderTheIdeesAnalysis(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, ".crewdeck"), 0o700); err != nil {
@@ -183,7 +250,7 @@ func TestTheReportGivesItsFiguresAndSealsItsSentencesUnderTheIdeesAnalysis(t *te
 		t.Fatal(err)
 	}
 
-	got, err := ideaanalysis.New(&store{}, opened).Report(dir, step())
+	got, err := ideaanalysis.New(&store{}, opened, nil).Report(dir, step())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +268,7 @@ func TestTheReportGivesItsFiguresAndSealsItsSentencesUnderTheIdeesAnalysis(t *te
 }
 
 func TestAMissingReportIsNoReport(t *testing.T) {
-	if _, err := ideaanalysis.New(&store{}, opened).Report(t.TempDir(), step()); err == nil {
+	if _, err := ideaanalysis.New(&store{}, opened, nil).Report(t.TempDir(), step()); err == nil {
 		t.Fatal("a report read from an empty folder")
 	}
 }

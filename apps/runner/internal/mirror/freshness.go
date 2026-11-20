@@ -1,7 +1,10 @@
 package mirror
 
 import (
+	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -48,4 +51,39 @@ func (f *Follower) State(repository string) (Freshness, error) {
 		state = FreshnessLive
 	}
 	return Freshness{State: state, SyncedAt: p.synced}, nil
+}
+
+// fillMoved wakes the WaitFilled waiting; f.mu held.
+func (f *Follower) fillMoved() {
+	close(f.fill)
+	f.fill = make(chan struct{})
+}
+
+// WaitFilled returns once the server's Projets arrived since the Runner
+// started and every one's copy was filled once (FreshnessFilling no more),
+// so that what is read of the copy misses none of them; ctx's error, with
+// the keys still filling, if it ends first.
+func (f *Follower) WaitFilled(ctx context.Context) error {
+	for {
+		f.mu.Lock()
+		known, filling, moved := f.projectsKnown, []string{}, f.fill
+		for _, p := range f.projects {
+			if !p.filled {
+				filling = append(filling, p.project.Repository)
+			}
+		}
+		f.mu.Unlock()
+		if known && len(filling) == 0 {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			if !known {
+				return fmt.Errorf("mirror: the server's Projets never arrived: %w", ctx.Err())
+			}
+			sort.Strings(filling)
+			return fmt.Errorf("mirror: still filling %s: %w", strings.Join(filling, ", "), ctx.Err())
+		case <-moved:
+		}
+	}
 }

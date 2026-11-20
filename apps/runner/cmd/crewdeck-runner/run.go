@@ -175,7 +175,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		// context read from the Miroir, its texts opened with the vault, and
 		// its report sealed under the Idée's analysis.
 		Steps: map[contracts.RunnerSessionStartStepStepKind]session.StepKind{
-			contracts.RunnerSessionStartStepStepKindIdeaAnalysis: ideaanalysis.New(copied, vault),
+			contracts.RunnerSessionStartStepStepKindIdeaAnalysis: ideaanalysis.New(copied, vault, follower),
 		},
 	})
 	if err != nil {

@@ -119,6 +119,7 @@ func newRoot(m *machine) *cobra.Command {
 	root.AddCommand(newMCPCommand())
 	root.AddCommand(newHookCommand())
 	root.AddCommand(newMiroirCommand())
+	root.AddCommand(newEtapeCommand())
 	root.AddCommand(newGhCommand("gh", "Run gh with the Session's token, then refresh the Miroir (the Session's gh shim)"))
 	buildFlags(root)
 	return root

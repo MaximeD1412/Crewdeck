@@ -359,6 +359,7 @@ type run struct {
 
 	stdinMu    sync.Mutex
 	interrupts int
+	endOnce    sync.Once
 
 	emitMu sync.Mutex
 	seq    int
@@ -425,6 +426,24 @@ func (r *run) write(message any) error {
 	defer r.stdinMu.Unlock()
 	_, err = r.stdin.Write(append(data, '\n'))
 	return err
+}
+
+// End closes stdin: Claude, its input over, exits once its turn is done.
+// Not under stdinMu, as the kill of read: a write Claude no longer reads
+// would hold it.
+func (r *run) End(ctx context.Context) error {
+	if r.isEnded() {
+		return engine.ErrRunEnded
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	var err error
+	r.endOnce.Do(func() { err = r.stdin.Close() })
+	if err != nil && !r.isEnded() {
+		return fmt.Errorf("claude: end: %w", err)
+	}
+	return nil
 }
 
 // Interrupt sends the control request the spike validated; Claude ends the

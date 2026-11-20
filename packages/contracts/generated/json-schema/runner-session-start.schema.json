@@ -31,6 +31,15 @@
       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
       "type": "string"
     },
+    "mcpServers": {
+      "items": {
+        "maxLength": 60,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 10,
+      "type": "array"
+    },
     "model": {
       "maxLength": 200,
       "minLength": 1,
@@ -103,6 +112,89 @@
     "step": {
       "additionalProperties": false,
       "properties": {
+        "contractId": {
+          "anyOf": [
+            {
+              "maxLength": 60,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inputs": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "portId": {
+                "maxLength": 40,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                "type": "string"
+              },
+              "ref": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "number": {
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991,
+                        "type": "integer"
+                      },
+                      "sha": {
+                        "pattern": "^[0-9a-f]{40}$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": {
+                "enum": [
+                  "idea",
+                  "prd",
+                  "mockups",
+                  "technical-design",
+                  "inventory",
+                  "ticket",
+                  "code-change",
+                  "verdict",
+                  "delivery"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "portId",
+              "ref",
+              "type"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200,
+          "type": "array"
+        },
+        "skill": {
+          "maxLength": 60,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "type": "string"
+        },
         "stepKind": {
           "enum": [
             "idea-analysis",
@@ -124,6 +216,9 @@
         }
       },
       "required": [
+        "contractId",
+        "inputs",
+        "skill",
         "stepKind",
         "stepRunId"
       ],
@@ -177,6 +272,7 @@
     "branch",
     "engine",
     "id",
+    "mcpServers",
     "model",
     "origin",
     "permissionMode",

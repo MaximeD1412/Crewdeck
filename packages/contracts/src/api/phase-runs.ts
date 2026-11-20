@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { zVerdict } from '../contrats/define.js';
 import { zSha } from '../github/index.js';
 import { zArtifactType } from '../process/artifact-types.js';
 import { zStepKind } from '../process/catalogue.js';
@@ -119,7 +120,9 @@ export type StepRunInput = z.infer<typeof zStepRunInput>;
  * on each rerun), what fed its Entrées, what it gave on its Sorties, its
  * Verdict when it judges, why it failed (`failure`, a code), why a rerun
  * started it (`reason`: `loop-back`, or the caller's, `fix-conflict`), the
- * agent's Session when it has one, and whether it may ask for changes
+ * agent's Session when it has one, the verdict of its Contrat once the
+ * Runner checked it (`contratVerdict`, RUNNER-12: its failed rules' ids,
+ * never the Contrat's Verdict « changements », which is `verdict`), and whether it may ask for changes
  * (`canAskChanges`: its Étape judges and a Retour of its PhaseRun's version
  * leaves it; a gate hides its « Demander des changements » otherwise). The payload of `step-run.upserted`,
  * an item of the `stepRuns` slice while its PhaseRun is unfinished.
@@ -138,6 +141,7 @@ export const zStepRun = z.object({
   failure: zCode.nullable(),
   reason: zCode.nullable(),
   sessionId: zId.nullable(),
+  contratVerdict: zVerdict.nullable(),
   canAskChanges: z.boolean(),
   startedAt: zInstant,
   endedAt: zInstant.nullable(),

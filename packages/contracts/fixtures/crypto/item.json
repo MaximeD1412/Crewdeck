@@ -39,6 +39,14 @@
       "ciphertext": "n44KTOrY-jWOXEgpVGt_xfFqHkax8GeNBAtRCP4MAIEacGlhspaNaSLY0baYT-F85gg9XFWLexjLWztJflKw4EaCA-LjJ1Sa5_zQwa40UhedEGirNKGb2tyAbRdnSA"
     },
     {
+      "name": "step-report",
+      "seed": "Y3Jld2RlY2staXRlbS9zdGVwLXJlcG9ydA",
+      "aad": "c3RlcC5yZXBvcnQ6MDE5YTZmMDAtMDAwMC03MDAwLTgwMDAtMDAwMDAwMDAwMGMx",
+      "plaintext": "TGVzIHRlc3RzIGR1IHBhbmllciBwYXNzZW50IDsgbGUgY2FzIGR1IHBhbmllciB2aWRlIHJlc3RlIMOgIMOpY3JpcmUu",
+      "key": "JyvEO7t3XpJWd7fY1R3NkmpHhujVnSC7vaJeG6ruMBZKD9OaJSzMf-lTPD2QquZ2wCRvOBj36Z-Ko9r6",
+      "ciphertext": "QRs_rBeZvAjH6kewJw_fD4JMHih8q0Lf7U-FTZ0H4a-Dg7QowxJGre4yQWm2VD9lzV-a19ruMhtI6CNiuNUnEITSXwKu7dMnrnGXVLOKC0DPpJ5yNlnX2oBo8K4olvGuQg"
+    },
+    {
       "name": "local-ticket-title",
       "seed": "Y3Jld2RlY2staXRlbS9sb2NhbC10aWNrZXQtdGl0bGU",
       "aad": "bG9jYWw6MDE5YTZmMDAtMDAwMC03MDAwLTgwMDAtMDAwMDAwMDAwMGIxOnRpY2tldDoxMjp0aXRsZQ",

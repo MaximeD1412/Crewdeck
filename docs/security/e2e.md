@@ -430,6 +430,8 @@ ciphertext = aesGcmSeal(itemKey, plaintext, aad)
 `aad` is never empty; the label keeps a sealed item key from opening as an
 item. Both sides: `sealItem` / `openItem` (`apps/web/src/keys/vault.ts`),
 `Vault.SealItem` / `Vault.OpenItem` (`apps/runner/internal/keys/vault.go`).
+An Étape's report content is sealed by the Runner, `aad` =
+`"step.report:<stepRunId>"` (RUNNER-12).
 
 ### Relinking from a trusted Appareil
 

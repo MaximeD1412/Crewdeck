@@ -4,7 +4,8 @@
 // a `question` or a `permission-request` until it is answered (then emits
 // its `answer`; with Together, after the last of requests that follow one
 // another, until each is), and ends after
-// the last one. Interrupt ends it at once with a `result` `interrupted`;
+// the last one (with StayOpen, once End is called after it, as Claude Code
+// that takes messages between its turns). Interrupt ends it at once with a `result` `interrupted`;
 // cancelling the context given to Start or Resume ends it with nothing more,
 // as a killed Moteur process would, Wait then returning the context's error.
 package fake
@@ -43,6 +44,10 @@ type Engine struct {
 	// several then waiting together (Claude's parallel tool calls), the run
 	// going on once every one is answered; unset, it waits after each.
 	Together bool
+	// StayOpen, when set, keeps every run alive after its last event until
+	// End, as a Moteur that waits for its next message; unset, it ends after
+	// it.
+	StayOpen bool
 
 	mu   sync.Mutex
 	runs []*Run
@@ -119,7 +124,9 @@ func (e *Engine) start(ctx context.Context, opts engine.StartOptions, sessionID 
 		interrupt: make(chan struct{}),
 		answers:   make(chan answerRequest),
 		done:      make(chan struct{}),
+		end:       make(chan struct{}),
 		now:       now,
+		stayOpen:  e.StayOpen,
 	}
 	e.mu.Lock()
 	e.runs = append(e.runs, r)
@@ -141,14 +148,18 @@ type Run struct {
 	sessionID string
 	now       func() time.Time
 	together  bool
+	stayOpen  bool
 
 	events    chan contracts.EngineEvent
 	interrupt chan struct{}
 	answers   chan answerRequest
 	done      chan struct{}
+	end       chan struct{} // closed by End
+	endOnce   sync.Once
 	err       error
 
 	mu       sync.Mutex
+	ended    bool
 	sent     []string
 	answered []RecordedAnswer
 }
@@ -226,6 +237,20 @@ func (r *Run) play(ctx context.Context, events []contracts.EngineEvent, err erro
 			}
 		}
 	}
+	for r.stayOpen {
+		select {
+		case <-r.end:
+			r.stayOpen = false
+		case <-ctx.Done():
+			r.err = ctx.Err()
+			return
+		case <-r.interrupt:
+			interrupted()
+			return
+		case req := <-r.answers:
+			req.reply <- engine.ErrNoSuchRequest
+		}
+	}
 	r.err = err
 }
 
@@ -275,6 +300,27 @@ func (r *Run) Interrupt(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// End lets a StayOpen run end after its last event; it records the call.
+func (r *Run) End(context.Context) error {
+	select {
+	case <-r.done:
+		return engine.ErrRunEnded
+	default:
+	}
+	r.mu.Lock()
+	r.ended = true
+	r.mu.Unlock()
+	r.endOnce.Do(func() { close(r.end) })
+	return nil
+}
+
+// Ended says whether End was called.
+func (r *Run) Ended() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.ended
 }
 
 func (r *Run) Wait() error {

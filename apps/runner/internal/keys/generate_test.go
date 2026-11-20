@@ -351,6 +351,8 @@ func generateItemVectors() itemVectors {
 		{"empty-plaintext", "idea_01J9ZQ4C:reason", ""},
 		// A folder's check as the Runner answers it (PROJET-6, internal/folders).
 		{"folder-checked", "folder.checked:019a6f00-0000-7000-8000-0000000000f1", `{"state":"ready","hasCode":true,"branch":"main","name":"recettes"}`},
+		// A report's free text as an Étape's Skill gives it (RUNNER-12, internal/session/step.go's StepReportAAD).
+		{"step-report", "step.report:019a6f00-0000-7000-8000-0000000000c1", "Les tests du panier passent ; le cas du panier vide reste à écrire."},
 		// A Local Projet's texts as the Runner reports them (SOURCE-3, internal/source/local/report.go),
 		// the ones packages/contracts/fixtures/runner/local.changed.json carries.
 		{"local-ticket-title", "local:019a6f00-0000-7000-8000-0000000000b1:ticket:12:title", "Panier partagé"},

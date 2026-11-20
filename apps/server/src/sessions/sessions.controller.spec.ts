@@ -55,7 +55,7 @@ describe('/api/sessions, without a database', () => {
 
 describe('permissionModeOf', () => {
   it('bypasses the prompts for the Étapes that work in their worktree, and asks auto of the others and of a Session without an Étape', () => {
-    const step = (stepKind: SessionStep['stepKind']): SessionStep => ({ stepRunId: newId(), stepKind });
+    const step = (stepKind: SessionStep['stepKind']): SessionStep => ({ stepRunId: newId(), stepKind, skill: stepKind, contractId: null, inputs: [] });
 
     expect((['code', 'review', 'cross-review'] as const).map((kind) => permissionModeOf(step(kind)))).toEqual(['bypass', 'bypass', 'bypass']);
     expect(permissionModeOf(step('prd'))).toBe('auto');

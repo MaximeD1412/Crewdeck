@@ -163,6 +163,7 @@ func serveSocket(t *testing.T, m *session.Manager, home string) string {
 	t.Helper()
 	sock := &localsock.Server{}
 	m.ServeGitHubTokens(sock)
+	m.ServeSteps(sock)
 	socket := filepath.Join(home, localsock.SocketName)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})

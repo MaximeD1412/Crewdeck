@@ -1,1 +1,1 @@
-Run the Étape {{.StepKind}} for the StepRun {{.StepRunID}}.
+Use the Skill `{{.Skill}}`. Your StepRun is `{{.StepRunID}}`; start with `crewdeck-runner etape start`. You work alone: ask the Pilote only with `crewdeck-runner etape ask`; the end of your turn is the end of the Étape.

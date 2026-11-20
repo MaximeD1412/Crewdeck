@@ -35,7 +35,9 @@ import { SESSION_ROW, type SessionRow, startMessageOf, stored, toAgentSession } 
 
 /**
  * What starts a Session: `base` the Projet's integration branch unless given;
- * `step` the Étape it runs, none when the Pilote writes first; `title` the
+ * `step` the Étape it runs, none when the Pilote writes first (its Skill,
+ * Contrat and Entrées as references, RUNNER-12); `mcpServers` the names of
+ * its Étape's Serveurs MCP, none when not given; `title` the
  * Ticket's or Conception's as its Source holds it, whatever the code's:
  * readable on GitHub, sealed with the additional data it was sealed under
  * when Local (SOURCE-2, ADR 0012).
@@ -49,6 +51,7 @@ export interface StartSession {
   readonly branch: string;
   readonly base?: string;
   readonly step?: SessionStep;
+  readonly mcpServers?: readonly string[];
 }
 
 /** The Étapes that work in their worktree (ADR 0004's Code and Review): their Moteur acts without asking. */
@@ -154,6 +157,10 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
         state: 'starting',
         stepRunId: input.step?.stepRunId ?? null,
         stepKind: input.step?.stepKind ?? null,
+        stepSkill: input.step?.skill ?? null,
+        stepContractId: input.step?.contractId ?? null,
+        ...(input.step ? { stepInputs: input.step.inputs } : {}),
+        mcpServers: [...(input.mcpServers ?? [])],
         startedAt: this.clock.now(),
       },
       select: SESSION_ROW,
@@ -167,6 +174,19 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
   async interruptAll(tx: Tx, pilotId: string): Promise<void> {
     const live = await tx.agentSession.findMany({ where: { state: { in: [...LIVE] } }, select: { id: true }, orderBy: { startedAt: 'asc' } });
     for (const { id } of live) await this.change(tx, pilotId, id, { state: 'interrupted', interruptedReason: 'runner_offline' });
+  }
+
+  /**
+   * The live Session `id` `stopped` in `tx`, its Moteur stopped by the
+   * Runner once committed: the engine's agent Étape whose StepRun is stopped
+   * or undone (RUNNER-12). A Session no longer live is left as it is.
+   */
+  async stopIn(tx: Tx, id: string): Promise<void> {
+    const pilotId = currentPilotId();
+    const row = await tx.agentSession.findUnique({ where: { id }, select: { state: true } });
+    if (!row || !LIVE.includes(row.state)) return;
+    await this.change(tx, pilotId, id, { state: 'stopped', interruptedReason: null, endedAt: this.clock.now() });
+    afterCommit(tx, () => this.trySend(pilotId, { type: 'session.stop', sessionId: id }));
   }
 
   /** `POST /api/sessions/:id/stop`: the Session `stopped` at `endedAt`, its Moteur stopped by the Runner, its worktree and Moteur's id kept. */
@@ -343,8 +363,10 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async written(tx: Tx, pilotId: string, row: SessionRow): Promise<SessionRow> {
-    const seq = await this.events.write(tx, pilotId, 'agent-session.upserted', toAgentSession(row));
+    const session = toAgentSession(row);
+    const seq = await this.events.write(tx, pilotId, 'agent-session.upserted', session);
     await tx.agentSession.update({ where: { id: row.id }, data: { lastSeq: seq } });
+    await this.hooks.changed(tx, session);
     return { ...row, lastSeq: seq };
   }
 

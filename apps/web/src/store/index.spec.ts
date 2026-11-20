@@ -140,6 +140,7 @@ const STEP_RUN: StepRun = {
   failure: null,
   reason: null,
   sessionId: null,
+  contratVerdict: null,
   canAskChanges: false,
   startedAt: AT,
   endedAt: null,

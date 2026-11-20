@@ -11,6 +11,8 @@
 //   - claude-hook: runs the `PreToolUse` hooks of Claude Code's settings on
 //     the recorded `input`, as Claude does (claude.go);
 //   - close-stdin: stops reading stdin, the driver's writes then fail;
+//   - await-eof: reads stdin until it is closed, as Claude Code waits for
+//     its next message after a turn (its input over, it exits);
 //   - await-sigint: waits for SIGINT.
 //
 // A SIGINT, awaited or not, ends it with code 130, as a shell's command.
@@ -153,6 +155,10 @@ func run(args []string, stdin *os.File, stdout io.Writer) error {
 			if _, err := io.WriteString(log, got); err != nil {
 				return err
 			}
+		case "await-eof":
+			if _, err := io.Copy(log, input); err != nil {
+				return fmt.Errorf("%s:%d: awaiting the end of stdin: %w", path, n, err)
+			}
 		case "close-stdin":
 			if err := stdin.Close(); err != nil {
 				return fmt.Errorf("%s:%d: %w", path, n, err)
@@ -198,7 +204,7 @@ func directiveOf(line []byte) (directive, error) {
 		return directive{}, nil
 	}
 	switch d.Fake {
-	case "await-stdin", "close-stdin", "await-sigint", "claude-permission", "claude-hook":
+	case "await-stdin", "await-eof", "close-stdin", "await-sigint", "claude-permission", "claude-hook":
 		return d, nil
 	}
 	return directive{}, fmt.Errorf("unknown directive %q", d.Fake)

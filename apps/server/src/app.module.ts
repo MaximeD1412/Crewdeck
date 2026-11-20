@@ -28,6 +28,7 @@ import { RealtimeModule } from './realtime/realtime.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { RunnersModule } from './runners/runners.module.js';
 import { EngineModule } from './process/engine/engine.module.js';
+import { AgentStepsModule } from './process/engine/kinds/agent.module.js';
 import { SourceMigrationsModule } from './process/sources/migrations/source-migrations.module.js';
 import { ScopeModule } from './scope/scope.module.js';
 import { SessionsModule } from './sessions/sessions.module.js';
@@ -89,6 +90,7 @@ export class AppModule {
         GitHubChangesModule,
         ProjectsModule,
         EngineModule,
+        AgentStepsModule,
         SourceMigrationsModule,
         TicketsModule,
         DecisionsModule,

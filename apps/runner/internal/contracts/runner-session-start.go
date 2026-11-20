@@ -26,6 +26,9 @@ type RunnerSessionStart struct {
 	// Id corresponds to the JSON schema field "id".
 	Id string `json:"id"`
 
+	// McpServers corresponds to the JSON schema field "mcpServers".
+	McpServers []string `json:"mcpServers"`
+
 	// Model corresponds to the JSON schema field "model".
 	Model string `json:"model"`
 
@@ -118,11 +121,190 @@ func (j *RunnerSessionStartPermissionMode) UnmarshalJSON(value []byte) error {
 }
 
 type RunnerSessionStartStep struct {
+	// ContractId corresponds to the JSON schema field "contractId".
+	ContractId interface{} `json:"contractId"`
+
+	// Inputs corresponds to the JSON schema field "inputs".
+	Inputs []RunnerSessionStartStepInputsElem `json:"inputs"`
+
+	// Skill corresponds to the JSON schema field "skill".
+	Skill string `json:"skill"`
+
 	// StepKind corresponds to the JSON schema field "stepKind".
 	StepKind RunnerSessionStartStepStepKind `json:"stepKind"`
 
 	// StepRunId corresponds to the JSON schema field "stepRunId".
 	StepRunId string `json:"stepRunId"`
+}
+
+type RunnerSessionStartStepContractId_0 *string
+
+type RunnerSessionStartStepInputsElem struct {
+	// PortId corresponds to the JSON schema field "portId".
+	PortId string `json:"portId"`
+
+	// Ref corresponds to the JSON schema field "ref".
+	Ref *RunnerSessionStartStepInputsElemRef `json:"ref"`
+
+	// Type corresponds to the JSON schema field "type".
+	Type RunnerSessionStartStepInputsElemType `json:"type"`
+}
+
+type RunnerSessionStartStepInputsElemRef struct {
+	// Id corresponds to the JSON schema field "id".
+	Id string `json:"id"`
+
+	// Number corresponds to the JSON schema field "number".
+	Number *int `json:"number,omitempty,omitzero"`
+
+	// Sha corresponds to the JSON schema field "sha".
+	Sha *string `json:"sha,omitempty,omitzero"`
+}
+
+type RunnerSessionStartStepInputsElemRef_0 struct {
+	// Id corresponds to the JSON schema field "id".
+	Id string `json:"id"`
+
+	// Number corresponds to the JSON schema field "number".
+	Number *int `json:"number,omitempty,omitzero"`
+
+	// Sha corresponds to the JSON schema field "sha".
+	Sha *string `json:"sha,omitempty,omitzero"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerSessionStartStepInputsElemRef_0) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["id"]; raw != nil && !ok {
+		return fmt.Errorf("field id in RunnerSessionStartStepInputsElemRef_0: required")
+	}
+	type Plain RunnerSessionStartStepInputsElemRef_0
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if utf8.RuneCountInString(string(plain.Id)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "id", 1)
+	}
+	if utf8.RuneCountInString(string(plain.Id)) > 200 {
+		return fmt.Errorf("field %s length: must be <= %d", "id", 200)
+	}
+	if plain.Number != nil && 9007199254740991 < *plain.Number {
+		return fmt.Errorf("field %s: must be <= %v", "number", 9007199254740991)
+	}
+	if plain.Number != nil && 0 >= *plain.Number {
+		return fmt.Errorf("field %s: must be > %v", "number", 0)
+	}
+	if plain.Sha != nil {
+		if matched, _ := regexp.MatchString(`^[0-9a-f]{40}$`, string(*plain.Sha)); !matched {
+			return fmt.Errorf("field %s pattern match: must match %s", "Sha", `^[0-9a-f]{40}$`)
+		}
+	}
+	*j = RunnerSessionStartStepInputsElemRef_0(plain)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerSessionStartStepInputsElemRef) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	var runnerSessionStartStepInputsElemRef_0 RunnerSessionStartStepInputsElemRef_0
+	var errs []error
+	if err := runnerSessionStartStepInputsElemRef_0.UnmarshalJSON(value); err != nil {
+		errs = append(errs, err)
+	}
+	if len(errs) == 1 {
+		return fmt.Errorf("all validators failed: %s", errors.Join(errs...))
+	}
+	type Plain RunnerSessionStartStepInputsElemRef
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	*j = RunnerSessionStartStepInputsElemRef(plain)
+	return nil
+}
+
+type RunnerSessionStartStepInputsElemType string
+
+const RunnerSessionStartStepInputsElemTypeCodeChange RunnerSessionStartStepInputsElemType = "code-change"
+const RunnerSessionStartStepInputsElemTypeDelivery RunnerSessionStartStepInputsElemType = "delivery"
+const RunnerSessionStartStepInputsElemTypeIdea RunnerSessionStartStepInputsElemType = "idea"
+const RunnerSessionStartStepInputsElemTypeInventory RunnerSessionStartStepInputsElemType = "inventory"
+const RunnerSessionStartStepInputsElemTypeMockups RunnerSessionStartStepInputsElemType = "mockups"
+const RunnerSessionStartStepInputsElemTypePrd RunnerSessionStartStepInputsElemType = "prd"
+const RunnerSessionStartStepInputsElemTypeTechnicalDesign RunnerSessionStartStepInputsElemType = "technical-design"
+const RunnerSessionStartStepInputsElemTypeTicket RunnerSessionStartStepInputsElemType = "ticket"
+const RunnerSessionStartStepInputsElemTypeVerdict RunnerSessionStartStepInputsElemType = "verdict"
+
+var enumValues_RunnerSessionStartStepInputsElemType = []interface{}{
+	"idea",
+	"prd",
+	"mockups",
+	"technical-design",
+	"inventory",
+	"ticket",
+	"code-change",
+	"verdict",
+	"delivery",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerSessionStartStepInputsElemType) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_RunnerSessionStartStepInputsElemType {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_RunnerSessionStartStepInputsElemType, v)
+	}
+	*j = RunnerSessionStartStepInputsElemType(v)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerSessionStartStepInputsElem) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["portId"]; raw != nil && !ok {
+		return fmt.Errorf("field portId in RunnerSessionStartStepInputsElem: required")
+	}
+	if _, ok := raw["ref"]; raw != nil && !ok {
+		return fmt.Errorf("field ref in RunnerSessionStartStepInputsElem: required")
+	}
+	if _, ok := raw["type"]; raw != nil && !ok {
+		return fmt.Errorf("field type in RunnerSessionStartStepInputsElem: required")
+	}
+	type Plain RunnerSessionStartStepInputsElem
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if matched, _ := regexp.MatchString(`^[a-z0-9]+(-[a-z0-9]+)*$`, string(plain.PortId)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "PortId", `^[a-z0-9]+(-[a-z0-9]+)*$`)
+	}
+	if utf8.RuneCountInString(string(plain.PortId)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "portId", 1)
+	}
+	if utf8.RuneCountInString(string(plain.PortId)) > 40 {
+		return fmt.Errorf("field %s length: must be <= %d", "portId", 40)
+	}
+	*j = RunnerSessionStartStepInputsElem(plain)
+	return nil
 }
 
 type RunnerSessionStartStepStepKind string
@@ -175,6 +357,15 @@ func (j *RunnerSessionStartStep) UnmarshalJSON(value []byte) error {
 	if err := json.Unmarshal(value, &raw); err != nil {
 		return err
 	}
+	if _, ok := raw["contractId"]; raw != nil && !ok {
+		return fmt.Errorf("field contractId in RunnerSessionStartStep: required")
+	}
+	if _, ok := raw["inputs"]; raw != nil && !ok {
+		return fmt.Errorf("field inputs in RunnerSessionStartStep: required")
+	}
+	if _, ok := raw["skill"]; raw != nil && !ok {
+		return fmt.Errorf("field skill in RunnerSessionStartStep: required")
+	}
 	if _, ok := raw["stepKind"]; raw != nil && !ok {
 		return fmt.Errorf("field stepKind in RunnerSessionStartStep: required")
 	}
@@ -185,6 +376,18 @@ func (j *RunnerSessionStartStep) UnmarshalJSON(value []byte) error {
 	var plain Plain
 	if err := json.Unmarshal(value, &plain); err != nil {
 		return err
+	}
+	if len(plain.Inputs) > 200 {
+		return fmt.Errorf("field %s length: must be <= %d", "inputs", 200)
+	}
+	if matched, _ := regexp.MatchString(`^[a-z0-9]+(-[a-z0-9]+)*$`, string(plain.Skill)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Skill", `^[a-z0-9]+(-[a-z0-9]+)*$`)
+	}
+	if utf8.RuneCountInString(string(plain.Skill)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "skill", 1)
+	}
+	if utf8.RuneCountInString(string(plain.Skill)) > 60 {
+		return fmt.Errorf("field %s length: must be <= %d", "skill", 60)
 	}
 	if matched, _ := regexp.MatchString(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`, string(plain.StepRunId)); !matched {
 		return fmt.Errorf("field %s pattern match: must match %s", "StepRunId", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
@@ -282,6 +485,9 @@ func (j *RunnerSessionStart) UnmarshalJSON(value []byte) error {
 	if _, ok := raw["id"]; raw != nil && !ok {
 		return fmt.Errorf("field id in RunnerSessionStart: required")
 	}
+	if _, ok := raw["mcpServers"]; raw != nil && !ok {
+		return fmt.Errorf("field mcpServers in RunnerSessionStart: required")
+	}
 	if _, ok := raw["model"]; raw != nil && !ok {
 		return fmt.Errorf("field model in RunnerSessionStart: required")
 	}
@@ -334,6 +540,9 @@ func (j *RunnerSessionStart) UnmarshalJSON(value []byte) error {
 	}
 	if matched, _ := regexp.MatchString(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`, string(plain.Id)); !matched {
 		return fmt.Errorf("field %s pattern match: must match %s", "Id", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
+	}
+	if len(plain.McpServers) > 10 {
+		return fmt.Errorf("field %s length: must be <= %d", "mcpServers", 10)
 	}
 	if utf8.RuneCountInString(string(plain.Model)) < 1 {
 		return fmt.Errorf("field %s length: must be >= %d", "model", 1)

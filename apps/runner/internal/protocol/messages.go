@@ -17,6 +17,8 @@ const (
 	TypeHeartbeatAck  = "heartbeat.ack"
 	TypeError         = "error"
 	TypeStepVerdict   = "step.verdict"
+	TypeStepStarted   = "step.started"
+	TypeStepReport    = "step.report"
 	TypeCapabilities  = "capabilities"
 	TypeMcpServers    = "mcp.servers"
 	TypeUsage         = "usage"
@@ -301,4 +303,25 @@ func NewCommandOutput(runID, tabID string, seq int, nonce, ciphertext string) co
 		message.TabId = &tabID
 	}
 	return message
+}
+
+// NewStepStarted says the Skill of an Étape's Session began its StepRun
+// (`crewdeck-runner etape start`, RUNNER-12).
+func NewStepStarted(stepRunID string) contracts.RunnerStepStarted {
+	at := now()
+	return contracts.RunnerStepStarted{Type: TypeStepStarted, Id: newID(at), At: at, StepRunId: stepRunID}
+}
+
+// NewStepReport is what the Skill reported (`etape report`): its readable
+// figures, and its free text sealed under the vault key, nil for none.
+func NewStepReport(stepRunID string, figures map[string]any, sealed *contracts.RunnerStepReportSealed) contracts.RunnerStepReport {
+	at := now()
+	return contracts.RunnerStepReport{Type: TypeStepReport, Id: newID(at), At: at, StepRunId: stepRunID, Figures: figures, Sealed: sealed}
+}
+
+// NewStepVerdict is the verdict of the Contrat of an Étape's Session, checked
+// at its end.
+func NewStepVerdict(stepRunID string, verdict contracts.ContratVerdict) contracts.RunnerStepVerdict {
+	at := now()
+	return contracts.RunnerStepVerdict{Type: TypeStepVerdict, Id: newID(at), At: at, StepRunId: stepRunID, Verdict: verdict}
 }

@@ -17,6 +17,7 @@ package session
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -26,9 +27,12 @@ import (
 	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/contrat"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/engine"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/github"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/keys"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/skills"
 )
 
 // Config is what the manager runs the Sessions with.
@@ -70,6 +74,20 @@ type Config struct {
 	// StopGrace is how long a stopped Moteur has to end its turn before it
 	// is killed; zero, 10 s.
 	StopGrace time.Duration
+	// Skills are the official Skills (apps/runner/skills, RUNNER-12): an
+	// Étape's Session gets its own mounted, and it alone; nil, none is.
+	Skills fs.FS
+	// RunnerVersion is the version of Claude Code's plugin of the Skills.
+	RunnerVersion string
+	// Seal seals an Étape's report's content under the vault key; nil, a
+	// report with a content is refused.
+	Seal func(plaintext, aad []byte) (keys.SealedItem, error)
+	// ChangeOf is the change of code of the Session's branch, read from the
+	// Miroir, that the Étape's Contrat checks; nil (or none) no PR.
+	ChangeOf func(ctx context.Context, projectID, branch string) (*contrat.PullRequest, error)
+	// AskPoll is how long one wait for an answer of `etape ask` lasts; zero,
+	// 25 s.
+	AskPoll time.Duration
 }
 
 // Manager runs the Sessions: one goroutine per running Session.
@@ -110,6 +128,10 @@ type live struct {
 	pending map[string]request
 	// token is the GitHub token of the run, while it runs.
 	token *github.SessionToken
+	// out is the log of the run, while it runs; asks are the Étape's
+	// questions (step.go).
+	out  *runLog
+	asks map[string]*ask
 }
 
 // request is a `question` or a `permission-request` that waits: what an
@@ -487,6 +509,16 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 		m.fail(s, w, true, contracts.RunnerSessionStateErrorEngineFailed, "shims", err)
 		return
 	}
+	if rec.Step != nil && m.cfg.Skills != nil {
+		// The Étape's Skill alone, mounted again at each run.
+		mounted, err := skills.Mount(m.cfg.Skills, rec.Step.Skill, contracts.EngineId(rec.Engine), dir, m.cfg.RunnerVersion)
+		if err != nil {
+			m.fail(s, w, true, contracts.RunnerSessionStateErrorSetupFailed, "skill", err)
+			return
+		}
+		opts.SkillsDir = mounted.SkillsDir
+		opts.Env = append(opts.Env, mounted.Env...)
+	}
 	var run engine.Run
 	if rec.EngineSessionID != "" {
 		run, err = adapter.Resume(ctx, engine.ResumeOptions{StartOptions: opts, EngineSessionID: rec.EngineSessionID})
@@ -497,20 +529,17 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 		m.fail(s, w, true, contracts.RunnerSessionStateErrorEngineFailed, "engine", err)
 		return
 	}
+	out := m.openRun(s, log, key)
 	s.mu.Lock()
 	s.run = run
 	s.pending = map[string]request{}
 	s.mu.Unlock()
 	m.setState(s, contracts.RunnerSessionStateStateActive)
 
-	offset := log.lastSeq
+	// turnFailed is an Étape's last turn ended in error: its Session too.
+	turnFailed := false
 	for event := range run.Events() {
-		if stamped, err := log.append(event, offset); err != nil {
-			m.cfg.Logger.Warn("session.log", "sessionId", rec.SessionID, "error", err)
-		} else {
-			m.relayLive(key, rec.SessionID, stamped)
-			m.track(s, stamped)
-		}
+		m.logEvent(s, out, event, false)
 		state := contracts.RunnerSessionStateStateActive
 		switch {
 		case event.Question != nil, event.PermissionRequest != nil:
@@ -523,9 +552,19 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 				s.rec.EngineSessionID = *id
 			}
 			stopping := s.stopping
+			step := s.rec.Step != nil
 			s.mu.Unlock()
 			if stopping {
 				s.cancel()
+			} else if step && event.Result.Status != contracts.EngineEventResultStatusInterrupted {
+				// An Étape's agent works alone, its questions asked in its
+				// turn (`etape ask`): the end of its turn is the end of its
+				// work. The Moteur is ended, as a normal end, for its Contrat
+				// to be checked; one interrupted by the Pilote waits for them.
+				turnFailed = event.Result.Status == contracts.EngineEventResultStatusError
+				if err := run.End(ctx); err != nil && !errors.Is(err, engine.ErrRunEnded) {
+					m.cfg.Logger.Warn("session.engine", "sessionId", rec.SessionID, "error", "the Moteur did not end")
+				}
 			}
 		}
 		// A request answered while another still waits: the Session waits on.
@@ -536,6 +575,7 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 		s.mu.Unlock()
 		m.setState(s, state)
 	}
+	m.closeRun(s, out)
 	waitErr := run.Wait()
 	s.mu.Lock()
 	s.run = nil
@@ -547,10 +587,13 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 		m.halt(s)
 	case m.ctx.Err() != nil:
 		m.drop(s) // the Runner stops: the Session is told after its restart
-	case waitErr != nil:
+	case waitErr != nil, turnFailed:
 		m.cfg.Logger.Warn("session.engine", "sessionId", rec.SessionID, "error", "the Moteur ended in error")
 		m.finish(s, w, true, contracts.RunnerSessionStateOutcomeError, contracts.RunnerSessionStateErrorEngineFailed)
 	default:
+		// The verdict goes before the end, its worktree checked before it is
+		// removed.
+		m.sendVerdict(w, rec)
 		m.finish(s, w, true, contracts.RunnerSessionStateOutcomeOk, "")
 	}
 }

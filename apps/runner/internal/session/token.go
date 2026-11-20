@@ -95,29 +95,32 @@ func ShimsDir(home, sessionID string) string {
 	return filepath.Join(sessionDir(home, sessionID), "bin")
 }
 
-// moteurEnv is what the Moteur of a Session runs with: its `gh` and
-// `mirror` shims first in its PATH, written now, the Runner's folder, and
-// git's askpass when the Session has a token (gitEnv).
+// moteurEnv is what the Moteur of a Session runs with: its shims first in
+// its PATH, written now, the Runner's folder, the Session's id (for
+// `crewdeck-runner etape`), and git's askpass when the Session has a token
+// (gitEnv).
 func (m *Manager) moteurEnv(sessionID string, gitEnv []string) ([]string, error) {
 	bin := ShimsDir(m.cfg.Home, sessionID)
 	if err := WriteShims(bin, m.runnerPath(), sessionID); err != nil {
 		return nil, err
 	}
-	env := []string{"PATH=" + bin + string(os.PathListSeparator) + os.Getenv("PATH"), state.HomeEnv + "=" + m.cfg.Home}
+	env := []string{"PATH=" + bin + string(os.PathListSeparator) + os.Getenv("PATH"), state.HomeEnv + "=" + m.cfg.Home, SessionEnv + "=" + sessionID}
 	return append(env, gitEnv...), nil
 }
 
 // WriteShims writes in bin the Session's `gh` shim, `crewdeck-runner gh --`,
-// and its `mirror` shim, `crewdeck-runner miroir`, both for the Session, so
-// that an agent's `gh` gets the Session's token and refreshes the Miroir,
-// and a Skill's `mirror` commands run as they are (ADR 0010).
+// its `mirror` shim, `crewdeck-runner miroir`, and its `crewdeck-runner`,
+// all for the Session, so that an agent's `gh` gets the Session's token and
+// refreshes the Miroir, a Skill's `mirror` commands run as they are (ADR
+// 0010), and its `crewdeck-runner etape` names its Session (RUNNER-12).
 func WriteShims(bin, runner, sessionID string) error {
 	if err := os.MkdirAll(bin, 0o700); err != nil {
 		return err
 	}
 	shims := map[string]string{
-		"gh":     "#!/bin/sh\n" + github.AskpassSessionEnv + "=" + quote(sessionID) + " exec " + quote(runner) + ` gh -- "$@"` + "\n",
-		"mirror": "#!/bin/sh\n" + github.AskpassSessionEnv + "=" + quote(sessionID) + " exec " + quote(runner) + ` miroir "$@"` + "\n",
+		"gh":              "#!/bin/sh\n" + github.AskpassSessionEnv + "=" + quote(sessionID) + " exec " + quote(runner) + ` gh -- "$@"` + "\n",
+		"mirror":          "#!/bin/sh\n" + github.AskpassSessionEnv + "=" + quote(sessionID) + " exec " + quote(runner) + ` miroir "$@"` + "\n",
+		"crewdeck-runner": "#!/bin/sh\n" + SessionEnv + "=" + quote(sessionID) + " exec " + quote(runner) + ` "$@"` + "\n",
 	}
 	for name, script := range shims {
 		path := filepath.Join(bin, name)

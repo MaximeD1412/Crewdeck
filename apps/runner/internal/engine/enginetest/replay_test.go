@@ -119,6 +119,7 @@ func (r *toyRun) Answer(_ context.Context, id string, answer engine.Answer) erro
 	return r.write(map[string]any{"t": "answer", "id": id, "options": answer.Options})
 }
 func (r *toyRun) Interrupt(context.Context) error { return r.write(map[string]any{"t": "interrupt"}) }
+func (r *toyRun) End(context.Context) error       { return r.stdin.Close() }
 func (r *toyRun) Wait() error {
 	for range r.events { // the run ends once its stream is read
 	}

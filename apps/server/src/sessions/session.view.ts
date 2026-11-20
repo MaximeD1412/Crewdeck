@@ -1,4 +1,18 @@
-import { type AgentSession, type EngineId, type RoleId, type SessionError, type SessionInterruptedReason, type SessionStart, type StepId, zSealedItem } from '@crewdeck/contracts';
+import {
+  type AgentSession,
+  type EngineId,
+  type RoleId,
+  type SessionError,
+  type SessionInterruptedReason,
+  type SessionStart,
+  type SessionStep,
+  type StepId,
+  CATALOGUE,
+  zSealedItem,
+  zSessionMcpServer,
+  zSessionStepInput,
+} from '@crewdeck/contracts';
+import { z } from 'zod';
 import type { Prisma } from '../generated/prisma/client.js';
 import { githubNamesOf } from '../projects/project.view.js';
 
@@ -21,6 +35,10 @@ export const SESSION_ROW = {
   error: true,
   stepRunId: true,
   stepKind: true,
+  stepSkill: true,
+  stepContractId: true,
+  stepInputs: true,
+  mcpServers: true,
   engineSessionId: true,
   startedAt: true,
   endedAt: true,
@@ -86,7 +104,24 @@ export const startMessageOf = (row: SessionRow): Omit<SessionStart, 'id' | 'at'>
   model: row.model,
   role: row.role,
   permissionMode: row.permissionMode as SessionStart['permissionMode'],
-  ...(row.stepRunId !== null && row.stepKind !== null ? { step: { stepRunId: row.stepRunId, stepKind: row.stepKind as StepId } } : {}),
+  ...(stepOf(row) ? { step: stepOf(row) } : {}),
   title: row.title,
   worktreeCommands: row.project.settings?.worktreeCommands ? zSealedItem.parse(row.project.settings.worktreeCommands) : null,
+  mcpServers: z.array(zSessionMcpServer).parse(row.mcpServers),
 });
+
+/**
+ * The Étape of the Session `row`, as `session.start` carries it: its StepRun
+ * and kind, its Skill (the kind's own when the row predates them), its
+ * Contrat and its Entrées; none without a StepRun.
+ */
+const stepOf = (row: SessionRow): SessionStep | undefined =>
+  row.stepRunId === null || row.stepKind === null
+    ? undefined
+    : {
+        stepRunId: row.stepRunId,
+        stepKind: row.stepKind as StepId,
+        skill: row.stepSkill ?? CATALOGUE[row.stepKind as StepId].skill ?? row.stepKind,
+        contractId: row.stepContractId,
+        inputs: z.array(zSessionStepInput).parse(row.stepInputs ?? []),
+      };

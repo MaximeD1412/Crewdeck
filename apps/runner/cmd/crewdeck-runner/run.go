@@ -29,6 +29,7 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/source/local"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/state"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/update"
+	officialskills "github.com/maximed1412/crewdeck/apps/runner/skills"
 	"github.com/spf13/cobra"
 )
 
@@ -136,7 +137,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	// The Miroir (ADR 0010, ADR 0012): the copy of every Projet's Sources,
 	// its follower its only writer, fed by the server's envelopes on each
 	// connection and by the Local Projets' folders.
-	follower, closeMirror, err := followMirror(ctx, logger, locals, vault)
+	follower, copied, closeMirror, err := followMirror(ctx, logger, locals, vault)
 	if err != nil {
 		return err
 	}
@@ -161,6 +162,13 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		// The Projet's « Préparer le worktree » and « Nettoyer le
 		// worktree » (RUNNER-20), around every worktree it makes.
 		Hooks: command.WorktreeHooks(vault),
+		// An Étape's Session (RUNNER-12): its official Skill mounted, its
+		// report's content sealed under the vault key, its Contrat checked
+		// on the change of code the Miroir has of its branch.
+		Skills:        officialskills.FS,
+		RunnerVersion: version,
+		Seal:          vault.SealItem,
+		ChangeOf:      mirrorChanges{store: copied, follow: follower}.of,
 	})
 	if err != nil {
 		return err
@@ -233,6 +241,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	accounts.Register(sock, refresh)
 	follower.Register(sock)
 	sessions.ServeGitHubTokens(sock)
+	sessions.ServeSteps(sock)
 	go func() {
 		if err := sock.Serve(ctx, socket); err != nil {
 			logger.Warn("runner socket", "error", err)
@@ -306,14 +315,14 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 
 // followMirror opens the Miroir and follows GitHub until ctx ends; closeMirror
 // waits for the follower, then closes the copy.
-func followMirror(ctx context.Context, logger *slog.Logger, locals *localSources, vault *heldVault) (*mirror.Follower, func(), error) {
+func followMirror(ctx context.Context, logger *slog.Logger, locals *localSources, vault *heldVault) (*mirror.Follower, *mirror.Store, func(), error) {
 	path, err := mirror.DefaultPath()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	store, err := mirror.Open(path)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	follower, err := mirror.NewFollower(mirror.FollowerConfig{
 		Store: store, GitHub: &mirror.Client{Logger: logger}, Logger: logger,
@@ -323,7 +332,7 @@ func followMirror(ctx context.Context, logger *slog.Logger, locals *localSources
 	})
 	if err != nil {
 		store.Close()
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
@@ -331,7 +340,7 @@ func followMirror(ctx context.Context, logger *slog.Logger, locals *localSources
 		defer close(done)
 		_ = follower.Run(ctx)
 	}()
-	return follower, func() {
+	return follower, store, func() {
 		cancel()
 		<-done
 		store.Close()

@@ -35,10 +35,20 @@ export type StepResult =
   | { readonly state: 'interrupted' | 'blocked'; readonly failure: string }
   | { readonly state: 'running' | 'waiting' };
 
+/** A start that could not begin its work: the StepRun `failed` with its code, which waits for `retry` as any other failure. */
+export interface StepStartFailed {
+  readonly state: 'failed';
+  readonly failure: string;
+}
+
 export interface StepKindHandler {
   readonly kind: StepKind;
-  /** The StepRun was just written `running`: begins its work, says `running` (an agent, a Commande) or `waiting` (on the Pilote). */
-  start(tx: Tx, run: StepRunContext): Promise<'running' | 'waiting'>;
+  /**
+   * The StepRun was just written `running`: begins its work, says `running`
+   * (an agent, a Commande) or `waiting` (on the Pilote), or `failed` when its
+   * work cannot begin yet (an agent's Rôle without a Moteur).
+   */
+  start(tx: Tx, run: StepRunContext): Promise<'running' | 'waiting' | StepStartFailed>;
   /** What `signal` means for the StepRun; `null`: nothing changes. */
   onSignal(tx: Tx, run: StepRunContext, signal: unknown): Promise<StepResult | null>;
   /** Ends its work (a Session cut, a Décision withdrawn) before the StepRun is `stopped` or `superseded`. */

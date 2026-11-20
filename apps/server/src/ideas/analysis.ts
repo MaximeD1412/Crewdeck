@@ -8,7 +8,6 @@ import {
   type IdeaState,
   type ReanalyseIdeaInput,
   SESSION_STEP_OPEN_IDEAS_MAX,
-  type SessionStepIdea,
   type SessionStepIdeaContext,
   type SetIdeaTargetInput,
   type StepRun,
@@ -34,8 +33,7 @@ import { assertFresh } from '../realtime/freshness.js';
 import { Transactions, type Tx } from '../realtime/transactions.js';
 import type { WaitingProject } from '../runners/waiting-work.js';
 import { currentPilotId } from '../scope/scope.context.js';
-import { SESSION_ROW, toAgentSession } from '../sessions/session.view.js';
-import { SettingsService } from '../settings/settings.service.js';
+import { IDEA_CONTEXT_ROW, SESSION_ROW, toAgentSession, toStepIdea } from '../sessions/session.view.js';
 import { IDEA_VIEW, ideaStateOf, ideaStateRow, toIdea } from './idea.view.js';
 import { syncIdeasToTriage } from './triage-decision.js';
 
@@ -69,14 +67,6 @@ const notTriageable = (): AppError => unprocessable('ideas.not-triageable', MESS
 const ideaNotFound = (): AppError => notFound('idea.not-found', MESSAGES['idea.not-found']);
 const noAnalysisStep = (): AppError => unprocessable('ideas.no-analysis-step', MESSAGES['ideas.no-analysis-step']);
 
-const IDEA_CONTEXT_ROW = { id: true, number: true, text: true, analysis: true } as const;
-const toStepIdea = (row: { id: string; number: number; text: unknown; analysis: unknown }): SessionStepIdea => ({
-  id: row.id,
-  number: row.number,
-  text: zSealedItem.parse(row.text),
-  analysis: row.analysis === null ? null : zSealedItem.parse(row.analysis),
-});
-
 /**
  * The analysis of an Idée (IDEE-2), the domain part of the `idea-analysis`
  * kind (`process/engine/kinds/idea-analysis.ts` wires it): its admission
@@ -94,25 +84,18 @@ export class IdeaAnalysis {
     private readonly events: EventsWriter,
     private readonly decisions: DecisionsService,
     private readonly engine: Engine,
-    private readonly settings: SettingsService,
   ) {}
 
   /**
    * The Idée `ideaId`, just noted, enters the `idea.noted` Phase of its
    * Projet's active version, or of « Process Crewdeck » without a Projet
-   * (PROCESS-5). Nothing is admitted when that Process has no such Phase,
-   * nor when its first `idea-analysis` Étape has no Moteur for its Rôle: its
-   * start would refuse, and the Idée is noted to triage without analysis.
+   * (PROCESS-5); nothing when that Process has no such Phase. The Process
+   * decides, never a setting: a Rôle without a Moteur fails the analysis
+   * (`no-engine`), which « Relancer l'analyse » runs once one is set.
    */
   async admit(tx: Tx, ideaId: string, projectId: string | null): Promise<void> {
     const admission = await this.engine.admissionFor(tx, projectId, 'idea.noted');
     if (!admission) return;
-    const analysis = admission.steps.find((step) => step.kind === IDEA_ANALYSIS_KIND);
-    if (analysis) {
-      const role = roleOf({ step: analysis });
-      const { roles } = await this.settings.effective(currentPilotId(), projectId ?? undefined);
-      if (role === null || !roles[role]) return;
-    }
     await this.engine.admit(tx, { projectId, phaseId: admission.phaseId, item: { type: 'idea', id: ideaId } });
   }
 
@@ -144,6 +127,12 @@ export class IdeaAnalysis {
   async reported(tx: Tx, run: StepRunContext, report: AgentStepReport<IdeaAnalysisFigures>): Promise<void> {
     const pending: PendingAnalysis = { stepRunId: run.stepRun.id, figures: report.figures, sealed: report.sealed ?? null };
     await tx.idea.updateMany({ where: { id: run.phaseRun.itemId }, data: { analysisPending: json(pending) } });
+  }
+
+  /** Whether the Idée of `run` holds the report of that StepRun, which its analysis is made of. */
+  async hasReport(tx: Tx, run: StepRunContext): Promise<boolean> {
+    const idea = await tx.idea.findUnique({ where: { id: run.phaseRun.itemId }, select: { analysisPending: true } });
+    return idea?.analysisPending != null && zPendingAnalysis.parse(idea.analysisPending).stepRunId === run.stepRun.id;
   }
 
   /**
@@ -347,11 +336,13 @@ export const analysisOutcome = ({ ideaId, stepRun, finished, state, before, pend
     stepRunId: stepRun.id,
     status: finished.status,
     role: before?.role ?? 'idea',
-    engine: before?.engine ?? null,
+    // The Moteur of its own Session only: a StepRun that started none (`no-engine`) ran on no Moteur.
+    engine: before?.stepRunId === stepRun.id ? before.engine : null,
     at: at.toISOString(),
     contractId: verdict?.contractId ?? null,
     contractVersion: verdict?.version ?? null,
     failedRuleIds: finished.status === 'passed' ? [] : (verdict?.failedRuleIds ?? []),
+    ...(finished.status === 'failed' && finished.failure !== undefined ? { failure: finished.failure } : {}),
   };
   const triageable = TRIAGEABLE.has(state);
   if (finished.status !== 'passed' || pending?.stepRunId !== stepRun.id) return { state: triageable ? 'to-triage' : null, run, applied: null };

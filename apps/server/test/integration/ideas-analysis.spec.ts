@@ -10,9 +10,11 @@ import { Prisma } from '../../src/generated/prisma/client.js';
 import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { EventsBus } from '../../src/realtime/events.bus.js';
+import { Transactions } from '../../src/realtime/transactions.js';
 import { RunnerWaitingWork } from '../../src/runners/waiting-work.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
 import { createLinkedRunner } from '../../src/testing/runners.js';
+import { VaultItemsRegistry } from '../../src/vault/vault-items.js';
 import { TEST_WEBHOOK_SECRET } from '../fakes/github.js';
 import { connectRunner, type FakeRunnerClient } from '../fakes/runner.js';
 import { authKeysEnv } from '../github-app.js';
@@ -46,6 +48,7 @@ interface Tab {
 
 /** A text as the page or the Runner seals it: opaque to the server (random bytes here). */
 const sealed = (bytes = 64) => ({ key: randomBytes(60).toString('base64url'), ciphertext: randomBytes(bytes).toString('base64url') });
+const b64 = (bytes: number) => randomBytes(bytes).toString('base64url');
 
 const verdict = (status: 'passed' | 'incomplete', failedRuleIds: string[] = []) => ({ contractId: 'idea-analysis', version: 1, status, failedRuleIds, warningRuleIds: [] });
 
@@ -331,13 +334,30 @@ describe('the analysis of an Idée against PostgreSQL', () => {
       expect(await sql('SELECT id FROM agent_sessions WHERE pilot_id = $1', [tab.id])).toEqual([]);
     });
 
-    it('admits nothing while the Rôle Idée has no Moteur: the Idée is noted to triage, no PhaseRun', async () => {
+    it('admits it while the Rôle Idée has no Moteur: failed no-engine with « Étape échouée », then « Relancer l’analyse » once a Moteur is set starts its Session', async () => {
       const tab = await pilot({ engine: false });
+      const socket = await online(tab);
 
       const noted = await note(tab, null);
 
-      expect(noted).toMatchObject({ state: 'to-triage', analysisRun: null });
-      expect(await phaseRuns(noted.id)).toEqual([]);
+      expect(noted).toMatchObject({ state: 'to-triage', analysisRun: { status: 'failed', failure: 'no-engine', engine: null } });
+      expect(await phaseRuns(noted.id)).toEqual([expect.objectContaining({ state: 'failed' })]);
+      const [first] = await analyses(noted.id);
+      expect(first).toMatchObject({ state: 'failed', failure: 'no-engine', session_id: null });
+      expect(await sql(`SELECT state, params->>'failure' AS failure FROM decisions WHERE kind = 'step-failed' AND subject_id = $1`, [first?.id])).toEqual([{ state: 'open', failure: 'no-engine' }]);
+      expect(await sql('SELECT id FROM agent_sessions WHERE pilot_id = $1', [tab.id])).toEqual([]);
+
+      // The Pilote sets a Moteur for the Rôle Idée, then runs the analysis again.
+      await sql('INSERT INTO account_settings (pilot_id, roles, updated_at) VALUES ($1, $2, now())', [tab.id, JSON.stringify({ idea: { engine: 'claude-code', model: 'claude-sonnet-5-5' } })]);
+      const res = await call(tab, `/api/ideas/${noted.id}/reanalyse`, { seq: await seq(tab) });
+
+      expect(res.status).toBe(200);
+      expect(zIdea.parse(await res.json())).toMatchObject({ state: 'analysing', analysisRun: { status: 'running', engine: 'claude-code' } });
+      expect((await analyses(noted.id)).map((run) => run.state)).toEqual(['failed', 'running']);
+      expect(await sql(`SELECT state, outcome FROM decisions WHERE kind = 'step-failed' AND subject_id = $1`, [first?.id])).toEqual([{ state: 'resolved', outcome: 'rerun' }]);
+      const start = await socket.expect('session.start');
+      report(socket, start, { impact: 3, effort: 3, projectId: 'nouveau', duplicateIds: [] });
+      await vi.waitFor(async () => expect((await idea(tab, noted.id)).state).toBe('analysed'));
     });
 
     it('waits for the Runner: listed as « Idées » by idea-analysis, not by step-runs, then started at its hello', async () => {
@@ -357,6 +377,58 @@ describe('the analysis of an Idée against PostgreSQL', () => {
       const socket = await online(tab);
       const starts = [await socket.expect('session.start'), await socket.expect('session.start')];
       expect(starts.map((start) => start.step?.stepKind)).toEqual(['idea-analysis', 'idea-analysis']);
+    });
+  });
+
+  describe('a rotation of the vault key (E2E-4)', () => {
+    /** What a rotation does to an item: its key replaced through its kind, its ciphertext kept. */
+    const rewrap = (tab: Tab, itemType: string, itemId: string, previousKey: string, wrappedKey: string) =>
+      runInPilotScope(tab.id, () =>
+        app.get(Transactions).run((tx) => {
+          const kind = app.get(VaultItemsRegistry).kind(itemType);
+          if (!kind) throw new Error(`No vault item kind ${itemType}`);
+          return kind.replace(tx, itemId, previousKey, wrappedKey);
+        }),
+      );
+
+    it('a Session waiting for the Runner keeps only the ids of its Idées: its start sends their texts under the item keys of the rotation', async () => {
+      const tab = await pilot();
+      const earlier = await openIdea(tab, 1);
+      const noted = await note(tab, null);
+      const [session] = await sql<{ step_ideas: unknown }>('SELECT step_ideas FROM agent_sessions WHERE pilot_id = $1', [tab.id]);
+      expect(session?.step_ideas).toEqual({ ideaId: noted.id, openIds: [earlier.id] });
+
+      const keys = [b64(60), b64(60)] as const;
+      expect(await rewrap(tab, 'idea.text', noted.id, noted.text.key, keys[0])).toBe('replaced');
+      expect(await rewrap(tab, 'idea.text', earlier.id, earlier.text.key, keys[1])).toBe('replaced');
+
+      const start = await (await online(tab)).expect('session.start');
+      expect(start.step?.ideas).toEqual({
+        idea: { id: noted.id, number: 2, text: { key: keys[0], ciphertext: noted.text.ciphertext }, analysis: null },
+        open: [{ id: earlier.id, number: 1, text: { key: keys[1], ciphertext: earlier.text.ciphertext }, analysis: null }],
+      });
+    });
+
+    it('a report received before the rotation becomes the analysis under the item key of the rotation', async () => {
+      const tab = await pilot();
+      const socket = await online(tab);
+      const noted = await note(tab, null);
+      const start = await socket.expect('session.start');
+      const stepRunId = start.step?.stepRunId ?? '';
+      const content = sealed(200);
+      socket.send({ type: 'step.started', stepRunId });
+      socket.send({ type: 'step.report', stepRunId, figures: { impact: 3, effort: 2, projectId: 'nouveau', duplicateIds: [] }, sealed: content });
+      await vi.waitFor(async () => expect((await sql<{ n: number }>(`SELECT count(*)::int AS n FROM ideas WHERE id = $1 AND analysis_pending IS NOT NULL`, [noted.id]))[0]?.n).toBe(1));
+      const items = await runInPilotScope(tab.id, () => app.get(Transactions).run((tx) => app.get(VaultItemsRegistry).all(tx)));
+      expect(items.get(`idea.analysis-pending:${noted.id}`)).toEqual({ itemType: 'idea.analysis-pending', itemId: noted.id, aad: ideaItemAad(noted.id, 'analysis'), wrappedKey: content.key });
+
+      const key = b64(60);
+      expect(await rewrap(tab, 'idea.analysis-pending', noted.id, content.key, key)).toBe('replaced');
+      socket.send({ type: 'step.verdict', stepRunId, verdict: verdict('passed') });
+      socket.send({ type: 'session.state', sessionId: start.sessionId, state: 'ended', outcome: 'ok' });
+
+      await vi.waitFor(async () => expect((await idea(tab, noted.id)).state).toBe('analysed'));
+      expect((await idea(tab, noted.id)).analysis).toEqual({ key, ciphertext: content.ciphertext });
     });
   });
 
@@ -383,6 +455,30 @@ describe('the analysis of an Idée against PostgreSQL', () => {
       expect(runs.map((run) => run.state)).toEqual(['failed', 'running']);
       expect(await sql(`SELECT state, outcome FROM decisions WHERE kind = 'contract-incomplete' AND subject_id = $1`, [first?.id])).toEqual([{ state: 'resolved', outcome: 'rerun' }]);
       expect((await socket.expect('session.start')).step?.stepRunId).toBe(runs[1]?.id);
+    });
+
+    it('leaves the Idée to triage when the Contrat passed but no report came: incomplete report.missing, « Contrat incomplet », then « Relancer l’analyse »', async () => {
+      const tab = await pilot();
+      const socket = await online(tab);
+      const noted = await note(tab, null);
+      const start = await socket.expect('session.start');
+      const stepRunId = start.step?.stepRunId ?? '';
+
+      socket.send({ type: 'step.started', stepRunId });
+      socket.send({ type: 'step.verdict', stepRunId, verdict: verdict('passed') });
+      socket.send({ type: 'session.state', sessionId: start.sessionId, state: 'ended', outcome: 'ok' });
+
+      await vi.waitFor(async () => expect((await idea(tab, noted.id)).state).toBe('to-triage'));
+      expect(await idea(tab, noted.id)).toMatchObject({ analysis: null, impact: null, analysisRun: { status: 'incomplete', contractId: 'idea-analysis', failedRuleIds: ['report.missing'] } });
+      const [first] = await analyses(noted.id);
+      expect(first).toMatchObject({ state: 'failed', failure: 'contract-incomplete', outputs: [] });
+      expect(await sql(`SELECT state FROM decisions WHERE kind = 'contract-incomplete' AND subject_id = $1`, [first?.id])).toEqual([{ state: 'open' }]);
+      expect(await phaseRuns(noted.id)).toMatchObject([{ state: 'failed' }]);
+
+      const res = await call(tab, `/api/ideas/${noted.id}/reanalyse`, { seq: await seq(tab) });
+
+      expect(res.status).toBe(200);
+      expect((await socket.expect('session.start')).step?.stepRunId).toBe((await analyses(noted.id))[1]?.id);
     });
 
     it('runs a passed analysis again, keeping it until the new one passes', async () => {

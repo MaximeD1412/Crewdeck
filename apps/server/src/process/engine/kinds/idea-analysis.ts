@@ -42,7 +42,7 @@ export class IdeaAnalysisKind implements OnModuleInit, OnModuleDestroy {
       // Ids only: the figures and the sealed sentences are never logged (ADR 0003).
       this.logger.info({ stepRunId: run.stepRun.id, ideaId: run.phaseRun.itemId }, 'idea analysis reported');
       await this.analysis.reported(tx, run, report);
-    });
+    }, (tx, run) => this.analysis.hasReport(tx, run));
     this.items.add({
       itemType: 'idea',
       label: async (tx, ideaId) => {
@@ -70,12 +70,14 @@ export class IdeaAnalysisKind implements OnModuleInit, OnModuleDestroy {
       outputs: (_tx, run): ArtifactRef[] => [{ portId: ideaPortOf(run), type: 'idea', id: run.phaseRun.itemId }],
       stepContext: async (tx, run) => ({ ideas: await this.analysis.context(tx, run.phaseRun.itemId) }),
       waitingWork: 'own',
+      // The Process has the Étape, so the analysis runs (US-5): a Rôle without a Moteur fails it, « Relancer l'analyse » once one is set.
+      withoutEngine: 'fail',
     });
     return {
       ...agent,
       start: async (tx, run) => {
         const state = await agent.start(tx, run);
-        await this.analysis.started(tx, run);
+        if (state === 'running') await this.analysis.started(tx, run);
         return state;
       },
     };

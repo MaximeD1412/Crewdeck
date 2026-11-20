@@ -727,10 +727,12 @@ export class Engine {
     });
     let stepRun = toStepRun(row, loaded.definition);
     if (handler) {
-      const state = await handler.start(tx, this.contextOf(loaded, stepRun));
+      const started = await handler.start(tx, this.contextOf(loaded, stepRun));
+      const data: Prisma.StepRunUpdateInput | null =
+        started === 'running' ? null : started === 'waiting' ? { state: started } : { state: 'failed', failure: started.failure, endedAt: new Date() };
       // Read again whatever the state: the handler may have written the StepRun's Session (`recordSession`).
       stepRun = toStepRun(
-        state === 'running' ? await tx.stepRun.findUniqueOrThrow({ where: { id: stepRun.id }, select: STEP_RUN_VIEW }) : await tx.stepRun.update({ where: { id: stepRun.id }, data: { state }, select: STEP_RUN_VIEW }),
+        data === null ? await tx.stepRun.findUniqueOrThrow({ where: { id: stepRun.id }, select: STEP_RUN_VIEW }) : await tx.stepRun.update({ where: { id: stepRun.id }, data, select: STEP_RUN_VIEW }),
         loaded.definition,
       );
     }

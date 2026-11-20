@@ -22,7 +22,7 @@ import { SessionHooks } from '../../../sessions/session-hooks.js';
 import type { SessionsService, StartSession } from '../../../sessions/sessions.service.js';
 import type { SettingsService } from '../../../settings/settings.service.js';
 import type { Engine } from '../engine.js';
-import { AgentSteps, type AgentKindSpec, type AgentSignal, mcpServersOf, REPORT_SCHEMA_RULE, sessionInputsOf } from './agent.js';
+import { AgentSteps, type AgentKindSpec, type AgentSignal, mcpServersOf, REPORT_MISSING_RULE, REPORT_SCHEMA_RULE, sessionInputsOf } from './agent.js';
 import type { StepKindHandler, StepResult, StepRunContext } from './handler.js';
 import { type StepRunFinished, StepRunHooks } from './step-run-hooks.js';
 
@@ -222,6 +222,16 @@ describe('the agent Étapes', () => {
     expect(sessions.start).not.toHaveBeenCalled();
   });
 
+  it('fails no-engine a StepRun of a kind the Process starts on its own while its Rôle has no Moteur: no Session, StepRunHooks.onFinished once', async () => {
+    const { steps, sessions, finished } = setup({ roles: { code: null } });
+    const own = steps.defineAgentKind({ ...SPEC, kind: 'review', withoutEngine: 'fail' });
+
+    expect(await asPilot(() => own.start(TX, runOf({ sessionId: null, kind: 'review' })))).toEqual({ state: 'failed', failure: 'no-engine' });
+
+    expect(sessions.start).not.toHaveBeenCalled();
+    expect(finished).toEqual([{ stepRun: expect.objectContaining({ id: STEP_RUN_ID }), finished: { status: 'failed', failure: 'no-engine' } }]);
+  });
+
   it('starts a scratch Session for a kind without a branch: no Projet, the account’s Rôles, its step’s context', async () => {
     const { steps, sessions, settings } = setup({ roles: { idea: { engine: 'claude-code', model: 'claude-sonnet-5-5' } } });
     const ideas = { idea: { id: IDEA_ID, number: 3, text: SEALED, analysis: null }, open: [] };
@@ -309,10 +319,15 @@ describe('the agent Étapes', () => {
   it('gives a valid report’s figures and sealed content to its kind’s module; an invalid one writes report.schema, the StepRun failed incomplete only once its Session ended', async () => {
     const { steps, signal, engine, finished } = setup();
     const stored: unknown[] = [];
-    steps.registerStepReport('code', z.strictObject({ tickets: z.int().min(0) }), (_tx, _run, report) => {
-      stored.push(report);
-      return Promise.resolve();
-    });
+    steps.registerStepReport(
+      'code',
+      z.strictObject({ tickets: z.int().min(0) }),
+      (_tx, _run, report) => {
+        stored.push(report);
+        return Promise.resolve();
+      },
+      () => Promise.resolve(stored.length > 0),
+    );
     const sealed = { key: 'k'.repeat(80), ciphertext: 'c'.repeat(24) };
     const report = (figures: Record<string, unknown>) => ({ kind: 'step.report', report: { type: 'step.report', id: STEP_RUN_ID, at: '2026-11-19T10:00:00.000Z', stepRunId: STEP_RUN_ID, figures, sealed } }) as const;
 
@@ -328,6 +343,23 @@ describe('the agent Étapes', () => {
 
     expect(await signal(runOf({ contratVerdict: written }), { kind: 'session', session: sessionOf({ state: 'ended', outcome: 'ok' }) })).toEqual({ state: 'failed', failure: 'contract-incomplete' });
     expect(finished.map(({ finished: outcome }) => outcome)).toEqual([{ status: 'incomplete', verdict: written, failure: 'contract-incomplete' }]);
+  });
+
+  it('fails incomplete, rule report.missing, a StepRun whose Contrat passed but whose kind’s report never came', async () => {
+    const { steps, signal, engine, finished } = setup();
+    const received = vi.fn(() => Promise.resolve(false));
+    steps.registerStepReport('code', z.strictObject({ tickets: z.int() }), () => Promise.resolve(), received);
+    const passed = runOf({ contratVerdict: verdictOf('passed') });
+
+    expect(await signal(passed, { kind: 'session', session: sessionOf({ state: 'ended', outcome: 'ok' }) })).toEqual({ state: 'failed', failure: 'contract-incomplete' });
+
+    const missing = verdictOf('incomplete', [REPORT_MISSING_RULE]);
+    expect(received).toHaveBeenCalledWith(TX, passed);
+    expect(engine.recordContratVerdict).toHaveBeenCalledWith(TX, passed, missing);
+    expect(finished.map(({ finished: outcome }) => outcome)).toEqual([{ status: 'incomplete', verdict: missing, failure: 'contract-incomplete' }]);
+
+    received.mockResolvedValue(true);
+    expect(await signal(passed, { kind: 'session', session: sessionOf({ state: 'ended', outcome: 'ok' }) })).toEqual({ state: 'done', outputs: [CHANGE] });
   });
 
   it('keeps report.schema in the Runner’s verdict that follows a refused report, passed or not', async () => {
@@ -351,7 +383,7 @@ describe('the agent Étapes', () => {
 
   it('writes a report.schema verdict of the kind’s Contrat when none was checked yet', async () => {
     const { steps, signal, engine } = setup();
-    steps.registerStepReport('code', z.strictObject({ tickets: z.int() }), () => Promise.resolve());
+    steps.registerStepReport('code', z.strictObject({ tickets: z.int() }), () => Promise.resolve(), () => Promise.resolve(true));
 
     await signal(runOf(), { kind: 'step.report', report: { type: 'step.report', id: STEP_RUN_ID, at: '2026-11-19T10:00:00.000Z', stepRunId: STEP_RUN_ID, figures: {} } });
 
@@ -363,8 +395,8 @@ describe('the agent Étapes', () => {
 
     expect(await signal(runOf(), { kind: 'step.report', report: { type: 'step.report', id: STEP_RUN_ID, at: '2026-11-19T10:00:00.000Z', stepRunId: STEP_RUN_ID, figures: {} } })).toBeNull();
     expect(logger.warn).toHaveBeenCalled();
-    steps.registerStepReport('code', z.object({}), () => Promise.resolve());
-    expect(() => steps.registerStepReport('code', z.object({}), () => Promise.resolve())).toThrow(/code/);
+    steps.registerStepReport('code', z.object({}), () => Promise.resolve(), () => Promise.resolve(true));
+    expect(() => steps.registerStepReport('code', z.object({}), () => Promise.resolve(), () => Promise.resolve(true))).toThrow(/code/);
   });
 
   it('ignores the Skill’s messages before its Session is written, and any signal not its own', async () => {

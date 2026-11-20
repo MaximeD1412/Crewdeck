@@ -86,10 +86,15 @@ class CodeKindModule implements OnModuleInit {
       }),
     );
     for (const kind of OTHERS) this.handlers.add(other(kind));
-    this.steps.registerStepReport('code', z.strictObject({ tests: z.int().min(0) }), (_tx, _run, report) => {
-      reports.push(report);
-      return Promise.resolve();
-    });
+    this.steps.registerStepReport(
+      'code',
+      z.strictObject({ tests: z.int().min(0) }),
+      (_tx, _run, report) => {
+        reports.push(report);
+        return Promise.resolve();
+      },
+      () => Promise.resolve(true),
+    );
     this.hooks.onFinished((_tx, stepRun, outcome) => {
       finished.push({ stepRunId: stepRun.id, finished: outcome });
       return Promise.resolve();

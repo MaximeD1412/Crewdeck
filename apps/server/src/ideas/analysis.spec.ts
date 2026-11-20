@@ -5,7 +5,6 @@ import type { Engine } from '../process/engine/engine.js';
 import type { EventsWriter } from '../realtime/events.writer.js';
 import type { Transactions, Tx } from '../realtime/transactions.js';
 import { runInPilotScope } from '../scope/scope.context.js';
-import type { SettingsService } from '../settings/settings.service.js';
 import { analysisOutcome, type FinishedAnalysis, IdeaAnalysis } from './analysis.js';
 
 const TX = {} as Tx;
@@ -69,6 +68,16 @@ describe('analysisOutcome', () => {
     expect(outcome).toMatchObject({ state: 'to-triage', run: { status: 'failed', contractId: null, failedRuleIds: [] }, applied: null });
   });
 
+  it('says the failure of a StepRun that started no Session, its Moteur none whatever the run before it', () => {
+    const before = { ...RUNNING, stepRunId: OTHER_IDEA_ID, status: 'passed' as const };
+    const outcome = analysisOutcome(finishedOf({ finished: { status: 'failed', failure: 'no-engine' }, before, pending: null }));
+    expect(outcome).toEqual({
+      state: 'to-triage',
+      run: { stepRunId: STEP_RUN_ID, status: 'failed', role: 'idea', engine: null, at: AT.toISOString(), contractId: null, contractVersion: null, failedRuleIds: [], failure: 'no-engine' },
+      applied: null,
+    });
+  });
+
   it('applies no report of another StepRun, nor a passed StepRun that sent none', () => {
     expect(analysisOutcome(finishedOf({ pending: { stepRunId: OTHER_IDEA_ID, figures: { impact: 4, effort: 2, projectId: 'nouveau', duplicateIds: [] }, sealed: null } }))).toMatchObject({
       state: 'to-triage',
@@ -86,51 +95,33 @@ describe('analysisOutcome', () => {
 
 describe('IdeaAnalysis', () => {
   const engineOf = (admission: { phaseId: string; steps: Step[] } | null) => ({ admissionFor: vi.fn(() => Promise.resolve(admission)), admit: vi.fn(() => Promise.resolve()) });
-  const settingsOf = (roles: Record<string, unknown>) => ({ effective: vi.fn(() => Promise.resolve({ roles })) });
-  const analysisOf = ({ engine = engineOf(null), settings = settingsOf({}), prisma = {} }: { engine?: ReturnType<typeof engineOf>; settings?: ReturnType<typeof settingsOf>; prisma?: unknown } = {}) =>
-    new IdeaAnalysis(prisma as PrismaService, {} as Transactions, {} as EventsWriter, {} as DecisionsService, engine as unknown as Engine, settings as unknown as SettingsService);
+  const analysisOf = ({ engine = engineOf(null), prisma = {} }: { engine?: ReturnType<typeof engineOf>; prisma?: unknown } = {}) =>
+    new IdeaAnalysis(prisma as PrismaService, {} as Transactions, {} as EventsWriter, {} as DecisionsService, engine as unknown as Engine);
   const asPilot = <T>(fn: () => Promise<T>): Promise<T> => runInPilotScope(PILOT_ID, fn);
 
   describe('admit', () => {
-    it('admits the Idée into its idea.noted Phase when the Rôle of its analysis has a Moteur', async () => {
+    it('admits the Idée into the idea.noted Phase of its Projet’s Process, whatever the Rôles: the Process decides, never a setting', async () => {
       const engine = engineOf({ phaseId: 'ph-idee', steps: IDEE_STEPS });
-      const settings = settingsOf({ idea: { engine: 'claude-code', model: 'claude-sonnet-5-5' } });
 
-      await asPilot(() => analysisOf({ engine, settings }).admit(TX, IDEA_ID, PROJECT_ID));
+      await asPilot(() => analysisOf({ engine }).admit(TX, IDEA_ID, PROJECT_ID));
 
       expect(engine.admissionFor).toHaveBeenCalledWith(TX, PROJECT_ID, 'idea.noted');
-      expect(settings.effective).toHaveBeenCalledWith(PILOT_ID, PROJECT_ID);
       expect(engine.admit).toHaveBeenCalledWith(TX, { projectId: PROJECT_ID, phaseId: 'ph-idee', item: { type: 'idea', id: IDEA_ID } });
     });
 
-    it('reads the account’s Rôles for an Idée without a Projet', async () => {
+    it('admits an Idée without a Projet into « Process Crewdeck »’s', async () => {
       const engine = engineOf({ phaseId: 'ph-idee', steps: IDEE_STEPS });
-      const settings = settingsOf({ idea: { engine: 'codex', model: 'gpt' } });
 
-      await asPilot(() => analysisOf({ engine, settings }).admit(TX, IDEA_ID, null));
+      await asPilot(() => analysisOf({ engine }).admit(TX, IDEA_ID, null));
 
-      expect(settings.effective).toHaveBeenCalledWith(PILOT_ID, undefined);
+      expect(engine.admissionFor).toHaveBeenCalledWith(TX, null, 'idea.noted');
       expect(engine.admit).toHaveBeenCalledWith(TX, { projectId: null, phaseId: 'ph-idee', item: { type: 'idea', id: IDEA_ID } });
     });
 
-    it('admits nothing for a Process without an idea.noted Phase, nor while the Rôle has no Moteur', async () => {
+    it('admits nothing for a Process without an idea.noted Phase', async () => {
       const none = engineOf(null);
       await asPilot(() => analysisOf({ engine: none }).admit(TX, IDEA_ID, PROJECT_ID));
       expect(none.admit).not.toHaveBeenCalled();
-
-      const noEngine = engineOf({ phaseId: 'ph-idee', steps: IDEE_STEPS });
-      await asPilot(() => analysisOf({ engine: noEngine, settings: settingsOf({}) }).admit(TX, IDEA_ID, PROJECT_ID));
-      expect(noEngine.admit).not.toHaveBeenCalled();
-    });
-
-    it('admits an idea.noted Phase without analysis as it is, whatever the Rôles', async () => {
-      const engine = engineOf({ phaseId: 'ph-idee', steps: IDEE_STEPS.filter((step) => step.kind !== 'idea-analysis') });
-      const settings = settingsOf({});
-
-      await asPilot(() => analysisOf({ engine, settings }).admit(TX, IDEA_ID, PROJECT_ID));
-
-      expect(settings.effective).not.toHaveBeenCalled();
-      expect(engine.admit).toHaveBeenCalledOnce();
     });
   });
 

@@ -6,16 +6,20 @@ import {
   type SessionInterruptedReason,
   type SessionStart,
   type SessionStep,
+  type SessionStepIdea,
+  type SessionStepIdeaContext,
   type StepId,
   CATALOGUE,
+  SESSION_STEP_OPEN_IDEAS_MAX,
+  zId,
   zSealedItem,
   zSessionMcpServer,
-  zSessionStepIdeaContext,
   zSessionStepInput,
 } from '@crewdeck/contracts';
 import { z } from 'zod';
 import type { Prisma } from '../generated/prisma/client.js';
 import { githubNamesOf } from '../projects/project.view.js';
+import type { Tx } from '../realtime/transactions.js';
 
 /** What a Session's view, and the `session.start` it is sent with, read of its row. */
 export const SESSION_ROW = {
@@ -101,7 +105,7 @@ export const originOf = (project: NonNullable<SessionRow['project']>): NonNullab
  * without a branch runs in a scratch directory (IDEE-2): no origin, no base,
  * no worktree Commandes.
  */
-export const startMessageOf = (row: SessionRow): Omit<SessionStart, 'id' | 'at'> => ({
+export const startMessageOf = (row: SessionRow, ideas?: SessionStepIdeaContext): Omit<SessionStart, 'id' | 'at'> => ({
   type: 'session.start',
   sessionId: row.id,
   projectId: row.projectId,
@@ -117,7 +121,7 @@ export const startMessageOf = (row: SessionRow): Omit<SessionStart, 'id' | 'at'>
   model: row.model,
   role: row.role,
   permissionMode: row.permissionMode as SessionStart['permissionMode'],
-  ...(stepOf(row) ? { step: stepOf(row) } : {}),
+  ...(stepOf(row, ideas) ? { step: stepOf(row, ideas) } : {}),
   title: row.title,
   mcpServers: z.array(zSessionMcpServer).parse(row.mcpServers),
 });
@@ -125,10 +129,10 @@ export const startMessageOf = (row: SessionRow): Omit<SessionStart, 'id' | 'at'>
 /**
  * The Étape of the Session `row`, as `session.start` carries it: its StepRun
  * and kind, its Skill (the kind's own when the row predates them), its
- * Contrat and its Entrées, and the Idées an `idea-analysis` one reads;
- * none without a StepRun.
+ * Contrat and its Entrées, and the Idées an `idea-analysis` one reads
+ * (`ideas`, read by `stepIdeasOf`); none without a StepRun.
  */
-const stepOf = (row: SessionRow): SessionStep | undefined =>
+const stepOf = (row: SessionRow, ideas: SessionStepIdeaContext | undefined): SessionStep | undefined =>
   row.stepRunId === null || row.stepKind === null
     ? undefined
     : {
@@ -137,5 +141,36 @@ const stepOf = (row: SessionRow): SessionStep | undefined =>
         skill: row.stepSkill ?? CATALOGUE[row.stepKind as StepId].skill ?? row.stepKind,
         contractId: row.stepContractId,
         inputs: z.array(zSessionStepInput).parse(row.stepInputs ?? []),
-        ...(row.stepIdeas === null ? {} : { ideas: zSessionStepIdeaContext.parse(row.stepIdeas) }),
+        ...(ideas ? { ideas } : {}),
       };
+
+/** What a Session's row keeps of the Idées it reads: their ids, never their texts. */
+const zStepIdeasRow = z.object({ ideaId: zId, openIds: z.array(zId).max(SESSION_STEP_OPEN_IDEAS_MAX) });
+
+/** The row's `stepIdeas` of the context an `idea-analysis` Session reads. */
+export const stepIdeasRow = (ideas: SessionStepIdeaContext): Prisma.InputJsonValue => ({ ideaId: ideas.idea.id, openIds: ideas.open.map(({ id }) => id) });
+
+/** What an Idée of a Session's context reads of its row. */
+export const IDEA_CONTEXT_ROW = { id: true, number: true, text: true, analysis: true } as const satisfies Prisma.IdeaSelect;
+
+export const toStepIdea = (row: { id: string; number: number; text: unknown; analysis: unknown }): SessionStepIdea => ({
+  id: row.id,
+  number: row.number,
+  text: zSealedItem.parse(row.text),
+  analysis: row.analysis === null ? null : zSealedItem.parse(row.analysis),
+});
+
+/**
+ * The Idées the Session `row` reads, as they are stored when its start is
+ * sent: their texts and analyses under their item keys of now, which a
+ * rotation of the vault key replaced since the Session was created (E2E-4).
+ * The open Idées deleted since are left out; none once its own Idée is.
+ */
+export const stepIdeasOf = async (tx: Tx, row: SessionRow): Promise<SessionStepIdeaContext | undefined> => {
+  if (row.stepIdeas === null) return undefined;
+  const { ideaId, openIds } = zStepIdeasRow.parse(row.stepIdeas);
+  const rows = await tx.idea.findMany({ where: { id: { in: [ideaId, ...openIds] } }, select: IDEA_CONTEXT_ROW });
+  const byId = new Map(rows.map((idea) => [idea.id, toStepIdea(idea)]));
+  const idea = byId.get(ideaId);
+  return idea ? { idea, open: openIds.flatMap((id) => byId.get(id) ?? []) } : undefined;
+};

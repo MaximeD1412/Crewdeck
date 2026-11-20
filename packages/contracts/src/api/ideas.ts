@@ -89,7 +89,8 @@ export type IdeaAnalysisStatus = z.infer<typeof zIdeaAnalysisStatus>;
  * the Rôle and Moteur that ran it (« Rôle Idée · Claude Code · il y a
  * 4 min »), when it started or ended (`at`), and, when its Contrat was
  * incomplete, the failed rules' ids (the page reads their labels with
- * `contratLabel`). Ids and codes only.
+ * `contratLabel`); when it failed, its StepRun's failure (`no-engine`: its
+ * Rôle had no Moteur, no Session ran). Ids and codes only.
  */
 export const zIdeaAnalysisRun = z.object({
   stepRunId: zId,
@@ -100,7 +101,11 @@ export const zIdeaAnalysisRun = z.object({
   contractId: z.string().min(1).nullable(),
   contractVersion: z.int().positive().nullable(),
   failedRuleIds: z.array(z.string().min(1)),
+  failure: z.string().min(1).max(60).optional(),
 });
+
+/** The failure of an analysis whose Rôle had no Moteur: no Session ran (IDEE-2). */
+export const IDEA_ANALYSIS_NO_ENGINE = 'no-engine';
 export type IdeaAnalysisRun = z.infer<typeof zIdeaAnalysisRun>;
 
 /**

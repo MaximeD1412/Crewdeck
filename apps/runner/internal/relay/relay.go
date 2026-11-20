@@ -10,6 +10,7 @@ import (
 	"crypto/ecdh"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -62,6 +63,40 @@ func (k *Keys) Wraps(key []byte, aad func(holderID string) string) ([]Wrap, erro
 		return nil, ErrNoHolder
 	}
 	return wraps, nil
+}
+
+// ErrUntrusted: a holder the Runner did not authenticate (E2E-2): the
+// server named it, which is never enough to seal for it.
+var ErrUntrusted = errors.New("relay: not an authenticated holder")
+
+// WrapFor wraps key for the one holder holderID (the base64url of its public
+// key) under aad, once it is among the authenticated holders; ErrUntrusted
+// when it is not, and nothing is wrapped.
+func (k *Keys) WrapFor(key []byte, holderID, aad string) (Wrap, error) {
+	holder, err := k.Trusted(holderID)
+	if err != nil {
+		return Wrap{}, err
+	}
+	w, err := keys.SealWrap(k.Runner, holder, key, []byte(keys.InfoSessionKey), []byte(aad))
+	if err != nil {
+		return Wrap{}, err
+	}
+	return Wrap{HolderId: holderID, Enc: B64.EncodeToString(w.Enc), WrappedKey: B64.EncodeToString(w.Ciphertext), Tag: B64.EncodeToString(w.Tag)}, nil
+}
+
+// Trusted is the public key of holderID when it is among the authenticated
+// holders; ErrUntrusted when it is not, or when the list cannot be read.
+func (k *Keys) Trusted(holderID string) ([]byte, error) {
+	holders, err := k.Holders()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrUntrusted, err)
+	}
+	for _, holder := range holders {
+		if B64.EncodeToString(holder) == holderID {
+			return holder, nil
+		}
+	}
+	return nil, ErrUntrusted
 }
 
 // Seal seals plain under key and aad: its nonce and its ciphertext (with the

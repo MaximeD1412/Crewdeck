@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/accounts"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/artifact"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/command"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/folders"
@@ -188,6 +189,17 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		return err
 	}
 	defer commands.Close()
+	// What the page reads of a Local Projet and of the Commandes' output
+	// (SOURCE-4), sealed for the Appareil that asked.
+	artifacts := &artifact.Reader{
+		Home:     store.Dir,
+		Keys:     relay,
+		Projects: locals.Artifact,
+		Send:     send,
+		Warn: func(kind string, err error) {
+			logger.Warn("artifact.read", "kind", kind, "error", err)
+		},
+	}
 	// The Serveurs MCP declared here, as their last `add` or `test` left
 	// them: the Runner starts none of them to report them (US-73).
 	reportMCP := func(ctx context.Context) {
@@ -306,6 +318,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		merges.Register(client)
 		projectFolders.Register(client)
 		commands.Register(client)
+		artifacts.Register(ctx, client)
 		rotations.register(ctx, client)
 		current.Store(client)
 		err := client.Run(ctx)

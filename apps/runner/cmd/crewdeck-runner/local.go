@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/maximed1412/crewdeck/apps/runner/internal/artifact"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/keys"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/session"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/source"
@@ -95,6 +96,20 @@ func (l *localSources) Source(projectID string) (source.Reader, bool) {
 	}
 	p.SetClone((&local.Origin{Home: l.store.Dir, ProjectID: projectID}).Dir())
 	return p, true
+}
+
+// Artifact is the Local Projet projectID as the page reads it (SOURCE-4):
+// its Source, and its clone fetched behind the clone's lock.
+func (l *localSources) Artifact(projectID string) (artifact.Project, bool) {
+	p, ok := l.Source(projectID)
+	if !ok {
+		return artifact.Project{}, false
+	}
+	origin := session.LockedOrigin(l.Origin(projectID))
+	return artifact.Project{Source: p, Clone: func(ctx context.Context) (string, error) {
+		dir, _, err := origin.Clone(ctx)
+		return dir, err
+	}}, true
 }
 
 // Target is the Local Projet's writer (source.write), a change's branch

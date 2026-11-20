@@ -1,4 +1,4 @@
-import { type SourceMigration, zProjectList, zSourceMigration, zState, zTicket } from '@crewdeck/contracts';
+import { type SourceMigration, zProjectList, zSourceMigration, zState, zTicket, zTicketDetail } from '@crewdeck/contracts';
 import type { INestApplication } from '@nestjs/common';
 import pg from 'pg';
 import { inject } from 'vitest';
@@ -9,8 +9,10 @@ import { WebhookDispatcher } from '../../src/github/webhooks/dispatcher.js';
 import { newId } from '../../src/ids.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { SourceMigrations } from '../../src/process/sources/migrations/source-migrations.service.js';
+import { Transactions } from '../../src/realtime/transactions.js';
 import { runInPilotScope } from '../../src/scope/scope.context.js';
 import { FAKES, type Fakes } from '../../src/testing/fakes.js';
+import { type CodeChangeInput, TicketsWriter } from '../../src/tickets/tickets.writer.js';
 import { createLinkedRunner } from '../../src/testing/runners.js';
 import { deliverWebhook, TEST_WEBHOOK_SECRET, webhookFixture } from '../fakes/github.js';
 import { connectRunner, type FakeRunnerClient } from '../fakes/runner.js';
@@ -287,6 +289,57 @@ describe('the switch of the Tickets to another Source (SOURCE-8), against Postgr
       [4, 'V2', 'github'],
     ]);
     expect(await ticketSource()).toBe('github');
+  });
+
+  it('the changes of code follow their Ticket renumbered, and keep it when their Source writes them again from their old branch', async () => {
+    await sql(`UPDATE artifact_sources SET source = 'local' WHERE project_id = $1 AND "group" = 'ticket'`, [projectId]);
+    await ticket('local', 12);
+    await ticket('local', 14);
+    const change = (number: number, headRef: string, title: string): CodeChangeInput => ({
+      number,
+      title,
+      titleSealed: null,
+      state: 'merged',
+      headRef,
+      baseRef: 'develop',
+      headSha: null,
+      mergedAt: '2026-11-19T10:00:00.000Z',
+      mergeSha: null,
+      sourceCreatedAt: '2026-11-18T10:00:00.000Z',
+    });
+    const write = (items: CodeChangeInput[]) => runInPilotScope(alice.id, () => app.get(Transactions).run((tx) => app.get(TicketsWriter).upsertCodeChanges(tx, projectId, 'github', items)));
+    await write([change(30, 'feat/12-le-panier', 'Le panier'), change(31, 'feat/14-le-paiement', 'Le paiement'), change(32, 'feat/99-ailleurs', 'Ailleurs')]);
+    const { migration, socket } = await copying('github');
+
+    const before = await lastSeq();
+    // #14 becomes #12: the change of the old #12 must not land on it.
+    socket.send({ type: 'migration.switch', migrationId: migration.id, fingerprints: [FINGERPRINT], renumbering: [{ from: 12, to: 57 }, { from: 14, to: 12 }], milestones: [] });
+    await socket.expect('migration.finish');
+
+    const linked = () => sql<{ number: number; ticket_number: number | null }>('SELECT number, ticket_number FROM code_changes WHERE project_id = $1 ORDER BY number', [projectId]);
+    expect(await linked()).toEqual([
+      { number: 30, ticket_number: 57 },
+      { number: 31, ticket_number: 12 },
+      { number: 32, ticket_number: null },
+    ]);
+    const events = await eventsSince(before);
+    const switchTx = events.find((event) => event.type === 'source-migration.upserted' && event.payload.state === 'switched')?.tx;
+    expect(events.filter((event) => event.type === 'code-change.upserted' && event.tx === switchTx).map((event) => [event.payload.number, event.payload.ticketNumber])).toEqual([
+      [30, 57],
+      [31, 12],
+      [32, null],
+    ]);
+
+    // The reconciliation, or a Local report, writes them again from their old branch.
+    await write([change(30, 'feat/12-le-panier', 'Le panier, relu'), change(31, 'feat/14-le-paiement', 'Le paiement, relu')]);
+    expect(await linked()).toEqual([
+      { number: 30, ticket_number: 57 },
+      { number: 31, ticket_number: 12 },
+      { number: 32, ticket_number: null },
+    ]);
+    const detail = async (number: number) => zTicketDetail.parse(await (await call('GET', `/api/projects/${projectId}/tickets/${number}`)).json());
+    expect((await detail(57)).codeChanges.map((item) => item.number)).toEqual([30]);
+    expect((await detail(12)).codeChanges.map((item) => item.number)).toEqual([31]);
   });
 
   it('a renumbering that misses a row or names an unknown one fails the migration before the point of no return, every row as it was', async () => {

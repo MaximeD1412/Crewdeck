@@ -228,6 +228,15 @@ export class TicketsWriter {
       });
       await this.emit(tx, saved, origin);
     }
+
+    // The changes of code follow their Ticket; one naming no Ticket names none in the new numbers.
+    const changes = await tx.codeChange.findMany({ where: { projectId, ticketNumber: { not: null } }, select: { id: true, ticketNumber: true }, orderBy: { number: 'asc' } });
+    for (const change of changes) {
+      const ticketNumber = renumbered(change.ticketNumber, move.tickets);
+      if (ticketNumber === change.ticketNumber) continue;
+      const saved = await tx.codeChange.update({ where: { id: change.id }, data: { ticketNumber }, select: CODE_CHANGE_VIEW });
+      await this.events.write(tx, currentPilotId(), 'code-change.upserted', toCodeChange(saved), origin);
+    }
   }
 
   async upsertMilestones(tx: Tx, projectId: string, source: TicketSource, items: readonly MilestoneInput[], origin: WriteOrigin = {}): Promise<Milestone[]> {
@@ -272,16 +281,17 @@ export class TicketsWriter {
   }
 
   /**
-   * Writes changes of code: the Ticket each delivers from its head branch,
-   * and, when its head moves, the `checks` of the new head from the rows
-   * already stored for that commit.
+   * Writes changes of code: the Ticket each delivers from its head branch
+   * (kept as stored while the branch is the same: a switch of the Tickets
+   * renumbered it, SOURCE-8), and, when its head moves, the `checks` of the
+   * new head from the rows already stored for that commit.
    */
   async upsertCodeChanges(tx: Tx, projectId: string, source: TicketSource, items: readonly CodeChangeInput[], origin: WriteOrigin = {}): Promise<CodeChange[]> {
     const written: CodeChange[] = [];
     for (const item of items) {
       const row = await tx.codeChange.findFirst({ where: { projectId, number: item.number }, select: CODE_CHANGE_VIEW });
       const data = {
-        ticketNumber: item.ticketNumber !== undefined ? item.ticketNumber : item.headRef === null ? null : ticketNumberOfBranch(item.headRef),
+        ticketNumber: row && row.headRef === item.headRef ? row.ticketNumber : item.ticketNumber !== undefined ? item.ticketNumber : item.headRef === null ? null : ticketNumberOfBranch(item.headRef),
         title: item.title,
         titleSealed: item.titleSealed,
         state: item.state,

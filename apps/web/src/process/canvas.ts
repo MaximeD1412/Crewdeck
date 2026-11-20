@@ -1,4 +1,4 @@
-import { CATALOGUE, type Phase, type Port, type ProcessDefinition, type ProcessGap, type Step, type Tool } from '@crewdeck/contracts';
+import { CATALOGUE, type Arrow, type Phase, type Port, type ProcessDefinition, type ProcessGap, type Step, type Tool } from '@crewdeck/contracts';
 import { t, type ComposantData, type ProcessCanvas } from '@crewdeck/sdk';
 
 export type CanvasData = ComposantData<typeof ProcessCanvas>;
@@ -23,6 +23,8 @@ export interface CanvasContext {
   readonly editable?: boolean;
   /** The Phase an Étape of the catalogue goes to, outlined; none by default. */
   readonly target?: string | null;
+  /** The arrow the rules just refused (PROCESS-9), drawn `refused` with its Entrée while the Toast says why; none by default. */
+  readonly refused?: Arrow | null;
 }
 
 /**
@@ -75,13 +77,13 @@ const toolChip = (tool: Tool, roleNames: Readonly<Record<string, string>>): Canv
   }
 };
 
-const portOf = (port: Port, dir: 'in' | 'out', unfed: boolean): CanvasPort => ({
+const portOf = (port: Port, dir: 'in' | 'out', state: 'unfed' | 'refused' | null): CanvasPort => ({
   id: port.id,
   dir,
   type: port.type,
   label: typeLabel(port.type),
   note: port.note ?? null,
-  state: unfed ? 'unfed' : null,
+  state,
 });
 
 /**
@@ -89,7 +91,8 @@ const portOf = (port: Port, dir: 'in' | 'out', unfed: boolean): CanvasPort => ({
  * cells, each with its « pour chaque » and its count of Manques, their Étapes
  * at their cells with their family, their ports by Type d'artefact (an
  * Entrée a Manque names `unfed`) and their Outils; the arrows and Retours as
- * defined; the selected block marked.
+ * defined; the selected block marked; while editing, the arrow just
+ * refused.
  */
 export const canvasOf = (definition: ProcessDefinition, gaps: readonly ProcessGap[], selection: Selection | null, context: CanvasContext): CanvasData => {
   const gapsByStep = new Map<string, number>();
@@ -101,6 +104,9 @@ export const canvasOf = (definition: ProcessDefinition, gaps: readonly ProcessGa
     if (gap.kind === 'input.unfed' && at.inputId) unfed.add(`${at.stepId}.${at.inputId}`);
   }
   const selected = (kind: Selection['kind'], id: string) => selection?.kind === kind && selection.id === id;
+  const refused = context.refused ?? null;
+  const inputState = (stepId: string, portId: string): 'unfed' | 'refused' | null =>
+    refused?.to.stepId === stepId && refused.to.portId === portId ? 'refused' : unfed.has(`${stepId}.${portId}`) ? 'unfed' : null;
 
   const stepOf = (step: Step, phase: Phase): CanvasStep => ({
     id: step.id,
@@ -113,8 +119,8 @@ export const canvasOf = (definition: ProcessDefinition, gaps: readonly ProcessGa
     col: step.col,
     row: step.row,
     ports: [
-      ...step.inputs.map((port) => portOf(port, 'in', unfed.has(`${step.id}.${port.id}`))),
-      ...step.outputs.map((port) => portOf(port, 'out', false)),
+      ...step.inputs.map((port) => portOf(port, 'in', inputState(step.id, port.id))),
+      ...step.outputs.map((port) => portOf(port, 'out', null)),
     ],
     tools: step.tools.map((tool) => toolChip(tool, context.roleNames)),
   });
@@ -140,11 +146,14 @@ export const canvasOf = (definition: ProcessDefinition, gaps: readonly ProcessGa
         steps,
       };
     }),
-    arrows: definition.arrows.map((arrow) => ({
-      from: { stepId: arrow.from.stepId, portId: arrow.from.portId },
-      to: { stepId: arrow.to.stepId, portId: arrow.to.portId },
-      state: null,
-    })),
+    arrows: [
+      ...definition.arrows.map((arrow) => ({
+        from: { stepId: arrow.from.stepId, portId: arrow.from.portId },
+        to: { stepId: arrow.to.stepId, portId: arrow.to.portId },
+        state: null,
+      })),
+      ...(refused ? [{ from: { ...refused.from }, to: { ...refused.to }, state: 'refused' as const }] : []),
+    ],
     loopBacks: definition.loopBacks.map((loop) => ({ from: loop.from, to: loop.to, max: loop.max, state: null })),
   };
 };

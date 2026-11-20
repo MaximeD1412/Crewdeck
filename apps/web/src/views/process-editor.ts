@@ -1,5 +1,7 @@
 import {
+  AGENT_ROLES,
   ARTIFACT_TYPES,
+  CATALOGUE,
   diffDefinitions,
   FOR_EACH,
   findGaps,
@@ -9,6 +11,7 @@ import {
   SOURCE_KINDS,
   type AccountSettings,
   type AiAccount,
+  type Arrow,
   type ArtifactType,
   type CodeChange,
   type PhaseRun,
@@ -25,12 +28,14 @@ import {
   type Ticket,
   type Tool,
   type ForEach,
+  type McpServer,
 } from '@crewdeck/contracts';
 import { formatDate, t, type ComposantData, type MessageKey, type PageProcessEditor } from '@crewdeck/sdk';
 import { canvasOf, gapStep, kindLabelOf, roleName, targetPhaseOf, typeLabel, type Selection } from '../process/canvas.js';
 import { catalogueMenu } from '../process/catalogue-menu.js';
 import { changeLabels } from '../process/diff-labels.js';
-import { canRemovePhase, canRemoveStep } from '../process/edit.js';
+import { attachMenuOf, type AttachContext } from '../process/attach-menu.js';
+import { canRemovePhase, canRemoveStep, candidates, loopBackTargets, takesTools, type PortRef } from '../process/edit.js';
 import type { EditorUi, SourceChoice } from '../process/editor-ui.js';
 import { runningByVersion, type WorkKind } from '../process/running-work.js';
 import { sensitiveBlockedReason } from '../store/sensitive.js';
@@ -51,6 +56,8 @@ export interface ProcessEditorState {
     readonly process?: ReadonlyMap<string, ProjectProcess>;
     readonly settings?: AccountSettings | null;
     readonly runner?: Pick<Runner, 'machine'> | null;
+    /** The Serveurs MCP the Runner declares (RUNNER-16): « Attacher un Outil » offers their names. */
+    readonly 'mcp-server'?: { values(): Iterable<Pick<McpServer, 'name'>> };
     readonly 'ai-account'?: { values(): Iterable<AiAccount> };
     readonly 'source-migration'?: ReadonlyMap<string, SourceMigration>;
     readonly 'phase-run'?: ReadonlyMap<string, PhaseRun>;
@@ -73,6 +80,14 @@ export const sourceReadsOf = (state: ProcessEditorState, project: Project, defin
   };
 };
 
+/** A refusal or a notice of the edits over the canvas. */
+export interface EditorToast {
+  readonly tone: 'halt' | 'accent';
+  readonly text: string;
+  /** The arrow refused, drawn `refused` while the Toast stays. */
+  readonly arrow: Arrow | null;
+}
+
 /** What the page's edits add to the store's view (PROCESS-8): `NO_EDITS` reads the store as is. */
 export interface EditorEdits {
   /** The Process as the canvas shows it, its edits not saved yet included; `undefined`: the store's. */
@@ -81,10 +96,12 @@ export interface EditorEdits {
   readonly saving?: boolean;
   /** Whether the catalogue's Menu is open. */
   readonly catalogue: boolean;
+  /** The Étape whose « Attacher un Outil » is open. */
+  readonly attach?: string | null;
   /** The Phase whose removal the Dialog asks. */
   readonly removingPhase: string | null;
-  /** The last refusal, in a halt Toast. */
-  readonly toast: string | null;
+  /** The last refusal, in a halt Toast, with the arrow refused when it was one; or the last notice, in an accent one. */
+  readonly toast: EditorToast | null;
   /** Why a Phase's name was refused. */
   readonly nameError: { readonly phaseId: string; readonly text: string } | null;
   /** The last ask to focus a Phase's name. */
@@ -137,6 +154,9 @@ interface Context {
   readonly roleNames: Readonly<Record<string, string>>;
   readonly settings: AccountSettings | null;
   readonly accounts: readonly AiAccount[];
+  /** The names the Runner declares, `null` while the slice is unknown. */
+  readonly mcpServers: ReadonlySet<string> | null;
+  readonly machine: string;
 }
 
 const roleDetail = (roleId: string, { settings, accounts }: Context): string | null => {
@@ -148,7 +168,7 @@ const roleDetail = (roleId: string, { settings, accounts }: Context): string | n
   return t('settings.roles.model', { engine: t(`engine.${choice.engine}`), label });
 };
 
-const toolRow = (tool: Tool, context: Context): ToolRow => {
+const toolRowOf = (tool: Tool, context: Context): Omit<ToolRow, 'tool' | 'detachLabel'> => {
   switch (tool.kind) {
     case 'role':
       return { icon: 'user', label: t('process.tool.role', { name: roleName(tool.roleId, context.roleNames) }), detail: roleDetail(tool.roleId, context) };
@@ -156,13 +176,31 @@ const toolRow = (tool: Tool, context: Context): ToolRow => {
       // Every Skill of the catalogue is an official one, embedded in the Runner (ADR 0004).
       return { icon: 'spark', label: t('process.tool.skill', { name: tool.skillId }), detail: t('process.tool.skill.official') };
     case 'mcp':
-      return { icon: 'layers', label: t('process.tool.mcp', { name: tool.name }), detail: null };
+      // A name the Runner no longer declares is a point of the Projet's preparation, not a Manque (ADR 0013).
+      return {
+        icon: 'layers',
+        label: t('process.tool.mcp', { name: tool.name }),
+        detail: context.mcpServers && !context.mcpServers.has(tool.name) ? t('process.tools.mcp.undeclared', { machine: context.machine }) : null,
+      };
     case 'connector':
       return { icon: 'plug', label: t('process.tool.connector'), detail: context.project.fullName };
     case 'command':
       // Its text is in the sealed part, PROCESS-12's to open.
       return { icon: 'terminal', label: t('process.tool.command'), detail: null };
   }
+};
+
+/** An Outil's row, with its « Détacher le Rôle Review ». */
+const toolRow = (tool: Tool, context: Context): ToolRow => {
+  const row = toolRowOf(tool, context);
+  return { ...row, tool, detachLabel: t(`process.tools.detach.${tool.kind}`, { label: row.label }) };
+};
+
+/** What a Retour stops at, beyond its maximum: what its Phase repeats for. */
+const LOOP_ITEM: Readonly<Record<ForEach, MessageKey>> = {
+  'ticket.ready': 'process.loopBack.item.ticket',
+  'idea.retained': 'process.loopBack.item.design',
+  'idea.noted': 'process.loopBack.item.idea',
 };
 
 const names = (definition: ProcessDefinition, ids: readonly string[]): string =>
@@ -207,6 +245,13 @@ const stepPanel = (step: Step, context: Context): NonNullable<ProcessEditorData[
   const phase = definition.phases.find((candidate) => candidate.id === step.phaseId);
   const unfed = new Set(gaps.filter((gap) => gap.kind === 'input.unfed').map((gap) => gap.target));
   const loopBack = definition.loopBacks.find((loop) => loop.from === step.id);
+  const nameOf = (id: string): string => stepById(definition, id)?.name ?? id;
+  const panelArrow = (from: PortRef, to: PortRef, side: 'from' | 'to') => ({
+    from: { ...from },
+    to: { ...to },
+    removeLabel: t(side === 'from' ? 'process.arrow.remove.from' : 'process.arrow.remove.to', { step: nameOf(side === 'from' ? from.stepId : to.stepId) }),
+  });
+  const judges = CATALOGUE[step.kind].judges;
   return {
     id: step.id,
     phaseId: step.phaseId,
@@ -214,10 +259,20 @@ const stepPanel = (step: Step, context: Context): NonNullable<ProcessEditorData[
     kindLabel: kindLabelOf(step, phase),
     phaseName: phase?.name ?? '',
     loopBack: loopBack
-      ? t('process.step.loopBack', { to: stepById(definition, loopBack.to)?.name ?? loopBack.to, from: step.name, max: loopBack.max })
+      ? {
+          text: t('process.step.loopBack', {
+            to: nameOf(loopBack.to),
+            from: step.name,
+            item: t(phase?.forEach ? LOOP_ITEM[phase.forEach] : 'process.loopBack.item.artifact'),
+          }),
+          max: loopBack.max,
+        }
       : null,
+    loopBackTargets:
+      judges && !loopBack ? loopBackTargets(definition, step.id).map((id) => ({ value: id, label: nameOf(id) })) : null,
     inputs: step.inputs.map((port) => {
-      const feeders = definition.arrows.filter((arrow) => arrow.to.stepId === step.id && arrow.to.portId === port.id).map((arrow) => arrow.from.stepId);
+      const held = definition.arrows.filter((arrow) => arrow.to.stepId === step.id && arrow.to.portId === port.id);
+      const feeders = held.map((arrow) => arrow.from.stepId);
       const fed = !unfed.has(`steps.${step.id}.inputs.${port.id}`);
       const from =
         feeders.length > 0
@@ -225,13 +280,34 @@ const stepPanel = (step: Step, context: Context): NonNullable<ProcessEditorData[
           : fed && phase?.forEach
             ? t('process.step.from.forEach', { forEach: FOR_EACH[phase.forEach].label })
             : t('process.step.from.nothing');
-      return { label: portLabel(port), from: t('process.step.from', { from }), fed };
+      const input = { stepId: step.id, portId: port.id };
+      return {
+        id: port.id,
+        label: portLabel(port),
+        from: t('process.step.from', { from }),
+        fed,
+        arrows: held.map((arrow) => panelArrow(arrow.from, arrow.to, 'from')),
+        candidates:
+          held.length === 0
+            ? candidates(definition, input).map((ref) => {
+                const source = stepById(definition, ref.stepId);
+                const out = source?.outputs.find((candidate) => candidate.id === ref.portId);
+                return { from: { ...ref }, label: t('process.arrow.candidate', { port: out ? portLabel(out) : ref.portId, step: nameOf(ref.stepId) }) };
+              })
+            : null,
+      };
     }),
     outputs: step.outputs.map((port) => {
-      const fed = definition.arrows.filter((arrow) => arrow.from.stepId === step.id && arrow.from.portId === port.id).map((arrow) => arrow.to.stepId);
-      return { label: portLabel(port), to: t('process.step.to', { to: fed.length > 0 ? names(definition, fed) : t('process.step.to.nothing') }) };
+      const held = definition.arrows.filter((arrow) => arrow.from.stepId === step.id && arrow.from.portId === port.id);
+      const fed = held.map((arrow) => arrow.to.stepId);
+      return {
+        label: portLabel(port),
+        to: t('process.step.to', { to: fed.length > 0 ? names(definition, fed) : t('process.step.to.nothing') }),
+        arrows: held.map((arrow) => panelArrow(arrow.from, arrow.to, 'to')),
+      };
     }),
     tools: step.tools.map((tool) => toolRow(tool, context)),
+    canAttach: takesTools(step.kind),
     phases: definition.phases.map((candidate) => ({ value: candidate.id, label: candidate.name })),
     removeReason: stepRemoveReason(definition, step),
   };
@@ -409,6 +485,25 @@ const activateOf = (
   return { label, revision, disabledReason };
 };
 
+/**
+ * « Attacher un Outil », open for an Étape (PROCESS-9): the Rôles, the
+ * Pilote's after the four of Crewdeck, each with its Moteur and model; the
+ * Serveurs MCP the Runner declares (none while the slice is unknown); the
+ * Projet's repository. The Commande's group waits for PROCESS-12.
+ */
+const attachOf = (definition: ProcessDefinition, stepId: string | null, context: Context): ProcessEditorData['attach'] => {
+  if (stepId === null || !stepById(definition, stepId)) return null;
+  const ids = [...AGENT_ROLES, ...(context.settings?.customRoles ?? []).map((role) => role.id)];
+  const attach: AttachContext = {
+    roles: ids.map((id) => ({ id, name: roleName(id, context.roleNames), detail: roleDetail(id, context) })),
+    mcpServers: [...(context.mcpServers ?? [])].sort((a, b) => a.localeCompare(b, 'fr')),
+    machine: context.machine,
+    repository: context.project.fullName,
+  };
+  const menu = attachMenuOf(definition, stepId, attach, { commands: false });
+  return menu ? { stepId, menu: menu.menu, choices: menu.choices.map((choice) => ({ id: choice.id, tool: choice.tool })) } : null;
+};
+
 const EMPTY_DEFINITION: ProcessDefinition = { schemaVersion: 1, phases: [], steps: [], arrows: [], loopBacks: [], commands: [] };
 
 /** The page without a Projet: « Ce Projet n'existe pas », or, until the snapshot came, nothing yet. */
@@ -422,6 +517,7 @@ const nothing = (found: boolean, ui: EditorUi): ProcessEditorData => ({
   step: null,
   phase: null,
   catalogue: null,
+  attach: null,
   toast: ui.toast,
   removePhase: null,
   sources: { lead: t('process.sources.lead'), banner: null, rows: [] },
@@ -435,7 +531,10 @@ const nothing = (found: boolean, ui: EditorUi): ProcessEditorData => ({
  * for the Projet's Sources, the header's count, the panel's tab, the Étape or
  * Phase of the URL, the Sources and the versions. Editable (US-93, US-95):
  * the edits' view in place of the store's, the target Phase, why a block
- * does not go, the catalogue, the refusal and the Dialog asked.
+ * does not go, the catalogue, the refusal and the Dialog asked. Its arrows,
+ * Retours and Outils (US-94, US-95, US-93): each arrow's « Retirer la
+ * flèche », an Entrée's candidates, a Retour's targets and maximum, the
+ * Outils' « Détacher », « Attacher un Outil » and its Menu, the arrow refused.
  */
 export const processEditorView = (
   state: ProcessEditorState,
@@ -456,7 +555,17 @@ export const processEditorView = (
   const selection = selectionIn(definition, ui.selection);
   const settings = slices.settings ?? null;
   const roleNames = Object.fromEntries((settings?.customRoles ?? []).map((role) => [role.id, role.name]));
-  const context: Context = { definition, gaps, project, roleNames, settings, accounts: [...(slices['ai-account']?.values() ?? [])] };
+  const mcpSlice = slices['mcp-server'];
+  const context: Context = {
+    definition,
+    gaps,
+    project,
+    roleNames,
+    settings,
+    accounts: [...(slices['ai-account']?.values() ?? [])],
+    mcpServers: mcpSlice ? new Set([...mcpSlice.values()].map((server) => server.name)) : null,
+    machine: slices.runner?.machine ?? t('process.sources.machine.none'),
+  };
   const step = selection?.kind === 'step' && selection.id ? stepById(definition, selection.id) : undefined;
   // The page's own diff (ADR 0011): the server only refuses an empty one.
   const changes = view.active && view.draft ? diffDefinitions(view.active.definition, view.draft.definition) : [];
@@ -466,14 +575,23 @@ export const processEditorView = (
     found: true,
     title: { projectName: projectName(project), backHref: '/projets', count: countOf(view, changes, gaps.length) },
     hasVersion: view.active !== null,
-    canvas: canvasOf(definition, gaps, selection, { zoom: ui.zoom, pan: ui.pan, roleNames, focus: ui.focus, editable: true, target: target?.id ?? null }),
+    canvas: canvasOf(definition, gaps, selection, {
+      zoom: ui.zoom,
+      pan: ui.pan,
+      roleNames,
+      focus: ui.focus,
+      editable: true,
+      target: target?.id ?? null,
+      refused: edits.toast?.arrow ?? null,
+    }),
     tab: ui.tab,
     gaps: gaps.map((gap) => gapRowOf(gap, definition)),
     step: step ? stepPanel(step, context) : null,
     phase: selection?.kind === 'phase' && selection.id ? phasePanel(selection.id, definition, edits) : null,
     catalogue: edits.catalogue && target ? catalogueMenu(definition, target.name) : null,
-    // An edit's refusal, else the activation's Toast: the edit's goes first, cleared at the next edit.
-    toast: edits.toast === null ? ui.toast : { tone: 'halt', icon: 'block', text: edits.toast },
+    attach: attachOf(definition, edits.attach ?? null, context),
+    // An edit's refusal or notice, else the activation's Toast: the edit's goes first, cleared at the next edit.
+    toast: edits.toast === null ? ui.toast : edits.toast.tone === 'halt' ? { tone: 'halt', icon: 'block', text: edits.toast.text } : { tone: 'accent', icon: 'refresh', text: edits.toast.text },
     removePhase: removePhaseDialog(definition, edits.removingPhase),
     sources: sourcesPanel(view, definition, sourceReadsOf(state, project, view.active?.definition ?? definition), ui.choice ?? null),
     footer: footerOf(view, changes, roleNames),

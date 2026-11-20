@@ -303,14 +303,14 @@ describe('createEditorActions, editing (PROCESS-8)', () => {
     vi.useFakeTimers();
     const { actions, editing, puts, shown } = setup();
     actions.moveStepToPhase({ stepId: 'st-code', phaseId: 'ph-conception' });
-    expect(editing.edits('p1').toast).toBe('Un Retour reste dans sa Phase : « Code » n’est pas dans « Développement »');
+    expect(editing.edits('p1').toast).toEqual({ tone: 'halt', text: 'Un Retour reste dans sa Phase : « Code » n’est pas dans « Développement »', arrow: null });
     expect(shown().steps.find((step) => step.id === 'st-code')?.phaseId).toBe('ph-dev');
     expect(puts).toHaveLength(0);
     vi.advanceTimersByTime(6000);
     expect(editing.edits('p1').toast).toBeNull();
 
     actions.moveStep({ stepId: 'st-code', phaseId: 'ph-dev', col: 2, row: 1 });
-    expect(editing.edits('p1').toast).toBe('Cette case est déjà prise par « Checks ».');
+    expect(editing.edits('p1').toast?.text).toBe('Cette case est déjà prise par « Checks ».');
   });
 
   it('asks the Dialog before removing a Phase with Étapes: « Annuler » changes nothing, « Retirer la Phase » removes them in one save', async () => {
@@ -361,7 +361,7 @@ describe('createEditorActions, editing (PROCESS-8)', () => {
     actions.setForEach({ phaseId: 'ph-dev', forEach: null });
     expect(shown().phases[2]?.forEach).toBeNull();
     actions.setForEach({ phaseId: 'ph-idee', forEach: 'idea.retained' });
-    expect(editing.edits('p1').toast).toBe('« Conception » se répète pour chaque Idée retenue, comme « Idée »');
+    expect(editing.edits('p1').toast?.text).toBe('« Conception » se répète pour chaque Idée retenue, comme « Idée »');
   });
 
   it('activates nothing when an edit was being saved under the confirmation, even if its save fails', async () => {
@@ -389,7 +389,99 @@ describe('createEditorActions, editing (PROCESS-8)', () => {
     });
     actions.addPhase();
     await editing.settled();
-    expect(editing.edits('p1').toast).toBe('Le brouillon a changé dans un autre onglet : ton dernier changement n’est pas enregistré.');
+    expect(editing.edits('p1').toast?.text).toBe('Le brouillon a changé dans un autre onglet : ton dernier changement n’est pas enregistré.');
     expect(shown().phases).toHaveLength(3);
+  });
+});
+
+describe('createEditorActions, arrows, Retours and Outils (PROCESS-9)', () => {
+  afterEach(() => vi.useRealTimers());
+  const port = (stepId: string, portId: string) => ({ stepId, portId });
+  const holds = (definition: ProcessDefinition, from: string, to: string) =>
+    definition.arrows.some((arrow) => `${arrow.from.stepId}.${arrow.from.portId}` === from && `${arrow.to.stepId}.${arrow.to.portId}` === to);
+
+  it('refuses an arrow between two types: drawn refused with « Refusée : … » for 6 s or until the next edit, nothing saved', async () => {
+    vi.useFakeTimers();
+    const { actions, editing, puts, shown } = setup();
+    const arrows = shown().arrows.length;
+    actions.connect({ from: port('st-code', 'changement'), to: port('st-rv', 'maquettes') });
+
+    expect(editing.edits('p1').toast).toEqual({
+      tone: 'halt',
+      text: 'Refusée : une Sortie Changement de code ne va que vers une Entrée Changement de code',
+      arrow: { from: port('st-code', 'changement'), to: port('st-rv', 'maquettes') },
+    });
+    expect(shown().arrows).toHaveLength(arrows);
+    await editing.settled();
+    expect(puts).toHaveLength(0);
+    vi.advanceTimersByTime(6000);
+    expect(editing.edits('p1').toast).toBeNull();
+  });
+
+  it('adds an accepted arrow and saves the draft; an Entrée already fed or a cycle refused with its label', async () => {
+    const { actions, editing, puts, shown } = setup();
+    actions.disconnect({ from: port('st-checks', 'verdict'), to: port('st-review', 'verdict') });
+    actions.connect({ from: port('st-checks', 'verdict'), to: port('st-review', 'verdict') });
+    expect(holds(shown(), 'st-checks.verdict', 'st-review.verdict')).toBe(true);
+    await editing.settled();
+    expect(puts.length).toBeGreaterThan(0);
+
+    actions.connect({ from: port('st-rv', 'verdict'), to: port('st-review', 'verdict') });
+    expect(editing.edits('p1').toast?.text).toBe('Refusée : l’Entrée « Verdict des checks » de « Review » a déjà sa flèche');
+    actions.connect({ from: port('st-merge', 'changement'), to: port('st-checks', 'changement') });
+    expect(editing.edits('p1').toast?.text).toMatch(/^Refusée : /);
+  });
+
+  it('draws a Retour from the Review to « Code » with « 3 fois au plus », sets its maximum, removes it; refuses one from an Étape that does not judge', () => {
+    const { actions, editing, shown } = setup();
+    actions.removeLoopBack({ from: 'st-review' });
+    expect(shown().loopBacks.some((loop) => loop.from === 'st-review')).toBe(false);
+
+    actions.addLoopBack({ from: 'st-review', to: 'st-code' });
+    expect(shown().loopBacks.find((loop) => loop.from === 'st-review')).toEqual({ from: 'st-review', to: 'st-code', max: 3 });
+    expect(editing.edits('p1').toast).toEqual({ tone: 'accent', text: 'Retour de « Review » vers « Code », 3 fois au plus.', arrow: null });
+
+    actions.setLoopBackMax({ from: 'st-review', max: 10 });
+    expect(shown().loopBacks.find((loop) => loop.from === 'st-review')?.max).toBe(10);
+    actions.setLoopBackMax({ from: 'st-review', max: 11 });
+    expect(editing.edits('p1').toast?.text).toBe('Un Retour se prend de 1 à 10 fois.');
+
+    actions.addLoopBack({ from: 'st-checks', to: 'st-code' });
+    expect(editing.edits('p1').toast?.text).toBe('Refusée : « Checks » ne juge pas : un Retour part d’une Étape qui juge');
+  });
+
+  it('opens « Attacher un Outil » (closing the catalogue), attaches the Outil chosen and closes it', () => {
+    const { actions, editing, shown } = setup({}, undefined, { repository: () => 'MaximeD1412/site-mairie' });
+    actions.openCatalogue();
+    actions.openAttach({ stepId: 'st-review' });
+    expect(editing.edits('p1')).toMatchObject({ attach: 'st-review', catalogue: false });
+
+    actions.attachTool({ stepId: 'st-review', tool: { kind: 'mcp', name: 'stitch' } });
+    expect(editing.edits('p1').attach).toBeNull();
+    expect(shown().steps.find((step) => step.id === 'st-review')?.tools).toContainEqual({ kind: 'mcp', name: 'stitch' });
+
+    actions.attachTool({ stepId: 'st-review', tool: { kind: 'connector', connector: 'github' } });
+    expect(shown().steps.find((step) => step.id === 'st-review')?.tools).toContainEqual({ kind: 'connector', connector: 'github' });
+
+    actions.detachTool({ stepId: 'st-review', tool: { kind: 'mcp', name: 'stitch' } });
+    expect(shown().steps.find((step) => step.id === 'st-review')?.tools).not.toContainEqual({ kind: 'mcp', name: 'stitch' });
+
+    actions.openAttach({ stepId: 'st-review' });
+    actions.closeMenu();
+    expect(editing.edits('p1').attach).toBeNull();
+  });
+
+  it('refuses GitHub for a Projet without repository', () => {
+    const { actions, editing } = setup();
+    actions.attachTool({ stepId: 'st-review', tool: { kind: 'connector', connector: 'github' } });
+    expect(editing.edits('p1').toast?.text).toBe('Le Connecteur GitHub demande un Dépôt GitHub : ce Projet n’en a pas.');
+  });
+
+  it('leads « Déclarer un Serveur MCP » to the Runner’s page, the Menu closed', () => {
+    const { actions, editing, navigate } = setup();
+    actions.openAttach({ stepId: 'st-review' });
+    actions.openRunner();
+    expect(navigate).toHaveBeenCalledWith('/runner');
+    expect(editing.edits('p1').attach).toBeNull();
   });
 });

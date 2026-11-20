@@ -8,11 +8,15 @@ type Tab = Data['tab'];
 type Step = NonNullable<Data['step']>;
 type Phase = NonNullable<Data['phase']>;
 type Row = Step['tools'][number];
+type Attach = NonNullable<Data['attach']>;
+type Input = Step['inputs'][number];
+type PanelArrow = Input['arrows'][number];
 type SourceRow = Data['sources']['rows'][number];
 type SourceSelect = NonNullable<SourceRow['select']>;
 type ForEach = Phase['repeat'][number]['forEach'];
 type StepKind = ComposantPayload<typeof PageProcessEditor, 'addStep'>['kind'];
 type Control = HTMLElement & { value: string };
+type Choice = HTMLElement & { value: string; reset(): void };
 
 /** The radio « Une fois »'s value: a Phase that does not repeat. */
 const ONCE = 'once';
@@ -211,6 +215,21 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
         --cd-field-label-clip: inset(50%);
         --cd-field-label-white-space: nowrap;
       }
+      .trailing {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--cd-space-1);
+      }
+      /* A Select of its own line under the row, its label shown. */
+      .item .choose {
+        grid-column: 2 / -1;
+        width: auto;
+        --cd-field-label-position: static;
+        --cd-field-label-size: auto;
+        --cd-field-label-overflow: visible;
+        --cd-field-label-clip: none;
+        --cd-field-label-white-space: normal;
+      }
       .phone-sources {
         display: flex;
         flex-direction: column;
@@ -272,6 +291,8 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
   private focusedAt: number | null = null;
   /** Whether the catalogue was open when « Étape » was pressed: the Menu closes itself on that press, its click then opens nothing. A key or that click clears it. */
   private catalogueWasOpen = false;
+  /** The same for « Attacher un Outil ». */
+  private attachWasOpen = false;
   /** Bumped when a choice in the panel was refused: its controls, keyed on it, show the data again. */
   private resets = 0;
 
@@ -288,7 +309,7 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     });
   }
 
-  /** The canvas's `select` and `view` become the page's, its `moveStep` too. */
+  /** The canvas's `select` and `view` become the page's, its `moveStep`, `connect` and `loopBack` (`addLoopBack`) too. */
   private onCanvas(event: Event) {
     const { composant, action, payload } = (event as CustomEvent<CdActionDetail>).detail;
     if (composant !== 'ProcessCanvas') return;
@@ -296,6 +317,44 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     if (action === 'select') this.emit('select', { target: (payload as { target: Data['gaps'][number]['target'] | null }).target, centre: false });
     if (action === 'view') this.emit('view', payload as { zoom: number; pan: { x: number; y: number } });
     if (action === 'moveStep') this.emit('moveStep', payload as { stepId: string; phaseId: string; col: number; row: number });
+    if (action === 'connect') this.emit('connect', payload as ComposantPayload<typeof PageProcessEditor, 'connect'>);
+    if (action === 'loopBack') this.emit('addLoopBack', payload as ComposantPayload<typeof PageProcessEditor, 'addLoopBack'>);
+  }
+
+  /** « Attacher un Outil »: a choice attaches its Outil, « Déclarer un Serveur MCP » opens the page Runner. */
+  private onAttachMenu(attach: Attach, event: Event) {
+    const { composant, action, payload } = (event as CustomEvent<CdActionDetail>).detail;
+    if (composant !== 'Menu') return;
+    event.stopPropagation();
+    if (action === 'close') this.emit('closeMenu', {});
+    if (action !== 'choose') return;
+    const choice = attach.choices.find((candidate) => candidate.id === (payload as { id: string }).id);
+    if (!choice) return;
+    if (choice.tool === null) this.emit('openRunner', {});
+    else this.emit('attachTool', { stepId: attach.stepId, tool: choice.tool });
+  }
+
+  private onLoopBackMax(step: Step, event: Event) {
+    const { composant, action, payload } = (event as CustomEvent<CdActionDetail>).detail;
+    if (composant !== 'Stepper') return;
+    event.stopPropagation();
+    if (action === 'change') this.emit('setLoopBackMax', { from: step.id, max: (payload as { value: number }).value });
+  }
+
+  /** « Alimentée par »: the Sortie chosen is connected, the Select back on its placeholder. */
+  private onFeed(step: Step, input: Input, event: Event) {
+    const control = event.currentTarget as Choice;
+    const candidate = input.candidates?.[Number(control.value)];
+    if (control.value !== '' && candidate) this.emit('connect', { from: candidate.from, to: { stepId: step.id, portId: input.id } });
+    control.reset();
+  }
+
+  /** « Poser un Retour vers »: the Retour is asked for, the Select back on its placeholder. */
+  private onLoopBackTarget(step: Step, event: Event) {
+    const control = event.currentTarget as Choice;
+    const to = step.loopBackTargets?.find((target) => target.value === control.value)?.value;
+    if (to !== undefined) this.emit('addLoopBack', { from: step.id, to });
+    control.reset();
   }
 
   private onMenu(event: Event) {
@@ -304,6 +363,14 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     event.stopPropagation();
     if (action === 'close') this.emit('closeMenu', {});
     if (action === 'choose') this.emit('addStep', { kind: (payload as { id: StepKind }).id });
+  }
+
+  private onAttachButton(step: Step) {
+    // As « Étape »'s: the press that closed the Menu opens nothing.
+    const closing = this.attachWasOpen;
+    this.attachWasOpen = false;
+    if (closing) return;
+    this.emit('openAttach', { stepId: step.id });
   }
 
   private onCatalogueButton() {
@@ -387,11 +454,98 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     if (isTab(tab)) this.emit('tab', { tab });
   }
 
-  private row({ icon, label, detail }: Row): TemplateResult {
+  /** An Outil of the Étape, « Détacher » on it while the canvas edits. */
+  private row(step: Step, { icon, label, detail, tool, detachLabel }: Row): TemplateResult {
+    const detach = this.data.canvas.editable
+      ? html`<cd-icon-button class="detach" .data=${{ icon: 'x', label: detachLabel }} @click=${() => this.emit('detachTool', { stepId: step.id, tool })}></cd-icon-button>`
+      : html`<span></span>`;
     return html`<div class="item" role="listitem">
-      <cd-icon .data=${{ name: icon, size: 'sm' }}></cd-icon><b>${label}</b><span></span>
+      <cd-icon .data=${{ name: icon, size: 'sm' }}></cd-icon><b>${label}</b>${detach}
       ${detail === null ? nothing : html`<small>${detail}</small>`}
     </div>`;
+  }
+
+  /** « Retirer la flèche », one per arrow of a port, while the canvas edits. */
+  private arrowButtons(arrows: PanelArrow[]): TemplateResult[] {
+    if (!this.data.canvas.editable) return [];
+    return arrows.map(
+      (arrow) =>
+        html`<cd-icon-button
+          class="disconnect"
+          .data=${{ icon: 'x', label: arrow.removeLabel }}
+          @click=${() => this.emit('disconnect', { from: arrow.from, to: arrow.to })}
+        ></cd-icon-button>`,
+    );
+  }
+
+  private inputRow(step: Step, input: Input): TemplateResult {
+    const editable = this.data.canvas.editable;
+    const candidates = editable ? input.candidates : null;
+    return html`<div class="item ${input.fed ? '' : 'caution'}" role="listitem">
+      <cd-icon .data=${{ name: input.fed ? 'chevron-right' : 'alert', size: 'sm' }}></cd-icon><b>${input.label}</b
+      ><span class="trailing"><span class="mono">${input.from}</span>${this.arrowButtons(input.arrows)}</span>
+      ${candidates && candidates.length > 0
+        ? html`<cd-select
+            class="choose feed"
+            .data=${{
+              name: `feed.${input.id}`,
+              label: t('process.arrow.fedBy'),
+              value: '',
+              options: [
+                { value: '', label: t('process.arrow.choose'), disabled: true },
+                ...candidates.map((candidate, index) => ({ value: String(index), label: candidate.label, disabled: false })),
+              ],
+              help: null,
+              state: null,
+            }}
+            @change=${(event: Event) => this.onFeed(step, input, event)}
+          ></cd-select>`
+        : nothing}
+    </div>`;
+  }
+
+  /** The Retour of an Étape: its sentence, « Au plus » and « Retirer le Retour »; or « Poser un Retour vers » for one that judges. */
+  private loopBack(step: Step): TemplateResult | typeof nothing {
+    const editable = this.data.canvas.editable;
+    const title = t('process.step.loopBack.title');
+    const { loopBack } = step;
+    if (loopBack !== null) {
+      return html`<section class="section loop-back" aria-label=${title}>
+        <h2>${title}</h2>
+        <p class="text">${loopBack.text}</p>
+        ${editable
+          ? html`<div class="cluster">
+              <cd-stepper
+                class="loop-back-max"
+                .data=${{ label: t('process.loopBack.max'), value: loopBack.max, unit: t('process.loopBack.unit'), min: 1, max: 10 }}
+                @cd-action=${(event: Event) => this.onLoopBackMax(step, event)}
+              ></cd-stepper>
+              <cd-button
+                class="remove-loop-back"
+                .data=${{ label: t('process.loopBack.remove'), variant: 'ghost', size: 'sm', icon: 'trash' }}
+                @click=${() => this.emit('removeLoopBack', { from: step.id })}
+              ></cd-button>
+            </div>`
+          : nothing}
+      </section>`;
+    }
+    const targets = editable ? step.loopBackTargets : null;
+    if (!targets || targets.length === 0) return nothing;
+    return html`<section class="section loop-back" aria-label=${title}>
+      <h2>${title}</h2>
+      <cd-select
+        class="loop-back-to"
+        .data=${{
+          name: 'loopBackTo',
+          label: t('process.loopBack.add'),
+          value: '',
+          options: [{ value: '', label: t('process.loopBack.choose'), disabled: true }, ...targets.map((target) => ({ ...target, disabled: false }))],
+          help: null,
+          state: null,
+        }}
+        @change=${(event: Event) => this.onLoopBackTarget(step, event)}
+      ></cd-select>
+    </section>`;
   }
 
   /** A row of the Sources: its value, its group's Select (wide only), or the badge of its migration. */
@@ -494,29 +648,19 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
             )
           : nothing}
       </div>
-      ${step.loopBack === null
-        ? nothing
-        : html`<section class="section loop-back" aria-label=${t('process.step.loopBack.title')}>
-            <h2>${t('process.step.loopBack.title')}</h2>
-            <p class="text">${step.loopBack}</p>
-          </section>`}
+      ${this.loopBack(step)}
       <details class="section ports" aria-label=${ports}>
         <summary>
           ${ports} <span class="count">${t('process.step.ports.count', { inputs: step.inputs.length, outputs: step.outputs.length })}</span>
           <cd-icon .data=${{ name: 'chevron-down', size: 'sm' }}></cd-icon>
         </summary>
         <div class="list" role="list">
-          ${step.inputs.map(
-            (input) =>
-              html`<div class="item ${input.fed ? '' : 'caution'}" role="listitem">
-                <cd-icon .data=${{ name: input.fed ? 'chevron-right' : 'alert', size: 'sm' }}></cd-icon><b>${input.label}</b
-                ><span class="mono">${input.from}</span>
-              </div>`,
-          )}
+          ${step.inputs.map((input) => this.inputRow(step, input))}
           ${step.outputs.map(
             (output) =>
               html`<div class="item" role="listitem">
-                <cd-icon .data=${{ name: 'chevron-right', size: 'sm' }}></cd-icon><b>${output.label}</b><span class="mono">${output.to}</span>
+                <cd-icon .data=${{ name: 'chevron-right', size: 'sm' }}></cd-icon><b>${output.label}</b
+                ><span class="trailing"><span class="mono">${output.to}</span>${this.arrowButtons(output.arrows)}</span>
               </div>`,
           )}
         </div>
@@ -525,7 +669,20 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
         <h2>${t('process.step.tools')}</h2>
         ${step.tools.length === 0
           ? html`<p class="text">${t('process.step.tools.none')}</p>`
-          : html`<div class="list" role="list">${step.tools.map((tool) => this.row(tool))}</div>`}
+          : html`<div class="list" role="list">${step.tools.map((tool) => this.row(step, tool))}</div>`}
+        ${editable && step.canAttach
+          ? html`<div class="cluster">
+              <cd-button
+                class="attach"
+                aria-haspopup="menu"
+                aria-expanded=${this.data.attach?.stepId === step.id ? 'true' : 'false'}
+                .data=${{ label: t('process.tools.attach'), variant: 'secondary', size: 'sm', icon: 'plus' }}
+                @pointerdown=${() => (this.attachWasOpen = this.data.attach !== null)}
+                @keydown=${() => (this.attachWasOpen = false)}
+                @click=${() => this.onAttachButton(step)}
+              ></cd-button>
+            </div>`
+          : nothing}
       </section>`;
   }
 
@@ -693,7 +850,7 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
   }
 
   protected override render() {
-    const { found, title, hasVersion, canvas, toast } = this.data;
+    const { found, title, hasVersion, canvas, toast, attach } = this.data;
     if (!found) {
       return html`<cd-empty class="not-found" .data=${{ icon: 'folder', title: t('process.notFound') }}
         ><a slot="actions" href="/projets">${t('process.notFound.back')}</a></cd-empty
@@ -709,6 +866,9 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
         ? html`<div class="editor" aria-label=${t('process.editor.label')} role="region">
             <cd-process-canvas .data=${canvas} @cd-action=${this.onCanvas}>
               ${toast ? html`<cd-toast slot="toast" .data=${toast}></cd-toast>` : nothing}
+              ${attach && canvas.editable
+                ? html`<cd-menu slot="menu" class="attach-menu" .data=${attach.menu} @cd-action=${(event: Event) => this.onAttachMenu(attach, event)}></cd-menu>`
+                : nothing}
             </cd-process-canvas>
             ${this.panel()}
           </div>`

@@ -219,6 +219,22 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
   'PageProcessEditor.cancelRemovePhase': (el) => editing(el, 'retirer une Phase', () => inside(el, 'cd-dialog', 'cd-icon-button', 'button').click()),
   'PageProcessEditor.confirmRemovePhase': (el) =>
     editing(el, 'retirer une Phase', () => inside(inside(el, 'cd-dialog').querySelector('cd-button.confirm')!, 'button').click()),
+  'PageProcessEditor.connect': (el) =>
+    editing(el, 'une Entrée sans flèche, et un Retour à poser', () => choose(inside(el, 'cd-select.feed', 'select'), '0')),
+  'PageProcessEditor.disconnect': (el) => editing(el, 'un Retour posé', () => inside(el, 'cd-icon-button.disconnect', 'button').click()),
+  'PageProcessEditor.addLoopBack': (el) =>
+    editing(el, 'une Entrée sans flèche, et un Retour à poser', () => choose(inside(el, 'cd-select.loop-back-to', 'select'), 'code')),
+  'PageProcessEditor.setLoopBackMax': (el) => editing(el, 'un Retour posé', () => inside(el, 'cd-stepper.loop-back-max', 'button.increase').click()),
+  'PageProcessEditor.removeLoopBack': (el) => editing(el, 'un Retour posé', () => inside(el, 'cd-button.remove-loop-back', 'button').click()),
+  'PageProcessEditor.openAttach': (el) => editing(el, 'un Retour posé', () => inside(el, 'cd-button.attach', 'button').click()),
+  'PageProcessEditor.attachTool': (el) => editing(el, 'Attacher un Outil', () => inside(el, 'cd-menu.attach-menu', '[role=menuitem]').click()),
+  'PageProcessEditor.detachTool': (el) => editing(el, 'un Retour posé', () => inside(el, 'cd-icon-button.detach', 'button').click()),
+  'PageProcessEditor.openRunner': (el) =>
+    editing(el, 'Attacher un Outil', () =>
+      [...inside(el, 'cd-menu.attach-menu').shadowRoot!.querySelectorAll<HTMLElement>('[role=menuitem]')]
+        .find((item) => item.textContent?.includes('Déclarer un Serveur MCP'))!
+        .click(),
+    ),
   'ProcessCanvas.select': (el) => inside(el, 'cd-step-card[data-step=analyse]', 'article').click(),
   'ProcessCanvas.view': (el) => inside(el, 'cd-icon-button.zoom-in', 'button').click(),
   'ProcessCanvas.moveStep': (el) =>

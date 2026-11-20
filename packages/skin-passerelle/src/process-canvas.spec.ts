@@ -348,6 +348,26 @@ describe('ProcessCanvas', () => {
     expect(slot.assignedElements().map((node) => node.localName)).toEqual(['cd-toast']);
   });
 
+  it('keeps a long menu inside a short canvas, where the wheel scrolls it and leaves the canvas still', async () => {
+    const items = Array.from({ length: 30 }, (_, i) => ({ id: `item-${i}`, label: `Outil ${i}`, icon: 'spark', detail: 'officielle' }));
+    const menu = { title: 'Attacher à « Review »', groups: [{ label: 'Skill (une seule)', items }] };
+    const el = (await render(ProcessCanvas, crewdeck?.data, { menu: `<cd-menu data='${JSON.stringify(menu)}'></cd-menu>` })) as Canvas;
+    el.style.height = '300px';
+    await settle(el);
+    const canvas = el.getBoundingClientRect();
+    const box = inside(el, '.menu');
+    expect(box.getBoundingClientRect().bottom).toBeLessThanOrEqual(canvas.bottom);
+    expect(box.scrollHeight).toBeGreaterThan(box.clientHeight);
+
+    const wheel = new WheelEvent('wheel', { deltaY: 60, bubbles: true, composed: true, cancelable: true });
+    const details = await actionsOf(async () => {
+      el.querySelector('cd-menu')?.dispatchEvent(wheel);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+    expect(wheel.defaultPrevented).toBe(false);
+    expect(only(details)).toEqual([]);
+  });
+
   it('keeps a long toast inside a narrow canvas', async () => {
     const text = 'Flèche refusée : cette Entrée attend des Maquettes, pas un Changement de code.';
     const el = (await render(ProcessCanvas, crewdeck?.data, {

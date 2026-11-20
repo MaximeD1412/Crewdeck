@@ -6,7 +6,7 @@
 import type { Page } from '@playwright/test';
 import { installFakeSpeech, type FakeSpeechControl } from '../src/dictation/fake-speech.js';
 import { openConfirm } from './confirm.js';
-import { card, dragArrow, editor, seeAll } from './process-canvas.js';
+import { canvas, card, dragArrow, editor, port } from './process-canvas.js';
 import { expect, test } from './fixtures.js';
 import { linkFirstAppareil } from './runner-link.js';
 import { routeSocket } from './socket.js';
@@ -127,12 +127,25 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await expect(card(page, 'st-review')).toBeVisible();
     await editor(page).getByRole('tabpanel').getByRole('button', { name: 'Attacher un Outil' }).click();
     await expect(editor(page).getByRole('menu', { name: 'Attacher à « Review »' })).toContainText('figma');
+    // The click scrolled the panel down to its button: back to its top, as the mockup.
+    await editor(page).evaluate((host) => {
+      for (const node of host.shadowRoot?.querySelectorAll('*') ?? []) if (node.scrollTop > 0) node.scrollTop = 0;
+    });
   },
   // « Code »'s Sortie dragged onto « Revue visuelle »'s Maquettes: the arrow drawn refused, its Toast (PROCESS-9).
   'process-fleche-refusee': async (page, width) => {
     if (width < 1280) return;
+    // At the canvas's own 90 %, as the mockup: the wheel pans down until « Revue visuelle »'s Maquettes is in view.
     await expect(card(page, 'st-rv')).toBeVisible();
-    await seeAll(page);
+    const area = await canvas(page).boundingBox();
+    if (!area) throw new Error('no canvas');
+    await page.mouse.move(area.x + area.width / 2, area.y + area.height / 2);
+    for (let turn = 0; turn < 20; turn += 1) {
+      const target = await port(page, 'st-rv', 'maquettes', 'in').boundingBox();
+      if (target && target.y + target.height < area.y + area.height - 120) break;
+      await page.mouse.wheel(0, 120);
+      await page.waitForTimeout(100);
+    }
     await dragArrow(page, { stepId: 'st-code', portId: 'changement' }, { stepId: 'st-rv', portId: 'maquettes' });
     await expect(editor(page).locator('cd-toast')).toContainText('Refusée : une Sortie Changement de code');
   },

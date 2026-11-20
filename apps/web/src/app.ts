@@ -437,6 +437,11 @@ export const boot = async ({
         runner: slices.runner ?? null,
         accounts: slices['ai-account']?.values() ?? [],
         mcpServers: slices['mcp-server']?.values() ?? [],
+        processes: slices.process?.values(),
+        projectName: (projectId) => {
+          const project = slices.project?.get(projectId);
+          return project ? projectName(project) : projectId;
+        },
       });
     },
   });

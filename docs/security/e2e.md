@@ -114,7 +114,7 @@ authenticate who sealed it, so every wrap between holders is an
 |---|---|---|
 | `crewdeck/v1/vault-wrap` | the vault key | each key holder (E2E-2, E2E-3, E2E-4) |
 | `crewdeck/v1/item-key` | an item key | an item, when it is wrapped for a holder rather than by the vault key |
-| `crewdeck/v1/session-key` | a Session key | each key holder opening the Session (SESSION-1) |
+| `crewdeck/v1/session-key` | a Session key | each key holder opening the Session (SESSION-1); a Commande's run key (RUNNER-18); an artefact's answer key, for the one Appareil that asked (SOURCE-4) |
 | `crewdeck/v1/device-holder` | a new Appareil's public key | the Runner, from the Appareil's approver (E2E-3) |
 
 A wrap made for one use never opens as another: `info` enters `info_hash`,
@@ -134,6 +134,7 @@ exact layout of each use is fixed by the ticket that introduces it:
 | An item | the item's id and field | E2E-2, IDEE-1 |
 | A Session key for a holder | `"<sessionId>:<holderId>"`, `holderId` the base64url of the holder's public key | SESSION-1 |
 | A new Appareil's key for the Runner | the new Appareil's id | E2E-3 |
+| An artefact's answer key for the Appareil that asked | `"artifact:<requestId>:<holderId>"` | SOURCE-4 |
 
 ## Authenticated wraps
 
@@ -200,6 +201,7 @@ sealed = nonce (12 bytes) ‖ encrypted plaintext ‖ tag (16 bytes)
 | An input a tab sends | `"<sessionId>:input:<inputId>"` | SESSION-1 |
 | An item key under the vault key | `"crewdeck/v1/item-key" ‖ ` the item's additional data | E2E-2 |
 | An item under its item key | the item's id and field | E2E-2, IDEE-1 |
+| An artefact read by the page | `"artifact:<requestId>"` | SOURCE-4 |
 
 ### Errors
 
@@ -306,6 +308,7 @@ mode, Chromium), `pairing.spec.ts` and `vault.spec.ts`, and
 | `web-pairing.json` | the page's side of a first link (its proof, its two vault wraps) and an item it sealed, opened by the Runner | the browser, at each run of `pairing.spec.ts` |
 | `relay.json` | a Session's keys and frames as the tab receives them (the Runner's and the Appareil's keys, the Session key, the events) and an input sealed for it | the Runner |
 | `web-relay.json` | an input the page sealed under `relay.json`'s Session key, handed to the Moteur by the Runner | the browser, at each run of `sessions/relay.spec.ts` |
+| `artifact.json` | an `artifact.content` answering Ticket 12 of a Local Projet, sealed for an Appareil, with both key pairs and its plaintext | the Runner (`cd apps/runner && go test ./internal/artifact -run TestTheRecordedAnswer -update`) |
 
 RFC 9180 Appendix A.1.1 is the AES-128-GCM suite (AEAD 0x0001); the vector
 for AES-256-GCM comes from the RFC's `test-vectors.json` at the commit named
@@ -957,6 +960,70 @@ and `runId` only.
 | A chunk under another run or `seq`, keys under another context or Runner, dropped and never shown | `apps/web/src/commands/output.spec.ts` |
 | The server relays to the tab that opened the run only, refuses another Pilote's, replays at the hello; no write, no ciphertext in the logs | `apps/server/src/commands/relay/command-output-relay.spec.ts`; `apps/server/test/integration/command-runs.spec.ts` |
 | The messages' fixtures valid in TypeScript and in Go | `packages/contracts/src/runner/command.spec.ts`; `apps/runner/internal/protocol/fixtures_test.go` |
+
+## Contenu lu par la page (SOURCE-4)
+
+A Local Projet's file, Ticket, change, diff or a Commande's output is read
+by the page through the relay ([ADR 0012](../adr/0012-sources-local-and-github.md#reading-content-in-the-page)),
+sealed by the Runner for the one Appareil that asked, and stored nowhere. A
+GitHub Projet's are read by the page from GitHub with the Pilote's user
+token (ADR 0002); the server sees neither.
+
+- The tab sends `artifact.read { requestId, projectId, holderId, kind, ref }`,
+  `holderId` the base64url of its Appareil's public key. The server checks
+  the Projet is the Pilote's (and, for `command-output`, the run, through
+  `COMMAND_RUN_OWNERS`), fills a `file`'s `at` with the integration branch
+  when the tab names none, adds the `tabId` and forwards it; otherwise
+  `artifact.not-found`, and nothing reaches the Runner.
+- The Runner answers only for a `holderId` in its list of holders: another
+  is `artifact.untrusted-device`, and nothing is read nor sealed. It draws
+  a 32-byte AES-256-GCM key per answer, wraps it for that holder with an
+  [authenticated wrap](#authenticated-wraps) (`info`
+  `crewdeck/v1/session-key`, additional data
+  `"artifact:<requestId>:<holderId>"`, `artifactWrapAad`), and seals the
+  plaintext's JSON (`zArtifactPlaintexts[kind]`) under it with the
+  additional data `"artifact:<requestId>"` (`artifactAad`). The key is
+  dropped once sealed.
+- The page opens the wrap with its private key and the Runner's public key
+  it authenticated at pairing (never one the server hands over), refuses a
+  wrap for another holder, an answer that does not open or is outside its
+  kind's shape, and keeps the plaintext in memory only (one
+  `@tanstack/query-core` client: stale after 30 s, dropped 5 min after its
+  last observer).
+
+| Message | From → to | Sealed | Additional data |
+|---|---|---|---|
+| `artifact.read { requestId, projectId, holderId, kind, ref }` | tab → server | | |
+| `artifact.read { …, tabId }` | server → Runner | | |
+| `artifact.content { requestId, tabId?, wrap, nonce, ciphertext }` | Runner → server → tab | the wrap; the plaintext | `"artifact:<requestId>:<holderId>"`; `"artifact:<requestId>"` |
+| `artifact.error { requestId, tabId?, code }` | Runner or server → tab | | |
+
+`code` is `artifact.not-found` (absent, outside the repository, not the
+Pilote's), `artifact.too-large` (over 4 MiB of plaintext),
+`artifact.untrusted-device`, `artifact.runner-offline` (at once, while the
+Runner is away) or `artifact.timeout` (no answer within 30 s; the page gives
+up itself after 35 s). The server forwards an answer only to the tab that
+asked, from its Pilote's Runner, while it waits for it; a late one is
+dropped.
+
+### What the server sees of a read
+
+The ids (`requestId`, `projectId`, `tabId`, `holderId`), the `kind`, the
+`ref` it forwards (a path, a branch, a number: no content), the error codes
+and the lengths; the wrap and the ciphertext it cannot open. It writes
+nothing and logs a frame by its `type`, `requestId` and `kind` only.
+
+### What proves it
+
+| What | Test |
+|---|---|
+| Ticket 12 of a Local Projet answered sealed for the Appareil, a file at a branch or a SHA, `../x` and 5 MiB refused, a diff, a change, a Commande's output | `apps/runner/internal/artifact/artifact_test.go` |
+| An untrusted `holderId` answers `artifact.untrusted-device` and seals nothing | `artifact_test.go` (`TestAnUntrustedHolderIsRefusedAndNothingSealed`) |
+| The recorded answer (`fixtures/crypto/artifact.json`) opens in Go and in the page; altered, for another Appareil or as another kind, it is refused | `artifact_test.go` (`TestTheRecordedAnswerOpensAsTheRunnerSealedIt`); `apps/web/src/documents/local-fetcher.spec.ts` |
+| Another Pilote's Projet or run is `artifact.not-found` with nothing sent; `runner-offline` at once; `timeout` after 30 s; the logs hold no ref, key nor content | `apps/server/src/artifacts/artifact-relay.spec.ts` |
+| Relayed end to end, no row written and the marker in neither the database nor the logs | `apps/server/test/integration/artifacts.spec.ts` |
+| GitHub's issue, pull request and diff mapped to the Runner's shapes, under the same keys | `apps/web/src/documents/github-fetcher.spec.ts`, `reader.spec.ts` |
+| The messages' fixtures valid in TypeScript and in Go | `packages/contracts/src/runner/artifact.spec.ts`; `apps/runner/internal/protocol/fixtures_test.go` |
 
 ## Idées (IDEE-1)
 

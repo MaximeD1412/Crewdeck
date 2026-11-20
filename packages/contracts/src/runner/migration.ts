@@ -47,15 +47,21 @@ export const zMigrationProgress = runnerMessage('migration.progress', {
 });
 export type MigrationProgress = z.infer<typeof zMigrationProgress>;
 
+/** An item's number on the old Source (`from`) and on the new one (`to`). */
+const zRenumbering = z.array(z.strictObject({ from: z.int().positive(), to: z.int().positive() })).max(MIGRATION_FINGERPRINTS_MAX);
+
 /**
  * Runner → server: everything is copied and verified; the server switches
  * the Source in one transaction. `renumbering` maps the items whose number
- * changed (a Local Ticket become an issue).
+ * changed (a Local Ticket become an issue: for the `ticket` group, every
+ * Ticket); `milestones` the milestones' numbers likewise (a Local rank
+ * become a GitHub number), none for the `code` group.
  */
 export const zMigrationSwitch = runnerMessage('migration.switch', {
   migrationId: zId,
   fingerprints: z.array(zMigrationFingerprint).max(MIGRATION_FINGERPRINTS_MAX),
-  renumbering: z.array(z.strictObject({ from: z.int().positive(), to: z.int().positive() })).max(MIGRATION_FINGERPRINTS_MAX),
+  renumbering: zRenumbering,
+  milestones: zRenumbering.optional(),
 });
 export type MigrationSwitch = z.infer<typeof zMigrationSwitch>;
 

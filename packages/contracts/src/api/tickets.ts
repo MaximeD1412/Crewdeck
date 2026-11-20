@@ -53,12 +53,24 @@ const titledBySource = (row: { source: TicketSource; title: string | null; title
 const TITLE_BY_SOURCE = { message: 'title for github, titleSealed for local', path: ['title'] };
 
 /**
+ * A row a migration just moved (SOURCE-8) has neither title until its new
+ * Source fills it: the reconciliation to GitHub, the Runner's scan to Local.
+ */
+const untitled = (row: { title: string | null; titleSealed: unknown }) => row.title === null && row.titleSealed === null;
+const ticketTitled = (row: { source: TicketSource; title: string | null; titleSealed: unknown; labelsSealed: unknown; formerSource: TicketSource | null }) =>
+  titledBySource(row) || (row.formerSource !== null && row.formerSource !== row.source && untitled(row) && row.labelsSealed === null);
+const milestoneTitled = (row: { source: TicketSource; title: string | null; titleSealed: unknown }) => titledBySource(row) || untitled(row);
+
+/**
  * A Ticket of a Projet (US-15, US-16), the same shape whatever its Source:
  * its number, state, the readable labels (all of GitHub's; the product's only
  * for Local, the others in `labelsSealed`), the figures the Boucle reads
  * (`priority`, `size`, `branchPrefix`, `visualReview`), its native blocked-by
  * (numbers of the same Projet) and parent, and `ready`, stored: open,
  * `readyMark`, no `needs-human` and every blocker closed. Never a body.
+ * `formerNumber` and `formerSource` are its number and Source before a
+ * migration moved it (SOURCE-8), shown « ex-#12 »; null for a Ticket never moved.
+ * A moved row has no title until its new Source fills it.
  */
 export const zTicket = z
   .object({
@@ -80,13 +92,15 @@ export const zTicket = z
     milestoneNumber: zSourceNumber.nullable(),
     blockedBy: z.array(zSourceNumber),
     parentNumber: zSourceNumber.nullable(),
+    formerNumber: zSourceNumber.nullable(),
+    formerSource: zTicketSource.nullable(),
     branchPrefix: zBranchPrefix,
     visualReview: z.boolean(),
     sourceCreatedAt: zInstant,
     sourceUpdatedAt: zInstant,
     updatedAt: zInstant,
   })
-  .refine(titledBySource, TITLE_BY_SOURCE);
+  .refine(ticketTitled, TITLE_BY_SOURCE);
 export type Ticket = z.infer<typeof zTicket>;
 
 /**
@@ -109,7 +123,7 @@ export const zMilestone = z
     closedCount: z.int().nonnegative(),
     closedAt: zInstant.nullable(),
   })
-  .refine(titledBySource, TITLE_BY_SOURCE);
+  .refine(milestoneTitled, TITLE_BY_SOURCE);
 export type Milestone = z.infer<typeof zMilestone>;
 
 /** A change of code (a pull request on GitHub). */

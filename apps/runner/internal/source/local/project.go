@@ -459,30 +459,37 @@ func (p *Project) readMilestones(s *scanned) []source.Milestone {
 	if err != nil {
 		return nil
 	}
+	milestones, err := parseMilestones(data)
+	if err != nil {
+		s.Unreadable = append(s.Unreadable, Unreadable{Path: TicketsDir + "/" + MilestonesFile, Reason: ReasonFrontMatter})
+		return nil
+	}
+	return milestones
+}
+
+// parseMilestones reads a milestones.yml, each one's Number its rank from 1;
+// ErrFrontMatter when it does not parse.
+func parseMilestones(data []byte) ([]source.Milestone, error) {
 	var entries []milestoneEntry
-	unreadable := yaml.Unmarshal(data, &entries) != nil
+	if yaml.Unmarshal(data, &entries) != nil {
+		return nil, ErrFrontMatter
+	}
 	milestones := make([]source.Milestone, 0, len(entries))
 	for i, e := range entries {
 		m := source.Milestone{Number: i + 1, Title: strings.TrimSpace(e.Title)}
 		if m.Title == "" {
-			unreadable = true
-			break
+			return nil, ErrFrontMatter
 		}
 		if e.DueOn.Kind == yaml.ScalarNode && e.DueOn.Tag != "!!null" {
 			due, err := parseDue(e.DueOn.Value)
 			if err != nil {
-				unreadable = true
-				break
+				return nil, ErrFrontMatter
 			}
 			m.DueOn = &due
 		}
 		milestones = append(milestones, m)
 	}
-	if unreadable {
-		s.Unreadable = append(s.Unreadable, Unreadable{Path: TicketsDir + "/" + MilestonesFile, Reason: ReasonFrontMatter})
-		return nil
-	}
-	return milestones
+	return milestones, nil
 }
 
 func parseDue(value string) (time.Time, error) {

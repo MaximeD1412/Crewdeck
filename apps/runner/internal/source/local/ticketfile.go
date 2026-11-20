@@ -31,7 +31,9 @@ type TicketFile struct {
 	Parent      *int
 	// Milestone is a milestone's title, "" for none.
 	Milestone string
-	Body      string
+	// From is the issue a migration copied it from (`github#57`, SOURCE-8), "" for none.
+	From string
+	Body string
 
 	// What was read: the front matter's text and document, the fields as
 	// they parsed, and the blank lines between the front matter and the body.
@@ -145,6 +147,13 @@ func (f *TicketFile) read(mapping *yaml.Node) error {
 			if err == nil && f.Parent != nil && *f.Parent < 1 {
 				err = ErrFrontMatter
 			}
+		case "from":
+			if value.Kind != yaml.ScalarNode {
+				return ErrFrontMatter
+			}
+			if value.Tag != "!!null" {
+				f.From = strings.TrimSpace(value.Value)
+			}
 		case "milestone":
 			if value.Kind != yaml.ScalarNode {
 				return ErrFrontMatter
@@ -180,13 +189,13 @@ func decodeList[T any](value *yaml.Node, into *[]T) error {
 func (f TicketFile) fields() TicketFile {
 	return TicketFile{
 		Number: f.Number, Title: f.Title, State: f.State, StateReason: f.StateReason, Ready: f.Ready,
-		Labels: slices.Clone(f.Labels), BlockedBy: slices.Clone(f.BlockedBy), Parent: f.Parent, Milestone: f.Milestone,
+		Labels: slices.Clone(f.Labels), BlockedBy: slices.Clone(f.BlockedBy), Parent: f.Parent, Milestone: f.Milestone, From: f.From,
 	}
 }
 
 func (f TicketFile) sameFields(o TicketFile) bool {
 	return f.Number == o.Number && f.Title == o.Title && f.State == o.State && f.StateReason == o.StateReason && f.Ready == o.Ready &&
-		slices.Equal(f.Labels, o.Labels) && slices.Equal(f.BlockedBy, o.BlockedBy) && equalPtr(f.Parent, o.Parent) && f.Milestone == o.Milestone
+		slices.Equal(f.Labels, o.Labels) && slices.Equal(f.BlockedBy, o.BlockedBy) && equalPtr(f.Parent, o.Parent) && f.Milestone == o.Milestone && f.From == o.From
 }
 
 func equalPtr(a, b *int) bool { return a == nil && b == nil || a != nil && b != nil && *a == *b }
@@ -212,6 +221,10 @@ func (f TicketFile) frontFields() []field {
 	if f.Parent != nil {
 		parent = *f.Parent
 	}
+	var from any
+	if f.From != "" {
+		from = f.From
+	}
 	return []field{
 		{"number", f.Number, f.Number == 0},
 		{"title", f.Title, false},
@@ -222,6 +235,7 @@ func (f TicketFile) frontFields() []field {
 		{"blocked_by", f.BlockedBy, len(f.BlockedBy) == 0},
 		{"parent", parent, parent == nil},
 		{"milestone", milestone, milestone == nil},
+		{"from", from, from == nil},
 	}
 }
 

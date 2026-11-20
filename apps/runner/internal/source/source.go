@@ -316,7 +316,58 @@ type Watcher interface {
 	OnChange(func(Changed))
 }
 
-// Copier copies a Projet's Tickets from one Source to another (SOURCE-8).
+// CopiedComment is a Ticket's comment as a migration reads it: From is the
+// origin marker it carries (`local#12/comment/<id>`), "" when no migration
+// wrote it.
+type CopiedComment struct {
+	Comment
+	From string
+}
+
+// CopiedTicket is a Ticket as a migration reads it whole (SOURCE-8): its
+// comments in order, and From, the origin marker it carries (`local#12`,
+// `github#57`), "" when no migration wrote it. Its Body is without the
+// marker; on GitHub, ID is the issue's database id.
+type CopiedTicket struct {
+	Ticket
+	ID       int64
+	From     string
+	Comments []CopiedComment
+}
+
+// ErrUnreadable: a Ticket's file, or milestones.yml, that does not parse; a
+// migration never skips it (`local.unreadable`).
+var ErrUnreadable = errors.New("source: a Ticket's file does not parse")
+
+// RankedMilestones is a Copier whose milestone numbers are their rank in a
+// file (Local's milestones.yml), not an identity: a milestone the Pilote
+// moves in the file changes number.
+type RankedMilestones interface {
+	MilestonesByRank()
+}
+
+// Copier is a Projet's Tickets on one Source as a migration of Source reads
+// and writes them whole (SOURCE-8, ADR 0012): implemented for Local
+// (`local/`) and for GitHub (`github/`). The migration's copy, its passes of
+// verification and its late changes are written once, over two Copiers;
+// the origin markers are its idempotency.
 type Copier interface {
-	Copy(ctx context.Context, to Writer) error
+	// Kind is the Source's name in the markers: "local" or "github".
+	Kind() string
+	// ReadAll is every Ticket with its comments, and the milestones.
+	ReadAll(ctx context.Context) ([]CopiedTicket, []Milestone, error)
+	// PutMilestone adds the milestone when number is 0 (its number given),
+	// else sets number's title and due date to m's (no due date for nil).
+	PutMilestone(ctx context.Context, number int, m Milestone) (int, error)
+	// PutTicket writes t as the copy of from: a new Ticket when number is 0
+	// (its number given), else number's title, body, labels, ready,
+	// milestone (t.Milestone's Number on this Source, nil for none), state
+	// and reason. Its parent and blockers are Link's.
+	PutTicket(ctx context.Context, number int, t Ticket, from string) (int, error)
+	// AddComment adds c, by its author and at its date, as the copy of from.
+	AddComment(ctx context.Context, number int, c Comment, from string) error
+	// Link sets the Ticket's parent (0 for none) and blockers, was being it as last read.
+	Link(ctx context.Context, was CopiedTicket, parent int, blockedBy []int) error
+	// Freeze archives the place once its Tickets moved: nothing writes there again.
+	Freeze(ctx context.Context) error
 }

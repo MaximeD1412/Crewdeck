@@ -903,6 +903,9 @@ model Ticket {
   /// The numbers of the Tickets of the same Projet it is blocked by.
   blockedBy       Int[]              @map("blocked_by")
   parentNumber    Int?               @map("parent_number")
+  /// Its number and Source before a migration moved it (SOURCE-8), shown « ex-#12 ».
+  formerNumber    Int?               @map("former_number")
+  formerSource    TicketSource?      @map("former_source")
   branchPrefix    BranchPrefix       @map("branch_prefix")
   visualReview    Boolean            @map("visual_review")
   sourceCreatedAt DateTime           @map("source_created_at") @db.Timestamptz

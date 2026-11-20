@@ -20,6 +20,6 @@ import { TicketsWriter } from './tickets.writer.js';
   imports: [ProjectsModule, DecisionsModule, RunnersModule],
   controllers: [TicketsController],
   providers: [TicketsWriter, LocalChangedHandler, TicketActivity, TicketsQueue, TicketsWebhooks, TicketsReconcile, TicketState, MilestoneState, CodeChangeState],
-  exports: [TicketsWriter, TicketActivity],
+  exports: [TicketsWriter, TicketActivity, TicketsReconcile],
 })
 export class TicketsModule {}

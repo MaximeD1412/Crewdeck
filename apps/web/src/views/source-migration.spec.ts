@@ -66,6 +66,15 @@ describe('migrationConfirmation', () => {
     ]);
   });
 
+  it('asks to bring the issues back as files of tickets/, the issues archived without being closed (SOURCE-8)', () => {
+    const dialog = migrationConfirmation(readsOf(), 'ticket', 'github', 'local');
+
+    expect(dialog.consequences?.items?.slice(1).map((item) => item.text)).toEqual([
+      'Puis les 30 issues deviennent 30 fichiers du dossier tickets/, d’un coup, avec leur état et leur historique.',
+      'Les issues sont archivées : étiquetées crewdeck:archive et verrouillées, sans être fermées.',
+    ]);
+  });
+
   it('asks to move the code to Local, into the Projet’s folder on the Runner’s machine', () => {
     const dialog = migrationConfirmation(readsOf(), 'code', 'github', 'local');
 

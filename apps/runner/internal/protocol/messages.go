@@ -102,6 +102,8 @@ type Machine struct {
 	OS            contracts.RunnerHelloOs
 	Arch          contracts.RunnerHelloArch
 	WSL           bool
+	// Migrations are the groups of Source this Runner migrates (SOURCE-8).
+	Migrations []contracts.RunnerHelloMigrationsElem
 }
 
 func now() time.Time {
@@ -124,6 +126,7 @@ func NewHello(machine Machine, mirrorAfter *int64) contracts.RunnerHello {
 		Os:              machine.OS,
 		Arch:            machine.Arch,
 		Wsl:             machine.WSL,
+		Migrations:      machine.Migrations,
 	}
 }
 
@@ -362,4 +365,30 @@ func NewArtifactContent(requestID, tabID string, wrap contracts.RunnerArtifactCo
 func NewArtifactError(requestID, tabID string, code contracts.RunnerArtifactErrorCode) contracts.RunnerArtifactError {
 	at := now()
 	return contracts.RunnerArtifactError{Type: TypeArtifactError, Id: newID(at), At: at, RequestId: requestID, TabId: tabID, Code: code}
+}
+
+// NewMigrationProgress is how far a migration's copy is (SOURCE-7).
+func NewMigrationProgress(migrationID string, state contracts.RunnerMigrationProgressState, copied, total int) contracts.RunnerMigrationProgress {
+	at := now()
+	return contracts.RunnerMigrationProgress{Type: TypeMigrationProgress, Id: newID(at), At: at, MigrationId: migrationID, State: state, Copied: copied, Total: total}
+}
+
+// NewMigrationSwitch asks the server to switch the group's Source, once a
+// pass found nothing to copy: the fingerprints of what moved, the numbers
+// renumbered.
+func NewMigrationSwitch(migrationID string, fingerprints []contracts.RunnerMigrationSwitchFingerprintsElem, renumbering []contracts.RunnerMigrationSwitchRenumberingElem, milestones []contracts.RunnerMigrationSwitchMilestonesElem) contracts.RunnerMigrationSwitch {
+	at := now()
+	return contracts.RunnerMigrationSwitch{Type: TypeMigrationSwitch, Id: newID(at), At: at, MigrationId: migrationID, Fingerprints: fingerprints, Renumbering: renumbering, Milestones: milestones}
+}
+
+// NewMigrationFinished says the old place is frozen, its late changes carried.
+func NewMigrationFinished(migrationID string) contracts.RunnerMigrationFinished {
+	at := now()
+	return contracts.RunnerMigrationFinished{Type: TypeMigrationFinished, Id: newID(at), At: at, MigrationId: migrationID}
+}
+
+// NewMigrationFailed says the copy or the finish failed, with its code.
+func NewMigrationFailed(migrationID string, stage contracts.RunnerMigrationFailedStage, code string) contracts.RunnerMigrationFailed {
+	at := now()
+	return contracts.RunnerMigrationFailed{Type: TypeMigrationFailed, Id: newID(at), At: at, MigrationId: migrationID, Stage: stage, Code: code}
 }

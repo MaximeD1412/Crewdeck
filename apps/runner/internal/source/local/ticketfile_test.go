@@ -117,3 +117,22 @@ func TestLocalTicketFileRewriteKeepsTheAnchorOfAKeyItChangesForThePilotesAlias(t
 		t.Errorf("reread %+v, %v", reread, err)
 	}
 }
+
+func TestLocalTicketFileKeepsTheIssueAMigrationCopiedItFrom(t *testing.T) {
+	f, err := local.Parse([]byte("---\nnumber: 3\ntitle: Le panier\n---\nGarder.\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.From = "github#57"
+	written := string(local.Format(f))
+	if !strings.Contains(written, "from: github#57\n") {
+		t.Fatalf("written:\n%s", written)
+	}
+	again, err := local.Parse([]byte(written))
+	if err != nil || again.From != "github#57" {
+		t.Fatalf("read again %+v, %v", again, err)
+	}
+	if _, err := local.Parse([]byte("---\ntitle: Le panier\nfrom: [1]\n---\n")); err == nil {
+		t.Error("a from that is not a scalar parsed")
+	}
+}

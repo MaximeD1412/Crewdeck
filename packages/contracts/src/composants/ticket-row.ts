@@ -19,6 +19,7 @@ type Data = {
   title: string;
   meta: string | null;
   state: (typeof TICKET_ROW_STATES)[number];
+  formerNumber?: number | null;
   label?: string | null;
   context?: string | null;
   href?: string | null;
@@ -26,13 +27,14 @@ type Data = {
 
 const ticket = (name: string, data: Data, actions?: string) => ({
   name,
-  data: { label: null, context: null, href: null, ...data },
+  data: { formerNumber: null, label: null, context: null, href: null, ...data },
   ...(actions ? { slots: { actions } } : {}),
 });
 
 /**
  * A Ticket in the Boucle, the planning or a Conception (BOUCLE-2,
- * PILOTAGE-1): `#<number>` in mono, its title, its state in a badge whose
+ * PILOTAGE-1): `#<number>` in mono, « (ex-#<formerNumber>) » after it once
+ * a migration renumbered it (SOURCE-8), its title, its state in a badge whose
  * label `label` may override (the Étape it is at). With `href` the row is a
  * link; its buttons (`actions`) are the page's.
  */
@@ -47,6 +49,7 @@ export const TicketRow = defineComposant({
     title: z.string(),
     meta: z.string().nullable(),
     state: z.enum(TICKET_ROW_STATES),
+    formerNumber: z.int().positive().nullable(),
     label: z.string().nullable(),
     context: z.string().nullable(),
     href: z.string().nullable(),
@@ -62,6 +65,7 @@ export const TicketRow = defineComposant({
       state: 'en-cours',
       href: '/boucle?ticket=53',
     }),
+    ticket('migré, son ex-numéro', { number: 57, formerNumber: 12, title: 'Export du planning', meta: 'jalon Planning', state: 'pret' }),
     ticket('en review', { number: 44, title: 'Liste des Projets', meta: 'Crewdeck · Revue croisée', state: 'en-review' }),
     ticket('checks, son libellé', {
       number: 45,

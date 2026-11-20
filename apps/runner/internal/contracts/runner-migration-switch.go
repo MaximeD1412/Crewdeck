@@ -21,6 +21,9 @@ type RunnerMigrationSwitch struct {
 	// MigrationId corresponds to the JSON schema field "migrationId".
 	MigrationId string `json:"migrationId"`
 
+	// Milestones corresponds to the JSON schema field "milestones".
+	Milestones []RunnerMigrationSwitchMilestonesElem `json:"milestones,omitempty,omitzero"`
+
 	// Renumbering corresponds to the JSON schema field "renumbering".
 	Renumbering []RunnerMigrationSwitchRenumberingElem `json:"renumbering"`
 
@@ -75,6 +78,47 @@ func (j *RunnerMigrationSwitchFingerprintsElem) UnmarshalJSON(value []byte) erro
 		return fmt.Errorf("field %s length: must be <= %d", "state", 40)
 	}
 	*j = RunnerMigrationSwitchFingerprintsElem(plain)
+	return nil
+}
+
+type RunnerMigrationSwitchMilestonesElem struct {
+	// From corresponds to the JSON schema field "from".
+	From int `json:"from"`
+
+	// To corresponds to the JSON schema field "to".
+	To int `json:"to"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerMigrationSwitchMilestonesElem) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["from"]; raw != nil && !ok {
+		return fmt.Errorf("field from in RunnerMigrationSwitchMilestonesElem: required")
+	}
+	if _, ok := raw["to"]; raw != nil && !ok {
+		return fmt.Errorf("field to in RunnerMigrationSwitchMilestonesElem: required")
+	}
+	type Plain RunnerMigrationSwitchMilestonesElem
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if 9007199254740991 < plain.From {
+		return fmt.Errorf("field %s: must be <= %v", "from", 9007199254740991)
+	}
+	if 0 >= plain.From {
+		return fmt.Errorf("field %s: must be > %v", "from", 0)
+	}
+	if 9007199254740991 < plain.To {
+		return fmt.Errorf("field %s: must be <= %v", "to", 9007199254740991)
+	}
+	if 0 >= plain.To {
+		return fmt.Errorf("field %s: must be > %v", "to", 0)
+	}
+	*j = RunnerMigrationSwitchMilestonesElem(plain)
 	return nil
 }
 
@@ -156,6 +200,9 @@ func (j *RunnerMigrationSwitch) UnmarshalJSON(value []byte) error {
 	}
 	if matched, _ := regexp.MatchString(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`, string(plain.MigrationId)); !matched {
 		return fmt.Errorf("field %s pattern match: must match %s", "MigrationId", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
+	}
+	if len(plain.Milestones) > 20000 {
+		return fmt.Errorf("field %s length: must be <= %d", "milestones", 20000)
 	}
 	if len(plain.Renumbering) > 20000 {
 		return fmt.Errorf("field %s length: must be <= %d", "renumbering", 20000)

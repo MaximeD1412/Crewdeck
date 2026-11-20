@@ -110,6 +110,15 @@ func TestTheHelloAndTheHeartbeatMatchTheirSchema(t *testing.T) {
 	if back.ProtocolVersion != contracts.ProtocolVersion || back.Type != TypeHello || !uuidV7.MatchString(back.Id) {
 		t.Fatalf("hello %+v", back)
 	}
+	// What it migrates (SOURCE-8): the hello lists it.
+	migrating, err := json.Marshal(NewHello(Machine{RunnerVersion: "0.1.0", Machine: "atelier", OS: contracts.RunnerHelloOsLinux, Arch: contracts.RunnerHelloArchAmd64, Migrations: []contracts.RunnerHelloMigrationsElem{contracts.RunnerHelloMigrationsElemTicket}}, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var listed contracts.RunnerHello
+	if err := json.Unmarshal(migrating, &listed); err != nil || len(listed.Migrations) != 1 || listed.Migrations[0] != contracts.RunnerHelloMigrationsElemTicket {
+		t.Fatalf("hello's migrations %+v, %v", listed.Migrations, err)
+	}
 	beat, err := json.Marshal(NewHeartbeat())
 	if err != nil {
 		t.Fatal(err)

@@ -48,6 +48,11 @@ const INSTALLATION_ID = 51000001;
 const created = webhookFixture<Record<string, unknown>>('installation.created');
 const APP_REPO = { owner: 'octo-fixture', name: 'fixture-app', id: 71000001 };
 const FINGERPRINT = { key: 'ticket:12', state: 'open', contentHash: 'a'.repeat(64) };
+/** The new numbers of `copying()`'s Tickets 12 and 14: SOURCE-8's hook wants every row. */
+const RENUMBERING = [
+  { from: 12, to: 57 },
+  { from: 14, to: 58 },
+];
 
 /** Every Étape of « Process Crewdeck » runs (a gate waits on the Pilote) until the test stops its PhaseRun. */
 const HANDLED: readonly StepKind[] = ['idea-analysis', 'idea-triage', 'prd', 'cross-review', 'approval', 'mockups', 'technical-design', 'split', 'code', 'checks', 'review', 'visual-review', 'merge', 'command'];
@@ -362,11 +367,11 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
       socket.send({ type: 'migration.progress', migrationId: migration.id, total: 2, copied: 1, state: 'copying' });
       await vi.waitFor(async () => expect((await state()).sourceMigrations[0]).toMatchObject({ total: 2, copied: 1 }));
       const before = await lastSeq();
-      socket.send({ type: 'migration.switch', migrationId: migration.id, fingerprints: [FINGERPRINT], renumbering: [{ from: 12, to: 57 }] });
+      socket.send({ type: 'migration.switch', migrationId: migration.id, fingerprints: [FINGERPRINT], renumbering: RENUMBERING });
       await expect(socket.expect('migration.finish')).resolves.toMatchObject({ migrationId: migration.id, fingerprints: [FINGERPRINT] });
       expect(await row(migration.id)).toMatchObject({ state: 'switched', fingerprints: [FINGERPRINT] });
       expect(await ticketSource()).toBe('github');
-      expect(hookCalls).toEqual([`${migration.id}:1`]);
+      expect(hookCalls).toEqual([`${migration.id}:2`]);
       const events = await eventsSince(before);
       const switched = events.find((event) => event.type === 'source-migration.upserted');
       expect(switched?.payload).toMatchObject({ state: 'switched' });
@@ -391,7 +396,7 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
       // The dialog opens here: the seq the page holds.
       const confirmed = await lastSeq();
 
-      socket.send({ type: 'migration.switch', migrationId: migration.id, fingerprints: [FINGERPRINT], renumbering: [] });
+      socket.send({ type: 'migration.switch', migrationId: migration.id, fingerprints: [FINGERPRINT], renumbering: RENUMBERING });
       await expect(socket.expect('migration.finish')).resolves.toMatchObject({ migrationId: migration.id });
 
       await expectEnvelope(await call('POST', `/api/projects/${projectId}/process/activate`, { revision, seq: confirmed }), 409, 'sensitive-action.stale');
@@ -403,7 +408,7 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
     it('rolls the whole switch back when a hook throws, then fails the migration on the old Source (switch-failed)', async () => {
       const { migration, socket } = await copying();
       hookMode = 'throw';
-      socket.send({ type: 'migration.switch', migrationId: migration.id, fingerprints: [FINGERPRINT], renumbering: [] });
+      socket.send({ type: 'migration.switch', migrationId: migration.id, fingerprints: [FINGERPRINT], renumbering: RENUMBERING });
       await vi.waitFor(async () => expect((await row(migration.id))?.state).toBe('failed'));
       expect(await row(migration.id)).toMatchObject({ error_code: 'source-migration.switch-failed', fingerprints: [] });
       expect(await ticketSource()).toBe('local');
@@ -452,7 +457,7 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
       await vi.waitFor(async () => expect((await row(migration.id))?.state).toBe('failed'));
       const replacing = await migrated('ticket', 'github');
       await socket.expect('migration.copy');
-      socket.send({ type: 'migration.switch', migrationId: replacing.id, fingerprints: [FINGERPRINT], renumbering: [] });
+      socket.send({ type: 'migration.switch', migrationId: replacing.id, fingerprints: [FINGERPRINT], renumbering: RENUMBERING });
       await socket.expect('migration.finish');
       socket.send({ type: 'migration.finished', migrationId: replacing.id });
       await vi.waitFor(async () => expect((await row(replacing.id))?.state).toBe('done'));
@@ -473,7 +478,7 @@ describe('moving a Type d’artefact to another Source, against PostgreSQL', () 
 
     it('raises source-migration.unfinished at the third failure of finishing, keeps the new Source; migration.finished resolves it', async () => {
       const { migration, socket } = await copying();
-      socket.send({ type: 'migration.switch', migrationId: migration.id, fingerprints: [FINGERPRINT], renumbering: [] });
+      socket.send({ type: 'migration.switch', migrationId: migration.id, fingerprints: [FINGERPRINT], renumbering: RENUMBERING });
       await socket.expect('migration.finish');
       const sweep = app.get(FinishSweep);
       const now = Date.now();

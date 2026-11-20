@@ -111,12 +111,12 @@ export interface CheckInput {
   readonly url?: string | null;
 }
 
-type TicketData = Omit<TicketRow, 'id' | 'projectId' | 'source' | 'number' | 'ready' | 'updatedAt'>;
+type TicketData = Omit<TicketRow, 'id' | 'projectId' | 'source' | 'number' | 'ready' | 'updatedAt' | 'formerNumber' | 'formerSource'>;
 
 /** What a stored row says of the Ticket, without what the writer sets itself. */
 const dataOf = (row: TicketRow): TicketData => {
   const data: Partial<TicketRow> = { ...row };
-  for (const key of ['id', 'projectId', 'source', 'number', 'ready', 'updatedAt'] as const) delete data[key];
+  for (const key of ['id', 'projectId', 'source', 'number', 'ready', 'updatedAt', 'formerNumber', 'formerSource'] as const) delete data[key];
   return data as TicketData;
 };
 
@@ -173,6 +173,72 @@ export class TicketsWriter {
     await this.writeTickets(tx, projectId, null, () => undefined, [number], origin);
   }
 
+  /**
+   * A migration's switch of the Tickets (SOURCE-8, ADR 0012): every Ticket of
+   * the Projet to its number in `to` (`tickets`, old → new), its number and
+   * Source before kept (`formerNumber`, `formerSource`), its parent, blockers
+   * and milestone renumbered; every milestone to its new number
+   * (`milestones`). The texts of the old Source are cleared, the new one
+   * fills them. Numbers go negative first, so that none is held twice in
+   * between. Each row its event. The caller checks the maps cover the rows.
+   */
+  async moveTickets(
+    tx: Tx,
+    projectId: string,
+    move: { readonly from: TicketSource; readonly to: TicketSource; readonly tickets: ReadonlyMap<number, number>; readonly milestones: ReadonlyMap<number, number> },
+    origin: WriteOrigin = {},
+  ): Promise<void> {
+    const renumbered = (number: number | null, map: ReadonlyMap<number, number>): number | null => (number === null ? null : (map.get(number) ?? null));
+    const newNumber = (number: number, map: ReadonlyMap<number, number>): number => {
+      const next = map.get(number);
+      if (next === undefined) throw new Error(`no new number for ${number}`);
+      return next;
+    };
+    const milestones = await tx.milestone.findMany({ where: { projectId }, select: { id: true, number: true }, orderBy: { number: 'asc' } });
+    for (const [index, row] of milestones.entries()) await tx.milestone.update({ where: { id: row.id }, data: { number: -(index + 1) } });
+    for (const row of milestones) {
+      const number = newNumber(row.number, move.milestones);
+      const saved = await tx.milestone.update({
+        where: { id: row.id },
+        data: { number, rank: number, source: move.to, title: null, titleSealed: Prisma.DbNull },
+        select: MILESTONE_VIEW,
+      });
+      await this.events.write(tx, currentPilotId(), 'milestone.upserted', toMilestone(saved), origin);
+    }
+
+    const rows = await tx.ticket.findMany({ where: { projectId }, select: { id: true, number: true, labels: true, parentNumber: true, blockedBy: true, milestoneNumber: true }, orderBy: { number: 'asc' } });
+    for (const [index, row] of rows.entries()) await tx.ticket.update({ where: { id: row.id }, data: { number: -(index + 1) } });
+    for (const row of rows) {
+      const saved = await tx.ticket.update({
+        where: { id: row.id },
+        data: {
+          number: newNumber(row.number, move.tickets),
+          formerNumber: row.number,
+          formerSource: move.from,
+          source: move.to,
+          title: null,
+          titleSealed: Prisma.DbNull,
+          labelsSealed: Prisma.DbNull,
+          labels: move.to === 'local' ? productLabels(row.labels) : row.labels,
+          parentNumber: renumbered(row.parentNumber, move.tickets),
+          blockedBy: row.blockedBy.flatMap((number) => (move.tickets.has(number) ? [newNumber(number, move.tickets)] : [])).sort((a, b) => a - b),
+          milestoneNumber: renumbered(row.milestoneNumber, move.milestones),
+        },
+        select: TICKET_VIEW,
+      });
+      await this.emit(tx, saved, origin);
+    }
+
+    // The changes of code follow their Ticket; one naming no Ticket names none in the new numbers.
+    const changes = await tx.codeChange.findMany({ where: { projectId, ticketNumber: { not: null } }, select: { id: true, ticketNumber: true }, orderBy: { number: 'asc' } });
+    for (const change of changes) {
+      const ticketNumber = renumbered(change.ticketNumber, move.tickets);
+      if (ticketNumber === change.ticketNumber) continue;
+      const saved = await tx.codeChange.update({ where: { id: change.id }, data: { ticketNumber }, select: CODE_CHANGE_VIEW });
+      await this.events.write(tx, currentPilotId(), 'code-change.upserted', toCodeChange(saved), origin);
+    }
+  }
+
   async upsertMilestones(tx: Tx, projectId: string, source: TicketSource, items: readonly MilestoneInput[], origin: WriteOrigin = {}): Promise<Milestone[]> {
     const written: Milestone[] = [];
     for (const item of items) {
@@ -215,16 +281,17 @@ export class TicketsWriter {
   }
 
   /**
-   * Writes changes of code: the Ticket each delivers from its head branch,
-   * and, when its head moves, the `checks` of the new head from the rows
-   * already stored for that commit.
+   * Writes changes of code: the Ticket each delivers from its head branch
+   * (kept as stored while the branch is the same: a switch of the Tickets
+   * renumbered it, SOURCE-8), and, when its head moves, the `checks` of the
+   * new head from the rows already stored for that commit.
    */
   async upsertCodeChanges(tx: Tx, projectId: string, source: TicketSource, items: readonly CodeChangeInput[], origin: WriteOrigin = {}): Promise<CodeChange[]> {
     const written: CodeChange[] = [];
     for (const item of items) {
       const row = await tx.codeChange.findFirst({ where: { projectId, number: item.number }, select: CODE_CHANGE_VIEW });
       const data = {
-        ticketNumber: item.ticketNumber !== undefined ? item.ticketNumber : item.headRef === null ? null : ticketNumberOfBranch(item.headRef),
+        ticketNumber: row && row.headRef === item.headRef ? row.ticketNumber : item.ticketNumber !== undefined ? item.ticketNumber : item.headRef === null ? null : ticketNumberOfBranch(item.headRef),
         title: item.title,
         titleSealed: item.titleSealed,
         state: item.state,

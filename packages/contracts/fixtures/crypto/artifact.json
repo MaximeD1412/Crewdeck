@@ -1,0 +1,40 @@
+{
+  "description": "An answer of the Runner to `artifact.read` (docs/security/e2e.md « Contenu lu par la page »): Ticket 12 of a Local Projet sealed for an Appareil, the frame as the tab gets it. Written by `go test ./internal/artifact -run TestTheRecordedAnswer -update`; byte strings are base64url without padding.",
+  "runnerPrivateKey": "a36Fl7VFtVNEEIDkPeV4FuU50x1NbKgy0F0yd4frfXg",
+  "runnerPublicKey": "munF6ycP4myK_zBq_AOJtLz9DxrVzVjdtENfCdBCzGc",
+  "devicePrivateKey": "4zrqKlQKeXcRBdfnpc189c1dNXGZ85AQPP6Z4nca2Uw",
+  "devicePublicKey": "gsG1jimG8t9-wkVIS4V9HJZogEeqEWzP_vQ7qvjspUw",
+  "frame": {
+    "ciphertext": "WdIF5XkOOSCSFDtxSyl3NYF5KHcK5SSqTV_8qboKOZcH_4a3Ph5BPbwznkQpWHt65CGekR1tax9ycEgRGfjXCO1NlTfvS50RV3k-hjU4rG4Bo7BwaO058o-jwqDtIWutU6ugt5fw2IAgLOvX56pvJxQ0wyn-PoUdPIpJBoyBEN1AtVpXiVTBx2k4ux_7oPieaPnPsIJ5J6sOtL2ES2kC_V7wnMo65ccRne7VLQlHftE62SFexOEN29J_pj2HLp-JrgBb8JucSCcX8bUfWyvbdpXxy2eNfXHblk8l19vexJKl2H6dO1xcpiDqVxEckOMinA",
+    "nonce": "isgZNK5_SKk6xy2i",
+    "requestId": "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6d11",
+    "type": "artifact.content",
+    "wrap": {
+      "enc": "V0n8NGidsof6RNCmg2HQTw7Gzp1rGdP3CTD6xTfBTBA",
+      "holderId": "gsG1jimG8t9-wkVIS4V9HJZogEeqEWzP_vQ7qvjspUw",
+      "tag": "36azYDBxSSmIgFc7BRvBIAM0lw_qgRgneR4lq6uBOds",
+      "wrappedKey": "UVJYuYN8mvy4TTJUnf6n2RHHU6fz8atu2DffBha_E4HlYlTkXZLrBQr4G3I5dSzr"
+    }
+  },
+  "plaintext": {
+    "number": 12,
+    "title": "Le panier",
+    "body": "Le panier garde MARQUEUR-7f3a9c.\n",
+    "state": "OPEN",
+    "stateReason": "",
+    "labels": [
+      {
+        "name": "front"
+      },
+      {
+        "name": "ready-for-agent"
+      }
+    ],
+    "milestone": null,
+    "comments": [],
+    "blockedBy": [
+      3
+    ],
+    "parent": null
+  }
+}

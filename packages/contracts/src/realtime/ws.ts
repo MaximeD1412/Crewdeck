@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zEvent } from '../events/index.js';
+import { zTabArtifactContent, zTabArtifactError, zTabArtifactRead } from '../runner/artifact.js';
 import { zTabFolderCheck, zTabFolderChecked, zTabFolderError } from '../runner/folders.js';
 import { zTabCommandClose, zTabCommandError, zTabCommandKeys, zTabCommandOpen, zTabCommandOutput } from '../runner/command.js';
 import { zTabRelay, zTabSessionClose, zTabSessionError, zTabSessionInput, zTabSessionKeys, zTabSessionOpen } from '../runner/relay.js';
@@ -10,7 +11,8 @@ import { zSeq } from '../values.js';
  * socket never carries a command that changes the state: those are REST.
  * RUNNER-2 adds the Runner's protocol; SESSION-1 the relay of a Session
  * (`runner/relay.ts`), `session.*` and `relay` both ways; RUNNER-18 the
- * relay of a Commande's output (`runner/command.ts`), `command.*`.
+ * relay of a Commande's output (`runner/command.ts`), `command.*`; SOURCE-4
+ * the reading of an artefact (`runner/artifact.ts`), `artifact.*`.
  */
 
 /**
@@ -28,6 +30,7 @@ export const zClientMessage = z.discriminatedUnion('type', [
   zTabFolderCheck,
   zTabCommandOpen,
   zTabCommandClose,
+  zTabArtifactRead,
 ]);
 export type ClientMessage = z.infer<typeof zClientMessage>;
 
@@ -50,6 +53,8 @@ export const zServerMessage = z.discriminatedUnion('type', [
   zTabCommandKeys,
   zTabCommandOutput,
   zTabCommandError,
+  zTabArtifactContent,
+  zTabArtifactError,
 ]);
 export type ServerMessage = z.infer<typeof zServerMessage>;
 

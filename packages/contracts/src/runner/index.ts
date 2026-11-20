@@ -18,3 +18,4 @@ export * from './vault.js';
 export * from './migration.js';
 export * from './local.js';
 export * from './merge.js';
+export * from './artifact.js';

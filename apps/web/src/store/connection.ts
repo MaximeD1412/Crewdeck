@@ -3,6 +3,8 @@ import {
   zServerMessage,
   type ServerMessage,
   type State,
+  type TabArtifactClientMessage,
+  type TabArtifactServerMessage,
   type TabFolderClientMessage,
   type TabFolderServerMessage,
   type TabCommandClientMessage,
@@ -69,6 +71,10 @@ export interface Connection {
   sendFolder(message: TabFolderClientMessage): boolean;
   /** The server's answers to the folders' checks: `folder.checked`, `folder.error`. */
   onFolder(listener: (message: TabFolderServerMessage) => void): () => void;
+  /** An artefact's read (SOURCE-4) on the open socket; false when none is open. */
+  sendArtifact(message: TabArtifactClientMessage): boolean;
+  /** Its answers from the server: `artifact.content`, `artifact.error`. */
+  onArtifact(listener: (message: TabArtifactServerMessage) => void): () => void;
 }
 
 /** The waits before each reconnection after a loss, the last one repeated. */
@@ -135,6 +141,7 @@ export const createConnection = ({
   const commandListeners = new Set<(message: TabCommandServerMessage) => void>();
   const openListeners = new Set<() => void>();
   const folderListeners = new Set<(message: TabFolderServerMessage) => void>();
+  const artifactListeners = new Set<(message: TabArtifactServerMessage) => void>();
 
   const send = (message: Outgoing): boolean => {
     if (socket?.readyState !== OPEN) return false;
@@ -252,6 +259,10 @@ export const createConnection = ({
       case 'command.error':
         for (const listener of commandListeners) listener(message);
         return;
+      case 'artifact.content':
+      case 'artifact.error':
+        for (const listener of [...artifactListeners]) listener(message);
+        return;
     }
   };
 
@@ -340,6 +351,11 @@ export const createConnection = ({
     onFolder(listener) {
       folderListeners.add(listener);
       return () => folderListeners.delete(listener);
+    },
+    sendArtifact: (message) => send(message),
+    onArtifact(listener) {
+      artifactListeners.add(listener);
+      return () => artifactListeners.delete(listener);
     },
   };
 };

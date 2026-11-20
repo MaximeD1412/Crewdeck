@@ -270,3 +270,10 @@ func (r *Runner) Sweep() {
 		}
 	}
 }
+
+// Logged is whether the run runID has a log on this machine (its output
+// read in the page, SOURCE-4: none is `artifact.not-found`).
+func Logged(home, runID string) bool {
+	info, err := os.Stat(logPath(home, runID))
+	return err == nil && info.Mode().IsRegular()
+}

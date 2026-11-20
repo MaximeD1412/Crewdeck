@@ -334,17 +334,25 @@ func (m *Mirror) changeObject(ctx context.Context, p Project, r source.Reader, c
 		Repository: p.Repository, Number: c.Number, IsPull: true, Title: c.Title, Body: c.Body,
 		State: strings.ToUpper(string(c.State)), Author: c.Author,
 		CreatedAt: formatTime(c.CreatedAt), UpdatedAt: formatTime(c.UpdatedAt), ClosedAt: formatTimePtr(c.ClosedAt),
-		Labels: []string{}, Assignees: []string{},
+		Labels: append([]string{}, c.Labels...), Assignees: []string{},
 	}
 	if o.State == "" {
 		o.State = "OPEN"
+	}
+	comments, err := r.Comments(ctx, c.Number)
+	if err != nil {
+		return Object{}, nil, unavailable(err)
+	}
+	for _, cm := range comments {
+		at := formatTime(cm.CreatedAt)
+		o.Comments = append(o.Comments, Comment{ID: cm.ID, Author: cm.Author, Body: cm.Body, CreatedAt: at, UpdatedAt: at})
 	}
 	history, err := r.History(ctx, c.Number)
 	if err != nil {
 		return Object{}, nil, unavailable(err)
 	}
 	pull := &Pull{
-		HeadRef: c.HeadRef, HeadOid: history.HeadOid, BaseRef: c.BaseRef, IsDraft: false, Mergeable: "UNKNOWN",
+		HeadRef: c.HeadRef, HeadOid: history.HeadOid, BaseRef: c.BaseRef, IsDraft: c.IsDraft, Mergeable: "UNKNOWN",
 		MergeCommit: c.MergeCommitOid, MergedAt: formatTimePtr(c.MergedAt),
 	}
 	if pull.HeadOid == "" {

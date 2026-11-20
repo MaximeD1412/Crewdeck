@@ -236,12 +236,14 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		reportMCP(ctx)
 		return caps, err
 	}
-	// runner.sock: the refreshes, and the Miroir's ops of `crewdeck-runner miroir`.
+	// runner.sock: the refreshes, and the Miroir's ops of `crewdeck-runner miroir`,
+	// its writes to a Local Projet among them.
 	sock := &localsock.Server{}
 	accounts.Register(sock, refresh)
 	follower.Register(sock)
 	sessions.ServeGitHubTokens(sock)
 	sessions.ServeSteps(sock)
+	sourceWrites{running: sessions.Running, target: locals.Target, fetch: follower.Fetch, logger: logger}.Register(sock)
 	go func() {
 		if err := sock.Serve(ctx, socket); err != nil {
 			logger.Warn("runner socket", "error", err)

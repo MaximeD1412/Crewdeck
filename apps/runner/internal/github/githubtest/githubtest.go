@@ -50,6 +50,7 @@ type Call struct {
 	Method        string
 	Path          string
 	Authorization string
+	Body          string // a REST request's body
 }
 
 // Failure is an answer scripted instead of a fixture's.
@@ -289,6 +290,9 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			w.Write(out)
 			return
 		}
+	} else if r.Body != nil {
+		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		call.Body = string(body)
 	}
 	s.mu.Lock()
 	s.calls = append(s.calls, call)

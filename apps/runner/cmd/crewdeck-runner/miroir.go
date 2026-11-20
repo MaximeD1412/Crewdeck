@@ -32,8 +32,9 @@ const notStarted = "Le Runner n'est pas démarré : crewdeck-runner start."
 
 // newMiroirCommand is `crewdeck-runner miroir` (ADR 0010, « The agents'
 // commands »; ADR 0012): the agents' reads of the copy, in gh's shapes, for
-// every Source. They run in the agent's process and never write the copy
-// nor hold a token: what does is asked of the running Runner on runner.sock.
+// every Source, and their writes from a Session (miroir_write.go). They run
+// in the agent's process and never write the copy: what does is asked of
+// the running Runner on runner.sock.
 func newMiroirCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "miroir",
@@ -43,8 +44,10 @@ func newMiroirCommand() *cobra.Command {
 	command.PersistentFlags().StringVarP(&repo, "repo", "R", "", "the Projet's key, <owner>/<name> or local/<projectId> (default: the current directory's origin)")
 	issue := &cobra.Command{Use: "issue", Short: "The Projet's Tickets, as gh issue"}
 	issue.AddCommand(newMiroirView(&repo, false), newMiroirList(&repo, false))
+	addIssueWrites(issue, &repo)
 	pr := &cobra.Command{Use: "pr", Short: "The Projet's changes of code, as gh pr"}
 	pr.AddCommand(newMiroirView(&repo, true), newMiroirList(&repo, true))
+	addPullWrites(pr, &repo)
 	command.AddCommand(issue, pr, newMiroirReady(&repo), newMiroirSearch(&repo), newMiroirSQL(),
 		newMiroirStatus(), newMiroirSync(&repo), newMiroirRebuild(),
 		newGhCommand("gh", "Run gh with the Session's token, then refresh in the copy what it changed"))

@@ -138,3 +138,20 @@ func WriteShims(bin, runner, sessionID string) error {
 func quote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
+
+// Running is the Projet and the Rôle of the Session id while it runs: whom
+// a write of the Miroir over runner.sock comes from (MIROIR-7).
+func (m *Manager) Running(id string) (projectID, role string, ok bool) {
+	m.mu.Lock()
+	s := m.sessions[id]
+	m.mu.Unlock()
+	if s == nil {
+		return "", "", false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.alive {
+		return "", "", false
+	}
+	return s.rec.ProjectID, s.rec.Role, true
+}

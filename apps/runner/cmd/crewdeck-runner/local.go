@@ -92,6 +92,17 @@ func (l *localSources) Source(projectID string) (source.Reader, bool) {
 	return p, true
 }
 
+// Target is the Local Projet's writer (source.write), a change's branch
+// read in the Runner's clone first.
+func (l *localSources) Target(projectID string) (source.Target, bool) {
+	p, ok := l.Project(projectID)
+	if !ok {
+		return nil, false
+	}
+	p.SetClone((&local.Origin{Home: l.store.Dir, ProjectID: projectID}).Dir())
+	return p, true
+}
+
 // Origin is the clone of the Local Projet's folder its Sessions and
 // Commandes work in (session.Config.LocalOrigin), the folder read at each
 // clone: one attached again elsewhere is cloned from where it is now.

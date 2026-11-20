@@ -37,6 +37,9 @@ const CHANGE: ArtifactRef = { portId: 'changement', type: 'code-change', id: '57
 const SHA = 'b'.repeat(40);
 
 const CODE = PROCESS_CREWDECK.steps.find((step) => step.id === 'st-code') as Step;
+const ANALYSE = PROCESS_CREWDECK.steps.find((step) => step.id === 'st-analyse') as Step;
+const IDEA_ID = '019a8f3c-2b4d-7e10-8a5b-6c7d8e9f0b01';
+const SEALED = { key: 'k'.repeat(80), ciphertext: 'c'.repeat(120) };
 /** « Code » with a Rôle of the Pilote's, another Skill, two Serveurs MCP and an Entrée « maquettes » nothing fed. */
 const TOOLED: Step = {
   ...CODE,
@@ -215,6 +218,27 @@ describe('the agent Étapes', () => {
     const { handler, sessions } = setup({ roles: { code: null } });
 
     await expect(asPilot(() => handler.start(TX, runOf({ sessionId: null })))).rejects.toMatchObject({ code: 'step-run.no-engine' } satisfies Partial<AppError>);
+    expect(sessions.start).not.toHaveBeenCalled();
+  });
+
+  it('starts a scratch Session for a kind without a branch: no Projet, the account’s Rôles, its step’s context', async () => {
+    const { steps, sessions, settings } = setup({ roles: { idea: { engine: 'claude-code', model: 'claude-sonnet-5-5' } } });
+    const ideas = { idea: { id: IDEA_ID, number: 3, text: SEALED, analysis: null }, open: [] };
+    const scratch = steps.defineAgentKind({ kind: 'idea-analysis', title: () => null, branch: () => null, outputs: () => [], stepContext: () => Promise.resolve({ ideas }), waitingWork: 'own' });
+    const run = { ...runOf({ sessionId: null, stepId: 'st-analyse', kind: 'idea-analysis', inputs: [] }, ANALYSE), phaseRun: { id: 'p', projectId: null } as PhaseRun };
+
+    expect(await asPilot(() => scratch.start(TX, run))).toBe('running');
+
+    expect(settings.effective).toHaveBeenCalledWith(PILOT_ID, undefined);
+    expect(sessions.start).toHaveBeenCalledWith(TX, expect.objectContaining({ projectId: null, branch: null, role: 'idea', engine: 'claude-code', title: null }));
+    expect(sessions.start.mock.calls[0]?.[1].step).toMatchObject({ stepKind: 'idea-analysis', skill: 'idea-analysis', contractId: 'idea-analysis', ideas });
+  });
+
+  it('refuses to start a Session with a branch for a StepRun of no Projet', async () => {
+    const { handler, sessions } = setup();
+    const run = { ...runOf({ sessionId: null }), phaseRun: { id: 'p', projectId: null } as PhaseRun };
+
+    await expect(asPilot(() => handler.start(TX, run))).rejects.toThrow(/no Projet/);
     expect(sessions.start).not.toHaveBeenCalled();
   });
 
@@ -403,5 +427,16 @@ describe('the agent Étapes', () => {
       { projectId: '019a8f3c-2b4d-7e10-8a5b-6c7d8e9f0a5f', name: 'Projet local', items: [{ kind: 'step-queued', count: 1 }] },
     ]);
     expect(prisma.scoped.agentSession.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { state: 'starting', stepRunId: { not: null } } }));
+  });
+
+  it('leaves out of step-runs the kinds that list their own waiting work', async () => {
+    const { steps, providers, prisma } = setup();
+    steps.defineAgentKind({ kind: 'idea-analysis', title: () => null, branch: () => null, outputs: () => [], waitingWork: 'own' });
+
+    await providers.find((candidate) => candidate.key === 'step-runs')?.projectsWaiting(PROJECT_ID);
+
+    expect(prisma.scoped.agentSession.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { state: 'starting', stepRunId: { not: null }, stepKind: { notIn: ['idea-analysis'] } } }),
+    );
   });
 });

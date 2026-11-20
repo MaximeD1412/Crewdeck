@@ -10,6 +10,7 @@ import {
   CATALOGUE,
   zSealedItem,
   zSessionMcpServer,
+  zSessionStepIdeaContext,
   zSessionStepInput,
 } from '@crewdeck/contracts';
 import { z } from 'zod';
@@ -38,6 +39,7 @@ export const SESSION_ROW = {
   stepSkill: true,
   stepContractId: true,
   stepInputs: true,
+  stepIdeas: true,
   mcpServers: true,
   engineSessionId: true,
   startedAt: true,
@@ -86,34 +88,45 @@ export const toAgentSession = (row: SessionRow): AgentSession => ({
  * or its folder when its code is Local (SOURCE-2), whose path only the
  * Runner knows.
  */
-export const originOf = (project: SessionRow['project']): SessionStart['origin'] => {
+export const originOf = (project: NonNullable<SessionRow['project']>): NonNullable<SessionStart['origin']> => {
   if (project.artifactSources[0]?.source === 'local') return { kind: 'local' };
   const { owner, name } = githubNamesOf(project);
   return { kind: 'github', owner, name };
 };
 
-/** The `session.start` of the Session `row`: its origin (`originOf`), its title readable or `null` (a Local Projet's, sealed), its Projet's worktree Commandes sealed as stored, `null` when the Pilote set neither. */
+/**
+ * The `session.start` of the Session `row`: its origin (`originOf`), its
+ * title readable or `null` (a Local Projet's, sealed), its Projet's worktree
+ * Commandes sealed as stored, `null` when the Pilote set neither. A Session
+ * without a branch runs in a scratch directory (IDEE-2): no origin, no base,
+ * no worktree Commandes.
+ */
 export const startMessageOf = (row: SessionRow): Omit<SessionStart, 'id' | 'at'> => ({
   type: 'session.start',
   sessionId: row.id,
   projectId: row.projectId,
-  origin: originOf(row.project),
-  branch: row.branch,
-  base: row.base,
+  ...(row.branch === null || row.project === null
+    ? { origin: null, branch: null, base: null, worktreeCommands: null }
+    : {
+        origin: originOf(row.project),
+        branch: row.branch,
+        base: row.base,
+        worktreeCommands: row.project.settings?.worktreeCommands ? zSealedItem.parse(row.project.settings.worktreeCommands) : null,
+      }),
   engine: spelled<EngineId>(row.engine),
   model: row.model,
   role: row.role,
   permissionMode: row.permissionMode as SessionStart['permissionMode'],
   ...(stepOf(row) ? { step: stepOf(row) } : {}),
   title: row.title,
-  worktreeCommands: row.project.settings?.worktreeCommands ? zSealedItem.parse(row.project.settings.worktreeCommands) : null,
   mcpServers: z.array(zSessionMcpServer).parse(row.mcpServers),
 });
 
 /**
  * The Étape of the Session `row`, as `session.start` carries it: its StepRun
  * and kind, its Skill (the kind's own when the row predates them), its
- * Contrat and its Entrées; none without a StepRun.
+ * Contrat and its Entrées, and the Idées an `idea-analysis` one reads;
+ * none without a StepRun.
  */
 const stepOf = (row: SessionRow): SessionStep | undefined =>
   row.stepRunId === null || row.stepKind === null
@@ -124,4 +137,5 @@ const stepOf = (row: SessionRow): SessionStep | undefined =>
         skill: row.stepSkill ?? CATALOGUE[row.stepKind as StepId].skill ?? row.stepKind,
         contractId: row.stepContractId,
         inputs: z.array(zSessionStepInput).parse(row.stepInputs ?? []),
+        ...(row.stepIdeas === null ? {} : { ideas: zSessionStepIdeaContext.parse(row.stepIdeas) }),
       };

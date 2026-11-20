@@ -174,6 +174,19 @@ export class Engine {
   }
 
   /**
+   * The Phase repeating for `forEach` of the definition a new PhaseRun of
+   * `projectId` would be pinned to (its active version, or « Process
+   * Crewdeck » without a Projet), with its Étapes; `null` when it has none.
+   * What a module reads before it admits (IDEE-2: an Idée whose analysis
+   * cannot start is not admitted).
+   */
+  async admissionFor(tx: Tx, projectId: string | null, forEach: ForEach): Promise<{ phaseId: string; steps: Step[] } | null> {
+    const definition = projectId === null ? BUILTIN_TEMPLATES[WITHOUT_PROJECT] : (await this.activeVersion(tx, projectId))?.definition;
+    const phase = definition?.phases.find((candidate) => candidate.forEach === forEach);
+    return definition && phase ? { phaseId: phase.id, steps: definition.steps.filter((step) => step.phaseId === phase.id) } : null;
+  }
+
+  /**
    * An item enters a Phase: a `running` PhaseRun pinned to the active
    * version, then its first Étapes started. An unfinished PhaseRun of the
    * same item and Phase is returned as is (a double click, a retry), whatever

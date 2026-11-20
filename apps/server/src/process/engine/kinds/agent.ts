@@ -49,8 +49,13 @@ export interface AgentKindSpec {
   readonly contractId?: string | null;
   /** The Ticket's or the Conception's title, as its Source holds it: readable, or sealed when Local. */
   title(tx: Tx, run: StepRunContext): Promise<string | SealedSessionTitle> | string | SealedSessionTitle;
-  branch(tx: Tx, run: StepRunContext): Promise<string> | string;
+  /** Its Session's branch; `null` for a scratch Session, which reads no code and may have no Projet (IDEE-2). */
+  branch(tx: Tx, run: StepRunContext): Promise<string | null> | string | null;
   outputs(tx: Tx, run: StepRunContext): Promise<ArtifactRef[]> | ArtifactRef[];
+  /** What the Skill is given besides its Entrées, sealed for the Runner only (the Idées of an analysis, IDEE-2). */
+  stepContext?(tx: Tx, run: StepRunContext): Promise<Pick<SessionStep, 'ideas'>>;
+  /** `own`: the kind lists its waiting Sessions in « Runner hors ligne » itself, not under `step-runs`. */
+  readonly waitingWork?: 'own';
 }
 
 /** What a kind's module is given of a valid `step.report`: its figures as its schema reads them, and its sealed content, to store, never to open. */
@@ -147,6 +152,8 @@ export class AgentSteps implements OnModuleInit, OnModuleDestroy {
   private readonly removals: (() => void)[] = [];
   /** The Sessions this handler is stopping, whose `stopped` is not the Pilote's. */
   private readonly stopping = new Set<string>();
+  /** The kinds whose waiting Sessions their own module lists (`waitingWork: 'own'`). */
+  private readonly ownWaitingWork = new Set<AgentKind>();
 
   constructor(
     private readonly engine: Engine,
@@ -195,6 +202,7 @@ export class AgentSteps implements OnModuleInit, OnModuleDestroy {
    */
   defineAgentKind(spec: AgentKindSpec): StepKindHandler {
     if (!AGENT.has(spec.kind)) throw new Error(`${spec.kind} is not an agent kind.`);
+    if (spec.waitingWork === 'own') this.ownWaitingWork.add(spec.kind);
     return {
       kind: spec.kind,
       start: (tx, run) => this.start(tx, run, spec),
@@ -217,23 +225,31 @@ export class AgentSteps implements OnModuleInit, OnModuleDestroy {
 
   private async start(tx: Tx, run: StepRunContext, spec: AgentKindSpec): Promise<'running'> {
     const projectId = run.phaseRun.projectId;
-    // An Idée noted without a Projet (US-5) has no code Source to run in: IDEE-2 decides where its analysis runs.
-    if (projectId === null) throw new Error(`The StepRun ${run.stepRun.id} of ${spec.kind} has no Projet to start its Session in.`);
+    const branch = await spec.branch(tx, run);
+    // Only a scratch Session runs without a Projet (an Idée noted without one, US-5): no code to run in.
+    if (projectId === null && branch !== null) throw new Error(`The StepRun ${run.stepRun.id} of ${spec.kind} has no Projet to start its Session in.`);
     const role = roleOf(run);
     const skill = skillOf(run);
     if (role === null || skill === null) throw new Error(`The kind ${spec.kind} has no Rôle or Skill.`);
     const pilotId = currentPilotId();
-    const { roles } = await this.settings.effective(pilotId, projectId);
+    const { roles } = await this.settings.effective(pilotId, projectId ?? undefined);
     const choice = roles[role] ?? null;
     if (!choice) throw unprocessable('step-run.no-engine', MESSAGES['step-run.no-engine']);
-    const step: SessionStep = { stepRunId: run.stepRun.id, stepKind: spec.kind, skill, contractId: contractIdOf(spec), inputs: sessionInputsOf(run) };
+    const step: SessionStep = {
+      stepRunId: run.stepRun.id,
+      stepKind: spec.kind,
+      skill,
+      contractId: contractIdOf(spec),
+      inputs: sessionInputsOf(run),
+      ...(spec.stepContext ? await spec.stepContext(tx, run) : {}),
+    };
     const session = await this.sessions.start(tx, {
       projectId,
       role,
       engine: choice.engine,
       model: choice.model,
       title: await spec.title(tx, run),
-      branch: await spec.branch(tx, run),
+      branch,
       step,
       mcpServers: mcpServersOf(run),
     });
@@ -355,11 +371,12 @@ export class AgentSteps implements OnModuleInit, OnModuleDestroy {
   /** `step-runs` of « Runner hors ligne »: the Projets whose agent StepRuns' Sessions wait to start, their count each. */
   private async projectsWaiting(): Promise<WaitingProject[]> {
     const waiting = await this.prisma.scoped.agentSession.findMany({
-      where: { state: 'starting', stepRunId: { not: null } },
+      where: { state: 'starting', stepRunId: { not: null }, ...(this.ownWaitingWork.size > 0 ? { stepKind: { notIn: [...this.ownWaitingWork] } } : {}) },
       select: { projectId: true, project: { select: { displayName: true, name: true } } },
     });
     const byProject = new Map<string, { name: string; count: number }>();
     for (const { projectId, project } of waiting) {
+      if (projectId === null || project === null) continue;
       const known = byProject.get(projectId);
       // A Local Projet's name is sealed (SOURCE-2): the Décision names it by its kind.
       byProject.set(projectId, { name: project.displayName ?? project.name ?? LOCAL_PROJECT_NAME, count: (known?.count ?? 0) + 1 });

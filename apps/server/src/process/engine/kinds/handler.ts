@@ -60,6 +60,13 @@ export class StepKindHandlers extends Registry<StepKindHandler> {
     super.add(handler);
   }
 
+  /** A test's stand-in for the kind's handler: the one registered, if any, removed first. */
+  replace(handler: StepKindHandler): void {
+    const registered = this.of(handler.kind);
+    if (registered) this.remove(registered);
+    super.add(handler);
+  }
+
   of(kind: string): StepKindHandler | undefined {
     return this.all().find((handler) => handler.kind === kind);
   }

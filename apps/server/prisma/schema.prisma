@@ -1337,6 +1337,10 @@ model Idea {
   updatedAt       DateTime      @map("updated_at") @db.Timestamptz
   analysedAt      DateTime?     @map("analysed_at") @db.Timestamptz
   triagedAt       DateTime?     @map("triaged_at") @db.Timestamptz
+  /// Its last `idea-analysis` StepRun as the page shows it (`IdeaAnalysisRun`): ids, codes, a time; null when its Process has none.
+  analysisRun     Json?         @map("analysis_run")
+  /// The report of its running analysis (`stepRunId`, figures, sealed `analysis`), applied once its Contrat passed: the previous analysis is kept until then.
+  analysisPending Json?         @map("analysis_pending")
   /// The `seq` of its last `idea.upserted`: a command on it carries it (ADR 0007).
   lastSeq         BigInt        @default(0) @map("last_seq")
   pilot           Pilot         @relation(fields: [pilotId], references: [id], onDelete: Cascade)
@@ -1394,7 +1398,8 @@ enum AgentSessionInterruptedReason {
 model AgentSession {
   id                String                         @id @db.Uuid
   pilotId           String                         @map("pilot_id") @db.Uuid
-  projectId         String                         @map("project_id") @db.Uuid
+  /// Null for a Session in a scratch directory of no Projet (an Idée's analysis, IDEE-2).
+  projectId         String?                        @map("project_id") @db.Uuid
   /// A Rôle's id (`zRoleId`): one of the four defaults, or one the Pilote added.
   role              String
   engine            EngineId
@@ -1405,9 +1410,10 @@ model AgentSession {
   titleSealed       Json?                          @map("title_sealed")
   /// The additional data `titleSealed` was sealed under (its artifact's), with which the page opens it and a rotation rewraps it.
   titleAad          String?                        @map("title_aad")
-  branch            String
+  /// Null, with `base`, for a Session in a scratch directory, without worktree (IDEE-2).
+  branch            String?
   /// The branch the worktree starts from when `branch` is not on the remote.
-  base              String
+  base              String?
   permissionMode    String                         @map("permission_mode")
   state             AgentSessionState
   interruptedReason AgentSessionInterruptedReason? @map("interrupted_reason")
@@ -1425,13 +1431,15 @@ model AgentSession {
   stepInputs        Json?                          @map("step_inputs")
   /// The names of its Étape's `mcp` Outils, in their order (RUNNER-17 mounts them).
   mcpServers        Json                           @default("[]") @map("mcp_servers")
+  /// The Idées an `idea-analysis` Session reads (`SessionStepIdeaContext`), their texts as the server stores them, sealed: what a start sends again.
+  stepIdeas         Json?                          @map("step_ideas")
   /// The Moteur's own id of the Session, once the Runner reported it: what a resume takes.
   engineSessionId   String?                        @map("engine_session_id")
   startedAt         DateTime                       @map("started_at") @db.Timestamptz
   endedAt           DateTime?                      @map("ended_at") @db.Timestamptz
   lastSeq           BigInt                         @default(0) @map("last_seq")
   pilot             Pilot                          @relation(fields: [pilotId], references: [id], onDelete: Cascade)
-  project           Project                        @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
+  project           Project?                       @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
 
   @@index([pilotId, projectId, startedAt])
   @@index([pilotId, state])

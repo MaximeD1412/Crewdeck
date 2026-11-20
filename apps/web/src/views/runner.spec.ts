@@ -1,6 +1,14 @@
-import type { AiAccount, McpServer, Runner } from '@crewdeck/contracts';
+import type { AiAccount, McpServer, ProcessDefinition, ProjectProcess, Runner } from '@crewdeck/contracts';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { COMPOSANTS } from '@crewdeck/sdk';
 import { runnerView } from './runner.js';
+
+const GITHUB = (
+  JSON.parse(readFileSync(join(import.meta.dirname, '../../../../packages/contracts/fixtures/process/crewdeck-github.json'), 'utf8')) as {
+    definition: ProcessDefinition;
+  }
+).definition;
 
 const RUNNER: Runner = {
   id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a7b',
@@ -67,8 +75,29 @@ describe('runnerView', () => {
       mcpServers: [server('stitch', 'stdio', 'ready', 12), server('figma', 'http', 'failed', null)],
     });
     expect(view.mcpServers).toEqual([
-      { name: 'figma', transport: 'http', state: 'failed', toolCount: null },
-      { name: 'stitch', transport: 'stdio', state: 'ready', toolCount: 12 },
+      { name: 'figma', transport: 'http', state: 'failed', toolCount: null, attachedTo: null },
+      { name: 'stitch', transport: 'stdio', state: 'ready', toolCount: 12, attachedTo: null },
+    ]);
+  });
+
+  it('says where each server is attached, from every Projet’s version and draft, or « attaché à aucune Étape »', () => {
+    const definition = (attached: boolean): ProcessDefinition => ({
+      ...GITHUB,
+      steps: GITHUB.steps.map((step) => (attached && step.id === 'st-maquettes' ? { ...step, tools: [...step.tools, { kind: 'mcp', name: 'stitch' }] } : step)),
+    });
+    const process = (id: string, active: boolean, draft: boolean) =>
+      ({ id, active: { number: 1, definition: definition(active) }, draft: draft ? { revision: 2, definition: definition(true) } : null, running: [] }) as unknown as ProjectProcess;
+    const names: Record<string, string> = { mairie: 'Site mairie', os: 'Personal OS' };
+    const view = valid({
+      runner: RUNNER,
+      accounts: [],
+      mcpServers: [server('stitch', 'stdio', 'ready', 12), server('figma', 'http', 'ready', 4)],
+      processes: [process('mairie', true, false), process('os', false, true)],
+      projectName: (id) => names[id] ?? id,
+    });
+    expect(view.mcpServers.map(({ name, attachedTo }) => ({ name, attachedTo }))).toEqual([
+      { name: 'figma', attachedTo: 'attaché à aucune Étape' },
+      { name: 'stitch', attachedTo: 'attaché à « Maquettes » · Personal OS, Site mairie' },
     ]);
   });
 

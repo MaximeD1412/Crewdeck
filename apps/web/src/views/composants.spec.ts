@@ -57,10 +57,10 @@ describe('composantsView', () => {
     ]);
   });
 
-  it('shows PageRunner at version 2, its Serveurs MCP among its fields and « aucun Serveur MCP » among its examples', () => {
+  it('shows PageRunner at version 3, its Serveurs MCP among its fields and « aucun Serveur MCP » among its examples', () => {
     const { groups, selected } = composantsView(COMPOSANTS, 'PageRunner');
-    expect(groups.flatMap((group) => group.composants).find((entry) => entry.name === 'PageRunner')).toEqual({ name: 'PageRunner', version: 2 });
-    expect(selected.version).toBe(2);
+    expect(groups.flatMap((group) => group.composants).find((entry) => entry.name === 'PageRunner')).toEqual({ name: 'PageRunner', version: 3 });
+    expect(selected.version).toBe(3);
     expect(selected.fields.find((field) => field.name === 'mcpServers')).toMatchObject({ description: t('composants.PageRunner.data.mcpServers') });
     expect(selected.examples.map((example) => example.name)).toEqual(['en ligne', 'hors ligne', 'aucun Serveur MCP']);
   });

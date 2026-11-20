@@ -437,6 +437,11 @@ export const boot = async ({
         runner: slices.runner ?? null,
         accounts: slices['ai-account']?.values() ?? [],
         mcpServers: slices['mcp-server']?.values() ?? [],
+        processes: slices.process?.values(),
+        projectName: (projectId) => {
+          const project = slices.project?.get(projectId);
+          return project ? projectName(project) : projectId;
+        },
       });
     },
   });
@@ -591,6 +596,7 @@ export const boot = async ({
     client,
     ideaTitle,
     projectName,
+    repository: (projectId) => store.getState().slices.project?.get(projectId)?.fullName ?? null,
   });
   dispatcher.registerAction(PageProcessEditor, 'select', { run: (payload) => editor.select(payload) });
   dispatcher.registerAction(PageProcessEditor, 'tab', { run: (payload) => editor.tab(payload) });
@@ -609,6 +615,15 @@ export const boot = async ({
   dispatcher.registerAction(PageProcessEditor, 'removePhase', { run: (payload) => editor.removePhase(payload) });
   dispatcher.registerAction(PageProcessEditor, 'cancelRemovePhase', { run: () => editor.cancelRemovePhase() });
   dispatcher.registerAction(PageProcessEditor, 'confirmRemovePhase', { run: (payload) => editor.confirmRemovePhase(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'connect', { run: (payload) => editor.connect(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'disconnect', { run: (payload) => editor.disconnect(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'addLoopBack', { run: (payload) => editor.addLoopBack(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'setLoopBackMax', { run: (payload) => editor.setLoopBackMax(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'removeLoopBack', { run: (payload) => editor.removeLoopBack(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'openAttach', { run: (payload) => editor.openAttach(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'attachTool', { run: (payload) => editor.attachTool(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'detachTool', { run: (payload) => editor.detachTool(payload) });
+  dispatcher.registerAction(PageProcessEditor, 'openRunner', { run: () => editor.openRunner() });
   dispatcher.registerAction(PageProjets, 'add', { run: () => router.navigate(ajouterHref()) });
   dispatcher.registerAction(PageAjouterProjet, 'selectTab', {
     run: ({ id }) => {

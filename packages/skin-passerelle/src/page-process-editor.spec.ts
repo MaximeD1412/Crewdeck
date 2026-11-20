@@ -36,6 +36,9 @@ const noVersion = example('sans version active');
 const notFound = example('Projet introuvable');
 const toActivate = example('un brouillon à activer');
 const activated = example('la v4 activée');
+const toFeed = example('une Entrée sans flèche, et un Retour à poser');
+const attaching = example('Attacher un Outil');
+const arrowRefused = example('une flèche refusée');
 const editable = (data: Data): Data => ({ ...data, canvas: { ...data.canvas, editable: true } });
 type Control = HTMLElement & { value: string };
 
@@ -99,7 +102,8 @@ describe('PageProcessEditor', () => {
     expect((inside(body, 'cd-status-badge') as HTMLElement & { data: unknown }).data).toEqual({ tone: 'accent', label: 'Review' });
     expect(textOf(inside(body, '.kind'))).toBe('Agent · Développement');
     expect(textOf(inside(body, 'section.loop-back h2'))).toBe('Retour');
-    expect(textOf(inside(body, 'section.loop-back p'))).toBe(review.step?.loopBack);
+    expect(textOf(inside(body, 'section.loop-back p'))).toBe(review.step?.loopBack?.text);
+    expect(body.querySelector('section.loop-back cd-stepper')).toBeNull();
     const fold = inside<HTMLDetailsElement>(body, 'details.ports');
     expect(fold.open).toBe(false);
     expect(textOf(fold.querySelector('summary'))).toBe('Entrées et Sorties 2 → 1');
@@ -115,7 +119,7 @@ describe('PageProcessEditor', () => {
   });
 
   it('marks an Entrée nothing feeds, says « aucun Outil » without one, and leaves out the Retour without one', async () => {
-    const step = { ...review.step!, loopBack: null, tools: [], inputs: [{ label: 'Inventaire', from: '← rien', fed: false }] };
+    const step = { ...review.step!, loopBack: null, tools: [], inputs: [{ id: 'inventaire', label: 'Inventaire', from: '← rien', fed: false, arrows: [], candidates: [] }] };
     const el = await show({ ...review, step });
     const body = panel(el);
     expect(body.querySelector('section.loop-back')).toBeNull();
@@ -169,7 +173,9 @@ describe('PageProcessEditor', () => {
   it('reads only, without « Phase », « Étape », « Retirer » nor fields, while the canvas is not editable', async () => {
     const el = await show(review);
     expect(inside(el, 'cd-page-header').querySelector('.header-actions')).toBeNull();
-    expect(panel(el).querySelector('cd-button, cd-select')).toBeNull();
+    expect(panel(el).querySelector('cd-button, cd-select, cd-icon-button, cd-stepper')).toBeNull();
+    const toRead = await show({ ...toFeed, canvas: { ...toFeed.canvas, editable: false } });
+    expect(panel(toRead).querySelector('cd-button, cd-select, cd-icon-button, cd-stepper, section.loop-back')).toBeNull();
   });
 
   it('asks to choose an Étape or a Phase when nothing is', async () => {
@@ -505,6 +511,130 @@ describe('PageProcessEditor', () => {
       type(select, 'ph-idee');
       select.dispatchEvent(new Event('change'));
       await vi.waitFor(() => expect(native<HTMLSelectElement>(panel(other), 'cd-select.step-phase', 'select').value).toBe('ph-dev'));
+    });
+
+    it('relays an arrow drawn on the canvas, and a Retour', async () => {
+      const el = await show(editable(review));
+      const canvas = inside(el, 'cd-process-canvas');
+      const arrow = { from: { stepId: 'code', portId: 'changement' }, to: { stepId: 'rv', portId: 'maquettes' } };
+      const details = await actionsOf(() => {
+        emitAction(canvas, COMPOSANTS.ProcessCanvas, 'connect', arrow);
+        emitAction(canvas, COMPOSANTS.ProcessCanvas, 'loopBack', { from: 'review', to: 'code' });
+      });
+      expect(details.map(({ composant, action, payload }) => ({ composant, action, payload }))).toEqual([
+        { composant: 'PageProcessEditor', action: 'connect', payload: arrow },
+        { composant: 'PageProcessEditor', action: 'addLoopBack', payload: { from: 'review', to: 'code' } },
+      ]);
+    });
+
+    it('shows an arrow refused as the canvas’s Toast, « halt »', async () => {
+      const el = await show(arrowRefused);
+      const toast = inside(el, 'cd-process-canvas cd-toast[slot=toast]') as HTMLElement & { data: unknown };
+      expect(toast.data).toEqual(arrowRefused.toast);
+    });
+
+    it('offers the Retour’s « Au plus » from 1 to 10 and « Retirer le Retour », and relays them', async () => {
+      const el = await show(editable(review));
+      const section = inside(panel(el), 'section.loop-back');
+      const stepper = inside(section, 'cd-stepper.loop-back-max') as HTMLElement & { data: unknown };
+      expect(stepper.data).toEqual({ label: 'Au plus', value: 3, unit: 'fois', min: 1, max: 10 });
+      const details = await actionsOf(() => {
+        native<HTMLButtonElement>(stepper, 'button.increase').click();
+        native<HTMLButtonElement>(section, 'cd-button.remove-loop-back', 'button').click();
+      });
+      expect(only(details).filter(({ action }) => action !== 'change')).toEqual([
+        { action: 'setLoopBackMax', payload: { from: 'review', max: 4 } },
+        { action: 'removeLoopBack', payload: { from: 'review' } },
+      ]);
+    });
+
+    it('offers « Poser un Retour vers » the Étapes it may go back to, relays the one chosen, and comes back to its placeholder', async () => {
+      const el = await show(toFeed);
+      const select = inside(panel(el), 'section.loop-back cd-select.loop-back-to') as SelectEl;
+      expect(select.data.label).toBe('Poser un Retour vers');
+      expect(select.data.options.map((option) => option.label)).toEqual(['Choisir une Étape', 'Code', 'Checks']);
+      const details = await actionsOf(() => {
+        const native_ = native<HTMLSelectElement>(select, 'select');
+        type(native_, 'checks');
+        native_.dispatchEvent(new Event('change'));
+      });
+      expect(only(details)).toEqual([{ action: 'addLoopBack', payload: { from: 'review', to: 'checks' } }]);
+      await vi.waitFor(() => expect(native<HTMLSelectElement>(select, 'select').value).toBe(''));
+    });
+
+    it('offers « Retirer la flèche » on each arrow of a port, and relays it', async () => {
+      const el = await show(editable(review));
+      const fold = inside(panel(el), 'details.ports');
+      const buttons = [...fold.querySelectorAll('cd-icon-button.disconnect')] as (HTMLElement & { data: { label: string } })[];
+      expect(buttons.map((button) => button.data.label)).toEqual([
+        'Retirer la flèche de « Code »',
+        'Retirer la flèche de « Checks »',
+        'Retirer la flèche vers « Merge »',
+      ]);
+      const details = await actionsOf(() => native<HTMLButtonElement>(buttons[2]!, 'button').click());
+      expect(only(details)).toEqual([
+        { action: 'disconnect', payload: { from: { stepId: 'review', portId: 'verdict' }, to: { stepId: 'fusion', portId: 'review' } } },
+      ]);
+    });
+
+    it('offers « Alimentée par » on an Entrée without arrow, the Sorties the rules accept, and connects the one chosen', async () => {
+      const el = await show(toFeed);
+      const [, unfed] = [...inside(panel(el), 'details.ports').querySelectorAll('.item')];
+      expect(unfed?.classList.contains('caution')).toBe(true);
+      const select = unfed!.querySelector('cd-select.feed') as SelectEl;
+      expect(select.data.label).toBe('Alimentée par');
+      expect(select.data.options.map((option) => option.label)).toEqual(['Choisir une Sortie', 'Verdict · Checks']);
+      const details = await actionsOf(() => {
+        const native_ = native<HTMLSelectElement>(select, 'select');
+        type(native_, '0');
+        native_.dispatchEvent(new Event('change'));
+      });
+      expect(only(details)).toEqual([
+        { action: 'connect', payload: { from: { stepId: 'checks', portId: 'verdict' }, to: { stepId: 'review', portId: 'checks' } } },
+      ]);
+    });
+
+    it('offers « Détacher » on each Outil and « Attacher un Outil », and relays them', async () => {
+      const el = await show(editable(review));
+      const tools = inside(panel(el), 'section.tools');
+      const detach = [...tools.querySelectorAll('cd-icon-button.detach')] as (HTMLElement & { data: { label: string } })[];
+      expect(detach.map((button) => button.data.label)).toEqual(['Détacher le Rôle Review', 'Détacher la Skill review']);
+      const attach = inside(tools, 'cd-button.attach') as HTMLElement & { data: unknown };
+      expect(attach.data).toMatchObject({ label: 'Attacher un Outil', variant: 'secondary', icon: 'plus' });
+      expect(attach.getAttribute('aria-expanded')).toBe('false');
+      const details = await actionsOf(() => {
+        native<HTMLButtonElement>(detach[1]!, 'button').click();
+        native<HTMLButtonElement>(attach, 'button').click();
+      });
+      expect(only(details)).toEqual([
+        { action: 'detachTool', payload: { stepId: 'review', tool: { kind: 'skill', skillId: 'review' } } },
+        { action: 'openAttach', payload: { stepId: 'review' } },
+      ]);
+    });
+
+    it('offers no « Attacher un Outil » on an Étape that takes no Outil', async () => {
+      const el = await show(editable({ ...review, step: { ...review.step!, canAttach: false } }));
+      expect(panel(el).querySelector('cd-button.attach')).toBeNull();
+    });
+
+    it('opens « Attacher un Outil » as the canvas’s Menu, relays the Outil chosen, « Déclarer un Serveur MCP » and its closing', async () => {
+      const el = await show(attaching);
+      const menu = inside(el, 'cd-process-canvas cd-menu[slot=menu]') as HTMLElement & { data: unknown };
+      expect(menu.data).toEqual(attaching.attach?.menu);
+      expect(inside(panel(el), 'cd-button.attach').getAttribute('aria-expanded')).toBe('true');
+      const item = (label: string) => [...menu.shadowRoot!.querySelectorAll<HTMLElement>('[role=menuitem]')].find((node) => textOf(node)?.startsWith(label))!;
+      const chosen = await actionsOf(() => {
+        item('figma').click();
+        item('Déclarer un Serveur MCP').click();
+      });
+      expect(only(chosen).filter(({ action }) => action !== 'close')).toEqual([
+        { action: 'attachTool', payload: { stepId: 'review', tool: { kind: 'mcp', name: 'figma' } } },
+        { action: 'openRunner', payload: {} },
+      ]);
+      const closed = await actionsOf(() =>
+        native<HTMLElement>(menu, '[role=menu]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true })),
+      );
+      expect(only(closed)).toEqual([{ action: 'closeMenu', payload: {} }]);
     });
 
     it('relays « Retirer la Phase » when it may go', async () => {

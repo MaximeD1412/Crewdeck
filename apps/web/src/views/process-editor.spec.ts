@@ -243,16 +243,40 @@ describe('processEditorView', () => {
       name: 'Review',
       kindLabel: 'Agent',
       phaseName: 'Développement',
-      loopBack: 'Vers « Code », tant que « Review » demande des changements, 3 fois au plus. Au-delà, une Décision t’attend.',
+      loopBack: { text: 'Vers « Code », tant que « Review » demande des changements. Au-delà, le Ticket s’arrête sur une Décision.', max: 3 },
+      loopBackTargets: null,
       inputs: [
-        { label: 'Changement de code', from: '← Code', fed: true },
-        { label: 'Verdict des checks', from: '← Checks', fed: true },
+        {
+          id: 'changement',
+          label: 'Changement de code',
+          from: '← Code',
+          fed: true,
+          arrows: [
+            { from: { stepId: 'st-code', portId: 'changement' }, to: { stepId: 'st-review', portId: 'changement' }, removeLabel: 'Retirer la flèche de « Code »' },
+          ],
+          candidates: null,
+        },
+        {
+          id: 'verdict',
+          label: 'Verdict des checks',
+          from: '← Checks',
+          fed: true,
+          arrows: [{ from: { stepId: 'st-checks', portId: 'verdict' }, to: { stepId: 'st-review', portId: 'verdict' }, removeLabel: 'Retirer la flèche de « Checks »' }],
+          candidates: null,
+        },
       ],
-      outputs: [{ label: 'Verdict', to: '→ Merge' }],
+      outputs: [
+        {
+          label: 'Verdict',
+          to: '→ Merge',
+          arrows: [{ from: { stepId: 'st-review', portId: 'verdict' }, to: { stepId: 'st-merge', portId: 'v-review' }, removeLabel: 'Retirer la flèche vers « Merge »' }],
+        },
+      ],
       tools: [
-        { icon: 'user', label: 'Rôle Review', detail: 'Claude Code · Opus 5.5' },
-        { icon: 'spark', label: 'Skill review', detail: 'officielle' },
+        { icon: 'user', label: 'Rôle Review', detail: 'Claude Code · Opus 5.5', tool: { kind: 'role', roleId: 'review' }, detachLabel: 'Détacher le Rôle Review' },
+        { icon: 'spark', label: 'Skill review', detail: 'officielle', tool: { kind: 'skill', skillId: 'review' }, detachLabel: 'Détacher la Skill review' },
       ],
+      canAttach: true,
       phases: [
         { value: 'ph-idee', label: 'Idée' },
         { value: 'ph-conception', label: 'Conception' },
@@ -270,9 +294,9 @@ describe('processEditorView', () => {
     const merge = view(stateOf({ ...PROCESS, draft: draftOf(definition) }), { etape: 'st-merge' }).step;
     const e2e = view(stateOf({ ...PROCESS, draft: draftOf(definition) }), { etape: 'st-e2e' }).step;
 
-    expect(code?.inputs[0]).toEqual({ label: 'Ticket', from: '← pour chaque Ticket prêt', fed: true });
+    expect(code?.inputs[0]).toMatchObject({ label: 'Ticket', from: '← pour chaque Ticket prêt', fed: true });
     expect(code?.loopBack).toBeNull();
-    expect(merge?.inputs.find((input) => input.label === 'Verdict de la Review')).toEqual({ label: 'Verdict de la Review', from: '← rien', fed: false });
+    expect(merge?.inputs.find((input) => input.label === 'Verdict de la Review')).toMatchObject({ label: 'Verdict de la Review', from: '← rien', fed: false });
     expect(e2e?.outputs.every((output) => output.to === '→ aucune Étape')).toBe(true);
     expect(e2e?.kindLabel).toBe('Commande');
   });
@@ -289,10 +313,16 @@ describe('processEditorView', () => {
     const withRole: ProcessEditorState = { slices: { ...state.slices, settings } };
 
     expect(view(withRole, { etape: 'st-checks' }).step?.tools).toEqual([
-      { icon: 'plug', label: 'Connecteur GitHub', detail: 'MaximeD1412/site-mairie' },
-      { icon: 'terminal', label: 'Commande', detail: null },
+      { icon: 'plug', label: 'Connecteur GitHub', detail: 'MaximeD1412/site-mairie', tool: { kind: 'connector', connector: 'github' }, detachLabel: 'Détacher le Connecteur GitHub' },
+      { icon: 'terminal', label: 'Commande', detail: null, tool: { kind: 'command', commandId: 'tests' }, detachLabel: 'Détacher la Commande' },
     ]);
-    expect(view(withRole, { etape: 'st-maquettes' }).step?.tools[2]).toEqual({ icon: 'layers', label: 'Serveur MCP stitch', detail: null });
+    expect(view(withRole, { etape: 'st-maquettes' }).step?.tools[2]).toEqual({
+      icon: 'layers',
+      label: 'Serveur MCP stitch',
+      detail: null,
+      tool: { kind: 'mcp', name: 'stitch' },
+      detachLabel: 'Détacher le Serveur MCP stitch',
+    });
     expect(view(withRole, { etape: 'st-code' }).step?.tools[0]).toMatchObject({ icon: 'user', label: 'Rôle Front' });
   });
 
@@ -531,7 +561,7 @@ describe('processEditorView, editing (PROCESS-8)', () => {
 
   it('shows a refusal in a halt Toast', () => {
     expect(view(stateOf()).toast).toBeNull();
-    expect(view(stateOf(), {}, { toast: 'Refusé.' }).toast).toEqual({ tone: 'halt', icon: 'block', text: 'Refusé.' });
+    expect(view(stateOf(), {}, { toast: { tone: 'halt', text: 'Refusé.', arrow: null } }).toast).toEqual({ tone: 'halt', icon: 'block', text: 'Refusé.' });
   });
 
   it('asks the Dialog naming the Étapes of the Phase to remove', () => {
@@ -547,5 +577,91 @@ describe('processEditorView, editing (PROCESS-8)', () => {
     const phase = view(stateOf(), { phase: 'ph-dev' }, { nameError: { phaseId: 'ph-dev', text: 'Une Phase porte déjà ce nom.' }, focusName: { phaseId: 'ph-dev', at: 2 } }).phase;
     expect(phase).toMatchObject({ nameError: 'Une Phase porte déjà ce nom.', focusName: 2 });
     expect(view(stateOf(), { phase: 'ph-idee' }, { nameError: { phaseId: 'ph-dev', text: 'x' } }).phase).toMatchObject({ nameError: null, focusName: null });
+  });
+});
+
+describe('processEditorView, arrows, Retours and Outils (PROCESS-9)', () => {
+  const withDraft = (edit: (definition: ProcessDefinition) => void, slices: Record<string, unknown> = {}): ProcessEditorState => {
+    const definition = structuredClone(PROCESS_CREWDECK);
+    edit(definition);
+    return withSlices(stateOf({ ...PROCESS, draft: draftOf(definition) }), slices);
+  };
+  const step = (definition: ProcessDefinition, id: string) => definition.steps.find((candidate) => candidate.id === id)!;
+
+  it('draws the arrow refused with its halt Toast, and says a Retour drawn in an accent one', () => {
+    const arrow = { from: { stepId: 'st-code', portId: 'changement' }, to: { stepId: 'st-rv', portId: 'maquettes' } };
+    const refused = view(stateOf(), {}, { toast: { tone: 'halt', text: 'Refusée : une Sortie Changement de code ne va que vers une Entrée Changement de code', arrow } });
+    expect(refused.canvas.arrows.at(-1)).toEqual({ ...arrow, state: 'refused' });
+    expect(refused.toast).toEqual({ tone: 'halt', icon: 'block', text: 'Refusée : une Sortie Changement de code ne va que vers une Entrée Changement de code' });
+
+    const drawn = view(stateOf(), {}, { toast: { tone: 'accent', text: 'Retour de « Review » vers « Code », 3 fois au plus.', arrow: null } });
+    expect(drawn.toast).toEqual({ tone: 'accent', icon: 'refresh', text: 'Retour de « Review » vers « Code », 3 fois au plus.' });
+    expect(drawn.canvas.arrows.every((candidate) => candidate.state === null)).toBe(true);
+  });
+
+  it('gives an Entrée without arrow the Sorties of its type the rules accept, « Verdict · Checks »', () => {
+    const state = withDraft((definition) => {
+      definition.arrows = definition.arrows.filter((arrow) => !(arrow.to.stepId === 'st-review' && arrow.to.portId === 'verdict'));
+    });
+    const input = view(state, { etape: 'st-review' }).step?.inputs[1];
+
+    expect(input).toMatchObject({ label: 'Verdict des checks', fed: false, arrows: [] });
+    expect(input?.candidates?.map((candidate) => candidate.label)).toEqual(['Verdict · Revue croisée du PRD', 'Verdict · Revue croisée de la conception', 'Verdict · Checks', 'Verdict · Revue visuelle']);
+    expect(input?.candidates?.[2]?.from).toEqual({ stepId: 'st-checks', portId: 'verdict' });
+  });
+
+  it('offers « Poser un Retour vers » to an Étape that judges without one, nothing to one that does not judge', () => {
+    const state = withDraft((definition) => {
+      definition.loopBacks = definition.loopBacks.filter((loop) => loop.from !== 'st-review');
+    });
+    const review = view(state, { etape: 'st-review' }).step;
+
+    expect(review?.loopBack).toBeNull();
+    expect(review?.loopBackTargets).toEqual([
+      { value: 'st-code', label: 'Code' },
+      { value: 'st-checks', label: 'Checks' },
+    ]);
+    expect(view(state, { etape: 'st-code' }).step?.loopBackTargets).toBeNull();
+    expect(view(stateOf(), { etape: 'st-review' }).step?.loopBackTargets).toBeNull();
+  });
+
+  it('says what a Retour stops at by what its Phase repeats: « la Conception », « l’Idée », « l’Artefact »', () => {
+    expect(view(stateOf(), { etape: 'st-rc-ct' }).step?.loopBack?.text).toBe(
+      'Vers « Conception technique », tant que « Revue croisée de la conception » demande des changements. Au-delà, la Conception s’arrête sur une Décision.',
+    );
+    expect(view(stateOf(), { etape: 'st-tri' }).step?.loopBack).toBeNull();
+    const once = withDraft((definition) => {
+      definition.phases.find((phase) => phase.id === 'ph-dev')!.forEach = null;
+    });
+    expect(view(once, { etape: 'st-review' }).step?.loopBack?.text).toBe('Vers « Code », tant que « Review » demande des changements. Au-delà, l’Artefact s’arrête sur une Décision.');
+  });
+
+  it('says « non déclaré sur atelier-pc » of a Serveur MCP the Runner does not declare', () => {
+    const state = withDraft((definition) => step(definition, 'st-maquettes').tools.push({ kind: 'mcp', name: 'stitch' }, { kind: 'mcp', name: 'figma' }), {
+      'mcp-server': new Map([['stitch', { name: 'stitch' }]]),
+    });
+    expect(view(state, { etape: 'st-maquettes' }).step?.tools.slice(2).map((tool) => tool.detail)).toEqual([null, 'non déclaré sur atelier-pc']);
+  });
+
+  it('has no « Attacher un Outil » on a gate nor on the Merge', () => {
+    expect(view(stateOf(), { etape: 'st-review' }).step?.canAttach).toBe(true);
+    expect(view(stateOf(), { etape: 'st-checks' }).step?.canAttach).toBe(true);
+    expect(view(stateOf(), { etape: 'st-rv' }).step?.canAttach).toBe(false);
+    expect(view(stateOf(), { etape: 'st-merge' }).step?.canAttach).toBe(false);
+  });
+
+  it('opens « Attacher un Outil » on the Review: its Rôles, its Skill, the declared Serveurs MCP and GitHub', () => {
+    const state = withSlices(stateOf(), { 'mcp-server': new Map([['stitch', { name: 'stitch' }], ['figma', { name: 'figma' }]]) });
+    const attach = view(state, { etape: 'st-review' }, { attach: 'st-review' }).attach;
+
+    expect(attach?.stepId).toBe('st-review');
+    expect(attach?.menu.title).toBe('Attacher à « Review »');
+    expect(attach?.menu.groups.map((group) => group.label)).toEqual(['Rôle (un seul)', 'Skill (une seule)', 'Serveur MCP, déclaré sur atelier-pc', 'Connecteur']);
+    const roles = attach?.menu.groups[0]?.items;
+    expect(roles?.filter((item) => item.selected).map((item) => item.label)).toEqual(['Review']);
+    expect(roles?.find((item) => item.label === 'Review')?.detail).toBe('Claude Code · Opus 5.5');
+    expect(attach?.menu.groups[2]?.items.map((item) => item.label)).toEqual(['figma', 'stitch', 'Déclarer un Serveur MCP']);
+    expect(attach?.choices.find((choice) => choice.id === 'mcp:stitch')?.tool).toEqual({ kind: 'mcp', name: 'stitch' });
+    expect(view(state, { etape: 'st-review' }).attach).toBeNull();
   });
 });

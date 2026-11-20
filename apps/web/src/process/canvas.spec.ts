@@ -145,6 +145,16 @@ describe('canvasOf', () => {
 });
 
 describe('editing the canvas', () => {
+  it('draws the arrow refused, and its Entrée refused, while the Toast says why', () => {
+    const refused = { from: { stepId: 'st-code', portId: 'changement' }, to: { stepId: 'st-rv', portId: 'maquettes' } };
+    const data = canvasOf(PROCESS_CREWDECK, [], null, { ...CONTEXT, editable: true, refused });
+
+    expect(data.arrows).toHaveLength(26);
+    expect(data.arrows.at(-1)).toEqual({ ...refused, state: 'refused' });
+    expect(stepOf(data, 'st-rv').ports.filter((port) => port.state === 'refused').map((port) => port.id)).toEqual(['maquettes']);
+    expect(canvasOf(PROCESS_CREWDECK, [], null, CONTEXT).arrows).toHaveLength(25);
+  });
+
   it('is editable when asked, the target Phase outlined', () => {
     const data = canvasOf(PROCESS_CREWDECK, [], null, { ...CONTEXT, editable: true, target: 'ph-conception' });
     expect(data.editable).toBe(true);

@@ -110,8 +110,9 @@ export class PasserellePageRunner extends PasserelleElement<typeof PageRunner> {
   private mcpRow(server: McpServer): TemplateResult {
     const transport = t(`runner.mcp.transport.${server.transport}`);
     const count = server.toolCount;
-    const meta =
+    const kind =
       count === null ? transport : t('runner.mcp.meta', { transport, tools: t(count <= 1 ? 'runner.mcp.tools.one' : 'runner.mcp.tools.other', { count }) });
+    const meta = server.attachedTo === null ? kind : t('runner.mcp.metaAttached', { meta: kind, attachedTo: server.attachedTo });
     const badge = server.state === 'ready' ? { tone: 'go', label: t('runner.mcp.state.ready') } : { tone: 'halt', label: t('runner.mcp.state.failed') };
     return html`<cd-list-row .data=${{ title: server.name, meta, icon: 'layers' }}
       ><cd-status-badge slot="trailing" .data=${badge}></cd-status-badge

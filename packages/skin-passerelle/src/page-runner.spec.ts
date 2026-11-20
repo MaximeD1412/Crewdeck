@@ -38,8 +38,8 @@ const ONLINE: Data = {
   command: 'crewdeck-runner login claude',
   runner: RUNNER,
   mcpServers: [
-    { name: 'figma', transport: 'http', state: 'ready', toolCount: 4 },
-    { name: 'stitch', transport: 'stdio', state: 'ready', toolCount: 12 },
+    { name: 'figma', transport: 'http', state: 'ready', toolCount: 4, attachedTo: null },
+    { name: 'stitch', transport: 'stdio', state: 'ready', toolCount: 12, attachedTo: null },
   ],
 };
 
@@ -131,9 +131,9 @@ describe('PageRunner', () => {
     const el = await page({
       ...ONLINE,
       mcpServers: [
-        { name: 'figma', transport: 'http', state: 'ready', toolCount: 4 },
-        { name: 'notion', transport: 'http', state: 'failed', toolCount: null },
-        { name: 'stitch', transport: 'stdio', state: 'ready', toolCount: 1 },
+        { name: 'figma', transport: 'http', state: 'ready', toolCount: 4, attachedTo: null },
+        { name: 'notion', transport: 'http', state: 'failed', toolCount: null, attachedTo: null },
+        { name: 'stitch', transport: 'stdio', state: 'ready', toolCount: 1, attachedTo: null },
       ],
     });
     const mcp = child(el, 'cd-card.mcp');
@@ -144,6 +144,22 @@ describe('PageRunner', () => {
       { title: 'stitch', meta: 'stdio · 1 outil', badge: { tone: 'go', label: 'déclaré' } },
     ]);
     expect([...mcp.querySelectorAll<WithData>('cd-list-row')].map((row) => row.data['icon'])).toEqual(['layers', 'layers', 'layers']);
+  });
+
+  it('says after the transport and tool count where each server is attached', async () => {
+    const el = await page({
+      ...ONLINE,
+      mcpServers: [
+        { name: 'figma', transport: 'http', state: 'ready', toolCount: 4, attachedTo: 'attaché à aucune Étape' },
+        { name: 'notion', transport: 'http', state: 'failed', toolCount: null, attachedTo: 'attaché à « Code » · Crewdeck' },
+        { name: 'stitch', transport: 'stdio', state: 'ready', toolCount: 12, attachedTo: 'attaché à « Maquettes » · Personal OS, Site mairie' },
+      ],
+    });
+    expect(rows(child(el, 'cd-card.mcp')).map((row) => row.meta)).toEqual([
+      'HTTP · 4 outils · attaché à aucune Étape',
+      'HTTP · attaché à « Code » · Crewdeck',
+      'stdio · 12 outils · attaché à « Maquettes » · Personal OS, Site mairie',
+    ]);
   });
 
   it('says when no Serveur MCP is declared', async () => {

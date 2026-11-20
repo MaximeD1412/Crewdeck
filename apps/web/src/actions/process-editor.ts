@@ -7,7 +7,24 @@ import { migrateSource } from '../api/source-migrations.js';
 import type { ConfirmOptions } from '../dialogs/confirm.js';
 import { targetPhaseOf } from '../process/canvas.js';
 import { changeLabels } from '../process/diff-labels.js';
-import { addPhase, addStep, moveStep, moveStepToPhase, removePhase, removeStep, renamePhase, setForEach, type EditResult } from '../process/edit.js';
+import {
+  addLoopBack,
+  addPhase,
+  addStep,
+  attachTool,
+  connect,
+  detachTool,
+  disconnect,
+  moveStep,
+  moveStepToPhase,
+  removeLoopBack,
+  removePhase,
+  removeStep,
+  renamePhase,
+  setForEach,
+  setLoopBackMax,
+  type EditResult,
+} from '../process/edit.js';
 import type { Editing } from '../process/editing.js';
 import { editorQueryOf, processHref, type EditorUiState } from '../process/editor-ui.js';
 import { runningByVersion, type WorkKind } from '../process/running-work.js';
@@ -32,6 +49,8 @@ export interface EditorActionsOptions {
   readonly ideaTitle?: (ideaId: string) => string | null;
   /** A Projet's name: a Local Projet's is sealed, the page opens it (PROJET-6); else its `displayName`. */
   readonly projectName?: (project: Project) => string;
+  /** A Projet's Dépôt GitHub, `null` for a Local one: the Connecteur GitHub needs it. */
+  readonly repository?: (projectId: string) => string | null;
 }
 
 type Confirmation = Omit<ConfirmOptions, 'action'>;
@@ -39,6 +58,9 @@ type Confirmation = Omit<ConfirmOptions, 'action'>;
 /** `key.one` or `key.other` for `count`, its `{count}` filled. */
 const counted = (key: string, count: number, params: MessageParams = {}): string =>
   t(`${key}.${count === 1 ? 'one' : 'other'}` as MessageKey, { ...params, count });
+
+/** A refusal of the canvas, as its Toast says it: « Refusée : » and the rules' label. */
+const refused = (reason: string): string => t('process.arrow.refused', { reason: `${reason.charAt(0).toLocaleLowerCase('fr')}${reason.slice(1)}` });
 
 const and = (parts: readonly string[]): string => new Intl.ListFormat('fr', { type: 'conjunction' }).format(parts);
 
@@ -71,9 +93,21 @@ const addedId = (before: ProcessDefinition, after: ProcessDefinition, blocks: 'p
  * Its edits (US-93, US-95): each applied to the shown definition and saved
  * behind, a refusal said in the Toast (a name's under its field); the Étape
  * or Phase added selected, a Phase's name focused; a Phase with Étapes
- * removed once the Dialog confirms.
+ * removed once the Dialog confirms. Its arrows and Retours (US-94, US-95):
+ * one the rules refuse said « Refusée : … », the arrow drawn refused; a
+ * Retour drawn said with its maximum. Its Outils (US-93): « Attacher un
+ * Outil » and its Menu, « Déclarer un Serveur MCP » leading to the Runner.
  */
-export const createEditorActions = ({ ui, editing, navigate, current, client, ideaTitle = () => null, projectName: nameOf = (project) => project.displayName ?? '' }: EditorActionsOptions) => {
+export const createEditorActions = ({
+  ui,
+  editing,
+  navigate,
+  current,
+  client,
+  ideaTitle = () => null,
+  projectName: nameOf = (project) => project.displayName ?? '',
+  repository = () => null,
+}: EditorActionsOptions) => {
   const here = () => {
     const match = current();
     return { projectId: match.params['id'] ?? '', query: editorQueryOf(match.query) };
@@ -181,7 +215,11 @@ export const createEditorActions = ({ ui, editing, navigate, current, client, id
       editing.focusName(projectId, id);
     },
     openCatalogue: (): void => editing.setCatalogue(here().projectId, true),
-    closeMenu: (): void => editing.setCatalogue(here().projectId, false),
+    closeMenu: (): void => {
+      const { projectId } = here();
+      editing.setCatalogue(projectId, false);
+      editing.setAttach(projectId, null);
+    },
     addStep: ({ kind }: Payload<'addStep'>): void => {
       const { projectId, query } = here();
       editing.setCatalogue(projectId, false);
@@ -218,6 +256,41 @@ export const createEditorActions = ({ ui, editing, navigate, current, client, id
       removeThePhase(projectId, phaseId);
     },
     cancelRemovePhase: (): void => editing.askRemovePhase(here().projectId, null),
+    connect: ({ from, to }: Payload<'connect'>): void => {
+      const { projectId } = here();
+      const result = editing.apply(projectId, (definition) => connect(definition, from, to));
+      if (!result.ok) editing.refuse(projectId, refused(result.reason), { from, to });
+    },
+    disconnect: ({ from, to }: Payload<'disconnect'>): void => {
+      edit(here().projectId, (definition) => disconnect(definition, from, to));
+    },
+    addLoopBack: ({ from, to }: Payload<'addLoopBack'>): void => {
+      const { projectId } = here();
+      const result = editing.apply(projectId, (definition) => addLoopBack(definition, from, to));
+      if (!result.ok) return editing.refuse(projectId, refused(result.reason));
+      const name = (id: string) => result.definition.steps.find((step) => step.id === id)?.name ?? id;
+      const max = result.definition.loopBacks.find((loop) => loop.from === from)?.max ?? 0;
+      editing.inform(projectId, t('process.loopBack.added', { from: name(from), to: name(to), max }));
+    },
+    setLoopBackMax: ({ from, max }: Payload<'setLoopBackMax'>): void => {
+      edit(here().projectId, (definition) => setLoopBackMax(definition, from, max));
+    },
+    removeLoopBack: ({ from }: Payload<'removeLoopBack'>): void => {
+      edit(here().projectId, (definition) => removeLoopBack(definition, from));
+    },
+    openAttach: ({ stepId }: Payload<'openAttach'>): void => editing.setAttach(here().projectId, stepId),
+    attachTool: ({ stepId, tool }: Payload<'attachTool'>): void => {
+      const { projectId } = here();
+      editing.setAttach(projectId, null);
+      edit(projectId, (definition) => attachTool(definition, stepId, tool, { repository: repository(projectId) }));
+    },
+    detachTool: ({ stepId, tool }: Payload<'detachTool'>): void => {
+      edit(here().projectId, (definition) => detachTool(definition, stepId, tool));
+    },
+    openRunner: (): void => {
+      editing.setAttach(here().projectId, null);
+      navigate('/runner');
+    },
     confirmRemovePhase: ({ phaseId }: Payload<'confirmRemovePhase'>): void => {
       const { projectId } = here();
       editing.askRemovePhase(projectId, null);

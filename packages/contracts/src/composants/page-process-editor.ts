@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { zSourceGroup, zSourceKind } from '../process/sources.js';
 import { defineComposant } from './define.js';
-import { zForEach } from '../process/definition.js';
+import { zForEach, zTool } from '../process/definition.js';
 import { zStepKind } from '../process/catalogue.js';
 import { zIconName } from './icons.js';
 import { Menu } from './menu.js';
@@ -34,6 +34,21 @@ const zSourceRow = zRow.extend({
   migration: z.string().nullable(),
 });
 
+/** An Entrée or a Sortie of an Étape, as an arrow names its ends. */
+const zPortRef = z.object({ stepId: zId, portId: zId });
+/** An arrow of the panel: its ends, and the label of its IconButton « Retirer la flèche ». */
+const zPanelArrow = z.object({ from: zPortRef, to: zPortRef, removeLabel: z.string().min(1) });
+/** An Outil as « Attacher un Outil » gives it: a Commande without its id, which the edit picks. */
+export const zAttachTool = z.union([
+  zTool.options[0],
+  zTool.options[1],
+  zTool.options[2],
+  zTool.options[4],
+  z.object({ kind: z.literal('command') }),
+]);
+/** A row of « Outils »: the Outil it shows, and the label of its IconButton « Détacher ». */
+const zToolRow = zRow.extend({ tool: zTool, detachLabel: z.string().min(1) });
+
 type Data = z.input<typeof zData>;
 
 const zData = z.object({
@@ -52,11 +67,29 @@ const zData = z.object({
       name: z.string().min(1),
       kindLabel: z.string(),
       phaseName: z.string(),
-      loopBack: z.string().nullable(),
-      /** `from`: « ← » the Étapes that feed it, « pour chaque … », or « rien » when `fed` is `false`; `to`: « → » the Étapes it feeds, or « aucune Étape ». */
-      inputs: z.array(z.object({ label: z.string(), from: z.string(), fed: z.boolean() })),
-      outputs: z.array(z.object({ label: z.string(), to: z.string() })),
-      tools: z.array(zRow),
+      /** Its Retour: the sentence, and its maximum in the Stepper « Au plus ». */
+      loopBack: z.object({ text: z.string().min(1), max: z.int().min(1).max(10) }).nullable(),
+      /** The Select « Poser un Retour vers »: for an Étape that judges without a Retour, the Étapes the rules accept; else `null`. */
+      loopBackTargets: z.array(z.object({ value: zId, label: z.string().min(1) })).nullable(),
+      /**
+       * `from`: « ← » the Étapes that feed it, « pour chaque … », or « rien » when `fed` is `false`; `to`: « → » the Étapes it feeds, or « aucune Étape ».
+       * `arrows`: the ones it holds, each with « Retirer la flèche »; `candidates`, for an Entrée without arrow, the Select « Alimentée par » of the Sorties the rules accept (`null` with an arrow).
+       */
+      inputs: z.array(
+        z.object({
+          /** The Entrée's own port, the target of « Alimentée par ». */
+          id: zId,
+          label: z.string(),
+          from: z.string(),
+          fed: z.boolean(),
+          arrows: z.array(zPanelArrow),
+          candidates: z.array(z.object({ from: zPortRef, label: z.string().min(1) })).nullable(),
+        }),
+      ),
+      outputs: z.array(z.object({ label: z.string(), to: z.string(), arrows: z.array(zPanelArrow) })),
+      tools: z.array(zToolRow),
+      /** Whether « Attacher un Outil » is there: not on a gate nor on the Merge. */
+      canAttach: z.boolean(),
       /** The Select « Phase »: every Phase, by id. */
       phases: z.array(z.object({ value: zId, label: z.string().min(1) })),
       /** Why « Retirer » is disabled, `null` while it may be removed. */
@@ -81,6 +114,14 @@ const zData = z.object({
     .nullable(),
   /** The catalogue's Menu, open under « Étape ». */
   catalogue: Menu.data.nullable(),
+  /**
+   * « Attacher un Outil », open for `stepId`: its Menu, in the canvas's
+   * `menu` Emplacement, and what each item gives (`tool: null`: « Déclarer
+   * un Serveur MCP », which leads to the Runner's page).
+   */
+  attach: z
+    .object({ stepId: zId, menu: Menu.data, choices: z.array(z.object({ id: z.string().min(1), tool: zAttachTool.nullable() })) })
+    .nullable(),
   /** The Toast over the canvas (a refusal, an activation), the core's to remove. */
   toast: Toast.data.nullable(),
   /** The Dialog asking to remove a Phase with its Étapes. */
@@ -100,6 +141,7 @@ const zData = z.object({
 const crewdeck = ProcessCanvas.examples[0]!.data as Data['canvas'];
 const canvas: Data['canvas'] = { ...crewdeck, editable: false, focus: null };
 const withGap = ProcessCanvas.examples[1]!.data as Data['canvas'];
+// The canvas's « une flèche refusée »: « Code »'s Sortie dropped on « Revue visuelle »'s Maquettes.
 
 const OPTIONS: NonNullable<Data['sources']['rows'][number]['select']>['options'] = [
   { value: 'local', label: 'Local' },
@@ -156,6 +198,7 @@ const active: Data = {
   step: null,
   phase: null,
   catalogue: null,
+  attach: null,
   toast: null,
   removePhase: null,
   sources: SOURCES,
@@ -169,16 +212,38 @@ const REVIEW: NonNullable<Data['step']> = {
   name: 'Review',
   kindLabel: 'Agent',
   phaseName: 'Développement',
-  loopBack: 'Vers « Code », tant que « Review » demande des changements, 3 fois au plus. Au-delà, une Décision t’attend.',
+  loopBack: { text: 'Vers « Code », tant que « Review » demande des changements. Au-delà, le Ticket s’arrête sur une Décision.', max: 3 },
+  loopBackTargets: null,
   inputs: [
-    { label: 'Changement de code', from: '← Code', fed: true },
-    { label: 'Verdict des checks', from: '← Checks', fed: true },
+    {
+      id: 'changement',
+      label: 'Changement de code',
+      from: '← Code',
+      fed: true,
+      arrows: [{ from: { stepId: 'code', portId: 'changement' }, to: { stepId: 'review', portId: 'changement' }, removeLabel: 'Retirer la flèche de « Code »' }],
+      candidates: null,
+    },
+    {
+      id: 'checks',
+      label: 'Verdict des checks',
+      from: '← Checks',
+      fed: true,
+      arrows: [{ from: { stepId: 'checks', portId: 'verdict' }, to: { stepId: 'review', portId: 'checks' }, removeLabel: 'Retirer la flèche de « Checks »' }],
+      candidates: null,
+    },
   ],
-  outputs: [{ label: 'Verdict', to: '→ Merge' }],
+  outputs: [
+    {
+      label: 'Verdict',
+      to: '→ Merge',
+      arrows: [{ from: { stepId: 'review', portId: 'verdict' }, to: { stepId: 'fusion', portId: 'review' }, removeLabel: 'Retirer la flèche vers « Merge »' }],
+    },
+  ],
   tools: [
-    { icon: 'user', label: 'Rôle Review', detail: 'Claude Code · Opus 5.5' },
-    { icon: 'spark', label: 'Skill review', detail: 'officielle' },
+    { icon: 'user', label: 'Rôle Review', detail: 'Claude Code · Opus 5.5', tool: { kind: 'role', roleId: 'review' }, detachLabel: 'Détacher le Rôle Review' },
+    { icon: 'spark', label: 'Skill review', detail: 'officielle', tool: { kind: 'skill', skillId: 'review' }, detachLabel: 'Détacher la Skill review' },
   ],
+  canAttach: true,
   phases: [
     { value: 'ph-idee', label: 'Idée' },
     { value: 'ph-conception', label: 'Conception' },
@@ -204,6 +269,48 @@ const DEVELOPMENT: NonNullable<Data['phase']> = {
 };
 
 const editable: Data = { ...active, canvas: { ...canvas, editable: true } };
+const reviewChosen = (data: Data): Data => ({
+  ...data,
+  canvas: { ...data.canvas, phases: data.canvas.phases.map((phase) => ({ ...phase, steps: phase.steps.map((step) => ({ ...step, selected: step.id === 'review' })) })) },
+  tab: 'selection',
+  step: REVIEW,
+});
+
+/** « Attacher un Outil » on the Review: its Rôle, its Skill, two Serveurs MCP declared, GitHub. */
+const ATTACH: NonNullable<Data['attach']> = {
+  stepId: 'review',
+  menu: {
+    title: 'Attacher à « Review »',
+    groups: [
+      {
+        label: 'Rôle (un seul)',
+        items: [
+          { id: 'role:code', label: 'Code', icon: 'user', detail: 'Claude Code · Opus 5.5', selected: false, disabled: false },
+          { id: 'role:review', label: 'Review', icon: 'user', detail: 'Codex · GPT-5.5', selected: true, disabled: false },
+        ],
+      },
+      { label: 'Skill (une seule)', items: [{ id: 'skill:review', label: 'review', icon: 'spark', detail: 'officielle', selected: true, disabled: false }] },
+      {
+        label: 'Serveur MCP, déclaré sur atelier-pc',
+        items: [
+          { id: 'mcp:figma', label: 'figma', icon: 'layers', detail: 'donne ses outils aux agents de l’Étape', selected: false, disabled: false },
+          { id: 'mcp:stitch', label: 'stitch', icon: 'layers', detail: 'déjà attaché', selected: false, disabled: true },
+          { id: 'mcp-declare', label: 'Déclarer un Serveur MCP', icon: 'plus', detail: 'sur la page Runner et Comptes IA', selected: false, disabled: false },
+        ],
+      },
+      { label: 'Connecteur', items: [{ id: 'connector:github', label: 'GitHub', icon: 'plug', detail: 'MaximeD1412/site-mairie', selected: false, disabled: false }] },
+    ],
+  },
+  choices: [
+    { id: 'role:code', tool: { kind: 'role', roleId: 'code' } },
+    { id: 'role:review', tool: { kind: 'role', roleId: 'review' } },
+    { id: 'skill:review', tool: { kind: 'skill', skillId: 'review' } },
+    { id: 'mcp:figma', tool: { kind: 'mcp', name: 'figma' } },
+    { id: 'mcp:stitch', tool: { kind: 'mcp', name: 'stitch' } },
+    { id: 'mcp-declare', tool: null },
+    { id: 'connector:github', tool: { kind: 'connector', connector: 'github' } },
+  ],
+};
 const withPhase = (data: Data): Data => ({
   ...data,
   canvas: { ...data.canvas, phases: data.canvas.phases.map((phase) => ({ ...phase, selected: false, target: phase.id === 'ph-dev' })) },
@@ -235,10 +342,21 @@ const withPhase = (data: Data): Data => ({
  * « Retirer la Phase », the Dialog removing a Phase with its Étapes, and the
  * refusals in a Toast (the canvas's `toast` Emplacement). A disabled button
  * says why beside it.
+ *
+ * Arrows, Retours and Outils (US-94, US-95, US-93, PROCESS-9): the canvas's
+ * `connect` and `loopBack` relayed as `connect` and `addLoopBack`; in the
+ * Étape's panel, « Retirer la flèche » on each arrow (`disconnect`), the
+ * Select « Alimentée par » of an Entrée without arrow (`connect`), the Select
+ * « Poser un Retour vers » (`addLoopBack`), the Retour's Stepper « Au plus »
+ * (`setLoopBackMax`) and « Retirer le Retour » (`removeLoopBack`), each
+ * Outil's « Détacher » (`detachTool`), and « Attacher un Outil »
+ * (`openAttach`), whose Menu in the canvas's `menu` Emplacement gives
+ * `attachTool`, or `openRunner` for « Déclarer un Serveur MCP »; `closeMenu`
+ * closes either Menu.
  */
 export const PageProcessEditor = defineComposant({
   name: 'PageProcessEditor',
-  version: 2,
+  version: 3,
   tag: 'cd-page-process-editor',
   category: 'page',
   description: 'La Gestion du process : le canevas du brouillon ou de la version active, qu’on modifie, ses Manques, l’Étape ou la Phase choisie et les Sources.',
@@ -261,6 +379,15 @@ export const PageProcessEditor = defineComposant({
     removePhase: z.object({ phaseId: zId }),
     cancelRemovePhase: z.object({}),
     confirmRemovePhase: z.object({ phaseId: zId }),
+    connect: ProcessCanvas.actions.connect,
+    disconnect: z.object({ from: zPortRef, to: zPortRef }),
+    addLoopBack: ProcessCanvas.actions.loopBack,
+    setLoopBackMax: z.object({ from: zId, max: z.int() }),
+    removeLoopBack: z.object({ from: zId }),
+    openAttach: z.object({ stepId: zId }),
+    attachTool: z.object({ stepId: zId, tool: zAttachTool }),
+    detachTool: z.object({ stepId: zId, tool: zTool }),
+    openRunner: z.object({}),
   },
   slots: [],
   examples: [
@@ -282,14 +409,44 @@ export const PageProcessEditor = defineComposant({
         activate: { label: 'Activer la v4', revision: 2, disabledReason: 'Règle les Manques pour activer.' },
       },
     },
+    { name: 'la Review choisie', data: reviewChosen(active) },
     {
-      name: 'la Review choisie',
+      name: 'une Entrée sans flèche, et un Retour à poser',
       data: {
-        ...active,
-        canvas: { ...canvas, phases: canvas.phases.map((phase) => ({ ...phase, steps: phase.steps.map((step) => ({ ...step, selected: step.id === 'review' })) })) },
-        tab: 'selection',
-        step: REVIEW,
+        ...reviewChosen(editable),
+        step: {
+          ...REVIEW,
+          loopBack: null,
+          loopBackTargets: [
+            { value: 'code', label: 'Code' },
+            { value: 'checks', label: 'Checks' },
+          ],
+          inputs: [
+            REVIEW.inputs[0]!,
+            {
+              id: 'checks',
+              label: 'Verdict des checks',
+              from: '← rien',
+              fed: false,
+              arrows: [],
+              candidates: [{ from: { stepId: 'checks', portId: 'verdict' }, label: 'Verdict · Checks' }],
+            },
+          ],
+        },
       },
+    },
+    { name: 'Attacher un Outil', data: { ...reviewChosen(editable), step: { ...REVIEW, tools: [...REVIEW.tools, { icon: 'layers', label: 'Serveur MCP stitch', detail: null, tool: { kind: 'mcp', name: 'stitch' }, detachLabel: 'Détacher le Serveur MCP stitch' }] }, attach: ATTACH } },
+    {
+      name: 'une flèche refusée',
+      data: {
+        ...editable,
+        canvas: { ...(ProcessCanvas.examples[2]!.data as Data['canvas']), editable: true, focus: null },
+        toast: { tone: 'halt', icon: 'block', text: 'Refusée : une Sortie Changement de code ne va que vers une Entrée Changement de code' },
+      },
+    },
+    {
+      name: 'un Retour posé',
+      data: { ...reviewChosen(editable), toast: { tone: 'accent', icon: 'refresh', text: 'Retour de « Review » vers « Code », 3 fois au plus.' } },
     },
     { name: 'une Phase choisie', data: withPhase(editable) },
     {

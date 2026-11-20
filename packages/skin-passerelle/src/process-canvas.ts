@@ -191,6 +191,11 @@ export class PasserelleProcessCanvas extends PasserelleElement<typeof ProcessCan
         z-index: 4;
         top: var(--cd-space-4);
         right: var(--cd-space-4);
+        /* Within the canvas: a long Menu scrolls inside it. */
+        max-height: calc(100% - var(--cd-space-4) * 2);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        border-radius: var(--cd-radius-lg);
         cursor: auto;
       }
     `,
@@ -242,6 +247,10 @@ export class PasserelleProcessCanvas extends PasserelleElement<typeof ProcessCan
 
   private get viewport(): HTMLElement | null {
     return this.renderRoot.querySelector<HTMLElement>('.canvas');
+  }
+
+  private get menuBox(): HTMLElement | null {
+    return this.renderRoot.querySelector<HTMLElement>('.menu');
   }
 
   /** Measures and routes once laid out, after every Composant inside has rendered. */
@@ -332,6 +341,8 @@ export class PasserelleProcessCanvas extends PasserelleElement<typeof ProcessCan
   }
 
   private readonly onWheel = (event: WheelEvent) => {
+    // Over the Menu, the wheel scrolls it.
+    if (this.menuBox && event.composedPath().includes(this.menuBox)) return;
     event.preventDefault();
     if (event.ctrlKey || event.metaKey) {
       const rect = this.viewport?.getBoundingClientRect();

@@ -6,6 +6,7 @@
 import type { Page } from '@playwright/test';
 import { installFakeSpeech, type FakeSpeechControl } from '../src/dictation/fake-speech.js';
 import { openConfirm } from './confirm.js';
+import { canvas, card, dragArrow, editor, port } from './process-canvas.js';
 import { expect, test } from './fixtures.js';
 import { linkFirstAppareil } from './runner-link.js';
 import { routeSocket } from './socket.js';
@@ -107,7 +108,7 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
   },
   // « Gestion du process » once the snapshot drew its canvas (1280 px; the phone's list is PROCESS-11's).
   ...Object.fromEntries(
-    ['process', 'process-manques', 'process-etape', 'process-phase', 'process-sources', 'process-local'].map((name) => [
+    ['process', 'process-manques', 'process-phase', 'process-sources', 'process-local'].map((name) => [
       name,
       async (page: Page, width: number) => {
         if (width >= 1280) await expect(page.locator('cd-page-process-editor cd-process-canvas cd-step-card').first()).toBeVisible();
@@ -119,6 +120,34 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     if (width < 1280) return;
     await page.locator('cd-page-process-editor cd-page-header').getByRole('button', { name: 'Activer la v4' }).click();
     await expect(page.getByRole('alertdialog', { name: 'Activer la v4 du Process de Site mairie ?' })).toContainText('la Conception « Actualités » sur la v2');
+  },
+  // The Review chosen, « Attacher un Outil » open over the canvas with « stitch » and « figma » declared (PROCESS-9).
+  'process-etape': async (page, width) => {
+    if (width < 1280) return;
+    await expect(card(page, 'st-review')).toBeVisible();
+    await editor(page).getByRole('tabpanel').getByRole('button', { name: 'Attacher un Outil' }).click();
+    await expect(editor(page).getByRole('menu', { name: 'Attacher à « Review »' })).toContainText('figma');
+    // The click scrolled the panel down to its button: back to its top, as the mockup.
+    await editor(page).evaluate((host) => {
+      for (const node of host.shadowRoot?.querySelectorAll('*') ?? []) if (node.scrollTop > 0) node.scrollTop = 0;
+    });
+  },
+  // « Code »'s Sortie dragged onto « Revue visuelle »'s Maquettes: the arrow drawn refused, its Toast (PROCESS-9).
+  'process-fleche-refusee': async (page, width) => {
+    if (width < 1280) return;
+    // At the canvas's own 90 %, as the mockup: the wheel pans down until « Revue visuelle »'s Maquettes is in view.
+    await expect(card(page, 'st-rv')).toBeVisible();
+    const area = await canvas(page).boundingBox();
+    if (!area) throw new Error('no canvas');
+    await page.mouse.move(area.x + area.width / 2, area.y + area.height / 2);
+    for (let turn = 0; turn < 20; turn += 1) {
+      const target = await port(page, 'st-rv', 'maquettes', 'in').boundingBox();
+      if (target && target.y + target.height < area.y + area.height - 120) break;
+      await page.mouse.wheel(0, 120);
+      await page.waitForTimeout(100);
+    }
+    await dragArrow(page, { stepId: 'st-code', portId: 'changement' }, { stepId: 'st-rv', portId: 'maquettes' });
+    await expect(editor(page).locator('cd-toast')).toContainText('Refusée : une Sortie Changement de code');
   },
   // The catalogue opened under « Étape », « Développement » chosen (1280 px: the header's actions are the editor's).
   'process-catalogue': async (page, width) => {

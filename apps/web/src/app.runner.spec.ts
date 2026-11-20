@@ -58,6 +58,7 @@ describe('« Runner et Comptes IA » in the page', () => {
   store.registerSlice('ai-account', { shape: 'collection' });
   store.registerSlice('usage', { shape: 'collection' });
   store.registerSlice('mcp-server', { shape: 'collection' });
+  store.registerSlice('process', { shape: 'collection', snapshotKey: 'processes' });
   const page = () => root.querySelector<WithData>('cd-page-runner');
 
   beforeAll(async () => {
@@ -98,7 +99,7 @@ describe('« Runner et Comptes IA » in the page', () => {
     expect(page()?.data['mcpServers']).toEqual([]);
 
     store.applyEvent({ seq: 3, type: 'mcp-server.upserted', payload: STITCH, at: AT });
-    expect(page()?.data['mcpServers']).toEqual([{ name: 'stitch', transport: 'stdio', state: 'ready', toolCount: 12 }]);
+    expect(page()?.data['mcpServers']).toEqual([{ name: 'stitch', transport: 'stdio', state: 'ready', toolCount: 12, attachedTo: 'attaché à aucune Étape' }]);
 
     store.applyEvent({ seq: 4, type: 'mcp-server.removed', payload: { id: STITCH.id }, at: AT });
     expect(page()?.data['mcpServers']).toEqual([]);

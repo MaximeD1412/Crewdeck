@@ -42,6 +42,9 @@ type Merges struct {
 
 	mu      sync.Mutex
 	running map[pendingKey]bool
+	// queued is the last `merge.local` of a change that came during an
+	// attempt at it: run once the attempt ends, never dropped.
+	queued map[pendingKey]string
 }
 
 type pendingKey struct {
@@ -57,7 +60,7 @@ func NewMerges(cfg MergesConfig) *Merges {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.New(slog.DiscardHandler)
 	}
-	return &Merges{cfg: cfg, requests: make(chan contracts.RunnerMergeLocal, 16), moved: make(chan string, 16), running: map[pendingKey]bool{}}
+	return &Merges{cfg: cfg, requests: make(chan contracts.RunnerMergeLocal, 16), moved: make(chan string, 16), running: map[pendingKey]bool{}, queued: map[pendingKey]string{}}
 }
 
 // Register takes the server's `merge.local` on client.
@@ -103,7 +106,7 @@ func (m *Merges) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case r := <-m.requests:
-			spawn(func() { m.attempt(ctx, r.ProjectId, r.ChangeNumber, r.Sha) })
+			spawn(func() { m.attempt(ctx, r.ProjectId, r.ChangeNumber, r.Sha, true) })
 		case projectID := <-m.moved:
 			spawn(func() { m.retry(ctx, projectID, true) })
 		case <-ticker.C:
@@ -132,25 +135,43 @@ func (m *Merges) retry(ctx context.Context, projectID string, force bool) {
 				continue
 			}
 		}
-		m.attempt(ctx, pm.projectID, pm.number, pm.sha)
+		m.attempt(ctx, pm.projectID, pm.number, pm.sha, false)
 	}
 }
 
-// attempt merges and sends the result; one attempt at a time per change.
-func (m *Merges) attempt(ctx context.Context, projectID string, number int, sha string) {
+// attempt merges and sends the result; one attempt at a time per change. A
+// request (the server's `merge.local`) that comes during an attempt is run
+// after it, the last one only; a retry then is dropped, the pending merge
+// being retried again later.
+func (m *Merges) attempt(ctx context.Context, projectID string, number int, sha string, requested bool) {
 	key := pendingKey{projectID, number}
 	m.mu.Lock()
 	if m.running[key] {
+		if requested {
+			m.queued[key] = sha
+		}
 		m.mu.Unlock()
 		return
 	}
 	m.running[key] = true
 	m.mu.Unlock()
-	defer func() {
+	for {
+		m.merge(ctx, projectID, number, sha)
 		m.mu.Lock()
-		delete(m.running, key)
+		next, ok := m.queued[key]
+		delete(m.queued, key)
+		if !ok || ctx.Err() != nil {
+			delete(m.running, key)
+			m.mu.Unlock()
+			return
+		}
 		m.mu.Unlock()
-	}()
+		sha = next
+	}
+}
+
+// merge runs one merge of the change and sends its result.
+func (m *Merges) merge(ctx context.Context, projectID string, number int, sha string) {
 	log := m.cfg.Logger.With("projectId", projectID, "changeNumber", number)
 	p, ok := m.cfg.Project(projectID)
 	if !ok {

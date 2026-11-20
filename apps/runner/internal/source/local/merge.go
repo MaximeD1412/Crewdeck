@@ -137,9 +137,12 @@ func (p *Project) merge(ctx context.Context, number int, sha string) (MergeResul
 		if err != nil {
 			return MergeResult{}, nil, err
 		}
-		files, err := p.moveBase(ctx, clone, number, c.BaseRef, base, squash)
+		files, err := p.moveBase(ctx, clone, number, c.BaseRef, base, squash, c.HeadRef, sha)
 		if errors.Is(err, errBaseMoved) {
 			continue // squashed again on what the Pilote committed meanwhile
+		}
+		if errors.Is(err, errHeadMoved) {
+			return MergeResult{Outcome: MergeStale}, nil, nil // pushed after the Verdicts (ADR 0002)
 		}
 		if err != nil {
 			return MergeResult{}, nil, err
@@ -147,7 +150,7 @@ func (p *Project) merge(ctx context.Context, number int, sha string) (MergeResul
 		if len(files) > 0 {
 			return MergeResult{Outcome: MergeBlocked}, files, nil
 		}
-		if err := p.merged(ctx, number, squash); err != nil {
+		if err := p.merged(ctx, number, sha, squash); err != nil {
 			return MergeResult{}, nil, err
 		}
 		return MergeResult{Outcome: MergeMerged, MergeSha: squash}, nil, nil
@@ -158,6 +161,7 @@ func (p *Project) merge(ctx context.Context, number int, sha string) (MergeResul
 var (
 	errConflict  = errors.New("local: the change does not squash")
 	errBaseMoved = errors.New("local: the integration branch moved")
+	errHeadMoved = errors.New("local: the change's head moved")
 )
 
 // squash makes, in a worktree of the clone detached at base, the squash
@@ -186,10 +190,13 @@ func squash(ctx context.Context, clone, dir, base, sha, message string, who iden
 }
 
 // moveBase moves the folder's branch from base to squash, pushed there as
-// refs/crewdeck/merge/<n> for the time of it: the files git names when the
-// Pilote's uncommitted changes touch the same ones; errBaseMoved when the
-// branch is no longer base.
-func (p *Project) moveBase(ctx context.Context, clone string, number int, branch, base, squash string) ([]string, error) {
+// refs/crewdeck/merge/<n> for the time of it, while the change's branch
+// headRef is still sha: the files git names when the Pilote's uncommitted
+// changes touch the same ones; errBaseMoved when the branch is no longer
+// base, errHeadMoved when headRef is no longer sha. `update-ref` checks both
+// in one transaction; `merge --ff-only`, which has the working tree to
+// update, right before.
+func (p *Project) moveBase(ctx context.Context, clone string, number int, branch, base, squash, headRef, sha string) ([]string, error) {
 	ref := "refs/crewdeck/merge/" + strconv.Itoa(number)
 	if err := runGit(ctx, clone, "push", "--quiet", "--force", "--no-verify", "origin", squash+":"+ref); err != nil {
 		return nil, err
@@ -199,11 +206,20 @@ func (p *Project) moveBase(ctx context.Context, clone string, number int, branch
 		now, ok := branchOf(ctx, p.folder, branch)
 		return !ok || now != base
 	}
+	headMoved := func() bool {
+		now, ok := branchOf(ctx, p.folder, headRef)
+		return !ok || now != sha
+	}
 	if moved() {
 		return nil, errBaseMoved
 	}
+	if headMoved() {
+		return nil, errHeadMoved
+	}
 	if head, err := gitOutput(ctx, p.folder, "symbolic-ref", "--quiet", "HEAD"); err == nil && head == "refs/heads/"+branch {
-		out, err := gitCommand(ctx, p.folder, "merge", "--ff-only", "--quiet", squash).CombinedOutput()
+		// --no-autostash: the Pilote's merge.autoStash would stash their
+		// work and apply it again over the merge, conflicts and all.
+		out, err := gitCommand(ctx, p.folder, "merge", "--ff-only", "--no-autostash", "--quiet", squash).CombinedOutput()
 		if err == nil {
 			return nil, nil
 		}
@@ -215,11 +231,16 @@ func (p *Project) moveBase(ctx context.Context, clone string, number int, branch
 		}
 		return nil, &gitError{command: "merge", err: err}
 	}
-	if err := runGit(ctx, p.folder, "update-ref", "refs/heads/"+branch, squash, base); err != nil {
-		if moved() {
+	update := gitCommand(ctx, p.folder, "update-ref", "--stdin")
+	update.Stdin = strings.NewReader("start\nverify refs/heads/" + headRef + " " + sha + "\nupdate refs/heads/" + branch + " " + squash + " " + base + "\ncommit\n")
+	if err := update.Run(); err != nil {
+		switch {
+		case headMoved():
+			return nil, errHeadMoved
+		case moved():
 			return nil, errBaseMoved
 		}
-		return nil, err
+		return nil, &gitError{command: "update-ref", err: err}
 	}
 	return nil, nil
 }
@@ -242,11 +263,12 @@ func overwritten(out string) []string {
 	return files
 }
 
-// merged records the change merged at squash, and says it (OnChange).
-func (p *Project) merged(ctx context.Context, number int, squash string) error {
+// merged records the change merged at its head sha (the one checked in the
+// folder, maybe not followed yet) as squash, and says it (OnChange).
+func (p *Project) merged(ctx context.Context, number int, sha, squash string) error {
 	now := formatTime(time.Now())
-	_, err := p.db.db.ExecContext(ctx, `UPDATE changes SET state = 'merged', merge_commit_oid = ?, merged_at = ?, updated_at = ? WHERE project_id = ? AND number = ?`,
-		squash, now, now, p.id, number)
+	_, err := p.db.db.ExecContext(ctx, `UPDATE changes SET state = 'merged', head_oid = ?, merge_commit_oid = ?, merged_at = ?, updated_at = ? WHERE project_id = ? AND number = ?`,
+		sha, squash, now, now, p.id, number)
 	if err != nil {
 		return fmt.Errorf("local: write a change merged: %w", err)
 	}

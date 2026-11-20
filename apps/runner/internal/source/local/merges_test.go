@@ -132,3 +132,31 @@ func TestMergesEndAPendingMergeOfAChangeClosedAsStale(t *testing.T) {
 		t.Error("the Pilote's work was touched")
 	}
 }
+
+func TestMergesRunANewRequestThatCameDuringAnAttemptOfTheSameChange(t *testing.T) {
+	m := mergeFolder(t)
+	merges, got := runMerges(t, m, time.Hour)
+	release := m.HoldGit() // another merge of the Projet runs
+	merges.Request(request(m, m.head))
+	time.Sleep(300 * time.Millisecond) // the attempt at the first SHA waits for it
+
+	// A Session pushes again, the server asks the new head merged.
+	write(t, m.clone, "n.txt", "nouveau, encore\n")
+	git(t, m.clone, "commit", "--quiet", "-am", "feat : encore")
+	git(t, m.clone, "push", "--quiet", "origin", "feat/3-x")
+	pushed := git(t, m.clone, "rev-parse", "HEAD")
+	merges.Request(request(m, pushed))
+	time.Sleep(100 * time.Millisecond)
+	release()
+
+	if first := got.next(t, 5*time.Second); first.Sha != m.head || first.Outcome != contracts.RunnerMergeLocalResultOutcomeStale {
+		t.Errorf("first result %+v", first)
+	}
+	second := got.next(t, 5*time.Second)
+	if second.Sha != pushed || second.Outcome != contracts.RunnerMergeLocalResultOutcomeMerged {
+		t.Errorf("second result %+v", second)
+	}
+	if c, err := m.Change(context.Background(), 3); err != nil || c.State != source.ChangeMerged || c.HeadOid != pushed {
+		t.Errorf("change %+v, %v", c, err)
+	}
+}

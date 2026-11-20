@@ -287,3 +287,72 @@ func TestMergeCommitsAsCrewdeckWhenTheFolderHasNoIdentity(t *testing.T) {
 		t.Errorf("the squash's identity %q", got)
 	}
 }
+
+func TestMergeIsBlockedWithoutAutostashWhenTheFolderAsksForIt(t *testing.T) {
+	ctx := context.Background()
+	m := mergeFolder(t)
+	git(t, m.dir, "config", "merge.autoStash", "true")
+	write(t, m.dir, "a.txt", "a, du Pilote\n")
+	head := git(t, m.dir, "rev-parse", "HEAD")
+
+	result, err := m.Merge(ctx, 3, m.head)
+	if err != nil || result.Outcome != local.MergeBlocked {
+		t.Fatalf("result %+v, %v", result, err)
+	}
+	if got := git(t, m.dir, "rev-parse", "HEAD"); got != head {
+		t.Errorf("HEAD at %s, was %s", got, head)
+	}
+	if got := read(t, m.dir, "a.txt"); got != "a, du Pilote\n" {
+		t.Errorf("a.txt %q", got)
+	}
+	if got := git(t, m.dir, "status", "--porcelain"); got != "M a.txt" {
+		t.Errorf("status %q", got)
+	}
+	if got := git(t, m.dir, "stash", "list"); got != "" {
+		t.Errorf("stash %q", got)
+	}
+}
+
+// moveHeadOnPush makes the folder's hook move feat/3-x once, as a Session's
+// push would, when the squash reaches the folder: after the head was checked.
+func moveHeadOnPush(t *testing.T, m merging) {
+	t.Helper()
+	hook := filepath.Join(m.dir, ".git", "hooks", "post-receive")
+	write(t, filepath.Dir(hook), "post-receive", `#!/bin/sh
+[ -e "$GIT_DIR/pushed" ] && exit 0
+touch "$GIT_DIR/pushed"
+commit=$(echo "feat : poussé pendant le merge" | GIT_AUTHOR_NAME=Agent GIT_AUTHOR_EMAIL=a@example.test GIT_COMMITTER_NAME=Agent GIT_COMMITTER_EMAIL=a@example.test git commit-tree "$(git rev-parse feat/3-x^{tree})" -p feat/3-x)
+git update-ref refs/heads/feat/3-x "$commit"
+`)
+	if err := os.Chmod(hook, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMergeIsStaleWhenTheChangesHeadMovesBeforeTheSquashIsApplied(t *testing.T) {
+	for _, checkedOut := range []bool{true, false} {
+		ctx := context.Background()
+		m := mergeFolder(t)
+		if !checkedOut {
+			git(t, m.dir, "checkout", "--quiet", "main")
+		}
+		moveHeadOnPush(t, m)
+
+		result, err := m.Merge(ctx, 3, m.head)
+		if err != nil || result.Outcome != local.MergeStale {
+			t.Fatalf("checked out %v: result %+v, %v", checkedOut, result, err)
+		}
+		if got := git(t, m.dir, "rev-parse", "develop"); got != m.base {
+			t.Errorf("checked out %v: develop at %s, was %s", checkedOut, got, m.base)
+		}
+		if got := git(t, m.dir, "status", "--porcelain"); got != "" {
+			t.Errorf("checked out %v: status %q", checkedOut, got)
+		}
+		if c, _ := m.Change(ctx, 3); c.State != source.ChangeOpen {
+			t.Errorf("checked out %v: change %+v", checkedOut, c)
+		}
+		if got := git(t, m.dir, "for-each-ref", "refs/crewdeck/"); got != "" {
+			t.Errorf("checked out %v: refs left %q", checkedOut, got)
+		}
+	}
+}

@@ -59,6 +59,8 @@ const TICKET: Ticket = {
   milestoneNumber: 3,
   blockedBy: [],
   parentNumber: null,
+  formerNumber: null,
+  formerSource: null,
   branchPrefix: 'feat',
   visualReview: false,
   sourceCreatedAt: AT,

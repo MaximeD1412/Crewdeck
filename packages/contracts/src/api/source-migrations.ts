@@ -4,6 +4,7 @@ import { zSourceGroup, zSourceKind } from '../process/sources.js';
 import { zCursorPage, zCursorQuery, zId, zInstant } from '../values.js';
 import { withSeq } from './commands.js';
 import { zErrorCode } from './errors.js';
+import type { InstallationPermissions } from '../github/index.js';
 
 /**
  * The states of a migration of Source (ADR 0012, « Moving a Source »):
@@ -66,3 +67,22 @@ export const zSourceMigrationQuery = zCursorQuery.extend({ state: zSourceMigrati
 export type SourceMigrationQuery = z.infer<typeof zSourceMigrationQuery>;
 export const zSourceMigrationPage = zCursorPage(zSourceMigration);
 export type SourceMigrationPage = z.infer<typeof zSourceMigrationPage>;
+
+/**
+ * What a migration's GitHub token may do (SOURCE-8, ADR 0002): the issues of
+ * the Projet's repository only (their labels, milestones, comments, sub-issues,
+ * blocked-by and lock with them), 1 h. Never the code.
+ */
+export const SOURCE_MIGRATION_TOKEN_PERMISSIONS = { issues: 'write' } as const satisfies InstallationPermissions;
+
+/**
+ * `POST /api/runner/source-migrations/:id/github-token`, with the Runner's
+ * token, while the migration is `copying`, `verifying` or `switched`: the
+ * installation token the Runner copies and freezes the issues with, and when
+ * it expires. Kept in memory only by the Runner; never stored nor logged.
+ */
+export const zSourceMigrationGithubToken = z.object({
+  token: z.string().min(1),
+  expiresAt: zInstant,
+});
+export type SourceMigrationGithubToken = z.infer<typeof zSourceMigrationGithubToken>;

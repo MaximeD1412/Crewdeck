@@ -4,6 +4,7 @@ import { zErrorEnvelope } from './api/errors.js';
 import { zHealth } from './api/health.js';
 import { zRunnerLatest } from './api/runner.js';
 import { zSessionGithubToken } from './api/sessions.js';
+import { zSourceMigrationGithubToken } from './api/source-migrations.js';
 import { LINK_ATTEMPTS_PER_MINUTE, LINK_CODE_TTL_SECONDS, LINK_POLL_SECONDS, zRunnerLinkAccepted, zRunnerLinkPairing, zRunnerLinkRequest, zRunnerLinkStatus } from './api/runner-link.js';
 import { zArtifactContent, zArtifactError, zArtifactRead } from './runner/artifact.js';
 import { CAPABILITIES_EVERY_SECONDS, zCapabilities } from './runner/capabilities.js';
@@ -116,6 +117,7 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-merge-local-result', schema: zMergeLocalResult },
   // A Session's GitHub token (RUNNER-10), the Runner's HTTP route.
   { name: 'runner-session-github-token', schema: zSessionGithubToken },
+  { name: 'runner-source-migration-github-token', schema: zSourceMigrationGithubToken },
   // Reading content in the page (SOURCE-4).
   { name: 'runner-artifact-read', schema: zArtifactRead },
   { name: 'runner-artifact-content', schema: zArtifactContent },

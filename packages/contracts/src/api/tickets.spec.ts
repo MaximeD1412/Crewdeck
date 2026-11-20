@@ -35,6 +35,8 @@ const TICKET = {
   milestoneNumber: 3,
   blockedBy: [12],
   parentNumber: null,
+  formerNumber: null,
+  formerSource: null,
   branchPrefix: 'fix',
   visualReview: false,
   sourceCreatedAt: '2026-11-10T08:00:00.000Z',
@@ -106,6 +108,17 @@ describe('zTicket', () => {
     expect(zTicket.safeParse({ ...LOCAL_TICKET, titleSealed: null }).success).toBe(false);
   });
 
+  it('keeps its number and Source before a migration, untitled until its new Source fills it (SOURCE-8)', () => {
+    const moved = { ...TICKET, number: 57, formerNumber: 12, formerSource: 'local', title: null };
+    expect(zTicket.parse(moved)).toEqual(moved);
+    expect(zTicket.safeParse({ ...LOCAL_TICKET, titleSealed: null, labelsSealed: null, formerNumber: 57, formerSource: 'github' }).success).toBe(true);
+    // Never untitled when not moved, nor sealed on GitHub.
+    expect(zTicket.safeParse({ ...TICKET, title: null }).success).toBe(false);
+    expect(zTicket.safeParse({ ...moved, labelsSealed: SEALED }).success).toBe(false);
+    expect(zTicket.safeParse({ ...moved, formerSource: 'github' }).success).toBe(false);
+    expect(zTicket.safeParse({ ...TICKET, formerNumber: 0 }).success).toBe(false);
+  });
+
   it('keeps its figures to their values', () => {
     expect(zTicket.safeParse({ ...TICKET, priority: 'P3' }).success).toBe(false);
     expect(zTicket.safeParse({ ...TICKET, size: 'XXL' }).success).toBe(false);
@@ -124,6 +137,11 @@ describe('zMilestone', () => {
     expect(STATE_SLICES.milestones.parse([MILESTONE, local])).toEqual([MILESTONE, local]);
     expect(zMilestone.safeParse({ ...local, title: 'MVP' }).success).toBe(false);
     expect(zMilestone.safeParse({ ...MILESTONE, dueOn: '2026-12-01T00:00:00Z' }).success).toBe(false);
+  });
+
+  it('has no title for a moment once a migration moved it, never both (SOURCE-8)', () => {
+    expect(zMilestone.safeParse({ ...MILESTONE, title: null }).success).toBe(true);
+    expect(zMilestone.safeParse({ ...MILESTONE, titleSealed: SEALED }).success).toBe(false);
   });
 });
 

@@ -6,7 +6,7 @@ type: feature
 priority: P1
 size: M
 milestone: M7 Statistics and switchover
-blocked_by: [BOUCLE-4, RUNNER-13, IDEE-5, CONCEPTION-10, CORE-8]
+blocked_by: [BOUCLE-4, RUNNER-13, RUNNER-23, IDEE-5, CONCEPTION-10, CORE-8]
 adr: [0003, 0007, 0008]
 risques: [BIZ-4, OPS-5]
 stories: [US-61, US-20]
@@ -27,12 +27,12 @@ US-61: the statistics of each **Projet** and of all of them, so that the Pilote 
 - Created by BOUCLE-2: `LoopRecord` (`phaseRunId`, `takenAt`, `endedAt`, `outcome`, `blockedCount`, `pilotIntervened`); BOUCLE-4 to BOUCLE-6 fill `outcome`, `blockedCount` and `pilotIntervened`.
 - Created by PROCESS-4: `phase_runs` (`itemType`, `itemId`, `state`, dates), `step_runs` (`phaseRunId`, `kind`, `sessionId`, dates); PROCESS-5: `parentPhaseRunId`, the PhaseRun that created a Ticket (its origin); PROCESS-6: `loop-back.exhausted` and « Encore un passage ».
 - Created by BOUCLE-1: `Ticket` and `CodeChange` (`mergedAt`, `mergedBy`) for both Sources. Created by IDEE-1: `Idea.createdAt` (readable; the text is ciphertext). Created by IDEE-5 and CONCEPTION-9: Tickets written from an Idée or a Découpage, with their origin PhaseRun.
-- Created by RUNNER-9: `AgentSession`; RUNNER-13: the usage figures and `fx_rates` (ECB rate of the spend's day, `costUsdMicros` → `costEurCents`).
+- Created by RUNNER-9: `AgentSession`; RUNNER-13: the usage figures, `Spend` and `fx_rates` (ECB rate of the spend's day, `costUsdMicros` → `costEurCents`). Created by RUNNER-23: `Spend.kind`, `costUsdMicros` nullable, `windowPermille`, the Spend of a subscription's Session.
 - Created by UI-6: `Stat`; UI-2: `Card`, `Tabs`, `ProjectFilter`.
 
 ## To do
 
-- Per-Session spend: `AgentSession.costUsdMicros?` (an API key) and `AgentSession.windowPermille?` (share of the subscription's 5-hour window used, per mille) with its `engine` and `aiAccountKind` (`api-key | subscription`), from the `session.ended` message's usage. If RUNNER-9/RUNNER-13 did not add them, add the optional `usage` object to `session.ended` (`packages/contracts/src/runner/session.ts`, shared fixture) and fill it in the Claude and Codex adapters from their final event (Claude's result `total_cost_usd`, Codex's token usage priced by RUNNER-13's table).
+- Spend per Session: the `Spend` rows of RUNNER-23 (`kind` `api_key | subscription`, `costUsdMicros` for an API key, `windowPermille` for a subscription, `projectId`, `stepRunId`); nothing is added to `AgentSession`. The cost of a Ticket sums its rows (below).
 - `apps/server/src/loops/loop-record-hooks.ts`: on `loop-back.exhausted` raised for a `ticket.ready` PhaseRun, `LoopRecord.blockedCount + 1`; on its « Encore un passage », `pilotIntervened: true`; in the same transaction as the Décision.
 - `apps/server/src/statistics/`:
   - `lineage.ts`: pure `ideaOfTicket(ticket, phaseRuns)`: walk from the Ticket's origin PhaseRun (or its own PhaseRun's `parentPhaseRunId`) up the parents to a PhaseRun whose `itemType` is `idea`; null when the chain has none (a Ticket written by hand).
@@ -40,7 +40,7 @@ US-61: the statistics of each **Projet** and of all of them, so that the Pilote 
     - `leadTimeDays`: for each Idée all of whose Tickets (by `ideaOfTicket`) are closed and whose last merge (`CodeChange.mergedAt`) falls in the period, `lastMergedAt − idea.createdAt` in days; the median, and the count of Tickets merged from those Idées (« médiane · 41 Tickets »).
     - `successRate`: LoopRecords with `takenAt` in the period; numerator those with `outcome: merged-by-loop` and `pilotIntervened: false`; « mergés sans intervention, sur pris ».
     - `blockedShare`: the same records with `blockedCount >= 1` over all; « au moins une fois · 4 sur 47 ».
-    - `costPerTicket`: over the Tickets merged in the period, the Sessions of every StepRun of their PhaseRuns (`step_runs.phaseRunId` → `sessionId`), whatever the Étape: per Moteur paid by an API key, mean `costEurCents` per Ticket (each Session converted at its day's rate); per Moteur on a subscription, mean `windowPermille` per Ticket (« Claude · 6 % de la fenêtre de 5 h »).
+    - `costPerTicket`: over the Tickets merged in the period, the `Spend` rows (RUNNER-23) whose `stepRunId` is a StepRun of their PhaseRuns (`step_runs.phaseRunId`), whatever the Étape, summed per Ticket: per Moteur paid by an API key (`kind: api_key`), mean `costEurCents` per Ticket (each row already converted at its day's rate); per Moteur on a subscription (`kind: subscription`), mean `windowPermille` per Ticket (« Claude · 6 % de la fenêtre de 5 h »; 60 permille = 6 %).
   - The Pilote stepping in = answering a « Ticket bloqué », asking for changes in a visual review, « Encore un passage » on an exhausted Retour, pushing to, merging or closing the change at its Source (what BOUCLE-4 to BOUCLE-6 and the hook above record); approving a visual review or « Reprendre » after an interruption is not.
   - `statistics.controller.ts`: `GET /api/statistics?from=&to=&projectId=` (`zDay`s, at most 366 days, `to > from`): `{ all: Figures, projects: [{ projectId, ...Figures, merged }], health: { latencyP95Ms, samples } }` (contract in `packages/contracts/src/api/statistics.ts`); 400 with `fields` on a bad period, 404 for another Pilote's Projet, 401.
 - Web: `apps/web/src/api/statistics.ts` (a query, not the store: statistics are history, ADR 0008 « Lists »); `apps/web/src/views/statistiques.ts` (Projet names from the store, a Local one decrypted); router `/statistiques` (`?projet=`, `?periode=7|30|90`); Composant `PageStatistiques` (`packages/contracts/src/composants/page-statistiques.ts`, `packages/skin-passerelle/src/page-statistiques.ts`, in `COMPOSANTS`), actions `filter`, `period`; t() keys under `statistiques.*`.
@@ -65,7 +65,7 @@ US-61: the statistics of each **Projet** and of all of them, so that the Pilote 
 - [ ] An Idée noted on day 0 whose two Tickets merged on days 2 and 4 has a lead time of 4 days, whether its Tickets came through a Conception or straight from the Idée; an Idée with an open Ticket is not counted (unit tests on `ideaOfTicket` and `leadTimeDays`).
 - [ ] 47 Tickets taken, 40 merged by the Boucle without intervention, 4 blocked once: 85 % success, 9 % blocked (« 4 sur 47 »).
 - [ ] A Ticket whose Retour was exhausted counts as blocked; « Encore un passage » or an answered « Ticket bloqué » counts as stepped in; a visual review approved without changes does not.
-- [ ] The cost per Ticket sums the Sessions of every StepRun of its PhaseRun (Code, Review and any other agent Étape), uses each Session's day rate for an API key, shown « estimé »; a subscription shows its window share.
+- [ ] The cost per Ticket sums the `Spend` rows of every StepRun of its PhaseRun (Code, Review and any other agent Étape), uses each row's day rate for an API key, shown « estimé »; a subscription shows the sum of its `windowPermille`.
 - [ ] A Local Projet's figures are computed as a GitHub one's, and the page names it with its decrypted name; no response of the route holds a title.
 - [ ] `GET /api/statistics`: output schema, 400 with `fields` (period over 366 days, `to <= from`), 401, 404 for another Pilote's Projet.
 - [ ] The health shows the p95 of CORE-8 over 7 days.
@@ -83,7 +83,7 @@ US-61: the statistics of each **Projet** and of all of them, so that the Pilote 
 
 ## For prod
 
-A migration if the Session's usage columns are added here. Mirrored in `docs/pilotage/mep.json`.
+Nothing: the columns it reads are RUNNER-23's.
 
 ## Out of scope
 
@@ -94,6 +94,7 @@ A migration if the Session's usage columns are added here. Mirrored in `docs/pil
 
 - BOUCLE-4
 - RUNNER-13
+- RUNNER-23
 - IDEE-5
 - CONCEPTION-10
 - CORE-8

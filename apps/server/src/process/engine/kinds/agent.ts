@@ -31,6 +31,7 @@ import { SessionsService } from '../../../sessions/sessions.service.js';
 import { SettingsService } from '../../../settings/settings.service.js';
 import { Engine } from '../engine.js';
 import type { StepKindHandler, StepResult, StepRunContext, StepStartFailed } from './handler.js';
+import { heldVaultVersion } from '../../../vault/sealed-write.js';
 import { StepRunHooks } from './step-run-hooks.js';
 
 /**
@@ -362,6 +363,11 @@ export class AgentSteps implements OnModuleInit, OnModuleDestroy {
     const registered = this.reports.get(spec.kind);
     if (!registered) {
       this.logger.warn({ kind: spec.kind, stepRunId: run.stepRun.id }, 'step.report of a kind without a report schema');
+      return null;
+    }
+    if (report.sealed && report.vaultKeyVersion !== (await heldVaultVersion(tx, currentPilotId()))) {
+      // Sealed under a key a rotation replaced since: kept nowhere, the Runner seals it again once it holds the new one (E2E-4).
+      this.logger.warn({ kind: spec.kind, stepRunId: run.stepRun.id, vaultKeyVersion: report.vaultKeyVersion ?? null }, 'step.report sealed under a vault key version not current');
       return null;
     }
     const figures = registered.schema.safeParse(report.figures);

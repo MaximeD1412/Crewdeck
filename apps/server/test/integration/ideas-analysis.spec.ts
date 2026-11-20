@@ -220,7 +220,7 @@ describe('the analysis of an Idée against PostgreSQL', () => {
     const stepRunId = start.step?.stepRunId ?? '';
     socket.send({ type: 'step.started', stepRunId });
     socket.send({ type: 'session.state', sessionId: start.sessionId, state: 'active' });
-    socket.send({ type: 'step.report', stepRunId, figures, sealed: content });
+    socket.send({ type: 'step.report', stepRunId, figures, sealed: content, vaultKeyVersion: 1 });
     socket.send({ type: 'step.verdict', stepRunId, verdict: verdict('passed') });
     socket.send({ type: 'session.state', sessionId: start.sessionId, state: 'ended', outcome: 'ok' });
     return content;
@@ -391,6 +391,9 @@ describe('the analysis of an Idée against PostgreSQL', () => {
         }),
       );
 
+    /** The version a rotation moved the vault to, its item keys rewrapped apart. */
+    const rotated = (tab: Tab, version: number) => sql('UPDATE pilots SET vault_key_version = $2 WHERE id = $1', [tab.id, version]);
+
     it('a Session waiting for the Runner keeps only the ids of its Idées: its start sends their texts under the item keys of the rotation', async () => {
       const tab = await pilot();
       const earlier = await openIdea(tab, 1);
@@ -401,12 +404,55 @@ describe('the analysis of an Idée against PostgreSQL', () => {
       const keys = [b64(60), b64(60)] as const;
       expect(await rewrap(tab, 'idea.text', noted.id, noted.text.key, keys[0])).toBe('replaced');
       expect(await rewrap(tab, 'idea.text', earlier.id, earlier.text.key, keys[1])).toBe('replaced');
+      await rotated(tab, 2);
 
       const start = await (await online(tab)).expect('session.start');
       expect(start.step?.ideas).toEqual({
         idea: { id: noted.id, number: 2, text: { key: keys[0], ciphertext: noted.text.ciphertext }, analysis: null },
         open: [{ id: earlier.id, number: 1, text: { key: keys[1], ciphertext: earlier.text.ciphertext }, analysis: null }],
+        vaultKeyVersion: 2,
       });
+    });
+
+    it('keeps nowhere a report sealed under the version a rotation replaced before its reception; sealed again under the new one, it becomes the analysis', async () => {
+      const tab = await pilot();
+      const socket = await online(tab);
+      const noted = await note(tab, null);
+      const start = await socket.expect('session.start');
+      expect(start.step?.ideas?.vaultKeyVersion).toBe(1);
+      const stepRunId = start.step?.stepRunId ?? '';
+      const figures = { impact: 3, effort: 2, projectId: 'nouveau', duplicateIds: [] };
+      socket.send({ type: 'step.started', stepRunId });
+      // Sealed under 1, the rotation to 2 committed before it arrives.
+      await rotated(tab, 2);
+      const stale = sealed(200);
+      socket.send({ type: 'step.report', stepRunId, figures, sealed: stale, vaultKeyVersion: 1 });
+      socket.send({ type: 'step.report', stepRunId, figures, sealed: stale });
+      // The Runner, once it holds 2, seals it again.
+      const again = sealed(200);
+      socket.send({ type: 'step.report', stepRunId, figures, sealed: again, vaultKeyVersion: 2 });
+      socket.send({ type: 'step.verdict', stepRunId, verdict: verdict('passed') });
+      socket.send({ type: 'session.state', sessionId: start.sessionId, state: 'ended', outcome: 'ok' });
+
+      await vi.waitFor(async () => expect((await idea(tab, noted.id)).state).toBe('analysed'));
+      expect((await idea(tab, noted.id)).analysis).toEqual(again);
+    });
+
+    it('a report sealed under the replaced version alone leaves the Idée to triage, report.missing, never an analysis no holder opens', async () => {
+      const tab = await pilot();
+      const socket = await online(tab);
+      const noted = await note(tab, null);
+      const start = await socket.expect('session.start');
+      const stepRunId = start.step?.stepRunId ?? '';
+      socket.send({ type: 'step.started', stepRunId });
+      await rotated(tab, 2);
+      socket.send({ type: 'step.report', stepRunId, figures: { impact: 3, effort: 2, projectId: 'nouveau', duplicateIds: [] }, sealed: sealed(200), vaultKeyVersion: 1 });
+      socket.send({ type: 'step.verdict', stepRunId, verdict: verdict('passed') });
+      socket.send({ type: 'session.state', sessionId: start.sessionId, state: 'ended', outcome: 'ok' });
+
+      await vi.waitFor(async () => expect((await idea(tab, noted.id)).state).toBe('to-triage'));
+      expect(await idea(tab, noted.id)).toMatchObject({ analysis: null, impact: null, analysisRun: { status: 'incomplete', failedRuleIds: ['report.missing'] } });
+      expect(await sql(`SELECT analysis_pending FROM ideas WHERE id = $1`, [noted.id])).toEqual([{ analysis_pending: null }]);
     });
 
     it('a report received before the rotation becomes the analysis under the item key of the rotation', async () => {
@@ -417,7 +463,7 @@ describe('the analysis of an Idée against PostgreSQL', () => {
       const stepRunId = start.step?.stepRunId ?? '';
       const content = sealed(200);
       socket.send({ type: 'step.started', stepRunId });
-      socket.send({ type: 'step.report', stepRunId, figures: { impact: 3, effort: 2, projectId: 'nouveau', duplicateIds: [] }, sealed: content });
+      socket.send({ type: 'step.report', stepRunId, figures: { impact: 3, effort: 2, projectId: 'nouveau', duplicateIds: [] }, sealed: content, vaultKeyVersion: 1 });
       await vi.waitFor(async () => expect((await sql<{ n: number }>(`SELECT count(*)::int AS n FROM ideas WHERE id = $1 AND analysis_pending IS NOT NULL`, [noted.id]))[0]?.n).toBe(1));
       const items = await runInPilotScope(tab.id, () => app.get(Transactions).run((tx) => app.get(VaultItemsRegistry).all(tx)));
       expect(items.get(`idea.analysis-pending:${noted.id}`)).toEqual({ itemType: 'idea.analysis-pending', itemId: noted.id, aad: ideaItemAad(noted.id, 'analysis'), wrappedKey: content.key });

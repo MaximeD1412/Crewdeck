@@ -34,6 +34,7 @@ import { Transactions, type Tx } from '../realtime/transactions.js';
 import type { WaitingProject } from '../runners/waiting-work.js';
 import { currentPilotId } from '../scope/scope.context.js';
 import { IDEA_CONTEXT_ROW, SESSION_ROW, toAgentSession, toStepIdea } from '../sessions/session.view.js';
+import { heldVaultVersion } from '../vault/sealed-write.js';
 import { IDEA_VIEW, ideaStateOf, ideaStateRow, toIdea } from './idea.view.js';
 import { syncIdeasToTriage } from './triage-decision.js';
 
@@ -192,6 +193,8 @@ export class IdeaAnalysis {
    * their texts and analyses sealed as stored (the Runner opens them).
    */
   async context(tx: Tx, ideaId: string): Promise<SessionStepIdeaContext> {
+    // The version first, the Pilote's row held: the item keys read next are under it (E2E-4).
+    const vaultKeyVersion = await heldVaultVersion(tx, currentPilotId());
     const [idea, open] = await Promise.all([
       tx.idea.findUniqueOrThrow({ where: { id: ideaId }, select: IDEA_CONTEXT_ROW }),
       tx.idea.findMany({
@@ -201,7 +204,7 @@ export class IdeaAnalysis {
         select: IDEA_CONTEXT_ROW,
       }),
     ]);
-    return { idea: toStepIdea(idea), open: open.map(toStepIdea) };
+    return { idea: toStepIdea(idea), open: open.map(toStepIdea), vaultKeyVersion };
   }
 
   /** `idea-analysis` of « Runner hors ligne »: the analyses whose Sessions wait to start, by Projet, « Idées » for those of none. */

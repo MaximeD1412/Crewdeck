@@ -231,7 +231,7 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
         const resumed = await this.change(tx, pilotId, id, { state: 'starting', interruptedReason: null, endedAt: null });
         // The requests of the turn the stop cut: kept open while stopped, withdrawn as the new run starts (SESSION-3).
         await resolveOpenRequests(tx, this.decisions, id, 'withdrawn');
-        const message: OutgoingRunnerMessage = resumed.engineSessionId === null ? startMessageOf(resumed, await stepIdeasOf(tx, resumed)) : { type: 'session.resume', sessionId: id };
+        const message: OutgoingRunnerMessage = resumed.engineSessionId === null ? startMessageOf(resumed, await stepIdeasOf(tx, pilotId, resumed)) : { type: 'session.resume', sessionId: id };
         afterCommit(tx, () => this.trySend(pilotId, message));
         return toAgentSession(resumed);
       }),
@@ -358,7 +358,7 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
     const messages = await this.transactions.run(async (tx) => {
       const rows = await tx.agentSession.findMany({ where: { id: { in: [...ids] }, state: 'starting' }, select: SESSION_ROW, orderBy: { startedAt: 'asc' } });
       const sent: OutgoingRunnerMessage[] = [];
-      for (const row of rows) sent.push(row.engineSessionId === null ? startMessageOf(row, await stepIdeasOf(tx, row)) : { type: 'session.resume', sessionId: row.id });
+      for (const row of rows) sent.push(row.engineSessionId === null ? startMessageOf(row, await stepIdeasOf(tx, pilotId, row)) : { type: 'session.resume', sessionId: row.id });
       return sent;
     });
     for (const message of messages) this.trySend(pilotId, message);

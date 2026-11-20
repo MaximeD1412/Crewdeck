@@ -237,7 +237,8 @@ describe('the Idées against PostgreSQL', () => {
       expect(await openDecisions(alice)).toEqual([{ label: '1 Idée à trier', state: 'open', outcome: null }]);
       await note(alice);
       expect(await openDecisions(alice)).toEqual([{ label: '2 Idées à trier', state: 'open', outcome: null }]);
-      const [decision] = (await state(alice)).decisions;
+      // Its Rôle Idée has no Moteur: each analysis also raises « Étape échouée » (US-48).
+      const decision = (await state(alice)).decisions.find(({ kind }) => kind === 'ideas-to-triage');
       expect(decision).toMatchObject({ kind: 'ideas-to-triage', label: '2 Idées à trier', link: '/idees', projectId: null });
 
       // A triage (IDEE-2) moves them out of « à trier », then calls the same sync: the last one triaged resolves it.

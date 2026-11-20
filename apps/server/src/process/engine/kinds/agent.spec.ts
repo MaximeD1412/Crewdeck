@@ -26,7 +26,9 @@ import { AgentSteps, type AgentKindSpec, type AgentSignal, mcpServersOf, REPORT_
 import type { StepKindHandler, StepResult, StepRunContext } from './handler.js';
 import { type StepRunFinished, StepRunHooks } from './step-run-hooks.js';
 
-const TX = {} as Tx;
+/** The vault key's current version, which the Pilote's row says. */
+const VAULT_VERSION = 2;
+const TX = { pilot: { update: () => Promise.resolve({ vaultKeyVersion: VAULT_VERSION }) } } as unknown as Tx;
 const STEP_RUN_ID = '019a8f3c-2b4d-7e10-8a5b-6c7d8e9f0a1b';
 const SESSION_ID = '019a8f3c-2b4d-7e10-8a5b-6c7d8e9f0a2c';
 const PROJECT_ID = '019a8f3c-2b4d-7e10-8a5b-6c7d8e9f0a3d';
@@ -160,7 +162,7 @@ const setup = (options: { roles?: Record<string, { engine: 'claude-code' | 'code
   );
   steps.onModuleInit();
   const handler: StepKindHandler = steps.defineAgentKind(SPEC);
-  const signal = (run: StepRunContext, value: AgentSignal): Promise<StepResult | null> => handler.onSignal(TX, run, value);
+  const signal = (run: StepRunContext, value: AgentSignal): Promise<StepResult | null> => asPilot(() => handler.onSignal(TX, run, value));
   return { steps, handler, signal, engine, sessions, sessionHooks, settings, finished, providers, prisma, logger, dispatcher };
 };
 
@@ -234,7 +236,7 @@ describe('the agent Étapes', () => {
 
   it('starts a scratch Session for a kind without a branch: no Projet, the account’s Rôles, its step’s context', async () => {
     const { steps, sessions, settings } = setup({ roles: { idea: { engine: 'claude-code', model: 'claude-sonnet-5-5' } } });
-    const ideas = { idea: { id: IDEA_ID, number: 3, text: SEALED, analysis: null }, open: [] };
+    const ideas = { idea: { id: IDEA_ID, number: 3, text: SEALED, analysis: null }, open: [], vaultKeyVersion: VAULT_VERSION };
     const scratch = steps.defineAgentKind({ kind: 'idea-analysis', title: () => SEALED_TITLE, branch: () => null, outputs: () => [], stepContext: () => Promise.resolve({ ideas }), waitingWork: 'own' });
     const run = { ...runOf({ sessionId: null, stepId: 'st-analyse', kind: 'idea-analysis', inputs: [] }, ANALYSE), phaseRun: { id: 'p', projectId: null } as PhaseRun };
 
@@ -329,7 +331,14 @@ describe('the agent Étapes', () => {
       () => Promise.resolve(stored.length > 0),
     );
     const sealed = { key: 'k'.repeat(80), ciphertext: 'c'.repeat(24) };
-    const report = (figures: Record<string, unknown>) => ({ kind: 'step.report', report: { type: 'step.report', id: STEP_RUN_ID, at: '2026-11-19T10:00:00.000Z', stepRunId: STEP_RUN_ID, figures, sealed } }) as const;
+    const report = (figures: Record<string, unknown>, vaultKeyVersion: number | null = VAULT_VERSION) =>
+      ({ kind: 'step.report', report: { type: 'step.report', id: STEP_RUN_ID, at: '2026-11-19T10:00:00.000Z', stepRunId: STEP_RUN_ID, figures, sealed, ...(vaultKeyVersion ? { vaultKeyVersion } : {}) } }) as const;
+
+    // Sealed under a version a rotation replaced since, or under none said: kept nowhere (E2E-4).
+    expect(await signal(runOf(), report({ tickets: 3 }, VAULT_VERSION - 1))).toBeNull();
+    expect(await signal(runOf(), report({ tickets: 3 }, null))).toBeNull();
+    expect(stored).toEqual([]);
+    expect(engine.recordContratVerdict).not.toHaveBeenCalled();
 
     expect(await signal(runOf(), report({ tickets: 3 }))).toBeNull();
     expect(stored).toEqual([{ figures: { tickets: 3 }, sealed }]);

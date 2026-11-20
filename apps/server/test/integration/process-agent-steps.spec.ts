@@ -168,7 +168,7 @@ describe('the agent Étapes against PostgreSQL', () => {
     fakes.github.seedRepo({ ...APP_REPO, installationId: INSTALLATION_ID, files: { 'README.md': '# App' } });
     const id = newId();
     await sql(
-      `WITH p AS (INSERT INTO pilots (id, display_name, time_zone, getting_started_step) VALUES ($1, 'octo-fixture', 'Europe/Paris', 'projects') RETURNING id) INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) SELECT gen_random_uuid(), id, 'github', $2::text, 'octo-fixture' FROM p`,
+      `WITH p AS (INSERT INTO pilots (id, display_name, time_zone, getting_started_step, vault_key_version) VALUES ($1, 'octo-fixture', 'Europe/Paris', 'projects', 1) RETURNING id) INSERT INTO pilot_identities (id, pilot_id, provider, subject, login) SELECT gen_random_uuid(), id, 'github', $2::text, 'octo-fixture' FROM p`,
       [id, SENDER_ID],
     );
     const token = await runInPilotScope(id, () => app.get(WebSessions).open(prisma.scoped, id, undefined));
@@ -294,7 +294,7 @@ describe('the agent Étapes against PostgreSQL', () => {
     const { socket, run, start, stepRun } = await started();
     const sealed = { key: Buffer.alloc(60, 0xd1).toString('base64url'), ciphertext: Buffer.alloc(48, 0xd2).toString('base64url') };
 
-    socket.send({ type: 'step.report', stepRunId: stepRun.id, figures: { tests: 12 }, sealed });
+    socket.send({ type: 'step.report', stepRunId: stepRun.id, figures: { tests: 12 }, sealed, vaultKeyVersion: 1 });
     await vi.waitFor(() => expect(reports).toEqual([{ figures: { tests: 12 }, sealed }]));
     expect((await code(run.id)).state).toBe('running');
 

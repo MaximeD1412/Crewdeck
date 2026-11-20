@@ -20,6 +20,7 @@ import { z } from 'zod';
 import type { Prisma } from '../generated/prisma/client.js';
 import { githubNamesOf } from '../projects/project.view.js';
 import type { Tx } from '../realtime/transactions.js';
+import { heldVaultVersion } from '../vault/sealed-write.js';
 
 /** What a Session's view, and the `session.start` it is sent with, read of its row. */
 export const SESSION_ROW = {
@@ -163,14 +164,17 @@ export const toStepIdea = (row: { id: string; number: number; text: unknown; ana
 /**
  * The Idées the Session `row` reads, as they are stored when its start is
  * sent: their texts and analyses under their item keys of now, which a
- * rotation of the vault key replaced since the Session was created (E2E-4).
+ * rotation of the vault key replaced since the Session was created, with
+ * the version they are wrapped under (E2E-4).
  * The open Idées deleted since are left out; none once its own Idée is.
  */
-export const stepIdeasOf = async (tx: Tx, row: SessionRow): Promise<SessionStepIdeaContext | undefined> => {
+export const stepIdeasOf = async (tx: Tx, pilotId: string, row: SessionRow): Promise<SessionStepIdeaContext | undefined> => {
   if (row.stepIdeas === null) return undefined;
   const { ideaId, openIds } = zStepIdeasRow.parse(row.stepIdeas);
+  // The version first, the Pilote's row held: the item keys read next are under it.
+  const vaultKeyVersion = await heldVaultVersion(tx, pilotId);
   const rows = await tx.idea.findMany({ where: { id: { in: [ideaId, ...openIds] } }, select: IDEA_CONTEXT_ROW });
   const byId = new Map(rows.map((idea) => [idea.id, toStepIdea(idea)]));
   const idea = byId.get(ideaId);
-  return idea ? { idea, open: openIds.flatMap((id) => byId.get(id) ?? []) } : undefined;
+  return idea ? { idea, open: openIds.flatMap((id) => byId.get(id) ?? []), vaultKeyVersion } : undefined;
 };

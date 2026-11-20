@@ -378,7 +378,7 @@ export class FakeRunner implements Fake {
       };
       const content: IdeaAnalysisContent = { ...FAKE_IDEA_ANALYSIS.content, questions: [...FAKE_IDEA_ANALYSIS.content.questions], duplicates: duplicate ? [{ id: duplicate.id, why: FAKE_IDEA_ANALYSIS.duplicateWhy }] : [] };
       const sealed = this.vaultKey ? sealItem(this.vaultKey, JSON.stringify(content), ideaItemAad(ideas.idea.id, 'analysis')) : undefined;
-      this.send(socket, { type: 'step.report', stepRunId, figures, ...(sealed ? { sealed } : {}) });
+      this.send(socket, { type: 'step.report', stepRunId, figures, ...(sealed ? { sealed, vaultKeyVersion: ideas.vaultKeyVersion } : {}) });
       this.send(socket, { type: 'step.verdict', stepRunId, verdict: { ...contract, status: 'passed', failedRuleIds: [] } });
     } else {
       this.send(socket, { type: 'step.verdict', stepRunId, verdict: { ...contract, status: 'incomplete', failedRuleIds: ['idea-analysis.report.schema'] } });

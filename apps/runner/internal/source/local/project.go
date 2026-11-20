@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -533,17 +534,19 @@ func (p *Project) Comments(ctx context.Context, number int) ([]source.Comment, e
 	return comments, rows.Err()
 }
 
-const changeColumns = `number, title, body, head_ref, head_oid, base_ref, state, is_draft, COALESCE(merge_commit_oid, ''), author, created_at, updated_at, closed_at, merged_at`
+const changeColumns = `number, title, body, head_ref, head_oid, base_ref, state, is_draft, COALESCE(merge_commit_oid, ''), author, created_at, updated_at, closed_at, merged_at, labels`
 
 func scanChange(row interface{ Scan(...any) error }) (source.Change, error) {
 	var c source.Change
-	var state, created, updated string
+	var state, created, updated, labels string
 	var closed, merged sql.NullString
-	if err := row.Scan(&c.Number, &c.Title, &c.Body, &c.HeadRef, &c.HeadOid, &c.BaseRef, &state, &c.IsDraft, &c.MergeCommitOid, &c.Author, &created, &updated, &closed, &merged); err != nil {
+	if err := row.Scan(&c.Number, &c.Title, &c.Body, &c.HeadRef, &c.HeadOid, &c.BaseRef, &state, &c.IsDraft, &c.MergeCommitOid, &c.Author, &created, &updated, &closed, &merged, &labels); err != nil {
 		return c, err
 	}
 	c.State, c.CreatedAt, c.UpdatedAt = source.ChangeState(state), parseTime(created), parseTime(updated)
 	c.ClosedAt, c.MergedAt = optionalTime(closed), optionalTime(merged)
+	c.Labels = []string{}
+	_ = json.Unmarshal([]byte(labels), &c.Labels)
 	return c, nil
 }
 
@@ -623,6 +626,9 @@ func (p *Project) Checks(context.Context, string) ([]source.Check, error) {
 // CreateTicket writes `tickets/<n>-<slug>.md` with the next number of the
 // counter shared with the changes.
 func (p *Project) CreateTicket(ctx context.Context, ticket source.NewTicket) (source.Ticket, error) {
+	if len(ticket.Assignees) > 0 {
+		return source.Ticket{}, source.ErrNoAssignees
+	}
 	var created source.Ticket
 	err := p.locked(ctx, func(s *scanned) error {
 		title := strings.TrimSpace(ticket.Title)
@@ -659,6 +665,9 @@ func (p *Project) CreateTicket(ctx context.Context, ticket source.NewTicket) (so
 
 // EditTicket rewrites the fields the edit gives, the others as they are.
 func (p *Project) EditTicket(ctx context.Context, number int, edit source.TicketEdit) (source.Ticket, error) {
+	if len(edit.AddAssignees) > 0 || len(edit.RemoveAssignees) > 0 {
+		return source.Ticket{}, source.ErrNoAssignees
+	}
 	return p.rewrite(ctx, number, func(f *TicketFile, milestones []source.Milestone) error {
 		if edit.Title != nil {
 			title := strings.TrimSpace(*edit.Title)
@@ -689,6 +698,15 @@ func (p *Project) EditTicket(ctx context.Context, number int, edit source.Ticket
 		}
 		if edit.BlockedBy != nil {
 			f.BlockedBy = slices.Clone(*edit.BlockedBy)
+		}
+		if len(edit.AddBlockedBy) > 0 || len(edit.RemoveBlockedBy) > 0 {
+			blockers := slices.DeleteFunc(slices.Clone(f.BlockedBy), func(n int) bool { return slices.Contains(edit.RemoveBlockedBy, n) })
+			for _, n := range edit.AddBlockedBy {
+				if !slices.Contains(blockers, n) {
+					blockers = append(blockers, n)
+				}
+			}
+			f.BlockedBy = blockers
 		}
 		if edit.Parent != nil {
 			f.Parent = nil

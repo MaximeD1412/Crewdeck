@@ -27,6 +27,7 @@ const ICONS: Readonly<Record<DecisionKind, IconName>> = {
   'source-migration.failed': 'refresh',
   'source-migration.unfinished': 'folder',
   'ticket.local-unreadable': 'doc',
+  'merge.local-blocked': 'merge',
 };
 
 export interface AToiOptions {

@@ -26,9 +26,10 @@ describe('zDecision', () => {
     expect(STATE_SLICES.decisions.parse([DECISION])).toEqual([DECISION]);
   });
 
-  it('has the nineteen kinds, a Retour at its maximum, a Local Projet\'s missing folder and unreadable file, and both of a migration of Source among them', () => {
-    expect(DECISION_KINDS).toHaveLength(19);
+  it('has the twenty kinds, a Retour at its maximum, a Local Projet\'s missing folder, unreadable file and blocked merge, and both of a migration of Source among them', () => {
+    expect(DECISION_KINDS).toHaveLength(20);
     expect(DECISION_KINDS).toContain('ticket.local-unreadable');
+    expect(DECISION_KINDS).toContain('merge.local-blocked');
     expect(DECISION_KINDS).toEqual(expect.arrayContaining(['source-migration.failed', 'source-migration.unfinished']));
     expect(DECISION_KINDS).toContain('loop-back.exhausted');
     expect(DECISION_KINDS).toContain('project.folder-missing');

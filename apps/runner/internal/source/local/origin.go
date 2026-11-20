@@ -45,20 +45,25 @@ func (o *Origin) Clone(ctx context.Context) (string, []string, error) {
 		return "", nil, ErrNoFolder
 	}
 	dir := o.Dir()
+	return dir, nil, cloneOrFetch(ctx, folder, dir)
+}
+
+// cloneOrFetch makes dir the clone of folder, its `origin`, once, else fetches it.
+func cloneOrFetch(ctx context.Context, folder, dir string) error {
 	if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
 		// The folder the state names now, should the Pilote have moved it.
 		if err := runGit(ctx, dir, "remote", "set-url", "origin", folder); err != nil {
-			return "", nil, err
+			return err
 		}
-		return dir, nil, runGit(ctx, dir, "fetch", "--prune", "--quiet", "origin")
+		return runGit(ctx, dir, "fetch", "--prune", "--quiet", "origin")
 	}
 	if err := os.MkdirAll(filepath.Dir(dir), 0o700); err != nil {
-		return "", nil, err
+		return err
 	}
 	_ = os.RemoveAll(dir) // a clone a killed Runner left half made
 	if err := runGit(ctx, filepath.Dir(dir), "clone", "--no-hardlinks", "--no-checkout", "--quiet", folder, dir); err != nil {
 		_ = os.RemoveAll(dir)
-		return "", nil, err
+		return err
 	}
 	// The clone's own HEAD holds no branch, so that every branch may have
 	// its worktree (git refuses a branch already checked out).
@@ -66,7 +71,7 @@ func (o *Origin) Clone(ctx context.Context) (string, []string, error) {
 	if err == nil {
 		err = runGit(ctx, dir, "update-ref", "--no-deref", "HEAD", head)
 	}
-	return dir, nil, err
+	return err
 }
 
 // ProjectOfRemote is the Local Projet whose folder a clone's `origin` names

@@ -289,11 +289,11 @@ describe('the switch of the Tickets to another Source (SOURCE-8), against Postgr
     expect(await ticketSource()).toBe('github');
   });
 
-  it('a renumbering that misses a row or names an unknown one fails the migration before the point of no return, every row as it was', async () => {
+  it('a renumbering that misses a row or gives a number twice fails the migration before the point of no return, every row as it was', async () => {
     await sql(`UPDATE artifact_sources SET source = 'local' WHERE project_id = $1 AND "group" = 'ticket'`, [projectId]);
     await ticket('local', 12);
     await ticket('local', 14);
-    for (const renumbering of [[{ from: 12, to: 57 }], [{ from: 12, to: 57 }, { from: 14, to: 58 }, { from: 99, to: 59 }]]) {
+    for (const renumbering of [[{ from: 12, to: 57 }], [{ from: 12, to: 57 }, { from: 14, to: 57 }]]) {
       const { migration, socket } = await copying('github');
       socket.send({ type: 'migration.switch', migrationId: migration.id, fingerprints: [FINGERPRINT], renumbering, milestones: [] });
       await vi.waitFor(async () => expect(await migrationRow(migration.id)).toEqual({ state: 'failed', error_code: 'source-migration.switch-failed' }));

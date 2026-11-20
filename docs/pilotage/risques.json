@@ -1056,8 +1056,8 @@
       "categorie": "ops",
       "gravite": "elevee",
       "titre": "Une migration de Source à moitié faite laisse deux Sources ou perd des Tickets",
-      "statut": "solution choisie",
-      "statutDepuis": "2026-11-14",
+      "statut": "implémenté",
+      "statutDepuis": "2026-11-20",
       "solutions": [
         {
           "texte": "Vidange : aucun nouveau travail du type pendant la migration",
@@ -1067,12 +1067,12 @@
         {
           "texte": "Copie idempotente, chaque copie marquée de son origine",
           "ref": "ADR 0012",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Vérification jusqu'à une passe sans changement, puis rattrapage des modifications tardives après le gel",
           "ref": "ADR 0012",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Bascule en une transaction, point de non-retour : avant, l'ancienne Source le reste ; après, la nouvelle",

@@ -34,6 +34,10 @@ type progress struct {
 	// Archive is the name the Local side is frozen under, kept before the
 	// rename: a finish cut after it finds the archive again.
 	Archive string `json:"archive,omitempty"`
+	// Switched is each milestone of the old place, by its number there, as
+	// the switch saw it: the finish writes over the new Source only what
+	// changed since.
+	Switched map[int]switchedMilestone `json:"switched,omitempty"`
 	// Tickets and Milestones are each old number to its new one.
 	Tickets    map[int]int `json:"tickets"`
 	Milestones map[int]int `json:"milestones"`

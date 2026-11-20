@@ -234,6 +234,9 @@ func (f *fakeGitHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		n, _ := strconv.Atoi(milestonePath.FindStringSubmatch(path)[1])
 		for i := range f.milestones {
 			if f.milestones[i].Number == n {
+				if title, ok := body["title"].(string); ok {
+					f.milestones[i].Title = title
+				}
 				f.milestones[i].DueOn = nil
 				if due, ok := body["due_on"].(string); ok {
 					f.milestones[i].DueOn = &due

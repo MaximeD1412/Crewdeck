@@ -46,28 +46,51 @@ func syncPass(ctx context.Context, from, to source.Copier, p *progress, late *la
 
 	// The milestones, by title, with their due date.
 	milestones := map[string]source.Milestone{}
+	byNumber := map[int]source.Milestone{}
 	for _, m := range dstMilestones {
 		if _, ok := milestones[m.Title]; !ok {
 			milestones[m.Title] = m
 		}
+		byNumber[m.Number] = m
 	}
 	for _, m := range srcMilestones {
 		found, ok := milestones[m.Title]
-		if late != nil && !late.milestones[m.Number] {
-			if ok {
-				p.Milestones[m.Number] = found.Number
+		want := m
+		if late != nil {
+			// Since the switch, the new Source is the Projet's: its milestone found
+			// by the number recorded (renamed there, maybe), and only what changed
+			// in the old place written over it.
+			if n, mapped := p.Milestones[m.Number]; mapped {
+				found, ok = byNumber[n]
 			}
-			continue
+			if ok {
+				want = found
+				if was, seen := p.Switched[m.Number]; !seen || was.Title != m.Title {
+					want.Title = m.Title
+				}
+				if was, seen := p.Switched[m.Number]; !seen || was.Due != due(m) {
+					want.DueOn = m.DueOn
+				}
+			}
+			if !late.milestones[m.Number] {
+				// Unchanged in the old place: the new Source has it as it is, or
+				// has it no more.
+				if ok {
+					milestones[m.Title] = found
+					p.Milestones[m.Number] = found.Number
+				}
+				continue
+			}
 		}
-		if !ok || due(found) != due(m) {
-			number, err := to.PutMilestone(ctx, found.Number, m)
+		if !ok || want.Title != found.Title || due(want) != due(found) {
+			number, err := to.PutMilestone(ctx, found.Number, want)
 			if err != nil {
 				return out, err
 			}
-			found = source.Milestone{Number: number, Title: m.Title, DueOn: m.DueOn}
-			milestones[m.Title] = found
+			found = source.Milestone{Number: number, Title: want.Title, DueOn: want.DueOn}
 			out.writes++
 		}
+		milestones[m.Title] = found
 		p.Milestones[m.Number] = found.Number
 	}
 
@@ -161,6 +184,12 @@ func syncPass(ctx context.Context, from, to source.Copier, p *progress, late *la
 		out.writes++
 	}
 	return out, nil
+}
+
+// switchedMilestone is a milestone of the old place as the switch saw it.
+type switchedMilestone struct {
+	Title string `json:"title"`
+	Due   string `json:"due,omitempty"`
 }
 
 // lateSet is what changed in the old place since the switch's fingerprints:

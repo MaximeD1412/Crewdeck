@@ -192,6 +192,10 @@ func (h *Handler) switchTo(ctx context.Context, p *progress, kind string, stable
 			milestones = append(milestones, contracts.RunnerMigrationSwitchMilestonesElem{From: m.Number, To: to})
 		}
 	}
+	p.Switched = map[int]switchedMilestone{}
+	for _, m := range stable.milestones {
+		p.Switched[m.Number] = switchedMilestone{Title: m.Title, Due: due(m)}
+	}
 	p.Stage = stageSwitched
 	if err := p.save(h.cfg.Home); err != nil {
 		return err

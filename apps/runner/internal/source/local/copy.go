@@ -155,7 +155,7 @@ func (c *Copier) comments(ctx context.Context, number int) ([]source.CopiedComme
 }
 
 // PutMilestone adds the milestone at the end of tickets/milestones.yml (its
-// number is its rank), or sets the due date of the number-th.
+// number is its rank), or sets the title and due date of the number-th.
 func (c *Copier) PutMilestone(ctx context.Context, number int, m source.Milestone) (int, error) {
 	err := c.p.locked(ctx, func(s *scanned) error {
 		path := filepath.Join(c.p.folder, TicketsDir, MilestonesFile)
@@ -164,7 +164,7 @@ func (c *Copier) PutMilestone(ctx context.Context, number int, m source.Mileston
 			return fmt.Errorf("local: read milestones.yml: %w", err)
 		}
 		if number > 0 {
-			edited, err := withDue(data, number, m.DueOn)
+			edited, err := withMilestone(data, number, m)
 			if err != nil {
 				return err
 			}
@@ -196,9 +196,10 @@ func (c *Copier) PutMilestone(ctx context.Context, number int, m source.Mileston
 	return number, err
 }
 
-// withDue is milestones.yml with the number-th milestone's due_on set to
-// due (removed for nil), the rest as it was.
-func withDue(data []byte, number int, due *time.Time) ([]byte, error) {
+// withMilestone is milestones.yml with the number-th milestone's title and
+// due_on set to m's (due_on removed for nil), the rest as it was.
+func withMilestone(data []byte, number int, m source.Milestone) ([]byte, error) {
+	due := m.DueOn
 	var doc yaml.Node
 	if err := yaml.Unmarshal(data, &doc); err != nil || len(doc.Content) != 1 || doc.Content[0].Kind != yaml.SequenceNode || len(doc.Content[0].Content) < number {
 		return nil, fmt.Errorf("local: milestones.yml has no milestone %d: %w", number, source.ErrUnreadable)
@@ -206,6 +207,19 @@ func withDue(data []byte, number int, due *time.Time) ([]byte, error) {
 	entry := doc.Content[0].Content[number-1]
 	if entry.Kind != yaml.MappingNode {
 		return nil, fmt.Errorf("local: milestones.yml's milestone %d: %w", number, source.ErrUnreadable)
+	}
+	titled := false
+	for i := 0; i+1 < len(entry.Content); i += 2 {
+		if entry.Content[i].Value == "title" {
+			entry.Content[i+1].Value = m.Title
+			titled = true
+		}
+	}
+	if !titled {
+		entry.Content = append([]*yaml.Node{
+			{Kind: yaml.ScalarNode, Value: "title"},
+			{Kind: yaml.ScalarNode, Value: m.Title},
+		}, entry.Content...)
 	}
 	for i := 0; i+1 < len(entry.Content); i += 2 {
 		if entry.Content[i].Value == "due_on" {

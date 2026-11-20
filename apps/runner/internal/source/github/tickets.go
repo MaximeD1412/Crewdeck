@@ -252,14 +252,14 @@ func milestoneOf(m restMilestone) source.Milestone {
 }
 
 // PutMilestone creates the milestone, its due date with it (found by its
-// title when the answer is lost), or sets number's due date.
+// title when the answer is lost), or sets number's title and due date.
 func (t *Tickets) PutMilestone(ctx context.Context, number int, m source.Milestone) (int, error) {
 	var due any
 	if m.DueOn != nil {
 		due = m.DueOn.UTC().Format(time.RFC3339)
 	}
 	if number > 0 {
-		return number, t.call(ctx, http.MethodPatch, fmt.Sprintf("/milestones/%d", number), map[string]any{"due_on": due}, nil)
+		return number, t.call(ctx, http.MethodPatch, fmt.Sprintf("/milestones/%d", number), map[string]any{"title": m.Title, "due_on": due}, nil)
 	}
 	body := map[string]any{"title": m.Title}
 	if due != nil {

@@ -9,12 +9,9 @@ describe('renumberingOf (SOURCE-8)', () => {
     expect(renumberingOf('tickets', [], []).size).toBe(0);
   });
 
-  it('throws for a held row it misses', () => {
-    expect(() => renumberingOf('tickets', [{ from: 12, to: 57 }], [12, 14])).toThrow('tickets: the renumbering misses 1 rows');
-  });
-
-  it('leaves out a number no row holds: an item the Runner read that the server never held (a closed milestone, an issue not reconciled yet)', () => {
-    expect([...renumberingOf('milestones', [{ from: 1, to: 1 }, { from: 7, to: 2 }], [1])]).toEqual([[1, 1]]);
+  it('throws for a held row it misses, and for a number no row holds', () => {
+    expect(() => renumberingOf('tickets', [{ from: 12, to: 57 }], [12, 14])).toThrow('misses 1 rows and names 0 unknown ones');
+    expect(() => renumberingOf('tickets', [{ from: 12, to: 57 }, { from: 99, to: 58 }], [12])).toThrow('misses 0 rows and names 1 unknown ones');
   });
 
   it('throws for a number given twice, old or new', () => {

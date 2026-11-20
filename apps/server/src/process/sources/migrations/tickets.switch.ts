@@ -7,24 +7,19 @@ import { TicketsReconcile } from '../../../tickets/tickets.reconcile.js';
 import { TicketsWriter } from '../../../tickets/tickets.writer.js';
 import { SourceMigrations, type SwitchMessage } from './source-migrations.service.js';
 
-/**
- * A renumbering as a map, old → new, for the numbers a row holds: a number
- * given twice on either side, or a held number missing, throws; a number no
- * row holds (a closed milestone, an issue not reconciled yet) is left out.
- */
+/** A renumbering as a map, old → new; a number given twice on either side, or a held number missing, throws. */
 export const renumberingOf = (what: string, pairs: readonly { from: number; to: number }[], held: readonly number[]): Map<number, number> => {
   const map = new Map<number, number>();
-  const seen = new Set<number>();
   const taken = new Set<number>();
-  const rows = new Set(held);
   for (const { from, to } of pairs) {
-    if (seen.has(from) || taken.has(to)) throw new Error(`${what}: a number renumbered twice`);
-    seen.add(from);
+    if (map.has(from) || taken.has(to)) throw new Error(`${what}: a number renumbered twice`);
+    map.set(from, to);
     taken.add(to);
-    if (rows.has(from)) map.set(from, to);
   }
+  const rows = new Set(held);
   const missing = held.filter((number) => !map.has(number));
-  if (missing.length > 0) throw new Error(`${what}: the renumbering misses ${missing.length} rows`);
+  const unknown = [...map.keys()].filter((number) => !rows.has(number));
+  if (missing.length > 0 || unknown.length > 0) throw new Error(`${what}: the renumbering misses ${missing.length} rows and names ${unknown.length} unknown ones`);
   return map;
 };
 
@@ -34,7 +29,7 @@ export const renumberingOf = (what: string, pairs: readonly { from: number; to: 
  * and Source, its number and Source before kept (« #57 (ex-#12) »). To
  * GitHub, the reconciliation of the Projet runs once committed and fills the
  * titles; to Local, the Runner's scan seals them again. A renumbering that
- * misses a row throws: SOURCE-7 then fails the
+ * misses a row or names an unknown one throws: SOURCE-7 then fails the
  * migration on the old Source.
  */
 @Injectable()

@@ -248,20 +248,20 @@ func (h *Handler) finish(ctx context.Context, m contracts.RunnerMigrationFinish)
 		seen[f.Key] = f.ContentHash
 	}
 	vault := h.cfg.Vault()
-	late, lateMilestones := map[int]bool{}, 0
+	late := &lateSet{tickets: map[int]bool{}, milestones: map[int]bool{}}
 	for _, t := range frozen {
 		key, _, hash := fingerprint(vault, from.Kind(), t)
 		if seen[key] != hash {
-			late[t.Number] = true
+			late.tickets[t.Number] = true
 		}
 	}
 	for _, m := range frozenMilestones {
 		if key, hash := milestoneFingerprint(vault, from.Kind(), m); seen[key] != hash {
-			lateMilestones++
+			late.milestones[m.Number] = true
 		}
 	}
-	if len(late) > 0 || lateMilestones > 0 {
-		h.cfg.Logger.Info("migration.finish.late", "migrationId", p.MigrationID, "tickets", len(late), "milestones", lateMilestones)
+	if len(late.tickets) > 0 || len(late.milestones) > 0 {
+		h.cfg.Logger.Info("migration.finish.late", "migrationId", p.MigrationID, "tickets", len(late.tickets), "milestones", len(late.milestones))
 		if _, err := syncPass(ctx, from, to, p, late, nil); err != nil {
 			return err
 		}

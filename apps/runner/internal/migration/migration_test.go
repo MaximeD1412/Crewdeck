@@ -705,3 +705,35 @@ func TestAFinishCutBetweenTheRenameAndItsRecordFindsTheArchiveAndCarriesItsLateC
 		t.Errorf("12's late change not carried")
 	}
 }
+
+func TestTheFinishLeavesAMilestoneTheOldSourceDidNotChangeAsTheNewOneHasIt(t *testing.T) {
+	e := newEnv(t, thirtyTickets())
+	h := e.handler()
+	h.Copy(context.Background(), copyMessage(contracts.RunnerMigrationCopyFromLocal, contracts.RunnerMigrationCopyFromGithub))
+	switched := sentOf[contracts.RunnerMigrationSwitch](e)
+	if len(switched) != 1 {
+		t.Fatalf("switches %d, failed %+v\n%s", len(switched), sentOf[contracts.RunnerMigrationFailed](e), e.logs.String())
+	}
+
+	// Once switched, the Pilote moves M1 on GitHub; a Ticket changes late in Local, M1 there as it was.
+	moved := "2026-12-10T00:00:00Z"
+	e.gh.milestones[0].DueOn = &moved
+	e.write("tickets/12-ticket-12.md", "---\nnumber: 12\ntitle: Ticket 12, en retard\nlabels: [size:S]\nmilestone: M2\n---\n\nLe corps.\n")
+	h.Finish(context.Background(), finishMessage(switched[0]))
+	if failed := sentOf[contracts.RunnerMigrationFailed](e); len(failed) > 0 || len(sentOf[contracts.RunnerMigrationFinished](e)) != 1 {
+		t.Fatalf("failed %+v\n%s", failed, e.logs.String())
+	}
+	if m := e.gh.milestones[0]; m.DueOn == nil || *m.DueOn != moved {
+		t.Errorf("M1 after the finish: %+v", m)
+	}
+	if e.gh.count(`PATCH /milestones/\d+`) != 0 {
+		t.Errorf("the finish wrote %d milestones", e.gh.count(`PATCH /milestones/\d+`))
+	}
+	late := false
+	for _, is := range e.gh.Issues() {
+		late = late || strings.Contains(is.Body, "local#12 -->") && is.Title == "Ticket 12, en retard"
+	}
+	if !late {
+		t.Errorf("12's late change not carried")
+	}
+}

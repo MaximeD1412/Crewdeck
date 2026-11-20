@@ -25,9 +25,15 @@ type pass struct {
 // syncPass makes `to` match `from`: the milestones by title, each Ticket
 // found by its marker (`<kind>#<n>`) and written when it differs, its
 // comments found by theirs, then, every Ticket existing, the parents and
-// blockers renumbered. only, when not nil, limits it to those old numbers.
-// It records each new number in p, and calls each after each Ticket.
-func syncPass(ctx context.Context, from, to source.Copier, p *progress, only map[int]bool, each func(done, total int)) (pass, error) {
+// blockers renumbered. late, when not nil, limits its writes to the old
+// numbers of the Tickets and milestones it names (the finish's: the new
+// Source has the others). It records each new number in p, and calls each
+// after each Ticket.
+func syncPass(ctx context.Context, from, to source.Copier, p *progress, late *lateSet, each func(done, total int)) (pass, error) {
+	var only map[int]bool
+	if late != nil {
+		only = late.tickets
+	}
 	src, srcMilestones, err := from.ReadAll(ctx)
 	if err != nil {
 		return pass{}, err
@@ -47,6 +53,12 @@ func syncPass(ctx context.Context, from, to source.Copier, p *progress, only map
 	}
 	for _, m := range srcMilestones {
 		found, ok := milestones[m.Title]
+		if late != nil && !late.milestones[m.Number] {
+			if ok {
+				p.Milestones[m.Number] = found.Number
+			}
+			continue
+		}
 		if !ok || due(found) != due(m) {
 			number, err := to.PutMilestone(ctx, found.Number, m)
 			if err != nil {
@@ -79,8 +91,9 @@ func syncPass(ctx context.Context, from, to source.Copier, p *progress, only map
 		want := t.Ticket
 		want.Milestone = nil
 		if t.Milestone != nil {
-			m := milestones[t.Milestone.Title]
-			want.Milestone = &m
+			if m, ok := milestones[t.Milestone.Title]; ok { // none when the new Source removed it since the switch
+				want.Milestone = &m
+			}
 		}
 		number := 0
 		if exists {
@@ -148,6 +161,13 @@ func syncPass(ctx context.Context, from, to source.Copier, p *progress, only map
 		out.writes++
 	}
 	return out, nil
+}
+
+// lateSet is what changed in the old place since the switch's fingerprints:
+// Tickets and milestones by their old number.
+type lateSet struct {
+	tickets    map[int]bool
+	milestones map[int]bool
 }
 
 func keyOf(kind string, number int) string { return kind + "#" + strconv.Itoa(number) }

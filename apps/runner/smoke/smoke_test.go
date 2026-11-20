@@ -123,7 +123,14 @@ func TestTheSmokeTestPassesAgainstTheFakeServer(t *testing.T) {
 // in the place of the embedded example Contrat.
 func overlay(t *testing.T, replacement string) string {
 	t.Helper()
-	data, err := json.Marshal(map[string]map[string]string{"Replace": {contratFile: replacement}})
+	return overlayOf(t, map[string]string{contratFile: replacement})
+}
+
+// overlayOf is a `go build -overlay` file replacing each file of replace
+// (empty: none).
+func overlayOf(t *testing.T, replace map[string]string) string {
+	t.Helper()
+	data, err := json.Marshal(map[string]map[string]string{"Replace": replace})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +142,16 @@ func overlay(t *testing.T, replacement string) string {
 }
 
 func TestARemovedEmbeddedContratFailsTheSmokeBuild(t *testing.T) {
-	err := build(t, filepath.Join(t.TempDir(), "crewdeck-runner"), "./cmd/crewdeck-runner", "-tags", "smoke", "-overlay", overlay(t, ""))
+	// Every embedded Contrat removed: `contrats/*.json` then matches nothing.
+	files, err := filepath.Glob(filepath.Join(filepath.Dir(contratFile), "*.json"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("the embedded Contrats: %v %v", files, err)
+	}
+	removed := map[string]string{}
+	for _, file := range files {
+		removed[file] = ""
+	}
+	err = build(t, filepath.Join(t.TempDir(), "crewdeck-runner"), "./cmd/crewdeck-runner", "-tags", "smoke", "-overlay", overlayOf(t, removed))
 	if err == nil || !strings.Contains(err.Error(), "no matching files") {
 		t.Fatalf("the build without the embedded Contrat = %v, want a failed go:embed", err)
 	}

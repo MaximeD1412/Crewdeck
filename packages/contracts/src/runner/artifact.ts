@@ -162,7 +162,8 @@ export const zArtifactTicket = z.strictObject({
   /** `COMPLETED`, `NOT_PLANNED`…, `""` for an open Ticket. */
   stateReason: z.string(),
   labels: z.array(z.strictObject({ name: z.string() })),
-  milestone: z.strictObject({ number: z.int().positive(), title: z.string(), description: z.string(), dueOn: z.string().nullable() }).nullable(),
+  /** Its `number` `null` for a Local jalon `milestones.yml` does not hold (a title typed in the Ticket's file). */
+  milestone: z.strictObject({ number: z.int().positive().nullable(), title: z.string(), description: z.string(), dueOn: z.string().nullable() }).nullable(),
   comments: z.array(zArtifactComment),
   blockedBy: z.array(z.int().positive()),
   parent: z.int().positive().nullable(),

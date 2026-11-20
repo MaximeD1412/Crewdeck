@@ -180,7 +180,8 @@ type label struct {
 }
 
 type milestone struct {
-	Number      int     `json:"number"`
+	// Number is nil for a Local jalon milestones.yml does not hold.
+	Number      *int    `json:"number"`
 	Title       string  `json:"title"`
 	Description string  `json:"description"`
 	DueOn       *string `json:"dueOn"`
@@ -295,7 +296,10 @@ func readTicket(ctx context.Context, r source.Reader, number int) (ticket, error
 		if t.Milestone.DueOn != nil {
 			due = timeOf(*t.Milestone.DueOn)
 		}
-		out.Milestone = &milestone{Number: t.Milestone.Number, Title: t.Milestone.Title, DueOn: due}
+		out.Milestone = &milestone{Title: t.Milestone.Title, DueOn: due}
+		if t.Milestone.Number > 0 {
+			out.Milestone.Number = &t.Milestone.Number
+		}
 	}
 	out.BlockedBy = append(out.BlockedBy, t.BlockedBy...)
 	if out.Comments, err = comments(ctx, r, number); err != nil {
@@ -478,10 +482,13 @@ func readFile(ctx context.Context, p Project, path, at string) (file, error) {
 	return file{Path: path, Sha: sha, Content: base64.StdEncoding.EncodeToString(content), Binary: true}, nil
 }
 
-// readDiff is `git diff base...head`: a change's base and head (its head's
-// commit once its branch is gone), or the two the tab named.
+// readDiff is `git diff base...head`: a change's base and head, or the two
+// the tab named. A change's head is the one its `change` names (the
+// Source's History: the clone's branch first, as the Miroir's
+// headRefOid), else its branch, else the commit local.db recorded.
 func readDiff(ctx context.Context, p Project, ref contracts.RunnerArtifactReadRef) (diff, error) {
-	var base, head, headOid string
+	var base, head string
+	var heads []string
 	switch {
 	case ref.Number != nil:
 		if p.Source == nil {
@@ -491,9 +498,17 @@ func readDiff(ctx context.Context, p Project, ref contracts.RunnerArtifactReadRe
 		if err != nil {
 			return diff{}, err
 		}
-		base, head, headOid = c.BaseRef, c.HeadRef, c.HeadOid
+		base, head = c.BaseRef, c.HeadRef
+		if history, err := p.Source.History(ctx, *ref.Number); err == nil && history.HeadOid != "" {
+			heads = append(heads, history.HeadOid)
+		}
+		heads = append(heads, c.HeadRef)
+		if c.HeadOid != "" {
+			heads = append(heads, c.HeadOid)
+		}
 	case ref.Base != nil && ref.Head != nil:
 		base, head = *ref.Base, *ref.Head
+		heads = []string{head}
 	default:
 		return diff{}, errNotFound
 	}
@@ -505,9 +520,11 @@ func readDiff(ctx context.Context, p Project, ref contracts.RunnerArtifactReadRe
 	if err != nil {
 		return diff{}, err
 	}
-	to, err := resolve(ctx, dir, head)
-	if err != nil && headOid != "" {
-		to, err = resolve(ctx, dir, headOid)
+	var to string
+	for _, candidate := range heads {
+		if to, err = resolve(ctx, dir, candidate); err == nil {
+			break
+		}
 	}
 	if err != nil {
 		return diff{}, err

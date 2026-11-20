@@ -62,4 +62,11 @@ describe('reading an artefact through the relay', () => {
     expect(zServerMessage.parse(vector.frame)).toEqual(vector.frame);
     expect(zArtifactTicket.parse(vector.plaintext)).toEqual(vector.plaintext);
   });
+
+  it('reads a Local jalon milestones.yml does not hold as a milestone without number, never a number 0', () => {
+    const ticket = { number: 12, title: 'Le panier', body: '', state: 'OPEN', stateReason: '', labels: [], comments: [], blockedBy: [], parent: null };
+    const milestone = { title: 'M1', description: '', dueOn: null };
+    expect(zArtifactTicket.safeParse({ ...ticket, milestone: { ...milestone, number: null } }).success).toBe(true);
+    expect(zArtifactTicket.safeParse({ ...ticket, milestone: { ...milestone, number: 0 } }).success).toBe(false);
+  });
 });

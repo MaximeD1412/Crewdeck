@@ -113,6 +113,7 @@ type harness struct {
 	t       *testing.T
 	home    string
 	folder  string
+	clone   string
 	project *local.Project
 	runner  *ecdh.PrivateKey
 	device  *ecdh.PrivateKey
@@ -143,7 +144,7 @@ func newHarness(t *testing.T) *harness {
 	project := local.Open(db, vault, projectID, folder)
 	origin := &local.Origin{Home: home, ProjectID: projectID, Folder: func(string) (string, bool) { return folder, true }}
 	project.SetClone(origin.Dir())
-	h := &harness{t: t, home: home, folder: folder, project: project, runner: runner, device: device, sent: &sent{}}
+	h := &harness{t: t, home: home, folder: folder, clone: origin.Dir(), project: project, runner: runner, device: device, sent: &sent{}}
 	h.reader = &artifact.Reader{
 		Home: home,
 		Keys: &relay.Keys{Runner: runner, Holders: func() ([][]byte, error) { return [][]byte{keys.PublicKeyBytes(device)}, nil }},
@@ -265,6 +266,23 @@ func TestTicket12OfALocalProjetIsAnsweredSealedForTheAppareil(t *testing.T) {
 	}
 	if code := h.error(contracts.RunnerArtifactReadKindTicket, contracts.RunnerArtifactReadRef{Number: ptr(99)}); code != contracts.RunnerArtifactErrorCodeArtifactNotFound {
 		t.Errorf("Ticket 99: %s", code)
+	}
+}
+
+// A jalon typed in a Ticket's file, which milestones.yml does not hold, has
+// no number: null, never a 0 the page would refuse.
+func TestAMilestoneMilestonesYmlDoesNotHoldHasNoNumber(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	commit(t, h.folder, "Le jalon", map[string]string{"tickets/14-le-jalon.md": "---\nnumber: 14\ntitle: Le jalon\nmilestone: M1\n---\nCorps.\n"})
+	if _, err := h.project.Scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	h.content(contracts.RunnerArtifactReadKindTicket, contracts.RunnerArtifactReadRef{Number: ptr(14)}, &got)
+	milestone, _ := got["milestone"].(map[string]any)
+	if number, held := milestone["number"]; !held || number != nil || milestone["title"] != "M1" {
+		t.Errorf("milestone %#v", got["milestone"])
 	}
 }
 
@@ -393,6 +411,39 @@ func TestADiffGivesTheChangesPatchAndAChangeItsReviews(t *testing.T) {
 		if code := h.error(kind, contracts.RunnerArtifactReadRef{Number: ptr(77)}); code != contracts.RunnerArtifactErrorCodeArtifactNotFound {
 			t.Errorf("%s 77: %s", kind, code)
 		}
+	}
+}
+
+// A Session's branch committed in the clone at A, the Pilote's folder moved
+// on to B: the change and its diff name the same head, the Source's.
+func TestAChangeAndItsDiffReadTheSameHead(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	git(t, h.folder, "checkout", "--quiet", "-b", "feat/13-x")
+	a := commit(t, h.folder, "feat : x", map[string]string{"x.txt": "x\n"})
+	git(t, h.folder, "checkout", "--quiet", "main")
+	if _, err := h.project.Scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	created, err := h.project.CreateChange(ctx, source.NewChange{Title: "Le x", Body: "Closes #12", Head: "feat/13-x", Base: "main", Author: "code"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got diff
+	h.content(contracts.RunnerArtifactReadKindDiff, contracts.RunnerArtifactReadRef{Number: ptr(created.Number)}, &got)
+	git(t, h.clone, "branch", "feat/13-x", "refs/remotes/origin/feat/13-x")
+	git(t, h.folder, "checkout", "--quiet", "feat/13-x")
+	b := commit(t, h.folder, "feat : z", map[string]string{"z.txt": "z\n"})
+	git(t, h.folder, "checkout", "--quiet", "main")
+
+	var c change
+	h.content(contracts.RunnerArtifactReadKindChange, contracts.RunnerArtifactReadRef{Number: ptr(created.Number)}, &c)
+	h.content(contracts.RunnerArtifactReadKindDiff, contracts.RunnerArtifactReadRef{Number: ptr(created.Number)}, &got)
+	if c.HeadRefOid != a || a == b {
+		t.Fatalf("change's head %s, want the clone's %s", c.HeadRefOid, a)
+	}
+	if !strings.Contains(got.Patch, "+++ b/x.txt") || strings.Contains(got.Patch, "z.txt") {
+		t.Errorf("diff of another head than the change's %s:\n%s", a, got.Patch)
 	}
 }
 

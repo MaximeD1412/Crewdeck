@@ -81,7 +81,7 @@ interface GithubContent {
  * The GitHub fetcher (SOURCE-4, ADR 0002): a GitHub Projet's artefacts read
  * by the page with the Pilote's user token, mapped to the shapes the Runner
  * answers for a Local Projet (`gh … view --json`'s): `file` through the
- * contents (its blob's SHA, its raw bytes past GitHub's 1 MB), `ticket`
+ * contents (its blob's SHA, that blob's raw bytes past GitHub's 1 MB), `ticket`
  * through the issue, its comments, what blocks it and its parent, `change`
  * through the pull request, its reviews and comments, `diff` as GitHub's
  * unified diff. A 404 is `not-found`; more than `ARTIFACT_PLAINTEXT_MAX` of
@@ -146,11 +146,12 @@ export const createGithubFetcher = ({
       const content = await json<GithubContent | GithubContent[]>(contentsPath);
       if (Array.isArray(content) || content.type !== 'file') throw new ArtifactUnavailable('not-found');
       if (content.size > ARTIFACT_PLAINTEXT_MAX) throw new ArtifactUnavailable('too-large');
-      // Past 1 MB GitHub sends no content in the JSON: its raw bytes then.
+      // Past 1 MB GitHub sends no content in the JSON: the raw bytes of that
+      // very blob then, never the branch's again (it may have moved on).
       const bytes =
         content.encoding === 'base64' && content.content !== undefined
           ? fromBase64(content.content)
-          : new Uint8Array(await (await call(contentsPath, RAW_ACCEPT)).arrayBuffer());
+          : new Uint8Array(await (await call(`${repo}/git/blobs/${encodeURIComponent(content.sha)}`, RAW_ACCEPT)).arrayBuffer());
       const text = utf8Text(bytes);
       return text === null ? { path, sha: content.sha, content: toBase64(bytes), binary: true } : { path, sha: content.sha, content: text };
     },

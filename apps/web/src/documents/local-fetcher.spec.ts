@@ -1,6 +1,7 @@
-import type { ArtifactTicket, TabArtifactClientMessage, TabArtifactServerMessage } from '@crewdeck/contracts';
+import { type ArtifactTicket, type TabArtifactClientMessage, type TabArtifactServerMessage, artifactAad, artifactWrapAad } from '@crewdeck/contracts';
 import { server } from 'vitest/browser';
-import { fromBase64Url, toBase64Url } from '../keys/bytes.js';
+import { type Bytes, fromBase64Url, toBase64Url, utf8 } from '../keys/bytes.js';
+import { INFO, aesGcmSeal, exportAesKey, exportPublicKey, generateAesKey, generateKeyPair, sealWrap } from '../keys/crypto.js';
 import { memoryDeviceStore, x25519FromPrivateKey } from '../keys/testing.js';
 import { ArtifactOpenError, type ArtifactSocket, createLocalFetcher } from './local-fetcher.js';
 import { ArtifactUnavailable, createDocumentReader } from './reader.js';
@@ -45,7 +46,12 @@ const fakeSocket = ({ open = true } = {}) => {
   };
 };
 
-const setUp = async ({ runnerKey = true, open = true, timeoutMs }: { runnerKey?: boolean; open?: boolean; timeoutMs?: number } = {}) => {
+const setUp = async ({
+  runnerKey = true,
+  runnerPublicKey,
+  open = true,
+  timeoutMs,
+}: { runnerKey?: boolean; runnerPublicKey?: Bytes; open?: boolean; timeoutMs?: number } = {}) => {
   const v = await vector();
   const device = await x25519FromPrivateKey(fromBase64Url(v.devicePrivateKey));
   expect(toBase64Url(device.publicKey)).toBe(v.devicePublicKey);
@@ -53,7 +59,7 @@ const setUp = async ({ runnerKey = true, open = true, timeoutMs }: { runnerKey?:
     deviceId: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a10',
     privateKey: device.privateKey,
     publicKey: device.publicKey,
-    ...(runnerKey ? { runnerPublicKey: fromBase64Url(v.runnerPublicKey) } : {}),
+    ...(runnerKey ? { runnerPublicKey: runnerPublicKey ?? fromBase64Url(v.runnerPublicKey) } : {}),
   });
   const socket = fakeSocket({ open });
   const fetcher = createLocalFetcher({ socket: socket.socket, devices, newId: () => v.frame.requestId, ...(timeoutMs ? { timeoutMs } : {}) });
@@ -104,6 +110,26 @@ describe('the Local fetcher', () => {
     const unpaired = await setUp({ runnerKey: false });
     await expect(unpaired.fetcher.fetch(PROJECT, 'ticket', { number: 12 })).rejects.toEqual(new ArtifactUnavailable('untrusted-device'));
     expect(unpaired.socket.sent).toEqual([]);
+  });
+
+  it('opens a Local Ticket whose jalon milestones.yml does not hold, its milestone without number', async () => {
+    const runner = await generateKeyPair();
+    const { v, socket, fetcher } = await setUp({ runnerPublicKey: await exportPublicKey(runner.publicKey) });
+    const plaintext: ArtifactTicket = { ...v.plaintext, milestone: { number: null, title: 'M1', description: '', dueOn: null } };
+    // Sealed as the Runner seals (apps/runner/internal/artifact/seal.go).
+    const key = await generateAesKey({ extractable: true });
+    const wrap = await sealWrap(runner.privateKey, fromBase64Url(v.devicePublicKey), await exportAesKey(key), INFO.sessionKey, utf8(artifactWrapAad(v.frame.requestId, v.devicePublicKey)));
+    const sealed = await aesGcmSeal(key, utf8(JSON.stringify(plaintext)), utf8(artifactAad(v.frame.requestId)));
+
+    const ticket = fetcher.fetch(PROJECT, 'ticket', { number: 12 });
+    await sent(socket);
+    socket.receive({
+      ...v.frame,
+      wrap: { holderId: v.devicePublicKey, enc: toBase64Url(wrap.enc), wrappedKey: toBase64Url(wrap.ciphertext), tag: toBase64Url(wrap.tag) },
+      nonce: toBase64Url(sealed.subarray(0, 12)),
+      ciphertext: toBase64Url(sealed.subarray(12)),
+    });
+    expect(await ticket).toEqual(plaintext);
   });
 
   it('is timeout when no answer comes', async () => {

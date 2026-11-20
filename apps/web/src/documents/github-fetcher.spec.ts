@@ -160,11 +160,13 @@ describe('the GitHub fetcher', () => {
     expect(calls.every((call) => call.accept === 'application/vnd.github+json')).toBe(true);
   });
 
-  it('reads a file past GitHub’s 1 MB as its raw bytes', async () => {
+  it('reads a file past GitHub’s 1 MB as the raw bytes of its blob, even when its branch moves on between both reads', async () => {
     const big = `${'a'.repeat(1_100_000)}\n`;
     const { fetcher } = fakeGithub({
       [`application/vnd.github+json ${REPO}/contents/gros.txt?ref=develop`]: json({ type: 'file', path: 'gros.txt', sha: 'blob3', size: big.length, encoding: 'none', content: '' }),
-      [`application/vnd.github.raw+json ${REPO}/contents/gros.txt?ref=develop`]: text(big),
+      // The branch, read again, is already at another version.
+      [`application/vnd.github.raw+json ${REPO}/contents/gros.txt?ref=develop`]: text(`${'b'.repeat(1_100_000)}\n`),
+      [`application/vnd.github.raw+json ${REPO}/git/blobs/blob3`]: text(big),
     });
 
     expect(await fetcher.fetch(PROJECT, 'file', { path: 'gros.txt' })).toEqual({ path: 'gros.txt', sha: 'blob3', content: big });

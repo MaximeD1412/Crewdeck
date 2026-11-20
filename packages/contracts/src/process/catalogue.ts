@@ -81,7 +81,7 @@ const port = (id: string, ...types: ArtifactType[]): PortSpec => ({ id, types })
 const DOCUMENTS: readonly ArtifactType[] = ['prd', 'mockups', 'technical-design', 'inventory', 'ticket'];
 
 export const CATALOGUE: Readonly<Record<StepKind, StepKindSpec>> = {
-  'idea-analysis': { ...agent('idea', 'idea-analysis'), family: 'agent', name: 'Analyse de l’Idée', inputs: [port('idee', 'idea')], outputs: [port('idee', 'idea')] },
+  'idea-analysis': { ...agent('idea', 'idea-analysis'), contrat: 'idea-analysis', family: 'agent', name: 'Analyse de l’Idée', inputs: [port('idee', 'idea')], outputs: [port('idee', 'idea')] },
   inventory: { ...agent('design', 'inventory'), family: 'agent', name: 'Inventaire', inputs: [], outputs: [port('inventaire', 'inventory')] },
   prd: { ...agent('design', 'product-design'), family: 'agent', name: 'PRD', inputs: [port('idee', 'idea')], outputs: [port('prd', 'prd')] },
   mockups: { ...agent('design', 'visual-design'), family: 'agent', name: 'Maquettes', inputs: [port('prd', 'prd')], outputs: [port('maquettes', 'mockups')] },

@@ -23,7 +23,8 @@ export type SealedSessionTitle = z.infer<typeof zSealedSessionTitle>;
 
 /**
  * A Session (RUNNER-9): one conversation of an agent in one Rôle, on the
- * Runner, with one Moteur, on its `branch`. What the server may read (ADR
+ * Runner, with one Moteur, on its `branch` (`null` for a Session in a
+ * scratch directory, of a Projet or of none: `projectId` then `null`, IDEE-2). What the server may read (ADR
  * 0003): its state and how it ended, its readable title (that of an artifact
  * on GitHub) or `titleSealed` (that of a Local one, which the page opens, ADR
  * 0012), one of the two, whatever the Source of the code it clones; never its
@@ -33,7 +34,7 @@ export type SealedSessionTitle = z.infer<typeof zSealedSessionTitle>;
  */
 export const zAgentSession = z.object({
   id: zId,
-  projectId: zId,
+  projectId: zId.nullable(),
   role: zRoleId,
   engine: zEngineId,
   model: z.string().min(1),
@@ -44,7 +45,7 @@ export const zAgentSession = z.object({
   outcome: zSessionOutcome.nullable(),
   error: zSessionError.nullable(),
   stepRunId: zId.nullable(),
-  branch: zGitBranch,
+  branch: zGitBranch.nullable(),
   startedAt: zInstant,
   endedAt: zInstant.nullable(),
 });

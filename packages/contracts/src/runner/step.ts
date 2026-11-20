@@ -20,7 +20,10 @@ export const STEP_REPORT_FIGURES_MAX = 16_384;
 
 /**
  * The additional data a report's `sealed` is sealed under: its StepRun's, so
- * that a ciphertext moved to another StepRun does not open.
+ * that a ciphertext moved to another StepRun does not open. An
+ * `idea-analysis` report is sealed under its Idée's own field instead,
+ * `ideaItemAad(ideaId, 'analysis')` (IDEE-2), which the Idée then stores as
+ * is and a rotation of the vault rewraps.
  */
 export const stepReportAad = (stepRunId: string): string => `step.report:${stepRunId}`;
 

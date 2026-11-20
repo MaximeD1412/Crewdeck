@@ -60,6 +60,35 @@ export type SessionStepInput = z.infer<typeof zSessionStepInput>;
 /** How many references the Entrées of one StepRun carry at most. */
 export const SESSION_STEP_INPUTS_MAX = 200;
 
+/** How many open Idées the context of an analysis carries at most, the latest first. */
+export const SESSION_STEP_OPEN_IDEAS_MAX = 100;
+
+/**
+ * An Idée of the context of an `idea-analysis` Session (IDEE-2), as the
+ * server stores it: its id, its number, its text and its last analysis
+ * sealed under the vault key (`ideaItemAad`), which the Runner opens to write
+ * `.crewdeck/context.json`; the server never reads them.
+ */
+export const zSessionStepIdea = z.object({
+  id: zId,
+  number: z.int().positive(),
+  text: zSealedItem,
+  analysis: zSealedItem.nullable(),
+});
+export type SessionStepIdea = z.infer<typeof zSessionStepIdea>;
+
+/**
+ * What an `idea-analysis` Session reads besides the Miroir (IDEE-2): the Idée
+ * it analyses, and the other open Idées of the Pilote (its duplicates may be
+ * among them). The Projets and their open Tickets come from the Runner's
+ * Miroir, whatever their Source.
+ */
+export const zSessionStepIdeaContext = z.object({
+  idea: zSessionStepIdea,
+  open: z.array(zSessionStepIdea).max(SESSION_STEP_OPEN_IDEAS_MAX),
+});
+export type SessionStepIdeaContext = z.infer<typeof zSessionStepIdeaContext>;
+
 /**
  * The Étape a Session runs (RUNNER-12): its StepRun and kind, the Skill the
  * Runner mounts (the Étape's `skill` Outil, else its kind's default), the id
@@ -75,6 +104,8 @@ export const zSessionStep = z.object({
   skill: zSkillId,
   contractId: z.string().min(1).max(60).nullable(),
   inputs: z.array(zSessionStepInput).max(SESSION_STEP_INPUTS_MAX),
+  /** The Idées an `idea-analysis` Session reads, for that kind only. */
+  ideas: zSessionStepIdeaContext.optional(),
 });
 export type SessionStep = z.infer<typeof zSessionStep>;
 
@@ -107,6 +138,9 @@ export const SESSION_MCP_SERVERS_MAX = 10;
 /**
  * Server → Runner: start the Session `sessionId` (RUNNER-9) in a worktree of
  * `branch` (from `origin/<branch>` when it exists, else from `origin/<base>`),
+ * or, when `origin`, `branch` and `base` are all `null`, in a scratch
+ * directory of its own (`~/.crewdeck/scratch/<sessionId>/`, IDEE-2: an Étape
+ * that reads no code, of a Projet or of none, `projectId` then `null`);
  * with the Moteur `engine` on `model`, as the Rôle `role`, the worktree
  * prepared by `worktreeCommands` before the Moteur starts and cleaned by them
  * before it is removed, the Serveurs MCP of its Étape named in `mcpServers`
@@ -115,10 +149,11 @@ export const SESSION_MCP_SERVERS_MAX = 10;
  */
 export const zSessionStart = runnerMessage('session.start', {
   sessionId: zId,
-  projectId: zId,
-  origin: zOrigin,
-  branch: zGitBranch,
-  base: zGitBranch,
+  projectId: zId.nullable(),
+  // A pointer to the union `contracts.Origin` in Go, nil for a scratch Session.
+  origin: zOrigin.nullable().meta({ goJSONSchema: { type: '*Origin' } }),
+  branch: zGitBranch.nullable(),
+  base: zGitBranch.nullable(),
   // `ENGINE_IDS` without `zEngineId`'s `meta` id, which the Go types of `capabilities` already declare.
   engine: z.enum(ENGINE_IDS),
   model: z.string().min(1).max(200),

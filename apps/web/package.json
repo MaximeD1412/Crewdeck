@@ -7,6 +7,7 @@
     "@crewdeck/contracts": "workspace:*",
     "@crewdeck/sdk": "workspace:*",
     "@crewdeck/skin-passerelle": "workspace:*",
+    "@tanstack/query-core": "catalog:",
     "lit": "catalog:",
     "qrcode": "catalog:"
   },

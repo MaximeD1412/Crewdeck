@@ -504,6 +504,32 @@ describe('what the page tells the server', () => {
     expect(connection.sendCommand({ type: 'command.close', runId: RUN })).toBe(false);
   });
 
+  it('carries the artefacts’ reads: the read on the open socket, the server’s answers to their listeners only', async () => {
+    const REQUEST = '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6d11';
+    const PROJECT = '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6d21';
+    const { connection, socket } = await liveAt(7);
+    const artifacts = vi.fn();
+    const relayed = vi.fn();
+    const stop = connection.onArtifact(artifacts);
+    connection.onRelay(relayed);
+    const bytes = (length: number) => 'A'.repeat(Math.ceil((length * 4) / 3));
+    const read = { type: 'artifact.read', requestId: REQUEST, projectId: PROJECT, holderId: bytes(32), kind: 'ticket', ref: { number: 12 } } as const;
+
+    expect(connection.sendArtifact(read)).toBe(true);
+    expect(socket.sent).toEqual([read]);
+    const wrap = { holderId: bytes(32), enc: bytes(32), wrappedKey: bytes(48), tag: bytes(32) };
+    socket.receive({ type: 'artifact.content', requestId: REQUEST, wrap, nonce: bytes(12), ciphertext: bytes(40) });
+    socket.receive({ type: 'artifact.error', requestId: REQUEST, code: 'artifact.timeout' });
+    expect(artifacts.mock.calls.map(([message]) => (message as ServerMessage).type)).toEqual(['artifact.content', 'artifact.error']);
+    expect(relayed).not.toHaveBeenCalled();
+
+    stop();
+    socket.receive({ type: 'artifact.error', requestId: REQUEST, code: 'artifact.timeout' });
+    expect(artifacts).toHaveBeenCalledTimes(2);
+    socket.drop();
+    expect(connection.sendArtifact(read)).toBe(false);
+  });
+
   it('stop closes the socket, and nothing reconnects nor listens', async () => {
     const { connection, socket } = await liveAt(7);
     connection.stop();

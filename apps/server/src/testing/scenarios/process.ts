@@ -2,6 +2,7 @@ import { DEFAULT_ACCOUNT_SETTINGS, defaultStep, ideaItemAad, PROCESS_CREWDECK, P
 import { Prisma } from '../../generated/prisma/client.js';
 import { ideaStateRow } from '../../ideas/idea.view.js';
 import { newId } from '../../ids.js';
+import { createMcpServers } from '../runners.js';
 import { sealItem } from '../vault.js';
 import type { ScenarioContext, ScenarioSeed } from './define.js';
 import { defineScenario } from './define.js';
@@ -136,8 +137,22 @@ export const processCatalogue = defineScenario({ name: 'process-catalogue', path
 /** A draft with five Manques of four kinds (`process`, state `manques`). */
 export const processManques = defineScenario({ name: 'process-manques', path: MAIRIE_PATH, seed: (ctx) => mairie(ctx, { draft: MANQUES_DRAFT }) });
 
-/** Its Review chosen (`process`, state `etape`): its Entrées and Sorties, its Retour, its Outils. */
-export const processEtape = defineScenario({ name: 'process-etape', path: `${MAIRIE_PATH}?etape=st-review`, seed: (ctx) => mairie(ctx) });
+/** Its Review chosen (`process`, state `etape`): its Entrées and Sorties, its Retour, its Outils; `stitch` and `figma` declared on the Runner, for « Attacher un Outil ». */
+export const processEtape = defineScenario({
+  name: 'process-etape',
+  path: `${MAIRIE_PATH}?etape=st-review`,
+  seed: (ctx) =>
+    mairie(ctx, {}, async (pilotId) => {
+      await createMcpServers(ctx.prisma, pilotId, [
+        { name: 'stitch', transport: 'stdio', state: 'ready', toolCount: 12 },
+        { name: 'figma', transport: 'http', state: 'ready', toolCount: 4 },
+      ]);
+      return {};
+    }),
+});
+
+/** The canvas with nothing chosen (`process`, state `fleche-refusee`): its capture drags « Code »'s Sortie onto « Revue visuelle »'s Maquettes. */
+export const processFlecheRefusee = defineScenario({ name: 'process-fleche-refusee', path: MAIRIE_PATH, seed: (ctx) => mairie(ctx) });
 
 /** Its Sources (`process`, state `sources`): the Tickets Local, the code and the documents on GitHub. */
 export const processSources = defineScenario({
@@ -271,4 +286,4 @@ export const processActivation = defineScenario({
     }),
 });
 
-export const processScenarios = [processScenario, processManques, processEtape, processPhase, processCatalogue, processSources, processLocal, processSansVersion, processActivation];
+export const processScenarios = [processScenario, processManques, processEtape, processFlecheRefusee, processPhase, processCatalogue, processSources, processLocal, processSansVersion, processActivation];

@@ -84,7 +84,7 @@ test.describe('« Gestion du process » (US-92, US-94, US-88)', () => {
 
     await expect(tab(page, /^Étape/)).toHaveAttribute('aria-selected', 'true');
     await expect(panel(page).locator('.kind')).toHaveText('Agent · Développement');
-    await expect(panel(page).locator('section.loop-back')).toContainText(/Vers « Code ».*3 fois au plus/);
+    await expect(panel(page).locator('section.loop-back')).toContainText(/Vers « Code », tant que « Review » demande des changements/);
     const ports = panel(page).locator('details.ports');
     await expect(ports.locator('summary')).toContainText('2 → 1');
     await ports.locator('summary').click();

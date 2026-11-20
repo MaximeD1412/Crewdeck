@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Version soumise — Maquettes · Actualités</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* « Donner mon Avis », the page's one primary action, stays in the header at every width: on the phone the comment's sheet holds the bottom */
+  .review-head-actions { display: flex; }
+  /* Mockups: one capture at a time on the phone, framed on the zone touched; 390 and 1280 side by side on the PC */
+  .shots { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+  .shot-window { aspect-ratio: 2 / 1; overflow: auto; scrollbar-width: none; }
+  .shot-window figcaption { display: none; }
+  .shot-wide { display: none; }
+  .zone-hint { display: none; }
+  .screen-list { display: none; }
+  /* On the phone the aside's blocks follow the capture, the new comment as a sheet above the tab bar */
+  .sheet-layout, .sheet-layout > .layout-aside { display: contents; }
+  .new-comment {
+    position: sticky; bottom: var(--tab-bar); z-index: 2; display: flex; flex-direction: column; gap: var(--space-2);
+    margin: 0 calc(var(--space-4) * -1); padding: var(--space-2) var(--space-4) var(--space-4);
+    background: var(--raised); border-top: 1px solid var(--line-strong); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  .new-comment-head { display: flex; align-items: center; gap: var(--space-2); }
+  .new-comment-head > span:last-of-type { margin-right: auto; }
+  .new-comment-head .button { min-height: var(--touch); }
+  /* On the phone the capture is not boxed: the screen's tabs already name it */
+  .shot-card > .card { background: none; border: 0; }
+  .shot-card > .card > .card-head, .shot-card > .card > .card-body { padding-left: 0; padding-right: 0; }
+  .shot-card > .card > .card-head { padding-top: 0; }
+  .shot-card > .card > .card-body { padding-bottom: 0; }
+  /* The comments: folded after the capture on the phone, open in the aside on the PC */
+  .fold { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+  .fold > summary { list-style: none; display: flex; align-items: center; gap: var(--space-3); min-height: var(--touch); padding: var(--space-3) var(--space-4); cursor: pointer; }
+  .fold > summary::-webkit-details-marker { display: none; }
+  .fold > summary ui-icon { margin-left: auto; color: var(--muted); display: flex; }
+  .fold[open] > summary ui-icon { transform: rotate(180deg); }
+  .fold-body { padding: 0 var(--space-4) var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
+  @media (min-width: 1280px) {
+    .shots { grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); }
+    .shot-window { aspect-ratio: auto; overflow: visible; }
+    .shot-window figcaption { display: flex; }
+    .shot-wide { display: block; }
+    .zone-hint { display: block; }
+    .width-switch { display: none; }
+    .screen-tabs { display: none; }
+    .screen-list { display: block; }
+    .sheet-layout { display: grid; }
+    .sheet-layout > .layout-aside { display: flex; }
+    .new-comment { position: static; margin: 0; padding: var(--space-3) var(--space-5) var(--space-5); background: var(--panel); border: 1px solid var(--accent); border-radius: var(--radius-lg); }
+    /* On the PC the box reads top to bottom: the zone and its close, the text, then « Commenter » */
+    .new-comment { flex-direction: row; flex-wrap: wrap; align-items: center; }
+    .new-comment-head { display: contents; }
+    .new-comment-head .pin { order: 1; }
+    .new-comment-head > span:last-of-type { order: 2; }
+    .new-comment-head .icon-button { order: 3; }
+    .new-comment > ui-text-field { order: 4; flex: 1 1 100%; }
+    .new-comment-head .button { order: 5; margin-left: auto; min-height: var(--control); }
+    .shot-card > .card { background: var(--panel); border: 1px solid var(--line); }
+    .shot-card > .card > .card-head { padding: var(--space-4) var(--space-5) 0; }
+    .shot-card > .card > .card-body { padding: var(--space-3) var(--space-5) var(--space-5); }
+    .fold::details-content { content-visibility: visible; }
+    .fold > summary { cursor: default; pointer-events: none; }
+    .fold > summary ui-icon { display: none; }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : Projet « Site mairie », maquettes « Actualités », Pilote Maxime, Relecteur Claire Bernard, dates et commentaires fictifs ; les captures sont des schémas -->
+<ui-app-shell screen="Version soumise" current="a-toi" nav="a-toi,projets,parametres" runner="none" me="Claire Bernard" decisions="2">
+  <ui-page-header title="Maquettes · Actualités" back="À toi" screen="Version soumise">
+    <span slot="sub" class="mono">Site mairie · version 1 · de Maxime, le 19 nov.</span>
+    <span class="review-head-actions"><ui-button variant="primary">Donner mon Avis</ui-button></span>
+  </ui-page-header>
+  <div class="screen-tabs"><ui-tabs>
+    <ui-tab selected count="2">Actualités</ui-tab>
+    <ui-tab>Actualités · vide</ui-tab>
+  </ui-tabs></div>
+  <div class="layout sheet-layout">
+    <ui-card class="shot-card" title="Actualités" label="Version soumise / Écran">
+      <div slot="actions" class="width-switch cluster" role="group" aria-label="Largeur"><ui-chip selected>390</ui-chip><ui-chip>1280</ui-chip></div>
+      <p class="zone-hint text-sm muted">Choisis une zone de la maquette pour la commenter.</p>
+      <div class="shots">
+        <div class="shot-window"><ui-capture src="../../assets/maquette-notifications-390.svg" label="Actualités · 390"><ui-pin n="1" x="11" y="18"></ui-pin><ui-pin new x="58" y="19" selected></ui-pin></ui-capture></div>
+        <div class="shot-wide"><ui-capture src="../../assets/maquette-notifications-1280.svg" label="Actualités · 1280"><ui-pin n="2" x="91" y="7"></ui-pin></ui-capture></div>
+      </div>
+    </ui-card>
+    <div class="layout-aside">
+      <div class="screen-list"><ui-card title="Écrans" count="2" label="Version soumise / Écrans" flush>
+        <ui-list-row link icon="image" title="Actualités" meta="390 et 1280 · 2 commentaires"></ui-list-row>
+        <ui-list-row link icon="image" title="Actualités · vide" meta="390 et 1280"></ui-list-row>
+      </ui-card></div>
+      <section class="new-comment" aria-label="Version soumise / Nouveau commentaire" data-name="Version soumise / Nouveau commentaire">
+        <div class="new-comment-head comment-zone"><span class="pin pin--inline pin--new"><ui-icon name="plus" size="sm"></ui-icon></span><span>Actualités · 390</span><ui-button icon="send">Commenter</ui-button><ui-icon-button icon="x" label="Annuler"></ui-icon-button></div>
+        <ui-text-field label="Commenter cette zone" value="La date de chaque actualité doit se voir avant son titre." multiline rows="2"></ui-text-field>
+      </section>
+      <details class="fold" aria-label="Version soumise / Commentaires" data-name="Version soumise / Commentaires">
+        <summary><h2 class="section-label">Tes commentaires <span class="section-count">2</span></h2><ui-icon name="chevron-down" size="sm"></ui-icon></summary>
+        <div class="fold-body">
+          <ui-comment author="Claire Bernard" time="il y a 15 min" pin="1" zone="Actualités · 390">Toutes nos actualités n’ont pas de photo : que montre cette case sans photo ?</ui-comment>
+          <ui-comment author="Claire Bernard" time="il y a 5 min" pin="2" zone="Actualités · 1280">Ce bouton doit dire « Toutes les actualités ».</ui-comment>
+        </div>
+      </details>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

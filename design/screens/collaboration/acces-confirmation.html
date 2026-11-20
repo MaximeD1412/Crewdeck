@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accès — Relecteur + Idées · confirmation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* « Enregistrer » in the page header on the PC, in a bar at the bottom on the phone */
+  .edit-head-actions { display: none; }
+  .edit-bar {
+    position: sticky; bottom: var(--tab-bar); z-index: 2; display: flex; gap: var(--space-2);
+    margin: var(--space-4) calc(var(--space-4) * -1) calc(var(--space-8) * -1); padding: var(--space-3) var(--space-4);
+    background: var(--side); border-top: 1px solid var(--line);
+  }
+  .edit-bar .button { flex: 1 1 0; min-width: 0; min-height: var(--touch); }
+  .access-edit { display: flex; flex-direction: column; gap: var(--space-4); }
+  .droits-intro { margin-bottom: var(--space-2); }
+  .droits-never { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+  .droit-new { color: var(--accent-text); }
+  @media (min-width: 1280px) {
+    .edit-head-actions { display: flex; gap: var(--space-2); }
+    .edit-bar { display: none; }
+    .access-edit { display: grid; grid-template-columns: minmax(0, 1fr) var(--aside-width); gap: var(--space-6); align-items: start; grid-template-areas: "name where" "droits where"; }
+    .access-name { grid-area: name; }
+    .access-droits-card { grid-area: droits; }
+    .access-where { grid-area: where; }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : Accès personnel, Membres et Projets fictifs -->
+<ui-app-shell screen="Accès" current="parametres" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Relecteur + Idées" back="Accès" count="ton Accès" screen="Accès">
+    <span class="edit-head-actions"><ui-button>Annuler</ui-button><ui-button variant="primary">Enregistrer</ui-button></span>
+  </ui-page-header>
+  <div class="access-edit">
+    <ui-card class="access-name" title="Nom" label="Accès / Nom">
+      <ui-text-field label="Nom de l’Accès" value="Relecteur + Idées" help="Ce que tes Membres et toi voyez à côté de leur nom."></ui-text-field>
+    </ui-card>
+    <ui-card class="access-droits-card" title="Droits" count="3 sur 9" label="Accès / Droits">
+      <p class="text-sm muted droits-intro">Ce qu’un Droit ne donne pas reste caché au Membre. Chaque Droit au-delà de commenter demande « Lire le Projet, lire les Sessions ».</p>
+      <ui-droit mode="edit" checked state="disabled" help="Avec chaque Accès">Lire les Versions soumises</ui-droit>
+      <ui-droit mode="edit" checked>Commenter, rendre un Avis</ui-droit>
+      <ui-droit mode="edit" checked help="Ajouté avec « Noter et trier des Idées », qui le demande"><span class="droit-new">Lire le Projet, lire les Sessions</span></ui-droit>
+      <ui-droit mode="edit" checked help="Ajouté, pas encore enregistré"><span class="droit-new">Noter et trier des Idées</span></ui-droit>
+      <ui-droit mode="edit" help="Donné à un Membre, il fait du Projet un Projet d’équipe : ses agents tournent sur des clés d’API uniquement.">Piloter les Sessions, démarrer la Boucle</ui-droit>
+      <ui-droit mode="edit">Approuver (document, revue visuelle, merge), trancher les Décisions</ui-droit>
+      <ui-droit mode="edit">Modifier le Process ou une Source</ui-droit>
+      <ui-droit mode="edit">Paramètres du Projet</ui-droit>
+      <ui-droit mode="edit">Gérer les Membres</ui-droit>
+      <ui-droit mode="edit">Lire l’Historique</ui-droit>
+      <p class="text-sm muted droits-never">Supprimer ou transférer un Projet, ton Runner et tes Comptes IA ne sont jamais des Droits : ils restent à toi.</p>
+    </ui-card>
+    <ui-card class="access-where" title="Qui le détient" count="4 Membres · 2 Projets" label="Accès / Membres" flush>
+      <ui-list-row icon="folder" title="Tennis Manager" meta="3 Membres"></ui-list-row>
+      <ui-list-row icon="folder" title="Crewdeck" meta="1 Membre"></ui-list-row>
+    </ui-card>
+  </div>
+  <ui-confirm-dialog slot="overlay" title="Donner plus de Droits à 4 Membres ?" action="Enregistrer l’Accès" icon="check">
+    <p>L’Accès « Relecteur + Idées » change pour 4&nbsp;Membres sur 2&nbsp;Projets, dès que tu l’enregistres.</p>
+    <ui-key-value>
+      <ui-kv label="Droits ajoutés">Noter et trier des Idées · Lire le Projet, lire les Sessions</ui-kv>
+      <ui-kv label="Tennis Manager">3 Membres</ui-kv>
+      <ui-kv label="Crewdeck">1 Membre</ui-kv>
+    </ui-key-value>
+    <p class="text-sm muted">Ces Membres noteront des Idées et liront aussi le Projet et ses Sessions.</p>
+  </ui-confirm-dialog>
+  <div class="edit-bar" aria-label="Accès / Enregistrer" data-name="Accès / Enregistrer"><ui-button>Annuler</ui-button><ui-button variant="primary">Enregistrer</ui-button></div>
+</ui-app-shell>
+</body>
+</html>

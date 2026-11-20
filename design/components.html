@@ -284,6 +284,52 @@
         <div class="stack-sm"><ui-toast tone="halt" icon="block">Refusée : elle fermerait un cycle. Revenir en arrière, c’est un Retour.</ui-toast><ui-toast tone="go" icon="check">Version 4 active.</ui-toast><ui-toast tone="accent" icon="info">Retour de « Review » vers « Code », 3 fois au plus.</ui-toast></div></div>
     </div>
   </section>
+  <section aria-label="Galerie / Collaboration" data-name="Galerie / Collaboration">
+    <h2 class="group">09 Collaboration</h2>
+    <!-- exemple : Membres, Commentaires et Historique fictifs -->
+    <div class="specimens">
+      <div class="specimen"><code>ui-avatar person [size="sm"] [agent] [invited]</code>
+        <div class="cluster"><ui-avatar person="Claire Bernard"></ui-avatar><ui-avatar person="Inès Martin" size="sm"></ui-avatar><ui-avatar person="Agent" agent></ui-avatar><ui-avatar person="paul@perso.example" invited></ui-avatar></div></div>
+      <div class="specimen"><code>ui-member-row state="active|invited" · trailing ui-select ou badge · slot="actions"</code>
+        <ui-card flush>
+          <ui-member-row name="Claire Bernard" email="claire.bernard@mairie.example" meta="depuis le 12 nov."><ui-select value="Relecteur" aria="Accès de Claire Bernard"></ui-select><ui-icon-button slot="actions" icon="more" label="Actions pour Claire Bernard"></ui-icon-button></ui-member-row>
+          <ui-member-row state="invited" email="paul.leroy@mairie.example" access="Relecteur" meta="il y a 2 j"><ui-icon-button slot="actions" icon="more" label="Actions pour l’invitation"></ui-icon-button></ui-member-row>
+        </ui-card></div>
+      <div class="specimen"><code>ui-comment [quote] [pin zone] [selectable] [checked]</code>
+        <ui-card>
+          <ui-comment author="Claire Bernard" access="Relecteur" time="il y a 2 h" quote="les actualités de plus d’un an sont archivées">Il faut garder les arrêtés municipaux en ligne, même anciens.</ui-comment>
+          <ui-comment author="Claire Bernard" access="Relecteur" time="hier" pin="2" zone="Actualités · 390">Le bouton est trop bas sur le téléphone.</ui-comment>
+          <ui-comment author="Claire Bernard" access="Relecteur" time="hier" pin="1" zone="Actualités · 1280" selectable checked>Mettre la date avant le titre.</ui-comment>
+          <ui-comment author="Inès Martin" access="Contributeur" time="hier" selectable>Peut-être plus tard.</ui-comment>
+        </ui-card></div>
+      <div class="specimen"><code>ui-capture + ui-pin n x y [selected] [new]</code>
+        <ui-capture src="assets/maquette-notifications-390.svg" label="Actualités · 390"><ui-pin n="1" x="40" y="18"></ui-pin><ui-pin n="2" x="70" y="52" selected></ui-pin><ui-pin new x="30" y="75"></ui-pin></ui-capture></div>
+      <div class="specimen"><code>ui-avis-row opinion="approuve|changements|attente"</code>
+        <ui-card>
+          <ui-avis-row author="Claire Bernard" opinion="approuve" meta="version 2 · il y a 3 h · 1 commentaire"></ui-avis-row>
+          <ui-avis-row author="Claire Bernard" opinion="changements" meta="version 1 · 14 nov. · 4 commentaires"></ui-avis-row>
+          <ui-avis-row author="Paul Leroy" opinion="attente" meta="version 2 · soumise il y a 1 j"></ui-avis-row>
+        </ui-card></div>
+      <div class="specimen"><code>ui-history-row who kind time [agent for]</code>
+        <ui-card flush>
+          <ui-history-row who="Claire Bernard" kind="avis" time="16:40">a donné son Avis <b>approuvé</b> sur PRD « Actualités » · version 2</ui-history-row>
+          <ui-history-row who="Agent de Code" kind="boucle" time="03:12" for="Inès Martin" agent>a mergé <b>#47 Actualités en page d’accueil</b></ui-history-row>
+        </ui-card></div>
+      <div class="specimen"><code>ui-access-row name [default] droits members [selected]</code>
+        <ui-card flush>
+          <ui-access-row name="Relecteur" default droits="Commenter, rendre un Avis" members="3 Membres · 2 Projets"></ui-access-row>
+          <ui-access-row name="Graphiste" droits="Commenter, lire le Projet, noter des Idées" members="1 Membre · 1 Projet" selected></ui-access-row>
+        </ui-card></div>
+      <div class="specimen"><code>ui-droit mode="read|edit" [checked] [state="disabled"] [help]</code>
+        <ui-card>
+          <ui-droit checked>Commenter, rendre un Avis</ui-droit>
+          <ui-droit>Gérer les Membres</ui-droit>
+          <ui-droit mode="edit" checked state="disabled" help="Avec chaque Accès">Lire les Versions soumises</ui-droit>
+          <ui-droit mode="edit" checked>Noter et trier des Idées</ui-droit>
+          <ui-droit mode="edit">Lire l’Historique</ui-droit>
+        </ui-card></div>
+    </div>
+  </section>
 </main>
 </body>
 </html>

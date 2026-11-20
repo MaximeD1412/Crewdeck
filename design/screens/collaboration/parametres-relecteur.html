@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paramètres — Relecteur</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .settings { display: flex; flex-direction: column; gap: var(--space-4); }
+  /* Two short sections: both shown on the phone, the sections' list only on the PC, as in the Pilote's Paramètres */
+  .settings-nav { display: none; }
+  .settings-body { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+  /* The address wraps rather than leave the card */
+  .kv dd { overflow-wrap: anywhere; }
+  @media (min-width: 1280px) {
+    .settings { display: grid; grid-template-columns: var(--capture-w) minmax(0, 1fr); gap: var(--space-8); align-items: start; }
+    .settings-nav { display: flex; flex-direction: column; position: sticky; top: var(--space-8); gap: var(--space-1); }
+    .settings-nav a { display: inline-flex; align-items: center; min-height: var(--control); padding: 0 var(--space-3); border-radius: var(--radius); color: var(--ink-2); white-space: nowrap; font: var(--font-label-weight) var(--font-body-sm-size)/var(--font-label-line-height) var(--font-label-family), sans-serif; }
+    .settings-nav a[aria-current] { color: var(--accent-text); background: var(--accent-soft); box-shadow: inset var(--stroke) 0 0 var(--accent); }
+    .settings-body { gap: var(--space-6); }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : Relecteur Claire Bernard, son adresse et sa connexion fictives -->
+<ui-app-shell screen="Paramètres" current="parametres" nav="a-toi,projets,parametres" runner="none" me="Claire Bernard" decisions="1">
+  <ui-page-header title="Paramètres" count="ton compte"></ui-page-header>
+  <div class="settings">
+    <nav class="settings-nav" aria-label="Paramètres / Sections" data-name="Paramètres / Sections">
+      <a href="#compte" aria-current="true">Compte</a>
+      <a href="#notifications">Notifications</a>
+    </nav>
+    <div class="settings-body">
+      <ui-card title="Compte" label="Paramètres / Compte" id="compte">
+        <ui-text-field label="Ton nom" value="Claire Bernard" help="Ce que Maxime et les Membres de ses Projets voient à côté de tes commentaires et de tes Avis."></ui-text-field>
+        <ui-key-value>
+                    <ui-kv label="Adresse de connexion"><span class="mono">claire.bernard@mairie.example</span></ui-kv>
+          <ui-kv label="Connexion">Lien envoyé par email</ui-kv>
+        </ui-key-value>
+      </ui-card>
+      <ui-card title="Notifications" label="Paramètres / Notifications" id="notifications">
+        <ui-toggle checked label="Email « Une version attend ton avis »" help="À claire.bernard@mairie.example, pour chaque version qui t’est soumise. Sans lui, elles t’attendent dans « À toi »."></ui-toggle>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

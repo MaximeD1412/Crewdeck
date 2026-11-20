@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relecture — Demander des changements</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* Review pages: the decision buttons in the page header on the PC, in a bar at the bottom on the phone */
+  .review-head-actions { display: none; }
+  .review-bar {
+    position: sticky; bottom: var(--tab-bar); z-index: 2; display: flex; gap: var(--space-2);
+    margin: 0 calc(var(--space-4) * -1) calc(var(--space-8) * -1); padding: var(--space-3) var(--space-4);
+    background: var(--side); border-top: 1px solid var(--line);
+  }
+  .review-bar > ui-button { flex: 1 1 0; min-width: 0; display: flex; }
+  .review-bar .button { flex: 1 1 0; min-width: 0; height: auto; min-height: var(--touch); padding: var(--space-2) var(--space-3); white-space: normal; text-align: center; }
+  /* On the phone: what the state is about (the Avis, the comments) first, then the document, folded */
+  .review { display: flex; flex-direction: column; gap: var(--space-4); }
+  .review-comments, .review-retour { order: 1; }
+  .review-versions { order: 2; }
+  .review-remarks { order: 3; }
+  .review-doc { order: 4; }
+  .review-checks { order: 5; }
+  .avis-summary { color: var(--ink); font: var(--font-title-weight) var(--font-label-size)/var(--font-title-line-height) var(--font-title-family), sans-serif; }
+  .avis-note { margin-top: var(--space-2); }
+  .avis-older { border-top: 1px solid var(--line); padding-top: var(--space-2); }
+  .avis-older > summary, .doc-fold > summary { display: flex; align-items: center; gap: var(--space-2); min-height: var(--touch); list-style: none; cursor: pointer; color: var(--ink-2); font: var(--font-label-weight) var(--font-body-sm-size)/var(--font-label-line-height) var(--font-label-family), sans-serif; }
+  .avis-older > summary::-webkit-details-marker, .doc-fold > summary::-webkit-details-marker { display: none; }
+  .avis-older > summary .icon, .doc-fold > summary .icon { margin-left: auto; }
+  .avis-older[open] > summary .icon, .doc-fold[open] > summary .icon { transform: rotate(180deg); }
+  .doc-fold > summary b { color: var(--ink); }
+  .doc-fold[open] > summary { margin-bottom: var(--space-3); }
+  @media (min-width: 1280px) {
+    .review-head-actions { display: flex; gap: var(--space-2); }
+    .review-bar { display: none; }
+    .review {
+      display: grid; grid-template-columns: minmax(0, 1fr) var(--aside-width); gap: var(--space-6); align-items: start;
+      grid-template-areas: "doc avis" "doc versions" "doc comments" "doc remarks" "doc checks" "doc ."; grid-template-rows: auto auto auto auto auto 1fr;
+    }
+    .review-doc { grid-area: doc; }
+    .review-avis { grid-area: avis; }
+    .review-versions { grid-area: versions; }
+    .review-comments { grid-area: comments; }
+    .review-remarks { grid-area: remarks; }
+    .review-checks { grid-area: checks; }
+    /* The document open on the PC, without its fold */
+    .doc-fold::details-content { content-visibility: visible; }
+    .doc-fold > summary { display: none; }
+  }
+  /* Demander des changements: on the phone the choice of the Retour is the page, with « Envoyer à l'agent » in the bar; on the PC it is the dialog */
+  .retour-count { margin-left: auto; }
+  .review-comments { display: none; }
+  .shell-overlay { display: none; }
+  @media (min-width: 1280px) {
+    .review-retour { display: none; }
+    .review-comments { display: block; }
+    .shell-overlay { display: flex; }
+  }
+  @media (min-width: 1280px) {
+    .review { grid-template-areas: "doc avis" "doc comments" "doc remarks" "doc checks" "doc ."; grid-template-rows: auto auto auto auto 1fr; }
+  }
+</style>
+</head><body>
+<!-- exemple : Projet, PRD, Membres, versions, dates et commentaires fictifs -->
+<ui-app-shell screen="Relecture" current="conceptions" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="PRD · Actualités" back="Actualités" screen="Relecture">
+    <span slot="sub" class="mono">Site mairie · PR #12</span>
+    <span class="review-head-actions"><ui-button>Demander des changements</ui-button><ui-button variant="primary">Approuver le PRD</ui-button></span>
+  </ui-page-header>
+  <div class="review">
+    <ui-card class="review-avis" title="Avis des Relecteurs" label="Relecture / Avis">
+      <p class="avis-summary">Avis client : changements demandés par Claire, version 1 · 5 commentaires</p>
+      <ui-avis-row author="Claire Bernard" opinion="changements" meta="version 1 · 11:45"></ui-avis-row>
+    </ui-card>
+    <!-- Sur le téléphone, le choix du Retour est le contenu de la page ; sur le PC, il est dans le dialogue -->
+    <ui-card class="review-retour" title="Demander des changements" label="Relecture / Retour">
+      <p class="text-sm">Les commentaires cochés partent à l’agent de Conception comme son Retour : il reprend le PRD avec eux, puis la relecture te revient. Un commentaire décoché reste sur la version 1, sans aller à l’agent.</p>
+      <h3 class="section-label">Commentaires <span class="section-count retour-count">4 sur 5 envoyés</span></h3>
+      <ui-comment author="Claire Bernard" access="Relecteur" time="version 1 · 11:40" quote="news older than one year are deleted" selectable checked>Il faut garder les arrêtés municipaux en ligne, même anciens.</ui-comment>
+      <ui-comment author="Claire Bernard" access="Relecteur" time="version 1 · 11:40" quote="the five latest news items" selectable checked>Trois actualités suffisent sur la page d’accueil.</ui-comment>
+      <ui-comment author="Claire Bernard" access="Relecteur" time="version 1 · 11:40" quote="any member of the staff may publish" selectable checked>Seul le secrétariat publie.</ui-comment>
+      <ui-comment author="Inès Martin" access="Contributeur" time="version 1 · 11:52" selectable>Et si on envoyait aussi les actualités par SMS ?</ui-comment>
+      <ui-comment author="Maxime" access="toi" time="version 1 · 12:05" quote="news older than one year are deleted" selectable checked>Pour les actualités de plus d’un an, propose une page « Archives » plutôt qu’une suppression.</ui-comment>
+    </ui-card>
+    <ui-card class="review-comments" title="Commentaires" count="5" label="Relecture / Commentaires">
+      <ui-comment author="Claire Bernard" access="Relecteur" time="version 1 · 11:40" quote="news older than one year are deleted">Il faut garder les arrêtés municipaux en ligne, même anciens.</ui-comment>
+      <ui-comment author="Claire Bernard" access="Relecteur" time="version 1 · 11:40" quote="the five latest news items">Trois actualités suffisent sur la page d’accueil.</ui-comment>
+      <ui-comment author="Claire Bernard" access="Relecteur" time="version 1 · 11:40" quote="any member of the staff may publish">Seul le secrétariat publie.</ui-comment>
+      <ui-comment author="Inès Martin" access="Contributeur" time="version 1 · 11:52">Et si on envoyait aussi les actualités par SMS ?</ui-comment>
+      <ui-comment author="Maxime" access="toi" time="version 1 · 12:05" quote="news older than one year are deleted">Pour les actualités de plus d’un an, propose une page « Archives » plutôt qu’une suppression.</ui-comment>
+    </ui-card>
+    <ui-card class="review-remarks" title="Tes commentaires" label="Relecture / Tes commentaires">
+      <ui-text-field label="Ajouter un commentaire" placeholder="Sélectionne un passage pour le citer" multiline rows="3"></ui-text-field>
+    </ui-card>
+    <ui-card class="review-doc" label="Relecture / Document">
+      <details class="doc-fold">
+        <summary><span><b>Le PRD en entier</b> · version 1</span><ui-icon name="chevron-down"></ui-icon></summary>
+      <!-- exemple : le PRD tel que le fichier l’écrit (en anglais, la langue des documents des agents) -->
+      <article class="doc">
+        <h2>Actualités — PRD</h2>
+        <p>Feature of Site mairie. Idea: « Publier les actualités de la mairie sur la page d’accueil ».</p>
+        <h3>Problem</h3>
+        <ul>
+          <li>The town hall posts its news on a notice board and on social media; the website shows none of it.</li>
+          <li>Residents miss the council’s decisions and the road works.</li>
+        </ul>
+        <h3>Stories</h3>
+        <ul>
+          <li><b>US-3</b> (MVP) As an editor at the town hall, I want to publish a news item with a title, a date and a picture, so that residents read it on the website.</li>
+          <li><b>US-4</b> (MVP) As a resident, I want <mark>the five latest news items</mark> on the home page, so that I see what is new at a glance.</li>
+          <li><b>US-5</b> (MVP) As a resident, I want a short list of news, so that I find the recent ones: <mark>news older than one year are deleted</mark>.</li>
+          <li><b>US-6</b> (next) As an editor, I want to schedule a news item, so that it goes out on the day of the event.</li>
+        </ul>
+        <h3>Open questions</h3>
+        <ul>
+          <li>Who at the town hall may publish without a second reading? For now, <mark>any member of the staff may publish</mark>.</li>
+        </ul>
+      </article>
+      </details>
+    </ui-card>
+    <ui-card class="review-checks" title="Vérifications" label="Relecture / Vérifications">
+      <ui-check-row name="Contrat du PRD" state="passed" detail="rempli"></ui-check-row>
+      <ui-check-row name="Revue croisée" state="passed" detail="Codex · réglée"></ui-check-row>
+    </ui-card>
+  </div>
+  <div class="review-bar" aria-label="Relecture / Décision" data-name="Relecture / Décision"><ui-button variant="ghost">Annuler</ui-button><ui-button variant="primary" icon="send">Envoyer à l’agent</ui-button></div>
+  <ui-dialog slot="overlay" title="Demander des changements">
+    <p>Les commentaires cochés partent à l’agent de Conception comme son Retour : il reprend le PRD avec eux, puis la relecture te revient. Un commentaire décoché reste sur la version 1, sans aller à l’agent.</p>
+    <section class="stack-sm" aria-label="Demander des changements / Commentaires" data-name="Demander des changements / Commentaires">
+      <h3 class="section-label">Commentaires <span class="section-count retour-count">4 sur 5 envoyés</span></h3>
+      <ui-comment author="Claire Bernard" access="Relecteur" time="version 1 · 11:40" quote="news older than one year are deleted" selectable checked>Il faut garder les arrêtés municipaux en ligne, même anciens.</ui-comment>
+      <ui-comment author="Claire Bernard" access="Relecteur" time="version 1 · 11:40" quote="the five latest news items" selectable checked>Trois actualités suffisent sur la page d’accueil.</ui-comment>
+      <ui-comment author="Claire Bernard" access="Relecteur" time="version 1 · 11:40" quote="any member of the staff may publish" selectable checked>Seul le secrétariat publie.</ui-comment>
+      <ui-comment author="Inès Martin" access="Contributeur" time="version 1 · 11:52" selectable>Et si on envoyait aussi les actualités par SMS ?</ui-comment>
+      <ui-comment author="Maxime" access="toi" time="version 1 · 12:05" quote="news older than one year are deleted" selectable checked>Pour les actualités de plus d’un an, propose une page « Archives » plutôt qu’une suppression.</ui-comment>
+    </section>
+    <ui-button slot="actions" variant="ghost">Annuler</ui-button>
+    <ui-button slot="actions" variant="primary" icon="send">Envoyer à l’agent</ui-button>
+  </ui-dialog>
+</ui-app-shell>
+</body>
+</html>

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Membres du Projet — aucun Membre</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+</head>
+<body>
+<!-- exemple : Projet fictif -->
+<ui-app-shell screen="Membres du Projet" current="projets" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Membres" back="Site mairie" count="aucun Membre" screen="Membres du Projet"></ui-page-header>
+  <ui-card title="Qui a accès" label="Membres du Projet / Liste" flush>
+    <ui-member-row name="Maxime" email="maximed1412" meta="toi" access="Pilote"></ui-member-row>
+    <ui-empty icon="user" title="Personne d’autre sur Site mairie">Invite quelqu’un par email, avec un Accès. Avec l’Accès Relecteur, un client lit ce que tu lui soumets, le commente et rend son Avis, sur le PC ou le téléphone, sans compte GitHub, ni Runner, ni Compte IA. Tout reste chiffré de bout en bout.<ui-button slot="actions" variant="primary" icon="plus">Inviter un Membre</ui-button></ui-empty>
+  </ui-card>
+  <div class="grid-2">
+    <ui-card title="Accès" label="Membres du Projet / Accès">
+      <p class="text-sm">Les Accès se définissent dans les Paramètres de ton compte et servent sur tous tes Projets. En changer un change aussitôt chaque Membre qui l’a.</p>
+      <ui-button size="sm" icon="settings">Gérer les Accès</ui-button>
+    </ui-card>
+    <ui-card title="Historique" label="Membres du Projet / Historique">
+      <p class="text-sm">Les invitations, les Accès donnés, changés ou retirés, les Versions soumises, les commentaires et les Avis : qui, quoi et quand.</p>
+      <ui-button size="sm" icon="clock">Voir l’Historique</ui-button>
+    </ui-card>
+  </div>
+</ui-app-shell>
+</body>
+</html>

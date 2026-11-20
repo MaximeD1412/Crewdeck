@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Membres du Projet — vus par un Membre qui gère les Membres</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* The Accès select, open: only the Pilote's Accès whose Droits the person holds (US-128); the others are absent */
+  .pick { position: relative; }
+  .pick .select { border-color: var(--accent); }
+  .pick .menu { position: absolute; top: 100%; left: 0; right: 0; width: auto; z-index: 2; margin-top: var(--space-1); }
+  .pick .menu-item { min-height: var(--touch); align-items: center; }
+  .droits { display: flex; flex-direction: column; padding: var(--space-3); background: var(--sunk); border-radius: var(--radius); }
+  .droits .section-label { margin-bottom: var(--space-1); }
+  .note { display: flex; gap: var(--space-2); align-items: flex-start; }
+  .note .icon { color: var(--go); margin-top: var(--space-1); }
+</style>
+</head>
+<body>
+<!-- Scène à part : un exemple de gestion déléguée (US-128), hors de la chronologie des autres pages, où Inès Martin est Contributeur jusqu’au 19 nov. puis Co-pilote. -->
+<!-- exemple : Inès Martin, Membre de Site mairie avec l’Accès « Cheffe de projet », un Accès créé par Maxime (les Droits de Contributeur, plus Gérer les Membres et Lire l’Historique) -->
+<ui-app-shell screen="Membres du Projet" current="projets" nav="a-toi,idees,conceptions,boucle,planning,projets,parametres" runner="none" me="Inès Martin" decisions="2" ideas="3" designs="1" loops="1">
+  <ui-page-header title="Membres" back="Site mairie" count="2 Membres" screen="Membres du Projet">
+    <ui-button variant="primary" icon="plus">Inviter un Membre</ui-button>
+    <span slot="sub">Projet de Maxime. Tu peux donner les Accès de Maxime dont tu as tous les Droits.</span>
+  </ui-page-header>
+  <ui-card title="Qui a accès" label="Membres du Projet / Liste" flush>
+    <ui-member-row name="Maxime" email="maximed1412" access="Pilote"></ui-member-row>
+    <ui-member-row name="Claire Bernard" email="claire.bernard@mairie.example" meta="depuis le 12 nov.">
+      <ui-select value="Relecteur"></ui-select>
+      <ui-button slot="actions" size="sm" variant="ghost" icon="x">Retirer</ui-button>
+    </ui-member-row>
+    <ui-member-row name="Inès Martin" email="ines.martin@atelier.example" meta="toi" access="Cheffe de projet"></ui-member-row>
+  </ui-card>
+  <div class="grid-2">
+    <ui-card title="Accès" label="Membres du Projet / Accès">
+      <p class="text-sm">Les Accès sont ceux de Maxime, définis dans son compte ; lui seul les crée ou les change.</p>
+    </ui-card>
+    <ui-card title="Historique" label="Membres du Projet / Historique">
+      <p class="text-sm">Les invitations, les Accès donnés, changés ou retirés, les Versions soumises, les commentaires et les Avis : qui, quoi et quand.</p>
+      <ui-button size="sm" icon="clock">Voir l’Historique</ui-button>
+    </ui-card>
+  </div>
+  <ui-dialog slot="overlay" title="Inviter un Membre sur Site mairie">
+    <ui-text-field label="Email" value="paul.leroy@mairie.example"></ui-text-field>
+    <div class="pick">
+      <ui-select label="Accès" value="Relecteur"></ui-select>
+      <!-- exemple : « Graphiste » et « Cheffe de projet » sont des Accès créés par Maxime ; Co-pilote et Administrateur, dont Inès n’a pas tous les Droits, n’y sont pas -->
+      <ui-menu title="Accès de Maxime que tu peux donner">
+        <ui-menu-item selected detail="Commenter, rendre un Avis">Relecteur</ui-menu-item>
+        <ui-menu-item detail="Commenter, rendre un Avis · Lire le Projet, lire les Sessions · Noter et trier des Idées">Contributeur</ui-menu-item>
+        <ui-menu-item detail="Commenter, rendre un Avis · Lire le Projet, lire les Sessions">Graphiste</ui-menu-item>
+        <ui-menu-item detail="Commenter, rendre un Avis · Lire le Projet, lire les Sessions · Noter et trier des Idées · Gérer les Membres · Lire l’Historique">Cheffe de projet</ui-menu-item>
+      </ui-menu>
+    </div>
+    <section class="droits" aria-label="Inviter un Membre / Droits de l’Accès" data-name="Inviter un Membre / Droits de l’Accès">
+      <span class="section-label">Ce que donne Relecteur</span>
+      <ui-droit checked help="Avec chaque Accès">Lire les Versions soumises</ui-droit>
+      <ui-droit checked>Commenter, rendre un Avis</ui-droit>
+    </section>
+    <p class="note"><ui-icon name="lock" size="sm"></ui-icon><span>Le Projet s’ouvre quand la personne se connecte avec cette adresse, sans attendre qu’un Appareil de Maxime soit allumé.</span></p>
+    <ui-button slot="actions" variant="ghost">Annuler</ui-button>
+    <ui-button slot="actions" variant="primary" icon="send">Envoyer l’invitation</ui-button>
+  </ui-dialog>
+</ui-app-shell>
+</body>
+</html>

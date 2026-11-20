@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projets — Relecteur</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* The Projet heads its card; its Versions soumises follow, under their label */
+  .versions-label { margin: 0; padding: var(--space-4) var(--space-4) var(--space-2); border-top: 1px solid var(--line); }
+  .versions-label + ui-list-row .list-row { border-top: 0; }
+  .version-avis { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-1); }
+  @media (min-width: 1280px) {
+    .versions-label { padding: var(--space-4) var(--space-5) var(--space-2); }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : Projet « Site mairie » de Maxime, Relecteur Claire Bernard, versions et dates fictives -->
+<ui-app-shell screen="Projets" current="projets" nav="a-toi,projets,parametres" runner="none" me="Claire Bernard" decisions="1">
+  <ui-page-header title="Projets" count="1 Projet"></ui-page-header>
+  <div class="layout">
+    <div class="layout-main">
+      <ui-card label="Projets / Site mairie" flush>
+        <ui-list-row icon="folder" title="Site mairie" meta="Projet de Maxime · tu y lis les versions qu’il te soumet"><ui-status-badge>Relecteur</ui-status-badge></ui-list-row>
+        <h3 class="section-label versions-label">Versions soumises <span class="section-count">2</span></h3>
+        <ui-list-row link icon="image" title="Maquettes · Actualités" meta="version 1 · 2 écrans · soumise le 19 nov."><span slot="below" class="version-avis"><ui-status-badge tone="accent">À relire</ui-status-badge></span></ui-list-row>
+        <ui-list-row link icon="doc" title="PRD · Actualités" meta="version 2 · soumise le 18 nov."><span slot="below" class="version-avis"><ui-status-badge tone="go">Ton Avis : approuvé</ui-status-badge></span></ui-list-row>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

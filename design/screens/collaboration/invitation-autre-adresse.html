@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rejoindre un Projet — autre adresse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .join { gap: var(--space-5); }
+  .join .mono { color: var(--ink); }
+</style>
+</head>
+<body>
+<!-- exemple : Pilote, Projet et adresses fictifs -->
+<ui-app-shell variant="bare" screen="Rejoindre un Projet">
+  <section class="join stack" aria-label="Rejoindre un Projet / Autre adresse" data-name="Rejoindre un Projet / Autre adresse">
+    <div class="stack-sm">
+      <span class="section-label">Invitation de Maxime · Site mairie</span>
+      <h1 class="page-title">Cette invitation est pour une autre adresse</h1>
+    </div>
+    <ui-banner tone="caution" icon="lock" title="Site mairie ne s’ouvre pas avec ce compte">Ce compte utilise <span class="mono">p.leroy@perso.example</span>. L’invitation est pour <span class="mono">paul.leroy@mairie.example</span> : le Projet s’ouvre seulement avec cette adresse.</ui-banner>
+    <div class="stack-sm">
+      <ui-button variant="primary" icon="send" wide>Recevoir un lien à paul.leroy@mairie.example</ui-button>
+      <ui-button variant="ghost" wide>Me connecter avec un autre compte</ui-button>
+    </div>
+  </section>
+</ui-app-shell>
+</body>
+</html>

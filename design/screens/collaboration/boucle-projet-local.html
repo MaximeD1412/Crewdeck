@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boucle — Projet Local sur la machine du Pilote</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .loop-state { display: flex; align-items: center; gap: var(--space-2); }
+  .loop-state b { font: var(--font-title-weight) var(--font-title-size)/var(--font-title-line-height) var(--font-title-family), sans-serif; color: var(--ink); }
+</style>
+</head>
+<body>
+<!-- exemple : Projet Local « Bulletin municipal » de Maxime, sans Connecteur ; Inès Martin en est Co-pilote ; machines fictives -->
+<ui-app-shell screen="Boucle" current="boucle" nav="a-toi,idees,conceptions,boucle,planning,statistiques,projets,runner,parametres" me="Inès Martin" decisions="2" ideas="1" designs="1">
+  <ui-page-header title="Boucle" count="Bulletin municipal · arrêtée"></ui-page-header>
+  <ui-project-filter>
+    <ui-chip selected>Bulletin municipal</ui-chip>
+    <ui-chip>Site mairie</ui-chip>
+  </ui-project-filter>
+  <ui-banner tone="caution" icon="folder" title="Ce Projet vit sur la machine de Maxime">C’est un Projet Local, et son dossier est sur la machine de Maxime, son Pilote : tu ne peux pas lancer ses agents, ni sur ton Runner ni ailleurs. Tu les lanceras quand Maxime aura fait pointer ce Projet vers un dossier déjà sur son Runner partagé ; l’y copier lui revient, Crewdeck ne le copie pas.</ui-banner>
+  <div class="layout">
+    <div class="layout-main">
+      <ui-card title="Bulletin municipal" label="Boucle / Bulletin municipal">
+        <div class="loop-state"><ui-status-dot tone="neutral"></ui-status-dot><b>Arrêtée</b></div>
+        <p class="text-sm">Une fois ce Projet pointé vers un dossier du Runner partagé, tu démarreras sa Boucle et piloteras ses Sessions là-bas, sur des clés API.</p>
+      </ui-card>
+    </div>
+    <div class="layout-aside">
+      <ui-card title="Projet" label="Boucle / Projet">
+        <ui-key-value>
+          <ui-kv label="Pilote">Maxime</ui-kv>
+          <ui-kv label="Dossier">sur la machine de Maxime</ui-kv>
+          <ui-kv label="Connecteurs">aucun : tout est Local</ui-kv>
+          <ui-kv label="Runner partagé">sans son dossier</ui-kv>
+        </ui-key-value>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

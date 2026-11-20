@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Membres du Projet — Site mairie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+</head>
+<body>
+<!-- exemple : Projet, Membres, adresses et dates fictifs ; la page est vue le 20 nov. : Inès Martin est Co-pilote depuis le 19 nov. (l’Historique le dit) -->
+<ui-app-shell screen="Membres du Projet" current="projets" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Membres" back="Site mairie" count="2 Membres · 1 invitation" screen="Membres du Projet">
+    <ui-button variant="primary" icon="plus">Inviter un Membre</ui-button>
+    <span slot="sub">Chacun lit ce que son Accès lui ouvre sur Site mairie, chiffré de bout en bout.</span>
+  </ui-page-header>
+  <ui-card title="Qui a accès" label="Membres du Projet / Liste" flush>
+    <ui-member-row name="Maxime" email="maximed1412" meta="toi" access="Pilote"></ui-member-row>
+    <ui-member-row name="Claire Bernard" email="claire.bernard@mairie.example" meta="depuis le 12 nov.">
+      <ui-select value="Relecteur"></ui-select>
+      <ui-button slot="actions" size="sm" variant="ghost" icon="x">Retirer</ui-button>
+    </ui-member-row>
+    <ui-member-row name="Inès Martin" email="ines.martin@atelier.example" meta="depuis le 14 nov.">
+      <ui-select value="Co-pilote"></ui-select>
+      <ui-button slot="actions" size="sm" variant="ghost" icon="x">Retirer</ui-button>
+    </ui-member-row>
+    <ui-member-row state="invited" name="Paul Leroy" email="paul.leroy@mairie.example" meta="invité le 19 nov., valable 7 jours">
+      <ui-select value="Relecteur"></ui-select>
+      <ui-button slot="actions" class="only-wide" size="sm" variant="ghost" icon="send">Renvoyer</ui-button><ui-icon-button slot="actions" class="only-phone" icon="send" label="Renvoyer l’invitation"></ui-icon-button>
+          <ui-button slot="actions" class="only-wide" size="sm" variant="ghost" icon="x">Annuler l’invitation</ui-button><ui-icon-button slot="actions" class="only-phone" icon="x" label="Annuler l’invitation"></ui-icon-button>
+    </ui-member-row>
+  </ui-card>
+  <div class="grid-2">
+    <ui-card title="Accès" label="Membres du Projet / Accès">
+      <p class="text-sm">Les Accès se définissent dans les Paramètres de ton compte et servent sur tous tes Projets. En changer un change aussitôt chaque Membre qui l’a.</p>
+      <ui-button size="sm" icon="settings">Gérer les Accès</ui-button>
+    </ui-card>
+    <ui-card title="Historique" label="Membres du Projet / Historique">
+      <p class="text-sm">Les invitations, les Accès donnés, changés ou retirés, les Versions soumises, les commentaires et les Avis : qui, quoi et quand.</p>
+      <ui-button size="sm" icon="clock">Voir l’Historique</ui-button>
+    </ui-card>
+  </div>
+</ui-app-shell>
+</body>
+</html>

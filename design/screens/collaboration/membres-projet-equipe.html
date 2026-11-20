@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Membres du Projet — le Projet devient un Projet d’équipe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* The Pilote's Comptes IA, as « Runner et Comptes IA » names them: the ones a Projet d'équipe keeps, the ones it cannot use */
+  .comptes { display: flex; flex-direction: column; gap: var(--space-2); }
+  .comptes-list { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+  .member-changing .select { border-color: var(--accent); }
+  /* The way out of a Compte IA no longer usable: the Projet's Rôles et modèles, or a key on the Runner partagé */
+  .way-out { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); color: var(--ink-2); }
+</style>
+</head>
+<body>
+<!-- exemple : Projet, Membres, Comptes IA et Rôles fictifs (ceux de « Runner et Comptes IA » et de la page du Projet) ; la scène est le 19 nov. à 18:20, quand Maxime fait d’Inès Martin une Co-pilote (l’Historique le dit) -->
+<ui-app-shell screen="Membres du Projet" current="projets" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Membres" back="Site mairie" count="2 Membres · 1 invitation" screen="Membres du Projet">
+    <ui-button variant="primary" icon="plus">Inviter un Membre</ui-button>
+    <span slot="sub">Chacun lit ce que son Accès lui ouvre sur Site mairie, chiffré de bout en bout.</span>
+  </ui-page-header>
+  <ui-card title="Qui a accès" label="Membres du Projet / Liste" flush>
+    <ui-member-row name="Maxime" email="maximed1412" meta="toi" access="Pilote"></ui-member-row>
+    <ui-member-row name="Claire Bernard" email="claire.bernard@mairie.example" meta="depuis le 12 nov.">
+      <ui-select value="Relecteur"></ui-select>
+      <ui-button slot="actions" size="sm" variant="ghost" icon="x">Retirer</ui-button>
+    </ui-member-row>
+    <ui-member-row class="member-changing" name="Inès Martin" email="ines.martin@atelier.example" meta="depuis le 14 nov.">
+      <ui-select value="Co-pilote"></ui-select>
+      <ui-button slot="actions" size="sm" variant="ghost" icon="x">Retirer</ui-button>
+    </ui-member-row>
+    <ui-member-row state="invited" name="Paul Leroy" email="paul.leroy@mairie.example" meta="invité le 19 nov.">
+      <ui-select value="Relecteur"></ui-select>
+      <ui-button slot="actions" class="only-wide" size="sm" variant="ghost" icon="x">Annuler l’invitation</ui-button><ui-button slot="actions" class="only-phone" size="sm" variant="ghost" icon="x" label="Annuler l’invitation">Annuler</ui-button>
+    </ui-member-row>
+  </ui-card>
+  <ui-dialog slot="overlay" title="Site mairie devient un Projet d’équipe">
+    <p>Avec l’Accès <b>Co-pilote</b>, Inès Martin pilote les Sessions et démarre la Boucle. Un Projet d’équipe fait tourner ses agents <b>sur des clés API uniquement</b> : un abonnement est personnel.</p>
+    <section class="comptes" aria-label="Projet d’équipe / Comptes IA" data-name="Projet d’équipe / Comptes IA">
+      <span class="section-label">Tes Comptes IA sur ce Projet</span>
+      <div class="comptes-list">
+        <ui-list-row icon="key" tone="go" title="Codex · clé API" meta="Rôle Code"><ui-status-badge tone="go">reste utilisable</ui-status-badge></ui-list-row>
+        <ui-list-row icon="block" tone="halt" title="Claude · abonnement" meta="Rôles Idée, Conception, Review"><ui-status-badge tone="halt">plus utilisable</ui-status-badge>
+          <div slot="below" class="way-out">
+            <span class="text-sm">Pour ces Rôles, choisis un autre Moteur, ou mets une clé API sur le Runner partagé.</span>
+            <span class="cluster"><ui-button size="sm" icon="settings">Rôles et modèles du Projet</ui-button><ui-button size="sm" variant="ghost" icon="key">Ajouter une clé API</ui-button></span>
+          </div>
+        </ui-list-row>
+      </div>
+    </section>
+    <p>Une Session démarrée sur un abonnement est refusée, avec la raison. Tes Projets que tu pilotes seul gardent ton abonnement.</p>
+    <p>Inès lance ses Sessions sur son Runner ou sur le Runner partagé, jamais sur ton Runner ni sur tes abonnements. Une clé API que tu mets sur le Runner partagé sert aussi à ses Sessions, à ton nom et payée par toi.</p>
+    <ui-button slot="actions" variant="ghost">Annuler</ui-button>
+    <ui-button slot="actions" variant="primary" icon="check">Donner l’Accès Co-pilote</ui-button>
+  </ui-dialog>
+</ui-app-shell>
+</body>
+</html>

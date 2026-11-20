@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boucle — Suivie par une Contributrice</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .loop-state { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+  .loop-state b { font: var(--font-title-weight) var(--font-title-size)/var(--font-title-line-height) var(--font-title-family), sans-serif; color: var(--ink); }
+  .loop-agents { display: flex; flex-direction: column; gap: var(--space-3); }
+  .loop-foot { display: flex; flex-direction: column; gap: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--line); }
+  .loop-foot .row { padding-right: 0; }
+  .loop-foot ui-ticket-row:nth-of-type(1) .row { border-top: 0; }
+  .loop-foot ui-ticket-row, .loop-foot .section-label { display: none; }
+  .loop-more { display: flex; align-items: center; justify-content: space-between; min-height: var(--touch); color: var(--ink-2); }
+  .page-reminder { order: 5; }
+  @media (min-width: 1280px) {
+    .loop-foot { padding-top: var(--space-3); }
+    .loop-foot ui-ticket-row { display: block; }
+    .loop-foot .section-label { display: flex; }
+    .loop-more { display: none; }
+    .page-reminder { order: 0; }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : Projet, Runner, Tickets et heures fictifs ; avant le 19 nov. personne d’autre que Maxime ne pilote les agents de Site mairie, la Boucle tourne donc sur son Runner ; la scène est le 18 nov., quand Inès Martin est encore Contributeur de Site mairie (Co-pilote à partir du 19 nov.) -->
+<ui-app-shell screen="Boucle" current="boucle" runner="none" nav="a-toi,idees,conceptions,boucle,planning,statistiques,projets,parametres" me="Inès Martin" decisions="1" ideas="2">
+  <ui-page-header title="Boucle" count="Site mairie · en cours"></ui-page-header>
+  <ui-banner class="page-reminder" tone="neutral" icon="eye" title="Tu suis cette Boucle">Ton Accès « Contributeur » te laisse suivre la Boucle et lire ses Sessions. La démarrer ou l’arrêter revient au Pilote et aux Membres qui peuvent piloter les agents.</ui-banner>
+  <div class="layout">
+    <div class="layout-main">
+      <ui-card title="Site mairie" label="Boucle / Site mairie">
+        <div class="loop-state"><ui-status-dot tone="go" pulse></ui-status-dot><b>En cours</b><span class="mono muted">démarrée par Maxime à 08:30 · 1 Ticket mergé aujourd’hui</span></div>
+        <div class="loop-agents">
+          <ui-agent-row projet="#48 Agenda des conseils municipaux" step="en review" engine="Claude Code · depuis 6 min" tone="accent"><ui-button slot="actions" size="sm" variant="ghost" icon="terminal">Session</ui-button></ui-agent-row>
+        </div>
+        <div class="loop-foot">
+          <span class="section-label">À suivre <span class="section-count">2</span></span>
+          <a href="#" class="loop-more text-sm">À suivre : #49, #50 <ui-icon name="chevron-right" size="sm"></ui-icon></a>
+          <ui-ticket-row number="49" title="Archive des comptes rendus" meta="jalon Actualités" state="pret"></ui-ticket-row>
+          <ui-ticket-row number="50" title="Pied de page et mentions" meta="jalon Actualités" state="pret"></ui-ticket-row>
+        </div>
+      </ui-card>
+    </div>
+    <div class="layout-aside">
+      <ui-card title="Où tourne la Boucle" label="Boucle / Runner">
+        <ui-key-value>
+          <ui-kv label="Runner">atelier-pc · le Runner de Maxime</ui-kv>
+          <ui-kv label="Code">Codex</ui-kv>
+          <ui-kv label="Review">Claude Code</ui-kv>
+        </ui-key-value>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

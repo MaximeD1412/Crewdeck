@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>À toi — Co-pilote</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* On the phone a row's context and meta may take a second line rather than be cut: why it waits is what the row says */
+  .row--decision .row-context { -webkit-line-clamp: 2; }
+  .row--decision .row-meta { white-space: normal; }
+  /* Who settled a Décision of « Depuis ta dernière visite » (US-136): ui-away-summary counts it, this line names who */
+  .away-block { display: flex; flex-direction: column; gap: var(--space-2); }
+  .away-settled { display: flex; gap: var(--space-2); align-items: flex-start; margin: 0; padding: 0 var(--space-4); color: var(--ink-2); }
+  .away-settled .icon { color: var(--go); margin-top: var(--space-1); flex: none; }
+</style>
+</head>
+<body>
+<!-- exemple : Inès Martin, Co-pilote du Projet « Site mairie » de Maxime ; Tickets, heures et session fictifs ; dernière visite à 08:10, il est 09:10 ; la permission de #48, réglée par Maxime il y a 6 min, a quitté son « À toi » -->
+<ui-app-shell screen="À toi" current="a-toi" nav="a-toi,idees,conceptions,boucle,planning,statistiques,projets,runner,parametres" me="Inès Martin" decisions="1" loops="1">
+  <ui-page-header title="À toi" count="1 Décision">
+    <ui-button variant="primary" icon="plus">Noter une Idée</ui-button>
+  </ui-page-header>
+  <div class="away-block">
+    <ui-away-summary since="depuis 08:10 · il y a 1 h">
+      <ui-away-row projet="Site mairie" merged="0" blocked="0" raised="1" settled="1"></ui-away-row>
+    </ui-away-summary>
+    <p class="away-settled text-sm"><ui-icon name="check" size="sm"></ui-icon><span>Réglée par Maxime il y a 6 min : la permission de Code sur #48 Archives des actualités, autorisée.</span></p>
+  </div>
+  <div class="layout">
+    <div class="stack-sm">
+      <ui-card title="Décisions" count="1" label="À toi / Décisions" flush>
+        <ui-decision-row tone="accent" icon="eye" kind="Revue visuelle" title="#47 Actualités en page d’accueil" meta="Site mairie · il y a 20 min">Maxime peut aussi la trancher : la première réponse vaut pour tous.<ui-button slot="actions" size="sm" variant="primary">Relire</ui-button></ui-decision-row>
+      </ui-card>
+    </div>
+    <div class="layout-aside">
+      <ui-card title="Boucles en cours" count="1" label="À toi / Boucles en cours">
+        <ui-agent-row projet="Site mairie" ticket="#48 Archives des actualités" step="en review" engine="Claude Code" since="depuis 4 min"></ui-agent-row>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

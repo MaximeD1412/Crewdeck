@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rejoindre un Projet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .join { gap: var(--space-5); }
+  .join-who { display: flex; gap: var(--space-3); align-items: center; }
+  .or { display: flex; align-items: center; gap: var(--space-3); color: var(--muted); font: var(--font-caption-weight) var(--font-caption-size)/var(--font-caption-line-height) var(--font-caption-family), sans-serif; }
+  .or::before, .or::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+  .droits { display: flex; flex-direction: column; }
+  .droits .section-label { margin-bottom: var(--space-1); }
+</style>
+</head>
+<body>
+<!-- exemple : Pilote, Projet et adresse fictifs -->
+<ui-app-shell variant="bare" screen="Rejoindre un Projet">
+  <section class="join stack" aria-label="Rejoindre un Projet / Invitation" data-name="Rejoindre un Projet / Invitation">
+    <div class="stack-sm">
+      <span class="section-label">Invitation</span>
+      <h1 class="page-title">Rejoindre Site mairie</h1>
+      <p class="join-who text-sm"><ui-avatar person="Maxime"></ui-avatar><span><b>Maxime</b> t’invite sur son Projet <b>Site mairie</b>, avec l’Accès <b>Relecteur</b>.</span></p>
+    </div>
+    <div class="stack-sm">
+      <ui-text-field label="Ton adresse email" value="paul.leroy@mairie.example" help="L’adresse invitée : le Projet s’ouvre quand tu te connectes avec elle."></ui-text-field>
+      <ui-button variant="primary" icon="send" wide>Recevoir un lien de connexion</ui-button>
+    </div>
+    <div class="or">ou</div>
+    <div class="stack-sm">
+      <ui-button icon="google" wide>Continuer avec Google</ui-button>
+      <ui-button icon="github" wide>Continuer avec GitHub</ui-button>
+    </div>
+    <p class="text-sm muted">Ni Runner ni Compte IA à installer : tu lis, tu commentes et tu rends ton Avis depuis ce navigateur, sur le PC ou le téléphone.</p>
+  </section>
+  <ui-card title="Ce que te donne Relecteur" label="Rejoindre un Projet / Accès">
+    <ui-droit checked help="Ce que Maxime te soumet">Lire les Versions soumises</ui-droit>
+    <ui-droit checked>Commenter, rendre un Avis</ui-droit>
+  </ui-card>
+</ui-app-shell>
+</body>
+</html>

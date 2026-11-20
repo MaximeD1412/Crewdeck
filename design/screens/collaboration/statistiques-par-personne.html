@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statistiques — Dépense par personne</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .stats-table thead { display: none; }
+  .stats-table tr { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+  .stats-table tr:last-child { border-bottom: 0; }
+  .stats-table td { display: inline; padding: 0; border: 0; text-align: left; font: var(--font-meta-weight) var(--font-meta-size)/var(--font-meta-line-height) var(--font-meta-family), monospace; color: var(--ink-2); }
+  .stats-table td:first-child { flex: 1 0 50%; font: var(--font-title-weight) var(--font-label-size)/var(--font-title-line-height) var(--font-title-family), sans-serif; margin-bottom: var(--space-1); }
+  /* On the phone each person's total sits right of their name, the keys on the line below */
+  .stats-table td:last-child { order: -1; flex: none; margin-left: auto; color: var(--ink); font-weight: var(--font-label-weight); }
+  .stats-table td:first-child { order: -2; }
+  .stats-table td.num { text-align: left; }
+  .stats-table td[data-label]::before { content: attr(data-label) " "; color: var(--muted); }
+  @media (min-width: 1280px) {
+    .stats-table thead { display: table-header-group; }
+    .stats-table tr { display: table-row; }
+    .stats-table td { display: table-cell; padding: var(--space-3); border-bottom: 1px solid var(--line); }
+    .stats-table tr:last-child td { border-bottom: 0; }
+    .stats-table td.num { text-align: right; }
+    .stats-table td:first-child { margin: 0; }
+    .stats-table td[data-label]::before { content: none; }
+    .stats-table td:first-child, .stats-table td:last-child { order: 0; }
+  }
+  .spend-total { margin: 0 0 var(--space-2); color: var(--ink-2); }
+  .spend-total b { color: var(--ink); font-family: var(--font-mono-family), monospace; font-weight: var(--font-label-weight); }
+  .stats-table tr.total td { color: var(--ink); }
+  @media (min-width: 1280px) {
+    .stats-table tr.total td { border-top: 1px solid var(--line-strong); }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : tous les chiffres, Projets, clés et périodes sont fictifs ; Site mairie est un Projet d’équipe de Maxime, Inès Martin en est Co-pilote -->
+<ui-app-shell screen="Statistiques" current="statistiques" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Statistiques" count="30 derniers jours"></ui-page-header>
+  <ui-project-filter>
+    <ui-chip>Tous les Projets</ui-chip>
+    <ui-chip selected>Site mairie</ui-chip>
+    <ui-chip>Crewdeck</ui-chip>
+    <ui-chip>Personal OS</ui-chip>
+  </ui-project-filter>
+  <ui-tabs>
+    <ui-tab>7 jours</ui-tab>
+    <ui-tab selected>30 jours</ui-tab>
+    <ui-tab>90 jours</ui-tab>
+  </ui-tabs>
+  <ui-card title="Dépense par clé et par personne" label="Statistiques / Dépense par clé et par personne">
+    <p class="text-sm spend-total"><b>38,00 €</b> sur les 2 clés API du Runner partagé, comptés à la personne qui a lancé le travail.</p>
+    <table class="table stats-table">
+      <thead>
+        <tr><th>Personne</th><th class="num">Clé Codex de Maxime</th><th class="num">Clé Claude Code de Maxime</th><th class="num">Total</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><b>Maxime</b></td><td class="num" data-label="Codex de Maxime">18,40 €</td><td class="num" data-label="Claude Code de Maxime">6,10 €</td><td class="num" data-label="Total">24,50 €</td></tr>
+        <tr><td><b>Inès Martin</b></td><td class="num" data-label="Codex de Maxime">9,20 €</td><td class="num" data-label="Claude Code de Maxime">4,30 €</td><td class="num" data-label="Total">13,50 €</td></tr>
+        <tr class="total"><td><b>Par clé</b></td><td class="num" data-label="Codex de Maxime">27,60 €</td><td class="num" data-label="Claude Code de Maxime">10,40 €</td><td class="num" data-label="Total">38,00 €</td></tr>
+      </tbody>
+    </table>
+  </ui-card>
+  <section class="grid-4" aria-label="Statistiques / Site mairie" data-name="Statistiques / Site mairie">
+    <ui-stat label="Délai Idée → merge" value="5,2" unit="j" detail="médiane · 6 Tickets"></ui-stat>
+    <ui-stat label="Réussite de la Boucle" value="71" unit="%" detail="mergés sans intervention, sur 7 pris"></ui-stat>
+    <ui-stat label="Tickets bloqués" value="21" unit="%" detail="au moins une fois · 2 sur 7"></ui-stat>
+    <ui-stat label="Coût par Ticket" value="2,10" unit="€" detail="clés API seulement"></ui-stat>
+  </section>
+  <p class="text-sm muted">Site mairie est un Projet d’équipe : ses agents n’utilisent que des clés API, sa dépense est en euros. Chaque dépense est comptée sur sa clé, payée par qui l’a mise, et à la personne qui a lancé le travail : sa Session, ou la Boucle qu’elle a démarrée. C’est le seul chiffre par personne. Toi et les Membres qui ont le Droit «&nbsp;Paramètres du Projet&nbsp;» voient cette dépense ; chaque autre Membre ne voit que la sienne.</p>
+</ui-app-shell>
+</body>
+</html>

@@ -58,6 +58,7 @@
     branch: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="7" r="2"/><path d="M6 7v10M18 9c0 5-6 4-11 8"/>',
     pr: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v10M18 17V9a3 3 0 0 0-3-3h-4M13 3l-2 3 2 3"/>',
     merge: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 7v10M6 8c1 3 5 4 10 4"/>',
+    google: '<path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 12h-7.5"/>',
     github: '<path d="M9 19c-4 1.5-4-2-6-2.5M15 21v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12 12 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/>',
     calendar: '<rect x="3" y="5" width="18" height="16" rx="1"/><path d="M3 10h18M8 3v4M16 3v4"/>',
     chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
@@ -126,11 +127,14 @@
   ];
   const RUNNER = {
     online: ["go", "Runner en ligne", "Claude Code, Codex"],
+    none: ["accent", "En direct", ""],
     offline: ["halt", "Runner hors ligne", "depuis 14:02"],
     resync: ["caution", "Resynchronisation…", "Actions sensibles indisponibles"],
   };
 
-  // <ui-app-shell screen="À toi" current="a-toi" decisions="6" runner="online|offline|resync" variant="bare|compact">
+  // <ui-app-shell screen="À toi" current="a-toi" decisions="6" runner="online|offline|resync|none" variant="bare|compact" nav="a-toi,projets,parametres" me="Claire Bernard">
+  // nav: the entries a Membre's Accès opens (a person who is only a Membre); every one is a tab at 390, no « Plus » when they fit.
+  // runner="none": no Runner of their own (a Membre): the foot shows « En direct » only. me: the person signed in.
   // compact: at 1280 the sidebar keeps its icons only (Gestion du process); at 390 it is the default Cadre.
   //   page… <… slot="banner"> <… slot="panel"> <… slot="overlay">
   define("ui-app-shell", (el) => {
@@ -143,6 +147,11 @@
     const [rTone, rLabel, rDetail] = RUNNER[runner];
     const banner = take(el, "banner"), panel = take(el, "panel"), overlay = take(el, "overlay");
     const page = rest(el);
+    const only = a(el, "nav") ? a(el, "nav").split(",").map((x) => x.trim()) : null;
+    const nav = only ? NAV.filter((n) => only.includes(n[0])) : NAV;
+    const me = a(el, "me");
+    const meInitials = me ? me.split(/\s+/).slice(0, 2).map((w) => w[0].toUpperCase()).join("") : "MD";
+    const meLabel = me || "maximed1412";
     const root = h("div", { class: `shell shell--${variant}${panel.length ? " shell--with-panel" : ""}${overlay.length ? " shell--with-overlay" : ""}`, name: `AppShell/${cap(variant)}` });
     const brand = () => h("div", { class: "shell-brand" }, h("span", { class: "shell-mark" }, icon("mark")), "Crewdeck");
 
@@ -156,30 +165,32 @@
       return;
     }
 
-    const navLinks = (phone) => NAV.filter((n) => !phone || n[3]).map(([id, label, ic]) =>
+    const allTabs = only && nav.length <= 5;
+    const navLinks = (phone) => nav.filter((n) => !phone || n[3] || allTabs).map(([id, label, ic]) =>
       h("a", { href: "#", class: "shell-link", "aria-current": id === current ? "page" : null, title: variant === "compact" && !phone ? label : null },
         icon(ic), h("span", { class: "shell-link-label" }, label),
         counts[id] && counts[id] !== "0" && (!phone || id === "a-toi") ? h("span", { class: phone ? "shell-tab-badge" : "shell-count" }, counts[id]) : null));
-    const moreCurrent = !NAV.find((n) => n[0] === current && n[3]);
+    const moreCurrent = !allTabs && !nav.find((n) => n[0] === current && n[3]);
+    const split = only ? nav.filter((n) => n[3]).length : 4;
 
     root.append(
       h("nav", { class: "shell-side", "aria-label": "Cadre / Menu", name: "Cadre / Menu" },
         brand(),
-        h("div", { class: "shell-nav" }, ...navLinks(false).slice(0, 4), h("hr"), ...navLinks(false).slice(4)),
+        h("div", { class: "shell-nav" }, ...navLinks(false).slice(0, split), split && split < nav.length ? h("hr") : null, ...navLinks(false).slice(split)),
         h("div", { class: "shell-foot" },
-          h("div", { class: `shell-status shell-status--${rTone}` }, h("span", { class: `dot dot--${rTone}` }), h("b", { text: rLabel }), h("span", { text: rDetail })),
-          runner === "online" ? h("div", { class: "shell-live" }, h("span", { class: "dot dot--accent dot--pulse" }), "En direct") : null,
-          h("a", { href: "#", class: "shell-me" }, h("span", { class: "avatar", text: "MD" }), h("span", { text: "maximed1412" })))),
+          runner !== "none" ? h("div", { class: `shell-status shell-status--${rTone}` }, h("span", { class: `dot dot--${rTone}` }), h("b", { text: rLabel }), h("span", { text: rDetail })) : null,
+          runner === "online" || runner === "none" ? h("div", { class: "shell-live" }, h("span", { class: "dot dot--accent dot--pulse" }), "En direct") : null,
+          h("a", { href: "#", class: "shell-me" }, h("span", { class: "avatar", text: meInitials }), h("span", { text: meLabel })))),
       h("header", { class: "shell-top", "aria-label": "Cadre / En-tête", name: "Cadre / En-tête" },
         brand(),
-        h("span", { class: `shell-top-status shell-top-status--${rTone}` }, h("span", { class: `dot dot--${rTone}` }), runner === "online" ? "En direct" : rLabel)),
+        h("span", { class: `shell-top-status shell-top-status--${rTone}` }, h("span", { class: `dot dot--${rTone}` }), runner === "online" || runner === "none" ? "En direct" : rLabel)),
       h("div", { class: "shell-body" },
         banner.length ? h("div", { class: "shell-banners" }, ...banner) : null,
         h("main", { class: "shell-page", "aria-label": `${screen} / Contenu`, name: `${screen} / Contenu` }, ...page)),
       ...panel.map((p) => h("aside", { class: "shell-panel", "aria-label": "Cadre / Panneau", name: "Cadre / Panneau" }, p)),
       h("nav", { class: "shell-tabs", "aria-label": "Cadre / Barre du bas", name: "Cadre / Barre du bas" },
         ...navLinks(true),
-        h("a", { href: "#", class: "shell-link", "aria-current": moreCurrent ? "page" : null }, icon("more"), h("span", { class: "shell-link-label" }, "Plus"))),
+        allTabs ? null : h("a", { href: "#", class: "shell-link", "aria-current": moreCurrent ? "page" : null }, icon("more"), h("span", { class: "shell-link-label" }, "Plus"))),
       ...overlay.map((o) => h("div", { class: "shell-overlay" }, o)),
     );
     el.append(root);
@@ -472,10 +483,13 @@
   });
 
   // <ui-capture src="…" label="Maquette · 390"></ui-capture>
+  // <ui-pin> children are the Commentaires' zones, placed on the image (Capture/Annotated).
   define("ui-capture", (el) => {
-    el.append(h("figure", { class: `capture${a(el, "size") ? ` capture--${a(el, "size")}` : ""}`, name: "Capture/Default" },
-      h("img", { src: a(el, "src"), alt: a(el, "label") }),
-      h("figcaption", {}, a(el, "label"), ...el.childNodes)));
+    const pins = [...el.children].filter((c) => c.tagName === "UI-PIN");
+    const caption = [...el.childNodes].filter((c) => !pins.includes(c));
+    el.append(h("figure", { class: `capture${a(el, "size") ? ` capture--${a(el, "size")}` : ""}`, name: pins.length ? "Capture/Annotated" : "Capture/Default" },
+      pins.length ? h("div", { class: "capture-frame" }, h("img", { src: a(el, "src"), alt: a(el, "label") }), ...pins) : h("img", { src: a(el, "src"), alt: a(el, "label") }),
+      h("figcaption", {}, a(el, "label"), ...caption)));
   });
 
   // <ui-ticket-tree><ui-tree-node number="40" title="…" state="merge" depth="0"></ui-tree-node>…</ui-ticket-tree>
@@ -540,7 +554,7 @@
         h("ui-icon-button", { icon: "expand", label: "Agrandir", class: "only-wide" }),
         h("ui-icon-button", { icon: "x", label: "Fermer", class: "only-wide" }),
         actions.length ? h("div", { class: "session-head-actions" }, ...actions) : null),
-      h("div", { class: "session-crypto" }, icon("lock", "icon icon--sm"), "Chiffrée de bout en bout entre ton Runner et ce navigateur"),
+      h("div", { class: "session-crypto" }, icon("lock", "icon icon--sm"), a(el, "crypto", "Chiffrée de bout en bout entre ton Runner et ce navigateur")),
       h("div", { class: "session-stream" }, ...kids),
       ...composer));
   });
@@ -963,5 +977,116 @@
   define("ui-toast", (el) => {
     const tone = a(el, "tone", "accent");
     el.append(h("div", { class: `toast toast--${tone}`, role: "status", name: `Toast/${cap(tone)}` }, icon(a(el, "icon", "info"), "icon icon--sm"), h("span", {}, ...el.childNodes)));
+  });
+  // 09 Collaboration (Membres, Versions soumises, Avis, Historique, Accès) -----------
+  const initials = (n) => (n || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+
+  // <ui-avatar person="Claire Bernard" size="sm" agent></ui-avatar>
+  // A person's initials; agent: an agent acting for someone (the spark icon).
+  define("ui-avatar", (el) => {
+    const agent = el.hasAttribute("agent");
+    el.append(h("span", { class: `avatar${a(el, "size") === "sm" ? " avatar--sm" : ""}${agent ? " avatar--agent" : ""}${el.hasAttribute("invited") ? " avatar--invited" : ""}`, title: a(el, "person"), "aria-hidden": "true", name: agent ? "Avatar/Agent" : "Avatar/Default" },
+      agent ? icon("spark", "icon icon--sm") : initials(a(el, "person"))));
+  });
+
+  // <ui-member-row name="Claire Bernard" email="claire.bernard@mairie.example" access="Relecteur" meta="depuis le 12 nov." state="active|invited">trailing <… slot="actions"></ui-member-row>
+  // A Membre of a Projet (US-126): who, their Accès (the trailing control: a ui-select, or a badge when it cannot be changed), the actions.
+  // invited: the invitation is sent, not accepted yet (a dashed avatar, « Invitation envoyée »).
+  define("ui-member-row", (el) => {
+    const state = a(el, "state", "active");
+    const acts = take(el, "actions");
+    const trail = rest(el).filter((n) => n.nodeType === 1 || n.textContent.trim());
+    el.append(h("div", { class: `member member--${state}`, name: `MemberRow/${state === "invited" ? "Invited" : "Active"}` },
+      h("ui-avatar", { person: a(el, "name") || a(el, "email"), invited: state === "invited" }),
+      h("div", { class: "member-main" },
+        h("div", { class: "member-name" }, a(el, "name") || a(el, "email"), state === "invited" ? h("span", { class: "badge badge--caution", name: "StatusBadge/Caution", text: "Invitation envoyée" }) : null),
+        h("div", { class: "member-meta", text: [a(el, "name") ? a(el, "email") : null, a(el, "meta")].filter(Boolean).join(" · ") })),
+      trail.length ? h("div", { class: "member-access" }, ...trail) : a(el, "access") ? h("div", { class: "member-access" }, h("span", { class: "badge badge--neutral", name: "StatusBadge/Neutral", text: a(el, "access") })) : null,
+      acts.length ? h("div", { class: "member-actions" }, ...acts) : null));
+  });
+
+  // <ui-pin n="2" x="62" y="18" selected></ui-pin>
+  // A Commentaire's zone on a mockup or a capture (US-130), inside a ui-capture: x and y in % of the image.
+  define("ui-pin", (el) => {
+    const p = h("span", { class: `pin${el.hasAttribute("selected") ? " pin--selected" : ""}${el.hasAttribute("new") ? " pin--new" : ""}`, name: `Pin/${el.hasAttribute("selected") ? "Selected" : "Default"}`, "aria-label": `Commentaire ${a(el, "n", "")}` }, el.hasAttribute("new") ? icon("plus", "icon icon--sm") : a(el, "n"));
+    p.style.left = `${Number(a(el, "x", "50"))}%`;
+    p.style.top = `${Number(a(el, "y", "50"))}%`;
+    el.append(p);
+  });
+
+  // <ui-comment author="Claire Bernard" access="Relecteur" time="il y a 2 h" quote="…" pin="2" zone="Planning · 390" selectable checked>body</ui-comment>
+  // A Commentaire (US-130): on a passage (quote) or a zone (pin and zone). selectable: in « Demander des changements », the box that sends
+  // it to the agent as part of the Retour (US-133), checked by default.
+  define("ui-comment", (el) => {
+    const sel = el.hasAttribute("selectable");
+    const on = el.hasAttribute("checked");
+    const body = h("div", { class: "comment-main" },
+      h("div", { class: "comment-head" },
+        h("ui-avatar", { person: a(el, "author"), size: "sm" }),
+        h("b", { class: "comment-author", text: a(el, "author") }),
+        a(el, "access") ? h("span", { class: "badge badge--neutral", name: "StatusBadge/Neutral", text: a(el, "access") }) : null,
+        h("span", { class: "comment-time", text: a(el, "time") })),
+      a(el, "quote") ? h("blockquote", { class: "comment-quote", text: `« ${a(el, "quote")} »` }) : null,
+      a(el, "pin") ? h("div", { class: "comment-zone" }, h("span", { class: "pin pin--inline" }, a(el, "pin")), a(el, "zone") || "") : null,
+      h("div", { class: "comment-text" }, ...el.childNodes));
+    el.append(h("article", { class: `comment${sel ? " comment--selectable" : ""}${on ? " is-on" : ""}`, name: `Comment/${sel ? "Selectable" : "Default"}` },
+      sel ? h("span", { class: "check-box", role: "checkbox", "aria-checked": on ? "true" : "false", "aria-label": "Envoyer à l’agent" }, on ? icon("check", "icon icon--sm") : null) : null,
+      body));
+  });
+
+  const AVIS = { approuve: ["go", "Approuvé", "check"], changements: ["caution", "Changements demandés", "pen"], attente: ["neutral", "En attente", "clock"] };
+  // <ui-avis-row author="Claire Bernard" opinion="approuve|changements|attente" meta="version 2 · hier · 3 commentaires"></ui-avis-row>
+  // A Relecteur's Avis on a Version soumise (US-131): it informs the Décision, never settles it.
+  define("ui-avis-row", (el) => {
+    const op = a(el, "opinion", "attente");
+    const [tone, label] = AVIS[op];
+    el.append(h("div", { class: "avis", name: `AvisRow/${pascal(op)}` },
+      h("ui-avatar", { person: a(el, "author"), size: "sm" }),
+      h("div", { class: "row-main" }, h("div", { class: "row-title", text: a(el, "author") }),
+        h("div", { class: "avis-line" },
+          h("span", { class: `badge badge--${tone}`, name: `StatusBadge/${cap(tone)}`, text: a(el, "label", label) }),
+          a(el, "meta") ? h("span", { class: "row-meta", text: a(el, "meta") }) : null)),
+      ...el.childNodes));
+  });
+
+  const HIST = { invitation: "user", acces: "lock", retrait: "x", version: "doc", commentaire: "pen", avis: "eye", approbation: "check", merge: "merge", boucle: "loop", process: "layers", source: "plug", decision: "inbox", session: "terminal", parametres: "settings", runner: "server" };
+  // <ui-history-row who="Claire Bernard" kind="avis" time="16:40" for="Inès Martin" agent>a donné son Avis <b>…</b></ui-history-row>
+  // One action of the Historique (US-141, US-142): who, what, when. agent: an agent's action, credited to « for » (who started it).
+  define("ui-history-row", (el) => {
+    const agent = el.hasAttribute("agent");
+    const kind = a(el, "kind", "decision");
+    el.append(h("div", { class: `history${agent ? " history--agent" : ""}`, name: `HistoryRow/${agent ? "Agent" : "Person"}` },
+      h("span", { class: "row-icon" }, icon(HIST[kind] || "info")),
+      h("div", { class: "row-main" },
+        h("div", { class: "history-text" }, h("b", { text: a(el, "who") }), " ", ...el.childNodes),
+        h("div", { class: "row-meta", text: [a(el, "time"), agent && a(el, "for") ? `pour ${a(el, "for")}` : null, a(el, "meta")].filter(Boolean).join(" · ") }))));
+  });
+
+  // <ui-access-row name="Relecteur" default droits="Commenter, rendre un Avis" members="3 Membres · 2 Projets" selected>actions</ui-access-row>
+  // An Accès of the Pilote's account (US-127): the four by default never change (a lock), the Pilote's own are theirs.
+  define("ui-access-row", (el) => {
+    const def = el.hasAttribute("default");
+    el.append(h("div", { class: `access-row${el.hasAttribute("selected") ? " access-row--selected" : ""}`, name: `AccessRow/${def ? "Default" : "Custom"}` },
+      h("span", { class: "row-icon" }, icon(def ? "lock" : "user")),
+      h("div", { class: "row-main" },
+        h("div", { class: "row-title" }, a(el, "name"), def ? h("span", { class: "badge badge--neutral", name: "StatusBadge/Neutral", text: "par défaut" }) : null),
+        a(el, "droits") ? h("div", { class: "access-droits", text: a(el, "droits") }) : null,
+        a(el, "members") ? h("div", { class: "row-meta", text: a(el, "members") }) : null),
+      h("div", { class: "list-row-trail" }, ...el.childNodes)));
+  });
+
+  // <ui-droit mode="read|edit" checked state="disabled" help="…">Lire l’Historique</ui-droit>
+  // One Droit of an Accès: read, a check or a dash; edit, a box (disabled: always given, « Lire les Versions soumises »,
+  // or not grantable: a Droit the person does not hold).
+  define("ui-droit", (el) => {
+    const on = el.hasAttribute("checked");
+    const edit = a(el, "mode", "read") === "edit";
+    const dis = a(el, "state") === "disabled";
+    const mark = edit
+      ? h("span", { class: "check-box", role: "checkbox", "aria-checked": on ? "true" : "false" }, on ? icon("check", "icon icon--sm") : null)
+      : h("span", { class: `droit-mark${on ? " droit-mark--on" : ""}` }, icon(on ? "check" : "minus", "icon icon--sm"));
+    el.append(h("div", { class: `droit${on ? " is-on" : ""}${dis ? " is-disabled" : ""}${edit ? " droit--edit" : ""}`, name: `Droit/${on ? "Granted" : "Denied"}` },
+      mark,
+      h("span", { class: "droit-text" }, h("span", { class: "droit-label" }, ...el.childNodes), a(el, "help") ? h("span", { class: "droit-help", text: a(el, "help") }) : null)));
   });
 })();

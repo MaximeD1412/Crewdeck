@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revue visuelle — #47 Actualités en page d’accueil · Avis des Relecteurs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* Review pages: the decision buttons in a bar at the bottom on the phone, in the header on the PC */
+  .review-head-actions { display: none; }
+  .review-bar {
+    position: sticky; bottom: var(--tab-bar); z-index: 2; display: flex; gap: var(--space-2);
+    margin: 0 calc(var(--space-4) * -1) calc(var(--space-8) * -1); padding: var(--space-3) var(--space-4);
+    background: var(--side); border-top: 1px solid var(--line);
+  }
+  .review-bar > ui-button { flex: 1 1 0; min-width: 0; display: flex; }
+  .review-bar .button { flex: 1; min-width: 0; height: auto; min-height: var(--touch); white-space: normal; text-align: center; padding: var(--space-1) var(--space-2); }
+  .review { display: flex; flex-direction: column; gap: var(--space-4); }
+  .review-opinion { order: 0; }
+  .viewer { order: 1; }
+  .review-facts { order: 2; }
+  .viewer { display: flex; flex-direction: column; gap: var(--space-3); }
+  .viewer-switch { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+  .viewer-switch ui-tabs .tabs { margin: 0; padding: 0; border-bottom: 0; }
+  .viewer-widths { display: flex; gap: var(--space-2); }
+  .pairs { display: none; }
+  .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+  /* The Avis and the comments: first on the phone, above the facts on the PC */
+  .review-opinion { display: flex; flex-direction: column; gap: var(--space-4); }
+  .avis-summary { color: var(--ink); font: var(--font-title-weight) var(--font-label-size)/var(--font-title-line-height) var(--font-title-family), sans-serif; }
+  @media (min-width: 1280px) {
+    .review-head-actions { display: flex; gap: var(--space-2); }
+    .review-bar { display: none; }
+    .review { gap: var(--space-6); }
+    .review-opinion { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6); align-items: start; }
+    .review-opinion, .viewer, .review-facts { order: 0; }
+    .viewer { display: none; }
+    .pairs { display: flex; flex-direction: column; gap: var(--space-6); order: 1; }
+    .pair--phone { grid-template-columns: repeat(2, var(--capture-w-lg)); justify-content: start; gap: var(--space-6); }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : Projet « Site mairie », Ticket #47, PR, Membres, heures et commentaires fictifs ; les captures sont des schémas -->
+<ui-app-shell screen="Revue visuelle" current="a-toi" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="#47 Actualités en page d’accueil" count="Site mairie · revue visuelle" back="À toi" screen="Revue visuelle">
+    <div class="review-head-actions">
+      <ui-button variant="secondary" icon="pen">Demander des changements</ui-button>
+      <ui-button variant="primary" icon="merge">Approuver et merger</ui-button>
+    </div>
+  </ui-page-header>
+  <ui-banner tone="accent" icon="loop" title="La Boucle continue sans toi">Pendant ta revue, la Boucle avance sur les Tickets de Site mairie qui ne dépendent pas de #47.</ui-banner>
+  <ui-tabs>
+    <ui-tab selected count="2">Accueil</ui-tab>
+    <ui-tab>Accueil · vide</ui-tab>
+  </ui-tabs>
+  <div class="review">
+    <div class="review-opinion">
+      <ui-card title="Avis des Relecteurs" label="Revue visuelle / Avis">
+        <p class="avis-summary">Avis client : approuvé par Claire, version 1 · 2 commentaires</p>
+        <ui-avis-row author="Claire Bernard" opinion="approuve" meta="version 1 · 21:10"></ui-avis-row>
+        <p class="text-sm muted">Son Avis éclaire ta décision sans la prendre : «&nbsp;Approuver et merger&nbsp;» reste la tienne.</p>
+      </ui-card>
+      <ui-card title="Commentaires sur cet écran" count="2" label="Revue visuelle / Commentaires">
+        <ui-comment author="Claire Bernard" access="Relecteur" time="version 1 · 21:05" pin="1" zone="Livré · 390 · Accueil">Les dates se lisent bien avant les titres, c’est ce qu’on voulait.</ui-comment>
+        <ui-comment author="Inès Martin" access="Contributeur" time="version 1 · 20:30" pin="2" zone="Livré · 1280 · Accueil">Sur le PC, la photo de la première actualité est coupée en haut.</ui-comment>
+      </ui-card>
+    </div>
+    <div class="grid-2 review-facts">
+      <ui-card title="Avant toi" label="Revue visuelle / Avant toi">
+        <ui-check-row name="Checks" state="passed" detail="4 sur 4"></ui-check-row>
+        <ui-check-row name="Review" state="passed" detail="Codex · aucune remarque"></ui-check-row>
+      </ui-card>
+      <ui-card title="Pull request" label="Revue visuelle / Pull request">
+        <ui-key-value>
+          <ui-kv label="PR"><span class="mono">#18</span></ui-kv>
+          <ui-kv label="Branche"><span class="mono">feat/47-actualites-accueil</span></ui-kv>
+          <ui-kv label="Captures">2 écrans · 4 captures</ui-kv>
+          <ui-kv label="Version soumise">1 · à Claire Bernard</ui-kv>
+        </ui-key-value>
+        <div class="cluster"><ui-button variant="ghost" size="sm" icon="external">Voir sur GitHub</ui-button></div>
+      </ui-card>
+    </div>
+    <section class="viewer" aria-label="Revue visuelle / Capture" data-name="Revue visuelle / Capture">
+      <div class="viewer-switch">
+        <ui-tabs><ui-tab>Maquette</ui-tab><ui-tab selected>Livré</ui-tab></ui-tabs>
+        <div class="viewer-widths" role="group" aria-label="Largeur"><ui-chip selected>390</ui-chip><ui-chip>1280</ui-chip></div>
+      </div>
+      <ui-capture src="../../assets/capture-planning-livre-390.svg" label="Livré · 390 · Accueil"><ui-pin n="1" x="30" y="9"></ui-pin></ui-capture>
+    </section>
+    <div class="pairs">
+      <ui-card title="Téléphone · 390" label="Revue visuelle / Téléphone">
+        <div class="pair pair--phone">
+          <ui-capture src="../../assets/capture-planning-maquette-390.svg" label="Maquette"></ui-capture>
+          <ui-capture src="../../assets/capture-planning-livre-390.svg" label="Livré"><ui-pin n="1" x="30" y="9"></ui-pin></ui-capture>
+        </div>
+      </ui-card>
+      <ui-card title="PC · 1280" label="Revue visuelle / PC">
+        <div class="pair">
+          <ui-capture src="../../assets/capture-planning-maquette-1280.svg" label="Maquette"></ui-capture>
+          <ui-capture src="../../assets/capture-planning-livre-1280.svg" label="Livré"><ui-pin n="2" x="40" y="22"></ui-pin></ui-capture>
+        </div>
+      </ui-card>
+    </div>
+  </div>
+  <div class="review-bar" aria-label="Revue visuelle / Décision" data-name="Revue visuelle / Décision">
+    <ui-button variant="secondary" icon="pen">Demander des changements</ui-button>
+    <ui-button variant="primary" icon="merge">Approuver et merger</ui-button>
+  </div>
+</ui-app-shell>
+</body>
+</html>

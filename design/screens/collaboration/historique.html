@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Historique — Site mairie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* The filters folded above the list on the phone, an open aside on the PC */
+  .history-page { display: flex; flex-direction: column; gap: var(--space-4); }
+  .filters { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+  .filters > summary { display: flex; align-items: center; gap: var(--space-3); min-height: var(--touch); padding: var(--space-2) var(--space-4); list-style: none; cursor: pointer; }
+  .filters > summary::-webkit-details-marker { display: none; }
+  .filters-title { display: flex; flex-direction: column; min-width: 0; }
+  .filters-title b { color: var(--ink); font: var(--font-label-weight) var(--font-label-size)/var(--font-label-line-height) var(--font-label-family), sans-serif; }
+  .filters-title span { color: var(--muted); font: var(--font-caption-weight) var(--font-caption-size)/var(--font-caption-line-height) var(--font-caption-family), sans-serif; }
+  .filters > summary .filters-chevron { margin-left: auto; display: flex; color: var(--muted); }
+  .filters[open] > summary .filters-chevron { transform: rotate(180deg); }
+  .filters-body { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-2) var(--space-4) var(--space-4); border-top: 1px solid var(--line); }
+  .filters .chips { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0; }
+  .filter-group { display: flex; flex-direction: column; gap: var(--space-2); }
+  /* The kinds of action under short headings, so that an Avis (a Relecteur's) and an approval (who decides) are not confused */
+  .filter-sub { display: flex; flex-direction: column; gap: var(--space-1); margin-top: var(--space-1); }
+  .filter-sub-title { margin: 0; color: var(--muted); font: var(--font-caption-weight) var(--font-caption-size)/var(--font-caption-line-height) var(--font-caption-family), sans-serif; }
+  .history-list .history-day:first-child { border-top: 0; }
+  .history-more { padding: var(--space-3) var(--space-4); border-top: 1px solid var(--line); }
+  @media (min-width: 1280px) {
+    .history-page { display: grid; grid-template-columns: minmax(0, 1fr) var(--aside-width); gap: var(--space-6); align-items: start; }
+    .history-list { grid-column: 1; grid-row: 1; }
+    .filters { grid-column: 2; grid-row: 1; position: sticky; top: var(--space-8); }
+    .filters > summary { pointer-events: none; }
+    .filters > summary .filters-chevron { display: none; }
+    .filters::details-content { content-visibility: visible; display: block; }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : Membres, actions, Tickets et heures fictifs -->
+<ui-app-shell screen="Historique" current="projets" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Historique" back="Site mairie" count="Site mairie" screen="Historique">
+    <span slot="sub">Qui a fait quoi, et quand. L’action d’un agent est créditée à qui l’a lancée ; les raisons des Décisions sont dans le Journal des Décisions.</span>
+  </ui-page-header>
+  <div class="history-page">
+    <details class="filters" aria-label="Historique / Filtres" data-name="Historique / Filtres">
+      <summary>
+        <span class="row-icon"><ui-icon name="sliders"></ui-icon></span>
+        <span class="filters-title"><b>Filtres</b><span>Tout le monde · toutes les actions</span></span>
+        <span class="filters-chevron"><ui-icon name="chevron-down"></ui-icon></span>
+      </summary>
+      <div class="filters-body">
+        <div class="filter-group">
+          <h2 class="section-label">Personne</h2>
+          <div class="chips" role="group" aria-label="Filtrer par personne">
+            <ui-chip selected>Tout le monde</ui-chip>
+            <ui-chip>Maxime</ui-chip>
+            <ui-chip>Claire Bernard</ui-chip>
+            <ui-chip>Inès Martin</ui-chip>
+            <ui-chip>Paul Leroy</ui-chip>
+            <ui-chip>Lucas Moreau</ui-chip>
+          </div>
+        </div>
+        <div class="filter-group">
+          <h2 class="section-label">Type d’action</h2>
+          <div class="chips" role="group" aria-label="Toutes les actions"><ui-chip selected>Toutes</ui-chip></div>
+          <div class="filter-sub">
+            <h3 class="filter-sub-title">Membres</h3>
+            <div class="chips" role="group" aria-label="Filtrer par type d’action : Membres">
+              <ui-chip>Invitation</ui-chip>
+              <ui-chip>Accès</ui-chip>
+            </div>
+          </div>
+          <div class="filter-sub">
+            <h3 class="filter-sub-title">Revue</h3>
+            <div class="chips" role="group" aria-label="Filtrer par type d’action : Revue">
+              <ui-chip>Version soumise</ui-chip>
+              <ui-chip>Commentaire</ui-chip>
+              <ui-chip>Avis</ui-chip>
+            </div>
+          </div>
+          <div class="filter-sub">
+            <h3 class="filter-sub-title">Décisions</h3>
+            <div class="chips" role="group" aria-label="Filtrer par type d’action : Décisions">
+              <ui-chip>Approbation</ui-chip>
+              <ui-chip>Merge</ui-chip>
+              <ui-chip>Décision</ui-chip>
+            </div>
+          </div>
+          <div class="filter-sub">
+            <h3 class="filter-sub-title">Boucle et Process</h3>
+            <div class="chips" role="group" aria-label="Filtrer par type d’action : Boucle et Process">
+              <ui-chip>Boucle</ui-chip>
+              <ui-chip>Session</ui-chip>
+              <ui-chip>Process et Sources</ui-chip>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
+    <ui-card class="history-list" flush label="Historique / Actions">
+      <h2 class="history-day section-label">Aujourd’hui · vendredi 20 nov.</h2>
+      <ui-history-row who="Agent de Conception" kind="session" time="17:10" for="Maxime" agent>a modifié le <b>PRD «&nbsp;Actualités&nbsp;»</b> avec le Retour de la version 2</ui-history-row>
+      <ui-history-row who="Maxime" kind="decision" time="16:55">a demandé des changements sur le <b>PRD «&nbsp;Actualités&nbsp;»</b> · version 2, avec 1 commentaire comme Retour</ui-history-row>
+      <ui-history-row who="Maxime" kind="commentaire" time="16:52">a commenté le <b>PRD «&nbsp;Actualités&nbsp;»</b> · version 2</ui-history-row>
+      <ui-history-row who="Claire Bernard" kind="avis" time="16:40">a donné son Avis <b>approuvé</b> sur le PRD «&nbsp;Actualités&nbsp;» · version 2</ui-history-row>
+      <ui-history-row who="Claire Bernard" kind="commentaire" time="16:38">a commenté le <b>PRD «&nbsp;Actualités&nbsp;»</b> · version 2</ui-history-row>
+      <ui-history-row who="Inès Martin" kind="decision" time="11:05">a tranché la Décision <b>#48 Formulaire de contact · Ticket bloqué</b></ui-history-row>
+      <ui-history-row who="Agent de Code" kind="merge" time="03:12" for="Inès Martin" agent>a mergé <b>#46 Plan d’accès à la mairie</b></ui-history-row>
+      <ui-history-row who="Inès Martin" kind="boucle" time="01:00">a démarré la <b>Boucle</b></ui-history-row>
+      <h2 class="history-day section-label">Hier · jeudi 19 nov.</h2>
+      <ui-history-row who="Maxime" kind="acces" time="18:20">a changé l’Accès d’<b>Inès Martin</b> : Contributeur → Co-pilote</ui-history-row>
+      <ui-history-row who="Maxime" kind="process" time="17:45">a activé la version 4 du <b>Process</b></ui-history-row>
+      <ui-history-row who="Maxime" kind="source" time="17:30">a changé la Source des <b>Maquettes</b> : GitHub → Local</ui-history-row>
+      <ui-history-row who="Maxime" kind="invitation" time="09:30">a invité <b>paul.leroy@mairie.example</b> avec l’Accès Relecteur</ui-history-row>
+      <h2 class="history-day section-label">Mercredi 18 nov.</h2>
+      <ui-history-row who="Maxime" kind="version" time="17:00">a soumis le <b>PRD «&nbsp;Actualités&nbsp;» · version 2</b> à Claire Bernard</ui-history-row>
+      <ui-history-row who="Maxime" kind="retrait" time="10:15">a retiré <b>Lucas Moreau</b> du Projet</ui-history-row>
+      <h2 class="history-day section-label">Mardi 17 nov.</h2>
+      <ui-history-row who="Agent de Conception" kind="session" time="18:05" for="Maxime" agent>a modifié le <b>PRD «&nbsp;Actualités&nbsp;»</b> avec le Retour de la version 1</ui-history-row>
+      <ui-history-row who="Maxime" kind="approbation" time="15:20">a approuvé la revue visuelle de <b>#44 Agenda des événements</b></ui-history-row>
+      <h2 class="history-day section-label">Samedi 14 nov.</h2>
+      <ui-history-row who="Maxime" kind="decision" time="12:10">a demandé des changements sur le <b>PRD «&nbsp;Actualités&nbsp;»</b> · version 1, avec 4 commentaires comme Retour, dont 3 de Claire Bernard</ui-history-row>
+      <ui-history-row who="Claire Bernard" kind="avis" time="11:45">a donné son Avis <b>changements demandés</b> sur le PRD «&nbsp;Actualités&nbsp;» · version 1</ui-history-row>
+      <ui-history-row who="Claire Bernard" kind="commentaire" time="11:40">a laissé <b>3 commentaires</b> sur le PRD «&nbsp;Actualités&nbsp;» · version 1</ui-history-row>
+      <div class="history-more"><ui-button variant="ghost" size="sm" icon="chevron-down">Jours précédents</ui-button></div>
+    </ui-card>
+  </div>
+</ui-app-shell>
+</body>
+</html>

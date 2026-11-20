@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>À toi — Relecteur, rien ne t’attend</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+</head>
+<body>
+<!-- exemple : Relecteur Claire Bernard -->
+<ui-app-shell screen="À toi" current="a-toi" nav="a-toi,projets,parametres" runner="none" me="Claire Bernard">
+  <ui-page-header title="À toi" count="0 version à relire"></ui-page-header>
+  <div class="layout">
+    <ui-card title="À relire" count="0" label="À toi / À relire">
+      <ui-empty icon="inbox" title="Rien ne t’attend">Quand une version te sera soumise, elle apparaîtra ici, et un email « Une version attend ton avis » te préviendra à claire.bernard@mairie.example.</ui-empty>
+    </ui-card>
+  </div>
+</ui-app-shell>
+</body>
+</html>

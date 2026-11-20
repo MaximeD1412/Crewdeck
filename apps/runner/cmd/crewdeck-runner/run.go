@@ -292,6 +292,9 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		Dir:    store.Dir,
 		Logger: logger,
 	}
+	// The migrations of Source (SOURCE-8), said in the hello.
+	migrating := migrations(store.Dir, linked.Server, linked.Token, locals, vault, send, logger)
+	described.Migrations = runnerMigrations
 	for {
 		client := follower.NewClient(protocol.Config{
 			Server:  linked.Server,
@@ -318,6 +321,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 		merges.Register(client)
 		projectFolders.Register(client)
 		commands.Register(client)
+		migrating.Register(ctx, client)
 		artifacts.Register(ctx, client)
 		rotations.register(ctx, client)
 		current.Store(client)

@@ -257,3 +257,31 @@ func TestServerTokensAsksTheSessionsTokenWithTheRunnersToken(t *testing.T) {
 		t.Fatalf("requests %q, want %q", seen, want)
 	}
 }
+
+func TestMigrationTokensAsksTheMigrationsTokenWithTheRunnersTokenAndSaysOneNotRunning(t *testing.T) {
+	expires := time.Date(2026, 11, 20, 11, 0, 0, 0, time.UTC)
+	var seen []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = append(seen, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
+		if r.URL.Path == "/api/runner/source-migrations/m-1/github-token" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"token": "ghs_migration", "expiresAt": expires})
+			return
+		}
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`{"status":422,"code":"source-migration.not-running","message":"…"}`))
+	}))
+	t.Cleanup(server.Close)
+	tokens := github.MigrationTokens{Server: server.URL, RunnerToken: "runner-token"}
+
+	token, err := tokens.Token("m-1").Token(context.Background())
+	if err != nil || token != "ghs_migration" {
+		t.Fatalf("Token = %q, %v", token, err)
+	}
+	if _, err := tokens.Fetch(context.Background(), "m-2"); !errors.Is(err, github.ErrMigrationNotRunning) || strings.Contains(err.Error(), "ghs_") {
+		t.Fatalf("Fetch of a migration not running: %v", err)
+	}
+	want := "POST /api/runner/source-migrations/m-1/github-token Bearer runner-token\nPOST /api/runner/source-migrations/m-2/github-token Bearer runner-token"
+	if strings.Join(seen, "\n") != want {
+		t.Fatalf("requests %q", seen)
+	}
+}

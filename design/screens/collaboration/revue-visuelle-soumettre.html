@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revue visuelle — #47 Actualités en page d’accueil · Soumettre à un Relecteur</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* Review pages: the decision buttons in a bar at the bottom on the phone, in the header on the PC */
+  .review-head-actions { display: none; }
+  .review-bar {
+    position: sticky; bottom: var(--tab-bar); z-index: 2; display: flex; gap: var(--space-2);
+    margin: 0 calc(var(--space-4) * -1) calc(var(--space-8) * -1); padding: var(--space-3) var(--space-4);
+    background: var(--side); border-top: 1px solid var(--line);
+  }
+  .review-bar > ui-button { flex: 1 1 0; min-width: 0; display: flex; }
+  .review-bar .button { flex: 1; min-width: 0; height: auto; min-height: var(--touch); white-space: normal; text-align: center; padding: var(--space-1) var(--space-2); }
+  .review { display: flex; flex-direction: column; gap: var(--space-4); }
+  .review-opinion { order: 0; }
+  .viewer { order: 1; }
+  .review-facts { order: 2; }
+  .viewer { display: flex; flex-direction: column; gap: var(--space-3); }
+  .viewer-switch { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+  .viewer-switch ui-tabs .tabs { margin: 0; padding: 0; border-bottom: 0; }
+  .viewer-widths { display: flex; gap: var(--space-2); }
+  .pairs { display: none; }
+  .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+  /* The Avis and the comments: first on the phone, above the facts on the PC */
+  .review-opinion { display: flex; flex-direction: column; gap: var(--space-4); }
+  .avis-summary { color: var(--ink); font: var(--font-title-weight) var(--font-label-size)/var(--font-title-line-height) var(--font-title-family), sans-serif; }
+  @media (min-width: 1280px) {
+    .review-head-actions { display: flex; gap: var(--space-2); }
+    .review-bar { display: none; }
+    .review { gap: var(--space-6); }
+    .review-opinion { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6); align-items: start; }
+    .review-opinion, .viewer, .review-facts { order: 0; }
+    .viewer { display: none; }
+    .pairs { display: flex; flex-direction: column; gap: var(--space-6); order: 1; }
+    .pair--phone { grid-template-columns: repeat(2, var(--capture-w-lg)); justify-content: start; gap: var(--space-6); }
+  }
+  /* The first submission: three actions in the bar on the phone */
+  .review-bar .button { padding: var(--space-2); }
+  /* The dialog: the Membres to pick, each with their Accès */
+  .pick { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+  .pick-name { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+  .pick b { color: var(--ink); font-weight: 600; }
+</style>
+</head>
+<body>
+<!-- exemple : Projet « Site mairie », Ticket #47, PR, Membres fictifs ; première soumission de la revue visuelle ; les captures sont des schémas -->
+<ui-app-shell screen="Revue visuelle" current="a-toi" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="#47 Actualités en page d’accueil" count="Site mairie · revue visuelle" back="À toi" screen="Revue visuelle">
+    <div class="review-head-actions">
+      <ui-button variant="secondary" icon="send">Soumettre à un Relecteur</ui-button>
+      <ui-button variant="secondary" icon="pen">Demander des changements</ui-button>
+      <ui-button variant="primary" icon="merge">Approuver et merger</ui-button>
+    </div>
+  </ui-page-header>
+  <ui-banner tone="accent" icon="loop" title="La Boucle continue sans toi">Pendant ta revue, la Boucle avance sur les Tickets de Site mairie qui ne dépendent pas de #47.</ui-banner>
+  <ui-tabs>
+    <ui-tab selected>Accueil</ui-tab>
+    <ui-tab>Accueil · vide</ui-tab>
+  </ui-tabs>
+  <div class="review">
+    <div class="grid-2 review-facts">
+      <ui-card title="Avant toi" label="Revue visuelle / Avant toi">
+        <ui-check-row name="Checks" state="passed" detail="4 sur 4"></ui-check-row>
+        <ui-check-row name="Review" state="passed" detail="Codex · aucune remarque"></ui-check-row>
+      </ui-card>
+      <ui-card title="Pull request" label="Revue visuelle / Pull request">
+        <ui-key-value>
+          <ui-kv label="PR"><span class="mono">#18</span></ui-kv>
+          <ui-kv label="Branche"><span class="mono">feat/47-actualites-accueil</span></ui-kv>
+          <ui-kv label="Captures">2 écrans · 4 captures</ui-kv>
+        </ui-key-value>
+        <div class="cluster"><ui-button variant="ghost" size="sm" icon="external">Voir sur GitHub</ui-button></div>
+      </ui-card>
+    </div>
+    <section class="viewer" aria-label="Revue visuelle / Capture" data-name="Revue visuelle / Capture">
+      <div class="viewer-switch">
+        <ui-tabs><ui-tab>Maquette</ui-tab><ui-tab selected>Livré</ui-tab></ui-tabs>
+        <div class="viewer-widths" role="group" aria-label="Largeur"><ui-chip selected>390</ui-chip><ui-chip>1280</ui-chip></div>
+      </div>
+      <ui-capture src="../../assets/capture-planning-livre-390.svg" label="Livré · 390 · Accueil"></ui-capture>
+    </section>
+    <div class="pairs">
+      <ui-card title="Téléphone · 390" label="Revue visuelle / Téléphone">
+        <div class="pair pair--phone">
+          <ui-capture src="../../assets/capture-planning-maquette-390.svg" label="Maquette"></ui-capture>
+          <ui-capture src="../../assets/capture-planning-livre-390.svg" label="Livré"></ui-capture>
+        </div>
+      </ui-card>
+      <ui-card title="PC · 1280" label="Revue visuelle / PC">
+        <div class="pair">
+          <ui-capture src="../../assets/capture-planning-maquette-1280.svg" label="Maquette"></ui-capture>
+          <ui-capture src="../../assets/capture-planning-livre-1280.svg" label="Livré"></ui-capture>
+        </div>
+      </ui-card>
+    </div>
+  </div>
+  <div class="review-bar" aria-label="Revue visuelle / Décision" data-name="Revue visuelle / Décision">
+    <ui-button variant="secondary">Soumettre à un Relecteur</ui-button>
+    <ui-button variant="secondary">Demander des changements</ui-button>
+    <ui-button variant="primary">Approuver et merger</ui-button>
+  </div>
+  <ui-dialog slot="overlay" title="À qui la soumettre">
+    <p>Les captures de cette revue visuelle deviennent la <b>version 1</b> : une copie figée et chiffrée, lue même quand toutes tes machines sont éteintes, sans accès à leur Source.</p>
+    <ui-key-value>
+      <ui-kv label="Revue visuelle">#47 Actualités en page d’accueil</ui-kv>
+      <ui-kv label="Captures">2 écrans · 4 captures</ui-kv>
+      <ui-kv label="Version">1 · première soumission</ui-kv>
+    </ui-key-value>
+    <section class="stack-sm" aria-label="Soumettre / Membres" data-name="Soumettre / Membres">
+      <h3 class="section-label">Membres de Site mairie</h3>
+      <ui-checkbox checked><span class="pick"><span class="pick-name"><b>Claire Bernard</b><span class="badge badge--neutral">Relecteur</span></span></span></ui-checkbox>
+      <ui-checkbox><span class="pick"><span class="pick-name"><b>Inès Martin</b><span class="badge badge--neutral">Contributeur</span></span></span></ui-checkbox>
+    </section>
+    <p class="muted">Chaque Membre choisi la trouve dans son «&nbsp;À toi&nbsp;», un Relecteur aussi par email. Son Avis restera sur la version 1.</p>
+    <ui-button slot="actions" variant="ghost">Annuler</ui-button>
+    <ui-button slot="actions" variant="primary" icon="send">Soumettre la version 1</ui-button>
+  </ui-dialog>
+</ui-app-shell>
+</body>
+</html>

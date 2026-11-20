@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>À toi — Co-pilote</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* On the phone a row's context and meta may take a second line rather than be cut: why it waits is what the row says */
+  .row--decision .row-context { -webkit-line-clamp: 2; }
+  .row--decision .row-meta { white-space: normal; }
+</style>
+</head>
+<body>
+<!-- exemple : Inès Martin, Co-pilote du Projet « Site mairie » de Maxime ; Tickets, heures et session fictifs -->
+<ui-app-shell screen="À toi" current="a-toi" nav="a-toi,idees,conceptions,boucle,planning,projets,parametres" runner="none" me="Inès Martin" decisions="1" loops="1">
+  <ui-page-header title="À toi" count="1 Décision">
+    <ui-button variant="primary" icon="plus">Noter une Idée</ui-button>
+  </ui-page-header>
+  <div class="layout">
+    <div class="stack-sm">
+      <ui-card title="Décisions" count="1" label="À toi / Décisions" flush>
+        <ui-decision-row tone="accent" icon="eye" kind="Revue visuelle" title="#47 Actualités en page d’accueil" meta="Site mairie · il y a 20 min">Maxime peut aussi la trancher : la première réponse vaut pour tous.<ui-button slot="actions" size="sm" variant="primary">Relire</ui-button></ui-decision-row>
+      </ui-card>
+      <ui-card title="Réglées par un autre" count="1" label="À toi / Réglées" flush>
+        <ui-decision-row tone="neutral" icon="shield" kind="Permission demandée" title="Code · #48 Archives des actualités" meta="Site mairie · il y a 6 min"><ui-status-badge tone="go">Réglée par Maxime</ui-status-badge> Autorisée : <code>git push origin feat/48-archives-des-actualites</code><ui-button slot="actions" size="sm">Voir</ui-button></ui-decision-row>
+      </ui-card>
+    </div>
+    <div class="layout-aside">
+      <ui-card title="Boucles en cours" count="1" label="À toi / Boucles en cours">
+        <ui-agent-row projet="Site mairie" ticket="#48 Archives des actualités" step="en review" engine="Claude Code" since="depuis 4 min"></ui-agent-row>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

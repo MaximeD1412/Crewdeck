@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ticket — commenté par les Membres</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* The layout of crewdeck/ticket.html; « Commenter » in a bar at the bottom on the phone, under the comments on the PC */
+  .ticket-comments { order: -1; }
+  .ticket-track { order: 0; }
+  .new-comment { display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+  .new-comment > ui-button { display: none; }
+  .comment-rule { display: flex; gap: var(--space-2); align-items: flex-start; color: var(--muted); }
+  .comment-rule .icon { flex: none; margin-top: var(--space-1); }
+  .comment-bar {
+    position: sticky; bottom: var(--tab-bar); z-index: 2; display: flex;
+    margin: var(--space-4) calc(var(--space-4) * -1) calc(var(--space-8) * -1); padding: var(--space-3) var(--space-4);
+    background: var(--side); border-top: 1px solid var(--line);
+  }
+  .comment-bar > ui-button { flex: 1 1 0; min-width: 0; }
+  .comment-bar .button { width: 100%; min-height: var(--touch); }
+  @media (min-width: 1280px) {
+    .ticket-comments { order: 0; }
+    .new-comment > ui-button { display: contents; }
+    .new-comment .button { align-self: flex-start; }
+    .comment-bar { display: none; }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : Ticket, commentaires, branche et heures fictifs ; la scène est le 18 nov., quand Inès Martin est encore Contributeur de Site mairie (Co-pilote à partir du 19 nov.) -->
+<!-- Ce que l’Accès Contributeur ne donne pas est absent : ni approbation, ni pilotage de la Session, ni merge -->
+<ui-app-shell screen="Ticket" current="boucle" runner="none" nav="a-toi,idees,conceptions,boucle,planning,projets,parametres" me="Inès Martin" decisions="1" ideas="3">
+  <ui-page-header title="#47 Actualités en page d’accueil" count="Site mairie" back="Boucle" screen="Ticket">
+    <ui-button variant="secondary" icon="terminal">Lire la Session</ui-button>
+  </ui-page-header>
+  <div class="layout">
+    <div class="layout-main">
+      <ui-card title="Commentaires" count="3" label="Ticket / Commentaires" class="ticket-comments">
+        <ui-comment author="Maxime" access="Pilote" time="hier · 18:10">Le PRD «&nbsp;Actualités&nbsp;» demande les trois dernières actualités, chacune avec sa date et sa photo. C’est ce que fait ce Ticket.</ui-comment>
+        <ui-comment author="Inès Martin" access="Contributeur" time="il y a 50 min">Sur le téléphone, les trois actualités prennent tout l’écran. J’ai noté l’Idée #67 pour n’en montrer qu’une, avec « Voir les autres ».</ui-comment>
+        <ui-comment author="Maxime" access="Pilote" time="il y a 20 min">Merci, on la trie à part. Ce Ticket garde les trois actualités, comme le PRD.</ui-comment>
+        <div class="new-comment" aria-label="Ticket / Nouveau commentaire" data-name="Ticket / Nouveau commentaire">
+          <ui-text-field label="Commenter ce Ticket" placeholder="Ce que tu en penses" multiline rows="3"></ui-text-field>
+          <p class="comment-rule text-sm"><ui-icon name="info" size="sm"></ui-icon><span>Un commentaire ne va à l’agent que si la personne qui demande des changements le choisit dans son Retour.</span></p>
+          <ui-button variant="primary" icon="send">Commenter</ui-button>
+        </div>
+      </ui-card>
+      <ui-card title="Avancement" label="Ticket / Avancement" class="ticket-track">
+        <ui-process-track>
+          <ui-step state="current" label="Code" meta="Codex · depuis 12 min"></ui-step>
+          <ui-step state="todo" label="Checks" meta="tests, lint, types, build"></ui-step>
+          <ui-step state="todo" label="Review" meta="Claude Code"></ui-step>
+          <ui-step state="todo" label="Merge" meta="par la Boucle, dès que la review passe"></ui-step>
+        </ui-process-track>
+      </ui-card>
+    </div>
+    <div class="layout-aside">
+      <ui-card title="Ticket" label="Ticket / Ticket">
+        <ui-key-value>
+          <ui-kv label="Conception">PRD «&nbsp;Actualités&nbsp;»</ui-kv>
+          <ui-kv label="Jalon">Actualités</ui-kv>
+          <ui-kv label="Branche"><span class="mono">feat/47-actualites-accueil</span></ui-kv>
+          <ui-kv label="Boucle">démarrée par Maxime</ui-kv>
+        </ui-key-value>
+      </ui-card>
+    </div>
+  </div>
+  <div class="comment-bar" aria-label="Ticket / Actions" data-name="Ticket / Actions"><ui-button variant="primary" icon="send">Commenter</ui-button></div>
+</ui-app-shell>
+</body>
+</html>

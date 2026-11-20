@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rejoindre un Projet — lien envoyé</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .join { gap: var(--space-5); }
+  .join .banner b.mono { color: var(--ink); }
+</style>
+</head>
+<body>
+<!-- exemple : Pilote, Projet et adresse fictifs -->
+<ui-app-shell variant="bare" screen="Rejoindre un Projet">
+  <section class="join stack" aria-label="Rejoindre un Projet / Lien envoyé" data-name="Rejoindre un Projet / Lien envoyé">
+    <div class="stack-sm">
+      <span class="section-label">Invitation de Maxime · Site mairie</span>
+      <h1 class="page-title">Regarde ta boîte mail</h1>
+    </div>
+    <ui-banner tone="go" icon="send" title="Lien de connexion envoyé">Un lien est parti à <b class="mono">paul.leroy@mairie.example</b>. Ouvre-le : Site mairie s’ouvre une fois la connexion faite.<ui-button slot="actions" size="sm" variant="ghost" icon="pen">Changer d’adresse</ui-button></ui-banner>
+    <div class="stack-sm">
+      <ui-button variant="ghost" icon="arrow-left" wide>Me connecter avec Google ou GitHub</ui-button>
+    </div>
+  </section>
+</ui-app-shell>
+</body>
+</html>

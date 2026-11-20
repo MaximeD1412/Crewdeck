@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Version soumise — PRD · Actualités · Avis donné</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* The comments: folded after the document on the phone, open in the aside on the PC */
+  .fold { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+  .fold > summary { list-style: none; display: flex; align-items: center; gap: var(--space-3); min-height: var(--touch); padding: var(--space-3) var(--space-4); cursor: pointer; }
+  .fold > summary::-webkit-details-marker { display: none; }
+  .fold > summary ui-icon { margin-left: auto; color: var(--muted); display: flex; }
+  .fold[open] > summary ui-icon { transform: rotate(180deg); }
+  .fold-body { padding: 0 var(--space-4) var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
+  @media (min-width: 1280px) {
+    .fold::details-content { content-visibility: visible; }
+    .fold > summary { cursor: default; pointer-events: none; }
+    .fold > summary ui-icon { display: none; }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : Projet « Site mairie », PRD « Actualités », Pilote Maxime, Relecteur Claire Bernard, dates et commentaires fictifs -->
+<ui-app-shell screen="Version soumise" current="a-toi" nav="a-toi,projets,parametres" runner="none" me="Claire Bernard" decisions="1">
+  <ui-page-header title="PRD · Actualités" back="À toi" screen="Version soumise">
+    <span slot="sub" class="mono">Site mairie · version 2 · soumise par Maxime le 18 nov.</span>
+  </ui-page-header>
+  <ui-banner tone="go" icon="check" title="Ton Avis est donné : approuvé.">Maxime le voit sur sa Décision ; c’est lui qui décide. Tu peux toujours relire cette version.</ui-banner>
+  <div class="layout">
+    <ui-card label="Version soumise / Document">
+      <!-- exemple : la version 2 telle que Maxime l’a soumise, mot pour mot le PRD de sa page Relecture (en anglais, la langue des documents des agents) -->
+      <article class="doc">
+        <h2>Actualités — PRD</h2>
+        <p>Feature of Site mairie. Idea: « Publier les actualités de la mairie sur la page d’accueil ».</p>
+        <h3>Problem</h3>
+        <ul>
+          <li>The town hall posts its news on a notice board and on social media; the website shows none of it.</li>
+          <li>Residents miss the council’s decisions and the road works.</li>
+        </ul>
+        <h3>Stories</h3>
+        <ul>
+          <li><b>US-3</b> (MVP) As an editor at the town hall, I want to publish a news item with a title, a date and a picture, so that residents read it on the website.</li>
+          <li><b>US-4</b> (MVP) As a resident, I want <mark>the three latest news items on the home page</mark>, so that I see what is new at a glance.</li>
+          <li><b>US-5</b> (MVP) As a resident, I want news older than one year archived, the council’s orders staying online whatever their age, so that the list stays short.</li>
+          <li><b>US-6</b> (next) As an editor, I want to schedule a news item, so that it goes out on the day of the event.</li>
+        </ul>
+        <h3>Open questions</h3>
+        <ul>
+          <li>Who at the town hall may publish without a second reading?</li>
+        </ul>
+      </article>
+    </ui-card>
+    <div class="layout-aside">
+      <ui-card title="Ton Avis" label="Version soumise / Avis">
+        <ui-avis-row author="Claire Bernard" opinion="approuve" meta="version 2 · 16:40 · 1 commentaire"></ui-avis-row>
+      </ui-card>
+      <details class="fold" aria-label="Version soumise / Commentaires" data-name="Version soumise / Commentaires">
+        <summary><h2 class="section-label">Tes commentaires <span class="section-count">1</span></h2><ui-icon name="chevron-down" size="sm"></ui-icon></summary>
+        <div class="fold-body">
+          <ui-comment author="Claire Bernard" time="16:38" quote="the three latest news items on the home page">Trois actualités suffisent, c’est très bien comme ça.</ui-comment>
+        </div>
+      </details>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

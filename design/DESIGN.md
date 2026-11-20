@@ -258,6 +258,12 @@ Each is a custom element `ui-<name>`; its root carries `data-name`.
   a dialog. `variant="bare"`: no navigation (sign in, getting started).
   `variant="compact"`: at 1280 the sidebar keeps its icons and the page
   fills the height (Gestion du process); at 390 the default **Cadre**.
+  A person who is only a **Membre** (no **Projet** of their own) gets the
+  entries their **Accès** open, nothing else (`nav="a-toi,projets,parametres"`
+  for a Relecteur): what an **Accès** does not allow is hidden, never shown
+  disabled; at 390 each entry is a tab, no « Plus » when they fit.
+  `runner="none"`: no **Runner** of their own, the foot says « En direct »
+  only. `me`: the person signed in (their initials and name).
 - **PageHeader** (`PageHeader/Default`): `title`, `count`, `back` (link
   label), children are its actions; a landmark `header`.
 - **ProjectFilter** (`ProjectFilter/Default`): the Projet chips; children
@@ -333,7 +339,7 @@ Each is a custom element `ui-<name>`; its root carries `data-name`.
   `ui-timeline-row` (`label`, `start`, `span`, `tone`, `meta`).
 
 **Session (US-9)**
-- **Session** (`Session/Default`): `title`, `meta`, `state="active|waiting|stopped|interrupted|failed|handed-off"`, `resume-disabled` (« Reprendre » and « Continuer dans mon terminal » disabled, e.g. while the Runner is offline), `resume-label` and `resume-icon` (« Relancer » for a **Commande**, whose output reads as a session, US-104), `no-terminal` (no « Continuer dans mon terminal », for a **Commande**), `no-resume` (no « Reprendre » in the header, when a Banner below carries it, as for a **Session sans progrès**); children messages, then `ui-composer` (none for a **Commande**). Under its title, an actions row: « Arrêter » or « Reprendre » first, then « Continuer dans mon terminal » (US-113, the `terminal` icon, labelled); `handed-off` (« reprise hors Crewdeck ») shows neither: the Session goes on in the Pilote's terminal, its panel shows the command, « Rendre la main » and « Rendre à la Boucle », and a disabled composer.
+- **Session** (`Session/Default`): `title`, `meta`, `state="active|waiting|stopped|interrupted|failed|handed-off"`, `resume-disabled` (« Reprendre » and « Continuer dans mon terminal » disabled, e.g. while the Runner is offline), `resume-label` and `resume-icon` (« Relancer » for a **Commande**, whose output reads as a session, US-104), `no-terminal` (no « Continuer dans mon terminal », for a **Commande**), `no-resume` (no « Reprendre » in the header, when a Banner below carries it, as for a **Session sans progrès**), `crypto` (the line under the header, « Chiffrée de bout en bout entre ton Runner et ce navigateur » by default; a Session read while its Runner is off says so, US-140); children messages, then `ui-composer` (none for a **Commande**). Under its title, an actions row: « Arrêter » or « Reprendre » first, then « Continuer dans mon terminal » (US-113, the `terminal` icon, labelled); `handed-off` (« reprise hors Crewdeck ») shows neither: the Session goes on in the Pilote's terminal, its panel shows the command, « Rendre la main » and « Rendre à la Boucle », and a disabled composer.
 - A **Session sans progrès** (US-112) is an `interrupted` Session whose
   `caution` Banner says which threshold of its **Rôle** stopped it, with
   « Relancer l'Étape » (primary), « Reprendre la Session », « Bloquer le
@@ -405,6 +411,46 @@ Each is a custom element `ui-<name>`; its root carries `data-name`.
   catalogue of **Étapes**, « Attacher un Outil ».
 - **Toast** (`Toast/<Tone>`): `tone="accent|go|halt"`, `icon`: the reason
   an arrow is refused.
+
+**Collaboration (Membres, Versions soumises, Historique)**
+- **Avatar** (`Avatar/Default`, `Avatar/Agent`): `person` (their initials),
+  `size="sm"`, `agent` (an agent acting for someone), `invited` (dashed: an
+  invitation not accepted yet).
+- **MemberRow** (`MemberRow/Active`, `MemberRow/Invited`): a **Membre** of
+  a **Projet** (US-126): `name`, `email`, `meta`, `state="active|invited"`
+  (« Invitation envoyée »), `access` (a badge when it cannot be changed);
+  children the **Accès** control (`ui-select`), `slot="actions"` its menu.
+  At 390 the **Accès** goes under the name.
+- **Pin** (`Pin/Default`, `Pin/Selected`): a **Commentaire**'s zone on a
+  mockup or a capture: `n`, `x`, `y` (percent of the image), `selected`,
+  `new` (the zone being placed). A `caution` disc, `accent` when selected;
+  children of `ui-capture` (`Capture/Annotated`).
+- **Comment** (`Comment/Default`, `Comment/Selectable`): a **Commentaire**
+  (US-130): `author`, `access`, `time`, `quote` (the passage) or `pin` and
+  `zone` (« Actualités · 390 »); children its text. `selectable` and
+  `checked`: in « Demander des changements », the box that sends it to the
+  agent as part of the **Retour** (US-133), checked by default.
+- **AvisRow** (`AvisRow/Approuve`, `AvisRow/Changements`,
+  `AvisRow/Attente`): a Relecteur's **Avis** on a **Version soumise**
+  (US-131): `author`, `opinion`, `meta` (« version 2 · hier · 3
+  commentaires »). `go` « Approuvé », `caution` « Changements demandés »,
+  neutral « En attente ». It informs the **Décision**, never settles it: no
+  action on the row.
+- **HistoryRow** (`HistoryRow/Person`, `HistoryRow/Agent`): one action of
+  the **Historique** (US-141, US-142): `who`, `kind` (its icon:
+  `invitation`, `acces`, `retrait`, `version`, `commentaire`, `avis`,
+  `approbation`, `merge`, `boucle`, `process`, `source`, `decision`,
+  `session`, `parametres`, `runner`), `time`, `meta`; `agent` and `for`: an
+  agent's action credited to whoever started it (« pour Inès Martin »);
+  children the action, its object in bold.
+- **AccessRow** (`AccessRow/Default`, `AccessRow/Custom`): an **Accès** of
+  the Pilote's account (US-127): `name`, `default` (a lock and « par
+  défaut »: it never changes), `droits` (its **Droits** in words),
+  `members` (« 3 Membres · 2 Projets »), `selected`; children its actions.
+- **Droit** (`Droit/Granted`, `Droit/Denied`): one **Droit** of an
+  **Accès**: `mode="read"` (a `go` check or a dash) or `mode="edit"` (a
+  box), `checked`, `help`, `state="disabled"` (always given, « Lire les
+  Versions soumises », or one the person does not hold, US-128).
 
 **Overlays**
 - **Dialog** (`Dialog/Default`): `title`; children body, `slot="actions"`.

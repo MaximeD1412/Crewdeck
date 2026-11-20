@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paramètres du Projet — Pas encore de Runner partagé</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  .settings { display: flex; flex-direction: column; gap: var(--space-4); }
+  .settings-nav { display: flex; gap: var(--space-2); overflow-x: auto; margin: 0 calc(var(--space-4) * -1); padding: 0 var(--space-4); scrollbar-width: none; }
+  .settings-nav a { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--control-sm); padding: 0 var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--ink-2); white-space: nowrap; font: var(--font-label-weight) var(--font-body-sm-size)/var(--font-label-line-height) var(--font-label-family), sans-serif; }
+  .settings-nav a[aria-current] { color: var(--accent-text); border-color: var(--accent); background: var(--accent-soft); }
+  .settings-nav .n { font: var(--font-meta-weight) var(--font-meta-size)/var(--font-meta-line-height) var(--font-meta-family), monospace; color: var(--accent-text); }
+  .settings-body { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+  .settings-body > ui-card:not(.is-current) { display: none; }
+  @media (min-width: 1280px) {
+    .settings { display: grid; grid-template-columns: var(--capture-w) minmax(0, 1fr); gap: var(--space-8); align-items: start; }
+    .settings-nav { flex-direction: column; margin: 0; padding: 0; position: sticky; top: var(--space-8); gap: var(--space-1); }
+    .settings-nav a { border: 0; border-radius: var(--radius); min-height: var(--control); justify-content: space-between; }
+    .settings-nav a[aria-current] { box-shadow: inset var(--stroke) 0 0 var(--accent); }
+    .settings-body { gap: var(--space-6); }
+    .settings-body > ui-card:not(.is-current) { display: block; }
+  }
+  .crypto { display: flex; gap: var(--space-2); align-items: flex-start; }
+  .crypto .icon { color: var(--go); margin-top: var(--space-1); }
+  .key-who { display: flex; align-items: center; gap: var(--space-2); }
+</style>
+</head>
+<body>
+<!-- exemple : Projet et Planification fictifs -->
+<ui-app-shell screen="Paramètres du Projet" current="parametres" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Site mairie" count="Paramètres du Projet · Runner partagé" back="Paramètres" screen="Paramètres du Projet"></ui-page-header>
+  <div class="settings">
+    <nav class="settings-nav" aria-label="Paramètres du Projet / Sections" data-name="Paramètres du Projet / Sections">
+      <a href="#runner-partage" aria-current="true">Runner partagé</a>
+      <a href="#roles">Rôles et modèles</a>
+      <a href="#etapes">Étapes</a>
+      <a href="#planifications">Planifications</a>
+      <a href="#notifications">Notifications</a>
+    </nav>
+    <div class="settings-body">
+      <ui-card class="is-current" title="Runner partagé" label="Paramètres du Projet / Runner partagé" id="runner-partage">
+        <ui-empty icon="server" title="Pas encore de Runner partagé">Un Runner partagé est un Runner sur un serveur, relié à ce Projet plutôt qu’à une personne : les Membres qui peuvent piloter les agents y lancent leurs Sessions et la Boucle, même quand tous les PC sont éteints. Il n’utilise que des clés API, chacune mise pour ce Projet par toi ou par un Membre qui peut modifier ses Paramètres, et payée par qui l’a mise.<ui-button slot="actions" variant="primary" icon="server">Choisir un de mes Runners sur un serveur</ui-button></ui-empty>
+      </ui-card>
+      <ui-card title="Rôles et modèles" label="Paramètres du Projet / Rôles et modèles" id="roles">
+        <ui-setting-row label="Code" origin="projet"><ui-select value="Codex · GPT-5.5"></ui-select></ui-setting-row>
+        <ui-setting-row label="Review" help="Sur un autre Moteur que le Code." origin="projet"><ui-select value="Claude Code · Opus 5.5"></ui-select></ui-setting-row>
+      </ui-card>
+      <ui-card title="Étapes" label="Paramètres du Projet / Étapes" id="etapes" flush>
+        <ui-list-row icon="layers" title="Gestion du process" meta="Les Étapes s’ajoutent et se retirent dans la Gestion du process du Projet ; la Review et les checks restent avant chaque merge." link></ui-list-row>
+      </ui-card>
+      <ui-card title="Planifications" count="1" label="Paramètres du Projet / Planifications" id="planifications" flush>
+        <ui-button slot="actions" size="sm" variant="ghost" icon="plus">Ajouter</ui-button>
+        <ui-list-row icon="refresh" title="Quand la fenêtre de Claude se réinitialise" meta="active · prochaine à 16:40"><div slot="below" class="cluster"><ui-button size="sm">Mettre en pause</ui-button><ui-button size="sm" variant="danger">Supprimer</ui-button></div></ui-list-row>
+      </ui-card>
+      <ui-card title="Notifications" label="Paramètres du Projet / Notifications" id="notifications">
+        <ui-setting-row label="Notifications push" help="Activées ou non pour ce Projet ; le reste des notifications se règle sur ton compte." origin="compte"><ui-toggle checked aria="Notifications push"></ui-toggle></ui-setting-row>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

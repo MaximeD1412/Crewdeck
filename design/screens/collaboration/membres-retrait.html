@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Membres du Projet — retirer un Membre</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+</head>
+<body>
+<!-- exemple : Projet, Membres, adresses et dates fictifs ; la scène est le 19 nov., après l’invitation de Paul et avant qu’Inès Martin devienne Co-pilote -->
+<ui-app-shell screen="Membres du Projet" current="projets" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Membres" back="Site mairie" count="2 Membres · 1 invitation" screen="Membres du Projet">
+    <ui-button variant="primary" icon="plus">Inviter un Membre</ui-button>
+    <span slot="sub">Chacun lit ce que son Accès lui ouvre sur Site mairie, chiffré de bout en bout.</span>
+  </ui-page-header>
+  <ui-card title="Qui a accès" label="Membres du Projet / Liste" flush>
+    <ui-member-row name="Maxime" email="maximed1412" meta="toi" access="Pilote"></ui-member-row>
+    <ui-member-row name="Claire Bernard" email="claire.bernard@mairie.example" meta="depuis le 12 nov.">
+      <ui-select value="Relecteur"></ui-select>
+      <ui-button slot="actions" size="sm" variant="ghost" icon="x">Retirer</ui-button>
+    </ui-member-row>
+    <ui-member-row name="Inès Martin" email="ines.martin@atelier.example" meta="depuis le 14 nov.">
+      <ui-select value="Contributeur"></ui-select>
+      <ui-button slot="actions" size="sm" variant="ghost" icon="x">Retirer</ui-button>
+    </ui-member-row>
+    <ui-member-row state="invited" name="Paul Leroy" email="paul.leroy@mairie.example" meta="invité le 19 nov.">
+      <ui-select value="Relecteur"></ui-select>
+      <ui-button slot="actions" class="only-wide" size="sm" variant="ghost" icon="x">Annuler l’invitation</ui-button><ui-button slot="actions" class="only-phone" size="sm" variant="ghost" icon="x" label="Annuler l’invitation">Annuler</ui-button>
+    </ui-member-row>
+  </ui-card>
+  <ui-dialog slot="overlay" title="Retirer Claire Bernard de Site mairie ?">
+    <ul>
+      <li>Elle perd l’accès au Projet <b>tout de suite</b>.</li>
+      <li>Elle ne peut plus rien lire de ce Projet, même ce qu’elle avait déjà ouvert.</li>
+      <li>Ses commentaires et ses Avis restent dans le Projet, <b>à son nom</b>.</li>
+      <li>Le retrait entre dans l’Historique du Projet.</li>
+    </ul>
+    <ui-button slot="actions" variant="ghost">Annuler</ui-button>
+    <ui-button slot="actions" variant="danger" icon="x">Retirer Claire Bernard</ui-button>
+  </ui-dialog>
+</ui-app-shell>
+</body>
+</html>

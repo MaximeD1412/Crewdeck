@@ -84,7 +84,9 @@
       "stories": [
         "US-3",
         "US-4",
-        "US-68"
+        "US-68",
+        "US-125",
+        "US-129"
       ],
       "html": "design/screens/crewdeck/projets.html",
       "captures": {
@@ -99,6 +101,24 @@
           "captures": {
             "390": "design/screens/crewdeck/projets-vide-390.png",
             "1280": "design/screens/crewdeck/projets-vide-1280.png"
+          }
+        },
+        {
+          "id": "membre",
+          "title": "Projets où tu es Membre",
+          "html": "design/screens/collaboration/projets-membre.html",
+          "captures": {
+            "390": "design/screens/collaboration/projets-membre-390.png",
+            "1280": "design/screens/collaboration/projets-membre-1280.png"
+          }
+        },
+        {
+          "id": "relecteur",
+          "title": "Projets d’un Relecteur",
+          "html": "design/screens/collaboration/projets-relecteur.html",
+          "captures": {
+            "390": "design/screens/collaboration/projets-relecteur-390.png",
+            "1280": "design/screens/collaboration/projets-relecteur-1280.png"
           }
         }
       ]
@@ -165,7 +185,8 @@
         "US-105",
         "US-112",
         "US-113",
-        "US-114"
+        "US-114",
+        "US-131"
       ],
       "html": "design/screens/crewdeck/a-toi.html",
       "captures": {
@@ -226,6 +247,15 @@
             "390": "design/screens/crewdeck/a-toi-depuis-derniere-visite-390.png",
             "1280": "design/screens/crewdeck/a-toi-depuis-derniere-visite-1280.png"
           }
+        },
+        {
+          "id": "avis-client",
+          "title": "Avis client sur une Décision",
+          "html": "design/screens/collaboration/a-toi-avis-client.html",
+          "captures": {
+            "390": "design/screens/collaboration/a-toi-avis-client-390.png",
+            "1280": "design/screens/collaboration/a-toi-avis-client-1280.png"
+          }
         }
       ]
     },
@@ -237,7 +267,8 @@
         "US-5",
         "US-6",
         "US-57",
-        "US-48"
+        "US-48",
+        "US-134"
       ],
       "html": "design/screens/crewdeck/idees.html",
       "captures": {
@@ -279,6 +310,15 @@
           "captures": {
             "390": "design/screens/crewdeck/idees-vide-390.png",
             "1280": "design/screens/crewdeck/idees-vide-1280.png"
+          }
+        },
+        {
+          "id": "contributeur",
+          "title": "Idées vues par un Contributeur",
+          "html": "design/screens/collaboration/idees-contributeur.html",
+          "captures": {
+            "390": "design/screens/collaboration/idees-contributeur-390.png",
+            "1280": "design/screens/collaboration/idees-contributeur-1280.png"
           }
         }
       ]
@@ -348,7 +388,8 @@
         "US-60",
         "US-104",
         "US-112",
-        "US-113"
+        "US-113",
+        "US-140"
       ],
       "html": "design/screens/crewdeck/session.html",
       "captures": {
@@ -418,6 +459,15 @@
             "390": "design/screens/crewdeck/session-terminal-390.png",
             "1280": "design/screens/crewdeck/session-terminal-1280.png"
           }
+        },
+        {
+          "id": "lisible-hors-ligne",
+          "title": "Lisible, Runner hors ligne",
+          "html": "design/screens/collaboration/session-lisible-hors-ligne.html",
+          "captures": {
+            "390": "design/screens/collaboration/session-lisible-hors-ligne-390.png",
+            "1280": "design/screens/collaboration/session-lisible-hors-ligne-1280.png"
+          }
         }
       ]
     },
@@ -476,7 +526,10 @@
       "prd": "docs/product/prd.md",
       "stories": [
         "US-11",
-        "US-26"
+        "US-26",
+        "US-129",
+        "US-131",
+        "US-133"
       ],
       "html": "design/screens/crewdeck/relecture.html",
       "captures": {
@@ -492,6 +545,33 @@
             "390": "design/screens/crewdeck/relecture-confirmation-390.png",
             "1280": "design/screens/crewdeck/relecture-confirmation-1280.png"
           }
+        },
+        {
+          "id": "soumettre",
+          "title": "Soumettre à un Relecteur",
+          "html": "design/screens/collaboration/relecture-soumettre.html",
+          "captures": {
+            "390": "design/screens/collaboration/relecture-soumettre-390.png",
+            "1280": "design/screens/collaboration/relecture-soumettre-1280.png"
+          }
+        },
+        {
+          "id": "avis",
+          "title": "Avis des Relecteurs",
+          "html": "design/screens/collaboration/relecture-avis.html",
+          "captures": {
+            "390": "design/screens/collaboration/relecture-avis-390.png",
+            "1280": "design/screens/collaboration/relecture-avis-1280.png"
+          }
+        },
+        {
+          "id": "changements",
+          "title": "Demander des changements : le Retour choisi",
+          "html": "design/screens/collaboration/relecture-changements.html",
+          "captures": {
+            "390": "design/screens/collaboration/relecture-changements-390.png",
+            "1280": "design/screens/collaboration/relecture-changements-1280.png"
+          }
         }
       ]
     },
@@ -501,7 +581,10 @@
       "prd": "docs/product/prd.md",
       "stories": [
         "US-11",
-        "US-26"
+        "US-26",
+        "US-129",
+        "US-130",
+        "US-131"
       ],
       "html": "design/screens/crewdeck/revue-maquettes.html",
       "captures": {
@@ -516,6 +599,24 @@
           "captures": {
             "390": "design/screens/crewdeck/revue-maquettes-confirmation-390.png",
             "1280": "design/screens/crewdeck/revue-maquettes-confirmation-1280.png"
+          }
+        },
+        {
+          "id": "soumettre",
+          "title": "Soumettre à un Relecteur",
+          "html": "design/screens/collaboration/revue-maquettes-soumettre.html",
+          "captures": {
+            "390": "design/screens/collaboration/revue-maquettes-soumettre-390.png",
+            "1280": "design/screens/collaboration/revue-maquettes-soumettre-1280.png"
+          }
+        },
+        {
+          "id": "avis",
+          "title": "Avis des Relecteurs",
+          "html": "design/screens/collaboration/revue-maquettes-avis.html",
+          "captures": {
+            "390": "design/screens/collaboration/revue-maquettes-avis-390.png",
+            "1280": "design/screens/collaboration/revue-maquettes-avis-1280.png"
           }
         }
       ]
@@ -552,7 +653,11 @@
       "stories": [
         "US-13",
         "US-14",
-        "US-62"
+        "US-62",
+        "US-134",
+        "US-135",
+        "US-137",
+        "US-139"
       ],
       "html": "design/screens/crewdeck/boucle.html",
       "captures": {
@@ -595,6 +700,33 @@
             "390": "design/screens/crewdeck/boucle-reprise-planification-390.png",
             "1280": "design/screens/crewdeck/boucle-reprise-planification-1280.png"
           }
+        },
+        {
+          "id": "equipe-demarrage",
+          "title": "Démarrer la Boucle d’un Projet d’équipe",
+          "html": "design/screens/collaboration/boucle-equipe-demarrage.html",
+          "captures": {
+            "390": "design/screens/collaboration/boucle-equipe-demarrage-390.png",
+            "1280": "design/screens/collaboration/boucle-equipe-demarrage-1280.png"
+          }
+        },
+        {
+          "id": "contributeur",
+          "title": "Suivie par une Contributrice",
+          "html": "design/screens/collaboration/boucle-contributeur.html",
+          "captures": {
+            "390": "design/screens/collaboration/boucle-contributeur-390.png",
+            "1280": "design/screens/collaboration/boucle-contributeur-1280.png"
+          }
+        },
+        {
+          "id": "projet-local",
+          "title": "Projet Local sur la machine du Pilote",
+          "html": "design/screens/collaboration/boucle-projet-local.html",
+          "captures": {
+            "390": "design/screens/collaboration/boucle-projet-local-390.png",
+            "1280": "design/screens/collaboration/boucle-projet-local-1280.png"
+          }
         }
       ]
     },
@@ -604,7 +736,8 @@
       "prd": "docs/product/prd.md",
       "stories": [
         "US-15",
-        "US-103"
+        "US-103",
+        "US-134"
       ],
       "html": "design/screens/crewdeck/ticket.html",
       "captures": {
@@ -638,6 +771,15 @@
             "390": "design/screens/crewdeck/ticket-ferme-a-la-source-390.png",
             "1280": "design/screens/crewdeck/ticket-ferme-a-la-source-1280.png"
           }
+        },
+        {
+          "id": "commentaires",
+          "title": "Commentaires d’un Ticket",
+          "html": "design/screens/collaboration/ticket-commentaires.html",
+          "captures": {
+            "390": "design/screens/collaboration/ticket-commentaires-390.png",
+            "1280": "design/screens/collaboration/ticket-commentaires-1280.png"
+          }
         }
       ]
     },
@@ -647,7 +789,10 @@
       "prd": "docs/product/prd.md",
       "stories": [
         "US-36",
-        "US-26"
+        "US-26",
+        "US-129",
+        "US-130",
+        "US-131"
       ],
       "html": "design/screens/crewdeck/revue-visuelle.html",
       "captures": {
@@ -672,6 +817,24 @@
             "390": "design/screens/crewdeck/revue-visuelle-changements-390.png",
             "1280": "design/screens/crewdeck/revue-visuelle-changements-1280.png"
           }
+        },
+        {
+          "id": "soumettre",
+          "title": "Soumettre à un Relecteur",
+          "html": "design/screens/collaboration/revue-visuelle-soumettre.html",
+          "captures": {
+            "390": "design/screens/collaboration/revue-visuelle-soumettre-390.png",
+            "1280": "design/screens/collaboration/revue-visuelle-soumettre-1280.png"
+          }
+        },
+        {
+          "id": "avis",
+          "title": "Avis des Relecteurs",
+          "html": "design/screens/collaboration/revue-visuelle-avis.html",
+          "captures": {
+            "390": "design/screens/collaboration/revue-visuelle-avis-390.png",
+            "1280": "design/screens/collaboration/revue-visuelle-avis-1280.png"
+          }
         }
       ]
     },
@@ -695,7 +858,8 @@
       "prd": "docs/product/prd.md",
       "stories": [
         "US-61",
-        "US-115"
+        "US-115",
+        "US-138"
       ],
       "html": "design/screens/crewdeck/statistiques.html",
       "captures": {
@@ -710,6 +874,15 @@
           "captures": {
             "390": "design/screens/crewdeck/statistiques-par-etape-390.png",
             "1280": "design/screens/crewdeck/statistiques-par-etape-1280.png"
+          }
+        },
+        {
+          "id": "par-personne",
+          "title": "Dépense par personne",
+          "html": "design/screens/collaboration/statistiques-par-personne.html",
+          "captures": {
+            "390": "design/screens/collaboration/statistiques-par-personne-390.png",
+            "1280": "design/screens/collaboration/statistiques-par-personne-1280.png"
           }
         }
       ]
@@ -759,13 +932,26 @@
         "US-39",
         "US-18",
         "US-62",
-        "US-112"
+        "US-112",
+        "US-125",
+        "US-132"
       ],
       "html": "design/screens/crewdeck/parametres.html",
       "captures": {
         "390": "design/screens/crewdeck/parametres-390.png",
         "1280": "design/screens/crewdeck/parametres-1280.png"
-      }
+      },
+      "states": [
+        {
+          "id": "relecteur",
+          "title": "Paramètres d’un Relecteur",
+          "html": "design/screens/collaboration/parametres-relecteur.html",
+          "captures": {
+            "390": "design/screens/collaboration/parametres-relecteur-390.png",
+            "1280": "design/screens/collaboration/parametres-relecteur-1280.png"
+          }
+        }
+      ]
     },
     {
       "id": "parametres-projet",
@@ -911,6 +1097,263 @@
           "html": "design/screens/gestion-du-process/process-enregistrer-modele.html",
           "captures": {
             "1280": "design/screens/gestion-du-process/process-enregistrer-modele-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "membres",
+      "title": "Membres du Projet",
+      "prd": "docs/product/features/collaboration.md",
+      "stories": [
+        "US-124",
+        "US-126",
+        "US-128",
+        "US-137"
+      ],
+      "html": "design/screens/collaboration/membres.html",
+      "captures": {
+        "390": "design/screens/collaboration/membres-390.png",
+        "1280": "design/screens/collaboration/membres-1280.png"
+      },
+      "states": [
+        {
+          "id": "vide",
+          "title": "Aucun Membre encore",
+          "html": "design/screens/collaboration/membres-vide.html",
+          "captures": {
+            "390": "design/screens/collaboration/membres-vide-390.png",
+            "1280": "design/screens/collaboration/membres-vide-1280.png"
+          }
+        },
+        {
+          "id": "invitation",
+          "title": "Inviter un Membre",
+          "html": "design/screens/collaboration/membres-invitation.html",
+          "captures": {
+            "390": "design/screens/collaboration/membres-invitation-390.png",
+            "1280": "design/screens/collaboration/membres-invitation-1280.png"
+          }
+        },
+        {
+          "id": "retrait",
+          "title": "Retirer un Membre",
+          "html": "design/screens/collaboration/membres-retrait.html",
+          "captures": {
+            "390": "design/screens/collaboration/membres-retrait-390.png",
+            "1280": "design/screens/collaboration/membres-retrait-1280.png"
+          }
+        },
+        {
+          "id": "gestion-deleguee",
+          "title": "Membres gérés par un Membre",
+          "html": "design/screens/collaboration/membres-gestion-deleguee.html",
+          "captures": {
+            "390": "design/screens/collaboration/membres-gestion-deleguee-390.png",
+            "1280": "design/screens/collaboration/membres-gestion-deleguee-1280.png"
+          }
+        },
+        {
+          "id": "projet-equipe",
+          "title": "Donner le Droit de piloter : Projet d’équipe",
+          "html": "design/screens/collaboration/membres-projet-equipe.html",
+          "captures": {
+            "390": "design/screens/collaboration/membres-projet-equipe-390.png",
+            "1280": "design/screens/collaboration/membres-projet-equipe-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "invitation",
+      "title": "Rejoindre un Projet",
+      "prd": "docs/product/features/collaboration.md",
+      "stories": [
+        "US-124",
+        "US-125"
+      ],
+      "html": "design/screens/collaboration/invitation.html",
+      "captures": {
+        "390": "design/screens/collaboration/invitation-390.png",
+        "1280": "design/screens/collaboration/invitation-1280.png"
+      },
+      "states": [
+        {
+          "id": "lien-envoye",
+          "title": "Lien de connexion envoyé",
+          "html": "design/screens/collaboration/invitation-lien-envoye.html",
+          "captures": {
+            "390": "design/screens/collaboration/invitation-lien-envoye-390.png",
+            "1280": "design/screens/collaboration/invitation-lien-envoye-1280.png"
+          }
+        },
+        {
+          "id": "autre-adresse",
+          "title": "Invitation pour une autre adresse",
+          "html": "design/screens/collaboration/invitation-autre-adresse.html",
+          "captures": {
+            "390": "design/screens/collaboration/invitation-autre-adresse-390.png",
+            "1280": "design/screens/collaboration/invitation-autre-adresse-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "a-toi-membre",
+      "title": "« À toi » d’un Membre",
+      "prd": "docs/product/features/collaboration.md",
+      "stories": [
+        "US-132",
+        "US-136"
+      ],
+      "html": "design/screens/collaboration/a-toi-membre.html",
+      "captures": {
+        "390": "design/screens/collaboration/a-toi-membre-390.png",
+        "1280": "design/screens/collaboration/a-toi-membre-1280.png"
+      },
+      "states": [
+        {
+          "id": "equipe",
+          "title": "Co-pilote : Décisions partagées",
+          "html": "design/screens/collaboration/a-toi-membre-equipe.html",
+          "captures": {
+            "390": "design/screens/collaboration/a-toi-membre-equipe-390.png",
+            "1280": "design/screens/collaboration/a-toi-membre-equipe-1280.png"
+          }
+        },
+        {
+          "id": "vide",
+          "title": "Rien ne t’attend",
+          "html": "design/screens/collaboration/a-toi-membre-vide.html",
+          "captures": {
+            "390": "design/screens/collaboration/a-toi-membre-vide-390.png",
+            "1280": "design/screens/collaboration/a-toi-membre-vide-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "version-soumise",
+      "title": "Version soumise",
+      "prd": "docs/product/features/collaboration.md",
+      "stories": [
+        "US-129",
+        "US-130"
+      ],
+      "html": "design/screens/collaboration/version-soumise.html",
+      "captures": {
+        "390": "design/screens/collaboration/version-soumise-390.png",
+        "1280": "design/screens/collaboration/version-soumise-1280.png"
+      },
+      "states": [
+        {
+          "id": "maquettes",
+          "title": "Commenter une zone des maquettes",
+          "html": "design/screens/collaboration/version-soumise-maquettes.html",
+          "captures": {
+            "390": "design/screens/collaboration/version-soumise-maquettes-390.png",
+            "1280": "design/screens/collaboration/version-soumise-maquettes-1280.png"
+          }
+        },
+        {
+          "id": "avis",
+          "title": "Donner son Avis",
+          "html": "design/screens/collaboration/version-soumise-avis.html",
+          "captures": {
+            "390": "design/screens/collaboration/version-soumise-avis-390.png",
+            "1280": "design/screens/collaboration/version-soumise-avis-1280.png"
+          }
+        },
+        {
+          "id": "avis-donne",
+          "title": "Avis donné",
+          "html": "design/screens/collaboration/version-soumise-avis-donne.html",
+          "captures": {
+            "390": "design/screens/collaboration/version-soumise-avis-donne-390.png",
+            "1280": "design/screens/collaboration/version-soumise-avis-donne-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "historique",
+      "title": "Historique du Projet",
+      "prd": "docs/product/features/collaboration.md",
+      "stories": [
+        "US-141",
+        "US-142"
+      ],
+      "html": "design/screens/collaboration/historique.html",
+      "captures": {
+        "390": "design/screens/collaboration/historique-390.png",
+        "1280": "design/screens/collaboration/historique-1280.png"
+      },
+      "states": [
+        {
+          "id": "filtre",
+          "title": "Filtré par personne et par sorte",
+          "html": "design/screens/collaboration/historique-filtre.html",
+          "captures": {
+            "390": "design/screens/collaboration/historique-filtre-390.png",
+            "1280": "design/screens/collaboration/historique-filtre-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "acces",
+      "title": "Accès",
+      "prd": "docs/product/features/collaboration.md",
+      "stories": [
+        "US-127",
+        "US-137"
+      ],
+      "html": "design/screens/collaboration/acces.html",
+      "captures": {
+        "390": "design/screens/collaboration/acces-390.png",
+        "1280": "design/screens/collaboration/acces-1280.png"
+      },
+      "states": [
+        {
+          "id": "edition",
+          "title": "Modifier un Accès",
+          "html": "design/screens/collaboration/acces-edition.html",
+          "captures": {
+            "390": "design/screens/collaboration/acces-edition-390.png",
+            "1280": "design/screens/collaboration/acces-edition-1280.png"
+          }
+        },
+        {
+          "id": "confirmation",
+          "title": "Confirmer le changement d’un Accès",
+          "html": "design/screens/collaboration/acces-confirmation.html",
+          "captures": {
+            "390": "design/screens/collaboration/acces-confirmation-390.png",
+            "1280": "design/screens/collaboration/acces-confirmation-1280.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "runner-partage",
+      "title": "Runner partagé du Projet",
+      "prd": "docs/product/features/collaboration.md",
+      "stories": [
+        "US-138"
+      ],
+      "html": "design/screens/collaboration/runner-partage.html",
+      "captures": {
+        "390": "design/screens/collaboration/runner-partage-390.png",
+        "1280": "design/screens/collaboration/runner-partage-1280.png"
+      },
+      "states": [
+        {
+          "id": "vide",
+          "title": "Pas encore de Runner partagé",
+          "html": "design/screens/collaboration/runner-partage-vide.html",
+          "captures": {
+            "390": "design/screens/collaboration/runner-partage-vide-390.png",
+            "1280": "design/screens/collaboration/runner-partage-vide-1280.png"
           }
         }
       ]

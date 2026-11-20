@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revue des maquettes — Avis des Relecteurs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* Review pages: the decision buttons in the page header on the PC, in a bar at the bottom on the phone */
+  .review-head-actions { display: none; }
+  .review-bar {
+    position: sticky; bottom: var(--tab-bar); z-index: 2; display: flex; gap: var(--space-2);
+    margin: 0 calc(var(--space-4) * -1) calc(var(--space-8) * -1); padding: var(--space-3) var(--space-4);
+    background: var(--side); border-top: 1px solid var(--line);
+  }
+  .review-bar > ui-button { flex: 1 1 0; min-width: 0; display: flex; }
+  .review-bar .button { flex: 1 1 0; min-width: 0; height: auto; min-height: var(--touch); padding: var(--space-2); white-space: normal; text-align: center; }
+  @media (min-width: 1280px) {
+    .review-head-actions { display: flex; gap: var(--space-2); }
+    .review-bar { display: none; }
+  }
+</style>
+<style>
+  /* Revue des maquettes: one capture at a time on the phone, 390 and 1280 side by side on the PC */
+  .shots { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+  .shot-wide { display: none; }
+  .width-switch { display: flex; gap: var(--space-2); }
+  .screen-list { display: none; }
+  /* On the phone: the Avis and the comments first, then the capture, then your own comment */
+  .avis-layout > .layout-aside { display: contents; }
+  .maq-avis { order: 0; }
+  .maq-comments { order: 1; }
+  .maq-screen { order: 2; }
+  .maq-mine { order: 3; }
+  .avis-summary { color: var(--ink); font: var(--font-title-weight) var(--font-label-size)/var(--font-title-line-height) var(--font-title-family), sans-serif; }
+  @media (min-width: 1280px) {
+    .shots { grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); }
+    .shot-wide { display: block; }
+    .width-switch { display: none; }
+    .screen-tabs { display: none; }
+    .screen-list { display: block; }
+    .avis-layout > .layout-aside { display: flex; }
+    .maq-avis, .maq-comments, .maq-screen, .maq-mine { order: 0; }
+  }
+</style>
+</head><body>
+<!-- exemple : Projet « Site mairie », maquettes « Actualités », Membres, dates et commentaires fictifs ; les captures sont des schémas -->
+<ui-app-shell screen="Revue des maquettes" current="conceptions" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Maquettes · Actualités" back="Actualités" screen="Revue des maquettes">
+    <span slot="sub" class="mono">Site mairie · 2 écrans</span>
+    <span class="review-head-actions"><ui-button>Demander des changements</ui-button><ui-button variant="primary">Approuver les maquettes</ui-button></span>
+  </ui-page-header>
+  <div class="screen-tabs"><ui-tabs>
+    <ui-tab selected count="3">Actualités</ui-tab>
+    <ui-tab>Actualités · vide</ui-tab>
+  </ui-tabs></div>
+  <div class="layout avis-layout">
+    <ui-card class="maq-screen" title="Actualités" label="Revue des maquettes / Écran">
+      <div class="cluster text-sm muted">US-4 · état nominal</div>
+      <div class="width-switch" role="group" aria-label="Largeur"><ui-chip selected>390</ui-chip><ui-chip>1280</ui-chip></div>
+      <div class="shots">
+        <ui-capture src="../../assets/maquette-notifications-390.svg" label="Actualités · 390"><ui-pin n="1" x="11" y="18"></ui-pin><ui-pin n="3" x="55" y="46"></ui-pin></ui-capture>
+        <div class="shot-wide"><ui-capture src="../../assets/maquette-notifications-1280.svg" label="Actualités · 1280"><ui-pin n="2" x="91" y="7"></ui-pin></ui-capture></div>
+      </div>
+    </ui-card>
+    <div class="layout-aside">
+      <ui-card class="maq-avis" title="Avis des Relecteurs" label="Revue des maquettes / Avis">
+        <p class="avis-summary">Avis client : changements demandés par Claire, version 1 · 3 commentaires</p>
+        <ui-avis-row author="Claire Bernard" opinion="changements" meta="version 1 · 15:22"></ui-avis-row>
+        <p class="text-sm muted">Son Avis éclaire ta décision sans la prendre : «&nbsp;Approuver les maquettes&nbsp;» reste la tienne.</p>
+      </ui-card>
+      <div class="screen-list"><ui-card title="Écrans" count="2" label="Revue des maquettes / Écrans" flush>
+        <ui-list-row link icon="image" title="Actualités" meta="390 et 1280 · 3 commentaires"></ui-list-row>
+        <ui-list-row link icon="image" title="Actualités · vide" meta="390 et 1280"></ui-list-row>
+      </ui-card></div>
+      <ui-card class="maq-comments" title="Commentaires sur cet écran" count="3" label="Revue des maquettes / Commentaires">
+        <ui-comment author="Claire Bernard" access="Relecteur" time="version 1 · 15:05" pin="1" zone="Actualités · 390">Toutes nos actualités n’ont pas de photo : que montre cette case sans photo ?</ui-comment>
+        <ui-comment author="Claire Bernard" access="Relecteur" time="version 1 · 15:15" pin="2" zone="Actualités · 1280">Ce bouton doit dire « Toutes les actualités ».</ui-comment>
+        <ui-comment author="Claire Bernard" access="Relecteur" time="version 1 · 15:20" pin="3" zone="Actualités · 390">La date de chaque actualité doit se voir avant son titre.</ui-comment>
+      </ui-card>
+      <ui-card class="maq-mine" title="Tes commentaires" label="Revue des maquettes / Tes commentaires">
+        <ui-text-field label="Commenter une zone" placeholder="Choisis une zone de la maquette" multiline rows="3"></ui-text-field>
+      </ui-card>
+    </div>
+  </div>
+  <div class="review-bar" aria-label="Revue des maquettes / Décision" data-name="Revue des maquettes / Décision"><ui-button>Demander des changements</ui-button><ui-button variant="primary">Approuver les maquettes</ui-button></div>
+</ui-app-shell>
+</body>
+</html>

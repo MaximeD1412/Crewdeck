@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paramètres — Accès</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* The layout of Paramètres (crewdeck/parametres.html), its section « Accès » open */
+  .settings { display: flex; flex-direction: column; gap: var(--space-4); }
+  .settings-nav { display: flex; gap: var(--space-2); overflow-x: auto; margin: 0 calc(var(--space-4) * -1); padding: 0 var(--space-4); scrollbar-width: none; }
+  .settings-nav a { display: inline-flex; align-items: center; min-height: var(--control-sm); padding: 0 var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--ink-2); white-space: nowrap; font: var(--font-label-weight) var(--font-body-sm-size)/var(--font-label-line-height) var(--font-label-family), sans-serif; }
+  .settings-nav a[aria-current] { color: var(--accent-text); border-color: var(--accent); background: var(--accent-soft); }
+  .settings-body { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+  .access-intro { padding: var(--space-3) var(--space-4); }
+  .access-group { padding: var(--space-3) var(--space-4) var(--space-2); border-top: 1px solid var(--line); }
+  /* On the phone a compact row: it opens the Accès; « Dupliquer » is an icon button on the row */
+  .access-list .access-row { cursor: pointer; align-items: start; }
+  .access-list .access-row .list-row-trail { grid-column: auto; align-self: center; flex-wrap: nowrap; }
+  .access-list .access-droits { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  @media (min-width: 1280px) {
+    .settings { display: grid; grid-template-columns: var(--capture-w) minmax(0, 1fr); gap: var(--space-8); align-items: start; }
+    .settings-nav { flex-direction: column; margin: 0; padding: 0; position: sticky; top: var(--space-8); gap: var(--space-1); }
+    .settings-nav a { border: 0; border-radius: var(--radius); min-height: var(--control); }
+    .settings-nav a[aria-current] { box-shadow: inset var(--stroke) 0 0 var(--accent); }
+    .access-list .access-row { cursor: default; align-items: center; }
+    .access-list .access-droits { display: block; }
+  }
+</style>
+</head>
+<body>
+<!-- exemple : Accès personnel, Membres et Projets fictifs -->
+<ui-app-shell screen="Accès" current="parametres" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Paramètres" count="ton compte · par défaut pour tes Projets" screen="Accès"></ui-page-header>
+  <div class="settings">
+    <nav class="settings-nav" aria-label="Accès / Sections" data-name="Accès / Sections">
+      <a href="#roles">Rôles et modèles</a>
+      <a href="#acces" aria-current="true">Accès</a>
+      <a href="#notifications">Notifications</a>
+      <a href="#planifications">Planifications</a>
+      <a href="#projets">Par Projet</a>
+      <a href="#moddeurs">Pour les Moddeurs</a>
+    </nav>
+    <div class="settings-body">
+      <ui-card class="access-list" title="Accès" count="5" label="Accès / Liste" id="acces" flush>
+        <p class="text-sm muted access-intro">Proposés sur tous tes Projets ; toi seul les crées et les modifies. Les quatre par défaut ne changent jamais : duplique-en un pour choisir tes Droits.</p>
+        <h2 class="access-group section-label">Par défaut</h2>
+        <ui-access-row name="Relecteur" default droits="Commenter, rendre un Avis" members="3 Membres · 2 Projets"><ui-button class="only-wide" size="sm" icon="copy">Dupliquer</ui-button><ui-icon-button class="only-phone" icon="copy" label="Dupliquer"></ui-icon-button></ui-access-row>
+        <ui-access-row name="Contributeur" default droits="Commenter, rendre un Avis · Lire le Projet, lire les Sessions · Noter et trier des Idées" members="aucun Membre"><ui-button class="only-wide" size="sm" icon="copy">Dupliquer</ui-button><ui-icon-button class="only-phone" icon="copy" label="Dupliquer"></ui-icon-button></ui-access-row>
+        <ui-access-row name="Co-pilote" default droits="Commenter, rendre un Avis · Lire le Projet, lire les Sessions · Noter et trier des Idées · Piloter les Sessions, démarrer la Boucle · Approuver (document, revue visuelle, merge), trancher les Décisions" members="1 Membre · 1 Projet"><ui-button class="only-wide" size="sm" icon="copy">Dupliquer</ui-button><ui-icon-button class="only-phone" icon="copy" label="Dupliquer"></ui-icon-button></ui-access-row>
+        <ui-access-row name="Administrateur" default droits="Commenter, rendre un Avis · Lire le Projet, lire les Sessions · Noter et trier des Idées · Piloter les Sessions, démarrer la Boucle · Approuver (document, revue visuelle, merge), trancher les Décisions · Modifier le Process ou une Source · Paramètres du Projet · Gérer les Membres · Lire l’Historique" members="aucun Membre"><ui-button class="only-wide" size="sm" icon="copy">Dupliquer</ui-button><ui-icon-button class="only-phone" icon="copy" label="Dupliquer"></ui-icon-button></ui-access-row>
+        <h2 class="access-group section-label">Les tiens</h2>
+        <ui-access-row class="access-own" name="Relecteur + Idées" droits="Commenter, rendre un Avis · Noter et trier des Idées" members="4 Membres · 2 Projets"><ui-button class="only-wide" size="sm" icon="pen">Modifier</ui-button><ui-button class="only-wide" size="sm" variant="ghost" icon="copy">Dupliquer</ui-button><ui-icon-button class="only-phone" icon="copy" label="Dupliquer"></ui-icon-button></ui-access-row>
+      </ui-card>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

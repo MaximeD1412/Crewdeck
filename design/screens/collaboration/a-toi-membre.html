@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>À toi — Relecteur</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* On the phone a row's context and meta may take a second line rather than be cut: why it waits is what the row says */
+  .row--decision .row-context { -webkit-line-clamp: 2; }
+  .row--decision .row-meta { white-space: normal; }
+  /* The email that tells a Relecteur, said once under the list */
+  .mail-note { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0; overflow-wrap: anywhere; }
+  .mail-note ui-icon { display: flex; flex: none; color: var(--muted); }
+</style>
+</head>
+<body>
+<!-- exemple : Projet « Site mairie », Pilote Maxime, Relecteur Claire Bernard, versions et heures fictives -->
+<ui-app-shell screen="À toi" current="a-toi" nav="a-toi,projets,parametres" runner="none" me="Claire Bernard" decisions="2">
+  <ui-page-header title="À toi" count="2 versions à relire"></ui-page-header>
+  <div class="layout">
+    <div class="layout-main">
+      <ui-card title="À relire" count="2" label="À toi / À relire" flush>
+        <ui-decision-row tone="accent" icon="doc" kind="Version soumise" title="PRD · Actualités" meta="Site mairie · de Maxime · il y a 2 h">Version 2. Maxime attend ton Avis.<ui-button slot="actions" size="sm">Lire</ui-button></ui-decision-row>
+        <ui-decision-row tone="accent" icon="image" kind="Version soumise" title="Maquettes · Actualités" meta="Site mairie · de Maxime · il y a 40 min">Version 1, 2 écrans. Maxime attend ton Avis.<ui-button slot="actions" size="sm">Lire</ui-button></ui-decision-row>
+      </ui-card>
+      <p class="text-sm muted mail-note"><ui-icon name="bell" size="sm"></ui-icon><span>Pour chaque version, un email « Une version attend ton avis » te prévient à claire.bernard@mairie.example.</span></p>
+    </div>
+  </div>
+</ui-app-shell>
+</body>
+</html>

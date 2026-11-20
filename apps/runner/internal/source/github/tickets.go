@@ -89,8 +89,11 @@ type restIssue struct {
 	Milestone   *restMilestone `json:"milestone"`
 	Comments    int            `json:"comments"`
 	HTMLURL     string         `json:"html_url"`
-	PullRequest *struct{}      `json:"pull_request"`
-	SubIssues   *struct {
+	// RepositoryURL is the issue's repository (`…/repos/<owner>/<name>`): a
+	// sub-issue or a blocker may live in another one.
+	RepositoryURL string    `json:"repository_url"`
+	PullRequest   *struct{} `json:"pull_request"`
+	SubIssues     *struct {
 		Total int `json:"total"`
 	} `json:"sub_issues_summary"`
 	Dependencies *struct {
@@ -127,6 +130,9 @@ func (t *Tickets) ReadAll(ctx context.Context) ([]source.CopiedTicket, []source.
 				return nil, nil, err
 			}
 			for _, child := range children {
+				if !t.ours(child) {
+					continue
+				}
 				parents[child.Number] = is.Number
 			}
 		}
@@ -214,12 +220,25 @@ func (t *Tickets) ticket(ctx context.Context, is restIssue) (source.CopiedTicket
 			return ticket, err
 		}
 		for _, b := range blockers {
+			if !t.ours(b) {
+				continue
+			}
 			ticket.BlockedBy = append(ticket.BlockedBy, b.Number)
 			t.remember(b.Number, b.ID)
 		}
 		slices.Sort(ticket.BlockedBy)
 	}
 	return ticket, nil
+}
+
+// ours is whether the issue is of this repository: a sub-issue or a
+// blocker of another one is no Ticket of the Projet, whatever its number
+// (as the webhooks' handlers filter them).
+func (t *Tickets) ours(is restIssue) bool {
+	if is.RepositoryURL == "" {
+		return true
+	}
+	return strings.HasSuffix(strings.ToLower(strings.TrimRight(is.RepositoryURL, "/")), strings.ToLower("/repos/"+t.Owner+"/"+t.Name))
 }
 
 func milestoneOf(m restMilestone) source.Milestone {
@@ -232,14 +251,34 @@ func milestoneOf(m restMilestone) source.Milestone {
 	return out
 }
 
-// CreateMilestone creates the milestone, its due date with it.
-func (t *Tickets) CreateMilestone(ctx context.Context, m source.Milestone) (int, error) {
-	body := map[string]any{"title": m.Title}
+// PutMilestone creates the milestone, its due date with it (found by its
+// title when the answer is lost), or sets number's due date.
+func (t *Tickets) PutMilestone(ctx context.Context, number int, m source.Milestone) (int, error) {
+	var due any
 	if m.DueOn != nil {
-		body["due_on"] = m.DueOn.UTC().Format(time.RFC3339)
+		due = m.DueOn.UTC().Format(time.RFC3339)
+	}
+	if number > 0 {
+		return number, t.call(ctx, http.MethodPatch, fmt.Sprintf("/milestones/%d", number), map[string]any{"due_on": due}, nil)
+	}
+	body := map[string]any{"title": m.Title}
+	if due != nil {
+		body["due_on"] = due
 	}
 	var created restMilestone
-	err := t.call(ctx, http.MethodPost, "/milestones", body, &created)
+	err := t.create(ctx, "/milestones", body, &created, func(ctx context.Context) (bool, error) {
+		listed, err := listAll[restMilestone](ctx, t, "/milestones?state=all")
+		if err != nil {
+			return false, err
+		}
+		for _, found := range listed {
+			if found.Title == m.Title {
+				created = found
+				return true, nil
+			}
+		}
+		return false, nil
+	})
 	return created.Number, err
 }
 
@@ -260,7 +299,20 @@ func (t *Tickets) PutTicket(ctx context.Context, number int, ticket source.Ticke
 	}
 	if number == 0 {
 		var created restIssue
-		if err := t.call(ctx, http.MethodPost, "/issues", body, &created); err != nil {
+		err := t.create(ctx, "/issues", body, &created, func(ctx context.Context) (bool, error) {
+			issues, err := t.issues(ctx)
+			if err != nil {
+				return false, err
+			}
+			for _, is := range issues {
+				if _, marker := unmarked(deref(is.Body)); marker == from {
+					created = is
+					return true, nil
+				}
+			}
+			return false, nil
+		})
+		if err != nil {
 			return 0, err
 		}
 		number = created.Number
@@ -290,7 +342,21 @@ func CommentHeading(author string, at time.Time) string {
 // AddComment comments the issue: its heading, its text, from's marker.
 func (t *Tickets) AddComment(ctx context.Context, number int, c source.Comment, from string) error {
 	text := CommentHeading(c.Author, c.CreatedAt) + "\n\n" + c.Body
-	return t.call(ctx, http.MethodPost, fmt.Sprintf("/issues/%d/comments", number), map[string]any{"body": Marked(text, from)}, nil)
+	path := fmt.Sprintf("/issues/%d/comments", number)
+	return t.create(ctx, path, map[string]any{"body": Marked(text, from)}, nil, func(ctx context.Context) (bool, error) {
+		comments, err := listAll[restComment](ctx, t, path)
+		if err != nil {
+			return false, err
+		}
+		return slices.ContainsFunc(comments, func(c restComment) bool { _, marker := unmarked(c.Body); return marker == from }), nil
+	})
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // Link makes parent the issue's parent (none for 0) and blockedBy its blockers.
@@ -439,6 +505,17 @@ func listAll[T any](ctx context.Context, t *Tickets, path string) ([]T, error) {
 // call is one call with the migration's token, tried again while GitHub
 // does not answer; ErrUnavailable once the retries are spent.
 func (t *Tickets) call(ctx context.Context, method, path string, body, reply any) error {
+	return t.try(ctx, method, path, body, reply, nil)
+}
+
+// create is a POST that makes an item marked with its origin. Its answer
+// lost (none, a 5xx, a 429), GitHub may hold the item already: found looks
+// for its marker before each new try, and the item found is the answer.
+func (t *Tickets) create(ctx context.Context, path string, body, reply any, found func(context.Context) (bool, error)) error {
+	return t.try(ctx, http.MethodPost, path, body, reply, found)
+}
+
+func (t *Tickets) try(ctx context.Context, method, path string, body, reply any, found func(context.Context) (bool, error)) error {
 	token, err := t.Token(ctx)
 	if err != nil {
 		return err
@@ -449,6 +526,11 @@ func (t *Tickets) call(ctx context.Context, method, path string, body, reply any
 		retries = 3
 	}
 	for attempt := 0; ; attempt++ {
+		if attempt > 0 && found != nil {
+			if ok, err := found(ctx); err != nil || ok {
+				return err
+			}
+		}
 		err = w.do(ctx, method, path, body, reply)
 		var refused *HTTPError
 		if err == nil || ctx.Err() != nil || errors.As(err, &refused) && refused.Status < 500 && refused.Status != http.StatusTooManyRequests {

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/keys"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/source"
@@ -37,7 +38,7 @@ func syncPass(ctx context.Context, from, to source.Copier, p *progress, only map
 	}
 	out := pass{tickets: src, milestones: srcMilestones}
 
-	// The milestones, by title.
+	// The milestones, by title, with their due date.
 	milestones := map[string]source.Milestone{}
 	for _, m := range dstMilestones {
 		if _, ok := milestones[m.Title]; !ok {
@@ -46,8 +47,8 @@ func syncPass(ctx context.Context, from, to source.Copier, p *progress, only map
 	}
 	for _, m := range srcMilestones {
 		found, ok := milestones[m.Title]
-		if !ok {
-			number, err := to.CreateMilestone(ctx, m)
+		if !ok || due(found) != due(m) {
+			number, err := to.PutMilestone(ctx, found.Number, m)
 			if err != nil {
 				return out, err
 			}
@@ -183,6 +184,14 @@ func sorted(labels []string) []string {
 	return slices.Compact(out)
 }
 
+// due is the milestone's due date as both Sources hold it: a day ("" for none).
+func due(m source.Milestone) string {
+	if m.DueOn == nil {
+		return ""
+	}
+	return m.DueOn.UTC().Format(time.DateOnly)
+}
+
 func milestoneTitle(t source.Ticket) string {
 	if t.Milestone == nil {
 		return ""
@@ -215,4 +224,12 @@ func fingerprint(vault *keys.Vault, kind string, t source.CopiedTicket) (key, st
 	mac := hmac.New(sha256.New, vault.DeriveKey(fingerprintLabel))
 	mac.Write([]byte(b.String()))
 	return keyOf(kind, t.Number), string(t.State), hex.EncodeToString(mac.Sum(nil))
+}
+
+// milestoneFingerprint is the milestone as the switch saw it: its key
+// (`<kind>#milestone/<n>`) and an HMAC of its title and due date.
+func milestoneFingerprint(vault *keys.Vault, kind string, m source.Milestone) (key, hash string) {
+	mac := hmac.New(sha256.New, vault.DeriveKey(fingerprintLabel))
+	mac.Write([]byte("milestone\x00" + strings.TrimSpace(m.Title) + "\x00" + due(m)))
+	return kind + "#milestone/" + strconv.Itoa(m.Number), hex.EncodeToString(mac.Sum(nil))
 }

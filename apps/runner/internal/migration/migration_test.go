@@ -3,6 +3,7 @@ package migration_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -237,7 +238,7 @@ func TestACopyMakesEachLocalTicketAnIssueWithItsStateLabelsMilestoneCommentAndLi
 		t.Fatalf("switches %d", len(switched))
 	}
 	s := switched[0]
-	if len(s.Renumbering) != 30 || len(s.Fingerprints) != 30 || len(s.Milestones) != 2 {
+	if len(s.Renumbering) != 30 || len(s.Fingerprints) != 32 || len(s.Milestones) != 2 {
 		t.Fatalf("switch %d renumbered, %d fingerprints, %d milestones", len(s.Renumbering), len(s.Fingerprints), len(s.Milestones))
 	}
 	for _, r := range s.Renumbering {
@@ -246,7 +247,7 @@ func TestACopyMakesEachLocalTicketAnIssueWithItsStateLabelsMilestoneCommentAndLi
 		}
 	}
 	for _, f := range s.Fingerprints {
-		if !regexp.MustCompile(`^local#\d+$`).MatchString(f.Key) || !hex64.MatchString(f.ContentHash) || (f.State != "open" && f.State != "closed") {
+		if !regexp.MustCompile(`^local#(milestone/)?\d+$`).MatchString(f.Key) || !hex64.MatchString(f.ContentHash) || (f.State != "open" && f.State != "closed") {
 			t.Errorf("fingerprint %+v", f)
 		}
 	}
@@ -561,5 +562,146 @@ func TestGitHubToLocalWritesAFilePerIssueThenArchivesAndLocksTheIssues(t *testin
 	}
 	if strings.Join(e.finished, ";") != projectID+" local" || len(sentOf[contracts.RunnerMigrationFinished](e)) != 1 {
 		t.Errorf("finished %v", e.finished)
+	}
+}
+
+func TestASubIssueOrABlockerOfAnotherRepositoryIsNoTicketOfTheProjet(t *testing.T) {
+	e := newEnv(t, map[string]string{"README.md": "Le Projet.\n"})
+	e.gh.add(fakeIssue{Title: "Parent"})
+	e.gh.add(fakeIssue{Title: "Bloquée"})
+	e.gh.add(fakeIssue{Title: "Homonyme", Number: 7})
+	// b/x#7, as numbered as o/r#7: o/r#1's sub-issue and o/r#2's blocker.
+	other := e.gh.add(fakeIssue{Title: "Ailleurs", Number: 7, Repo: "b/x", Parent: 1})
+	e.gh.issue(2).BlockedByOther = []int64{other.ID}
+	e.handler().Copy(context.Background(), copyMessage(contracts.RunnerMigrationCopyFromGithub, contracts.RunnerMigrationCopyFromLocal))
+
+	switched := sentOf[contracts.RunnerMigrationSwitch](e)
+	if len(switched) != 1 || len(switched[0].Renumbering) != 3 {
+		t.Fatalf("switches %+v, failed %+v\n%s", switched, sentOf[contracts.RunnerMigrationFailed](e), e.logs.String())
+	}
+	renumbered := map[int]int{}
+	for _, r := range switched[0].Renumbering {
+		renumbered[r.From] = r.To
+	}
+	for from, name := range map[int]string{7: "homonyme", 2: "bloquee"} {
+		f, err := local.Parse([]byte(e.read(fmt.Sprintf("tickets/%d-%s.md", renumbered[from], name))))
+		if err != nil || f.Parent != nil || len(f.BlockedBy) != 0 {
+			t.Errorf("%d's file: parent %v, blocked by %v (%v)", from, f.Parent, f.BlockedBy, err)
+		}
+	}
+}
+
+func TestAnIssueOrACommentCreatedWhoseAnswerIsLostIsFoundByItsMarkerNotCreatedAgain(t *testing.T) {
+	e := newEnv(t, thirtyTickets())
+	e.commentEach()
+	cut := map[string]int{}
+	e.gh.cut = func(call string) bool {
+		kind := regexp.MustCompile(`\d+`).ReplaceAllString(call, "n")
+		cut[kind]++
+		// GitHub creates the 1st and the 5th issue, and the 1st comment, then the answer is lost.
+		return kind == "POST /issues" && (cut[kind] == 1 || cut[kind] == 5) || kind == "POST /issues/n/comments" && cut[kind] == 1
+	}
+	e.handler().Copy(context.Background(), copyMessage(contracts.RunnerMigrationCopyFromLocal, contracts.RunnerMigrationCopyFromGithub))
+
+	if s := sentOf[contracts.RunnerMigrationSwitch](e); len(s) != 1 {
+		t.Fatalf("switches %+v, failed %+v\n%s", s, sentOf[contracts.RunnerMigrationFailed](e), e.logs.String())
+	}
+	issues := e.gh.Issues()
+	if len(issues) != 30 {
+		t.Fatalf("%d issues for 30 Tickets", len(issues))
+	}
+	for _, is := range issues {
+		if len(is.Comments) != 1 {
+			t.Errorf("issue #%d has %d comments", is.Number, len(is.Comments))
+		}
+	}
+}
+
+func TestAMilestoneFoundByItsTitleGetsItsDueDateAndOneChangedAfterTheLastPassIsCarriedByTheFinish(t *testing.T) {
+	e := newEnv(t, thirtyTickets())
+	other, none := "2026-11-01T00:00:00Z", (*string)(nil)
+	e.gh.milestones = []fakeMilestone{{Number: 1, Title: "M1", DueOn: &other}, {Number: 2, Title: "M2", DueOn: &other}}
+	h := e.handler()
+	h.Copy(context.Background(), copyMessage(contracts.RunnerMigrationCopyFromLocal, contracts.RunnerMigrationCopyFromGithub))
+
+	switched := sentOf[contracts.RunnerMigrationSwitch](e)
+	if len(switched) != 1 {
+		t.Fatalf("switches %d, failed %+v\n%s", len(switched), sentOf[contracts.RunnerMigrationFailed](e), e.logs.String())
+	}
+	if len(e.gh.milestones) != 2 || *e.gh.milestones[0].DueOn != "2026-12-01T00:00:00Z" || e.gh.milestones[1].DueOn != none {
+		t.Fatalf("milestones %+v", e.gh.milestones)
+	}
+
+	// M2 gets a due date between the last pass and the freeze.
+	e.write("tickets/milestones.yml", "- title: M1\n  due_on: 2026-12-01\n- title: M2\n  due_on: 2027-01-15\n")
+	h.Finish(context.Background(), finishMessage(switched[0]))
+	if failed := sentOf[contracts.RunnerMigrationFailed](e); len(failed) > 0 || len(sentOf[contracts.RunnerMigrationFinished](e)) != 1 {
+		t.Fatalf("failed %+v\n%s", failed, e.logs.String())
+	}
+	if m := e.gh.milestones[1]; m.DueOn == nil || *m.DueOn != "2027-01-15T00:00:00Z" {
+		t.Errorf("M2 after the finish: %+v", m)
+	}
+}
+
+func TestAMilestoneDueDateChangedOnGitHubAfterTheLastPassIsWrittenInMilestonesYml(t *testing.T) {
+	e := newEnv(t, map[string]string{"README.md": "Le Projet.\n"})
+	due := "2026-12-01T00:00:00Z"
+	e.gh.milestones = []fakeMilestone{{Number: 1, Title: "MVP", DueOn: &due}, {Number: 2, Title: "V2"}}
+	e.gh.add(fakeIssue{Title: "Connexion GitHub", Milestone: 1})
+	h := e.handler()
+	h.Copy(context.Background(), copyMessage(contracts.RunnerMigrationCopyFromGithub, contracts.RunnerMigrationCopyFromLocal))
+	switched := sentOf[contracts.RunnerMigrationSwitch](e)
+	if len(switched) != 1 {
+		t.Fatalf("switches %d, failed %+v\n%s", len(switched), sentOf[contracts.RunnerMigrationFailed](e), e.logs.String())
+	}
+
+	later := "2027-02-01T00:00:00Z"
+	e.gh.milestones[0].DueOn, e.gh.milestones[1].DueOn = nil, &later
+	h.Finish(context.Background(), finishMessage(switched[0]))
+	if failed := sentOf[contracts.RunnerMigrationFailed](e); len(failed) > 0 || len(sentOf[contracts.RunnerMigrationFinished](e)) != 1 {
+		t.Fatalf("failed %+v\n%s", failed, e.logs.String())
+	}
+	milestones, err := e.project.Milestones(context.Background())
+	if err != nil || len(milestones) != 2 || milestones[0].Title != "MVP" || milestones[0].DueOn != nil || milestones[1].DueOn == nil || milestones[1].DueOn.Format(time.DateOnly) != "2027-02-01" {
+		t.Errorf("milestones %+v %v\n%s", milestones, err, e.read("tickets/milestones.yml"))
+	}
+}
+
+func TestAFinishCutBetweenTheRenameAndItsRecordFindsTheArchiveAndCarriesItsLateChanges(t *testing.T) {
+	e := newEnv(t, thirtyTickets())
+	e.handler().Copy(context.Background(), copyMessage(contracts.RunnerMigrationCopyFromLocal, contracts.RunnerMigrationCopyFromGithub))
+	switched := sentOf[contracts.RunnerMigrationSwitch](e)
+	if len(switched) != 1 {
+		t.Fatalf("switches %d", len(switched))
+	}
+	e.write("tickets/12-ticket-12.md", "---\nnumber: 12\ntitle: Ticket 12, en retard\nlabels: [size:S]\nmilestone: M2\n---\n\nLe corps.\n")
+
+	// The Runner stopped once tickets/ renamed under the name its progress
+	// kept, before the progress said frozen.
+	path := filepath.Join(e.home, "migrations", switched[0].MigrationId+".json")
+	var p map[string]any
+	data, err := os.ReadFile(path)
+	if err != nil || json.Unmarshal(data, &p) != nil {
+		t.Fatalf("progress %q %v", data, err)
+	}
+	archive := local.ArchivePrefix + time.Now().UTC().Format(time.DateOnly)
+	p["archive"] = archive
+	if data, err = json.Marshal(p); err != nil || os.WriteFile(path, data, 0o600) != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Join(e.dir, "tickets"), filepath.Join(e.dir, archive)); err != nil {
+		t.Fatal(err)
+	}
+
+	e.handler().Finish(context.Background(), finishMessage(switched[0]))
+	if failed := sentOf[contracts.RunnerMigrationFailed](e); len(failed) > 0 || len(sentOf[contracts.RunnerMigrationFinished](e)) != 1 {
+		t.Fatalf("failed %+v\n%s", failed, e.logs.String())
+	}
+	late := false
+	for _, is := range e.gh.Issues() {
+		late = late || strings.Contains(is.Body, "local#12 -->") && is.Title == "Ticket 12, en retard"
+	}
+	if !late {
+		t.Errorf("12's late change not carried")
 	}
 }

@@ -186,6 +186,8 @@ func (h *Handler) switchTo(ctx context.Context, p *progress, kind string, stable
 	}
 	var milestones []contracts.RunnerMigrationSwitchMilestonesElem
 	for _, m := range stable.milestones {
+		key, hash := milestoneFingerprint(vault, kind, m)
+		fingerprints = append(fingerprints, contracts.RunnerMigrationSwitchFingerprintsElem{Key: key, State: "open", ContentHash: hash})
 		if to, ok := p.Milestones[m.Number]; ok && m.Number > 0 && to > 0 {
 			milestones = append(milestones, contracts.RunnerMigrationSwitchMilestonesElem{From: m.Number, To: to})
 		}
@@ -222,7 +224,7 @@ func (h *Handler) finish(ctx context.Context, m contracts.RunnerMigrationFinish)
 		return err
 	}
 	if p.Stage != stageFrozen {
-		if err := from.Freeze(ctx); err != nil {
+		if err := h.freeze(ctx, p, from); err != nil {
 			return err
 		}
 		if dir, ok := from.(interface{ Dir() string }); ok {
@@ -237,7 +239,7 @@ func (h *Handler) finish(ctx context.Context, m contracts.RunnerMigrationFinish)
 	if err != nil {
 		return err
 	}
-	frozen, _, err := from.ReadAll(ctx)
+	frozen, frozenMilestones, err := from.ReadAll(ctx)
 	if err != nil {
 		return err
 	}
@@ -246,15 +248,20 @@ func (h *Handler) finish(ctx context.Context, m contracts.RunnerMigrationFinish)
 		seen[f.Key] = f.ContentHash
 	}
 	vault := h.cfg.Vault()
-	late := map[int]bool{}
+	late, lateMilestones := map[int]bool{}, 0
 	for _, t := range frozen {
 		key, _, hash := fingerprint(vault, from.Kind(), t)
 		if seen[key] != hash {
 			late[t.Number] = true
 		}
 	}
-	if len(late) > 0 {
-		h.cfg.Logger.Info("migration.finish.late", "migrationId", p.MigrationID, "tickets", len(late))
+	for _, m := range frozenMilestones {
+		if key, hash := milestoneFingerprint(vault, from.Kind(), m); seen[key] != hash {
+			lateMilestones++
+		}
+	}
+	if len(late) > 0 || lateMilestones > 0 {
+		h.cfg.Logger.Info("migration.finish.late", "migrationId", p.MigrationID, "tickets", len(late), "milestones", lateMilestones)
 		if _, err := syncPass(ctx, from, to, p, late, nil); err != nil {
 			return err
 		}
@@ -268,6 +275,32 @@ func (h *Handler) finish(ctx context.Context, m contracts.RunnerMigrationFinish)
 	}
 	h.cfg.Logger.Info("migration.finished", "migrationId", p.MigrationID)
 	return h.cfg.Send(ctx, protocol.NewMigrationFinished(p.MigrationID))
+}
+
+// archiver is a side frozen by a rename, its new name kept first.
+type archiver interface {
+	NextArchive() (string, error)
+	FreezeAs(ctx context.Context, name string) error
+}
+
+// freeze freezes the old place; renamed, under the name the progress
+// keeps before the rename.
+func (h *Handler) freeze(ctx context.Context, p *progress, from source.Copier) error {
+	a, ok := from.(archiver)
+	if !ok {
+		return from.Freeze(ctx)
+	}
+	if p.Archive == "" {
+		name, err := a.NextArchive()
+		if err != nil {
+			return err
+		}
+		p.Archive = name
+		if err := p.save(h.cfg.Home); err != nil {
+			return err
+		}
+	}
+	return a.FreezeAs(ctx, p.Archive)
 }
 
 // side is the Copier of one side of the migration.

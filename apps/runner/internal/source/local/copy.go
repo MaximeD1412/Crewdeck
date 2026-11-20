@@ -154,15 +154,25 @@ func (c *Copier) comments(ctx context.Context, number int) ([]source.CopiedComme
 	return comments, rows.Err()
 }
 
-// CreateMilestone adds the milestone at the end of tickets/milestones.yml:
-// its number is its rank.
-func (c *Copier) CreateMilestone(ctx context.Context, m source.Milestone) (int, error) {
-	var number int
+// PutMilestone adds the milestone at the end of tickets/milestones.yml (its
+// number is its rank), or sets the due date of the number-th.
+func (c *Copier) PutMilestone(ctx context.Context, number int, m source.Milestone) (int, error) {
 	err := c.p.locked(ctx, func(s *scanned) error {
 		path := filepath.Join(c.p.folder, TicketsDir, MilestonesFile)
 		data, err := os.ReadFile(path)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("local: read milestones.yml: %w", err)
+		}
+		if number > 0 {
+			edited, err := withDue(data, number, m.DueOn)
+			if err != nil {
+				return err
+			}
+			if _, err := c.p.writeFile(TicketsDir+"/"+MilestonesFile, edited); err != nil {
+				return err
+			}
+			s.changed = append(s.changed, source.Changed{ProjectID: c.p.id, Kind: source.KindMilestone})
+			return nil
 		}
 		entry := map[string]any{"title": m.Title}
 		if m.DueOn != nil {
@@ -184,6 +194,31 @@ func (c *Copier) CreateMilestone(ctx context.Context, m source.Milestone) (int, 
 		return nil
 	})
 	return number, err
+}
+
+// withDue is milestones.yml with the number-th milestone's due_on set to
+// due (removed for nil), the rest as it was.
+func withDue(data []byte, number int, due *time.Time) ([]byte, error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil || len(doc.Content) != 1 || doc.Content[0].Kind != yaml.SequenceNode || len(doc.Content[0].Content) < number {
+		return nil, fmt.Errorf("local: milestones.yml has no milestone %d: %w", number, source.ErrUnreadable)
+	}
+	entry := doc.Content[0].Content[number-1]
+	if entry.Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("local: milestones.yml's milestone %d: %w", number, source.ErrUnreadable)
+	}
+	for i := 0; i+1 < len(entry.Content); i += 2 {
+		if entry.Content[i].Value == "due_on" {
+			entry.Content = slices.Delete(entry.Content, i, i+2)
+			break
+		}
+	}
+	if due != nil {
+		entry.Content = append(entry.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Value: "due_on"},
+			&yaml.Node{Kind: yaml.ScalarNode, Style: yaml.DoubleQuotedStyle, Value: due.UTC().Format(time.DateOnly)})
+	}
+	return yaml.Marshal(&doc)
 }
 
 // PutTicket writes the Ticket's file, `from:` in its front matter: a new
@@ -257,36 +292,53 @@ func (c *Copier) Link(ctx context.Context, was source.CopiedTicket, parent int, 
 	return err
 }
 
-// Freeze numbers what is not yet, then renames `tickets/` to
-// `tickets.archive-<YYYY-MM-DD>/` (`-2`, `-3` when taken): nothing reads
-// nor writes there again, and the Copier reads the archive from then on.
+// Freeze archives `tickets/` under NextArchive's name.
 func (c *Copier) Freeze(ctx context.Context) error {
-	if c.dir != TicketsDir {
-		return nil // frozen already
-	}
-	if _, err := c.p.Scan(ctx); err != nil {
+	name, err := c.NextArchive()
+	if err != nil {
 		return err
 	}
-	from := filepath.Join(c.p.folder, TicketsDir)
-	if _, err := os.Stat(from); errors.Is(err, os.ErrNotExist) {
-		return nil // nothing to archive
-	}
+	return c.FreezeAs(ctx, name)
+}
+
+// NextArchive is the name `tickets/` would be archived under:
+// `tickets.archive-<YYYY-MM-DD>` (`-2`, `-3` when taken).
+func (c *Copier) NextArchive() (string, error) {
 	base := ArchivePrefix + c.now().UTC().Format(time.DateOnly)
 	for i := 1; ; i++ {
 		name := base
 		if i > 1 {
 			name += "-" + strconv.Itoa(i)
 		}
-		to := filepath.Join(c.p.folder, name)
-		if _, err := os.Lstat(to); err == nil {
-			continue
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("local: archive tickets/: %w", err)
+		if _, err := os.Lstat(filepath.Join(c.p.folder, name)); errors.Is(err, os.ErrNotExist) {
+			return name, nil
+		} else if err != nil {
+			return "", fmt.Errorf("local: archive tickets/: %w", err)
 		}
-		if err := os.Rename(from, to); err != nil {
-			return fmt.Errorf("local: archive tickets/: %w", err)
-		}
-		c.dir = name
-		return nil
 	}
+}
+
+// FreezeAs numbers what is not yet, then renames `tickets/` to name (a
+// name kept before, so that a freeze cut after the rename finds its
+// archive again): nothing reads nor writes there again, and the Copier
+// reads the archive from then on.
+func (c *Copier) FreezeAs(ctx context.Context, name string) error {
+	if c.dir != TicketsDir {
+		return nil // frozen already
+	}
+	from, to := filepath.Join(c.p.folder, TicketsDir), filepath.Join(c.p.folder, name)
+	if _, err := os.Stat(from); errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Stat(to); err == nil {
+			c.dir = name // renamed already
+		}
+		return nil // else nothing to archive
+	}
+	if _, err := c.p.Scan(ctx); err != nil {
+		return err
+	}
+	if err := os.Rename(from, to); err != nil {
+		return fmt.Errorf("local: archive tickets/: %w", err)
+	}
+	c.dir = name
+	return nil
 }

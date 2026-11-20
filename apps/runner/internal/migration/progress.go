@@ -31,6 +31,9 @@ type progress struct {
 	Stage       string `json:"stage"`
 	// Dir is where the Local side is read: `tickets/`, its archive once frozen.
 	Dir string `json:"dir,omitempty"`
+	// Archive is the name the Local side is frozen under, kept before the
+	// rename: a finish cut after it finds the archive again.
+	Archive string `json:"archive,omitempty"`
 	// Tickets and Milestones are each old number to its new one.
 	Tickets    map[int]int `json:"tickets"`
 	Milestones map[int]int `json:"milestones"`

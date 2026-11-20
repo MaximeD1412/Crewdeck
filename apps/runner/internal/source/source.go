@@ -349,8 +349,9 @@ type Copier interface {
 	Kind() string
 	// ReadAll is every Ticket with its comments, and the milestones.
 	ReadAll(ctx context.Context) ([]CopiedTicket, []Milestone, error)
-	// CreateMilestone adds the milestone and gives its number.
-	CreateMilestone(ctx context.Context, m Milestone) (int, error)
+	// PutMilestone adds the milestone when number is 0 (its number given),
+	// else sets number's due date to m's (none for nil).
+	PutMilestone(ctx context.Context, number int, m Milestone) (int, error)
 	// PutTicket writes t as the copy of from: a new Ticket when number is 0
 	// (its number given), else number's title, body, labels, ready,
 	// milestone (t.Milestone's Number on this Source, nil for none), state

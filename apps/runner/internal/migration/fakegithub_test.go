@@ -24,6 +24,9 @@ type fakeGitHub struct {
 	nextID     int64
 	token      string
 	before     func(call string, query string)
+	// cut, when it says so, drops the connection after the call is applied,
+	// before its answer.
+	cut func(call string) bool
 }
 
 type fakeIssue struct {
@@ -40,6 +43,10 @@ type fakeIssue struct {
 	Comments    []fakeComment
 	Parent      int
 	BlockedBy   []int
+	// Repo is another repository's "owner/name" ("" for o/r): its issue is
+	// one of o/r's sub-issues (Parent) or blockers (BlockedByOther), never listed.
+	Repo           string
+	BlockedByOther []int64
 }
 
 type fakeComment struct {
@@ -70,7 +77,7 @@ func (f *fakeGitHub) add(is fakeIssue) *fakeIssue {
 	f.nextID++
 	is.ID = f.nextID
 	if is.Number == 0 {
-		is.Number = len(f.issues) + 1
+		is.Number = f.nextNumber()
 	}
 	if is.State == "" {
 		is.State = "open"
@@ -79,9 +86,20 @@ func (f *fakeGitHub) add(is fakeIssue) *fakeIssue {
 	return &is
 }
 
+// nextNumber is the number of o/r's next issue.
+func (f *fakeGitHub) nextNumber() int {
+	n := 0
+	for _, is := range f.issues {
+		if is.Repo == "" {
+			n = max(n, is.Number)
+		}
+	}
+	return n + 1
+}
+
 func (f *fakeGitHub) issue(n int) *fakeIssue {
 	for _, is := range f.issues {
-		if is.Number == n {
+		if is.Number == n && is.Repo == "" {
 			return is
 		}
 	}
@@ -116,14 +134,17 @@ func (f *fakeGitHub) Issues() []fakeIssue {
 	defer f.mu.Unlock()
 	out := []fakeIssue{}
 	for _, is := range f.issues {
-		if !is.PR {
+		if !is.PR && is.Repo == "" {
 			out = append(out, *is)
 		}
 	}
 	return out
 }
 
-var issuePath = regexp.MustCompile(`^/issues/(\d+)(/.*)?$`)
+var (
+	issuePath     = regexp.MustCompile(`^/issues/(\d+)(/.*)?$`)
+	milestonePath = regexp.MustCompile(`^/milestones/(\d+)$`)
+)
 
 func (f *fakeGitHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/repos/o/r")
@@ -149,6 +170,13 @@ func (f *fakeGitHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		perPage = 30
 	}
 	reply := func(status int, v any) {
+		if f.cut != nil && f.cut(call) {
+			conn, _, err := w.(http.Hijacker).Hijack()
+			if err == nil {
+				conn.Close()
+			}
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
 		_ = json.NewEncoder(w).Encode(v)
@@ -162,12 +190,14 @@ func (f *fakeGitHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case call == "GET /issues":
 		items := []any{}
 		for _, is := range f.issues {
-			items = append(items, f.render(is))
+			if is.Repo == "" {
+				items = append(items, f.render(is))
+			}
 		}
 		list(items)
 	case call == "POST /issues":
 		f.nextID++
-		is := &fakeIssue{ID: f.nextID, Number: len(f.issues) + 1, Title: str(body["title"]), Body: str(body["body"]), State: "open", Labels: strs(body["labels"])}
+		is := &fakeIssue{ID: f.nextID, Number: f.nextNumber(), Title: str(body["title"]), Body: str(body["body"]), State: "open", Labels: strs(body["labels"])}
 		if m, ok := body["milestone"].(float64); ok {
 			is.Milestone = int(m)
 		}
@@ -200,6 +230,19 @@ func (f *fakeGitHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		f.milestones = append(f.milestones, m)
 		reply(http.StatusCreated, map[string]any{"number": m.Number, "title": m.Title, "due_on": m.DueOn})
+	case r.Method == http.MethodPatch && milestonePath.MatchString(path):
+		n, _ := strconv.Atoi(milestonePath.FindStringSubmatch(path)[1])
+		for i := range f.milestones {
+			if f.milestones[i].Number == n {
+				f.milestones[i].DueOn = nil
+				if due, ok := body["due_on"].(string); ok {
+					f.milestones[i].DueOn = &due
+				}
+				reply(http.StatusOK, map[string]any{"number": n, "title": f.milestones[i].Title, "due_on": f.milestones[i].DueOn})
+				return
+			}
+		}
+		reply(http.StatusNotFound, map[string]any{"message": "Not Found"})
 	default:
 		match := issuePath.FindStringSubmatch(path)
 		if match == nil {
@@ -278,6 +321,9 @@ func (f *fakeGitHub) serveIssue(method string, is *fakeIssue, rest string, body 
 		for _, b := range is.BlockedBy {
 			items = append(items, f.render(f.issue(b)))
 		}
+		for _, id := range is.BlockedByOther {
+			items = append(items, f.render(f.byID(id)))
+		}
 		list(items)
 	case method == http.MethodPost && rest == "/dependencies/blocked_by":
 		blocker := f.byID(int64(body["issue_id"].(float64)))
@@ -308,9 +354,13 @@ func (f *fakeGitHub) render(is *fakeIssue) map[string]any {
 	for _, l := range is.Labels {
 		labels = append(labels, map[string]any{"name": l})
 	}
+	repo := is.Repo
+	if repo == "" {
+		repo = "o/r"
+	}
 	children := 0
 	for _, c := range f.issues {
-		if c.Parent == is.Number {
+		if c.Parent == is.Number && is.Repo == "" {
 			children++
 		}
 	}
@@ -319,7 +369,8 @@ func (f *fakeGitHub) render(is *fakeIssue) map[string]any {
 		"locked": is.Locked, "labels": labels, "milestone": nil, "comments": len(is.Comments),
 		"html_url":                   fmt.Sprintf("https://github.com/o/r/issues/%d", is.Number),
 		"sub_issues_summary":         map[string]any{"total": children},
-		"issue_dependencies_summary": map[string]any{"blocked_by": len(is.BlockedBy)},
+		"issue_dependencies_summary": map[string]any{"blocked_by": len(is.BlockedBy) + len(is.BlockedByOther)},
+		"repository_url":             "https://api.github.com/repos/" + repo,
 	}
 	for _, m := range f.milestones {
 		if m.Number == is.Milestone {

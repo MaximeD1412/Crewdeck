@@ -48,6 +48,8 @@ export interface AToiOptions {
   readonly roleName?: DecisionReads['roleName'];
   /** A Local Projet's sealed text opened; « … » by default. */
   readonly localText?: DecisionReads['localText'];
+  /** A Ticket's title from the store; none by default. */
+  readonly ticketTitle?: DecisionReads['ticketTitle'];
 }
 
 const NOT_READ: SessionEventRead = { state: 'reading' };
@@ -68,9 +70,9 @@ const newestFirst = (a: Decision, b: Decision): number =>
 export const aToiView = (
   open: Iterable<Decision>,
   query: Readonly<Record<string, string>>,
-  { runnerOnline, now = new Date(), views = decisionViews, sessionEvent = () => NOT_READ, roleName = defaultRoleName, projectName: nameOf = () => null, localText = notOpened }: AToiOptions,
+  { runnerOnline, now = new Date(), views = decisionViews, sessionEvent = () => NOT_READ, roleName = defaultRoleName, projectName: nameOf = () => null, localText = notOpened, ticketTitle = () => null }: AToiOptions,
 ): PageAToiData => {
-  const reads: DecisionReads = { runnerOnline, sessionEvent, roleName, localText };
+  const reads: DecisionReads = { runnerOnline, sessionEvent, roleName, localText, ticketTitle };
   const all = [...open]
     .map((decision) =>
       decision.projectName === null && decision.projectId !== null ? { ...decision, projectName: nameOf(decision.projectId) ?? decision.projectId } : decision,

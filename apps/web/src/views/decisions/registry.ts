@@ -32,6 +32,8 @@ export interface DecisionReads {
   roleName(role: string): string;
   /** A Local Projet's text its Runner sealed, opened with the vault (`sources/local-sealed.ts`); « … » until then. */
   localText(projectId: string, sealed: SealedItem, place: string): string;
+  /** The title of the Projet's Ticket `number` the store holds, a Local one's opened with the vault (« … » until then); `null` for a Ticket it does not hold. */
+  ticketTitle(projectId: string, number: number): string | null;
 }
 
 /** How « À toi » shows a kind of Décision: its module's ticket registers it. */

@@ -1,4 +1,5 @@
 import { aToi, aToiVide } from './a-toi.js';
+import { aToiEtape } from './a-toi-etape.js';
 import { aToiProcess } from './a-toi-process.js';
 import { blank } from './blank.js';
 import {
@@ -40,6 +41,7 @@ const SCENARIOS: readonly Scenario[] = [
   appareilsAjouter,
   aToi,
   aToiVide,
+  aToiEtape,
   aToiProcess,
   aToiRunnerHorsLigne,
   aToiVide,

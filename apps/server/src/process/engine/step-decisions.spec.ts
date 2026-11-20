@@ -101,11 +101,19 @@ describe('the Décisions of an agent Étape’s StepRun (ATOI-2)', () => {
     ]);
   });
 
-  it('adds the item’s readable label and page when its module gives them; without a Projet, the link is « À toi »', async () => {
+  it('adds the item’s readable label and page when its module gives them, none when it cannot read it (a Local Ticket); without a Projet, the link is « À toi »', async () => {
     const labelled = setup();
     labelled.items.add({ itemType: 'ticket', label: (_tx, id) => Promise.resolve(`#${id} Recherche d’actes`), link: (_tx, id) => Promise.resolve(`/boucle?ticket=${id}`), onStopped: () => Promise.resolve() });
     await labelled.hooks.finished(labelled.tx, stepRunOf(), { status: 'incomplete', verdict: VERDICT });
     expect(labelled.raised[0]).toMatchObject({ label: 'Code · #57 Recherche d’actes', link: '/boucle?ticket=57', params: { itemLabelled: true } });
+
+    // A Local Ticket: its module registered, its title sealed, no label; the page adds the title it opens.
+    const local = setup();
+    local.items.add({ itemType: 'ticket', label: () => Promise.resolve(null), link: (_tx, id) => Promise.resolve(`/boucle?ticket=${id}`), onStopped: () => Promise.resolve() });
+    await local.hooks.finished(local.tx, stepRunOf(), { status: 'incomplete', verdict: VERDICT });
+    expect(local.raised[0]).toMatchObject({ label: 'Code', link: '/boucle?ticket=57', params: { itemType: 'ticket', itemId: '57', itemLabelled: false } });
+    // « Maximum de Retours atteint » names it as without a handler.
+    expect(await local.items.label(local.tx, { itemType: 'ticket', itemId: '57' }, 'Développement')).toBe('Développement · Ticket');
 
     const unpinned = setup({ projectId: null });
     await unpinned.hooks.finished(unpinned.tx, stepRunOf({ projectId: null }), { status: 'failed', failure: 'session-error' });

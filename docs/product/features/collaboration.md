@@ -64,9 +64,9 @@ link opens the Projet once that person signs in with the invited address.
 The invitation carries what lets their browser read the Projet's encrypted
 content, so no Appareil of the Pilote needs to be on when they join. A
 Membre's next Appareil is approved from one of their own, as a Pilote's is.
-- **US-124** (next) As a Pilote, I want to invite someone onto one of my Projets by email with an Accès, the invitation opening the Projet only once they sign in with the invited address, without waiting for one of my Appareils to be on, so that a client or a teammate joins in one click.
-- **US-125** (next) As a Membre, I want to sign in with a link sent to my email, or with my Google or GitHub account, with no Runner nor Compte IA, and see only the Projets I was invited onto, next to my own if I am a Pilote too, so that joining costs me nothing.
-- **US-126** (next) As a Pilote, I want to see the Membres of a Projet with their Accès, change an Accès and remove a Membre, a removed Membre losing access at once and the Projet's key changing, their comments and Avis staying with their name, so that I control who reads my work.
+- **US-124** (next) As a Pilote, I want to invite someone onto one of my Projets by email with an Accès, the invitation opening the Projet only once they sign in with the invited address, without waiting for one of my Appareils to be on, the email naming who invites and not the Projet, the invitation valid 7 days and « Renvoyer » restarting them, inviting being an Action sensible (US-26), so that a client or a teammate joins in one click.
+- **US-125** (next) As a Membre, I want to sign in with a link sent to my email, or with my Google or GitHub account, with no Runner nor Compte IA, the link sent again with « Renvoyer le lien » when it does not arrive, and see only the Projets I was invited onto, next to my own if I am a Pilote too, so that joining costs me nothing.
+- **US-126** (next) As a Pilote, I want to see the Membres of a Projet with their Accès and the pending invitations counted apart (« 2 Membres · 1 invitation »), change an Accès, a pending invitation's too (it applies when the person joins), and remove a Membre, giving an Accès with more Droits being an Action sensible (US-26) and removing one or giving fewer Droits not, a removed Membre losing access at once and the Projet's key changing, their comments and Avis staying with their name, so that I control who reads my work.
 The four Accès by default give these Droits (✓); « Lire les Versions
 soumises » comes with every Accès:
 
@@ -82,8 +82,15 @@ soumises » comes with every Accès:
 | Gérer les Membres | | | | ✓ |
 | Lire l'Historique | | | | ✓ |
 
-- **US-127** (next) As a Pilote, I want the four Accès by default, which never change, and to create my own by duplicating one and choosing its Droits among those of the table, my Accès defined in my account and offered on all my Projets, only I creating or changing them, a change applying at once to every Membre who holds that Accès, the product saying on how many Projets before I confirm, so that each person gets exactly the rights they need.
-- **US-128** (next) As a Membre allowed to manage the Membres, I want to invite, change the Accès of and remove the Membres of that Projet, choosing among the Accès of its Pilote and never one with a Droit I do not hold, so that the Pilote can hand over the administration safely.
+Every Droit but « Commenter, rendre un Avis » needs « Lire le Projet, lire
+les Sessions »: choosing one chooses it too. The pages follow the Droits:
+the Planifications come with « Piloter les Sessions, démarrer la Boucle »,
+the statistics with « Lire le Projet », their spend with « Paramètres du
+Projet » (each Membre sees their own); a Membre's Runner page shows only
+their own Runner.
+
+- **US-127** (next) As a Pilote, I want the four Accès by default, which never change, and to create my own by duplicating one and choosing its Droits among those of the table, my Accès defined in my account and offered on all my Projets, only I creating or changing them, a change applying at once to every Membre who holds that Accès, the product saying on how many Projets before I confirm, an Accès of mine deleted only once no Membre holds it (else I first choose the Accès that replaces it), so that each person gets exactly the rights they need.
+- **US-128** (next) As a Membre allowed to manage the Membres, I want to invite, change the Accès of and remove the Membres of that Projet, choosing among the Accès of its Pilote and never one with a Droit I do not hold, never changing my own Accès (I may leave the Projet) nor touching a Membre who holds a Droit I do not, so that the Pilote can hand over the administration safely.
 
 ### A client's review
 The Pilote submits a document of a Conception, a set of mockups or the
@@ -91,10 +98,10 @@ captures of a visual review to one or more Relecteurs. Each one reads a
 Version soumise, fixed and stored encrypted, readable with every machine
 off and without access to the Projet's Source; comments on it and gives an
 Avis. The Pilote's approval stays the gate.
-- **US-129** (next) As a Pilote, I want to submit a document of a Conception (PRD, technical design), a set of mockups or the captures of a visual review to one or more Relecteurs, as a Version soumise they read even when all my machines are off and they have no access to its Source, so that my client reviews exactly what I send.
-- **US-130** (next) As a Relecteur, I want to comment on a passage of a document or on a zone of a mockup or a capture, on the PC or the phone, and give my Avis (« approuvé » or « changements demandés ») on the Version soumise I read, so that my feedback is precise and kept.
+- **US-129** (next) As a Pilote, I want to submit a document of a Conception (PRD, technical design), a set of mockups or the captures of a visual review next to their Maquette to one or more Membres (a person invited and not yet joined included, the Version waiting in their « À toi »), as a Version soumise they read even when all my machines are off and they have no access to its Source, so that my client reviews exactly what I send.
+- **US-130** (next) As a Relecteur, I want to comment on a passage of a document or on a zone of a mockup or a capture, on the PC or the phone, and give my Avis (« approuvé » or « changements demandés ») on the Version soumise I read, seeing the comments and Avis of the others on it, changing my Avis and commenting until the Pilote has decided on that version, the earlier versions readable with their Avis but closed to comments, so that my feedback is precise and kept.
 - **US-131** (next) As a Pilote, I want the Avis of the Relecteurs on the Décision of the review (« Avis client : approuvé par Claire, version 2 »), my approval staying the Action sensible that decides, and to submit the next version when the agent changed it, each Avis staying with the version it was given on, so that I decide knowing what my client thinks.
-- **US-132** (next) As a Membre, I want my own « À toi » with what waits for me (a Version soumise to review, a Décision I may settle), with an email for a Relecteur and the Pilote's notifications for the other Accès, so that nobody waits for me without my knowing.
+- **US-132** (next) As a Membre, I want my own « À toi » with what waits for me (a Version soumise to review, a Décision I may settle), with an email for a Relecteur (which they may turn off, as they may change their name) and the Pilote's notifications for the other Accès, the emails generic but the invitation's, so that nobody waits for me without my knowing.
 - **US-133** (next) As a Pilote, or a Membre allowed to approve, I want to choose, when I ask for changes, which comments of the Membres go to the agent as its Retour, all checked by default, so that a comment never becomes an instruction on its own.
 
 ### Working as a team
@@ -102,13 +109,13 @@ Contributeurs follow and feed the Projet without driving the agents;
 Co-pilotes drive them on their own Runner or the Projet's Runner partagé,
 always on API keys. A Projet d'équipe is a Projet where someone other than
 its Pilote may drive the agents.
-- **US-134** (next) As a Contributeur, I want to note and triage the Idées of a Projet, comment on its documents and Tickets, read its Sessions and follow its Boucle, so that the project team takes part without driving the agents.
+- **US-134** (next) As a Contributeur, I want to note and triage the Idées of a Projet (an Idée becoming a Ticket only through someone allowed to drive the agents; its analysis running on the Runner partagé, else waiting for one), comment on its documents and Tickets (a comment staying in Crewdeck, never copied to the GitHub issue), read its Sessions and follow its Boucle, so that the project team takes part without driving the agents.
 - **US-135** (next) As a Co-pilote, I want to drive Sessions and start the Boucle of a Projet on my own Runner or on its Runner partagé, and settle its Décisions within my Droits, each Action sensible confirmed as for the Pilote, so that the team ships without waiting for the Pilote.
-- **US-136** (next) As a Membre allowed to settle a Décision, I want it in the « À toi » of everyone who may settle it, the first answer settling it for all with the name of who answered, so that a Décision never waits for one person.
+- **US-136** (next) As a Membre allowed to settle a Décision, I want it in the « À toi » of everyone who may settle it, the first answer settling it for all with the name of who answered, the Décision leaving the others' « À toi » at once and shown in their « Depuis ta dernière visite » (« réglée par Inès »), so that a Décision never waits for one person.
 - **US-137** (next) As a Pilote, I want a Projet d'équipe to run its agents on API keys only, the product saying so when I give a Membre the Droit to drive them and showing which Comptes IA stay usable, a Session started on a subscription refused with why, so that no personal subscription serves a team.
-- **US-138** (next) As a Pilote, I want to make a Runner on a server (US-70) the Runner partagé of a Projet, carrying only the API keys that I or a Membre allowed to change the Paramètres of the Projet put there for it, each key paid by whoever put it and named with them, where the Membres allowed to drive the agents run their Sessions and the Boucle, the spend counted per key and per person who started the work in the statistics, so that the team's agents work day and night with every PC off.
-- **US-139** (next) As a Co-pilote, I want to be told why I cannot run the agents of a Local Projet whose folder is on the Pilote's own machine (« ce Projet vit sur la machine de Maxime »), and to run them once its folder is on its Runner partagé, so that a Projet without GitHub can still be driven by a team.
-- **US-140** (next) As a Pilote or a Membre, I want to read a Session while its Runner is off, the Session stored encrypted as long as its Ticket or its Étape is open and 30 days after, so that everyone follows the agents whatever machine is on.
+- **US-138** (next) As a Pilote, I want to make one of my Runners on a server (US-70) the Runner partagé of a Projet, from its Paramètres, carrying only the API keys that I or a Membre allowed to change the Paramètres of the Projet put there for it, each key paid by whoever put it and named with them, removed by them or by me, the Runner partagé detached with the Droit « Paramètres du Projet » once the Boucle is stopped, where the Membres allowed to drive the agents run their Sessions and the Boucle, the spend counted per key and per person who started the work in the statistics (the only figures per person), so that the team's agents work day and night with every PC off.
+- **US-139** (next) As a Co-pilote, I want to be told why I cannot run the agents of a Local Projet whose folder is on the Pilote's own machine (« ce Projet vit sur la machine de Maxime »), and to run them once the Pilote has pointed it at a folder already on its Runner partagé (copying it there is theirs), its content then read as any Projet's within each one's Droits, so that a Projet without GitHub can still be driven by a team.
+- **US-140** (next) As a Pilote or a Membre, I want to read a Session while its Runner is off, every Session of a Projet with Membres stored encrypted, whatever its Runner, as long as its Ticket or its Étape is open and 30 days after the Ticket is closed or the Étape approved or abandoned, so that everyone follows the agents whatever machine is on.
 
 ### Historique
 Each Projet keeps who did what and when; an agent's action is credited to
@@ -141,6 +148,8 @@ place of the reasons, and now names who decided.
   **Membres** comment, the agent or the **Source**'s tool edits.
 - Inviting onto all of a **Pilote**'s **Projets** at once: a client sees only
   their **Projet**; to reopen for a team after the Lancement.
+- A comment copied to the GitHub issue of a **Ticket**: GitHub would read
+  what stays encrypted end to end in Crewdeck.
 - Assigning a **Décision** to one person: the first one allowed answers
   (US-136); to reopen if a team asks for it.
 

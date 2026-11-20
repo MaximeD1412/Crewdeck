@@ -468,7 +468,8 @@ own dialog: merge, start the **Boucle**, approve a document of a
 **Conception** (PRD, mockups, technical design, Tickets) or an
 **Amendement**, approve the
 inventory of an existing repository, activate a changed **Process**, move a
-**Type d'artefact** to another **Source** (and later release). Starting the
+**Type d'artefact** to another **Source**, invite a **Membre** or give them
+an **Accès** with more **Droits** (and later release). Starting the
 **Boucle**, or creating or resuming its **Planification**, also
 confirms the merges it does itself, for the Tickets that pass their review,
 until it is stopped or the **Planification** paused or deleted.

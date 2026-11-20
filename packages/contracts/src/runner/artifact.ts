@@ -62,7 +62,7 @@ export const zArtifactPath = z
  * One object of optional fields (so that the Runner's generated type reads
  * it), each kind's checked by `artifactRefFits`.
  */
-export const zArtifactRef = z.strictObject({
+export const zArtifactReadRef = z.strictObject({
   path: zArtifactPath.optional(),
   at: zArtifactGitRef.optional(),
   number: z.int().positive().optional(),
@@ -70,19 +70,19 @@ export const zArtifactRef = z.strictObject({
   head: zArtifactGitRef.optional(),
   runId: zId.optional(),
 });
-export type ArtifactRef = z.infer<typeof zArtifactRef>;
+export type ArtifactReadRef = z.infer<typeof zArtifactReadRef>;
 
 /** The `ref` of each kind, for the page. */
-export interface ArtifactRefs {
+export interface ArtifactReadRefs {
   file: { path: string; at?: string };
   ticket: { number: number };
   change: { number: number };
   diff: { number: number } | { base: string; head: string };
   'command-output': { runId: string };
 }
-export type ArtifactRefOf<K extends ArtifactKind> = ArtifactRefs[K];
+export type ArtifactReadRefOf<K extends ArtifactKind> = ArtifactReadRefs[K];
 
-const refKeys: Record<ArtifactKind, readonly (readonly (keyof ArtifactRef)[])[]> = {
+const refKeys: Record<ArtifactKind, readonly (readonly (keyof ArtifactReadRef)[])[]> = {
   file: [['path'], ['path', 'at']],
   ticket: [['number']],
   change: [['number']],
@@ -91,17 +91,17 @@ const refKeys: Record<ArtifactKind, readonly (readonly (keyof ArtifactRef)[])[]>
 };
 
 /** Whether `ref` holds the fields of `kind`, and those only. */
-export const artifactRefFits = (kind: ArtifactKind, ref: ArtifactRef): boolean => {
+export const artifactRefFits = (kind: ArtifactKind, ref: ArtifactReadRef): boolean => {
   const keys = Object.keys(ref)
-    .filter((key) => ref[key as keyof ArtifactRef] !== undefined)
+    .filter((key) => ref[key as keyof ArtifactReadRef] !== undefined)
     .sort();
   return refKeys[kind].some((allowed) => allowed.length === keys.length && [...allowed].sort().every((key, i) => key === keys[i]));
 };
 
-const refFits = ({ kind, ref }: { kind: ArtifactKind; ref: ArtifactRef }) => artifactRefFits(kind, ref);
+const refFits = ({ kind, ref }: { kind: ArtifactKind; ref: ArtifactReadRef }) => artifactRefFits(kind, ref);
 const refMessage = { message: 'ref does not fit its kind', path: ['ref'] };
 
-const readShape = { requestId: zId, projectId: zId, holderId: zBytes32, kind: zArtifactKind, ref: zArtifactRef };
+const readShape = { requestId: zId, projectId: zId, holderId: zBytes32, kind: zArtifactKind, ref: zArtifactReadRef };
 const contentShape = { requestId: zId, wrap: zSessionKeyWrap, nonce: zNonce, ciphertext: zBytes(16, ARTIFACT_CIPHERTEXT_MAX) };
 
 /**

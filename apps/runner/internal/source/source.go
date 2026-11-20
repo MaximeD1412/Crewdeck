@@ -85,12 +85,15 @@ type Change struct {
 	State          ChangeState
 	IsDraft        bool
 	MergeCommitOid string
-	Author         string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	ClosedAt       *time.Time
-	MergedAt       *time.Time
-	Labels         []string
+	// Mergeable is MERGEABLE, CONFLICTING, or "" while unknown (a local
+	// change: computed as it follows its branch).
+	Mergeable string
+	Author    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	ClosedAt  *time.Time
+	MergedAt  *time.Time
+	Labels    []string
 	// URL is the PR's page on GitHub, "" for a local change.
 	URL string
 }

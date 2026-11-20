@@ -25,6 +25,7 @@ export const DECISION_KINDS = [
   'source-migration.failed',
   'source-migration.unfinished',
   'ticket.local-unreadable',
+  'merge.local-blocked',
 ] as const;
 export const zDecisionKind = z.enum(DECISION_KINDS);
 export type DecisionKind = z.infer<typeof zDecisionKind>;

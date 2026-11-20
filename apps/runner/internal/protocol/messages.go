@@ -82,6 +82,11 @@ const (
 	// A Local Projet's folder (SOURCE-3, ADR 0012): what changed in it, its
 	// texts sealed under the vault key.
 	TypeLocalChanged = "local.changed"
+	// A local change of code merged (SOURCE-5, ADR 0012): the server asks
+	// the merge at the SHA every Verdict judged, the Runner says how each
+	// attempt ended.
+	TypeMergeLocal       = "merge.local"
+	TypeMergeLocalResult = "merge.local.result"
 )
 
 // Machine is what the Runner says of itself in its hello.
@@ -259,6 +264,17 @@ func NewLocalChanged(projectID string, vaultKeyVersion int, full bool, items []c
 		unreadable = []contracts.RunnerLocalChangedUnreadableElem{}
 	}
 	return contracts.RunnerLocalChanged{Type: TypeLocalChanged, Id: newID(at), At: at, ProjectId: projectID, VaultKeyVersion: vaultKeyVersion, Full: full, Items: items, Unreadable: unreadable}
+}
+
+// NewMergeLocalResult says how an attempt at the merge of a local change
+// ended, mergeSha the squash commit when merged ("" otherwise).
+func NewMergeLocalResult(projectID string, number int, sha string, outcome contracts.RunnerMergeLocalResultOutcome, mergeSha string) contracts.RunnerMergeLocalResult {
+	at := now()
+	m := contracts.RunnerMergeLocalResult{Type: TypeMergeLocalResult, Id: newID(at), At: at, ProjectId: projectID, ChangeNumber: number, Sha: sha, Outcome: outcome}
+	if mergeSha != "" {
+		m.MergeSha = &mergeSha
+	}
+	return m
 }
 
 // NewCommandStarted says the run's process started.

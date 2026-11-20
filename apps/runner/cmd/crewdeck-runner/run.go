@@ -252,11 +252,23 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 	// The Local Projets' folders followed (SOURCE-3, ADR 0012): what changed
 	// in them reaches the server as local.changed, every item again on each
 	// accepted connection.
+	// The merges of the local changes (SOURCE-5), the blocked ones retried.
+	merges := local.NewMerges(local.MergesConfig{
+		DB:      locals.db,
+		Project: locals.Project,
+		Send:    func(ctx context.Context, m contracts.RunnerMergeLocalResult) error { return send(ctx, m) },
+		Logger:  logger,
+	})
+	go merges.Run(ctx)
 	go locals.watch(ctx, local.WatchConfig{
 		Send:   func(ctx context.Context, m contracts.RunnerLocalChanged) error { return send(ctx, m) },
 		Logger: logger,
-		// A ref moved: the Miroir reindexes the Projet's documents (MIROIR-5).
-		OnRefsMoved: follower.RefsMoved,
+		// A ref moved: the Miroir reindexes the Projet's documents (MIROIR-5),
+		// the blocked merges are retried at once.
+		OnRefsMoved: func(projectID string) {
+			follower.RefsMoved(projectID)
+			merges.RefsMoved(projectID)
+		},
 	})
 	go reporter.Every(ctx, contracts.CapabilitiesEverySeconds*time.Second)
 	go reporter.UsageEvery(ctx, contracts.UsageEverySeconds*time.Second)
@@ -291,6 +303,7 @@ func (m *machine) run(cmd *cobra.Command, server string) error {
 			return nil
 		})
 		sessions.Register(client)
+		merges.Register(client)
 		projectFolders.Register(client)
 		commands.Register(client)
 		rotations.register(ctx, client)

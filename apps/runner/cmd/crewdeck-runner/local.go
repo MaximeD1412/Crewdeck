@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -77,6 +78,10 @@ func (l *localSources) Project(projectID string) (*local.Project, bool) {
 		return p, true
 	}
 	p := local.Open(l.db, l.vault, projectID, path)
+	// The clone and worktrees a merge squashes in, a change's mergeability
+	// computed in (SOURCE-5).
+	p.SetClone((&local.Origin{Home: l.store.Dir, ProjectID: projectID}).Dir())
+	p.SetWorktrees(filepath.Join(l.store.Dir, "worktrees", projectID))
 	l.projects[projectID] = p
 	return p, true
 }

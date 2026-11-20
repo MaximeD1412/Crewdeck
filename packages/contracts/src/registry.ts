@@ -20,6 +20,7 @@ import { zOriginUnion } from './runner/origin.js';
 import { zRelay, zSessionInput, zSessionKeys, zSessionReplay } from './runner/relay.js';
 import { zStepReport, zStepStarted, zStepVerdict } from './runner/step.js';
 import { zLocalChanged, zLocalItemUnion } from './runner/local.js';
+import { zMergeLocal, zMergeLocalResult } from './runner/merge.js';
 import { zCommandKeys, zCommandOutput, zCommandOutputChunk, zCommandReplay, zCommandRun, zCommandStarted, zCommandStop, zCommandVerdict } from './runner/command.js';
 import { zProcessSealedPayload } from './process/definition.js';
 import { USAGE_EVERY_SECONDS, zUsage, zUsageAck } from './runner/usage.js';
@@ -109,6 +110,9 @@ export const registry: readonly { name: string; schema: z.ZodType }[] = [
   { name: 'runner-migration-failed', schema: zMigrationFailed },
   // A Local Projet's folder followed (SOURCE-3).
   { name: 'runner-local-changed', schema: zLocalChanged },
+  // A local change of code merged (SOURCE-5).
+  { name: 'runner-merge-local', schema: zMergeLocal },
+  { name: 'runner-merge-local-result', schema: zMergeLocalResult },
   // A Session's GitHub token (RUNNER-10), the Runner's HTTP route.
   { name: 'runner-session-github-token', schema: zSessionGithubToken },
 ];

@@ -352,8 +352,11 @@ func (m *Mirror) changeObject(ctx context.Context, p Project, r source.Reader, c
 		return Object{}, nil, unavailable(err)
 	}
 	pull := &Pull{
-		HeadRef: c.HeadRef, HeadOid: history.HeadOid, BaseRef: c.BaseRef, IsDraft: c.IsDraft, Mergeable: "UNKNOWN",
+		HeadRef: c.HeadRef, HeadOid: history.HeadOid, BaseRef: c.BaseRef, IsDraft: c.IsDraft, Mergeable: c.Mergeable,
 		MergeCommit: c.MergeCommitOid, MergedAt: formatTimePtr(c.MergedAt),
+	}
+	if pull.Mergeable == "" {
+		pull.Mergeable = "UNKNOWN"
 	}
 	if pull.HeadOid == "" {
 		pull.HeadOid = c.HeadOid

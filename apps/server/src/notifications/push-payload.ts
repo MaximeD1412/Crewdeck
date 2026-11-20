@@ -23,6 +23,7 @@ export const KIND_LABELS: Record<DecisionKind, string> = {
   'ticket-draft': 'Ticket à valider',
   'ticket-interrupted': 'Ticket interrompu',
   'ticket.local-unreadable': 'Fichier de Ticket illisible',
+  'merge.local-blocked': 'Merge en attente',
   'visual-review': 'Revue visuelle',
 };
 

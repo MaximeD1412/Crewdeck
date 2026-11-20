@@ -74,11 +74,15 @@ type Project struct {
 	folder string
 
 	reporting sync.Mutex // one report at a time (report.go)
+	gitMu     sync.Mutex // one merge, or one look at the changes' branches, at a time in the clone (merge.go, follow.go)
 
-	mu         sync.Mutex
-	clone      string // the Runner's clone of the folder, "" when unknown
-	listeners  []func(source.Changed)
-	milestones *string // milestones.yml as last seen; nil before the first scan
+	mu                sync.Mutex
+	clone             string         // the Runner's clone of the folder, "" when unknown
+	worktrees         string         // the folder of the Runner's worktrees of the Projet, "" for a temporary one
+	followed          map[int]string // a change number: the heads its mergeability was computed at (follow.go)
+	beforeFastForward func()         // tests only (export_test.go)
+	listeners         []func(source.Changed)
+	milestones        *string // milestones.yml as last seen; nil before the first scan
 }
 
 var (
@@ -534,13 +538,13 @@ func (p *Project) Comments(ctx context.Context, number int) ([]source.Comment, e
 	return comments, rows.Err()
 }
 
-const changeColumns = `number, title, body, head_ref, head_oid, base_ref, state, is_draft, COALESCE(merge_commit_oid, ''), author, created_at, updated_at, closed_at, merged_at, labels`
+const changeColumns = `number, title, body, head_ref, head_oid, base_ref, state, is_draft, COALESCE(merge_commit_oid, ''), COALESCE(mergeable, ''), author, created_at, updated_at, closed_at, merged_at, labels`
 
 func scanChange(row interface{ Scan(...any) error }) (source.Change, error) {
 	var c source.Change
 	var state, created, updated, labels string
 	var closed, merged sql.NullString
-	if err := row.Scan(&c.Number, &c.Title, &c.Body, &c.HeadRef, &c.HeadOid, &c.BaseRef, &state, &c.IsDraft, &c.MergeCommitOid, &c.Author, &created, &updated, &closed, &merged, &labels); err != nil {
+	if err := row.Scan(&c.Number, &c.Title, &c.Body, &c.HeadRef, &c.HeadOid, &c.BaseRef, &state, &c.IsDraft, &c.MergeCommitOid, &c.Mergeable, &c.Author, &created, &updated, &closed, &merged, &labels); err != nil {
 		return c, err
 	}
 	c.State, c.CreatedAt, c.UpdatedAt = source.ChangeState(state), parseTime(created), parseTime(updated)

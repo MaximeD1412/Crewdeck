@@ -201,6 +201,11 @@ func (w *Watcher) refsMoved() {
 
 // report sends what changed; what a failed send carried goes again with the next one.
 func (w *Watcher) report(ctx context.Context, log *slog.Logger, full bool) {
+	// The changes follow their branches first (SOURCE-5): the report sends
+	// their new heads.
+	if err := w.p.FollowChanges(ctx); err != nil && ctx.Err() == nil {
+		log.Warn("local.follow.failed", "error", err) // a gitError: never git's output
+	}
 	// The scan of this report notifies what it found (OnChange): the report
 	// that follows finds it reported, and sends nothing.
 	_, err := w.p.Report(ctx, full, w.cfg.Send)

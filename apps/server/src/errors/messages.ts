@@ -91,6 +91,8 @@ export const MESSAGES = {
   'source.target-missing': 'Cette Source n’a pas de place pour ce Projet : choisis d’abord un dépôt ou un dossier.',
   'step-run.no-loop-back': 'Cette Étape n’a pas de Retour : elle ne peut pas demander de changements.',
   'step-run.no-engine': 'Aucun Moteur n’est disponible pour le Rôle de cette Étape : connecte un Compte IA dans les Paramètres.',
+  'step-run.not-found': 'Cette Étape n’existe pas.',
+  'step.not-rerunnable': 'Cette Étape ne peut pas être relancée.',
   'testing.smoke-not-pending': 'Le Runner n’a pas encore envoyé sa preuve de liaison.',
   'testing.smoke-proof-invalid': 'La preuve du Runner ne correspond pas au code du smoke test.',
   'testing.smoke-unknown': 'Aucun scénario smoke avec ce jeton : lance d’abord le scénario smoke.',

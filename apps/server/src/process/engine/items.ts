@@ -15,6 +15,8 @@ export interface PhaseItemHandler {
   readonly itemType: ArtifactType;
   /** The item's label in a Décision about it (`#57 Recherche d’actes`): at most 120 characters. */
   label(tx: Tx, itemId: string): Promise<string>;
+  /** The item's page, which a Décision about it opens (`/boucle?ticket=57`); the Projet's page without it. */
+  link?(tx: Tx, itemId: string): Promise<string>;
   /** The Pilote stopped the item's PhaseRun (« Arrêter »): the PhaseRun is `stopped` already. */
   onStopped(tx: Tx, phaseRun: PhaseRun): Promise<void>;
 }
@@ -42,6 +44,19 @@ export class PhaseItemHandlers extends Registry<PhaseItemHandler> {
   async label(tx: Tx, phaseRun: Pick<PhaseRun, 'itemType' | 'itemId'>, phaseName: string): Promise<string> {
     const handler = this.of(phaseRun.itemType);
     return handler ? handler.label(tx, phaseRun.itemId) : `${phaseName} · ${ARTIFACT_TYPE_LABELS[phaseRun.itemType]}`;
+  }
+
+  /**
+   * What a Décision about one pass of an Étape names of its item (ATOI-2):
+   * its handler's label, `null` without one (the row then names only the
+   * Étape), and its page: its handler's `link`, else the Projet's, else « À
+   * toi » for an item without a Projet.
+   */
+  async describe(tx: Tx, phaseRun: { readonly itemType: string; readonly itemId: string; readonly projectId: string | null }): Promise<{ label: string | null; link: string }> {
+    const handler = this.of(phaseRun.itemType);
+    const label = handler ? await handler.label(tx, phaseRun.itemId) : null;
+    const link = (await handler?.link?.(tx, phaseRun.itemId)) ?? (phaseRun.projectId === null ? '/a-toi' : `/projets/${phaseRun.projectId}`);
+    return { label, link };
   }
 
   /** What stopping the item means beyond its PhaseRun: its handler's `onStopped`, nothing without one. */

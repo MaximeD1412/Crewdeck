@@ -13,21 +13,28 @@
   /* On the phone a row's context and meta may take a second line rather than be cut: why it waits is what the row says */
   .row--decision .row-context { -webkit-line-clamp: 2; }
   .row--decision .row-meta { white-space: normal; }
+  /* Who settled a Décision of « Depuis ta dernière visite » (US-136): ui-away-summary counts it, this line names who */
+  .away-block { display: flex; flex-direction: column; gap: var(--space-2); }
+  .away-settled { display: flex; gap: var(--space-2); align-items: flex-start; margin: 0; padding: 0 var(--space-4); color: var(--ink-2); }
+  .away-settled .icon { color: var(--go); margin-top: var(--space-1); flex: none; }
 </style>
 </head>
 <body>
-<!-- exemple : Inès Martin, Co-pilote du Projet « Site mairie » de Maxime ; Tickets, heures et session fictifs -->
-<ui-app-shell screen="À toi" current="a-toi" nav="a-toi,idees,conceptions,boucle,planning,projets,parametres" runner="none" me="Inès Martin" decisions="1" loops="1">
+<!-- exemple : Inès Martin, Co-pilote du Projet « Site mairie » de Maxime ; Tickets, heures et session fictifs ; dernière visite à 08:10, il est 09:10 ; la permission de #48, réglée par Maxime il y a 6 min, a quitté son « À toi » -->
+<ui-app-shell screen="À toi" current="a-toi" nav="a-toi,idees,conceptions,boucle,planning,statistiques,projets,runner,parametres" me="Inès Martin" decisions="1" loops="1">
   <ui-page-header title="À toi" count="1 Décision">
     <ui-button variant="primary" icon="plus">Noter une Idée</ui-button>
   </ui-page-header>
+  <div class="away-block">
+    <ui-away-summary since="depuis 08:10 · il y a 1 h">
+      <ui-away-row projet="Site mairie" merged="0" blocked="0" raised="1" settled="1"></ui-away-row>
+    </ui-away-summary>
+    <p class="away-settled text-sm"><ui-icon name="check" size="sm"></ui-icon><span>Réglée par Maxime il y a 6 min : la permission de Code sur #48 Archives des actualités, autorisée.</span></p>
+  </div>
   <div class="layout">
     <div class="stack-sm">
       <ui-card title="Décisions" count="1" label="À toi / Décisions" flush>
         <ui-decision-row tone="accent" icon="eye" kind="Revue visuelle" title="#47 Actualités en page d’accueil" meta="Site mairie · il y a 20 min">Maxime peut aussi la trancher : la première réponse vaut pour tous.<ui-button slot="actions" size="sm" variant="primary">Relire</ui-button></ui-decision-row>
-      </ui-card>
-      <ui-card title="Réglées par un autre" count="1" label="À toi / Réglées" flush>
-        <ui-decision-row tone="neutral" icon="shield" kind="Permission demandée" title="Code · #48 Archives des actualités" meta="Site mairie · il y a 6 min"><ui-status-badge tone="go">Réglée par Maxime</ui-status-badge> Autorisée : <code>git push origin feat/48-archives-des-actualites</code><ui-button slot="actions" size="sm">Voir</ui-button></ui-decision-row>
       </ui-card>
     </div>
     <div class="layout-aside">

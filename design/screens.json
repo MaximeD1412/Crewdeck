@@ -1136,6 +1136,15 @@
           }
         },
         {
+          "id": "invitation-confirmation",
+          "title": "Confirmer l’invitation (Action sensible)",
+          "html": "design/screens/collaboration/membres-invitation-confirmation.html",
+          "captures": {
+            "390": "design/screens/collaboration/membres-invitation-confirmation-390.png",
+            "1280": "design/screens/collaboration/membres-invitation-confirmation-1280.png"
+          }
+        },
+        {
           "id": "retrait",
           "title": "Retirer un Membre",
           "html": "design/screens/collaboration/membres-retrait.html",

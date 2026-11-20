@@ -35,7 +35,7 @@
 <body>
 <!-- exemple : Ticket, commentaires, branche et heures fictifs ; la scène est le 18 nov., quand Inès Martin est encore Contributeur de Site mairie (Co-pilote à partir du 19 nov.) -->
 <!-- Ce que l’Accès Contributeur ne donne pas est absent : ni approbation, ni pilotage de la Session, ni merge -->
-<ui-app-shell screen="Ticket" current="boucle" runner="none" nav="a-toi,idees,conceptions,boucle,planning,projets,parametres" me="Inès Martin" decisions="1" ideas="3">
+<ui-app-shell screen="Ticket" current="boucle" runner="none" nav="a-toi,idees,conceptions,boucle,planning,statistiques,projets,parametres" me="Inès Martin" decisions="1" ideas="3">
   <ui-page-header title="#47 Actualités en page d’accueil" count="Site mairie" back="Boucle" screen="Ticket">
     <ui-button variant="secondary" icon="terminal">Lire la Session</ui-button>
   </ui-page-header>
@@ -47,7 +47,7 @@
         <ui-comment author="Maxime" access="Pilote" time="il y a 20 min">Merci, on la trie à part. Ce Ticket garde les trois actualités, comme le PRD.</ui-comment>
         <div class="new-comment" aria-label="Ticket / Nouveau commentaire" data-name="Ticket / Nouveau commentaire">
           <ui-text-field label="Commenter ce Ticket" placeholder="Ce que tu en penses" multiline rows="3"></ui-text-field>
-          <p class="comment-rule text-sm"><ui-icon name="info" size="sm"></ui-icon><span>Un commentaire ne va à l’agent que si la personne qui demande des changements le choisit dans son Retour.</span></p>
+          <p class="comment-rule text-sm"><ui-icon name="info" size="sm"></ui-icon><span>Un commentaire ne va à l’agent que si la personne qui demande des changements le choisit dans son Retour. Il reste dans Crewdeck, jamais copié sur l’issue GitHub.</span></p>
           <ui-button variant="primary" icon="send">Commenter</ui-button>
         </div>
       </ui-card>

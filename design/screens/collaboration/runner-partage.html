@@ -28,6 +28,8 @@
   .crypto { display: flex; gap: var(--space-2); align-items: flex-start; }
   .crypto .icon { color: var(--go); margin-top: var(--space-1); }
   .key-who { display: flex; align-items: center; gap: var(--space-2); }
+  .detach { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+  .detach p { margin: 0; }
   .keys-note { padding: var(--space-3) var(--space-4); border-top: 1px solid var(--line); color: var(--ink-2); }
 </style>
 </head>
@@ -46,7 +48,7 @@
     <div class="settings-body">
       <ui-card class="is-current" title="Runner partagé" label="Paramètres du Projet / Runner partagé" id="runner-partage">
         <ui-status-badge slot="actions" tone="go">en ligne</ui-status-badge>
-        <p class="text-sm">Le Runner de ce Projet, sur un serveur : les Membres qui peuvent piloter les agents y lancent leurs Sessions et la Boucle, même quand tous les PC sont éteints. Il n’utilise que des clés API.</p>
+        <p class="text-sm">Un de tes Runners sur un serveur, choisi comme Runner partagé de ce Projet : les Membres qui peuvent piloter les agents y lancent leurs Sessions et la Boucle, même quand tous les PC sont éteints. Il n’utilise que des clés API.</p>
         <!-- exemple : nom de machine et version fictifs -->
         <ui-key-value>
           <ui-kv label="Machine">serveur-mairie</ui-kv>
@@ -54,17 +56,21 @@
           <ui-kv label="Version">0.4.2</ui-kv>
         </ui-key-value>
         <p class="crypto text-sm"><ui-icon name="lock" size="sm"></ui-icon>Sessions, code et diffs chiffrés de bout en bout entre ce Runner et les Appareils des Membres.</p>
+        <div class="detach" aria-label="Paramètres du Projet / Détacher" data-name="Paramètres du Projet / Détacher">
+          <ui-button size="sm" icon="x">Détacher du Projet</ui-button>
+          <p class="text-sm muted">Détacher le Runner partagé demande d’abord d’arrêter la Boucle de ce Projet.</p>
+        </div>
       </ui-card>
       <ui-card class="is-current" title="Clés API" count="2" label="Paramètres du Projet / Clés API" id="cles" flush>
         <ui-button slot="actions" size="sm" variant="ghost" icon="plus">Ajouter une clé</ui-button>
         <!-- exemple : clés, personnes et dates fictives -->
-        <!-- exemple : seuls Maxime et un Membre qui peut modifier les Paramètres du Projet mettent une clé (US-138) ; Inès Martin, Co-pilote, n’en a pas le Droit -->
-        <ui-list-row icon="key" title="Codex · clé de Maxime" meta="mise par toi le 14 nov. · payée par toi"></ui-list-row>
-        <ui-list-row icon="key" title="Claude Code · clé de Maxime" meta="mise par toi le 19 nov. · payée par toi"></ui-list-row>
-        <p class="text-sm keys-note">Tes clés servent aux Sessions des Membres sur ce Runner partagé : à ton nom, et leur dépense comptée par personne dans les Statistiques.</p>
+        <!-- exemple : seuls Maxime et un Membre qui peut modifier les Paramètres du Projet mettent une clé (US-138) ; Inès Martin, Co-pilote, n’en a pas le Droit ; les deux clés sont celles de Maxime, qui peut donc les retirer -->
+        <ui-list-row icon="key" title="Codex · clé de Maxime" meta="mise par toi le 14 nov. · payée par toi"><ui-button size="sm" variant="ghost">Retirer</ui-button></ui-list-row>
+        <ui-list-row icon="key" title="Claude Code · clé de Maxime" meta="mise par toi le 19 nov. · payée par toi"><ui-button size="sm" variant="ghost">Retirer</ui-button></ui-list-row>
+        <p class="text-sm keys-note">Tes clés servent aux Sessions et à la Boucle des Membres qui pilotent les agents sur ce Runner partagé : à ton nom, leur dépense comptée par clé et par personne qui a lancé le travail dans les Statistiques.</p>
       </ui-card>
       <ui-card class="is-current" title="Qui met une clé" label="Paramètres du Projet / Qui met une clé">
-        <p class="text-sm">Toi, et les Membres qui peuvent modifier les Paramètres du Projet. Chaque clé est payée par qui l’a mise et porte son nom ; elle ne sert qu’à ce Projet.</p>
+        <p class="text-sm">Toi, et les Membres qui peuvent modifier les Paramètres du Projet. Chaque clé est payée par qui l’a mise et porte son nom ; elle ne sert qu’à ce Projet, et se retire par qui l’a mise ou par toi.</p>
         <ui-list-row icon="chart" title="Dépense par clé et par personne" meta="Statistiques de Site mairie" link></ui-list-row>
       </ui-card>
       <ui-card title="Rôles et modèles" label="Paramètres du Projet / Rôles et modèles" id="roles">

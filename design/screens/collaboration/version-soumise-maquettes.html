@@ -86,7 +86,7 @@
       <div slot="actions" class="width-switch cluster" role="group" aria-label="Largeur"><ui-chip selected>390</ui-chip><ui-chip>1280</ui-chip></div>
       <p class="zone-hint text-sm muted">Choisis une zone de la maquette pour la commenter.</p>
       <div class="shots">
-        <div class="shot-window"><ui-capture src="../../assets/maquette-notifications-390.svg" label="Actualités · 390"><ui-pin n="1" x="11" y="18"></ui-pin><ui-pin n="3" x="58" y="19" selected></ui-pin></ui-capture></div>
+        <div class="shot-window"><ui-capture src="../../assets/maquette-notifications-390.svg" label="Actualités · 390"><ui-pin n="1" x="11" y="18"></ui-pin><ui-pin new x="58" y="19" selected></ui-pin></ui-capture></div>
         <div class="shot-wide"><ui-capture src="../../assets/maquette-notifications-1280.svg" label="Actualités · 1280"><ui-pin n="2" x="91" y="7"></ui-pin></ui-capture></div>
       </div>
     </ui-card>
@@ -96,7 +96,7 @@
         <ui-list-row link icon="image" title="Actualités · vide" meta="390 et 1280"></ui-list-row>
       </ui-card></div>
       <section class="new-comment" aria-label="Version soumise / Nouveau commentaire" data-name="Version soumise / Nouveau commentaire">
-        <div class="new-comment-head comment-zone"><span class="pin pin--inline pin--new">3</span><span>Actualités · 390</span><ui-button icon="send">Commenter</ui-button><ui-icon-button icon="x" label="Annuler"></ui-icon-button></div>
+        <div class="new-comment-head comment-zone"><span class="pin pin--inline pin--new"><ui-icon name="plus" size="sm"></ui-icon></span><span>Actualités · 390</span><ui-button icon="send">Commenter</ui-button><ui-icon-button icon="x" label="Annuler"></ui-icon-button></div>
         <ui-text-field label="Commenter cette zone" value="La date de chaque actualité doit se voir avant son titre." multiline rows="2"></ui-text-field>
       </section>
       <details class="fold" aria-label="Version soumise / Commentaires" data-name="Version soumise / Commentaires">

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Membres du Projet · confirmation de l’invitation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<script defer src="../../components.js"></script>
+<style>
+  /* The Droits of the chosen Accès, read-only; the ones it does not give folded */
+  .droits { display: flex; flex-direction: column; gap: 0; padding: var(--space-3); background: var(--sunk); border-radius: var(--radius); }
+  .droits .section-label { margin-bottom: var(--space-1); }
+  .fold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: var(--space-2); min-height: var(--touch); color: var(--ink-2); font: var(--font-label-weight) var(--font-body-sm-size)/var(--font-label-line-height) var(--font-label-family), sans-serif; border-top: 1px solid var(--line); }
+  .fold > summary::-webkit-details-marker { display: none; }
+  .fold > summary .icon { margin-left: auto; }
+  .fold[open] > summary .icon { transform: rotate(180deg); }
+  .note { display: flex; gap: var(--space-2); align-items: flex-start; }
+  .note .icon { color: var(--go); margin-top: var(--space-1); }
+</style>
+</head>
+<body>
+<!-- exemple : Projet, Membres, adresses et dates fictifs ; la scène est le 19 nov. à 09:30 (l’invitation de Paul dans l’Historique), Inès Martin est encore Contributeur -->
+<ui-app-shell screen="Membres du Projet" current="projets" decisions="9" ideas="4" designs="2" loops="2">
+  <ui-page-header title="Membres" back="Site mairie" count="2 Membres" screen="Membres du Projet">
+    <ui-button variant="primary" icon="plus">Inviter un Membre</ui-button>
+    <span slot="sub">Chacun lit ce que son Accès lui ouvre sur Site mairie, chiffré de bout en bout.</span>
+  </ui-page-header>
+  <ui-card title="Qui a accès" label="Membres du Projet / Liste" flush>
+    <ui-member-row name="Maxime" email="maximed1412" meta="toi" access="Pilote"></ui-member-row>
+    <ui-member-row name="Claire Bernard" email="claire.bernard@mairie.example" meta="depuis le 12 nov.">
+      <ui-select value="Relecteur"></ui-select>
+      <ui-button slot="actions" size="sm" variant="ghost" icon="x">Retirer</ui-button>
+    </ui-member-row>
+    <ui-member-row name="Inès Martin" email="ines.martin@atelier.example" meta="depuis le 14 nov.">
+      <ui-select value="Contributeur"></ui-select>
+      <ui-button slot="actions" size="sm" variant="ghost" icon="x">Retirer</ui-button>
+    </ui-member-row>
+  </ui-card>
+  <ui-confirm-dialog slot="overlay" title="Inviter un Membre sur Site mairie ?" action="Envoyer l’invitation" icon="send">
+      <ui-key-value>
+        <ui-kv label="Email"><span class="mono">paul.leroy@mairie.example</span></ui-kv>
+        <ui-kv label="Accès">Relecteur</ui-kv>
+      </ui-key-value>
+      <p>Cette personne lira ce que Relecteur lui ouvre sur Site mairie : les Versions soumises, pour les commenter et rendre son Avis.</p>
+      <p class="text-sm muted">L’invitation vaut 7 jours ; tu peux la renvoyer ou l’annuler depuis les Membres.</p>
+    </ui-confirm-dialog>
+</ui-app-shell>
+</body>
+</html>

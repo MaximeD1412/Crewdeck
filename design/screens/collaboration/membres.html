@@ -27,9 +27,10 @@
       <ui-select value="Co-pilote"></ui-select>
       <ui-button slot="actions" size="sm" variant="ghost" icon="x">Retirer</ui-button>
     </ui-member-row>
-    <ui-member-row state="invited" name="Paul Leroy" email="paul.leroy@mairie.example" meta="invité le 19 nov.">
+    <ui-member-row state="invited" name="Paul Leroy" email="paul.leroy@mairie.example" meta="invité le 19 nov., valable 7 jours">
       <ui-select value="Relecteur"></ui-select>
-      <ui-button slot="actions" class="only-wide" size="sm" variant="ghost" icon="x">Annuler l’invitation</ui-button><ui-button slot="actions" class="only-phone" size="sm" variant="ghost" icon="x" label="Annuler l’invitation">Annuler</ui-button>
+      <ui-button slot="actions" class="only-wide" size="sm" variant="ghost" icon="send">Renvoyer</ui-button><ui-icon-button slot="actions" class="only-phone" icon="send" label="Renvoyer l’invitation"></ui-icon-button>
+          <ui-button slot="actions" class="only-wide" size="sm" variant="ghost" icon="x">Annuler l’invitation</ui-button><ui-icon-button slot="actions" class="only-phone" icon="x" label="Annuler l’invitation"></ui-icon-button>
     </ui-member-row>
   </ui-card>
   <div class="grid-2">

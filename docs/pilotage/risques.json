@@ -993,23 +993,23 @@
       "categorie": "agt",
       "gravite": "elevee",
       "titre": "Un merge sur un Projet Local écrase le travail non commité du Pilote dans son dossier",
-      "statut": "solution choisie",
-      "statutDepuis": "2026-11-14",
+      "statut": "implémenté",
+      "statutDepuis": "2026-11-20",
       "solutions": [
         {
           "texte": "Le Runner travaille dans son clone, jamais dans le dossier",
           "ref": "ADR 0012",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Fast-forward seulement, refusé si les modifications du Pilote touchent les mêmes fichiers, avec une Décision",
           "ref": "ADR 0012",
-          "fait": false
+          "fait": true
         },
         {
           "texte": "Le Runner n'écrit que les Tickets dans le dossier et ne commite jamais",
           "ref": "ADR 0012",
-          "fait": false
+          "fait": true
         }
       ],
       "tickets": [

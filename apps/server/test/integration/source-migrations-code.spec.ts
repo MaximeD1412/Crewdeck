@@ -380,6 +380,26 @@ describe('the migration of the code and its documents between Local and GitHub (
     expect(await codeRows(projectId)).toEqual([]);
   });
 
+  it('a branch diverged at the finish raises « Migration de Source inachevée » at once, the new Source kept: no retry would bring the two places back together', async () => {
+    const socket = await online();
+    const projectId = await followFull();
+    await pickFolder(socket, projectId, 'code');
+    const res = await migrate(projectId, 'code', 'local', { folder: true });
+    expect(res.status).toBe(201);
+    const migration = zSourceMigration.parse(await res.json());
+    await socket.expect('migration.copy');
+    await vi.waitFor(async () => expect((await migrationRow(migration.id))?.state).toBe('copying'));
+    socket.send({ type: 'migration.switch', migrationId: migration.id, fingerprints: [{ key: 'branch:develop', state: 'c'.repeat(40), contentHash: 'c'.repeat(64) }], renumbering: [] });
+    await socket.expect('migration.finish');
+
+    socket.send({ type: 'migration.failed', migrationId: migration.id, stage: 'finish', code: 'branch.diverged' });
+    await vi.waitFor(async () =>
+      expect(await sql<{ kind: string }>(`SELECT kind FROM decisions WHERE pilot_id = $1 AND state = 'open'`, [alice.id])).toEqual([{ kind: 'source-migration.unfinished' }]),
+    );
+    expect(await migrationRow(migration.id)).toEqual({ state: 'switched', error_code: 'branch.diverged' });
+    expect(await sourceOf(projectId, 'code')).toBe('local');
+  });
+
   it('a copy to Local that fails lets the Runner drop the folder it held, the Projet without a folder', async () => {
     const socket = await online();
     const projectId = await followFull();

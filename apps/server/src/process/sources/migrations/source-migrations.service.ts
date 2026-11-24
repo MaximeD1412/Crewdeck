@@ -59,6 +59,8 @@ export const RUNNER_CANNOT_MIGRATE = 'source-migration.runner-cannot-migrate';
 export const FINISH_RETRY_MINUTES = [1, 5, 15, 60] as const;
 /** At this failure of finishing, the Décision `source-migration.unfinished` is raised. */
 export const UNFINISHED_AFTER_FAILURES = 3;
+/** The finish failures no retry heals, which raise `source-migration.unfinished` at the first one: a branch moved on both places (SOURCE-9). */
+const UNFINISHED_AT_ONCE: ReadonlySet<string> = new Set(['branch.diverged']);
 
 const GROUP_LABEL: Readonly<Record<SourceGroup, string>> = { ticket: 'Ticket', code: 'Changement de code' };
 /** The old place not yet frozen, by group and old Source (ADR 0012, « Frozen means, by group »). */
@@ -412,7 +414,8 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
    * `migration.failed`: before the switch (`copy`), `failed` on the old
    * Source with its Décision, the held work released; after it
    * (`finish`), still `switched`, `migration.finish` due again after 1, 5,
-   * 15, then 60 minutes, the Décision `unfinished` at the third failure.
+   * 15, then 60 minutes, the Décision `unfinished` at the third failure,
+   * or at the first for a failure no retry heals (a diverged branch).
    */
   private failed(id: string, stage: 'copy' | 'finish', code: string): Promise<void> {
     return this.transactions.run(async (tx) => {
@@ -431,7 +434,7 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
         data: { finishTries: tries, errorCode: code, nextFinishAt: new Date(this.clock.now().getTime() + minutes * 60_000) },
         select: { ...SOURCE_MIGRATION_VIEW, finishTries: true },
       });
-      if (tries >= UNFINISHED_AFTER_FAILURES) await this.raiseUnfinished(tx, row);
+      if (tries >= UNFINISHED_AFTER_FAILURES || UNFINISHED_AT_ONCE.has(code)) await this.raiseUnfinished(tx, row);
     });
   }
 

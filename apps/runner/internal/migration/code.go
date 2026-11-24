@@ -296,21 +296,39 @@ func localNotes(c local.CopiedChange) []note {
 		notes = append(notes, note{from: from + "/comment/" + cm.ID, author: cm.Author, at: cm.CreatedAt, body: cm.Body})
 	}
 	for _, r := range c.Reviews {
-		body := "Revue : " + verdict(r.State)
+		body := reviewHead(r.State)
 		if strings.TrimSpace(r.Body) != "" {
 			body += "\n\n" + r.Body
 		}
 		notes = append(notes, note{from: from + "/review/" + r.ID, author: r.Author, at: r.SubmittedAt, body: body})
 		for _, rc := range r.Comments {
-			where := "`" + rc.Path + "`"
-			if rc.Line > 0 {
-				where += ", ligne " + strconv.Itoa(rc.Line)
-			}
-			notes = append(notes, note{from: from + "/review/" + r.ID + "/remark/" + rc.ID, author: r.Author, at: rc.CreatedAt, body: where + " :\n\n" + rc.Body})
+			notes = append(notes, note{from: from + "/review/" + r.ID + "/remark/" + rc.ID, author: r.Author, at: rc.CreatedAt, body: remarkHead(rc) + "\n\n" + rc.Body})
 		}
 	}
 	slices.SortStableFunc(notes, func(a, b note) int { return a.at.Compare(b.at) })
 	return notes
+}
+
+// reviewHead and remarkHead begin the comment a review, a remark, is on
+// GitHub; their text follows.
+func reviewHead(state source.ReviewState) string { return "Revue : " + verdict(state) }
+
+func remarkHead(rc source.ReviewComment) string {
+	where := "`" + rc.Path + "`"
+	if rc.Line > 0 {
+		where += ", ligne " + strconv.Itoa(rc.Line)
+	}
+	return where + " :"
+}
+
+// afterHead is the text of a note whose comment began with head; the whole
+// comment when its head was edited away.
+func afterHead(body, head string) string {
+	rest, ok := strings.CutPrefix(strings.TrimLeft(body, " \r\n"), head)
+	if !ok {
+		return body
+	}
+	return strings.TrimLeft(rest, "\r\n")
 }
 
 func verdict(state source.ReviewState) string {
@@ -423,7 +441,7 @@ func (h *Handler) toLocal(ctx context.Context, p *progress, url string, env []st
 				return pass, err
 			}
 			pass.writes++
-		case c.From != from || strings.TrimSpace(c.Title) != strings.TrimSpace(want.Title) || text(c.Body) != text(want.Body) || c.HeadRef != want.HeadRef ||
+		case c.From != from || c.State != source.ChangeOpen || strings.TrimSpace(c.Title) != strings.TrimSpace(want.Title) || text(c.Body) != text(want.Body) || c.HeadRef != want.HeadRef ||
 			c.HeadOid != want.HeadOid || c.BaseRef != want.BaseRef || c.IsDraft != want.IsDraft:
 			if _, err := project.PutChange(ctx, number, want, from); err != nil {
 				return pass, err
@@ -444,10 +462,18 @@ func (h *Handler) toLocal(ctx context.Context, p *progress, url string, env []st
 		for _, r := range c.Reviews {
 			haveReviews[r.From] = r
 		}
-		// What Crewdeck copied there from this very change is here already, as it was.
+		// What Crewdeck copied there from this very change is here already:
+		// only its text edited on GitHub since comes back.
 		own := keyOf("local", number) + "/"
 		for _, cm := range comments {
-			if strings.HasPrefix(cm.From, own) {
+			if key, ok := strings.CutPrefix(cm.From, own); ok {
+				wrote, err := ownNote(ctx, project, c, key, cm.Body)
+				if err != nil {
+					return pass, err
+				}
+				if wrote {
+					pass.writes++
+				}
 				continue
 			}
 			f := from + "/comment/" + cm.ID
@@ -485,6 +511,39 @@ func (h *Handler) toLocal(ctx context.Context, p *progress, url string, env []st
 		}
 	}
 	return pass, nil
+}
+
+// ownNote writes back the text of a note Crewdeck copied to GitHub from the
+// local change c, its heading and its head left out (key: `comment/<id>`, `review/<id>`,
+// `review/<id>/remark/<id>`) when it was edited there since; whether it wrote.
+func ownNote(ctx context.Context, project *local.Project, c local.CopiedChange, key, body string) (bool, error) {
+	parts := strings.Split(key, "/")
+	switch {
+	case len(parts) == 2 && parts[0] == "comment":
+		for _, cm := range c.Comments {
+			if now := afterHead(body, ghsource.CommentHeading(cm.Author, cm.CreatedAt)); cm.ID == parts[1] && text(cm.Body) != text(now) {
+				return true, project.PutComment(ctx, c.Number, cm.ID, now)
+			}
+		}
+	case len(parts) == 2 && parts[0] == "review":
+		for _, r := range c.Reviews {
+			if now := afterHead(afterHead(body, ghsource.CommentHeading(r.Author, r.SubmittedAt)), reviewHead(r.State)); r.ID == parts[1] && text(r.Body) != text(now) {
+				return true, project.PutReviewBody(ctx, c.Number, r.ID, now)
+			}
+		}
+	case len(parts) == 4 && parts[0] == "review" && parts[2] == "remark":
+		for _, r := range c.Reviews {
+			if r.ID != parts[1] {
+				continue
+			}
+			for _, rc := range r.Comments {
+				if now := afterHead(afterHead(body, ghsource.CommentHeading(r.Author, rc.CreatedAt)), remarkHead(rc)); rc.ID == parts[3] && text(rc.Body) != text(now) {
+					return true, project.PutRemarkBody(ctx, c.Number, r.ID, rc.ID, now)
+				}
+			}
+		}
+	}
+	return false, nil
 }
 
 // localNumber is the number of the local change a pull request's marker
@@ -551,6 +610,11 @@ func (h *Handler) codeFolder(ctx context.Context, p *progress) (string, error) {
 		}
 		p.Folder = folder
 		if err := p.save(h.cfg.Home); err != nil {
+			return "", err
+		}
+	}
+	if _, own := h.folder(p.ProjectID); !own {
+		if err := h.free(p.ProjectID, p.Folder); err != nil {
 			return "", err
 		}
 	}

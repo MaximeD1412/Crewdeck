@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -38,6 +39,8 @@ type env struct {
 	folder   string
 	pending  string
 	promoted []string
+	// others are the folders other Projets hold.
+	others []string
 	// remote is the repository's git URL (a bare repository over file://).
 	remote   string
 	opened   map[string]*local.Project
@@ -97,6 +100,11 @@ func (e *env) handler() *migration.Handler {
 			e.folder, e.pending = folder, ""
 			e.promoted = append(e.promoted, id)
 			return nil
+		},
+		Taken: func(id, folder string) bool {
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			return id != projectID || slices.Contains(e.others, folder)
 		},
 		Open: e.open,
 		Remote: func(_, owner, name string) migration.Remote {

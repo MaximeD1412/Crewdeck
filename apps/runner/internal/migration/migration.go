@@ -40,6 +40,10 @@ const (
 // ErrNoFolder is a Local side this Runner holds no folder for.
 var ErrNoFolder = errors.New("migration: no folder for the Projet on this Runner")
 
+// ErrFolderTaken is the folder a migration to Local began in, taken since by
+// another Projet (its pick dropped at a failure, the folder free meanwhile).
+var ErrFolderTaken = errors.New("migration: the folder picked is another Projet's now")
+
 var errUnstable = errors.New("migration: no pass without a change")
 
 // Config is what the handler needs.
@@ -54,6 +58,9 @@ type Config struct {
 	// until the migration finishes; Promote makes it the Projet's folder.
 	Pending func(projectID string) (string, bool)
 	Promote func(ctx context.Context, projectID, folder string) error
+	// Taken is whether folder is another Projet's, as its folder or its
+	// pending one: the one a copy began in is checked again before each write.
+	Taken func(projectID, folder string) bool
 	// Open is the Local Projet in folder (its Tickets, its changes in local.db).
 	Open func(projectID, folder string) *local.Project
 	// GitHub is the repository's side, written with the migration's token;
@@ -338,7 +345,19 @@ func (h *Handler) promote(ctx context.Context, p *progress) error {
 	if folder == "" {
 		return nil
 	}
+	if err := h.free(p.ProjectID, folder); err != nil {
+		return err
+	}
 	return h.cfg.Promote(ctx, p.ProjectID, folder)
+}
+
+// free is ErrFolderTaken when folder, picked for the Projet that has none
+// yet, is another Projet's now.
+func (h *Handler) free(projectID, folder string) error {
+	if h.cfg.Taken != nil && h.cfg.Taken(projectID, folder) {
+		return ErrFolderTaken
+	}
+	return nil
 }
 
 func (h *Handler) folder(projectID string) (string, bool) {
@@ -407,6 +426,9 @@ func (h *Handler) side(p *progress, kind string) (source.Copier, error) {
 			if err := p.save(h.cfg.Home); err != nil {
 				return nil, err
 			}
+		}
+		if err := h.free(p.ProjectID, folder); err != nil {
+			return nil, err
 		}
 	}
 	return h.cfg.Open(p.ProjectID, folder).Copier(dir), nil

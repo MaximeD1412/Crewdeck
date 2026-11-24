@@ -477,6 +477,39 @@ func TestCodeToLocalRetriedAfterThePickWasDroppedAdoptsTheFolderItBeganAtTheFini
 	}
 }
 
+func TestCodeToLocalRetriedOnceAnotherProjetTookTheFolderWritesNothingThereNorAdoptsIt(t *testing.T) {
+	e, _, _, _ := githubCode(t)
+	picked := e.pending
+	refused := 0
+	e.gh.fail = func(call string) int {
+		if call == "GET /pulls" && refused == 0 {
+			refused++
+			return 403
+		}
+		return 0
+	}
+	h := e.handler()
+	h.Copy(context.Background(), codeMessage(contracts.RunnerMigrationCopyFromGithub, contracts.RunnerMigrationCopyFromLocal))
+	// The pick dropped at the failure, another Projet is made from the folder, a git repository now.
+	e.mu.Lock()
+	e.pending, e.others = "", []string{picked}
+	e.mu.Unlock()
+	head := gitIn(t, picked, "rev-parse", "HEAD")
+	h.Copy(context.Background(), codeMessage(contracts.RunnerMigrationCopyFromGithub, contracts.RunnerMigrationCopyFromLocal))
+	if failed := sentOf[contracts.RunnerMigrationFailed](e); len(failed) != 2 {
+		t.Fatalf("failed %+v, want the retry failed too\n%s", failed, e.logs.String())
+	}
+	if switches := sentOf[contracts.RunnerMigrationSwitch](e); len(switches) != 0 {
+		t.Errorf("switches %+v, want none", switches)
+	}
+	if now := gitIn(t, picked, "rev-parse", "HEAD"); now != head {
+		t.Errorf("the other Projet's folder moved from %s to %s", head, now)
+	}
+	if e.folder != "" || len(e.promoted) != 0 {
+		t.Errorf("the Projet's folder %q, promoted %v: want none", e.folder, e.promoted)
+	}
+}
+
 func TestCodeToLocalFinishCarriesALateCommitPromotesTheFolderAndReportsTheChanges(t *testing.T) {
 	e, work, _, _ := githubCode(t)
 	picked := e.pending
@@ -637,6 +670,102 @@ func TestCodeToGitHubAndBackFindsEachLocalChangeAgainNeverASecondOne(t *testing.
 	}
 	if len(s.Renumbering) != 1 || s.Renumbering[0].From != pp.Number || s.Renumbering[0].To != panier {
 		t.Errorf("renumbering %+v, want the panier's pull request back to its number", s.Renumbering)
+	}
+}
+
+func TestCodeToGitHubAndBackCarriesTheTextsOfItsOwnNotesEditedOnGitHub(t *testing.T) {
+	e, panier, _ := localCode(t)
+	e.bare()
+	ctx := context.Background()
+	h := e.handler()
+	h.Copy(ctx, codeMessage(contracts.RunnerMigrationCopyFromLocal, contracts.RunnerMigrationCopyFromGithub))
+	h.Finish(ctx, finishMessage(switchOf(t, e)))
+	pp := pullFrom(t, e, "local#"+itoa(panier))
+
+	// On GitHub meanwhile: the comment, the review and its remark copied from the panier edited, their markers kept.
+	e.gh.mu.Lock()
+	for i, cm := range e.gh.issue(pp.Number).Comments {
+		body := strings.Replace(cm.Body, "Penser aux taxes.", "Penser aux taxes, TVA comprise.", 1)
+		body = strings.Replace(body, "À revoir.", "À revoir, vite.", 1)
+		e.gh.issue(pp.Number).Comments[i].Body = strings.Replace(body, "Ce paquet.", "Ce paquet-là.", 1)
+	}
+	e.gh.mu.Unlock()
+
+	e.mu.Lock()
+	e.sent = nil
+	e.mu.Unlock()
+	back := codeMessage(contracts.RunnerMigrationCopyFromGithub, contracts.RunnerMigrationCopyFromLocal)
+	back.MigrationId = "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a97"
+	h.Copy(ctx, back)
+	switchOf(t, e)
+
+	p := copiedChange(t, e.project, panier)
+	if len(p.Comments) != 1 || p.Comments[0].Body != "Penser aux taxes, TVA comprise." {
+		t.Errorf("panier's comments %+v, want its own with the text edited on GitHub", p.Comments)
+	}
+	if len(p.Reviews) != 1 || p.Reviews[0].Body != "À revoir, vite." || p.Reviews[0].State != source.ReviewChangesRequested ||
+		len(p.Reviews[0].Comments) != 1 || p.Reviews[0].Comments[0].Body != "Ce paquet-là." || p.Reviews[0].Comments[0].Path != "src/panier.go" {
+		t.Errorf("panier's reviews %+v, want its own with the texts edited on GitHub", p.Reviews)
+	}
+}
+
+// copiedChange is the local change number, whole.
+func copiedChange(t *testing.T, project *local.Project, number int) local.CopiedChange {
+	t.Helper()
+	changes, err := project.CopiedChanges(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range changes {
+		if c.Number == number {
+			return c
+		}
+	}
+	t.Fatalf("no local change %d in %+v", number, changes)
+	return local.CopiedChange{}
+}
+
+func TestCodeToLocalReopensAChangeAPassClosedOnceItsPullRequestIsReopened(t *testing.T) {
+	e, _, export := localCode(t)
+	e.bare()
+	ctx := context.Background()
+	h := e.handler()
+	h.Copy(ctx, codeMessage(contracts.RunnerMigrationCopyFromLocal, contracts.RunnerMigrationCopyFromGithub))
+	h.Finish(ctx, finishMessage(switchOf(t, e)))
+	px := pullFrom(t, e, "local#"+itoa(export))
+	e.gh.mu.Lock()
+	e.gh.issue(px.Number).State = "closed"
+	e.gh.mu.Unlock()
+	// Once the first pass back closed the export, its pull request is reopened.
+	pulls := 0
+	e.gh.before = func(call, _ string) {
+		if call != "GET /pulls" {
+			return
+		}
+		if pulls++; pulls == 2 {
+			e.gh.mu.Lock()
+			e.gh.issue(px.Number).State = "open"
+			e.gh.mu.Unlock()
+		}
+	}
+
+	e.mu.Lock()
+	e.sent = nil
+	e.mu.Unlock()
+	back := codeMessage(contracts.RunnerMigrationCopyFromGithub, contracts.RunnerMigrationCopyFromLocal)
+	back.MigrationId = "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a97"
+	h.Copy(ctx, back)
+	s := switchOf(t, e)
+	if pulls < 3 {
+		t.Fatalf("%d passes, want the reopening seen by one and a stable one after", pulls)
+	}
+	h.Finish(ctx, finishMessage(s))
+	if len(sentOf[contracts.RunnerMigrationFinished](e)) != 1 {
+		t.Fatalf("not finished\n%s", e.logs.String())
+	}
+	x := copiedChange(t, e.project, export)
+	if x.State != source.ChangeOpen || x.ClosedAt != nil || x.MergedAt != nil {
+		t.Errorf("export %s (closed %v, merged %v), want open as its pull request", x.State, x.ClosedAt, x.MergedAt)
 	}
 }
 

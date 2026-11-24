@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"sync"
@@ -219,10 +220,34 @@ func (h *Handler) Pending(projectID string) (state.PendingFolder, bool) {
 	return pending, ok
 }
 
+// ErrTaken is a folder another Projet holds, as its folder or its pending one.
+var ErrTaken = errors.New("folders: the folder is another Projet's")
+
+// Taken is whether folder is another Projet's than projectID, as its folder
+// or its pending one (the pick dropped, another Projet may have taken it since).
+func (h *Handler) Taken(projectID, folder string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	linked, err := h.cfg.Store.Load()
+	if err != nil {
+		return true
+	}
+	return taken(linked, projectID, folder)
+}
+
+func taken(linked state.State, projectID, folder string) bool {
+	for _, path := range held(linked, projectID) {
+		if filepath.Clean(path) == filepath.Clean(folder) {
+			return true
+		}
+	}
+	return false
+}
+
 // Promote makes folder the Projet's folder, at the finish of its migration
 // to Local (the one its copy began in, kept even once the pick was dropped),
 // its pending one when folder is ""; and says projects.folders. A Projet
-// with neither is left as it is.
+// with neither is left as it is; a folder another Projet holds is ErrTaken.
 func (h *Handler) Promote(ctx context.Context, projectID, folder string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -235,6 +260,9 @@ func (h *Handler) Promote(ctx context.Context, projectID, folder string) error {
 	}
 	if folder == "" {
 		return nil
+	}
+	if taken(linked, projectID, folder) {
+		return ErrTaken
 	}
 	if linked.Projects == nil {
 		linked.Projects = map[string]string{}

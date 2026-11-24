@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -577,5 +578,33 @@ func TestAPromoteOfTheFolderACopyBeganInHoldsOnceThePickWasDropped(t *testing.T)
 	}
 	if got := saidFolders(t, f.sender.take()); !reflect.DeepEqual(got.Present, []string{thisProject}) {
 		t.Fatalf("projects.folders %+v", got)
+	}
+}
+
+func TestAFolderAnotherProjetTookOnceThePickWasDroppedIsTakenAndNeverPromoted(t *testing.T) {
+	f := newFixture(t)
+	folder := filepath.Join(f.home, "recettes")
+	mkdir(t, folder)
+	if err := f.handler.HandlePick(context.Background(), f.pick(t, thisProject, "code", folder)); err != nil {
+		t.Fatal(err)
+	}
+	if f.handler.Taken(thisProject, folder) {
+		t.Fatal("the Projet's own pending folder is taken")
+	}
+	if err := f.handler.HandleDrop(context.Background(), contracts.RunnerProjectFolderDrop{Type: "project.folder.drop", ProjectId: thisProject}); err != nil {
+		t.Fatal(err)
+	}
+	// Another Projet is made from the folder meanwhile.
+	if err := f.handler.HandleAttach(context.Background(), f.attach(t, otherProject, folder)); err != nil {
+		t.Fatal(err)
+	}
+	if !f.handler.Taken(thisProject, folder) || f.handler.Taken(otherProject, folder) {
+		t.Fatal("the folder is the other Projet's, taken for this one only")
+	}
+	if err := f.handler.Promote(context.Background(), thisProject, folder); !errors.Is(err, ErrTaken) {
+		t.Fatalf("promote: %v, want ErrTaken", err)
+	}
+	if saved, _ := f.store.Load(); saved.Projects[thisProject] != "" || saved.Projects[otherProject] != folder {
+		t.Fatalf("saved %+v, want the folder the other Projet's alone", saved.Projects)
 	}
 }

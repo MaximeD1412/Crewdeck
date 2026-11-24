@@ -1,6 +1,7 @@
 import { processSealAad, projectNameAad, templateSealAad, type ProcessTemplate, type Project, type Repository } from '@crewdeck/contracts';
 import type { z } from 'zod';
 import type { Client } from './api/client.js';
+import { ApiError } from './api/request.js';
 import { toBase64Url } from './keys/bytes.js';
 import type { VaultState } from './keys/vault.js';
 import { createProjectNames, createProjects } from './projects.js';
@@ -28,10 +29,11 @@ const setup = (command: (body: object) => Promise<unknown>, query: () => Promise
     command: (async (_method: string, _path: string, body: object, schema?: z.ZodType) => schema?.parse(await command(body))) as Client['command'],
   };
   const ids = ['019a6f00-0000-7000-8000-000000000031', '019a6f00-0000-7000-8000-000000000032'];
-  const projects = createProjects({ store, client, vault: fakeVault(), newId: () => ids.shift() ?? '' });
+  const vault = fakeVault();
+  const projects = createProjects({ store, client, vault, newId: () => ids.shift() ?? '' });
   const changes = vi.fn<() => void>();
   projects.subscribe(changes);
-  return { store, projects, changes };
+  return { store, projects, changes, vault };
 };
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -115,20 +117,21 @@ describe('createProjects', () => {
 describe('createProjects, from one of the Pilote’s Modèles (PROCESS-14)', () => {
   const OTHER: Repository = { ...REPOSITORY, id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a82', name: 'atelier', fullName: 'octocat/atelier' };
   const COMMANDS = JSON.stringify({ e2e: 'pnpm exec playwright test' });
-  const template = (id: string, name: string, sealed: ProcessTemplate['sealed']): ProcessTemplate => ({
+  const template = (id: string, name: string, sealed: ProcessTemplate['sealed'], revision = 1): ProcessTemplate => ({
     id,
     name,
     fromProjectId: null,
     fromVersionNumber: 3,
     sealed,
     commandCount: sealed === null ? 0 : 1,
+    revision,
     createdAt: '2026-11-12T09:00:00.000Z',
     updatedAt: '2026-11-12T09:00:00.000Z',
   });
   const WEB = '019a6f00-0000-7000-8000-0000000000a1';
   const COURT = '019a6f00-0000-7000-8000-0000000000a2';
   const withTemplates = async (store: ReturnType<typeof setup>['store']) => {
-    const templates = [template(WEB, 'Process web', await fakeSealed(COMMANDS, templateSealAad(WEB))), template(COURT, 'Process court', null)];
+    const templates = [template(WEB, 'Process web', await fakeSealed(COMMANDS, templateSealAad(WEB)), 2), template(COURT, 'Process court', null)];
     store.applySnapshot({ seq: 1, repositories: [REPOSITORY, OTHER], processTemplates: templates } as never);
   };
 
@@ -151,7 +154,7 @@ describe('createProjects, from one of the Pilote’s Modèles (PROCESS-14)', () 
     ]);
   });
 
-  it('draws each Projet’s id, and seals the Modèle’s Commandes again for each, under process:<id>', async () => {
+  it('draws each Projet’s id, and seals the Modèle’s Commandes again for each, under process:<id>, with its revision and the key’s version', async () => {
     const command = vi.fn<(body: object) => Promise<unknown>>(async () => ({ items: [] }));
     const { store, projects } = setup(command);
     await withTemplates(store);
@@ -160,6 +163,8 @@ describe('createProjects, from one of the Pilote’s Modèles (PROCESS-14)', () 
     expect(command.mock.calls[0]?.[0]).toEqual({
       repositoryIds: [REPOSITORY.id, OTHER.id],
       templateId: WEB,
+      templateRevision: 2,
+      vaultKeyVersion: 1,
       projects: [
         { repositoryId: REPOSITORY.id, id: '019a6f00-0000-7000-8000-000000000031', templateSealed: await fakeSealed(COMMANDS, processSealAad('019a6f00-0000-7000-8000-000000000031')) },
         { repositoryId: OTHER.id, id: '019a6f00-0000-7000-8000-000000000032', templateSealed: await fakeSealed(COMMANDS, processSealAad('019a6f00-0000-7000-8000-000000000032')) },
@@ -176,8 +181,30 @@ describe('createProjects, from one of the Pilote’s Modèles (PROCESS-14)', () 
     expect(command.mock.calls[0]?.[0]).toEqual({
       repositoryIds: [REPOSITORY.id],
       templateId: COURT,
+      templateRevision: 1,
       projects: [{ repositoryId: REPOSITORY.id, id: '019a6f00-0000-7000-8000-000000000031', templateSealed: null }],
     });
+  });
+
+  it('after a rotation, unlocks the vault and seals the Commandes again under its new version, the same ids, once (E2E-4)', async () => {
+    const versionChanged = new ApiError({ status: 409, code: 'vault.version-changed', message: 'La clé du coffre a déjà changé.' });
+    let refused = 1;
+    const command = vi.fn<(body: object) => Promise<unknown>>(async () => {
+      if (refused-- > 0) {
+        // Another holder rotated while the page sealed: the vault opens again under version 2.
+        vault.version = 2;
+        throw versionChanged;
+      }
+      return { items: [] };
+    });
+    const { store, projects, vault } = setup(command);
+    await withTemplates(store);
+
+    await projects.follow([REPOSITORY.id], WEB);
+    expect(vault.unlocks).toBe(1);
+    const bodies = command.mock.calls.map(([body]) => body as { vaultKeyVersion: number; projects: { id: string }[] });
+    expect(bodies.map((body) => body.vaultKeyVersion)).toEqual([1, 2]);
+    expect(bodies.map((body) => body.projects[0]?.id)).toEqual(['019a6f00-0000-7000-8000-000000000031', '019a6f00-0000-7000-8000-000000000031']);
   });
 });
 

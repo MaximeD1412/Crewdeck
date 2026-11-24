@@ -147,8 +147,8 @@ describe('the Modèles de process against PostgreSQL', () => {
     ]);
   };
 
-  const save = (tab: Tab, input: { id?: string; name?: string; projectId?: string; versionNumber?: number; sealed?: SealedItem | null; replace?: boolean }) =>
-    call(tab, 'POST', '/api/process-templates', { id: newId(), name: 'Process web', projectId, versionNumber: 1, sealed: null, replace: false, ...input });
+  const save = (tab: Tab, input: { id?: string; name?: string; projectId?: string; versionNumber?: number; sealed?: SealedItem | null; vaultKeyVersion?: number; replace?: boolean }) =>
+    call(tab, 'POST', '/api/process-templates', { id: newId(), name: 'Process web', projectId, versionNumber: 1, sealed: null, vaultKeyVersion: 1, replace: false, ...input });
   const template = async (res: Response, status = 201): Promise<ProcessTemplate> => {
     expect(res.status).toBe(status);
     return zProcessTemplate.parse(await res.json());
@@ -170,7 +170,7 @@ describe('the Modèles de process against PostgreSQL', () => {
       const id = newId();
       const saved = await template(await save(alice, { id, name: '  Process web  ' }));
 
-      expect(saved).toEqual({ id, name: 'Process web', fromProjectId: projectId, fromVersionNumber: 1, sealed: null, commandCount: 0, createdAt: expect.any(String), updatedAt: saved.createdAt });
+      expect(saved).toEqual({ id, name: 'Process web', fromProjectId: projectId, fromVersionNumber: 1, sealed: null, commandCount: 0, revision: 1, createdAt: expect.any(String), updatedAt: saved.createdAt });
       expect(await sql(`SELECT definition, name_key FROM process_templates WHERE id = $1`, [id])).toEqual([{ definition: PROCESS_CREWDECK, name_key: 'process web' }]);
       const events = await templateEvents(alice);
       expect(events.map((event) => [event.type, zProcessTemplate.parse(event.payload)])).toEqual([['process-template.upserted', saved]]);
@@ -195,7 +195,8 @@ describe('the Modèles de process against PostgreSQL', () => {
 
       const replaced = await template(await save(alice, { id, name: 'PROCESS WEB', versionNumber: 2, sealed: sealItem(vaultKey, COMMANDS, templateSealAad(id)), replace: true }), 200);
 
-      expect(replaced).toMatchObject({ id, name: 'PROCESS WEB', fromVersionNumber: 2, commandCount: 1, createdAt: first.createdAt });
+      // Its contents changed: its revision moves, for a creation that re-sealed the former to be refused.
+      expect(replaced).toMatchObject({ id, name: 'PROCESS WEB', fromVersionNumber: 2, commandCount: 1, revision: 2, createdAt: first.createdAt });
       expect(Date.parse(replaced.updatedAt)).toBeGreaterThan(Date.parse(first.updatedAt));
       expect(await sql(`SELECT id FROM process_templates`)).toEqual([{ id }]);
       expect((await templateEvents(alice)).map((event) => event.type)).toEqual(['process-template.upserted', 'process-template.upserted']);
@@ -211,6 +212,21 @@ describe('the Modèles de process against PostgreSQL', () => {
       }
       expect(await sql(`SELECT id FROM process_templates`)).toEqual([{ id }]);
       expect(await templateEvents(alice)).toHaveLength(1);
+    });
+
+    it('refuses a part sealed under a vault key rotated since: 409 vault.version-changed, nothing written (E2E-4)', async () => {
+      await activateWithCommand(alice, projectId);
+      const id = newId();
+      const sealed = sealItem(vaultKey, COMMANDS, templateSealAad(id));
+      // Another holder rotated between the page's sealing and its write.
+      await sql('UPDATE pilots SET vault_key_version = 2 WHERE id = $1', [alice.id]);
+
+      const res = await save(alice, { id, versionNumber: 2, sealed, vaultKeyVersion: 1 });
+
+      await expectEnvelope(res, 409, 'vault.version-changed');
+      expect(await sql(`SELECT id FROM process_templates`)).toEqual([]);
+      expect(await templateEvents(alice)).toEqual([]);
+      expect((await save(alice, { id, versionNumber: 2, sealed, vaultKeyVersion: 2 })).status).toBe(201);
     });
 
     it('refuses « Process Crewdeck » in any case: 422 process-template.name-reserved', async () => {
@@ -268,7 +284,8 @@ describe('the Modèles de process against PostgreSQL', () => {
       await template(await save(alice, { name: 'Process mobile' }));
 
       const renamed = await template(await call(alice, 'PATCH', `/api/process-templates/${web.id}`, { name: 'Process site' }), 200);
-      expect(renamed).toMatchObject({ id: web.id, name: 'Process site', fromProjectId: projectId });
+      // A name is not its contents: the revision stays.
+      expect(renamed).toMatchObject({ id: web.id, name: 'Process site', fromProjectId: projectId, revision: 1 });
       const last = (await templateEvents(alice)).at(-1);
       expect([last?.type, last?.payload]).toEqual(['process-template.upserted', renamed]);
 
@@ -333,17 +350,34 @@ describe('the Modèles de process against PostgreSQL', () => {
       await socket.expect('hello.accepted');
     };
 
-    const createLocal = (tab: Tab, id: string, templateId: string, templateSealed: SealedItem | null) =>
+    /** What the page read of the Modèle when it sealed its part again, and the vault key's version it sealed under. */
+    type Sealing = { templateRevision?: number; vaultKeyVersion?: number };
+
+    const createLocal = (tab: Tab, id: string, templateId: string, templateSealed: SealedItem | null, { templateRevision = 1, vaultKeyVersion = 1 }: Sealing = {}) =>
       call(tab, 'POST', '/api/projects/local', {
         id,
         nameSealed: sealItem(vaultKey, 'Recettes', projectNameAad(id)),
         folderSealed: sealItem(vaultKey, JSON.stringify({ path: '/home/pilote/recettes' }), projectFolderAad(id)),
-        vaultKeyVersion: 1,
+        vaultKeyVersion,
         hasCode: true,
         releaseBranch: 'main',
         templateId,
+        templateRevision,
         templateSealed,
       });
+
+    /** Follows Alice's Dépôt GitHub (its Projet deleted first) from the Modèle `templateId`, as the Projet `id`. */
+    const followFrom = async (templateId: string, id: string, { templateRevision = 1, vaultKeyVersion = 1 }: Sealing = {}) => {
+      const { seq, repositories } = await state(alice);
+      return call(alice, 'POST', '/api/projects', {
+        repositoryIds: repositories.map((repository) => repository.id),
+        templateId,
+        templateRevision,
+        projects: repositories.map((repository) => ({ repositoryId: repository.id, id, templateSealed: sealItem(vaultKey, COMMANDS, processSealAad(id)) })),
+        vaultKeyVersion,
+        seq: String(seq),
+      });
+    };
 
     const processOf = async (tab: Tab, id: string) => {
       const res = await call(tab, 'GET', `/api/projects/${id}/process`);
@@ -370,15 +404,9 @@ describe('the Modèles de process against PostgreSQL', () => {
     it('gets it too when it follows a Dépôt GitHub, with the id the page drew', async () => {
       const web = await savedWithCommand();
       await sql('DELETE FROM projects WHERE id = $1', [projectId]);
-      const { seq, repositories } = await state(alice);
       const id = newId();
 
-      const res = await call(alice, 'POST', '/api/projects', {
-        repositoryIds: repositories.map((repository) => repository.id),
-        templateId: web.id,
-        projects: repositories.map((repository) => ({ repositoryId: repository.id, id, templateSealed: sealItem(vaultKey, COMMANDS, processSealAad(id)) })),
-        seq: String(seq),
-      });
+      const res = await followFrom(web.id, id);
 
       expect(res.status).toBe(201);
       expect(zProjectList.parse(await res.json()).items.map((project) => project.id)).toEqual([id]);
@@ -406,6 +434,39 @@ describe('the Modèles de process against PostgreSQL', () => {
       await expectEnvelope(deleted, 404, 'process-template.not-found');
 
       expect(await sql(`SELECT id FROM projects`)).toEqual([{ id: projectId }]);
+    });
+
+    it('refuses a Modèle replaced since the page sealed its part again: 409 process-template.changed, nothing created, Local and GitHub', async () => {
+      const web = await savedWithCommand();
+      await online(alice);
+      // Another tab replaces it between this page's reseal (of revision 1) and its creation.
+      const replaced = await template(await save(alice, { id: web.id, name: 'Process web', versionNumber: 2, sealed: sealItem(vaultKey, COMMANDS, templateSealAad(web.id)), replace: true }), 200);
+      expect(replaced.revision).toBe(2);
+      await sql('DELETE FROM projects WHERE id = $1', [projectId]);
+
+      const local = newId();
+      const fromLocal = await createLocal(alice, local, web.id, sealItem(vaultKey, COMMANDS, processSealAad(local)));
+      expect((await expectEnvelope(fromLocal, 409, 'process-template.changed')).message).toBe('Ce Modèle de process vient d’être remplacé : choisis-le à nouveau.');
+      await expectEnvelope(await followFrom(web.id, newId()), 409, 'process-template.changed');
+      expect(await sql(`SELECT id FROM projects`)).toEqual([]);
+
+      // Sealed again from the replacing revision, both pass.
+      expect((await createLocal(alice, local, web.id, sealItem(vaultKey, COMMANDS, processSealAad(local)), { templateRevision: 2 })).status).toBe(201);
+      expect((await followFrom(web.id, newId(), { templateRevision: 2 })).status).toBe(201);
+    });
+
+    it('refuses a part sealed under a vault key rotated since: 409 vault.version-changed, nothing created, Local and GitHub (E2E-4)', async () => {
+      const web = await savedWithCommand();
+      await online(alice);
+      await sql('DELETE FROM projects WHERE id = $1', [projectId]);
+      await sql('UPDATE pilots SET vault_key_version = 2 WHERE id = $1', [alice.id]);
+
+      const local = newId();
+      await expectEnvelope(await createLocal(alice, local, web.id, sealItem(vaultKey, COMMANDS, processSealAad(local))), 409, 'vault.version-changed');
+      await expectEnvelope(await followFrom(web.id, newId()), 409, 'vault.version-changed');
+      expect(await sql(`SELECT id FROM projects`)).toEqual([]);
+
+      expect((await followFrom(web.id, newId(), { vaultKeyVersion: 2 })).status).toBe(201);
     });
 
     it('keeps its Process when the Modèle is renamed or deleted afterwards: it is a copy', async () => {

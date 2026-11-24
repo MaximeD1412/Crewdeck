@@ -58,10 +58,12 @@ export class LocalProjects {
   /**
    * 422 `runner.offline` first (the Runner checked the folder and must store
    * it), 422 `project.id-taken` for an id already a Projet's, 409
-   * `vault.version-changed` for a name and a folder sealed under another
-   * vault key than the current one. One
-   * transaction: the row (folder `pending`), its Sources (every group
-   * Local), its Process from `templateId`, `project.upserted`. Then the
+   * `vault.version-changed` for a name, a folder or a Modèle's part sealed
+   * under another vault key than the current one, 409
+   * `process-template.changed` for an own Modèle replaced since the page
+   * sealed its part again. One transaction: the row (folder `pending`), its
+   * Sources (every group Local), its Process from `templateId`,
+   * `project.upserted`. Then the
    * folder to the Runner; a send that fails leaves it `pending`.
    */
   async create(pilotId: string, input: CreateLocalProject): Promise<Project> {
@@ -90,7 +92,7 @@ export class LocalProjects {
         await tx.project.update({ where: { id: input.id }, data: { lastSeq: seq } });
         // Its Sources first, so that its first process.upserted holds them: a folder, every group Local.
         await this.sources.createDefaults(tx, input.id, 'local');
-        await this.process.createInitialVersion(tx, input.id, { template: input.templateId, sealed: input.templateSealed });
+        await this.process.createInitialVersion(tx, input.id, { template: input.templateId, revision: input.templateRevision, sealed: input.templateSealed });
         return view;
       });
     } catch (error) {

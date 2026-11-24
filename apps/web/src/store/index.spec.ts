@@ -112,6 +112,7 @@ const TEMPLATE: ProcessTemplate = {
   fromVersionNumber: 1,
   sealed: null,
   commandCount: 0,
+  revision: 1,
   createdAt: AT,
   updatedAt: AT,
 };

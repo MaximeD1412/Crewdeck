@@ -15,6 +15,7 @@ import { followProjects, installUrl } from './api/projects.js';
 import { uuidv7 } from './ids.js';
 import { fromBase64Url, utf8 } from './keys/bytes.js';
 import type { Vault, VaultState } from './keys/vault.js';
+import { sealedWrite } from './keys/sealed-write.js';
 import { resealProcess } from './process/seal.js';
 import type { Store } from './store/store.js';
 import { pickerView, type PickerView } from './views/projets.js';
@@ -22,8 +23,8 @@ import { pickerView, type PickerView } from './views/projets.js';
 export interface ProjectsOptions {
   readonly store: Store;
   readonly client: Pick<Client, 'command' | 'query'>;
-  /** Seals a Modèle's Commandes again for each Projet (PROCESS-14). */
-  readonly vault: Pick<Vault, 'sealItem' | 'openItem'>;
+  /** Seals a Modèle's Commandes again for each Projet (PROCESS-14), unlocked again after a rotation. */
+  readonly vault: Pick<Vault, 'sealItem' | 'openItem' | 'unlockVault'>;
   /** A new Projet's id: a UUIDv7 drawn here by default. */
   readonly newId?: () => string;
 }
@@ -42,7 +43,9 @@ export interface Projects {
  * slice for the picker, GitHub's installation page from the config, and the
  * follow command, one at a time. From one of the Pilote's Modèles
  * (PROCESS-14), each Projet's id is drawn here, and the Modèle's Commandes
- * sealed again for it, from `template:<id>` to `process:<projectId>`.
+ * sealed again for it, from `template:<id>` to `process:<projectId>`,
+ * with the Modèle's revision and the vault key's version (sealed again
+ * once after a rotation).
  */
 export const createProjects = ({ store, client, vault, newId = () => uuidv7() }: ProjectsOptions): Projects => {
   const listeners = new Set<() => void>();
@@ -93,14 +96,20 @@ export const createProjects = ({ store, client, vault, newId = () => uuidv7() }:
           await followProjects(client, repositoryIds, template);
           return;
         }
-        const sealed = store.getState().slices['process-template']?.get(template)?.sealed ?? null;
-        const projects = await Promise.all(
-          repositoryIds.map(async (repositoryId) => {
-            const id = newId();
-            return { repositoryId, id, templateSealed: await resealProcess(vault, sealed, templateSealAad(template), processSealAad(id)) };
-          }),
-        );
-        await followProjects(client, repositoryIds, template, projects);
+        const own = store.getState().slices['process-template']?.get(template);
+        if (!own) throw new Error(`projects: no Modèle de process ${template}`);
+        const ids = repositoryIds.map((repositoryId) => ({ repositoryId, id: newId() }));
+        await sealedWrite(vault, async () => {
+          const projects = await Promise.all(
+            ids.map(async ({ repositoryId, id }) => ({ repositoryId, id, resealed: await resealProcess(vault, own.sealed, templateSealAad(template), processSealAad(id)) })),
+          );
+          const versions = projects.flatMap(({ resealed }) => (resealed ? [resealed.vaultKeyVersion] : []));
+          await followProjects(client, repositoryIds, template, {
+            templateRevision: own.revision,
+            projects: projects.map(({ repositoryId, id, resealed }) => ({ repositoryId, id, templateSealed: resealed?.sealed ?? null })),
+            ...(versions.length > 0 ? { vaultKeyVersion: Math.min(...versions) } : {}),
+          });
+        });
       } finally {
         following = false;
         notify();

@@ -13,8 +13,15 @@ describe('resealProcess', () => {
 
     const forTemplate = await resealProcess(vault, sealed, processSealAad(PROJECT), templateSealAad(TEMPLATE));
 
-    expect(forTemplate).toEqual(await fakeSealed(COMMANDS, templateSealAad(TEMPLATE)));
-    expect(await resealProcess(vault, forTemplate, templateSealAad(TEMPLATE), processSealAad(PROJECT))).toEqual(sealed);
+    expect(forTemplate).toEqual({ sealed: await fakeSealed(COMMANDS, templateSealAad(TEMPLATE)), vaultKeyVersion: 1 });
+    expect((await resealProcess(vault, forTemplate!.sealed, templateSealAad(TEMPLATE), processSealAad(PROJECT)))?.sealed).toEqual(sealed);
+  });
+
+  it('says the version of the vault key it sealed under, for the write to carry (E2E-4)', async () => {
+    const vault = fakeVault();
+    vault.version = 3;
+
+    expect((await resealProcess(vault, await fakeSealed(COMMANDS, processSealAad(PROJECT)), processSealAad(PROJECT), templateSealAad(TEMPLATE)))?.vaultKeyVersion).toBe(3);
   });
 
   it('keeps null for a Process without Commande', async () => {

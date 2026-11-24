@@ -39,6 +39,8 @@ export interface NewLocalProject {
   readonly templateId: ProcessTemplateId;
   /** The sealed part of the Pilote's Modèle `templateId` (its Commandes, under `template:<templateId>`), `null` without one (PROCESS-14). */
   readonly templateSealed?: SealedItem | null;
+  /** The revision of that Modèle whose part `templateSealed` is: the server refuses it replaced since (409 `process-template.changed`). */
+  readonly templateRevision?: number;
   /** The Runner's check of `path`: whether it has code, its branch. */
   readonly check: FolderCheckResult;
 }
@@ -52,7 +54,7 @@ const sealFolder = (vault: Pick<Vault, 'sealItem'>, projectId: string, path: str
  */
 export const createLocalProject = async (
   { client, vault, newId = () => uuidv7() }: LocalProjectDeps,
-  { path, name, templateId, templateSealed = null, check }: NewLocalProject,
+  { path, name, templateId, templateRevision, templateSealed = null, check }: NewLocalProject,
 ): Promise<Project> => {
   const id = newId();
   return sealedWrite(vault, async () => {
@@ -65,11 +67,12 @@ export const createLocalProject = async (
       id,
       nameSealed: toWire(nameSealed),
       folderSealed: toWire(folderSealed),
-      vaultKeyVersion: Math.min(nameSealed.vaultKeyVersion, folderSealed.vaultKeyVersion),
+      vaultKeyVersion: Math.min(nameSealed.vaultKeyVersion, folderSealed.vaultKeyVersion, processSealed?.vaultKeyVersion ?? Infinity),
       hasCode: check.hasCode,
       releaseBranch: check.branch,
       templateId,
-      templateSealed: processSealed,
+      ...(templateRevision === undefined ? {} : { templateRevision }),
+      templateSealed: processSealed?.sealed ?? null,
     });
   });
 };

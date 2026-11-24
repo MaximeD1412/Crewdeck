@@ -87,11 +87,22 @@ describe('createLocalProject', () => {
     const COMMANDS = JSON.stringify({ e2e: 'pnpm exec playwright test' });
     const check = { state: 'ready', hasCode: true, branch: 'main', name: 'recettes' } as const;
 
-    await createLocalProject(deps, { path: '~/projets/recettes', name: 'Recettes', templateId: TEMPLATE, templateSealed: await fakeSealed(COMMANDS, templateSealAad(TEMPLATE)), check });
-    expect(calls[0]?.body).toMatchObject({ templateId: TEMPLATE, templateSealed: await fakeSealed(COMMANDS, processSealAad(ID)) });
+    await createLocalProject(deps, { path: '~/projets/recettes', name: 'Recettes', templateId: TEMPLATE, templateRevision: 2, templateSealed: await fakeSealed(COMMANDS, templateSealAad(TEMPLATE)), check });
+    // The revision of the Modèle it sealed again, for the server to refuse one replaced since.
+    expect(calls[0]?.body).toMatchObject({ templateId: TEMPLATE, templateRevision: 2, templateSealed: await fakeSealed(COMMANDS, processSealAad(ID)) });
 
     await createLocalProject(deps, { path: '~/projets/recettes', name: 'Recettes', templateId: 'process-crewdeck', check });
     expect(calls[1]?.body).toMatchObject({ templateSealed: null });
+  });
+
+  it('after a rotation, seals the Modèle’s Commandes again under the new version too (PROCESS-14)', async () => {
+    const { calls, deps } = setup(1);
+    const TEMPLATE = '019a6f00-0000-7000-8000-0000000000a1';
+    const templateSealed = await fakeSealed(JSON.stringify({ e2e: 'pnpm exec playwright test' }), templateSealAad(TEMPLATE));
+
+    await createLocalProject(deps, { path: '~/projets/recettes', name: 'Recettes', templateId: TEMPLATE, templateRevision: 1, templateSealed, check: { state: 'ready', hasCode: true, branch: 'main', name: 'recettes' } });
+
+    expect(calls.map((call) => call.body['vaultKeyVersion'])).toEqual([1, 2]);
   });
 
   it('a folder without git has no branch', async () => {

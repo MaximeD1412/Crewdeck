@@ -85,10 +85,15 @@ describe('zFollowProjects', () => {
     expect(zProcessTemplateId.parse(TEMPLATE)).toBe(TEMPLATE);
     expect(zFollowProjects.safeParse({ repositoryIds: [REPOSITORY.id], templateId: 'mon-process', seq: 1 }).success).toBe(false);
     // An own Modèle: each repository with the id the page drew and its part re-sealed for it.
-    expect(zFollowProjects.parse({ repositoryIds: [REPOSITORY.id], templateId: TEMPLATE, projects: [OWN], seq: 1 }).projects).toEqual([OWN]);
-    expect(zFollowProjects.safeParse({ repositoryIds: [REPOSITORY.id], templateId: TEMPLATE, seq: 1 }).success).toBe(false);
-    expect(zFollowProjects.safeParse({ repositoryIds: [REPOSITORY.id], templateId: TEMPLATE, projects: [], seq: 1 }).success).toBe(false);
-    expect(zFollowProjects.safeParse({ repositoryIds: [REPOSITORY.id], templateId: TEMPLATE, projects: [OWN, OWN], seq: 1 }).success).toBe(false);
+    const own = { repositoryIds: [REPOSITORY.id], templateId: TEMPLATE, templateRevision: 2, projects: [OWN], vaultKeyVersion: 3, seq: 1 };
+    expect(zFollowProjects.parse(own).projects).toEqual([OWN]);
+    expect(zFollowProjects.safeParse({ ...own, projects: undefined }).success).toBe(false);
+    expect(zFollowProjects.safeParse({ ...own, projects: [] }).success).toBe(false);
+    expect(zFollowProjects.safeParse({ ...own, projects: [OWN, OWN] }).success).toBe(false);
+    // The revision of the Modèle the page sealed again, and the vault key's version with a part.
+    expect(zFollowProjects.safeParse({ ...own, templateRevision: undefined }).success).toBe(false);
+    expect(zFollowProjects.safeParse({ ...own, vaultKeyVersion: undefined }).success).toBe(false);
+    expect(zFollowProjects.parse({ ...own, projects: [{ ...OWN, templateSealed: null }], vaultKeyVersion: undefined }).vaultKeyVersion).toBeUndefined();
     expect(zFollowProjects.parse({ repositoryIds: [REPOSITORY.id], templateId: 'process-crewdeck', projects: [{ ...OWN, templateSealed: null }], seq: 1 }).projects).toHaveLength(1);
   });
 });
@@ -105,6 +110,10 @@ describe('zCreateLocalProject and zAttachProjectFolder', () => {
     // The version of the vault key they were sealed under, always.
     expect(zCreateLocalProject.safeParse({ ...CREATE, vaultKeyVersion: undefined }).success).toBe(false);
     expect(zCreateLocalProject.safeParse({ ...CREATE, vaultKeyVersion: 0 }).success).toBe(false);
+    // From an own Modèle, the revision the page sealed again (PROCESS-14).
+    const own = { ...CREATE, templateId: '019a6f00-0000-7000-8000-0000000000a1', templateRevision: 2 };
+    expect(zCreateLocalProject.parse(own).templateRevision).toBe(2);
+    expect(zCreateLocalProject.safeParse({ ...own, templateRevision: undefined }).success).toBe(false);
   });
 
   it('attaches a folder again, with the seq of the page and the version it was sealed under', () => {

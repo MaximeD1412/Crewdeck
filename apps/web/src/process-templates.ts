@@ -10,6 +10,7 @@ import type { Client } from './api/client.js';
 import { removeProcessTemplate, renameProcessTemplate, saveProcessTemplate } from './api/process-templates.js';
 import { ApiError } from './api/request.js';
 import { uuidv7 } from './ids.js';
+import { sealedWrite } from './keys/sealed-write.js';
 import type { Vault } from './keys/vault.js';
 import type { EditorUiState, SaveTemplateUi } from './process/editor-ui.js';
 import { resealProcess } from './process/seal.js';
@@ -23,7 +24,7 @@ export interface TemplatesStore {
 export interface SaveTemplateOptions {
   readonly ui: Pick<EditorUiState, 'saveTemplate' | 'toast' | 'view'>;
   readonly client: Pick<Client, 'command'>;
-  readonly vault: Pick<Vault, 'sealItem' | 'openItem'>;
+  readonly vault: Pick<Vault, 'sealItem' | 'openItem' | 'unlockVault'>;
   readonly slices: () => TemplatesStore;
   /** The Projet of the page. */
   readonly projectId: () => string;
@@ -45,10 +46,11 @@ const refusal = (error: unknown): string => {
  * « Enregistrer comme Modèle de process » (PROCESS-14, US-97): the Dialog
  * opened on « Process {Projet} »; a name of one of the Pilote's Modèles first
  * refused with « Remplacer « {name} » » offered (never replaced unasked),
- * submitted again, replaces it. The active version's sealed part is sealed
- * again under `template:<id>` for an id the page draws (the replaced Modèle's
- * own when replacing), then the route; saved, the Dialog closes on a go
- * Toast, refused, the reason under the name.
+ * submitted again with that very name, replaces it. The active version's
+ * sealed part is sealed again under `template:<id>` for an id the page draws
+ * (the replaced Modèle's own when replacing), then the route with the vault
+ * key's version (sealed again once after a rotation); saved, the Dialog
+ * closes on a go Toast, refused, the reason under the name.
  */
 export const createSaveTemplate = ({ ui, client, vault, slices, projectId }: SaveTemplateOptions) => {
   const refuse = (id: string, open: SaveTemplateUi) => ui.saveTemplate(id, open);
@@ -61,11 +63,22 @@ export const createSaveTemplate = ({ ui, client, vault, slices, projectId }: Sav
       const active = slices().process?.get(id)?.active ?? null;
       if (asked === null || active === null) return;
       const same = templateNamed(slices()['process-template'], name);
-      if (same && asked.replaceId !== same.id) return refuse(id, { name, error: t('process.template.nameTaken'), replaceId: same.id });
+      // Replaced only when asked again with the very name refused: the Skin's « Remplacer » is shown on that condition alone.
+      if (same && !(asked.replaceId === same.id && asked.name === name)) return refuse(id, { name, error: t('process.template.nameTaken'), replaceId: same.id });
       const templateId = same?.id ?? uuidv7();
       try {
-        const sealed = await resealProcess(vault, active.sealed, processSealAad(id), templateSealAad(templateId));
-        const saved = await saveProcessTemplate(client, { id: templateId, name, projectId: id, versionNumber: active.number, sealed, replace: same !== undefined });
+        const saved = await sealedWrite(vault, async () => {
+          const resealed = await resealProcess(vault, active.sealed, processSealAad(id), templateSealAad(templateId));
+          return saveProcessTemplate(client, {
+            id: templateId,
+            name,
+            projectId: id,
+            versionNumber: active.number,
+            sealed: resealed?.sealed ?? null,
+            ...(resealed ? { vaultKeyVersion: resealed.vaultKeyVersion } : {}),
+            replace: same !== undefined,
+          });
+        });
         ui.saveTemplate(id, null);
         ui.toast(id, { tone: 'go', icon: 'check', text: t('process.template.saved', { name: saved.name }) });
       } catch (error) {

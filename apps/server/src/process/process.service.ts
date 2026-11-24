@@ -32,7 +32,9 @@ import { readTemplateCopy, type TemplateCopy } from './templates/process-templat
  * Crewdeck »), or one of the Pilote's own by its id with its sealed part
  * re-sealed by the page under `process:<projectId>` (PROCESS-14).
  */
-export type InitialProcess = { readonly template: keyof typeof BUILTIN_TEMPLATES } | { readonly template: string; readonly sealed: SealedItem | null };
+export type InitialProcess =
+  | { readonly template: keyof typeof BUILTIN_TEMPLATES }
+  | { readonly template: string; readonly revision?: number | undefined; readonly sealed: SealedItem | null };
 
 /** The names of the built-in Modèles, as the version keeps them. */
 const TEMPLATE_NAMES: Readonly<Record<keyof typeof BUILTIN_TEMPLATES, string>> = { 'process-crewdeck': PROCESS_CREWDECK_NAME };
@@ -46,7 +48,7 @@ const isBuiltin = (template: string): template is keyof typeof BUILTIN_TEMPLATES
 const copyOf = (tx: Tx, from: InitialProcess): Promise<TemplateCopy> | TemplateCopy =>
   isBuiltin(from.template)
     ? { name: TEMPLATE_NAMES[from.template], definition: BUILTIN_TEMPLATES[from.template], sealed: null }
-    : readTemplateCopy(tx, from.template, 'sealed' in from ? from.sealed : null);
+    : readTemplateCopy(tx, from.template, 'revision' in from ? from.revision : undefined, 'sealed' in from ? from.sealed : null);
 
 const json = (value: SealedItem | null): typeof Prisma.DbNull | Prisma.InputJsonValue => (value === null ? Prisma.DbNull : (value as unknown as Prisma.InputJsonValue));
 

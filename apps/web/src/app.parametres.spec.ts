@@ -123,6 +123,7 @@ describe('the page’s Paramètres', () => {
       fromVersionNumber: 3,
       sealed: null,
       commandCount: 0,
+      revision: 1,
       createdAt: '2026-11-12T09:00:00.000Z',
       updatedAt: '2026-11-12T09:00:00.000Z',
     };

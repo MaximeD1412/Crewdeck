@@ -9,6 +9,7 @@ CREATE TABLE "process_templates" (
     "from_version_number" INTEGER NOT NULL,
     "definition" JSONB NOT NULL,
     "sealed" JSONB,
+    "revision" INTEGER NOT NULL DEFAULT 1,
     "created_at" TIMESTAMPTZ NOT NULL,
     "updated_at" TIMESTAMPTZ NOT NULL,
 

@@ -9,6 +9,7 @@ export const PROCESS_TEMPLATE_VIEW = {
   fromVersionNumber: true,
   definition: true,
   sealed: true,
+  revision: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -20,6 +21,7 @@ export interface ProcessTemplateRow {
   readonly fromVersionNumber: number;
   readonly definition: unknown;
   readonly sealed: unknown;
+  readonly revision: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -40,6 +42,7 @@ export const toProcessTemplate = (row: ProcessTemplateRow): ProcessTemplate => (
   fromVersionNumber: row.fromVersionNumber,
   sealed: sealedOf(row.sealed),
   commandCount: commandCountOf(row.definition),
+  revision: row.revision,
   createdAt: row.createdAt.toISOString(),
   updatedAt: row.updatedAt.toISOString(),
 });

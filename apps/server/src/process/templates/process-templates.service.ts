@@ -17,6 +17,7 @@ import { MESSAGES } from '../../errors/messages.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { EventsWriter } from '../../realtime/events.writer.js';
 import { Transactions, type Tx } from '../../realtime/transactions.js';
+import { assertVaultVersion } from '../../vault/sealed-write.js';
 import { currentPilotId } from '../../scope/scope.context.js';
 import { PROCESS_TEMPLATE_VIEW, toProcessTemplate } from './process-template.view.js';
 
@@ -46,13 +47,17 @@ export interface TemplateCopy {
 /**
  * Reads the Modèle `templateId` in the current Pilote's scope (`tx`) for a
  * new Projet: 404 `process-template.not-found` once it is gone (or is
- * another Pilote's); 422 `process-template.sealed-mismatch` when `sealed`
- * (its part re-sealed by the page for the Projet) is missing while the
- * Modèle has one, or present while it has none.
+ * another Pilote's); 409 `process-template.changed` when it is no longer at
+ * `revision`, the one whose part the page sealed again (replaced meanwhile:
+ * its definition would not be that part's); 422
+ * `process-template.sealed-mismatch` when `sealed` (its part re-sealed by
+ * the page for the Projet) is missing while the Modèle has one, or present
+ * while it has none.
  */
-export const readTemplateCopy = async (tx: Pick<Tx, 'processTemplate'>, templateId: string, sealed: SealedItem | null): Promise<TemplateCopy> => {
-  const row = await tx.processTemplate.findUnique({ where: { id: templateId }, select: { name: true, definition: true, sealed: true } });
+export const readTemplateCopy = async (tx: Pick<Tx, 'processTemplate'>, templateId: string, revision: number | undefined, sealed: SealedItem | null): Promise<TemplateCopy> => {
+  const row = await tx.processTemplate.findUnique({ where: { id: templateId }, select: { name: true, definition: true, sealed: true, revision: true } });
   if (!row) throw templateNotFound();
+  if (row.revision !== revision) throw conflict('process-template.changed', MESSAGES['process-template.changed']);
   const hasSealed = zSealedItem.safeParse(row.sealed).success;
   if (hasSealed !== (sealed !== null)) throw sealedMismatch();
   return { name: row.name, definition: zProcessDefinition.parse(row.definition), sealed };
@@ -79,9 +84,10 @@ export class ProcessTemplatesService {
 
   /**
    * `POST /api/process-templates`: the active version of the Projet copied,
-   * with the page's `sealed`. 422 `process-template.name-reserved`, 404
-   * `project.not-found`, 409 `process.version-stale` when `versionNumber` is
-   * not the active one, 422 `process-template.sealed-mismatch`, 409
+   * with the page's `sealed`. 422 `process-template.name-reserved`, 409
+   * `vault.version-changed` for a part sealed under another vault key than
+   * the current one, 404 `project.not-found`, 409 `process.version-stale`
+   * when `versionNumber` is not the active one, 422 `process-template.sealed-mismatch`, 409
    * `process-template.name-taken` for a name taken without `replace` or with
    * `replace` but another id, 422 `process-template.id-taken` for an id
    * already another Modèle's, 422 `process-template.too-many` past 50.
@@ -91,7 +97,9 @@ export class ProcessTemplatesService {
     const pilotId = currentPilotId();
     const { name, nameKey } = checkedName(input.name);
     return this.transactions.run(async (tx) => {
+      // The Pilote's row held: no rotation moves the vault before the commit.
       await this.events.lock(tx, pilotId);
+      if (input.sealed !== null) await assertVaultVersion(tx, pilotId, input.vaultKeyVersion ?? 0);
       if ((await tx.project.count({ where: { id: input.projectId } })) === 0) throw notFound('project.not-found', MESSAGES['project.not-found']);
       const active = await tx.processVersion.findFirst({ where: { projectId: input.projectId }, orderBy: { number: 'desc' }, select: { number: true, definition: true, sealed: true } });
       if (active?.number !== input.versionNumber) throw conflict('process.version-stale', MESSAGES['process.version-stale']);
@@ -108,7 +116,7 @@ export class ProcessTemplatesService {
       let created: boolean;
       if (sameName) {
         if (!input.replace || sameName.id !== input.id) throw nameTaken();
-        await tx.processTemplate.update({ where: { id: input.id }, data: { ...copy, name }, select: { id: true } });
+        await tx.processTemplate.update({ where: { id: input.id }, data: { ...copy, name, revision: { increment: 1 } }, select: { id: true } });
         created = false;
       } else {
         if ((await tx.processTemplate.count({ where: { id: input.id } })) > 0) throw idTaken();

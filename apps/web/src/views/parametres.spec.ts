@@ -305,6 +305,7 @@ describe('parametresView, « Modèles de process » (PROCESS-14)', () => {
     fromVersionNumber: 3,
     sealed: null,
     commandCount: 0,
+    revision: 1,
     createdAt: '2026-11-01T08:00:00.000Z',
     updatedAt,
   });

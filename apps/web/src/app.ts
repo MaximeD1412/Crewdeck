@@ -270,11 +270,13 @@ export const boot = async ({
   const localTexts = createLocalTexts({ vault: keys.vault, vaultState: () => store.getState().vaultState });
   const folderForm = createFolderForm({
     checker: createFolderChecker({ check: createFolderCheck({ socket: folders, vault: keys.vault }) }),
-    createProject: ({ templateId, ...input }) =>
-      createLocalProject(
+    createProject: ({ templateId, ...input }) => {
+      const template = store.getState().slices['process-template']?.get(templateId);
+      return createLocalProject(
         { client, vault: keys.vault },
-        { ...input, templateId: zProcessTemplateId.parse(templateId), templateSealed: store.getState().slices['process-template']?.get(templateId)?.sealed ?? null },
-      ),
+        { ...input, templateId: zProcessTemplateId.parse(templateId), ...(template ? { templateRevision: template.revision } : {}), templateSealed: template?.sealed ?? null },
+      );
+    },
     attachFolder: (projectId, path) => attachFolder({ client, vault: keys.vault }, projectId, path),
   });
   // The Projet just created, shown on its page until its `project.upserted` arrives.

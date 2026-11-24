@@ -1107,6 +1107,8 @@ model ProcessTemplate {
   fromVersionNumber Int      @map("from_version_number")
   definition        Json
   sealed            Json?
+  /// Its contents' revision: 1, then one more at each replacement (never at a rename).
+  revision          Int      @default(1)
   createdAt         DateTime @map("created_at") @db.Timestamptz
   updatedAt         DateTime @map("updated_at") @db.Timestamptz
   pilot             Pilot    @relation(fields: [pilotId], references: [id], onDelete: Cascade)

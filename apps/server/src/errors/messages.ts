@@ -45,6 +45,7 @@ export const MESSAGES = {
   'process.no-change': 'Le brouillon ne change rien à la v{number}.',
   'process.no-draft': 'Il n’y a pas de brouillon à activer.',
   'process.version-stale': 'La version active a changé : enregistre à nouveau.',
+  'process-template.changed': 'Ce Modèle de process vient d’être remplacé : choisis-le à nouveau.',
   'process-template.id-taken': 'Ce Modèle de process existe déjà : enregistre à nouveau.',
   'process-template.name-reserved': 'Ce nom est celui du Modèle de Crewdeck.',
   'process-template.name-taken': 'Un Modèle de process porte déjà ce nom.',

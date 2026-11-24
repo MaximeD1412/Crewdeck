@@ -18,6 +18,7 @@ const TEMPLATE = {
   fromVersionNumber: 3,
   sealed: SEALED,
   commandCount: 1,
+  revision: 1,
   createdAt: '2026-11-12T08:30:00.000Z',
   updatedAt: '2026-11-12T08:30:00.000Z',
 };
@@ -37,7 +38,7 @@ describe('zProcessTemplate', () => {
 });
 
 describe('zSaveProcessTemplateInput and zRenameProcessTemplateInput', () => {
-  const SAVE = { id: TEMPLATE.id, name: 'Process Site mairie', projectId: TEMPLATE.fromProjectId, versionNumber: 3, sealed: SEALED, replace: false };
+  const SAVE = { id: TEMPLATE.id, name: 'Process Site mairie', projectId: TEMPLATE.fromProjectId, versionNumber: 3, sealed: SEALED, vaultKeyVersion: 2, replace: false };
 
   it('saves a version under a page-drawn id and a name of 1 to 80 characters, trimmed', () => {
     expect(zSaveProcessTemplateInput.parse(SAVE)).toEqual(SAVE);
@@ -48,6 +49,17 @@ describe('zSaveProcessTemplateInput and zRenameProcessTemplateInput', () => {
     expect(zSaveProcessTemplateInput.safeParse({ ...SAVE, versionNumber: 0 }).success).toBe(false);
     expect(zSaveProcessTemplateInput.safeParse({ ...SAVE, replace: undefined }).success).toBe(false);
     expect(zSaveProcessTemplateInput.parse({ ...SAVE, sealed: null }).sealed).toBeNull();
+  });
+
+  it('carries the version of the vault key its sealed part was sealed under, required with one', () => {
+    expect(zSaveProcessTemplateInput.safeParse({ ...SAVE, vaultKeyVersion: undefined }).success).toBe(false);
+    expect(zSaveProcessTemplateInput.safeParse({ ...SAVE, vaultKeyVersion: 0 }).success).toBe(false);
+    expect(zSaveProcessTemplateInput.parse({ ...SAVE, sealed: null, vaultKeyVersion: undefined }).vaultKeyVersion).toBeUndefined();
+  });
+
+  it('counts a Modèle’s contents by its revision, from 1', () => {
+    expect(zProcessTemplate.safeParse({ ...TEMPLATE, revision: 0 }).success).toBe(false);
+    expect(zProcessTemplate.safeParse({ ...TEMPLATE, revision: undefined }).success).toBe(false);
   });
 
   it('renames under the same rules', () => {

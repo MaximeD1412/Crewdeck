@@ -164,3 +164,15 @@ func TestInventoryVerdictHasNoHeadOutsideARepository(t *testing.T) {
 		t.Fatalf("verdict %+v, want no head and only the branch failed", verdict)
 	}
 }
+
+// The Inventaire opens no PR: its Contrat reads no change of code, the
+// example's (a `pr` rule) does.
+func TestOnlyAContratWithAPRRuleReadsTheChange(t *testing.T) {
+	example, err := Get("example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inventory(t).ReadsChange() || !example.ReadsChange() {
+		t.Fatalf("inventory reads %v, example %v; want false, true", inventory(t).ReadsChange(), example.ReadsChange())
+	}
+}

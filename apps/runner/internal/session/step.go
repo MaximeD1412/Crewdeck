@@ -491,7 +491,9 @@ func (m *Manager) sendVerdict(w Worktree, rec record, gitEnv []string) {
 	ctx, cancel := context.WithTimeout(m.ctx, verdictBound)
 	defer cancel()
 	var pr *contrat.PullRequest
-	if m.cfg.ChangeOf != nil {
+	// A Contrat with no `pr` rule (the Inventaire's) never reads the change:
+	// a Miroir that cannot reach GitHub does not leave it without a verdict.
+	if m.cfg.ChangeOf != nil && c.ReadsChange() {
 		if pr, err = m.cfg.ChangeOf(ctx, rec.ProjectID, rec.Branch); err != nil {
 			warn("change-unread")
 			return

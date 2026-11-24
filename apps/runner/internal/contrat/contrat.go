@@ -45,6 +45,17 @@ type Contrat struct {
 	Rules   []Rule `json:"rules"`
 }
 
+// ReadsChange says whether a rule of c reads the change of code (a `pr`
+// rule): one without, the Inventaire's, is checked on the worktree alone.
+func (c Contrat) ReadsChange() bool {
+	for _, rule := range c.Rules {
+		if rule.Kind == rules.KindPR {
+			return true
+		}
+	}
+	return false
+}
+
 // ErrUnknown is the error of Get for a Contrat this Runner does not embed.
 var ErrUnknown = errors.New("contrat: unknown Contrat")
 

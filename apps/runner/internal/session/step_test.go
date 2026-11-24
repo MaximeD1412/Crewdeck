@@ -328,13 +328,72 @@ type change struct {
 	mu   sync.Mutex
 	read []string
 	pr   *contrat.PullRequest
+	err  error
 }
 
 func (c *change) of(_ context.Context, projectID, branch string) (*contrat.PullRequest, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.read = append(c.read, projectID+" "+branch)
-	return c.pr, nil
+	return c.pr, c.err
+}
+
+// The Inventaire opens no PR and its Contrat has no `pr` rule: the change of
+// code is never read, so a Miroir that cannot reach GitHub still lets its
+// verdict go (an incomplete one is rerunnable), never a StepRun left without one.
+func TestAContratWithoutAPRRuleIsCheckedWithoutReadingTheChange(t *testing.T) {
+	s := newSetup(t, message("fait"), result("eng-1"))
+	var logged bytes.Buffer
+	unreachable := &change{err: errors.New("github unreachable")}
+	s.config = func(c *session.Config) {
+		c.ChangeOf = unreachable.of
+		c.Logger = slog.New(slog.NewTextHandler(&logged, nil))
+	}
+	m := s.manager(t)
+	message := start(firstID, "crewdeck/inventaire")
+	message.Step.ContractId = "inventory"
+
+	m.Start(message)
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateEnded)
+
+	select {
+	case sent := <-s.reports.steps:
+		verdict, ok := sent.(contracts.RunnerStepVerdict)
+		if !ok || verdict.StepRunId != stepRunID || verdict.Verdict.ContractId != "inventory" || verdict.Verdict.Status != contracts.ContratVerdictStatusIncomplete {
+			t.Fatalf("sent %+v, want the inventory's incomplete verdict", sent)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("no step.verdict; logged %q", logged.String())
+	}
+	if len(unreachable.read) != 0 {
+		t.Fatalf("change read %v, want none", unreachable.read)
+	}
+}
+
+// A Contrat with a `pr` rule cannot be checked without its change: none sent.
+func TestAContratWithAPRRuleSendsNoVerdictWhenItsChangeIsUnread(t *testing.T) {
+	s := newSetup(t, message("fait"), result("eng-1"))
+	var logged bytes.Buffer
+	unreachable := &change{err: errors.New("github unreachable")}
+	s.config = func(c *session.Config) {
+		c.ChangeOf = unreachable.of
+		c.Logger = slog.New(slog.NewTextHandler(&logged, nil))
+	}
+	m := s.manager(t)
+	message := start(firstID, "feat/12-panier")
+	message.Step.ContractId = "example"
+
+	m.Start(message)
+	s.reports.await(t, firstID, contracts.RunnerSessionStateStateEnded)
+
+	select {
+	case sent := <-s.reports.steps:
+		t.Fatalf("sent %+v", sent)
+	default:
+	}
+	if !strings.Contains(logged.String(), "error=change-unread") || len(unreachable.read) != 1 {
+		t.Fatalf("logged %q, read %v", logged.String(), unreachable.read)
+	}
 }
 
 func TestAnEtapesSessionEndedOkSendsItsContratsVerdictBeforeItsEnd(t *testing.T) {

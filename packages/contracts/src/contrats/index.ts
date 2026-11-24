@@ -1,6 +1,8 @@
 import type { Contrat } from './define.js';
+import { inventoryContrat } from './inventory.js';
 
 export * from './define.js';
+export * from './inventory.js';
 
 /**
  * The current Contrat of each Étape, one file each (`contrats/<step>.ts`),
@@ -8,7 +10,7 @@ export * from './define.js';
  * `apps/runner/internal/contrat/contrats/<id>.v<version>.json`, which the
  * Runner embeds.
  */
-export const CONTRATS: readonly Contrat[] = [];
+export const CONTRATS: readonly Contrat[] = [inventoryContrat];
 
 /**
  * Every past version, `history/<step>.v<n>.ts`, kept so that an old verdict

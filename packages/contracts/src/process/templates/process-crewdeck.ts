@@ -1,6 +1,7 @@
 import type { ArtifactType } from '../artifact-types.js';
 import { CATALOGUE, defaultStep, type StepKind } from '../catalogue.js';
 import { type Arrow, LOOP_BACK_MAX_DEFAULT, type LoopBack, type Port, type ProcessDefinition, type Step, type Tool, zProcessDefinition } from '../definition.js';
+import { PREPARATION } from './preparation.js';
 
 /**
  * « Process Crewdeck » (US-97), the Modèle de process of the release, from
@@ -142,5 +143,10 @@ export const PROCESS_CREWDECK: ProcessDefinition = zProcessDefinition.parse({
   commands: [],
 });
 
-/** The Modèles de process of the release, by id. */
-export const BUILTIN_TEMPLATES: Readonly<Record<'process-crewdeck', ProcessDefinition>> = { 'process-crewdeck': PROCESS_CREWDECK };
+/**
+ * The definitions of the release, by id: « Process Crewdeck », the one
+ * Modèle de process (`zProcessTemplateId`), which an Idée without a Projet
+ * also runs on; « Préparation », which only the engine runs a Projet's
+ * Inventaire on (PROJET-4), never offered.
+ */
+export const BUILTIN_TEMPLATES: Readonly<Record<'process-crewdeck' | 'preparation', ProcessDefinition>> = { 'process-crewdeck': PROCESS_CREWDECK, preparation: PREPARATION };

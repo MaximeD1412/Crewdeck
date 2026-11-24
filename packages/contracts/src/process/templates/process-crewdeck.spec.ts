@@ -1,5 +1,6 @@
 import { CATALOGUE } from '../catalogue.js';
 import { type Port, type ProcessDefinition, zProcessDefinition } from '../definition.js';
+import { PREPARATION } from './preparation.js';
 import { BUILTIN_TEMPLATES, PROCESS_CREWDECK, PROCESS_CREWDECK_NAME } from './process-crewdeck.js';
 
 /** `id:type` or `id:type:note`. */
@@ -79,7 +80,7 @@ describe('« Process Crewdeck »', () => {
   it('is a definition zProcessDefinition parses as it is', () => {
     expect(zProcessDefinition.parse(PROCESS_CREWDECK)).toEqual(PROCESS_CREWDECK);
     expect(PROCESS_CREWDECK_NAME).toBe('Process Crewdeck');
-    expect(BUILTIN_TEMPLATES).toEqual({ 'process-crewdeck': PROCESS_CREWDECK });
+    expect(BUILTIN_TEMPLATES).toEqual({ 'process-crewdeck': PROCESS_CREWDECK, preparation: PREPARATION });
   });
 
   it('has the three Phases, each repeated for its item', () => {

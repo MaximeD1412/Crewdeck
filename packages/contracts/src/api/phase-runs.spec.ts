@@ -83,6 +83,14 @@ describe('zPhaseRun and zStepRun', () => {
     expect(zPhaseRun.safeParse({ ...noted, builtinTemplate: 'preparation' }).success).toBe(false);
   });
 
+  it('takes a Projet’s PhaseRun on « Préparation », with no version: the Inventaire before its Process', () => {
+    const preparing = { ...PHASE_RUN, processVersion: null, builtinTemplate: 'preparation', parentPhaseRunId: null, phaseId: 'ph-preparation', itemType: 'inventory' };
+    expect(zPhaseRun.parse(preparing)).toEqual(preparing);
+
+    expect(zPhaseRun.safeParse({ ...preparing, processVersion: 1 }).success).toBe(false);
+    expect(zPhaseRun.safeParse({ ...preparing, projectId: null }).success).toBe(false);
+  });
+
   it('counts the Retours a PhaseRun took and the passes the Pilote allowed beyond their maximum', () => {
     const counted = { ...PHASE_RUN, loopBacks: [{ from: 'st-review', to: 'st-code', taken: 3, extra: 1 }] };
     expect(zPhaseRun.parse(counted)).toEqual(counted);

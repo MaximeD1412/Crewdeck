@@ -1,0 +1,66 @@
+{
+  "id": "inventory",
+  "version": 1,
+  "step": "inventory",
+  "rules": [
+    {
+      "id": "inventory.glossary.file",
+      "label": "Le glossaire CONTEXT.md existe",
+      "severity": "bloquant",
+      "kind": "file",
+      "path": "CONTEXT.md"
+    },
+    {
+      "id": "inventory.glossary.terms",
+      "label": "Chaque terme du glossaire n’apparaît qu’une fois",
+      "severity": "bloquant",
+      "kind": "pattern",
+      "path": "CONTEXT.md",
+      "regex": "^\\*\\*([^*]+)\\*\\* \\(",
+      "unique": true,
+      "min": 1
+    },
+    {
+      "id": "inventory.choices.file",
+      "label": "Au moins un choix technique est écrit",
+      "severity": "bloquant",
+      "kind": "file",
+      "glob": "docs/adr/[0-9][0-9][0-9][0-9]-*.md",
+      "min": 1
+    },
+    {
+      "id": "inventory.choices.status",
+      "label": "Chaque choix technique a sa ligne de statut",
+      "severity": "bloquant",
+      "kind": "check",
+      "name": "each-file-has-line",
+      "params": {
+        "glob": "docs/adr/[0-9][0-9][0-9][0-9]-*.md",
+        "regex": "^> \\*\\*Status:\\*\\* "
+      }
+    },
+    {
+      "id": "inventory.list.sections",
+      "label": "L’inventaire liste les apps, les écrans, les tests et la CI",
+      "severity": "bloquant",
+      "kind": "sections",
+      "path": "docs/inventory.md",
+      "headings": [
+        "Apps",
+        "Routes and screens",
+        "Tests and CI"
+      ],
+      "level": 2
+    },
+    {
+      "id": "inventory.branch.pushed",
+      "label": "L’inventaire est poussé sur la branche crewdeck/inventaire",
+      "severity": "bloquant",
+      "kind": "check",
+      "name": "branch-pushed",
+      "params": {
+        "branch": "crewdeck/inventaire"
+      }
+    }
+  ]
+}

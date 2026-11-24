@@ -50,8 +50,18 @@ type Handler struct {
 
 	// mu serializes the reads and writes of runner.json's projects, and the sends of projects.folders.
 	mu sync.Mutex
-	// said is the last set of projects.folders sent; nil before the first.
-	said []string
+	// said is the last projects.folders sent; nil before the first.
+	said *folders
+}
+
+// folders are what projects.folders says: the Projets whose folder exists,
+// and those whose pending folder does (SOURCE-9).
+type folders struct {
+	present, pending []string
+}
+
+func (f folders) equal(other folders) bool {
+	return slices.Equal(f.present, other.present) && slices.Equal(f.pending, other.pending)
 }
 
 // New is the handler of cfg.
@@ -66,6 +76,8 @@ func New(cfg Config) *Handler {
 func (h *Handler) Register(client *protocol.Client) {
 	protocol.On(client, protocol.TypeFolderCheck, h.HandleCheck)
 	protocol.On(client, protocol.TypeProjectFolderAttach, h.HandleAttach)
+	protocol.On(client, protocol.TypeProjectFolderPick, h.HandlePick)
+	protocol.On(client, protocol.TypeProjectFolderDrop, h.HandleDrop)
 }
 
 // HandleCheck opens the tab's path, checks it, and answers that tab with the
@@ -79,7 +91,7 @@ func (h *Handler) HandleCheck(ctx context.Context, message contracts.RunnerFolde
 		return nil
 	}
 	h.mu.Lock()
-	projects, err := h.projects()
+	linked, err := h.cfg.Store.Load()
 	h.mu.Unlock()
 	if err != nil {
 		return err
@@ -88,7 +100,7 @@ func (h *Handler) HandleCheck(ctx context.Context, message contracts.RunnerFolde
 	if input.ProjectId != nil {
 		projectID = *input.ProjectId
 	}
-	result := h.cfg.Checker.Check(input.Path, projects, projectID)
+	result := h.cfg.Checker.Check(input.Path, held(linked, projectID), "")
 	plaintext, err := json.Marshal(result)
 	if err != nil {
 		return fmt.Errorf("folders: encode a check: %w", err)
@@ -116,7 +128,7 @@ func (h *Handler) HandleAttach(ctx context.Context, message contracts.RunnerProj
 	if err != nil {
 		return err
 	}
-	result := h.cfg.Checker.Check(input.Path, linked.Projects, message.ProjectId)
+	result := h.cfg.Checker.Check(input.Path, held(linked, message.ProjectId), "")
 	_, had := linked.Projects[message.ProjectId]
 	switch {
 	case result.Attachable():
@@ -133,7 +145,104 @@ func (h *Handler) HandleAttach(ctx context.Context, message contracts.RunnerProj
 		}
 	}
 	h.cfg.Logger.Info("project.folder.attach", "projectId", message.ProjectId, "state", result.State)
-	h.say(ctx, h.present(linked.Projects))
+	h.say(ctx, h.found(linked))
+	return nil
+}
+
+// HandlePick opens the folder a migration of the message's group to Local
+// will use and checks it again (Result.Pickable): a folder that may be is
+// held as the Projet's pending folder, replacing the one before; any other
+// drops the one before. projects.folders follows. The folder is left as it is.
+func (h *Handler) HandlePick(ctx context.Context, message contracts.RunnerProjectFolderPick) error {
+	input, ok := h.open(message.Sealed.Key, message.Sealed.Ciphertext, "project:"+message.ProjectId+":folder")
+	if !ok {
+		h.cfg.Logger.Warn("project.folder.pick unopened", "projectId", message.ProjectId)
+		return nil
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	linked, err := h.cfg.Store.Load()
+	if err != nil {
+		return err
+	}
+	result := h.cfg.Checker.Check(input.Path, held(linked, message.ProjectId), "")
+	pickable := result.Pickable(string(message.Group))
+	_, had := linked.Pending[message.ProjectId]
+	switch {
+	case pickable:
+		if linked.Pending == nil {
+			linked.Pending = map[string]state.PendingFolder{}
+		}
+		linked.Pending[message.ProjectId] = state.PendingFolder{Path: result.Path, Group: string(message.Group)}
+	case had:
+		delete(linked.Pending, message.ProjectId)
+	}
+	if pickable || had {
+		if err := h.cfg.Store.Save(linked); err != nil {
+			return err
+		}
+	}
+	h.cfg.Logger.Info("project.folder.pick", "projectId", message.ProjectId, "group", message.Group, "state", result.State, "pickable", pickable)
+	h.say(ctx, h.found(linked))
+	return nil
+}
+
+// HandleDrop forgets the Projet's pending folder, its migration failed; the
+// folder itself is never touched. projects.folders follows.
+func (h *Handler) HandleDrop(ctx context.Context, message contracts.RunnerProjectFolderDrop) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	linked, err := h.cfg.Store.Load()
+	if err != nil {
+		return err
+	}
+	if _, had := linked.Pending[message.ProjectId]; had {
+		delete(linked.Pending, message.ProjectId)
+		if err := h.cfg.Store.Save(linked); err != nil {
+			return err
+		}
+	}
+	h.cfg.Logger.Info("project.folder.drop", "projectId", message.ProjectId)
+	h.say(ctx, h.found(linked))
+	return nil
+}
+
+// Pending is the Projet's pending folder, false without one.
+func (h *Handler) Pending(projectID string) (state.PendingFolder, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	linked, err := h.cfg.Store.Load()
+	if err != nil {
+		return state.PendingFolder{}, false
+	}
+	pending, ok := linked.Pending[projectID]
+	return pending, ok
+}
+
+// Promote makes the Projet's pending folder its folder, at the finish of its
+// migration to Local, and says projects.folders; a Projet without a pending
+// folder is left as it is.
+func (h *Handler) Promote(ctx context.Context, projectID string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	linked, err := h.cfg.Store.Load()
+	if err != nil {
+		return err
+	}
+	pending, ok := linked.Pending[projectID]
+	if !ok {
+		return nil
+	}
+	if linked.Projects == nil {
+		linked.Projects = map[string]string{}
+	}
+	linked.Projects[projectID] = pending.Path
+	delete(linked.Pending, projectID)
+	if err := h.cfg.Store.Save(linked); err != nil {
+		return err
+	}
+	h.cfg.Logger.Info("project.folder.promoted", "projectId", projectID)
+	h.say(ctx, h.found(linked))
 	return nil
 }
 
@@ -142,25 +251,25 @@ func (h *Handler) HandleAttach(ctx context.Context, message contracts.RunnerProj
 func (h *Handler) Report(ctx context.Context) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	projects, err := h.projects()
+	linked, err := h.cfg.Store.Load()
 	if err != nil {
 		h.cfg.Logger.Warn("projects.folders", "error", err)
 		return
 	}
-	h.say(ctx, h.present(projects))
+	h.say(ctx, h.found(linked))
 }
 
 // Tick says the Projets' folders that exist when they are not those said last.
 func (h *Handler) Tick(ctx context.Context) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	projects, err := h.projects()
+	linked, err := h.cfg.Store.Load()
 	if err != nil {
 		h.cfg.Logger.Warn("projects.folders", "error", err)
 		return
 	}
-	if present := h.present(projects); h.said == nil || !slices.Equal(present, h.said) {
-		h.say(ctx, present)
+	if found := h.found(linked); h.said == nil || !found.equal(*h.said) {
+		h.say(ctx, found)
 	}
 }
 
@@ -179,10 +288,10 @@ func (h *Handler) Every(ctx context.Context, every time.Duration) {
 }
 
 // say sends projects.folders; h.mu is held.
-func (h *Handler) say(ctx context.Context, present []string) {
-	err := h.cfg.Send(ctx, protocol.NewProjectsFolders(present))
+func (h *Handler) say(ctx context.Context, found folders) {
+	err := h.cfg.Send(ctx, protocol.NewProjectsFolders(found.present, found.pending))
 	if err == nil {
-		h.said = present
+		h.said = &found
 		return
 	}
 	if !errors.Is(err, protocol.ErrNotConnected) && ctx.Err() == nil {
@@ -190,25 +299,42 @@ func (h *Handler) say(ctx context.Context, present []string) {
 	}
 }
 
-// projects are runner.json's; h.mu is held.
-func (h *Handler) projects() (map[string]string, error) {
-	linked, err := h.cfg.Store.Load()
-	if err != nil {
-		return nil, err
-	}
-	return linked.Projects, nil
-}
-
-// present are the ids of the Projets whose folder is still a folder, sorted.
-func (h *Handler) present(projects map[string]string) []string {
-	present := []string{}
-	for id, path := range projects {
-		if info, err := os.Stat(path); err == nil && info.IsDir() {
-			present = append(present, id)
+// held are the folders taken by others than projectID: the Projets' folders
+// and their pending ones, keyed apart.
+func held(linked state.State, projectID string) map[string]string {
+	taken := map[string]string{}
+	for id, path := range linked.Projects {
+		if id != projectID {
+			taken[id] = path
 		}
 	}
-	sort.Strings(present)
-	return present
+	for id, pending := range linked.Pending {
+		if id != projectID {
+			taken["pending:"+id] = pending.Path
+		}
+	}
+	return taken
+}
+
+// found are the Projets whose folder, and whose pending folder, is still a folder.
+func (h *Handler) found(linked state.State) folders {
+	pending := map[string]string{}
+	for id, folder := range linked.Pending {
+		pending[id] = folder.Path
+	}
+	return folders{present: existing(linked.Projects), pending: existing(pending)}
+}
+
+// existing are the ids whose path is still a folder, sorted.
+func existing(paths map[string]string) []string {
+	ids := []string{}
+	for id, path := range paths {
+		if info, err := os.Stat(path); err == nil && info.IsDir() {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 // open opens a sealed FolderCheck; false when it does not open or parse.

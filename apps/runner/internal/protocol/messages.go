@@ -51,9 +51,13 @@ const (
 	// A Local Projet's folder (PROJET-6, ADR 0012): the server relays a tab's
 	// check and asks to attach a folder, both sealed under the vault key; the
 	// Runner answers the check sealed and says which Projets' folders exist.
+	// A migration to Local picks the folder it will use, held pending until
+	// its finish, or dropped (SOURCE-9).
 	TypeFolderCheck         = "folder.check"
 	TypeFolderChecked       = "folder.checked"
 	TypeProjectFolderAttach = "project.folder.attach"
+	TypeProjectFolderPick   = "project.folder.pick"
+	TypeProjectFolderDrop   = "project.folder.drop"
 	TypeProjectsFolders     = "projects.folders"
 
 	// The Commandes (RUNNER-18): the server asks a run, its stop and the
@@ -252,13 +256,18 @@ func NewFolderChecked(requestID, tabID, key, ciphertext string) contracts.Runner
 	}
 }
 
-// NewProjectsFolders says the Projets whose folder exists on this machine.
-func NewProjectsFolders(present []string) contracts.RunnerProjectsFolders {
+// NewProjectsFolders says the Projets whose folder exists on this machine,
+// and those whose pending folder, picked for a migration, it holds and
+// finds (SOURCE-9); pending is a list, never null.
+func NewProjectsFolders(present, pending []string) contracts.RunnerProjectsFolders {
 	at := now()
 	if present == nil {
 		present = []string{}
 	}
-	return contracts.RunnerProjectsFolders{Type: TypeProjectsFolders, Id: newID(at), At: at, Present: present}
+	if pending == nil {
+		pending = []string{}
+	}
+	return contracts.RunnerProjectsFolders{Type: TypeProjectsFolders, Id: newID(at), At: at, Present: present, Pending: pending}
 }
 
 // NewLocalChanged reports what changed in a Local Projet's folder, every

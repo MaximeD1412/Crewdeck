@@ -401,3 +401,153 @@ func TestATickNotSentIsSentOnTheNextOne(t *testing.T) {
 		t.Fatalf("present %v, want none", got)
 	}
 }
+
+func (f *fixture) pick(t *testing.T, projectID, group, path string) contracts.RunnerProjectFolderPick {
+	t.Helper()
+	data, _ := json.Marshal(contracts.FolderCheck{Path: path})
+	key, ciphertext := f.seal(t, string(data), "project:"+projectID+":folder")
+	return contracts.RunnerProjectFolderPick{Type: protocol.TypeProjectFolderPick, Id: requestID, ProjectId: projectID, Group: contracts.RunnerProjectFolderPickGroup(group), Sealed: contracts.RunnerProjectFolderPickSealed{Key: key, Ciphertext: ciphertext}}
+}
+
+// saidFolders is the one projects.folders sent.
+func saidFolders(t *testing.T, sent []any) contracts.RunnerProjectsFolders {
+	t.Helper()
+	present(t, sent)
+	return sent[0].(contracts.RunnerProjectsFolders)
+}
+
+// SOURCE-9: an empty folder picked for the code is held as the Projet's
+// pending folder, not its folder, and said in projects.folders.pending.
+func TestAPickOfAnEmptyFolderForTheCodeHoldsItPending(t *testing.T) {
+	f := newFixture(t)
+	folder := filepath.Join(f.home, "recettes")
+	mkdir(t, folder)
+
+	if err := f.handler.HandlePick(context.Background(), f.pick(t, thisProject, "code", "~/recettes")); err != nil {
+		t.Fatal(err)
+	}
+
+	saved, _ := f.store.Load()
+	if !reflect.DeepEqual(saved.Pending, map[string]state.PendingFolder{thisProject: {Path: folder, Group: "code"}}) || len(saved.Projects) != 0 {
+		t.Fatalf("saved %+v / %+v, want the folder pending only", saved.Pending, saved.Projects)
+	}
+	got := saidFolders(t, f.sender.take())
+	if len(got.Present) != 0 || !reflect.DeepEqual(got.Pending, []string{thisProject}) {
+		t.Fatalf("projects.folders %+v", got)
+	}
+	if pending, ok := f.handler.Pending(thisProject); !ok || pending.Path != folder {
+		t.Fatalf("pending %+v %v", pending, ok)
+	}
+	f.assertNoClearText(t, "recettes", f.home)
+}
+
+// A folder that holds anything, or is another Projet's, is refused for the
+// code; for the tickets only a git repository's root is taken. A refused
+// pick drops the pending folder before.
+func TestAPickRefusesAFolderThatDoesNotFitItsGroup(t *testing.T) {
+	f := newFixture(t)
+	empty := filepath.Join(f.home, "vide")
+	mkdir(t, empty)
+	touch(t, filepath.Join(f.home, "plein", ".env"))
+	repository(t, filepath.Join(f.home, "depot"), 1)
+	if err := f.handler.HandlePick(context.Background(), f.pick(t, thisProject, "code", empty)); err != nil {
+		t.Fatal(err)
+	}
+	f.sender.take()
+
+	for _, refused := range []struct{ group, path string }{{"code", "~/plein"}, {"code", "~/depot"}, {"ticket", "~/vide"}, {"code", "~/absent"}} {
+		if err := f.handler.HandlePick(context.Background(), f.pick(t, thisProject, refused.group, refused.path)); err != nil {
+			t.Fatal(err)
+		}
+		saved, _ := f.store.Load()
+		if len(saved.Pending) != 0 {
+			t.Fatalf("%s for %s: pending %+v, want none", refused.path, refused.group, saved.Pending)
+		}
+		if got := saidFolders(t, f.sender.take()); len(got.Pending) != 0 {
+			t.Fatalf("projects.folders %+v", got)
+		}
+	}
+
+	if err := f.handler.HandlePick(context.Background(), f.pick(t, thisProject, "ticket", "~/depot")); err != nil {
+		t.Fatal(err)
+	}
+	if saved, _ := f.store.Load(); saved.Pending[thisProject].Group != "ticket" {
+		t.Fatalf("pending %+v, want the repository for the tickets", saved.Pending)
+	}
+	f.sender.take()
+	// Another Projet may not pick the folder pending for this one.
+	if err := f.handler.HandlePick(context.Background(), f.pick(t, otherProject, "ticket", "~/depot")); err != nil {
+		t.Fatal(err)
+	}
+	if saved, _ := f.store.Load(); len(saved.Pending) != 1 {
+		t.Fatalf("pending %+v, want this Projet's only", saved.Pending)
+	}
+}
+
+// A drop forgets the pending folder and leaves the folder as it is.
+func TestADropForgetsThePendingFolderOnly(t *testing.T) {
+	f := newFixture(t)
+	folder := filepath.Join(f.home, "recettes")
+	mkdir(t, folder)
+	if err := f.handler.HandlePick(context.Background(), f.pick(t, thisProject, "code", folder)); err != nil {
+		t.Fatal(err)
+	}
+	f.sender.take()
+	touch(t, filepath.Join(folder, "README.md")) // what the failed migration left
+
+	if err := f.handler.HandleDrop(context.Background(), contracts.RunnerProjectFolderDrop{Type: protocol.TypeProjectFolderDrop, Id: requestID, ProjectId: thisProject}); err != nil {
+		t.Fatal(err)
+	}
+
+	if saved, _ := f.store.Load(); len(saved.Pending) != 0 {
+		t.Fatalf("pending %+v", saved.Pending)
+	}
+	if got := saidFolders(t, f.sender.take()); len(got.Pending) != 0 {
+		t.Fatalf("projects.folders %+v", got)
+	}
+	if _, err := os.Stat(filepath.Join(folder, "README.md")); err != nil {
+		t.Fatalf("the folder was touched: %v", err)
+	}
+}
+
+// The pending folders are said on each connection and on a tick that finds
+// them changed; the finish makes the pending folder the Projet's.
+func TestThePendingFoldersAreSaidAndPromoted(t *testing.T) {
+	f := newFixture(t)
+	folder := filepath.Join(f.home, "recettes")
+	mkdir(t, folder)
+	if err := f.handler.HandlePick(context.Background(), f.pick(t, thisProject, "code", folder)); err != nil {
+		t.Fatal(err)
+	}
+	f.sender.take()
+
+	f.handler.Report(context.Background())
+	if got := saidFolders(t, f.sender.take()); !reflect.DeepEqual(got.Pending, []string{thisProject}) {
+		t.Fatalf("report %+v", got)
+	}
+	f.handler.Tick(context.Background())
+	if sent := f.sender.take(); len(sent) != 0 {
+		t.Fatalf("an unchanged tick sent %+v", sent)
+	}
+	if err := os.RemoveAll(folder); err != nil {
+		t.Fatal(err)
+	}
+	f.handler.Tick(context.Background())
+	if got := saidFolders(t, f.sender.take()); len(got.Pending) != 0 {
+		t.Fatalf("tick %+v, want the pending folder gone", got)
+	}
+	mkdir(t, folder)
+	f.handler.Tick(context.Background())
+	f.sender.take()
+
+	if err := f.handler.Promote(context.Background(), thisProject); err != nil {
+		t.Fatal(err)
+	}
+	saved, _ := f.store.Load()
+	if saved.Projects[thisProject] != folder || len(saved.Pending) != 0 {
+		t.Fatalf("saved %+v / %+v, want the folder the Projet's", saved.Projects, saved.Pending)
+	}
+	if got := saidFolders(t, f.sender.take()); !reflect.DeepEqual(got.Present, []string{thisProject}) || len(got.Pending) != 0 {
+		t.Fatalf("projects.folders %+v", got)
+	}
+}

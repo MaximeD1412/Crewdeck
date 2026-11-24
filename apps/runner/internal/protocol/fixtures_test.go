@@ -54,6 +54,8 @@ func TestEveryFixtureOfTheProtocolDecodesIntoItsGeneratedType(t *testing.T) {
 		TypeFolderCheck:          decodeInto[contracts.RunnerFolderCheck],
 		TypeFolderChecked:        decodeInto[contracts.RunnerFolderChecked],
 		TypeProjectFolderAttach:  decodeInto[contracts.RunnerProjectFolderAttach],
+		TypeProjectFolderPick:    decodeInto[contracts.RunnerProjectFolderPick],
+		TypeProjectFolderDrop:    decodeInto[contracts.RunnerProjectFolderDrop],
 		TypeProjectsFolders:      decodeInto[contracts.RunnerProjectsFolders],
 		TypeLocalChanged:         decodeInto[contracts.RunnerLocalChanged],
 		TypeMergeLocal:           decodeInto[contracts.RunnerMergeLocal],
@@ -238,11 +240,19 @@ func TestTheFoldersMessagesMatchTheirSchema(t *testing.T) {
 	if back.RequestId != requestID || back.TabId != tabID || back.Type != TypeFolderChecked {
 		t.Fatalf("folder.checked %+v", back)
 	}
-	data, err = json.Marshal(NewProjectsFolders(nil))
+	data, err = json.Marshal(NewProjectsFolders(nil, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := decodeInto[contracts.RunnerProjectsFolders](data); err != nil || !strings.Contains(string(data), `"present":[]`) {
+		t.Fatalf("projects.folders %s: %v", data, err)
+	}
+	// The pending folders (SOURCE-9) are said beside the present ones.
+	data, err = json.Marshal(NewProjectsFolders(nil, []string{"019a6f00-0000-7000-8000-000000000022"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := decodeInto[contracts.RunnerProjectsFolders](data); err != nil || !strings.Contains(string(data), `"pending":["019a6f00-0000-7000-8000-000000000022"]`) {
 		t.Fatalf("projects.folders %s: %v", data, err)
 	}
 }

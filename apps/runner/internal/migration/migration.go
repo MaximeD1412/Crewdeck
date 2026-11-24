@@ -53,7 +53,7 @@ type Config struct {
 	// Pending is the folder picked for a migration to Local, held pending
 	// until the migration finishes; Promote makes it the Projet's folder.
 	Pending func(projectID string) (string, bool)
-	Promote func(ctx context.Context, projectID string) error
+	Promote func(ctx context.Context, projectID, folder string) error
 	// Open is the Local Projet in folder (its Tickets, its changes in local.db).
 	Open func(projectID, folder string) *local.Project
 	// GitHub is the repository's side, written with the migration's token;
@@ -322,18 +322,23 @@ func (h *Handler) finished(ctx context.Context, p *progress) error {
 }
 
 // promote makes the folder picked for a migration to Local the Projet's,
-// when it has none yet.
+// when it has none yet: the one its copy began in (kept by the progress,
+// even once the pick was dropped at a failure), else the one held pending.
 func (h *Handler) promote(ctx context.Context, p *progress) error {
-	if p.To != string(contracts.RunnerMigrationCopyToLocal) || h.cfg.Pending == nil || h.cfg.Promote == nil {
+	if p.To != string(contracts.RunnerMigrationCopyToLocal) || h.cfg.Promote == nil {
 		return nil
 	}
 	if _, ok := h.folder(p.ProjectID); ok {
 		return nil
 	}
-	if _, ok := h.cfg.Pending(p.ProjectID); !ok {
+	folder := p.Folder
+	if folder == "" && h.cfg.Pending != nil {
+		folder, _ = h.cfg.Pending(p.ProjectID)
+	}
+	if folder == "" {
 		return nil
 	}
-	return h.cfg.Promote(ctx, p.ProjectID)
+	return h.cfg.Promote(ctx, p.ProjectID, folder)
 }
 
 func (h *Handler) folder(projectID string) (string, bool) {
@@ -390,9 +395,19 @@ func (h *Handler) side(p *progress, kind string) (source.Copier, error) {
 	if kind == p.From {
 		dir = p.Dir
 	}
-	folder, ok := h.localFolder(p.ProjectID)
+	folder, ok := h.folder(p.ProjectID)
 	if !ok {
-		return nil, ErrNoFolder
+		// The folder picked: the one the copy began in once recorded, so
+		// that « Réessayer » goes on there after the pick was dropped.
+		if folder, ok = p.Folder, p.Folder != ""; !ok {
+			if folder, ok = h.localFolder(p.ProjectID); !ok {
+				return nil, ErrNoFolder
+			}
+			p.Folder = folder
+			if err := p.save(h.cfg.Home); err != nil {
+				return nil, err
+			}
+		}
 	}
 	return h.cfg.Open(p.ProjectID, folder).Copier(dir), nil
 }

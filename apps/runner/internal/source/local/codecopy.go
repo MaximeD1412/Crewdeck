@@ -93,8 +93,9 @@ func (p *Project) reviewOrigins(ctx context.Context, number int) (map[string]str
 
 // PutChange writes c as the copy of from: a new open change numbered from
 // the Projet's counter when number is 0 (its number given), else number's
-// title, body, head, base and draft. Its head is recorded as given: the
-// branch is the copy's of the code, made before.
+// title, body, head, base and draft, and its origin from (a change of this
+// folder found again on its way back from GitHub). Its head is recorded as
+// given: the branch is the copy's of the code, made before.
 func (p *Project) PutChange(ctx context.Context, number int, c source.Change, from string) (int, error) {
 	err := p.locked(ctx, func(s *scanned) error {
 		tx, err := p.db.db.BeginTx(ctx, nil)
@@ -115,8 +116,8 @@ func (p *Project) PutChange(ctx context.Context, number int, c source.Change, fr
 				author, created_at, updated_at, labels, origin) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)`,
 				p.id, number, c.Title, c.Body, c.HeadRef, c.HeadOid, c.BaseRef, c.IsDraft, c.Author, created, now, labelsJSON(c.Labels), nullable(from))
 		} else {
-			_, err = tx.ExecContext(ctx, `UPDATE changes SET title = ?, body = ?, head_ref = ?, head_oid = ?, base_ref = ?, is_draft = ?, updated_at = ?
-				WHERE project_id = ? AND number = ?`, c.Title, c.Body, c.HeadRef, c.HeadOid, c.BaseRef, c.IsDraft, now, p.id, number)
+			_, err = tx.ExecContext(ctx, `UPDATE changes SET title = ?, body = ?, head_ref = ?, head_oid = ?, base_ref = ?, is_draft = ?, updated_at = ?,
+				origin = COALESCE(?, origin) WHERE project_id = ? AND number = ?`, c.Title, c.Body, c.HeadRef, c.HeadOid, c.BaseRef, c.IsDraft, now, nullable(from), p.id, number)
 		}
 		if err != nil {
 			return fmt.Errorf("local: write a change: %w", err)
@@ -150,6 +151,16 @@ func (p *Project) AddChangeComment(ctx context.Context, number int, c source.Com
 // AddChangeReview writes the review on the change, with its remarks, by its
 // author and at its date, as the copy of from.
 func (p *Project) AddChangeReview(ctx context.Context, number int, r source.Review, from string) error {
+	return p.putReview(ctx, number, r, from, false)
+}
+
+// PutChangeReview writes r again as the copy of from, in place of the one
+// an earlier pass copied (its text or remarks edited since on GitHub).
+func (p *Project) PutChangeReview(ctx context.Context, number int, r source.Review, from string) error {
+	return p.putReview(ctx, number, r, from, true)
+}
+
+func (p *Project) putReview(ctx context.Context, number int, r source.Review, from string, replace bool) error {
 	switch r.State {
 	case source.ReviewApproved, source.ReviewChangesRequested, source.ReviewCommented:
 	default:
@@ -164,6 +175,14 @@ func (p *Project) AddChangeReview(ctx context.Context, number int, r source.Revi
 			return err
 		}
 		defer tx.Rollback()
+		if replace && from != "" {
+			if _, err := tx.ExecContext(ctx, `DELETE FROM review_comments WHERE review_id IN (SELECT id FROM reviews WHERE project_id = ? AND number = ? AND origin = ?)`, p.id, number, from); err != nil {
+				return fmt.Errorf("local: replace a review: %w", err)
+			}
+			if _, err := tx.ExecContext(ctx, `DELETE FROM reviews WHERE project_id = ? AND number = ? AND origin = ?`, p.id, number, from); err != nil {
+				return fmt.Errorf("local: replace a review: %w", err)
+			}
+		}
 		id := newID(time.Now())
 		if _, err := tx.ExecContext(ctx, `INSERT INTO reviews (id, project_id, number, author, state, body, commit_oid, submitted_at, origin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			id, p.id, number, r.Author, string(r.State), r.Body, r.CommitOid, formatTime(r.SubmittedAt), nullable(from)); err != nil {
@@ -178,6 +197,41 @@ func (p *Project) AddChangeReview(ctx context.Context, number int, r source.Revi
 		}
 		if err := tx.Commit(); err != nil {
 			return err
+		}
+		s.changed = append(s.changed, p.changeChanged(number))
+		return nil
+	})
+}
+
+// PutChangeComment writes body as the text of the change's comment copied
+// from from (edited since on GitHub).
+func (p *Project) PutChangeComment(ctx context.Context, number int, body, from string) error {
+	return p.locked(ctx, func(s *scanned) error {
+		if _, err := p.db.db.ExecContext(ctx, `UPDATE comments SET body = ? WHERE project_id = ? AND number = ? AND origin = ?`, body, p.id, number, from); err != nil {
+			return fmt.Errorf("local: write a comment: %w", err)
+		}
+		s.changed = append(s.changed, p.changeChanged(number))
+		return nil
+	})
+}
+
+// SetCopiedState records the change closed or merged as its copy on GitHub
+// was (a change of this folder found again on its way back), at at.
+func (p *Project) SetCopiedState(ctx context.Context, number int, state source.ChangeState, at time.Time) error {
+	if state != source.ChangeClosed && state != source.ChangeMerged {
+		return ErrInvalidState
+	}
+	if at.IsZero() {
+		at = time.Now()
+	}
+	return p.locked(ctx, func(s *scanned) error {
+		closed, merged := sql.NullString{String: formatTime(at), Valid: true}, sql.NullString{}
+		if state == source.ChangeMerged {
+			merged = closed
+		}
+		if _, err := p.db.db.ExecContext(ctx, `UPDATE changes SET state = ?, closed_at = ?, merged_at = ?, updated_at = ? WHERE project_id = ? AND number = ?`,
+			string(state), closed, merged, formatTime(time.Now()), p.id, number); err != nil {
+			return fmt.Errorf("local: write a change: %w", err)
 		}
 		s.changed = append(s.changed, p.changeChanged(number))
 		return nil

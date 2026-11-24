@@ -91,10 +91,10 @@ func (e *env) handler() *migration.Handler {
 			defer e.mu.Unlock()
 			return e.pending, id == projectID && e.pending != ""
 		},
-		Promote: func(_ context.Context, id string) error {
+		Promote: func(_ context.Context, id, folder string) error {
 			e.mu.Lock()
 			defer e.mu.Unlock()
-			e.folder, e.pending = e.pending, ""
+			e.folder, e.pending = folder, ""
 			e.promoted = append(e.promoted, id)
 			return nil
 		},

@@ -540,7 +540,7 @@ func TestThePendingFoldersAreSaidAndPromoted(t *testing.T) {
 	f.handler.Tick(context.Background())
 	f.sender.take()
 
-	if err := f.handler.Promote(context.Background(), thisProject); err != nil {
+	if err := f.handler.Promote(context.Background(), thisProject, ""); err != nil {
 		t.Fatal(err)
 	}
 	saved, _ := f.store.Load()
@@ -548,6 +548,34 @@ func TestThePendingFoldersAreSaidAndPromoted(t *testing.T) {
 		t.Fatalf("saved %+v / %+v, want the folder the Projet's", saved.Projects, saved.Pending)
 	}
 	if got := saidFolders(t, f.sender.take()); !reflect.DeepEqual(got.Present, []string{thisProject}) || len(got.Pending) != 0 {
+		t.Fatalf("projects.folders %+v", got)
+	}
+}
+
+func TestAPromoteOfTheFolderACopyBeganInHoldsOnceThePickWasDropped(t *testing.T) {
+	f := newFixture(t)
+	folder := filepath.Join(f.home, "recettes")
+	mkdir(t, folder)
+	if err := f.handler.HandlePick(context.Background(), f.pick(t, thisProject, "code", folder)); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.handler.HandleDrop(context.Background(), contracts.RunnerProjectFolderDrop{Type: "project.folder.drop", ProjectId: thisProject}); err != nil {
+		t.Fatal(err)
+	}
+	f.sender.take()
+	if err := f.handler.Promote(context.Background(), thisProject, ""); err != nil {
+		t.Fatal(err)
+	}
+	if saved, _ := f.store.Load(); len(saved.Projects) != 0 {
+		t.Fatalf("no folder to promote, yet %+v", saved.Projects)
+	}
+	if err := f.handler.Promote(context.Background(), thisProject, folder); err != nil {
+		t.Fatal(err)
+	}
+	if saved, _ := f.store.Load(); saved.Projects[thisProject] != folder {
+		t.Fatalf("saved %+v, want the folder the copy began in", saved.Projects)
+	}
+	if got := saidFolders(t, f.sender.take()); !reflect.DeepEqual(got.Present, []string{thisProject}) {
 		t.Fatalf("projects.folders %+v", got)
 	}
 }

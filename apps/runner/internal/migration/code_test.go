@@ -14,6 +14,7 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contracts"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/migration"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/source"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/source/local"
 )
 
 // The code group (SOURCE-9): GitHub is a bare repository over file://, its
@@ -277,6 +278,40 @@ func TestCodeToGitHubRetriedAfterAFailureMidCopyPushesNothingTwice(t *testing.T)
 	}
 }
 
+func TestCodeToGitHubRetriedAfterAFailureBetweenTwoPushesPushesTheBranchesLeft(t *testing.T) {
+	e, _, _ := localCode(t)
+	bare, log := e.bare()
+	// GitHub refuses develop once: main is pushed, the copy fails before the others.
+	flag := filepath.Join(t.TempDir(), "refuse")
+	if err := os.WriteFile(flag, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hook := "#!/bin/sh\nwhile read old new ref; do if [ \"$ref\" = refs/heads/develop ] && [ -e '" + flag + "' ]; then rm '" + flag + "'; exit 1; fi; done\n"
+	if err := os.WriteFile(filepath.Join(bare, "hooks", "pre-receive"), []byte(hook), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	h := e.handler()
+	h.Copy(context.Background(), codeMessage(contracts.RunnerMigrationCopyFromLocal, contracts.RunnerMigrationCopyFromGithub))
+	if failed := sentOf[contracts.RunnerMigrationFailed](e); len(failed) != 1 {
+		t.Fatalf("failed %+v\n%s", failed, e.logs.String())
+	}
+	if pushed := pushedRefs(t, log); len(pushed) != 1 || pushed[0] != "refs/heads/main" {
+		t.Fatalf("pushed %v before the failure, want main only", pushed)
+	}
+
+	h.Copy(context.Background(), codeMessage(contracts.RunnerMigrationCopyFromLocal, contracts.RunnerMigrationCopyFromGithub))
+	s := switchOf(t, e)
+	if remote, local := branchesOf(t, bare), branchesOf(t, e.dir); !mapsEqual(remote, local) {
+		t.Errorf("GitHub's branches %v after the retry, the folder's %v", remote, local)
+	}
+	if pushed := pushedRefs(t, log); len(pushed) != 5 {
+		t.Errorf("pushed %v, want each branch once", pushed)
+	}
+	if fps := fingerprintsOf(s); fps["branch:develop"].State != branchesOf(t, e.dir)["develop"] {
+		t.Errorf("develop's fingerprint %+v", fps["branch:develop"])
+	}
+}
+
 // githubCode is the env's repository on GitHub: main, develop and two
 // feature branches, two open pull requests (one draft) with comments and
 // reviews, one merged; the Projet has no folder, one is picked, empty.
@@ -406,6 +441,42 @@ func TestCodeToLocalResumesInThePartlyClonedFolderOnceItIsNoLongerPending(t *tes
 	}
 }
 
+func TestCodeToLocalRetriedAfterThePickWasDroppedAdoptsTheFolderItBeganAtTheFinish(t *testing.T) {
+	e, _, _, _ := githubCode(t)
+	picked := e.pending
+	refused := 0
+	e.gh.fail = func(call string) int {
+		if call == "GET /pulls" && refused == 0 {
+			refused++
+			return 403
+		}
+		return 0
+	}
+	h := e.handler()
+	h.Copy(context.Background(), codeMessage(contracts.RunnerMigrationCopyFromGithub, contracts.RunnerMigrationCopyFromLocal))
+	if failed := sentOf[contracts.RunnerMigrationFailed](e); len(failed) != 1 {
+		t.Fatalf("failed %+v", failed)
+	}
+	// The server dropped the pick at the failure; « Réessayer » sends the copy again.
+	e.pending = ""
+	h.Copy(context.Background(), codeMessage(contracts.RunnerMigrationCopyFromGithub, contracts.RunnerMigrationCopyFromLocal))
+	s := switchOf(t, e)
+	h.Finish(context.Background(), finishMessage(s))
+	if failed := sentOf[contracts.RunnerMigrationFailed](e); len(failed) != 1 || len(sentOf[contracts.RunnerMigrationFinished](e)) != 1 {
+		t.Fatalf("failed %+v\n%s", failed, e.logs.String())
+	}
+	if e.folder != picked || !slices.Equal(e.promoted, []string{projectID}) {
+		t.Errorf("the Projet's folder %q, promoted %v: want the folder the copy began in", e.folder, e.promoted)
+	}
+	if reports := sentOf[contracts.RunnerLocalChanged](e); len(reports) != 1 || !reports[0].Full || len(reports[0].Items) == 0 {
+		t.Errorf("reports %+v, want the folder's full one", reports)
+	}
+	clone := filepath.Join(e.home, "repos", "local", projectID)
+	if origin := gitIn(t, clone, "remote", "get-url", "origin"); origin != picked {
+		t.Errorf("the Runner's clone's origin %q, want the folder", origin)
+	}
+}
+
 func TestCodeToLocalFinishCarriesALateCommitPromotesTheFolderAndReportsTheChanges(t *testing.T) {
 	e, work, _, _ := githubCode(t)
 	picked := e.pending
@@ -508,6 +579,98 @@ func TestCodeToGitHubFinishPushesALateCommitAndRemovesTheFoldersClone(t *testing
 	}
 	if b := branchesOf(t, e.dir); b["develop"] != late {
 		t.Errorf("the folder was touched: %v", b)
+	}
+}
+
+func TestCodeToGitHubAndBackFindsEachLocalChangeAgainNeverASecondOne(t *testing.T) {
+	e, panier, export := localCode(t)
+	e.bare()
+	ctx := context.Background()
+	h := e.handler()
+	h.Copy(ctx, codeMessage(contracts.RunnerMigrationCopyFromLocal, contracts.RunnerMigrationCopyFromGithub))
+	h.Finish(ctx, finishMessage(switchOf(t, e)))
+	if len(sentOf[contracts.RunnerMigrationFinished](e)) != 1 {
+		t.Fatalf("to GitHub not finished\n%s", e.logs.String())
+	}
+	before, _ := e.project.CopiedChanges(ctx)
+	pp, px := pullFrom(t, e, "local#"+itoa(panier)), pullFrom(t, e, "local#"+itoa(export))
+
+	// On GitHub meanwhile: a comment on the panier, the export merged.
+	e.gh.mu.Lock()
+	e.gh.issue(pp.Number).Comments = append(e.gh.issue(pp.Number).Comments, fakeComment{ID: 9001, Author: "octocat", Body: "Vu sur GitHub.", At: "2026-11-21T08:00:00Z"})
+	e.gh.issue(px.Number).State, e.gh.issue(px.Number).Merged = "closed", true
+	e.gh.mu.Unlock()
+
+	e.mu.Lock()
+	e.sent = nil
+	e.mu.Unlock()
+	back := codeMessage(contracts.RunnerMigrationCopyFromGithub, contracts.RunnerMigrationCopyFromLocal)
+	back.MigrationId = "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a97"
+	h.Copy(ctx, back)
+	s := switchOf(t, e)
+
+	after, err := e.project.CopiedChanges(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != len(before) {
+		t.Fatalf("%d local changes after the way back, %d before: %+v", len(after), len(before), after)
+	}
+	byNumber := map[int]local.CopiedChange{}
+	for _, c := range after {
+		byNumber[c.Number] = c
+	}
+	p := byNumber[panier]
+	if p.State != source.ChangeOpen || p.From != "github#"+itoa(pp.Number) || len(p.Reviews) != 1 {
+		t.Errorf("panier back %+v, %d reviews", p.Change, len(p.Reviews))
+	}
+	var bodies []string
+	for _, c := range p.Comments {
+		bodies = append(bodies, c.Body)
+	}
+	slices.Sort(bodies)
+	if !slices.Equal(bodies, []string{"Penser aux taxes.", "Vu sur GitHub."}) {
+		t.Errorf("panier's comments %q, want its own once and GitHub's", bodies)
+	}
+	if x := byNumber[export]; x.State != source.ChangeMerged {
+		t.Errorf("export back %s, want merged as on GitHub", x.State)
+	}
+	if len(s.Renumbering) != 1 || s.Renumbering[0].From != pp.Number || s.Renumbering[0].To != panier {
+		t.Errorf("renumbering %+v, want the panier's pull request back to its number", s.Renumbering)
+	}
+}
+
+func TestCodeToLocalCarriesACommentAndAReviewEditedOnGitHubBetweenTwoPasses(t *testing.T) {
+	e, _, recherche, _ := githubCode(t)
+	picked := e.pending
+	pulls := 0
+	e.gh.before = func(call, _ string) {
+		if call != "GET /pulls" {
+			return
+		}
+		if pulls++; pulls != 2 {
+			return
+		}
+		// Once the first pass copied them, the comment and the review are edited on GitHub.
+		e.gh.mu.Lock()
+		defer e.gh.mu.Unlock()
+		is := e.gh.issue(recherche)
+		is.Comments[0].Body = "Prêt, enfin."
+		is.Reviews[0].Body = "Presque, vraiment."
+		is.Reviews[0].Remarks = append(is.Reviews[0].Remarks, fakeRemark{ID: 602, Path: "src/recherche.go", Line: 2, Body: "Le type."})
+	}
+	e.handler().Copy(context.Background(), codeMessage(contracts.RunnerMigrationCopyFromGithub, contracts.RunnerMigrationCopyFromLocal))
+	switchOf(t, e)
+	changes, err := e.open(projectID, picked).CopiedChanges(context.Background())
+	if err != nil || len(changes) != 2 {
+		t.Fatalf("changes %+v, %v", changes, err)
+	}
+	r := changes[0]
+	if len(r.Comments) != 1 || r.Comments[0].Body != "Prêt, enfin." {
+		t.Errorf("recherche's comments %+v, want the edited text once", r.Comments)
+	}
+	if len(r.Reviews) != 1 || r.Reviews[0].Body != "Presque, vraiment." || len(r.Reviews[0].Comments) != 2 {
+		t.Errorf("recherche's reviews %+v, want the edited one with its two remarks", r.Reviews)
 	}
 }
 

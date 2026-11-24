@@ -219,24 +219,27 @@ func (h *Handler) Pending(projectID string) (state.PendingFolder, bool) {
 	return pending, ok
 }
 
-// Promote makes the Projet's pending folder its folder, at the finish of its
-// migration to Local, and says projects.folders; a Projet without a pending
-// folder is left as it is.
-func (h *Handler) Promote(ctx context.Context, projectID string) error {
+// Promote makes folder the Projet's folder, at the finish of its migration
+// to Local (the one its copy began in, kept even once the pick was dropped),
+// its pending one when folder is ""; and says projects.folders. A Projet
+// with neither is left as it is.
+func (h *Handler) Promote(ctx context.Context, projectID, folder string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	linked, err := h.cfg.Store.Load()
 	if err != nil {
 		return err
 	}
-	pending, ok := linked.Pending[projectID]
-	if !ok {
+	if folder == "" {
+		folder = linked.Pending[projectID].Path
+	}
+	if folder == "" {
 		return nil
 	}
 	if linked.Projects == nil {
 		linked.Projects = map[string]string{}
 	}
-	linked.Projects[projectID] = pending.Path
+	linked.Projects[projectID] = folder
 	delete(linked.Pending, projectID)
 	if err := h.cfg.Store.Save(linked); err != nil {
 		return err

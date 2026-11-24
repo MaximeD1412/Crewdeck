@@ -36,7 +36,8 @@ type progress struct {
 	// release one pushed first, the integration one checked out.
 	Release     string `json:"release,omitempty"`
 	Integration string `json:"integration,omitempty"`
-	// Folder is the folder the code is cloned into on its way to Local,
+	// Folder is the folder picked a migration to Local writes in (the code
+	// cloned, the Tickets copied) when the Projet has none,
 	// recorded at the first copy: a retry continues there, even once the
 	// folder picked is no longer held pending.
 	Folder string `json:"folder,omitempty"`

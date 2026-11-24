@@ -198,8 +198,12 @@ func (h *Handler) toGitHub(ctx context.Context, p *progress, url string, env []s
 				continue
 			}
 			push, err := moves(ctx, clone, theirs[b], ours)
-			if err != nil || !push {
+			if err != nil {
 				return err
+			}
+			if !push {
+				// Already there (an earlier attempt pushed it): the next branches still go.
+				continue
 			}
 			if _, err := git(ctx, clone, env, "push", "--quiet", "--no-verify", url, ours+":refs/heads/"+b); err != nil {
 				return fmt.Errorf("%w: %v", ghsource.ErrUnavailable, err)
@@ -372,8 +376,9 @@ func (h *Handler) toLocal(ctx context.Context, p *progress, url string, env []st
 	if err != nil {
 		return pass, err
 	}
-	byFrom := map[string]local.CopiedChange{}
+	byFrom, byNumber := map[string]local.CopiedChange{}, map[int]local.CopiedChange{}
 	for _, c := range copied {
+		byNumber[c.Number] = c
 		if c.From != "" {
 			byFrom[c.From] = c
 		}
@@ -383,10 +388,23 @@ func (h *Handler) toLocal(ctx context.Context, p *progress, url string, env []st
 		return pass, err
 	}
 	for _, pr := range pulls {
+		from := keyOf("github", pr.Number)
+		c, found := byFrom[from]
+		if !found {
+			// A change of this folder that went to GitHub and comes back: the same one, never a second.
+			if n, ok := localNumber(pr.From); ok {
+				c, found = byNumber[n]
+			}
+		}
 		if pr.State != source.ChangeOpen {
+			if found && c.State == source.ChangeOpen {
+				if err := project.SetCopiedState(ctx, c.Number, pr.State, time.Now()); err != nil {
+					return pass, err
+				}
+				pass.writes++
+			}
 			continue
 		}
-		from := keyOf("github", pr.Number)
 		comments, err := gh.PullComments(ctx, pr.Number)
 		if err != nil {
 			return pass, err
@@ -398,7 +416,6 @@ func (h *Handler) toLocal(ctx context.Context, p *progress, url string, env []st
 		pass.changes = append(pass.changes, oldChange{kind: "github", number: pr.Number, change: pr.Change, notes: githubNotes(from, comments, reviews)})
 		want := pr.Change
 		want.Number = 0
-		c, found := byFrom[from]
 		number := c.Number
 		switch {
 		case !found:
@@ -406,7 +423,7 @@ func (h *Handler) toLocal(ctx context.Context, p *progress, url string, env []st
 				return pass, err
 			}
 			pass.writes++
-		case strings.TrimSpace(c.Title) != strings.TrimSpace(want.Title) || text(c.Body) != text(want.Body) || c.HeadRef != want.HeadRef ||
+		case c.From != from || strings.TrimSpace(c.Title) != strings.TrimSpace(want.Title) || text(c.Body) != text(want.Body) || c.HeadRef != want.HeadRef ||
 			c.HeadOid != want.HeadOid || c.BaseRef != want.BaseRef || c.IsDraft != want.IsDraft:
 			if _, err := project.PutChange(ctx, number, want, from); err != nil {
 				return pass, err
@@ -419,31 +436,81 @@ func (h *Handler) toLocal(ctx context.Context, p *progress, url string, env []st
 				return pass, err
 			}
 		}
-		have := map[string]bool{}
+		haveComments := map[string]source.CopiedComment{}
 		for _, cm := range c.Comments {
-			have[cm.From] = true
+			haveComments[cm.From] = cm
 		}
+		haveReviews := map[string]local.CopiedReview{}
 		for _, r := range c.Reviews {
-			have[r.From] = true
+			haveReviews[r.From] = r
 		}
+		// What Crewdeck copied there from this very change is here already, as it was.
+		own := keyOf("local", number) + "/"
 		for _, cm := range comments {
-			if f := from + "/comment/" + cm.ID; !have[f] {
+			if strings.HasPrefix(cm.From, own) {
+				continue
+			}
+			f := from + "/comment/" + cm.ID
+			had, ok := haveComments[f]
+			switch {
+			case !ok:
 				if err := project.AddChangeComment(ctx, number, cm.Comment, f); err != nil {
 					return pass, err
 				}
-				pass.writes++
+			case text(had.Body) != text(cm.Body):
+				if err := project.PutChangeComment(ctx, number, cm.Body, f); err != nil {
+					return pass, err
+				}
+			default:
+				continue
 			}
+			pass.writes++
 		}
 		for _, r := range reviews {
-			if f := from + "/review/" + r.ID; !have[f] {
+			f := from + "/review/" + r.ID
+			had, ok := haveReviews[f]
+			switch {
+			case !ok:
 				if err := project.AddChangeReview(ctx, number, r, f); err != nil {
 					return pass, err
 				}
-				pass.writes++
+			case !sameReview(had.Review, r):
+				if err := project.PutChangeReview(ctx, number, r, f); err != nil {
+					return pass, err
+				}
+			default:
+				continue
 			}
+			pass.writes++
 		}
 	}
 	return pass, nil
+}
+
+// localNumber is the number of the local change a pull request's marker
+// (`local#<n>`) says it was copied from.
+func localNumber(from string) (int, bool) {
+	rest, ok := strings.CutPrefix(from, "local#")
+	if !ok {
+		return 0, false
+	}
+	n, err := strconv.Atoi(rest)
+	return n, err == nil && n > 0
+}
+
+// sameReview is whether the review copied holds what GitHub's holds now:
+// its verdict, text and remarks, in order.
+func sameReview(had, now source.Review) bool {
+	if had.State != now.State || text(had.Body) != text(now.Body) || len(had.Comments) != len(now.Comments) {
+		return false
+	}
+	for i, rc := range now.Comments {
+		h := had.Comments[i]
+		if h.Path != rc.Path || h.Line != rc.Line || text(h.Body) != text(rc.Body) {
+			return false
+		}
+	}
+	return true
 }
 
 // githubNotes are a pull request's comments and reviews, as fingerprinted.

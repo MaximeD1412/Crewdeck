@@ -641,6 +641,19 @@
       ],
       "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261214000000_tickets_former'\"",
       "ajouteLe": "2026-11-20"
+    },
+    {
+      "id": "migration-source-migrations-target",
+      "phase": "db",
+      "source": "#213",
+      "titre": "Appliquer la migration 20261215000000_source_migrations_target en staging puis en production",
+      "pourquoi": "La colonne source_migrations.target_repository_id garde le dépôt choisi par une migration vers GitHub d'un Projet qui n'en a pas (SOURCE-9), jusqu'à la bascule qui en fait celui du Projet ; code_changes.former_number et code_changes.former_source gardent le numéro et la Source d'un changement de code déplacé ; la contrainte des Projets admet un Projet sorti de GitHub qui garde son nom lisible. Sans elle, la migration du code et la lecture des changements de code échouent. La migration ne fait qu'ajouter des colonnes et élargir deux contraintes : la version précédente du serveur tourne sur la base migrée.",
+      "etapes": [
+        "Rien à lancer à la main : deploy.sh répète la migration sur la dernière sauvegarde (rehearse.sh), puis l'applique au déploiement du staging, puis à celui de la production.",
+        "Vérifier sur chaque base (crewdeck-prod, puis crewdeck-staging) que la commande imprime une date : la migration est appliquée."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261215000000_source_migrations_target'\"",
+      "ajouteLe": "2026-11-24"
     }
   ]
 }

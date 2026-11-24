@@ -475,6 +475,10 @@ describe('the engine against PostgreSQL', () => {
   it('fails an Étape whose kind has no handler with no-handler, and its PhaseRun', async () => {
     const [code] = PROCESS_CREWDECK.steps.filter((step) => step.id === 'st-code');
     await writeVersion({ ...PROCESS_CREWDECK, steps: PROCESS_CREWDECK.steps.map((step) => (step === code ? { ...step, kind: 'inventory' } : step)) });
+    // Every kind has a handler now, the app's `inventory` (PROJET-4) among them: this one is taken out for the test.
+    const handlers = app.get<StepKindHandlers>(STEP_KIND_HANDLERS);
+    const of = handlers.of.bind(handlers);
+    vi.spyOn(handlers, 'of').mockImplementation((kind) => (kind === 'inventory' ? undefined : of(kind)));
 
     const run = await admit('42');
 
@@ -685,6 +689,25 @@ describe('the engine against PostgreSQL', () => {
       sql(`INSERT INTO phase_runs (id, pilot_id, project_id, process_version_id, phase_id, item_type, item_id, state, started_at)
            VALUES ($1, $2, NULL, NULL, 'ph-idee', 'idea', 'idee-9', 'running', now())`, [newId(), alice.id]),
     ).rejects.toThrow(/phase_runs_project_or_builtin/);
+  });
+
+  it('runs a Projet’s work on no builtin but « Préparation », and « Préparation » only for a Projet', async () => {
+    await expect(
+      inAlice((tx) => engine.admit(tx, { projectId, phaseId: 'ph-dev', item: { type: 'ticket', id: '42' }, builtinTemplate: 'process-crewdeck' })),
+    ).rejects.toThrow(EngineInputError);
+    await expect(
+      inAlice((tx) => engine.admit(tx, { projectId: null, phaseId: 'ph-preparation', item: { type: 'inventory', id: projectId }, builtinTemplate: 'preparation' })),
+    ).rejects.toThrow(EngineInputError);
+    expect(await sql('SELECT id FROM phase_runs')).toEqual([]);
+    const insert = (project: string | null, template: string) =>
+      sql(
+        `INSERT INTO phase_runs (id, pilot_id, project_id, process_version_id, builtin_template, phase_id, item_type, item_id, state, started_at)
+         VALUES ($1, $2, $3, NULL, $4, 'ph-preparation', 'inventory', 'x', 'running', now())`,
+        [newId(), alice.id, project, template],
+      );
+    await expect(insert(null, 'preparation')).rejects.toThrow(/phase_runs_project_or_builtin/);
+    await expect(insert(projectId, 'process-crewdeck')).rejects.toThrow(/phase_runs_project_or_builtin/);
+    await insert(projectId, 'preparation');
   });
 
   it('admits at once an Idée an arrow carries into an idea.noted Phase, with the PhaseRun that gave it as parent', async () => {

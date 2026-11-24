@@ -5,7 +5,7 @@ import { newId } from '../../ids.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { EventsWriter } from '../../realtime/events.writer.js';
 import { STATE_CONTRIBUTORS, type StateContributor, type StateContributors } from '../../realtime/state-contributors.js';
-import { Transactions, type Tx } from '../../realtime/transactions.js';
+import { afterCommit, Transactions, type Tx } from '../../realtime/transactions.js';
 import { RunnerClock } from '../clock.js';
 import { RunnerDispatcher } from '../runner-dispatcher.js';
 import { AI_ACCOUNT_VIEW, rowOf, toAiAccount } from './ai-account.view.js';
@@ -25,15 +25,21 @@ export const listAccounts = async (tx: Pick<Tx, 'aiAccount'>): Promise<AiAccount
 export const usableModels = async (tx: Pick<Tx, 'aiAccount'>): Promise<(AiAccountModel & { engine: AiAccount['engine'] })[]> =>
   (await listAccounts(tx)).filter(isUsableAccount).flatMap((account) => account.models.filter((model) => model.usable).map((model) => ({ ...model, engine: account.engine })));
 
+/** Called with the Pilote's id once a report of their Comptes IA is committed, in their scope. Must not throw. */
+export type AiAccountsRecordedHook = (pilotId: string) => void;
+
 /**
  * The Comptes IA (US-38, RUNNER-7): each `capabilities` message of the
  * Pilote's Runner upserts one row per Moteur it reports, with
  * `ai-account.upserted`, in one transaction. The credential never reaches the
  * server: the message carries a kind and a state, and a row has no column for
- * more.
+ * more. Who waits for a Moteur (the Inventaire, PROJET-4) learns of each
+ * report once committed (`onRecorded`).
  */
 @Injectable()
 export class AiAccounts implements OnModuleInit {
+  private readonly recordedHooks = new Set<AiAccountsRecordedHook>();
+
   constructor(
     private readonly dispatcher: RunnerDispatcher,
     private readonly transactions: Transactions,
@@ -43,6 +49,12 @@ export class AiAccounts implements OnModuleInit {
 
   onModuleInit(): void {
     this.dispatcher.registerRunnerHandler('capabilities', (message, context) => this.record(context.pilotId, message.engines));
+  }
+
+  /** Calls `hook` after each report of a Pilote's Comptes IA is committed; returns its removal. */
+  onRecorded(hook: AiAccountsRecordedHook): () => void {
+    this.recordedHooks.add(hook);
+    return () => this.recordedHooks.delete(hook);
   }
 
   /** Stores what each Moteur can run, as the Pilote's Runner reported it. */
@@ -59,6 +71,9 @@ export class AiAccounts implements OnModuleInit {
         });
         await this.events.write(tx, pilotId, 'ai-account.upserted', toAiAccount(row));
       }
+      afterCommit(tx, () => {
+        for (const hook of [...this.recordedHooks]) hook(pilotId);
+      });
     });
   }
 }

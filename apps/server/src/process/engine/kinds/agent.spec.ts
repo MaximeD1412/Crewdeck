@@ -211,6 +211,17 @@ describe('the agent Étapes', () => {
     expect(mcpServersOf({ step: CODE })).toEqual([]);
   });
 
+  it('bases the Session on the integration branch unless its kind names a base: the Inventaire’s, the release branch', async () => {
+    const { steps, handler, sessions } = setup();
+    const based = steps.defineAgentKind({ ...SPEC, kind: 'review', contractId: null, base: () => 'main' });
+
+    await asPilot(() => handler.start(TX, runOf({ sessionId: null })));
+    await asPilot(() => based.start(TX, runOf({ sessionId: null })));
+
+    expect(sessions.start.mock.calls[0]?.[1]).not.toHaveProperty('base');
+    expect(sessions.start.mock.calls[1]?.[1]).toMatchObject({ base: 'main', branch: 'feat/12-panier' });
+  });
+
   it('refuses to start without a Moteur for the Rôle: 422 step-run.no-engine, no Session', async () => {
     const { handler, sessions } = setup({ roles: { code: null } });
 

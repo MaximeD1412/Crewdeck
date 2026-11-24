@@ -725,7 +725,9 @@ enum ProjectFolderState {
 /// A Projet: a Dépôt GitHub followed (`repository_id`, its names in clear), or
 /// a folder of the Runner's machine (a Local Projet, PROJET-6: no repository,
 /// `name_sealed` its name sealed under the vault key, `folder_state`; its path
-/// only on the Runner). `projects_github_or_local` keeps one of the two.
+/// only on the Runner). `projects_github_or_local` keeps one of the two. Of
+/// its Inventaire (PROJET-4), only the commit checked (`inventory_head_sha`)
+/// and the counts its Session reported (`inventory_figures`), never its text.
 model Project {
   id                String              @id @db.Uuid
   pilotId           String              @map("pilot_id") @db.Uuid
@@ -741,6 +743,8 @@ model Project {
   integrationBranch String              @map("integration_branch")
   hasCode           Boolean             @map("has_code")
   inventoryState    InventoryState      @map("inventory_state")
+  inventoryHeadSha  String?             @map("inventory_head_sha")
+  inventoryFigures  Json?               @map("inventory_figures")
   accessLost        Boolean             @default(false) @map("access_lost")
   lastSeq           BigInt              @default(0) @map("last_seq")
   followedAt        DateTime            @default(now()) @map("followed_at") @db.Timestamptz

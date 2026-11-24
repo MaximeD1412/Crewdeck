@@ -50,6 +50,8 @@ export interface AgentKindSpec {
   /** The Ticket's or the Conception's title, as its Source holds it: readable, or sealed when Local. */
   title(tx: Tx, run: StepRunContext): Promise<string | SealedSessionTitle> | string | SealedSessionTitle;
   branch(tx: Tx, run: StepRunContext): Promise<string> | string;
+  /** The branch its Session's branch starts from: the Projet's integration branch unless given (the Inventaire's, the release branch). */
+  base?(tx: Tx, run: StepRunContext): Promise<string> | string;
   outputs(tx: Tx, run: StepRunContext): Promise<ArtifactRef[]> | ArtifactRef[];
 }
 
@@ -234,6 +236,7 @@ export class AgentSteps implements OnModuleInit, OnModuleDestroy {
       model: choice.model,
       title: await spec.title(tx, run),
       branch: await spec.branch(tx, run),
+      ...(spec.base ? { base: await spec.base(tx, run) } : {}),
       step,
       mcpServers: mcpServersOf(run),
     });

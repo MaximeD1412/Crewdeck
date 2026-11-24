@@ -84,6 +84,8 @@ const HOLDING = ['running', 'waiting', 'failed'] as const;
 
 /** What an Idée noted without a Projet runs on (US-5): the « idea.noted » Phase of the release's « Process Crewdeck ». */
 const WITHOUT_PROJECT: BuiltinTemplateId = 'process-crewdeck';
+/** What a Projet runs before its Process (PROJET-4): the release's « Préparation », its Inventaire. */
+export const PREPARATION_TEMPLATE = 'preparation' satisfies BuiltinTemplateId;
 const zOutputs = z.array(zArtifactRef);
 
 const json = (value: unknown): Prisma.InputJsonValue => value as Prisma.InputJsonValue;
@@ -187,6 +189,12 @@ export class Engine {
    * `idea.noted` Phase of the release's « Process Crewdeck », the PhaseRun on
    * that definition with no version; any other is `EngineInputError`.
    *
+   * With `builtinTemplate: 'preparation'` (PROJET-4), a Projet's work before
+   * its Process: the release's « Préparation », pinned to no version, its
+   * Phase without `forEach` taking the item as it is (the Inventaire,
+   * `{ type: 'inventory', id: projectId }`). Any other builtin definition
+   * with a Projet, or « Préparation » without one, is `EngineInputError`.
+   *
    * While a migration of Source runs on a group its Phase reads or writes
    * (SOURCE-7), the PhaseRun is created `waiting` on `source-migration`,
    * none of its Étapes started: `releaseHeld` starts it once the migration
@@ -194,21 +202,28 @@ export class Engine {
    */
   async admit(
     tx: Tx,
-    { projectId, phaseId, item, parentPhaseRunId }: { projectId: string | null; phaseId: string; item: PhaseItem; parentPhaseRunId?: string },
+    {
+      projectId,
+      phaseId,
+      item,
+      parentPhaseRunId,
+      builtinTemplate: asked,
+    }: { projectId: string | null; phaseId: string; item: PhaseItem; parentPhaseRunId?: string; builtinTemplate?: BuiltinTemplateId },
   ): Promise<PhaseRun> {
     const pilotId = currentPilotId();
     await this.events.lock(tx, pilotId);
-    const builtinTemplate = projectId === null ? WITHOUT_PROJECT : null;
+    if (asked !== undefined && (asked !== PREPARATION_TEMPLATE || projectId === null)) throw new EngineInputError(`A Projet’s work runs on the builtin « Préparation » only: not ${asked}${projectId === null ? ' without a Projet' : ''}.`);
+    const builtinTemplate = projectId === null ? WITHOUT_PROJECT : (asked ?? null);
     const unfinished = await tx.phaseRun.findFirst({
       where: { projectId, builtinTemplate, phaseId, itemType: item.type, itemId: item.id, state: { in: UNFINISHED } },
       select: PHASE_RUN_VIEW,
     });
     if (unfinished) return toPhaseRun(unfinished);
 
-    const { pin, definition } = await this.pinFor(tx, projectId);
+    const { pin, definition } = asked === undefined ? await this.pinFor(tx, projectId) : { pin: { version: null, builtinTemplate: asked } as const, definition: BUILTIN_TEMPLATES[asked] };
     const phase = definition.phases.find((candidate) => candidate.id === phaseId);
     if (!phase) throw new EngineInputError(`The ${pin.version ? `version ${pin.version.number}` : pin.builtinTemplate} has no Phase ${phaseId}.`);
-    if (!phase.forEach || FOR_EACH[phase.forEach].type !== item.type) throw new EngineInputError(`The Phase ${phaseId} does not repeat for ${item.type}.`);
+    if (asked === undefined && (!phase.forEach || FOR_EACH[phase.forEach].type !== item.type)) throw new EngineInputError(`The Phase ${phaseId} does not repeat for ${item.type}.`);
     if (projectId === null && phase.forEach !== 'idea.noted') throw new EngineInputError(`Without a Projet, only a noted Idée enters a Phase: not ${phaseId}.`);
 
     const parent = parentPhaseRunId ?? (await findParent(tx, projectId, item));

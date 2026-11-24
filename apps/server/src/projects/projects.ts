@@ -16,6 +16,7 @@ import { Transactions, type Tx } from '../realtime/transactions.js';
 import { currentPilotId } from '../scope/scope.context.js';
 import { projectNamesOf } from './project-names.js';
 import { ProjectChanges } from './project-changes.js';
+import { ProjectPreparation } from './project-preparation.js';
 import { inventoryStateRow, PROJECT_VIEW, toProject } from './project.view.js';
 
 export class FollowProjectsDto extends createZodDto(zFollowProjects) {}
@@ -40,7 +41,8 @@ const isUniqueViolation = (error: unknown): boolean => error instanceof Prisma.P
  * transaction writes every Projet of the command, each with its Sources
  * (both groups on GitHub, SOURCE-1), its Process (from the Modèle de process the
  * Pilote chose, PROCESS-3) and its `process.upserted`,
- * its `project.upserted` and its repository's `repository.upserted` (followed).
+ * its `project.upserted` and its repository's `repository.upserted` (followed);
+ * one with code gets its Inventaire started (`ProjectPreparation`, PROJET-4).
  */
 @Injectable()
 export class Projects {
@@ -51,6 +53,7 @@ export class Projects {
     private readonly process: ProcessService,
     private readonly sources: SourcesService,
     private readonly changes: ProjectChanges,
+    private readonly preparation: ProjectPreparation,
   ) {}
 
   /**
@@ -108,10 +111,13 @@ export class Projects {
         // Its Sources first, so that its first process.upserted holds them: a Dépôt GitHub, both groups on GitHub.
         await this.sources.createDefaults(tx, projectId, 'github');
         await this.process.createInitialVersion(tx, projectId, { template: templateId });
+        // A repository with code: its Inventaire, before its Process (PROJET-4).
+        await this.preparation.ready(tx, projectId);
         const view = { id, owner: repository.owner, name: repository.name, fullName: repository.fullName, private: repository.private, defaultBranch: repository.defaultBranch, hasCode: repository.hasCode };
         const repositorySeq = await this.events.write(tx, pilotId, 'repository.upserted', { ...view, followed: true });
         await tx.repository.update({ where: { id }, data: { lastSeq: repositorySeq } });
-        projects.push(project);
+        // As its Inventaire left it: `drafting` once started.
+        projects.push(toProject(await tx.project.findUniqueOrThrow({ where: { id: projectId }, select: PROJECT_VIEW })));
       }
       return projects;
     });

@@ -689,6 +689,8 @@ export const fr = {
   'decision.kind.ticket-interrupted': 'Ticket interrompu',
   'decision.kind.visual-review': 'Revue visuelle',
   'decision.localUnreadable.context': 'Fichier {path}',
+  'decision.inventoryReview.context': 'Glossaire, choix techniques et inventaire rédigés depuis le code : à approuver avant le Process.',
+  'decision.inventoryReview.read': 'Relire',
   'decision.contractIncomplete.more.one': '{rule} et 1 autre',
   'decision.contractIncomplete.more.other': '{rule} et {count} autres',
   'decision.contractIncomplete.reportSchema': 'Le rapport de l’Étape ne suit pas son format',

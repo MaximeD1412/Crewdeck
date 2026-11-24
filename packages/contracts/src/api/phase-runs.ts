@@ -66,9 +66,12 @@ export type ArtifactRef = z.infer<typeof zArtifactRef>;
 /** A code, never free text: `no-handler`, a handler's own (`checks-failed`). */
 const zCode = z.string().min(1).max(60);
 
-/** A definition of the release a PhaseRun without a Projet runs on: an Idée noted without one (US-5). */
+/** A definition of the release a PhaseRun runs on with no version: an Idée noted without a Projet (US-5), a Projet's Inventaire (PROJET-4). */
 export const zBuiltinTemplateId = z.enum(Object.keys(BUILTIN_TEMPLATES) as [keyof typeof BUILTIN_TEMPLATES, ...(keyof typeof BUILTIN_TEMPLATES)[]]);
 export type BuiltinTemplateId = z.infer<typeof zBuiltinTemplateId>;
+
+/** The builtin definition a PhaseRun without a Projet runs on, and the only one: an Idée noted without one (US-5). */
+const WITHOUT_PROJECT: BuiltinTemplateId = 'process-crewdeck';
 
 /**
  * A Retour of the PhaseRun's Phase as the PhaseRun took it: `taken` times so
@@ -82,7 +85,8 @@ export type PhaseRunLoopBack = z.infer<typeof zPhaseRunLoopBack>;
  * One item through one Phase: `processVersion` is the number of the version
  * it is pinned to, `itemType` the type of its Phase's `forEach` (or of the
  * Artefact that started a Phase without one). Without a Projet, it runs on
- * `builtinTemplate`, with no version. `parentPhaseRunId` is its lineage: the
+ * `builtinTemplate` « Process Crewdeck », with no version; a Projet's
+ * Inventaire on « Préparation », with no version either. `parentPhaseRunId` is its lineage: the
  * PhaseRun whose output became its item (a Ticket's Développement, its
  * Conception), `null` when none did; `loopBacks` what it took of its
  * Phase's Retours (PROCESS-6). The payload of `phase-run.upserted`, an
@@ -102,8 +106,8 @@ export const zPhaseRun = z.object({
   loopBacks: z.array(zPhaseRunLoopBack).max(50),
   startedAt: zInstant,
   endedAt: zInstant.nullable(),
-}).refine((run) => (run.projectId === null) === (run.builtinTemplate !== null) && (run.processVersion === null) === (run.builtinTemplate !== null), {
-  message: 'A PhaseRun has a Projet and its version, or neither and a builtin definition.',
+}).refine((run) => (run.projectId === null) === (run.builtinTemplate === WITHOUT_PROJECT) && (run.processVersion === null) === (run.builtinTemplate !== null), {
+  message: 'A PhaseRun has its Projet’s version, or a builtin definition: « Process Crewdeck » without a Projet, « Préparation » with one.',
 });
 export type PhaseRun = z.infer<typeof zPhaseRun>;
 

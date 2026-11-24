@@ -14,6 +14,20 @@ export const INVENTORY_STATES = ['not-needed', 'pending', 'drafting', 'to-approv
 export const zInventoryState = z.enum(INVENTORY_STATES);
 export type InventoryState = z.infer<typeof zInventoryState>;
 
+/**
+ * What the Inventaire's Skill reports (`crewdeck-runner etape report`,
+ * PROJET-4): counts only, what the server stores of it (ADR 0003): the
+ * glossary's terms, the technical choices it recorded, the apps and the
+ * screens it listed. The files stay in the code's Source.
+ */
+export const zInventoryReport = z.strictObject({
+  glossaryTerms: z.int().min(0),
+  technicalChoices: z.int().min(0),
+  apps: z.int().min(0),
+  screens: z.int().min(0),
+});
+export type InventoryReport = z.infer<typeof zInventoryReport>;
+
 /** At most this many Dépôts GitHub per Pilote are listed (the `repositories` slice is bounded, ADR 0008); more is past the MVP. */
 export const REPOSITORIES_MAX = 500;
 
@@ -82,8 +96,8 @@ export type Project = z.infer<typeof zProject>;
 export const zProjectList = z.object({ items: z.array(zProject) });
 export type ProjectList = z.infer<typeof zProjectList>;
 
-/** The Modèle de process a new Projet starts from (US-97): « Process Crewdeck » only, until the Pilote's own (PROCESS-14). */
-export const zProcessTemplateId = zBuiltinTemplateId;
+/** The Modèle de process a new Projet starts from (US-97): « Process Crewdeck » only, until the Pilote's own (PROCESS-14); never « Préparation ». */
+export const zProcessTemplateId = zBuiltinTemplateId.extract(['process-crewdeck']);
 export type ProcessTemplateId = z.infer<typeof zProcessTemplateId>;
 
 /** `POST /api/projects` (session): the Dépôts GitHub to follow, each becoming a Projet started from `templateId`. */

@@ -17,11 +17,13 @@ import (
 
 // Target is an Étape's output: its worktree, its PR when it opened one, and
 // the Projet's integration branch, which a `pr` rule's `base: integration`
-// names.
+// names. GitEnv is the environment that lets git reach the worktree's origin
+// (the Session's token for a GitHub clone, nothing for a Local one).
 type Target struct {
 	Dir               string
 	PR                *PullRequest
 	IntegrationBranch string
+	GitEnv            []string
 }
 
 // PullRequest holds the facts of the Étape's PR a `pr` rule reads, from GitHub.

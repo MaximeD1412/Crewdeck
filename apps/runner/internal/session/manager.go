@@ -593,7 +593,7 @@ func (m *Manager) runSession(ctx context.Context, s *live, fresh bool) {
 	default:
 		// The verdict goes before the end, its worktree checked before it is
 		// removed.
-		m.sendVerdict(w, rec)
+		m.sendVerdict(w, rec, gitEnv)
 		m.finish(s, w, true, contracts.RunnerSessionStateOutcomeOk, "")
 	}
 }

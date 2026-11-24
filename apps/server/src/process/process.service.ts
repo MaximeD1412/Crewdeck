@@ -6,6 +6,7 @@ import {
   PROCESS_CREWDECK_NAME,
   type ProcessDraftInput,
   type ProcessRunningWork,
+  type ProcessTemplateId,
   processSourcesOf,
   type ProjectProcess,
   type SealedItem,
@@ -28,11 +29,11 @@ import { toProcessSources } from './sources/sources.view.js';
 
 /** The Modèle a new Projet copies: the built-in « Process Crewdeck » until PROCESS-14's Modèles of the Pilote. */
 export interface InitialProcess {
-  readonly template: keyof typeof BUILTIN_TEMPLATES;
+  readonly template: ProcessTemplateId;
 }
 
 /** The names of the built-in Modèles, as the version keeps them. */
-const TEMPLATE_NAMES: Readonly<Record<keyof typeof BUILTIN_TEMPLATES, string>> = { 'process-crewdeck': PROCESS_CREWDECK_NAME };
+const TEMPLATE_NAMES: Readonly<Record<ProcessTemplateId, string>> = { 'process-crewdeck': PROCESS_CREWDECK_NAME };
 
 /** The part of a transaction the Process reads and writes; its view holds the Projet's Sources and its work running. */
 export type ProcessTx = Pick<Tx, 'project' | 'processVersion' | 'processDraft' | 'artifactSource' | 'phaseRun' | 'ticket'>;

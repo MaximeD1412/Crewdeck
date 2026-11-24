@@ -7,6 +7,7 @@ import { EventsWriter } from '../../realtime/events.writer.js';
 import { Transactions } from '../../realtime/transactions.js';
 import { RunnerDispatcher } from '../../runners/runner-dispatcher.js';
 import { runInPilotScope } from '../../scope/scope.context.js';
+import { ProjectPreparation } from '../project-preparation.js';
 import { PROJECT_VIEW, toProject } from '../project.view.js';
 
 /** The outcome of « Dossier du Projet introuvable » once the Runner has the folder again. */
@@ -35,7 +36,7 @@ export const folderMissingDecision = (projectId: string, machine: string | null)
  * each Projet with a folder becomes `present` when listed, `missing` when
  * not. A change is written in one transaction per Projet with its
  * `project.upserted`, and raises (`missing`) or resolves (`present`) its
- * Décision. One report after the other per Pilote.
+ * Décision; `present`, it may start its Inventaire (`ProjectPreparation`). One report after the other per Pilote.
  */
 @Injectable()
 export class ProjectFolders implements OnModuleInit {
@@ -47,6 +48,7 @@ export class ProjectFolders implements OnModuleInit {
     private readonly events: EventsWriter,
     private readonly decisions: DecisionsService,
     private readonly dispatcher: RunnerDispatcher,
+    private readonly preparation: ProjectPreparation,
     @InjectPinoLogger(ProjectFolders.name) private readonly logger: PinoLogger,
   ) {}
 
@@ -83,6 +85,8 @@ export class ProjectFolders implements OnModuleInit {
       await tx.project.update({ where: { id }, data: { lastSeq: seq } });
       if (next === 'present') {
         await this.decisions.resolve(tx, 'project.folder-missing', id, FOLDER_BACK);
+        // Its code on the Runner at last: its Inventaire, when it still waits for one (PROJET-4).
+        await this.preparation.ready(tx, id);
         return;
       }
       const runner = await tx.runner.findFirst({ where: { revokedAt: null }, select: { machine: true } });

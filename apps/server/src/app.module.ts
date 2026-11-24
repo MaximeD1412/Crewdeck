@@ -27,6 +27,7 @@ import { PilotsModule } from './pilots/me.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
+import { InventoryModule } from './projects/inventory/inventory.module.js';
 import { RunnersModule } from './runners/runners.module.js';
 import { EngineModule } from './process/engine/engine.module.js';
 import { AgentStepsModule } from './process/engine/kinds/agent.module.js';
@@ -93,6 +94,7 @@ export class AppModule {
         ProjectsModule,
         EngineModule,
         AgentStepsModule,
+        InventoryModule,
         SourceMigrationsModule,
         TicketsModule,
         DecisionsModule,

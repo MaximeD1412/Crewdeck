@@ -59,6 +59,6 @@ import { RunnerWaitingWork } from './waiting-work.js';
     McpServers,
     McpServerState,
   ],
-  exports: [RunnerPresence, RunnerCommands, RunnerDispatcher, RunnerClock, RunnerWaitingWork, RunnerOffline, RunnerConnections],
+  exports: [AiAccounts, RunnerPresence, RunnerCommands, RunnerDispatcher, RunnerClock, RunnerWaitingWork, RunnerOffline, RunnerConnections],
 })
 export class RunnersModule {}

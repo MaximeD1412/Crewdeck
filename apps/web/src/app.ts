@@ -75,6 +75,7 @@ import { aToiView } from './views/a-toi.js';
 import { actionsOf, decisionViews } from './views/decisions/registry.js';
 import './views/decisions/agent-question.js';
 import './views/decisions/contract-incomplete.js';
+import './views/decisions/inventory-review.js';
 import './views/decisions/local-unreadable.js';
 import './views/decisions/loop-back-exhausted.js';
 import './views/decisions/permission-requested.js';

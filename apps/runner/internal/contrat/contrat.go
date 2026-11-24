@@ -45,6 +45,17 @@ type Contrat struct {
 	Rules   []Rule `json:"rules"`
 }
 
+// ReadsChange says whether a rule of c reads the change of code (a `pr`
+// rule): one without, the Inventaire's, is checked on the worktree alone.
+func (c Contrat) ReadsChange() bool {
+	for _, rule := range c.Rules {
+		if rule.Kind == rules.KindPR {
+			return true
+		}
+	}
+	return false
+}
+
 // ErrUnknown is the error of Get for a Contrat this Runner does not embed.
 var ErrUnknown = errors.New("contrat: unknown Contrat")
 
@@ -110,7 +121,8 @@ func Get(id string) (Contrat, error) {
 
 // Check interprets every rule of `c` on `t`: a failed `bloquant` rule makes
 // the verdict `incomplete` and goes to FailedRuleIds, a failed `attention`
-// one to WarningRuleIds, both in the Contrat's order. An error (a read that
+// one to WarningRuleIds, both in the Contrat's order. Its head is the PR's,
+// or the worktree's HEAD when the Étape opened none. An error (a read that
 // failed, the context ended) is not a verdict.
 func Check(ctx context.Context, c Contrat, t Target) (Verdict, error) {
 	verdict := Verdict{
@@ -137,9 +149,19 @@ func Check(ctx context.Context, c Contrat, t Target) (Verdict, error) {
 			verdict.Status = contracts.ContratVerdictStatusIncomplete
 		}
 	}
-	if t.PR != nil && t.PR.HeadSHA != "" {
+	switch {
+	case t.PR != nil && t.PR.HeadSHA != "":
 		sha := t.PR.HeadSHA
 		verdict.HeadSha = &sha
+	case t.PR == nil:
+		// No change of code (the Inventaire): the commit the worktree holds.
+		sha, ok, err := t.Head(ctx)
+		if err != nil {
+			return Verdict{}, fmt.Errorf("contrat %s v%d: %w", c.ID, c.Version, err)
+		}
+		if ok {
+			verdict.HeadSha = &sha
+		}
 	}
 	return verdict, nil
 }

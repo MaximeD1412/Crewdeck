@@ -641,6 +641,20 @@
       ],
       "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261214000000_tickets_former'\"",
       "ajouteLe": "2026-11-20"
+    },
+    {
+      "id": "migration-inventory",
+      "phase": "db",
+      "source": "#108",
+      "titre": "Appliquer la migration 20261215000000_inventory en staging puis en production",
+      "pourquoi": "L'Inventaire d'un code existant (PROJET-4) : projects.inventory_head_sha et projects.inventory_figures gardent le commit vérifié par le Contrat et les comptes rapportés par la Session (jamais un texte), et la contrainte phase_runs_project_or_builtin admet le PhaseRun « Préparation » d'un Projet. Sans elle, suivre un dépôt avec du code échoue. La migration ajoute deux colonnes et élargit une contrainte : la version précédente du serveur tourne sur la base migrée.",
+      "etapes": [
+        "Rien à lancer à la main : deploy.sh répète la migration sur la dernière sauvegarde (rehearse.sh), puis l'applique au déploiement du staging, puis à celui de la production.",
+        "Vérifier sur chaque base (crewdeck-prod, puis crewdeck-staging) que la commande imprime une date : la migration est appliquée.",
+        "L'Inventaire demande un Runner de cette version ou plus récent : la Skill inventory, le Contrat inventory et les vérifications each-file-has-line et branch-pushed y sont embarqués. Publier la release du Runner avant celle du serveur. Un Runner plus ancien n'envoie aucun verdict pour ce Contrat : l'Étape échoue alors sans Décision à relancer."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261215000000_inventory'\"",
+      "ajouteLe": "2026-11-24"
     }
   ]
 }

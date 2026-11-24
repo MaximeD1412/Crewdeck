@@ -77,8 +77,9 @@ describe('zFollowProjects', () => {
     expect(zFollowProjects.safeParse({ repositoryIds: ['personal-os'], seq: 1 }).success).toBe(false);
   });
 
-  it('starts from a Modèle de process: « Process Crewdeck » only, until PROCESS-14', () => {
+  it('starts from a Modèle de process: « Process Crewdeck » only, until PROCESS-14, never « Préparation »', () => {
     expect(zProcessTemplateId.options).toEqual(['process-crewdeck']);
+    expect(zFollowProjects.safeParse({ repositoryIds: [REPOSITORY.id], templateId: 'preparation', seq: 1 }).success).toBe(false);
     expect(zFollowProjects.safeParse({ repositoryIds: [REPOSITORY.id], templateId: 'mon-process', seq: 1 }).success).toBe(false);
   });
 });

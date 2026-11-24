@@ -48,7 +48,7 @@ var _ source.Copier = (*Tickets)(nil)
 // Kind is "github".
 func (t *Tickets) Kind() string { return "github" }
 
-var markerPattern = regexp.MustCompile(`\s*<!-- crewdeck:from ([a-z]+#[0-9]+(?:/comment/[A-Za-z0-9-]+)?) -->\s*$`)
+var markerPattern = regexp.MustCompile(`\s*<!-- crewdeck:from ([a-z]+#[0-9]+(?:/(?:comment|review)/[A-Za-z0-9-]+(?:/remark/[A-Za-z0-9-]+)?)?) -->\s*$`)
 
 // Marked is text ending with the origin marker of from.
 func Marked(text, from string) string {

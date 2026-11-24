@@ -14,6 +14,7 @@ import (
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/github"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/logging"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/session"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/source"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/source/local"
@@ -679,4 +680,67 @@ func TestDocsTheLocalWatcherAsksTheIndexOnARefsMove(t *testing.T) {
 	folder.commit(t, "main", map[string]string{"AGENTS.md": "# Instructions\n\nLire le glossaire.\n"})
 	f.RefsMoved(carnet.ProjectID)
 	awaitDoc(t, path, carnet.Repository, "AGENTS.md", "glossaire")
+}
+
+// movedProjects is a mirror.projects of one Projet whose groups are on the
+// given Sources (SOURCE-9): its repository kept while a group is on GitHub.
+func movedProjects(p Project, ticket, code string) any {
+	var repository any
+	if ticket == SourceGitHub || code == SourceGitHub {
+		repository = "acme/atelier"
+	}
+	return stamp(protocol.TypeMirrorProjects, map[string]any{"projects": []any{map[string]any{
+		"projectId": p.ProjectID, "repository": repository, "githubRepoId": 101, "installationId": 7, "displayName": "Atelier",
+		"integrationBranch": p.IntegrationBranch, "sources": map[string]any{"ticket": ticket, "code": code}, "nameSealed": nil,
+	}}})
+}
+
+func TestDocsOnceTheCodeMovesToLocalAreReadFromTheFolder(t *testing.T) {
+	remote := newDocsRemote(t, map[string]string{"docs/product/prd.md": "# Le PRD\n\nSur GitHub.\n"})
+	folder := newDocsFolder(t, map[string]string{"docs/product/prd.md": "# Le PRD\n\nDans le dossier.\n"})
+	gitTest(t, folder.work, "branch", "--quiet", "-m", "main", "develop")
+	clock := newClock()
+	server := newRunnerServer(t, clock)
+	store, path := followedStore(t, 0, followedAtelier)
+	home := filepath.Join(t.TempDir(), ".crewdeck")
+	followWith(t, store, newFake(t, "testdata/graphql"), server, nil, func(cfg *FollowerConfig) {
+		cfg.Clones = docsClones(home, remote.url)
+		cfg.Locals = emptySources{}
+		cfg.Folders = func() map[string]string { return map[string]string{atelierID: folder.work} }
+	})
+	server.awaitHello()
+	awaitDoc(t, path, "acme/atelier", "docs/product/prd.md", "Sur GitHub")
+
+	// The switch: the code is Local, the Tickets stay on GitHub.
+	server.send(movedProjects(followedAtelier, SourceGitHub, SourceLocal))
+	awaitDoc(t, path, LocalPrefix+atelierID, "docs/product/prd.md", "Dans le dossier")
+	eventually(t, "the GitHub key's documents dropped", func() bool {
+		return len(docRows(t, path, "acme/atelier")) == 0
+	})
+}
+
+func TestDocsOnceTheCodeMovesToGitHubAreReadFromTheRepository(t *testing.T) {
+	remote := newDocsRemote(t, map[string]string{"docs/product/prd.md": "# Le PRD\n\nSur GitHub.\n"})
+	folder := newDocsFolder(t, map[string]string{"docs/product/prd.md": "# Le PRD\n\nDans le dossier.\n"})
+	gitTest(t, folder.work, "branch", "--quiet", "-m", "main", "develop")
+	atelier := Project{Repository: LocalPrefix + atelierID, ProjectID: atelierID, Source: SourceLocal, Groups: []string{GroupTicket, GroupCode},
+		DisplayName: "Atelier", IntegrationBranch: "develop", Folder: folder.work}
+	clock := newClock()
+	server := newRunnerServer(t, clock)
+	store, path := followedStore(t, 0, atelier)
+	home := filepath.Join(t.TempDir(), ".crewdeck")
+	followWith(t, store, newFake(t, "testdata/graphql"), server, nil, func(cfg *FollowerConfig) {
+		cfg.Clones = docsClones(home, remote.url)
+		cfg.Locals = emptySources{}
+		cfg.Folders = func() map[string]string { return map[string]string{atelierID: folder.work} }
+	})
+	server.awaitHello()
+	awaitDoc(t, path, LocalPrefix+atelierID, "docs/product/prd.md", "Dans le dossier")
+
+	// The switch: the code is on GitHub, the Tickets stay Local.
+	server.send(movedProjects(atelier, SourceLocal, SourceGitHub))
+	awaitDoc(t, path, "acme/atelier", "docs/product/prd.md", "Sur GitHub")
+	eventually(t, "the Local key's documents dropped", func() bool {
+		return len(docRows(t, path, LocalPrefix+atelierID)) == 0
+	})
 }

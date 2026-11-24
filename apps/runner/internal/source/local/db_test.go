@@ -24,8 +24,8 @@ func TestLocalDBIsCreatedMode600AtItsVersion(t *testing.T) {
 	if info.Mode().Perm() != 0o600 {
 		t.Errorf("mode %v, want 600", info.Mode().Perm())
 	}
-	if v := userVersion(t, db.SQL()); v != 5 || local.SchemaVersion != 5 {
-		t.Errorf("user_version %d, SchemaVersion %d, want 5", v, local.SchemaVersion)
+	if v := userVersion(t, db.SQL()); v != 6 || local.SchemaVersion != 6 {
+		t.Errorf("user_version %d, SchemaVersion %d, want 6", v, local.SchemaVersion)
 	}
 	var mode string
 	if err := db.SQL().QueryRow("PRAGMA journal_mode").Scan(&mode); err != nil || mode != "wal" {
@@ -39,7 +39,7 @@ func TestLocalDBOfANewerVersionIsNeverOpened(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := raw.Exec("CREATE TABLE kept (x); INSERT INTO kept VALUES (1); PRAGMA user_version = 6"); err != nil {
+	if _, err := raw.Exec("CREATE TABLE kept (x); INSERT INTO kept VALUES (1); PRAGMA user_version = 7"); err != nil {
 		t.Fatal(err)
 	}
 	raw.Close()

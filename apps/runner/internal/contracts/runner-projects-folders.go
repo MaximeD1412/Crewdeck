@@ -14,6 +14,9 @@ type RunnerProjectsFolders struct {
 	// Id corresponds to the JSON schema field "id".
 	Id string `json:"id"`
 
+	// Pending corresponds to the JSON schema field "pending".
+	Pending []string `json:"pending,omitempty,omitzero"`
+
 	// Present corresponds to the JSON schema field "present".
 	Present []string `json:"present"`
 
@@ -46,6 +49,9 @@ func (j *RunnerProjectsFolders) UnmarshalJSON(value []byte) error {
 	}
 	if matched, _ := regexp.MatchString(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`, string(plain.Id)); !matched {
 		return fmt.Errorf("field %s pattern match: must match %s", "Id", `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`)
+	}
+	if len(plain.Pending) > 1000 {
+		return fmt.Errorf("field %s length: must be <= %d", "pending", 1000)
 	}
 	if len(plain.Present) > 1000 {
 		return fmt.Errorf("field %s length: must be <= %d", "present", 1000)

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { zSealedItem } from '../keys/sealed.js';
+import { zVaultKeyVersion } from '../keys/pairing.js';
 import { zArtifactType } from '../process/artifact-types.js';
 import { zSourceGroup, zSourceKind } from '../process/sources.js';
 import { zCursorPage, zCursorQuery, zId, zInstant } from '../values.js';
@@ -54,9 +56,27 @@ export const zSourceMigration = z.object({
 });
 export type SourceMigration = z.infer<typeof zSourceMigration>;
 
-/** `POST /api/projects/:id/sources/:group/migrate`, the Action sensible `source.migrate`: the Source to move to, at the `seq` the Pilote confirmed on. */
-export const zMigrateSourceInput = withSeq(z.object({ to: zSourceKind }));
+/**
+ * The new place a migration picks when the Projet has none on `to`
+ * (SOURCE-9): a repository of the installation that no Projet follows, or
+ * the folder the Pilote picked beforehand (`POST
+ * /api/projects/:id/sources/:group/folder`), which the Runner holds.
+ */
+export const zSourceMigrationTarget = z.union([z.strictObject({ repositoryId: zId }), z.strictObject({ folder: z.literal(true) })]);
+export type SourceMigrationTarget = z.infer<typeof zSourceMigrationTarget>;
+
+/** `POST /api/projects/:id/sources/:group/migrate`, the Action sensible `source.migrate`: the Source to move to, its new place when the Projet has none there, at the `seq` the Pilote confirmed on. */
+export const zMigrateSourceInput = withSeq(z.object({ to: zSourceKind, target: zSourceMigrationTarget.optional() }));
 export type MigrateSourceInput = z.infer<typeof zMigrateSourceInput>;
+
+/**
+ * `POST /api/projects/:id/sources/:group/folder` (SOURCE-9): the folder a
+ * migration of `group` to Local will use, sealed for the Runner
+ * (`project:<id>:folder`) under `vaultKeyVersion`; the Runner checks it
+ * again and holds it as the Projet's pending folder until the switch.
+ */
+export const zPickSourceFolderInput = z.object({ folderSealed: zSealedItem, vaultKeyVersion: zVaultKeyVersion });
+export type PickSourceFolderInput = z.infer<typeof zPickSourceFolderInput>;
 
 /** `POST /api/source-migrations/:id/retry` (« Réessayer »): at the `seq` the Pilote saw the failure on. */
 export const zRetrySourceMigrationInput = withSeq(z.object({}));
@@ -74,6 +94,14 @@ export type SourceMigrationPage = z.infer<typeof zSourceMigrationPage>;
  * blocked-by and lock with them), 1 h. Never the code.
  */
 export const SOURCE_MIGRATION_TOKEN_PERMISSIONS = { issues: 'write' } as const satisfies InstallationPermissions;
+
+/**
+ * What the token of a migration of the `code` group may do (SOURCE-9): push
+ * the branches (`contents`, `workflows` for those that hold
+ * `.github/workflows/`), open the PRs and their comments, on the
+ * migration's repository only.
+ */
+export const SOURCE_MIGRATION_CODE_TOKEN_PERMISSIONS = { contents: 'write', pull_requests: 'write', workflows: 'write' } as const satisfies InstallationPermissions;
 
 /**
  * `POST /api/runner/source-migrations/:id/github-token`, with the Runner's

@@ -32,10 +32,16 @@ export const FOLDER_CHECK_STATES = ['not-absolute', 'missing', 'not-a-folder', '
 export const zFolderCheckState = z.enum(FOLDER_CHECK_STATES);
 export type FolderCheckState = z.infer<typeof zFolderCheckState>;
 
-/** The Runner's answer, sealed for `folder.checked`: `branch` the folder's current branch (`null` without git), `name` its base name. */
+/**
+ * The Runner's answer, sealed for `folder.checked`: `branch` the folder's
+ * current branch (`null` without git), `name` its base name, `empty` whether
+ * the folder holds nothing at all, dotfiles included (SOURCE-9: the code
+ * cloned into it), absent from a Runner before it.
+ */
 export const zFolderCheckResult = z.strictObject({
   state: zFolderCheckState,
   hasCode: z.boolean(),
+  empty: z.boolean().optional(),
   branch: z.string().min(1).nullable(),
   name: z.string(),
 });

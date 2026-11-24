@@ -10,6 +10,9 @@ type FolderCheckResult struct {
 	// Branch corresponds to the JSON schema field "branch".
 	Branch interface{} `json:"branch"`
 
+	// Empty corresponds to the JSON schema field "empty".
+	Empty *bool `json:"empty,omitempty,omitzero"`
+
 	// HasCode corresponds to the JSON schema field "hasCode".
 	HasCode bool `json:"hasCode"`
 

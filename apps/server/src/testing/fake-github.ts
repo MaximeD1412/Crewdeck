@@ -92,6 +92,8 @@ export interface SeedRepo {
   readonly defaultBranch?: string;
   /** The files of the first commit of the default branch. */
   readonly files?: Record<string, FileContent>;
+  /** A repository just created on GitHub: no branch at all, its default branch only a name (SOURCE-9). */
+  readonly empty?: boolean;
 }
 
 export interface SeedIssue {
@@ -191,7 +193,7 @@ export class FakeGitHub implements GitHubClient, Fake {
       installationId: seed.installationId,
       private: seed.private ?? true,
       defaultBranch,
-      branches: new Map([[defaultBranch, { sha: this.commit(new Map(Object.entries(seed.files ?? {}))), protected: false }]]),
+      branches: seed.empty ? new Map() : new Map([[defaultBranch, { sha: this.commit(new Map(Object.entries(seed.files ?? {}))), protected: false }]]),
       labels: new Map(),
       issues: new Map(),
       milestones: new Map(),
@@ -264,7 +266,8 @@ export class FakeGitHub implements GitHubClient, Fake {
 
   async pushCommit(repo: RepoRef, branch: string, files: Record<string, FileContent> = {}): Promise<string> {
     const fake = this.repo(repo);
-    if (!fake.branches.has(branch)) fake.branches.set(branch, { sha: this.head(fake, fake.defaultBranch), protected: false });
+    // On an empty repository (SOURCE-9), the first branch starts from an empty root commit.
+    if (!fake.branches.has(branch)) fake.branches.set(branch, { sha: fake.branches.get(fake.defaultBranch)?.sha ?? this.commit(new Map()), protected: false });
     const parent = this.head(fake, branch);
     const sha = this.commit(new Map([...this.files(parent), ...Object.entries(files)]), [parent]);
     this.moveBranch(fake, branch, sha);
@@ -401,6 +404,11 @@ export class FakeGitHub implements GitHubClient, Fake {
       const branch = this.repo(repo).branches.get(name);
       return branch === undefined ? null : { name, sha: branch.sha, protected: branch.protected };
     });
+  }
+
+  hasBranches(repo: RepoRef): Promise<boolean> {
+    this.record('hasBranches', repo);
+    return this.run(() => this.repo(repo).branches.size > 0);
   }
 
   getDefaultBranch(repo: RepoRef): Promise<string> {

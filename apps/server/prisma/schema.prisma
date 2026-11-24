@@ -991,6 +991,9 @@ model CodeChange {
   mergedBy        MergedBy?         @map("merged_by")
   mergeSha        String?           @map("merge_sha")
   sourceCreatedAt DateTime          @map("source_created_at") @db.Timestamptz
+  /// Its number and Source before a migration of the code moved it (SOURCE-9).
+  formerNumber    Int?              @map("former_number")
+  formerSource    TicketSource?     @map("former_source")
   updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz
   pilot           Pilot             @relation(fields: [pilotId], references: [id], onDelete: Cascade)
   project         Project           @relation(fields: [pilotId, projectId], references: [pilotId, id], onDelete: Cascade)
@@ -1281,6 +1284,8 @@ model SourceMigration {
   /// The items the draining waits for (`zSourceMigrationWaitingItem`), as last counted.
   waitingItems Json                 @default("[]") @map("waiting_items")
   errorCode    String?              @map("error_code")
+  /// The repository the Pilote picked for a group moving to GitHub from a Projet without one (SOURCE-9): the Projet's from the switch on.
+  targetRepositoryId String?          @map("target_repository_id") @db.Uuid
   finishTries  Int                  @default(0) @map("finish_tries")
   nextFinishAt DateTime?            @map("next_finish_at") @db.Timestamptz
   lastSeq      BigInt               @default(0) @map("last_seq")

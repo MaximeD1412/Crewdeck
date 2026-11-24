@@ -1,6 +1,7 @@
-import { projectFolderAad, projectNameAad, type FolderCheckResult, type ProcessTemplateId, type Project } from '@crewdeck/contracts';
+import { projectFolderAad, projectNameAad, type FolderCheckResult, type ProcessTemplateId, type Project, type SourceGroup } from '@crewdeck/contracts';
 import type { Client } from '../api/client.js';
 import { postLocalProject, postProjectFolder } from '../api/projects.js';
+import { postSourceFolder } from '../api/source-migrations.js';
 import { uuidv7 } from '../ids.js';
 import { utf8 } from '../keys/bytes.js';
 import { sealedWrite } from '../keys/sealed-write.js';
@@ -55,4 +56,15 @@ export const attachFolder = async ({ client, vault }: Omit<LocalProjectDeps, 'ne
   sealedWrite(vault, async () => {
     const folderSealed = await sealFolder(vault, projectId, path);
     return postProjectFolder(client, projectId, { folderSealed: toWire(folderSealed), vaultKeyVersion: folderSealed.vaultKeyVersion, ...(seq === undefined ? {} : { seq }) });
+  });
+
+/**
+ * The folder a migration of `group` to Local will use (SOURCE-9): sealed as
+ * the Projet's folder (`project:<id>:folder`), for the Runner, which holds it
+ * until the switch.
+ */
+export const pickSourceFolder = async ({ client, vault }: Omit<LocalProjectDeps, 'newId'>, projectId: string, group: SourceGroup, path: string): Promise<void> =>
+  sealedWrite(vault, async () => {
+    const folderSealed = await sealFolder(vault, projectId, path);
+    await postSourceFolder(client, projectId, group, { folderSealed: toWire(folderSealed), vaultKeyVersion: folderSealed.vaultKeyVersion });
   });

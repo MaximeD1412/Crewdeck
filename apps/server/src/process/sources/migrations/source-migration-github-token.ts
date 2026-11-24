@@ -1,4 +1,4 @@
-import { SOURCE_MIGRATION_TOKEN_PERMISSIONS, type SourceMigrationGithubToken } from '@crewdeck/contracts';
+import { SOURCE_MIGRATION_CODE_TOKEN_PERMISSIONS, SOURCE_MIGRATION_TOKEN_PERMISSIONS, type SourceMigrationGithubToken } from '@crewdeck/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import { notFound, unprocessable } from '../../../errors/app-error.js';
 import { MESSAGES } from '../../../errors/messages.js';
@@ -10,7 +10,9 @@ const RUNNING = ['copying', 'verifying', 'switched'] as const;
 
 /**
  * A migration's GitHub token (SOURCE-8, ADR 0002): an installation token
- * restricted to its Projet's repository and to `issues: write`, 1 h, asked
+ * restricted to its Projet's repository, or the one picked for it while
+ * the Projet has none (SOURCE-9), and to `issues: write` for the Tickets,
+ * `contents`, `pull_requests` and `workflows: write` for the code, 1 h, asked
  * of GitHub at each request, while the Runner copies, verifies or finishes.
  * Never stored, never logged.
  */
@@ -27,7 +29,7 @@ export class SourceMigrationGithubTokens {
    * verifying nor switched, or its Projet reaches no repository.
    */
   async issue(id: string): Promise<SourceMigrationGithubToken> {
-    const migration = await this.prisma.scoped.sourceMigration.findUnique({ where: { id }, select: { state: true, projectId: true } });
+    const migration = await this.prisma.scoped.sourceMigration.findUnique({ where: { id }, select: { state: true, projectId: true, group: true, targetRepositoryId: true } });
     if (!migration) throw notFound('source-migration.not-found', MESSAGES['source-migration.not-found']);
     const notRunning = () => unprocessable('source-migration.not-running', MESSAGES['source-migration.not-running']);
     if (!(RUNNING as readonly string[]).includes(migration.state)) throw notRunning();
@@ -35,14 +37,13 @@ export class SourceMigrationGithubTokens {
       where: { id: migration.projectId },
       select: { repositoryId: true, githubRepoId: true, accessLost: true },
     });
-    const repository =
-      project?.repositoryId && project.githubRepoId !== null && !project.accessLost
-        ? await this.prisma.scoped.repository.findUnique({ where: { id: project.repositoryId }, select: { installationId: true } })
-        : null;
-    if (!project?.githubRepoId || !repository) throw notRunning();
+    if (!project) throw notRunning();
+    const repositoryId = project.repositoryId && project.githubRepoId !== null && !project.accessLost ? project.repositoryId : migration.targetRepositoryId;
+    const repository = repositoryId ? await this.prisma.scoped.repository.findUnique({ where: { id: repositoryId }, select: { installationId: true, githubId: true } }) : null;
+    if (!repository) throw notRunning();
     const { token, expiresAt } = await this.github.installationToken(Number(repository.installationId), {
-      repositoryIds: [Number(project.githubRepoId)],
-      permissions: SOURCE_MIGRATION_TOKEN_PERMISSIONS,
+      repositoryIds: [Number(repository.githubId)],
+      permissions: migration.group === 'code' ? SOURCE_MIGRATION_CODE_TOKEN_PERMISSIONS : SOURCE_MIGRATION_TOKEN_PERMISSIONS,
     });
     return { token, expiresAt };
   }

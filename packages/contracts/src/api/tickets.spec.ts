@@ -160,6 +160,13 @@ describe('zCodeChange', () => {
     expect(zCodeChange.safeParse({ ...CODE_CHANGE, headSha: 'nope' }).success).toBe(false);
     expect(zCodeChange.safeParse({ ...CODE_CHANGE, title: null, titleSealed: SEALED }).success).toBe(false);
   });
+
+  it('has no title for a moment once a migration of the code moved it, its former number kept (SOURCE-9)', () => {
+    const moved = { ...CODE_CHANGE, source: 'local', title: null, formerNumber: 12, formerSource: 'github' };
+    expect(zCodeChange.parse(moved)).toMatchObject({ formerNumber: 12, formerSource: 'github' });
+    expect(zCodeChange.safeParse({ ...moved, formerSource: null }).success).toBe(false);
+    expect(zCodeChange.safeParse({ ...moved, formerSource: 'local' }).success).toBe(false);
+  });
 });
 
 describe('zTicketDetail', () => {

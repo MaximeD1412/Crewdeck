@@ -3,7 +3,7 @@ import '@crewdeck/skin-passerelle/tokens.css';
 import * as sdk from '@crewdeck/sdk';
 import { COMPOSANTS, t } from '@crewdeck/sdk';
 import { userEvent } from 'vitest/browser';
-import { CONFIRM_TAG, confirmProductAction, confirmSensitiveAction, CrewdeckConfirm, type ConfirmOptions } from './confirm.js';
+import { CONFIRM_TAG, confirmProductAction, confirmSensitiveAction, CrewdeckConfirm, type ConfirmFormView, type ConfirmOptions } from './confirm.js';
 
 const options: ConfirmOptions = {
   action: 'loop.start',
@@ -139,6 +139,91 @@ describe('crewdeck-confirm', () => {
     expect(Object.keys(COMPOSANTS)).not.toContain('ConfirmDialog');
     expect(Object.values(COMPOSANTS).map((d) => d.tag as string)).not.toContain(CONFIRM_TAG);
     expect(Object.keys(sdk).filter((name) => /confirm/i.test(name))).toEqual([]);
+  });
+
+  /** A form the test drives: its view set from outside, its changes recorded. */
+  const fakeForm = (first: ConfirmFormView) => {
+    let current = first;
+    const listeners = new Set<() => void>();
+    const changes: [string, string][] = [];
+    return {
+      changes,
+      listening: () => listeners.size,
+      set(next: ConfirmFormView) {
+        current = next;
+        for (const listener of [...listeners]) listener();
+      },
+      form: {
+        view: () => current,
+        change: (name: string, value: string) => void changes.push([name, value]),
+        subscribe(fn: () => void) {
+          listeners.add(fn);
+          return () => void listeners.delete(fn);
+        },
+      },
+    };
+  };
+  const SELECT: ConfirmFormView = {
+    ready: false,
+    fields: [
+      {
+        kind: 'select',
+        name: 'repository',
+        label: 'Dépôt',
+        value: '',
+        placeholder: 'Choisis un dépôt',
+        options: [
+          { value: 'r1', label: 'MaximeD1412/recettes' },
+          { value: 'r2', label: 'MaximeD1412/site' },
+        ],
+        help: 'Crée le dépôt sur GitHub.',
+        link: { href: 'https://github.example/apps/crewdeck/installations/new', label: 'Installer Crewdeck sur GitHub', external: true },
+      },
+    ],
+  };
+
+  it('asks its fields before the action: disabled until the form is ready, each change passed on, drawn again as the form changes (SOURCE-9)', async () => {
+    const driven = fakeForm(SELECT);
+    const { answer } = await open({ ...options, form: driven.form });
+    const select = shadow().querySelector('select') as HTMLSelectElement;
+    expect(shadow().querySelector(`label[for="${select.id}"]`)?.textContent).toBe('Dépôt');
+    expect([...select.options].map((option) => option.textContent)).toEqual(['Choisis un dépôt', 'MaximeD1412/recettes', 'MaximeD1412/site']);
+    expect(shadow().textContent).toContain('Crée le dépôt sur GitHub.');
+    const link = shadow().querySelector('a') as HTMLAnchorElement;
+    expect([link.textContent, link.getAttribute('href'), link.target, link.rel]).toEqual(['Installer Crewdeck sur GitHub', 'https://github.example/apps/crewdeck/installations/new', '_blank', 'noopener']);
+    const confirm = button('Démarrer la Boucle');
+    expect(confirm.disabled).toBe(true);
+
+    await userEvent.selectOptions(select, 'r2');
+    expect(driven.changes).toEqual([['repository', 'r2']]);
+    driven.set({ ...SELECT, ready: true, consequences: { lead: 'Local → GitHub, MaximeD1412/site.' } });
+    await expect.poll(() => button('Démarrer la Boucle').disabled).toBe(false);
+    expect(shadow().getElementById('consequences')?.textContent?.trim()).toBe('Local → GitHub, MaximeD1412/site.');
+    button('Démarrer la Boucle').click();
+    await expect(answer).resolves.toBe(true);
+    expect(driven.listening()).toBe(0);
+  });
+
+  it('draws a text field with its message, and an empty state with its link, as text (SOURCE-9)', async () => {
+    const driven = fakeForm({
+      ready: false,
+      fields: [{ kind: 'text', name: 'folder', label: 'Dossier', value: '', placeholder: '~/projets/recettes', message: 'Ce dossier n’est pas vide : le dépôt y sera cloné.', invalid: true }],
+    });
+    await open({ ...options, form: driven.form });
+    const input = shadow().querySelector('input') as HTMLInputElement;
+    expect(shadow().querySelector(`label[for="${input.id}"]`)?.textContent).toBe('Dossier');
+    expect(input.placeholder).toBe('~/projets/recettes');
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(shadow().getElementById(input.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Ce dossier n’est pas vide : le dépôt y sera cloné.');
+    await userEvent.type(input, '~/a');
+    expect(driven.changes.at(-1)).toEqual(['folder', '~/a']);
+
+    driven.set({ ready: false, fields: [{ kind: 'empty', title: '<b>Aucun dépôt</b>', text: 'Crée le dépôt.', link: { href: '/api/auth/github/link?next=%2F', label: 'Relier GitHub' } }] });
+    await expect.poll(() => shadow().querySelector('input')).toBeNull();
+    expect(shadow().querySelector('.empty b')).toBeNull();
+    expect(shadow().querySelector('.empty')?.textContent).toContain('<b>Aucun dépôt</b>');
+    const link = shadow().querySelector('.empty a') as HTMLAnchorElement;
+    expect([link.textContent, link.getAttribute('href'), link.target]).toEqual(['Relier GitHub', '/api/auth/github/link?next=%2F', '']);
   });
 
   it('confirms a product’s action the same way, without calling it an Action sensible (E2E-4: « Retirer » an Appareil)', async () => {

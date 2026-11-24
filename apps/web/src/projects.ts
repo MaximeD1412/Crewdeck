@@ -15,6 +15,8 @@ export interface ProjectsOptions {
 export interface Projects {
   /** The RepositoryPicker's data for `context`; the first call reads `GET /api/config` for GitHub's installation page. */
   picker(context: InstallReturn): PickerView;
+  /** GitHub's page installing the App on more repositories, back to `context`; `null` until `GET /api/config` is read, which it starts. */
+  installUrl(context: InstallReturn): string | null;
   /** Follows the Dépôts GitHub with the Modèle de process chosen, the picker busy meanwhile; a refusal is thrown, for the page to show. */
   follow(repositoryIds: readonly string[], templateId: string): Promise<void>;
   /** Calls `fn` after each change of the page's own state; returns the function that stops. */
@@ -61,6 +63,10 @@ export const createProjects = ({ store, client }: ProjectsOptions): Projects => 
         installUrl: config ? installUrl(config, context) : null,
         busy: following,
       });
+    },
+    installUrl(context) {
+      readConfig();
+      return config ? installUrl(config, context) : null;
     },
     async follow(repositoryIds, templateId) {
       if (following) return;

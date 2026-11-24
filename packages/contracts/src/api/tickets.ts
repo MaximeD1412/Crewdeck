@@ -59,6 +59,8 @@ const TITLE_BY_SOURCE = { message: 'title for github, titleSealed for local', pa
 const untitled = (row: { title: string | null; titleSealed: unknown }) => row.title === null && row.titleSealed === null;
 const ticketTitled = (row: { source: TicketSource; title: string | null; titleSealed: unknown; labelsSealed: unknown; formerSource: TicketSource | null }) =>
   titledBySource(row) || (row.formerSource !== null && row.formerSource !== row.source && untitled(row) && row.labelsSealed === null);
+const codeChangeTitled = (row: { source: TicketSource; title: string | null; titleSealed: unknown; formerSource?: TicketSource | null | undefined }) =>
+  titledBySource(row) || (row.formerSource != null && row.formerSource !== row.source && untitled(row));
 const milestoneTitled = (row: { source: TicketSource; title: string | null; titleSealed: unknown }) => titledBySource(row) || untitled(row);
 
 /**
@@ -165,9 +167,12 @@ export const zCodeChange = z
     mergedBy: zMergedBy.nullable(),
     mergeSha: zSha.nullable(),
     sourceCreatedAt: zInstant,
+    /** Its number and Source before a migration of the code moved it (SOURCE-9), untitled until its new Source fills it. */
+    formerNumber: zSourceNumber.nullable().optional(),
+    formerSource: zTicketSource.nullable().optional(),
     updatedAt: zInstant,
   })
-  .refine(titledBySource, TITLE_BY_SOURCE);
+  .refine(codeChangeTitled, TITLE_BY_SOURCE);
 export type CodeChange = z.infer<typeof zCodeChange>;
 
 /** One check of a commit: running, passed or failed. */

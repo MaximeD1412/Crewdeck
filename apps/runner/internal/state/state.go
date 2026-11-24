@@ -35,6 +35,18 @@ type State struct {
 	// Projects are the Local Projets' folders, projectId → absolute real
 	// path (ADR 0012): they never leave the machine but sealed.
 	Projects map[string]string `json:"projects,omitempty"`
+	// Pending are the folders picked for a migration to Local (SOURCE-9),
+	// projectId → folder, held until the migration's finish makes each its
+	// Projet's folder, or its failure drops it.
+	Pending map[string]PendingFolder `json:"pending,omitempty"`
+}
+
+// PendingFolder is a folder picked for the migration of a group to Local.
+type PendingFolder struct {
+	// Path is the folder's absolute real path.
+	Path string `json:"path"`
+	// Group is the group migrating into it: `ticket` or `code`.
+	Group string `json:"group"`
 }
 
 // Store reads and writes the state in Dir.

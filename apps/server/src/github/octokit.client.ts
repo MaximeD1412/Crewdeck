@@ -223,6 +223,13 @@ export class OctokitGitHubClient implements GitHubClient {
     });
   }
 
+  hasBranches(repo: RepoRef): Promise<boolean> {
+    return this.onRepo(repo, async (request) => {
+      const { data } = await request('GET /repos/{owner}/{repo}/branches', { ...this.params(repo), per_page: 1 });
+      return z.array(z.unknown()).parse(data).length > 0;
+    });
+  }
+
   getDefaultBranch(repo: RepoRef): Promise<string> {
     return this.onRepo(repo, async (request) => {
       const { data } = await request('GET /repos/{owner}/{repo}', this.params(repo));

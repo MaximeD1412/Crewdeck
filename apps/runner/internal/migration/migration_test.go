@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -28,10 +29,21 @@ const projectID = "019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a02"
 // env is a Local Projet's folder, a fake repository on GitHub and what the
 // handler sent to the server.
 type env struct {
-	t        *testing.T
-	dir      string
-	home     string
-	project  *local.Project
+	t       *testing.T
+	dir     string
+	home    string
+	db      *local.DB
+	project *local.Project
+	// folder is the Projet's folder in the Runner's state (dir; "" for
+	// none), pending the one picked for a migration to Local ("" for none).
+	folder   string
+	pending  string
+	promoted []string
+	// others are the folders other Projets hold.
+	others []string
+	// remote is the repository's git URL (a bare repository over file://).
+	remote   string
+	opened   map[string]*local.Project
 	vault    *keys.Vault
 	gh       *fakeGitHub
 	url      string
@@ -56,10 +68,23 @@ func newEnv(t *testing.T, files map[string]string) *env {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
+	e.db, e.folder, e.opened = db, e.dir, map[string]*local.Project{}
 	e.project = local.Open(db, func() *keys.Vault { return e.vault }, projectID, e.dir)
 	gh, server := newFakeGitHub(t)
 	e.gh, e.url, e.token = gh, server.URL, gh.token
 	return e
+}
+
+// attachOther makes folder another Projet's, as the folders handler does:
+// refused when this Projet holds it, as its folder or its pending one.
+func (e *env) attachOther(folder string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if folder == e.pending || folder == e.folder {
+		return false
+	}
+	e.others = append(e.others, folder)
+	return true
 }
 
 func (e *env) handler() *migration.Handler {
@@ -71,20 +96,61 @@ func (e *env) handler() *migration.Handler {
 			e.sent = append(e.sent, m)
 			return nil
 		},
-		Local: func(id, dir string) (source.Copier, error) {
-			if id != projectID {
-				return nil, migration.ErrNoFolder
+		Folder: func(id string) (string, bool) {
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			return e.folder, id == projectID && e.folder != ""
+		},
+		Pending: func(id string) (string, bool) {
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			return e.pending, id == projectID && e.pending != ""
+		},
+		Promote: func(_ context.Context, id, folder string) error {
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			e.folder, e.pending = folder, ""
+			e.promoted = append(e.promoted, id)
+			return nil
+		},
+		Hold: func(_ context.Context, id, _, folder string) (bool, error) {
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			if id != projectID || slices.Contains(e.others, folder) {
+				return false, nil
 			}
-			return e.project.Copier(dir), nil
+			e.pending = folder
+			return true, nil
+		},
+		Open: e.open,
+		Remote: func(_, owner, name string) migration.Remote {
+			return migration.Remote{URL: e.remote, Env: func(context.Context) ([]string, error) {
+				return migration.AuthEnv(e.remote, e.token), nil
+			}}
 		},
 		GitHub: func(_, owner, name string) source.Copier {
 			return &ghsource.Tickets{BaseURL: e.url, Owner: owner, Name: name, Wait: func(int) time.Duration { return 0 },
 				Token: func(context.Context) (string, error) { return e.token, nil }}
 		},
 		Vault:    func() *keys.Vault { return e.vault },
-		Finished: func(id, to string) { e.finished = append(e.finished, id+" "+to) },
+		Finished: func(_ context.Context, id, to string) { e.finished = append(e.finished, id+" "+to) },
 		Logger:   slog.New(slog.NewTextHandler(&e.logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
 	})
+}
+
+// open is the Local Projet in folder: the env's own in dir.
+func (e *env) open(id, folder string) *local.Project {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if folder == e.dir {
+		return e.project
+	}
+	if p, ok := e.opened[folder]; ok {
+		return p
+	}
+	p := local.Open(e.db, func() *keys.Vault { return e.vault }, id, folder)
+	e.opened[folder] = p
+	return p
 }
 
 func (e *env) write(name, content string) {

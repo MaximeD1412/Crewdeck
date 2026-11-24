@@ -6,6 +6,7 @@ import { ApiError } from '../api/request.js';
 import { migrateSource } from '../api/source-migrations.js';
 import type { ConfirmOptions } from '../dialogs/confirm.js';
 import { targetPhaseOf } from '../process/canvas.js';
+import { createMigrationPlace, needsPlace, type MigrationPlace, type MigrationPlaceDeps } from '../process/migration-place.js';
 import { changeLabels } from '../process/diff-labels.js';
 import { addPhase, addStep, moveStep, moveStepToPhase, removePhase, removeStep, renamePhase, setForEach, type EditResult } from '../process/edit.js';
 import type { Editing } from '../process/editing.js';
@@ -233,6 +234,8 @@ export interface MigrateActionOptions {
   readonly client: Pick<Client, 'command'>;
   /** The page's match: its Projet's id. */
   readonly current: () => Pick<RouteMatch, 'params'>;
+  /** What picks the new place when the Projet has none on the Source it goes to (SOURCE-9); without it, none is picked. */
+  readonly places?: MigrationPlaceDeps;
 }
 
 /**
@@ -242,26 +245,57 @@ export interface MigrateActionOptions {
  * goes back once answered; confirmed, the migration is asked with the `seq`
  * seen when the dialog opened, and the store shows it running, live. A
  * refusal is an `ApiError`, which the page shows.
+ *
+ * A Projet with no place on the Source it goes to picks it in the dialog
+ * (SOURCE-9), the action disabled until it is: a repository, sent as the
+ * migration's `target`; a folder, sent sealed to the Runner first.
  */
-export const createMigrateAction = ({ ui, client, current }: MigrateActionOptions): SensitiveActionHandler<Payload<'migrate'>> => {
+export const createMigrateAction = ({ ui, client, current, places }: MigrateActionOptions): SensitiveActionHandler<Payload<'migrate'>> => {
   const projectId = () => current().params['id'] ?? '';
+  /** The open dialog's Projet and place picked, from its opening to its run (the page may move meanwhile). */
+  let confirming: { readonly projectId: string; readonly place: MigrationPlace | null } | null = null;
+  const forget = () => {
+    confirming?.place?.dispose();
+    confirming = null;
+  };
   return {
     confirmation: ({ group, to }, state) => {
+      const id = projectId();
       const slices = state.slices as ProcessEditorState['slices'];
-      const project = slices.project?.get(projectId());
-      const view = slices.process?.get(projectId());
+      const project = slices.project?.get(id);
+      const view = slices.process?.get(id);
       const definition = view?.active?.definition ?? view?.draft?.definition ?? null;
       const from = view?.sources[group].source ?? (to === 'github' ? 'local' : 'github');
-      if (!project) throw new Error(`Projet ${projectId()} absent du store`);
-      return migrationConfirmation(sourceReadsOf(state as ProcessEditorState, project, definition), group, from, to);
+      if (!project) throw new Error(`Projet ${id} absent du store`);
+      forget();
+      const place = places && needsPlace(project, to) ? createMigrationPlace(places, { project, group, to }) : null;
+      confirming = { projectId: id, place };
+      const reads = sourceReadsOf(state as ProcessEditorState, project, definition);
+      const ticketSource = view?.sources.ticket.source ?? undefined;
+      const dialog = (context = place?.context() ?? {}) =>
+        migrationConfirmation(reads, group, from, to, { ...context, ...(ticketSource ? { ticketSource } : {}) });
+      if (!place) return dialog();
+      return {
+        ...dialog(),
+        form: {
+          view: () => ({ ...place.view(), consequences: dialog().consequences }),
+          change: (name, value) => place.change(name, value),
+          subscribe: (fn) => place.subscribe(fn),
+        },
+      };
     },
     pending: (choice) => {
       const id = projectId();
       ui.choose(id, choice);
-      return () => ui.choose(id, null);
+      return () => {
+        ui.choose(id, null);
+        forget();
+      };
     },
     run: async ({ group, to }, { seq }) => {
-      await migrateSource(client, projectId(), group, to, seq);
+      const confirmed = confirming ?? { projectId: projectId(), place: null };
+      const target = confirmed.place ? await confirmed.place.commit() : undefined;
+      await migrateSource(client, confirmed.projectId, group, to, seq, target);
     },
   };
 };

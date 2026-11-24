@@ -13,6 +13,9 @@ type RunnerMigrationCopy struct {
 	// At corresponds to the JSON schema field "at".
 	At time.Time `json:"at"`
 
+	// Branches corresponds to the JSON schema field "branches".
+	Branches *RunnerMigrationCopyBranches `json:"branches,omitempty,omitzero"`
+
 	// From corresponds to the JSON schema field "from".
 	From RunnerMigrationCopyFrom `json:"from"`
 
@@ -36,6 +39,47 @@ type RunnerMigrationCopy struct {
 
 	// Type corresponds to the JSON schema field "type".
 	Type string `json:"type"`
+}
+
+type RunnerMigrationCopyBranches struct {
+	// Integration corresponds to the JSON schema field "integration".
+	Integration string `json:"integration"`
+
+	// Release corresponds to the JSON schema field "release".
+	Release string `json:"release"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *RunnerMigrationCopyBranches) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["integration"]; raw != nil && !ok {
+		return fmt.Errorf("field integration in RunnerMigrationCopyBranches: required")
+	}
+	if _, ok := raw["release"]; raw != nil && !ok {
+		return fmt.Errorf("field release in RunnerMigrationCopyBranches: required")
+	}
+	type Plain RunnerMigrationCopyBranches
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if utf8.RuneCountInString(string(plain.Integration)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "integration", 1)
+	}
+	if utf8.RuneCountInString(string(plain.Integration)) > 255 {
+		return fmt.Errorf("field %s length: must be <= %d", "integration", 255)
+	}
+	if utf8.RuneCountInString(string(plain.Release)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "release", 1)
+	}
+	if utf8.RuneCountInString(string(plain.Release)) > 255 {
+		return fmt.Errorf("field %s length: must be <= %d", "release", 255)
+	}
+	*j = RunnerMigrationCopyBranches(plain)
+	return nil
 }
 
 type RunnerMigrationCopyFrom string

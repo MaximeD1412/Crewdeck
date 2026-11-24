@@ -21,7 +21,8 @@ type NameOpener interface {
 // with one group on each, two. A group on GitHub without a repository (not
 // linked yet) has no key. A Local key's name is the Projet's sealed name
 // opened with vault (nil: none opened), else the key itself; it never
-// leaves the machine.
+// leaves the machine. A GitHub key without a readable name (displayName
+// null) takes the sealed one likewise, else its repository.
 func ProjectsOf(items []contracts.RunnerMirrorProjectsProjectsElem, folders map[string]string, vault NameOpener) []Project {
 	var out []Project
 	for _, item := range items {
@@ -34,7 +35,12 @@ func ProjectsOf(items []contracts.RunnerMirrorProjectsProjectsElem, folders map[
 		}
 		repository, _ := item.Repository.(string)
 		if gs := groups[SourceGitHub]; len(gs) > 0 && repository != "" {
+			// A Projet created Local keeps its name sealed, even once its code
+			// moved to a repository (SOURCE-9): its displayName is null.
 			name, _ := item.DisplayName.(string)
+			if name == "" {
+				name = openName(vault, item.ProjectId, item.NameSealed)
+			}
 			if name == "" {
 				name = repository
 			}

@@ -45,13 +45,14 @@ import { followVault } from './keys/follow.js';
 import { createPageKeys, type PageKeys } from './keys/index.js';
 import { createEditing } from './process/editing.js';
 import { createEditorUi } from './process/editor-ui.js';
+import type { MigrationPlaceDeps } from './process/migration-place.js';
 import { createNoteIdea } from './note-idea.js';
 import { createProjectSettings } from './project-settings.js';
 import { createProjectNames, createProjects } from './projects.js';
 import { createLocalTexts } from './sources/local-sealed.js';
 import { createFolderCheck, createFolderChecker, type FolderSocket } from './projects/folder-check.js';
 import { createFolderForm } from './projects/folder-form.js';
-import { attachFolder, createLocalProject } from './projects/local.js';
+import { attachFolder, createLocalProject, pickSourceFolder } from './projects/local.js';
 import { bootSkin } from './registry.js';
 import { createDeviceStore } from './keys/device-store.js';
 import { createBrowserPush, type PushDevice } from './push.js';
@@ -266,8 +267,9 @@ export const boot = async ({
   const names = createProjectNames({ vault: keys.vault, vaultState: () => store.getState().vaultState });
   const projectName = (project: Pick<Project, 'id' | 'displayName' | 'nameSealed'>) => names.projectName(project);
   const localTexts = createLocalTexts({ vault: keys.vault, vaultState: () => store.getState().vaultState });
+  const folderCheck = createFolderCheck({ socket: folders, vault: keys.vault });
   const folderForm = createFolderForm({
-    checker: createFolderChecker({ check: createFolderCheck({ socket: folders, vault: keys.vault }) }),
+    checker: createFolderChecker({ check: folderCheck }),
     createProject: ({ templateId, ...input }) => createLocalProject({ client, vault: keys.vault }, { ...input, templateId: zProcessTemplateId.parse(templateId) }),
     attachFolder: (projectId, path) => attachFolder({ client, vault: keys.vault }, projectId, path),
   });
@@ -596,7 +598,19 @@ export const boot = async ({
   dispatcher.registerAction(PageProcessEditor, 'tab', { run: (payload) => editor.tab(payload) });
   dispatcher.registerAction(PageProcessEditor, 'view', { run: (payload) => editor.view(payload) });
   dispatcher.registerAction(PageProcessEditor, 'activate', editor.activate);
-  dispatcher.registerAction(PageProcessEditor, 'migrate', createMigrateAction({ ui: editorUi, client, current: () => router.current }));
+  // The new place a migration picks when the Projet has none there (SOURCE-9): a repository, or a folder checked as at creation.
+  const migrationPlaces: MigrationPlaceDeps = {
+    checker: () => createFolderChecker({ check: folderCheck }),
+    pickFolder: (projectId, group, path) => pickSourceFolder({ client, vault: keys.vault }, projectId, group, path),
+    installUrl: () => projects.installUrl('projets'),
+    linkGithubHref: () => githubLinkHref(`${location.pathname}${location.search}`),
+    state: () => store.getState(),
+    subscribe: (fn) => {
+      const stops = [store.subscribe(() => fn()), projects.subscribe(fn)];
+      return () => stops.forEach((stop) => stop());
+    },
+  };
+  dispatcher.registerAction(PageProcessEditor, 'migrate', createMigrateAction({ ui: editorUi, client, current: () => router.current, places: migrationPlaces }));
   dispatcher.registerAction(PageProcessEditor, 'addPhase', { run: () => editor.addPhase() });
   dispatcher.registerAction(PageProcessEditor, 'openCatalogue', { run: () => editor.openCatalogue() });
   dispatcher.registerAction(PageProcessEditor, 'closeMenu', { run: () => editor.closeMenu() });

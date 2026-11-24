@@ -22,6 +22,12 @@ describe('the messages of a migration of Source', () => {
     expect(zMigrationCopy.safeParse({ ...copy, to: 'gitlab' }).success).toBe(false);
   });
 
+  it('gives the code’s copy the release and integration branches (SOURCE-9)', () => {
+    const copy = { ...fixture('migration.copy'), group: 'code', branches: { release: 'main', integration: 'develop' } };
+    expect(zMigrationCopy.parse(copy).branches).toEqual({ release: 'main', integration: 'develop' });
+    expect(zMigrationCopy.safeParse({ ...copy, branches: { release: 'main' } }).success).toBe(false);
+  });
+
   it('counts the copy, then its verification, never another state', () => {
     expect(zMigrationProgress.parse(fixture('migration.progress'))).toMatchObject({ total: 30, copied: 12, state: 'copying' });
     expect(zMigrationProgress.safeParse({ ...fixture('migration.progress'), state: 'switched' }).success).toBe(false);

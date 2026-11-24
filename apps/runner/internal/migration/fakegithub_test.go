@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"regexp"
 	"slices"
 	"strconv"
@@ -27,6 +28,11 @@ type fakeGitHub struct {
 	// cut, when it says so, drops the connection after the call is applied,
 	// before its answer.
 	cut func(call string) bool
+	// fail, when it gives a status, refuses the call with it, unapplied.
+	fail func(call string) int
+	// bare is the repository's git side: a pull request's head is read
+	// there, and one of a branch it lacks is refused ("" for none).
+	bare string
 }
 
 type fakeIssue struct {
@@ -47,6 +53,26 @@ type fakeIssue struct {
 	// one of o/r's sub-issues (Parent) or blockers (BlockedByOther), never listed.
 	Repo           string
 	BlockedByOther []int64
+	// A pull request's (PR): its head and base, draft, merged, author, reviews.
+	Head, HeadSha, Base string
+	Draft, Merged       bool
+	Author              string
+	Reviews             []fakeReview
+}
+
+type fakeReview struct {
+	ID      int64
+	Author  string
+	State   string
+	Body    string
+	Remarks []fakeRemark
+}
+
+type fakeRemark struct {
+	ID   int64
+	Path string
+	Line int
+	Body string
 }
 
 type fakeComment struct {
@@ -141,7 +167,21 @@ func (f *fakeGitHub) Issues() []fakeIssue {
 	return out
 }
 
+// Pulls are the repository's pull requests.
+func (f *fakeGitHub) Pulls() []fakeIssue {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := []fakeIssue{}
+	for _, is := range f.issues {
+		if is.PR && is.Repo == "" {
+			out = append(out, *is)
+		}
+	}
+	return out
+}
+
 var (
+	pullPath      = regexp.MustCompile(`^/pulls/(\d+)(/.*)?$`)
 	issuePath     = regexp.MustCompile(`^/issues/(\d+)(/.*)?$`)
 	milestonePath = regexp.MustCompile(`^/milestones/(\d+)$`)
 )
@@ -158,6 +198,12 @@ func (f *fakeGitHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Authorization") != "Bearer "+f.token {
 		http.Error(w, `{"message":"Bad credentials"}`, http.StatusUnauthorized)
 		return
+	}
+	if f.fail != nil {
+		if status := f.fail(call); status != 0 {
+			http.Error(w, `{"message":"Refused"}`, status)
+			return
+		}
 	}
 	var body map[string]any
 	_ = json.NewDecoder(r.Body).Decode(&body)
@@ -203,6 +249,40 @@ func (f *fakeGitHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		f.issues = append(f.issues, is)
 		reply(http.StatusCreated, f.render(is))
+	case call == "GET /pulls":
+		items := []any{}
+		for _, is := range f.issues {
+			if is.PR && is.Repo == "" {
+				items = append(items, f.renderPull(is))
+			}
+		}
+		list(items)
+	case call == "POST /pulls":
+		head := str(body["head"])
+		sha := ""
+		if f.bare != "" {
+			out, err := exec.Command("git", "-C", f.bare, "rev-parse", "--verify", "--quiet", "refs/heads/"+head).Output()
+			if err != nil {
+				reply(http.StatusUnprocessableEntity, map[string]any{"message": "Validation Failed"})
+				return
+			}
+			sha = strings.TrimSpace(string(out))
+		}
+		f.nextID++
+		draft, _ := body["draft"].(bool)
+		is := &fakeIssue{ID: f.nextID, Number: f.nextNumber(), Title: str(body["title"]), Body: str(body["body"]), State: "open", PR: true,
+			Head: head, HeadSha: sha, Base: str(body["base"]), Draft: draft, Author: "crewdeck[bot]"}
+		f.issues = append(f.issues, is)
+		reply(http.StatusCreated, f.renderPull(is))
+	case pullPath.MatchString(path):
+		match := pullPath.FindStringSubmatch(path)
+		n, _ := strconv.Atoi(match[1])
+		is := f.issue(n)
+		if is == nil || !is.PR {
+			reply(http.StatusNotFound, map[string]any{"message": "Not Found"})
+			return
+		}
+		f.servePull(r.Method, is, match[2], body, reply, list)
 	case call == "GET /labels":
 		items := []any{}
 		for _, l := range f.labels {
@@ -349,6 +429,56 @@ func (f *fakeGitHub) serveIssue(method string, is *fakeIssue, rest string, body 
 		reply(http.StatusNoContent, nil)
 	default:
 		reply(http.StatusNotFound, map[string]any{"message": fmt.Sprintf("Not Found: %s %s", method, rest)})
+	}
+}
+
+func (f *fakeGitHub) servePull(method string, is *fakeIssue, rest string, body map[string]any, reply func(int, any), list func([]any)) {
+	switch {
+	case method == http.MethodPatch && rest == "":
+		if v, ok := body["title"]; ok {
+			is.Title = str(v)
+		}
+		if v, ok := body["body"]; ok {
+			is.Body = str(v)
+		}
+		if v, ok := body["base"]; ok {
+			is.Base = str(v)
+		}
+		reply(http.StatusOK, f.renderPull(is))
+	case method == http.MethodGet && rest == "/reviews":
+		items := []any{}
+		for _, r := range is.Reviews {
+			items = append(items, map[string]any{"id": r.ID, "state": r.State, "body": r.Body, "commit_id": is.HeadSha,
+				"submitted_at": "2026-11-19T09:00:00Z", "user": map[string]any{"login": r.Author}})
+		}
+		list(items)
+	case method == http.MethodGet && rest == "/comments":
+		items := []any{}
+		for _, r := range is.Reviews {
+			for _, m := range r.Remarks {
+				items = append(items, map[string]any{"id": m.ID, "pull_request_review_id": r.ID, "path": m.Path, "line": m.Line, "body": m.Body,
+					"created_at": "2026-11-19T09:00:00Z"})
+			}
+		}
+		list(items)
+	default:
+		reply(http.StatusNotFound, map[string]any{"message": fmt.Sprintf("Not Found: %s %s", method, rest)})
+	}
+}
+
+func (f *fakeGitHub) renderPull(is *fakeIssue) map[string]any {
+	var merged any
+	if is.Merged {
+		merged = "2026-11-18T09:00:00Z"
+	}
+	author := is.Author
+	if author == "" {
+		author = "octocat"
+	}
+	return map[string]any{
+		"number": is.Number, "title": is.Title, "body": is.Body, "state": is.State, "draft": is.Draft, "merged_at": merged,
+		"created_at": "2026-11-18T08:00:00Z", "head": map[string]any{"ref": is.Head, "sha": is.HeadSha}, "base": map[string]any{"ref": is.Base},
+		"user": map[string]any{"login": author},
 	}
 }
 

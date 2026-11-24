@@ -262,7 +262,28 @@ func TestTheResultIsAFolderCheckResult(t *testing.T) {
 	if err := json.Unmarshal(data, &back); err != nil {
 		t.Fatalf("decode %s: %v", data, err)
 	}
-	if string(data) != `{"state":"not-git","hasCode":false,"branch":null,"name":"recettes"}` {
+	if string(data) != `{"state":"not-git","hasCode":false,"empty":true,"branch":null,"name":"recettes"}` {
 		t.Fatalf("result %s", data)
+	}
+}
+
+// SOURCE-9: a folder says whether it holds nothing at all, a dotfile counting;
+// what is not a folder says nothing.
+func TestAFolderSaysWhetherItIsEmpty(t *testing.T) {
+	c, home := checker(t)
+	mkdir(t, filepath.Join(home, "vide"))
+	touch(t, filepath.Join(home, "cache", ".gitkeep"))
+	touch(t, filepath.Join(home, "fichier"))
+
+	for path, want := range map[string]bool{"~/vide": true, "~/cache": false} {
+		got := c.Check(path, nil, "")
+		if got.Empty == nil || *got.Empty != want {
+			t.Fatalf("%s: empty %v, want %v", path, got.Empty, want)
+		}
+	}
+	for _, path := range []string{"~/fichier", "~/absent", "relatif"} {
+		if got := c.Check(path, nil, ""); got.Empty != nil {
+			t.Fatalf("%s: empty %v, want none", path, *got.Empty)
+		}
 	}
 }

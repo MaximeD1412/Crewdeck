@@ -412,7 +412,7 @@ describe('the envelopes of GitHub’s changes for the Runner’s Miroir, against
       ]);
     });
 
-    it('keeps a Projet with a group Local whose repository is unreachable, without its repository', async () => {
+    it('keeps a Projet with a group Local whose repository is unreachable, without its repository but with its name', async () => {
       await sql(`UPDATE artifact_sources SET source = 'local' WHERE project_id = $1 AND "group" = 'ticket'`, [projectId]);
       await sql('UPDATE projects SET access_lost = true WHERE id = $1', [projectId]);
       const socket = await runner(0);
@@ -420,7 +420,7 @@ describe('the envelopes of GitHub’s changes for the Runner’s Miroir, against
 
       const [message] = mirrorOf(socket);
       expect(message?.type === 'mirror.projects' && message.projects).toEqual([
-        { projectId, sources: { ticket: 'local', code: 'github' }, repository: null, githubRepoId: null, installationId: null, displayName: null, nameSealed: null, integrationBranch: expect.any(String) },
+        { projectId, sources: { ticket: 'local', code: 'github' }, repository: null, githubRepoId: null, installationId: null, displayName: expect.any(String), nameSealed: null, integrationBranch: expect.any(String) },
       ]);
     });
 

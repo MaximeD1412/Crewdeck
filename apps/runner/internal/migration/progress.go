@@ -29,6 +29,22 @@ type progress struct {
 	Owner       string `json:"owner,omitempty"`
 	Name        string `json:"name,omitempty"`
 	Stage       string `json:"stage"`
+	// Group is the group moved: `ticket` ("" in a progress written before
+	// SOURCE-9) or `code`.
+	Group string `json:"group,omitempty"`
+	// Release and Integration are the Projet's branches, for the code: the
+	// release one pushed first, the integration one checked out.
+	Release     string `json:"release,omitempty"`
+	Integration string `json:"integration,omitempty"`
+	// Folder is the folder picked a migration to Local writes in (the code
+	// cloned, the Tickets copied) when the Projet has none,
+	// recorded at the first copy: a retry continues there, even once the
+	// folder picked is no longer held pending.
+	Folder string `json:"folder,omitempty"`
+	// CheckedOut is whether the folder's work tree holds a branch: the
+	// integration one once the clone checked it out, the Pilote's own in a
+	// folder that had commits.
+	CheckedOut bool `json:"checkedOut,omitempty"`
 	// Dir is where the Local side is read: `tickets/`, its archive once frozen.
 	Dir string `json:"dir,omitempty"`
 	// Archive is the name the Local side is frozen under, kept before the
@@ -41,6 +57,8 @@ type progress struct {
 	// Tickets and Milestones are each old number to its new one.
 	Tickets    map[int]int `json:"tickets"`
 	Milestones map[int]int `json:"milestones"`
+	// Changes are each open change's old number to its new one (the code).
+	Changes map[int]int `json:"changes,omitempty"`
 }
 
 func progressPath(home, migrationID string) string {
@@ -65,6 +83,9 @@ func loadProgress(home, migrationID string) (*progress, bool, error) {
 	}
 	if p.Milestones == nil {
 		p.Milestones = map[int]int{}
+	}
+	if p.Changes == nil {
+		p.Changes = map[int]int{}
 	}
 	return &p, true, nil
 }

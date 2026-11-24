@@ -1,4 +1,11 @@
-import { eventPayloadSchema, RESOURCES, STATE_SLICES, zMigrateSourceInput, zSourceMigration, zSourceMigrationPage, zSourceMigrationQuery } from '../index.js';
+import {
+  eventPayloadSchema,
+  RESOURCES,
+  SOURCE_MIGRATION_CODE_TOKEN_PERMISSIONS,
+  STATE_SLICES,
+  zMigrateSourceInput,
+  zPickSourceFolderInput,
+  zSourceMigration, zSourceMigrationPage, zSourceMigrationQuery } from '../index.js';
 
 const MIGRATION = {
   id: '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6d01',
@@ -41,5 +48,24 @@ describe('zSourceMigration', () => {
     expect(zMigrateSourceInput.safeParse({ to: 'github' }).success).toBe(false);
     expect(zSourceMigrationQuery.parse({ state: 'done' })).toEqual({ state: 'done', limit: 50 });
     expect(zSourceMigrationQuery.safeParse({ state: 'paused' }).success).toBe(false);
+  });
+
+  it('picks the new place when the Projet has none there: a repository, or the folder picked beforehand (SOURCE-9)', () => {
+    const repositoryId = '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6d03';
+    expect(zMigrateSourceInput.parse({ to: 'github', target: { repositoryId }, seq: '42' }).target).toEqual({ repositoryId });
+    expect(zMigrateSourceInput.parse({ to: 'local', target: { folder: true }, seq: '42' }).target).toEqual({ folder: true });
+    expect(zMigrateSourceInput.safeParse({ to: 'local', target: { folder: false }, seq: '42' }).success).toBe(false);
+    expect(zMigrateSourceInput.safeParse({ to: 'local', target: { folder: '/home/pilote/projets' }, seq: '42' }).success).toBe(false);
+    expect(zMigrateSourceInput.safeParse({ to: 'github', target: { repositoryId, folder: true }, seq: '42' }).success).toBe(false);
+  });
+
+  it('sends the picked folder sealed only (SOURCE-9)', () => {
+    const sealed = { key: 'A'.repeat(80), ciphertext: 'B'.repeat(43) };
+    expect(zPickSourceFolderInput.parse({ folderSealed: sealed, vaultKeyVersion: 1 }).folderSealed).toEqual(sealed);
+    expect(zPickSourceFolderInput.safeParse({ folderSealed: { path: '/home/pilote/projets' }, vaultKeyVersion: 1 }).success).toBe(false);
+  });
+
+  it('gives the code’s token the contents, the PRs and the workflows, never the issues nor the administration (SOURCE-9)', () => {
+    expect(SOURCE_MIGRATION_CODE_TOKEN_PERMISSIONS).toEqual({ contents: 'write', pull_requests: 'write', workflows: 'write' });
   });
 });

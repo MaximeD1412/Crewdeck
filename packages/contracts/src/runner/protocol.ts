@@ -4,7 +4,7 @@ import { zArtifactContent, zArtifactError, zArtifactRead } from './artifact.js';
 import { zCapabilities } from './capabilities.js';
 import { zCommandKeys, zCommandOutput, zCommandReplay, zCommandRun, zCommandStarted, zCommandStop, zCommandVerdict } from './command.js';
 import { runnerMessage } from './envelope.js';
-import { zFolderCheckMessage, zFolderChecked, zProjectFolderAttach, zProjectsFolders } from './folders.js';
+import { zFolderCheckMessage, zFolderChecked, zProjectFolderAttach, zProjectFolderDrop, zProjectFolderPick, zProjectsFolders } from './folders.js';
 import { zHeartbeat, zHeartbeatAck } from './heartbeat.js';
 import { zHello, zHelloAccepted, zHelloRejected } from './hello.js';
 import { zLocalChanged } from './local.js';
@@ -69,6 +69,8 @@ export const zServerToRunner = z.discriminatedUnion('type', [
   zSessionInput,
   zFolderCheckMessage,
   zProjectFolderAttach,
+  zProjectFolderPick,
+  zProjectFolderDrop,
   zCommandRun,
   zCommandStop,
   zCommandReplay,

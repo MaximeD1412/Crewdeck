@@ -1,6 +1,7 @@
 // Package migration moves a Projet's Tickets from one Source to the other
-// (SOURCE-8, ADR 0012): the handler of `migration.copy` and
-// `migration.finish` for the `ticket` group. The copy is idempotent (each
+// (SOURCE-8, ADR 0012), and its code with its changes (SOURCE-9): the
+// handler of `migration.copy` and `migration.finish` for the `ticket` and
+// `code` groups. The copy is idempotent (each
 // item found again by the marker of its origin), verified by passes until
 // one finds nothing to copy, then the server switches the Source; the
 // finish freezes the old place and carries what changed there since.
@@ -18,6 +19,7 @@ import (
 	"github.com/maximed1412/crewdeck/apps/runner/internal/protocol"
 	"github.com/maximed1412/crewdeck/apps/runner/internal/source"
 	ghsource "github.com/maximed1412/crewdeck/apps/runner/internal/source/github"
+	"github.com/maximed1412/crewdeck/apps/runner/internal/source/local"
 )
 
 // Passes is how many verifying passes may each find something to copy
@@ -31,10 +33,16 @@ const (
 	CodeFolderUnwritable  = "folder.unwritable"
 	CodeLocalUnreadable   = "local.unreadable"
 	CodeUnstable          = "migration.unstable"
+	// CodeBranchDiverged: a branch moved on both places, neither a fast-forward of the other.
+	CodeBranchDiverged = "branch.diverged"
 )
 
 // ErrNoFolder is a Local side this Runner holds no folder for.
 var ErrNoFolder = errors.New("migration: no folder for the Projet on this Runner")
+
+// ErrFolderTaken is the folder a migration to Local began in, taken since by
+// another Projet (its pick dropped at a failure, the folder free meanwhile).
+var ErrFolderTaken = errors.New("migration: the folder picked is another Projet's now")
 
 var errUnstable = errors.New("migration: no pass without a change")
 
@@ -44,16 +52,29 @@ type Config struct {
 	Home string
 	// Send sends a message to the server.
 	Send func(ctx context.Context, message any) error
-	// Local is the Local side of the Projet, read in dir (`tickets/` when
-	// ""): ErrNoFolder when this Runner has no folder for it.
-	Local func(projectID, dir string) (source.Copier, error)
-	// GitHub is the repository's side, written with the migration's token.
+	// Folder is the Projet's folder in the Runner's state (PROJET-6).
+	Folder func(projectID string) (string, bool)
+	// Pending is the folder picked for a migration to Local, held pending
+	// until the migration finishes; Promote makes it the Projet's folder.
+	Pending func(projectID string) (string, bool)
+	Promote func(ctx context.Context, projectID, folder string) error
+	// Hold holds folder as the Projet's pending one again, at once (false
+	// when another Projet holds it): the one a copy began in, before each
+	// pass writes there, its pick dropped at a failure meanwhile.
+	Hold func(ctx context.Context, projectID, group, folder string) (bool, error)
+	// Open is the Local Projet in folder (its Tickets, its changes in local.db).
+	Open func(projectID, folder string) *local.Project
+	// GitHub is the repository's side, written with the migration's token;
+	// for the code, its pull requests too (*ghsource.Tickets).
 	GitHub func(migrationID, owner, name string) source.Copier
+	// Remote is the repository's git remote, reached with the migration's token.
+	Remote func(migrationID, owner, name string) Remote
 	// Vault keys the fingerprints.
 	Vault func() *keys.Vault
-	// Finished runs once the Source switched and the old place is frozen:
-	// for a Projet now Local, a full `local.changed` scan.
-	Finished func(projectID, to string)
+	// Finished runs once the Source switched and the old place is frozen
+	// (the folder picked promoted, a Projet now Local reported whole): its
+	// watchers asked for a full report, its documents indexed again.
+	Finished func(ctx context.Context, projectID, to string)
 	Logger   *slog.Logger
 	// Passes overrides Passes (tests).
 	Passes int
@@ -110,14 +131,20 @@ func (h *Handler) background(id string, fn func()) {
 	}()
 }
 
-// Copy copies the Projet's Tickets, then verifies until a pass changes
-// nothing, then sends `migration.switch`; `migration.failed` when it cannot.
+// Copy copies the Projet's Tickets, or its code, then verifies until a
+// pass changes nothing, then sends `migration.switch`; `migration.failed`
+// when it cannot.
 func (h *Handler) Copy(ctx context.Context, m contracts.RunnerMigrationCopy) {
-	if m.Group != contracts.RunnerMigrationCopyGroupTicket {
+	var err error
+	switch m.Group {
+	case contracts.RunnerMigrationCopyGroupTicket:
+		err = h.copy(ctx, m)
+	case contracts.RunnerMigrationCopyGroupCode:
+		err = h.copyCode(ctx, m)
+	default:
 		h.cfg.Logger.Warn("migration.group.unsupported", "migrationId", m.MigrationId, "group", m.Group)
 		return
 	}
-	err := h.copy(ctx, m)
 	h.failed(ctx, m.MigrationId, contracts.RunnerMigrationFailedStageCopy, err)
 }
 
@@ -129,18 +156,18 @@ func (h *Handler) copy(ctx context.Context, m contracts.RunnerMigrationCopy) err
 	if !found {
 		p = &progress{MigrationID: m.MigrationId, Tickets: map[int]int{}, Milestones: map[int]int{}}
 	}
-	p.ProjectID, p.From, p.To, p.Stage, p.Dir = m.ProjectId, string(m.From), string(m.To), stageCopying, ""
+	p.ProjectID, p.From, p.To, p.Stage, p.Dir, p.Group = m.ProjectId, string(m.From), string(m.To), stageCopying, "", string(m.Group)
 	if m.Repository != nil {
 		p.Owner, p.Name = m.Repository.Owner, m.Repository.Name
 	}
 	if err := p.save(h.cfg.Home); err != nil {
 		return err
 	}
-	from, err := h.side(p, p.From)
+	from, err := h.side(ctx, p, p.From)
 	if err != nil {
 		return err
 	}
-	to, err := h.side(p, p.To)
+	to, err := h.side(ctx, p, p.To)
 	if err != nil {
 		return err
 	}
@@ -223,7 +250,10 @@ func (h *Handler) finish(ctx context.Context, m contracts.RunnerMigrationFinish)
 	if p.Stage == stageFinished {
 		return h.cfg.Send(ctx, protocol.NewMigrationFinished(p.MigrationID))
 	}
-	from, err := h.side(p, p.From)
+	if p.Group == string(contracts.RunnerMigrationCopyGroupCode) {
+		return h.finishCode(ctx, p, m)
+	}
+	from, err := h.side(ctx, p, p.From)
 	if err != nil {
 		return err
 	}
@@ -239,7 +269,7 @@ func (h *Handler) finish(ctx context.Context, m contracts.RunnerMigrationFinish)
 			return err
 		}
 	}
-	to, err := h.side(p, p.To)
+	to, err := h.side(ctx, p, p.To)
 	if err != nil {
 		return err
 	}
@@ -270,8 +300,26 @@ func (h *Handler) finish(ctx context.Context, m contracts.RunnerMigrationFinish)
 			return err
 		}
 	}
+	return h.finished(ctx, p)
+}
+
+// finished ends the migration: the folder picked made the Projet's; to
+// Local, a full `local.changed` report of the Projet (its Tickets and
+// changes at their new numbers, which the server holds untitled since the
+// switch); the Runner's Source switched; then `migration.finished`.
+func (h *Handler) finished(ctx context.Context, p *progress) error {
+	if err := h.promote(ctx, p); err != nil {
+		return err
+	}
+	if folder, ok := h.localFolder(p.ProjectID); ok && p.To == string(contracts.RunnerMigrationCopyToLocal) {
+		// A report that fails waits for the next connection's full one.
+		_, err := h.cfg.Open(p.ProjectID, folder).Report(ctx, true, func(ctx context.Context, m contracts.RunnerLocalChanged) error { return h.cfg.Send(ctx, m) })
+		if err != nil {
+			h.cfg.Logger.Warn("migration.report", "migrationId", p.MigrationID, "err", err)
+		}
+	}
 	if h.cfg.Finished != nil {
-		h.cfg.Finished(p.ProjectID, p.To)
+		h.cfg.Finished(ctx, p.ProjectID, p.To)
 	}
 	p.Stage = stageFinished
 	if err := p.save(h.cfg.Home); err != nil {
@@ -279,6 +327,66 @@ func (h *Handler) finish(ctx context.Context, m contracts.RunnerMigrationFinish)
 	}
 	h.cfg.Logger.Info("migration.finished", "migrationId", p.MigrationID)
 	return h.cfg.Send(ctx, protocol.NewMigrationFinished(p.MigrationID))
+}
+
+// promote makes the folder picked for a migration to Local the Projet's,
+// when it has none yet: the one its copy began in (kept by the progress,
+// even once the pick was dropped at a failure), else the one held pending.
+func (h *Handler) promote(ctx context.Context, p *progress) error {
+	if p.To != string(contracts.RunnerMigrationCopyToLocal) || h.cfg.Promote == nil {
+		return nil
+	}
+	if _, ok := h.folder(p.ProjectID); ok {
+		return nil
+	}
+	folder := p.Folder
+	if folder == "" && h.cfg.Pending != nil {
+		folder, _ = h.cfg.Pending(p.ProjectID)
+	}
+	if folder == "" {
+		return nil
+	}
+	return h.cfg.Promote(ctx, p.ProjectID, folder)
+}
+
+// hold holds folder, picked for the Projet that has none yet, as its pending
+// one again before anything is written there: ErrFolderTaken when another
+// Projet holds it now. Promote refuses it too, under the same lock.
+func (h *Handler) hold(ctx context.Context, p *progress, folder string) error {
+	if h.cfg.Hold == nil {
+		return nil
+	}
+	group := p.Group
+	if group == "" {
+		group = string(contracts.RunnerMigrationCopyGroupTicket)
+	}
+	ok, err := h.cfg.Hold(ctx, p.ProjectID, group, folder)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrFolderTaken
+	}
+	return nil
+}
+
+func (h *Handler) folder(projectID string) (string, bool) {
+	if h.cfg.Folder == nil {
+		return "", false
+	}
+	return h.cfg.Folder(projectID)
+}
+
+// localFolder is where the Local side is: the Projet's folder, else the
+// one picked for the migration, held pending.
+func (h *Handler) localFolder(projectID string) (string, bool) {
+	if folder, ok := h.folder(projectID); ok {
+		return folder, true
+	}
+	if h.cfg.Pending != nil {
+		return h.cfg.Pending(projectID)
+	}
+	return "", false
 }
 
 // archiver is a side frozen by a rename, its new name kept first.
@@ -308,7 +416,7 @@ func (h *Handler) freeze(ctx context.Context, p *progress, from source.Copier) e
 }
 
 // side is the Copier of one side of the migration.
-func (h *Handler) side(p *progress, kind string) (source.Copier, error) {
+func (h *Handler) side(ctx context.Context, p *progress, kind string) (source.Copier, error) {
 	if kind == string(contracts.RunnerMigrationCopyFromGithub) {
 		return h.cfg.GitHub(p.MigrationID, p.Owner, p.Name), nil
 	}
@@ -316,7 +424,24 @@ func (h *Handler) side(p *progress, kind string) (source.Copier, error) {
 	if kind == p.From {
 		dir = p.Dir
 	}
-	return h.cfg.Local(p.ProjectID, dir)
+	folder, ok := h.folder(p.ProjectID)
+	if !ok {
+		// The folder picked: the one the copy began in once recorded, so
+		// that « Réessayer » goes on there after the pick was dropped.
+		if folder, ok = p.Folder, p.Folder != ""; !ok {
+			if folder, ok = h.localFolder(p.ProjectID); !ok {
+				return nil, ErrNoFolder
+			}
+			p.Folder = folder
+			if err := p.save(h.cfg.Home); err != nil {
+				return nil, err
+			}
+		}
+		if err := h.hold(ctx, p, folder); err != nil {
+			return nil, err
+		}
+	}
+	return h.cfg.Open(p.ProjectID, folder).Copier(dir), nil
 }
 
 func (h *Handler) send(ctx context.Context, m any) {
@@ -341,6 +466,8 @@ func codeOf(err error) string {
 	switch {
 	case errors.Is(err, errUnstable):
 		return CodeUnstable
+	case errors.Is(err, errDiverged):
+		return CodeBranchDiverged
 	case errors.Is(err, source.ErrUnreadable):
 		return CodeLocalUnreadable
 	case errors.Is(err, ghsource.ErrUnavailable):

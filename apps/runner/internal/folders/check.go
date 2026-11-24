@@ -24,6 +24,9 @@ import (
 type Result struct {
 	State   contracts.FolderCheckResultState `json:"state"`
 	HasCode bool                             `json:"hasCode"`
+	// Empty says whether the folder holds nothing at all, dotfiles included
+	// (SOURCE-9: the code is cloned into it); nil when it is not a folder.
+	Empty *bool `json:"empty,omitempty"`
 	// Branch is the git repository's current branch; nil without git or on a detached HEAD.
 	Branch *string `json:"branch"`
 	// Name is the base name of the folder as typed.
@@ -99,6 +102,8 @@ func (c Checker) Check(input string, projects map[string]string, projectID strin
 		result.State = contracts.FolderCheckResultStateMissing
 		return result
 	}
+	empty := isEmpty(real)
+	result.Empty = &empty
 	if c.StateDir != "" && within(real, realPath(c.StateDir)) {
 		result.State = contracts.FolderCheckResultStateNotAFolder
 		return result
@@ -123,6 +128,31 @@ func (c Checker) Check(input string, projects map[string]string, projectID strin
 	result.State = contracts.FolderCheckResultStateNotGit
 	result.HasCode = hasFiles(real, 2)
 	return result
+}
+
+// Pickable says whether the folder may be the pending folder of a migration
+// of group to Local (SOURCE-9): for `code`, a folder that is nobody's and
+// holds nothing, the code cloned into it; for `ticket`, a git repository's
+// root, `tickets/` written into it.
+func (r Result) Pickable(group string) bool {
+	switch group {
+	case "code":
+		return r.Path != "" && r.Empty != nil && *r.Empty
+	case "ticket":
+		return r.State == contracts.FolderCheckResultStateReady
+	}
+	return false
+}
+
+// isEmpty says whether dir holds no entry at all.
+func isEmpty(dir string) bool {
+	f, err := os.Open(dir)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	names, err := f.Readdirnames(1)
+	return len(names) == 0 && err != nil
 }
 
 // realPath is path with its links resolved, path itself when it does not resolve.

@@ -14,7 +14,7 @@ import { runnerMessage } from './envelope.js';
 /** How many fingerprints one migration carries at most: one per item moved. */
 export const MIGRATION_FINGERPRINTS_MAX = 20_000;
 
-/** What a moved item was, without its content: its key (`ticket:12`, `file:docs/prd.md`), its state and the hash of its content. */
+/** What a moved item was, without its content: its key (`ticket:12`, `branch:develop`, `change:local#3`), its state (a branch's: its SHA) and the hash of its content. */
 export const zMigrationFingerprint = z.strictObject({
   key: z.string().min(1).max(300),
   state: z.string().min(1).max(40),
@@ -26,7 +26,10 @@ export type MigrationFingerprint = z.infer<typeof zMigrationFingerprint>;
  * Server → Runner: copy the group's items from `from` to `to`, the copy
  * reusing what it finds of an earlier attempt; resent after each `hello`
  * while the migration is `copying` or `verifying`. `repository` is the
- * Projet's when one of the two is GitHub.
+ * Projet's when one of the two is GitHub, the one the migration picked when
+ * the Projet had none (SOURCE-9). `branches`, for the `code` group: the
+ * Projet's release branch (pushed first, the repository's default) and its
+ * integration branch (checked out in a folder cloned).
  */
 export const zMigrationCopy = runnerMessage('migration.copy', {
   migrationId: zId,
@@ -35,6 +38,7 @@ export const zMigrationCopy = runnerMessage('migration.copy', {
   from: zSourceKind,
   to: zSourceKind,
   repository: z.strictObject({ owner: z.string().min(1).max(100), name: z.string().min(1).max(100) }).optional(),
+  branches: z.strictObject({ release: z.string().min(1).max(255), integration: z.string().min(1).max(255) }).optional(),
 });
 export type MigrationCopy = z.infer<typeof zMigrationCopy>;
 
@@ -54,8 +58,9 @@ const zRenumbering = z.array(z.strictObject({ from: z.int().positive(), to: z.in
  * Runner → server: everything is copied and verified; the server switches
  * the Source in one transaction. `renumbering` maps the items whose number
  * changed (a Local Ticket become an issue: for the `ticket` group, every
- * Ticket); `milestones` the milestones' numbers likewise (a Local rank
- * become a GitHub number), none for the `code` group.
+ * Ticket; for the `code` group, each open change of code, the closed and
+ * merged ones not copied); `milestones` the milestones' numbers likewise (a
+ * Local rank become a GitHub number), none for the `code` group.
  */
 export const zMigrationSwitch = runnerMessage('migration.switch', {
   migrationId: zId,

@@ -1,5 +1,20 @@
-import { PROCESS_CREWDECK, PROCESS_CREWDECK_NAME, type ProcessDefinition, type ProcessDraftInput, type ProcessRunningWork, type Project, type ProjectProcess } from '@crewdeck/contracts';
+import {
+  PROCESS_CREWDECK,
+  PROCESS_CREWDECK_NAME,
+  projectFolderAad,
+  type FolderCheckResult,
+  type ProcessDefinition,
+  type ProcessDraftInput,
+  type ProcessRunningWork,
+  type Project,
+  type ProjectProcess,
+  type Repository,
+} from '@crewdeck/contracts';
 import { ApiError } from '../api/request.js';
+import { fromBase64Url } from '../keys/bytes.js';
+import { createFolderChecker } from '../projects/folder-check.js';
+import { pickSourceFolder } from '../projects/local.js';
+import { fakeVault } from '../projects/testing.js';
 import { createEditing } from '../process/editing.js';
 import type { StoreState } from '../store/store.js';
 import { createEditorActions, createMigrateAction, type EditorActionsOptions } from './process-editor.js';
@@ -256,6 +271,215 @@ describe('createMigrateAction', () => {
     await action.run({ group: 'ticket', to: 'github' }, { seq: 7n } as never);
 
     expect(command).toHaveBeenCalledWith('POST', '/api/projects/p1/sources/ticket/migrate', { to: 'github', seq: 7n }, expect.anything());
+  });
+});
+
+describe('createMigrateAction, picking the new place (SOURCE-9)', () => {
+  const SINCE = '2026-11-01T08:00:00.000Z';
+  const INSTALL = 'https://github.example/apps/crewdeck/installations/new?state=projets';
+  const LINK = '/api/auth/github/link?next=%2Fprojets%2Fp1%2Fprocess';
+  const repository = (id: string, name: string, followed = false): Repository => ({
+    id,
+    owner: 'MaximeD1412',
+    name,
+    fullName: `MaximeD1412/${name}`,
+    private: true,
+    defaultBranch: 'main',
+    hasCode: false,
+    followed,
+  });
+  const REPOSITORIES = [repository('r2', 'site'), repository('r3', 'suivi', true), repository('r1', 'recettes')];
+  /** A Projet created Local: a folder, no repository. */
+  const LOCAL = { id: 'p1', displayName: 'Site mairie', fullName: null, repositoryId: null, folder: 'present', hasCode: true };
+  /** A Projet followed from GitHub: a repository, no folder. */
+  const GITHUB = { id: 'p1', displayName: 'Site mairie', fullName: 'MaximeD1412/site-mairie', repositoryId: 'r0', folder: null, hasCode: true };
+  const processOn = (ticket: 'local' | 'github', code: 'local' | 'github') => ({
+    id: 'p1',
+    active: { number: 3, definition: PROCESS_CREWDECK },
+    draft: null,
+    sources: { ticket: { source: ticket, since: SINCE }, code: { source: code, since: SINCE } },
+  });
+  const result = (state: FolderCheckResult['state'], empty: boolean): FolderCheckResult => ({ state, hasCode: !empty, empty, branch: state === 'ready' ? 'main' : null, name: 'dossier' });
+  const CHECKS: Record<string, FolderCheckResult> = {
+    '~/vide': result('not-git', true),
+    '~/plein': result('not-git', false),
+    '~/depot': result('ready', false),
+    '~/absent': result('missing', false),
+  };
+
+  const setupPlaces = ({ project = LOCAL as object, process = processOn('local', 'local'), repositories = REPOSITORIES, githubLinked = true } = {}) => {
+    const calls: { method: string; path: string; body: Record<string, unknown> }[] = [];
+    const command = vi.fn(async (method: string, path: string, body: Record<string, unknown>) => {
+      calls.push({ method, path, body });
+      return {} as never;
+    });
+    const client = { command } as never;
+    const state = {
+      seq: 7n,
+      vaultState: 'unlocked',
+      slices: {
+        project: new Map([['p1', project]]),
+        process: new Map([['p1', process]]),
+        repository: new Map(repositories.map((item) => [item.id, item])),
+        pilot: { githubLinked },
+        runner: { machine: 'atelier-pc' },
+        'code-change': new Map([
+          ['c1', { projectId: 'p1', source: 'local', state: 'open' }],
+          ['c2', { projectId: 'p1', source: 'github', state: 'open' }],
+        ]),
+      },
+    } as unknown as StoreState;
+    const action = createMigrateAction({
+      ui: createEditorUi(),
+      client,
+      current: () => ({ params: { id: 'p1' } }),
+      places: {
+        checker: () => createFolderChecker({ check: async (path) => CHECKS[path] ?? result('missing', false), debounceMs: 0 }),
+        pickFolder: (projectId, group, path) => pickSourceFolder({ client, vault: fakeVault() }, projectId, group, path),
+        installUrl: () => INSTALL,
+        linkGithubHref: () => LINK,
+        state: () => state,
+        subscribe: () => () => undefined,
+      },
+    });
+    return { action, calls, state };
+  };
+  const ask = (setup: ReturnType<typeof setupPlaces>, group: 'code' | 'ticket', to: 'github' | 'local') => {
+    const settle = setup.action.pending?.({ group, to });
+    const dialog = setup.action.confirmation({ group, to }, setup.state);
+    if (!dialog.form) throw new Error('no form');
+    return { dialog, form: dialog.form, settle };
+  };
+  const settled = (form: { view(): { fields: readonly { kind: string }[] } }) =>
+    vi.waitFor(() => expect(form.view().fields[0]).not.toMatchObject({ message: expect.stringMatching(/^Vérification/) }));
+
+  it('offers the installation’s repositories that no Projet follows, with how to add one and the App’s installation', () => {
+    const { form } = ask(setupPlaces(), 'code', 'github');
+
+    expect(form.view()).toMatchObject({
+      ready: false,
+      fields: [
+        {
+          kind: 'select',
+          name: 'repository',
+          label: 'Dépôt',
+          value: '',
+          placeholder: 'Choisis un dépôt',
+          options: [
+            { value: 'r1', label: 'MaximeD1412/recettes' },
+            { value: 'r2', label: 'MaximeD1412/site' },
+          ],
+          help: 'Crée le dépôt sur GitHub, installe l’App Crewdeck dessus, puis choisis-le ici.',
+          link: { href: INSTALL, label: 'Installer Crewdeck sur GitHub', external: true },
+        },
+      ],
+    });
+  });
+
+  it('says none is free yet, with the App’s installation, when every repository is followed', () => {
+    const { form } = ask(setupPlaces({ repositories: [repository('r3', 'suivi', true)] }), 'ticket', 'github');
+
+    expect(form.view()).toEqual({
+      ready: false,
+      fields: [
+        {
+          kind: 'empty',
+          title: 'Aucun dépôt à choisir',
+          text: 'Crée le dépôt sur GitHub, installe l’App Crewdeck dessus, puis choisis-le ici.',
+          link: { href: INSTALL, label: 'Installer Crewdeck sur GitHub', external: true },
+        },
+      ],
+      consequences: expect.anything(),
+    });
+  });
+
+  it('offers « Relier GitHub » to a Pilote without GitHub', () => {
+    const { form } = ask(setupPlaces({ githubLinked: false }), 'code', 'github');
+
+    expect(form.view()).toMatchObject({
+      ready: false,
+      fields: [{ kind: 'empty', title: 'Pour passer sur GitHub, relie d’abord ton compte GitHub.', link: { href: LINK, label: 'Relier GitHub' } }],
+    });
+  });
+
+  it('confirms only once a repository is picked, names it, and migrates to it', async () => {
+    const setup = setupPlaces();
+    const { form, settle } = ask(setup, 'code', 'github');
+    expect(form.view().consequences?.lead).toBe('Local → GitHub, le dépôt choisi.');
+
+    form.change('repository', 'r1');
+
+    expect(form.view()).toMatchObject({ ready: true, fields: [{ value: 'r1' }] });
+    expect(form.view().consequences?.lead).toBe('Local → GitHub, MaximeD1412/recettes.');
+    expect(form.view().consequences?.items?.[1]?.text).toBe('Puis les branches du dossier sont poussées sur MaximeD1412/recettes et le changement ouvert devient une PR, d’un coup.');
+    await setup.action.run({ group: 'code', to: 'github' }, { seq: 7n });
+    settle?.();
+    expect(setup.calls).toEqual([{ method: 'POST', path: '/api/projects/p1/sources/code/migrate', body: { to: 'github', seq: 7n, target: { repositoryId: 'r1' } } }]);
+  });
+
+  it('to Local, checks the folder typed live: for the code, a missing or non-empty one is refused, an empty one picked and named', async () => {
+    const { form } = ask(setupPlaces({ project: GITHUB, process: processOn('github', 'github') }), 'code', 'local');
+    expect(form.view()).toMatchObject({ ready: false, fields: [{ kind: 'text', name: 'folder', label: 'Dossier', value: '', placeholder: '~/projets/recettes' }] });
+
+    form.change('folder', '~/absent');
+    await settled(form);
+    expect(form.view()).toMatchObject({ ready: false, fields: [{ value: '~/absent', message: 'Dossier introuvable sur atelier-pc.', invalid: true }] });
+
+    form.change('folder', '~/plein');
+    await settled(form);
+    expect(form.view()).toMatchObject({ ready: false, fields: [{ message: 'Ce dossier n’est pas vide : le dépôt y sera cloné.', invalid: true }] });
+
+    form.change('folder', '~/vide');
+    await settled(form);
+    expect(form.view()).toMatchObject({ ready: true, fields: [{ message: 'Dossier vide : le dépôt y sera cloné.', invalid: false }] });
+    expect(form.view().consequences?.items?.slice(1).map((item) => item.text)).toEqual([
+      'Puis MaximeD1412/site-mairie est cloné dans ~/vide, toutes ses branches, et la PR ouverte devient un changement local.',
+      'Les documents (PRD, Maquettes, Conception technique, Inventaire) suivent : ce sont des fichiers du code.',
+      'Crewdeck n’écrit plus rien sur GitHub ; le dépôt reste suivi tant que les Tickets y sont.',
+    ]);
+  });
+
+  it('to Local, for the Tickets, takes only a git repository’s root, as the Runner does: a folder not one yet is refused until git init', async () => {
+    const setup = setupPlaces({ project: GITHUB, process: processOn('github', 'github') });
+    const { form } = ask(setup, 'ticket', 'local');
+
+    for (const path of ['~/plein', '~/vide']) {
+      form.change('folder', path);
+      await settled(form);
+      expect(form.view()).toMatchObject({ ready: false, fields: [{ message: 'Pas un dépôt git : lance git init dans ce dossier, puis saisis-le à nouveau.', invalid: true }] });
+    }
+    await expect(setup.action.run({ group: 'ticket', to: 'local' }, { seq: 7n })).rejects.toThrow();
+    expect(setup.calls).toEqual([]);
+
+    form.change('folder', '~/depot');
+    await settled(form);
+    expect(form.view()).toMatchObject({ ready: true, fields: [{ message: 'Dépôt git : les Tickets y seront écrits, dans tickets/.', invalid: false }] });
+  });
+
+  it('sends the folder picked sealed to the group’s route, then migrates to it', async () => {
+    const setup = setupPlaces({ project: GITHUB, process: processOn('local', 'github') });
+    const { form, settle } = ask(setup, 'code', 'local');
+    form.change('folder', '~/vide');
+    await settled(form);
+
+    await setup.action.run({ group: 'code', to: 'local' }, { seq: 7n });
+    settle?.();
+
+    expect(setup.calls.map(({ path }) => path)).toEqual(['/api/projects/p1/sources/code/folder', '/api/projects/p1/sources/code/migrate']);
+    const folderSealed = setup.calls[0]?.body['folderSealed'] as { ciphertext: string };
+    expect(new TextDecoder().decode(fromBase64Url(folderSealed.ciphertext))).toBe(`${projectFolderAad('p1')}{"path":"~/vide"}`);
+    expect(JSON.stringify(setup.calls[0]?.body)).not.toContain('vide');
+    expect(setup.calls[1]?.body).toEqual({ to: 'local', seq: 7n, target: { folder: true } });
+  });
+
+  it('picks nothing when the Projet already has its place there: its repository, or its folder', async () => {
+    const toGithub = setupPlaces({ project: GITHUB, process: processOn('github', 'local') });
+    expect(toGithub.action.confirmation({ group: 'code', to: 'github' }, toGithub.state).form).toBeUndefined();
+    await toGithub.action.run({ group: 'code', to: 'github' }, { seq: 7n });
+    expect(toGithub.calls).toEqual([{ method: 'POST', path: '/api/projects/p1/sources/code/migrate', body: { to: 'github', seq: 7n } }]);
+
+    const toLocal = setupPlaces({ project: LOCAL, process: processOn('github', 'local') });
+    expect(toLocal.action.confirmation({ group: 'ticket', to: 'local' }, toLocal.state).form).toBeUndefined();
   });
 });
 

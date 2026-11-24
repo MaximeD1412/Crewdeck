@@ -5,7 +5,7 @@ import { ApiError } from './api/request.js';
 import { toBase64Url } from './keys/bytes.js';
 import type { VaultState } from './keys/vault.js';
 import { createProjectNames, createProjects } from './projects.js';
-import { fakeSealed, fakeVault } from './projects/testing.js';
+import { fakeSealed, fakeVault, rotatingVault } from './projects/testing.js';
 import { createStore } from './store/store.js';
 
 const REPOSITORY: Repository = {
@@ -20,7 +20,7 @@ const REPOSITORY: Repository = {
 };
 const CONFIG = { githubApiUrl: 'https://api.github.example', githubWebUrl: 'https://github.example', appSlug: 'crewdeck', runnerServer: null };
 
-const setup = (command: (body: object) => Promise<unknown>, query: () => Promise<unknown> = async () => CONFIG) => {
+const setup = (command: (body: object) => Promise<unknown>, query: () => Promise<unknown> = async () => CONFIG, vault: Parameters<typeof createProjects>[0]['vault'] = fakeVault()) => {
   const store = createStore();
   store.registerSlice('repository', { shape: 'collection', snapshotKey: 'repositories' });
   store.registerSlice('process-template', { shape: 'collection', snapshotKey: 'processTemplates' });
@@ -29,11 +29,10 @@ const setup = (command: (body: object) => Promise<unknown>, query: () => Promise
     command: (async (_method: string, _path: string, body: object, schema?: z.ZodType) => schema?.parse(await command(body))) as Client['command'],
   };
   const ids = ['019a6f00-0000-7000-8000-000000000031', '019a6f00-0000-7000-8000-000000000032'];
-  const vault = fakeVault();
   const projects = createProjects({ store, client, vault, newId: () => ids.shift() ?? '' });
   const changes = vi.fn<() => void>();
   projects.subscribe(changes);
-  return { store, projects, changes, vault };
+  return { store, projects, changes, vault: vault as ReturnType<typeof fakeVault> };
 };
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -205,6 +204,37 @@ describe('createProjects, from one of the Pilote’s Modèles (PROCESS-14)', () 
     const bodies = command.mock.calls.map(([body]) => body as { vaultKeyVersion: number; projects: { id: string }[] });
     expect(bodies.map((body) => body.vaultKeyVersion)).toEqual([1, 2]);
     expect(bodies.map((body) => body.projects[0]?.id)).toEqual(['019a6f00-0000-7000-8000-000000000031', '019a6f00-0000-7000-8000-000000000031']);
+  });
+});
+
+describe('createProjects, after a rotation, with a real vault (PROCESS-14, E2E-4)', () => {
+  it('seals again under the new key the Modèle’s Commandes it opened under the former', async () => {
+    const WEB = '019a6f00-0000-7000-8000-0000000000a1';
+    const COMMANDS = JSON.stringify({ e2e: 'pnpm exec playwright test' });
+    const real = await rotatingVault();
+    const bodies: { vaultKeyVersion: number; projects: { id: string; templateSealed: { key: string; ciphertext: string } }[] }[] = [];
+    const command = vi.fn<(body: object) => Promise<unknown>>(async (body) => {
+      bodies.push(body as (typeof bodies)[number]);
+      if (bodies.length === 1) {
+        // Another holder rotates: the Modèle's part in the store was sealed under the former key.
+        real.rotate();
+        throw new ApiError({ status: 409, code: 'vault.version-changed', message: 'La clé du coffre a déjà changé.' });
+      }
+      return { items: [] };
+    });
+    const { store, projects } = setup(command, undefined, real.vault);
+    const sealed = await real.seal(COMMANDS, templateSealAad(WEB));
+    store.applySnapshot({
+      seq: 1,
+      repositories: [REPOSITORY],
+      processTemplates: [{ id: WEB, name: 'Process web', fromProjectId: null, fromVersionNumber: 3, sealed, commandCount: 1, revision: 1, createdAt: '2026-11-12T09:00:00.000Z', updatedAt: '2026-11-12T09:00:00.000Z' }],
+    } as never);
+
+    await projects.follow([REPOSITORY.id], WEB);
+
+    expect(bodies.map((body) => body.vaultKeyVersion)).toEqual([1, 2]);
+    const [project] = bodies[1]!.projects;
+    expect(await real.open(project!.templateSealed, processSealAad(project!.id))).toBe(COMMANDS);
   });
 });
 

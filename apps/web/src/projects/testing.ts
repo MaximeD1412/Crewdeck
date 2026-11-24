@@ -1,6 +1,8 @@
-import type { TabFolderClientMessage, TabFolderServerMessage } from '@crewdeck/contracts';
-import { concat, toBase64Url, utf8 } from '../keys/bytes.js';
-import type { SealedItem, SealedUnder, Vault } from '../keys/vault.js';
+import { vaultWrapAad, type TabFolderClientMessage, type TabFolderServerMessage } from '@crewdeck/contracts';
+import { concat, fromBase64Url, toBase64Url, utf8 } from '../keys/bytes.js';
+import { INFO, sealWrap } from '../keys/crypto.js';
+import { memoryDeviceStore, x25519FromPrivateKey } from '../keys/testing.js';
+import { createVault, type SealedItem, type SealedUnder, type Vault } from '../keys/vault.js';
 import type { FolderSocket } from './folder-check.js';
 
 /**
@@ -60,4 +62,41 @@ export const fakeFolderSocket = (open = true) => {
     listening: () => listeners.size,
   };
   return socket;
+};
+
+/**
+ * A real vault (`createVault`, AES-256-GCM under a random vault key), on an
+ * Appareil that sealed its own wrap, unlocked under version 1. `rotate()`
+ * plays another holder's rotation (E2E-4): a new vault key, really another
+ * one, under the next version, which the next unlock fetches; an item whose
+ * key was wrapped under the former no longer opens.
+ */
+export const rotatingVault = async () => {
+  const { privateKey, publicKey } = await x25519FromPrivateKey(crypto.getRandomValues(new Uint8Array(32)));
+  const deviceId = 'dev_rotation';
+  let key = crypto.getRandomValues(new Uint8Array(32));
+  let version = 1;
+  const vault = createVault({
+    devices: memoryDeviceStore({ deviceId, privateKey, publicKey }),
+    fetchWrap: async () => {
+      const wrap = await sealWrap(privateKey, publicKey, key, INFO.vaultWrap, utf8(vaultWrapAad(deviceId, version)));
+      return { enc: toBase64Url(wrap.enc), ciphertext: toBase64Url(wrap.ciphertext), tag: toBase64Url(wrap.tag), vaultKeyVersion: version };
+    },
+  });
+  if ((await vault.unlockVault()) !== 'unlocked') throw new Error('testing: the vault did not unlock');
+  return {
+    vault,
+    rotate: () => {
+      key = crypto.getRandomValues(new Uint8Array(32));
+      version += 1;
+    },
+    /** `plaintext` sealed under `aad` with the vault key held, on the wire. */
+    seal: async (plaintext: string, aad: string) => {
+      const item = await vault.sealItem(utf8(plaintext), utf8(aad));
+      return { key: toBase64Url(item.key), ciphertext: toBase64Url(item.ciphertext) };
+    },
+    /** A wire item opened under `aad` with the vault key held. */
+    open: async (item: { key: string; ciphertext: string }, aad: string) =>
+      new TextDecoder().decode(await vault.openItem({ key: fromBase64Url(item.key), ciphertext: fromBase64Url(item.ciphertext) }, utf8(aad))),
+  };
 };

@@ -13,7 +13,7 @@ import { uuidv7 } from './ids.js';
 import { sealedWrite } from './keys/sealed-write.js';
 import type { Vault } from './keys/vault.js';
 import type { EditorUiState, SaveTemplateUi } from './process/editor-ui.js';
-import { resealProcess } from './process/seal.js';
+import { withOpenedProcess } from './process/seal.js';
 
 /** What the Modèles read of the store: the Projets' Process, the Pilote's Modèles. */
 export interface TemplatesStore {
@@ -67,18 +67,21 @@ export const createSaveTemplate = ({ ui, client, vault, slices, projectId }: Sav
       if (same && !(asked.replaceId === same.id && asked.name === name)) return refuse(id, { name, error: t('process.template.nameTaken'), replaceId: same.id });
       const templateId = same?.id ?? uuidv7();
       try {
-        const saved = await sealedWrite(vault, async () => {
-          const resealed = await resealProcess(vault, active.sealed, processSealAad(id), templateSealAad(templateId));
-          return saveProcessTemplate(client, {
-            id: templateId,
-            name,
-            projectId: id,
-            versionNumber: active.number,
-            sealed: resealed?.sealed ?? null,
-            ...(resealed ? { vaultKeyVersion: resealed.vaultKeyVersion } : {}),
-            replace: same !== undefined,
-          });
-        });
+        // Opened once under the key held now; each attempt seals it again, under the new key after a rotation.
+        const saved = await withOpenedProcess(vault, active.sealed, processSealAad(id), (sealUnder) =>
+          sealedWrite(vault, async () => {
+            const resealed = await sealUnder(templateSealAad(templateId));
+            return saveProcessTemplate(client, {
+              id: templateId,
+              name,
+              projectId: id,
+              versionNumber: active.number,
+              sealed: resealed?.sealed ?? null,
+              ...(resealed ? { vaultKeyVersion: resealed.vaultKeyVersion } : {}),
+              replace: same !== undefined,
+            });
+          }),
+        );
         ui.saveTemplate(id, null);
         ui.toast(id, { tone: 'go', icon: 'check', text: t('process.template.saved', { name: saved.name }) });
       } catch (error) {

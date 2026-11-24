@@ -4,7 +4,7 @@ import type { Client } from '../api/client.js';
 import { ApiError } from '../api/request.js';
 import { fromBase64Url } from '../keys/bytes.js';
 import { attachFolder, createLocalProject } from './local.js';
-import { fakeSealed, fakeVault } from './testing.js';
+import { fakeSealed, fakeVault, rotatingVault } from './testing.js';
 
 const ID = '019a6f00-0000-7000-8000-000000000021';
 const AT = '2026-11-12T09:00:00.000Z';
@@ -103,6 +103,44 @@ describe('createLocalProject', () => {
     await createLocalProject(deps, { path: '~/projets/recettes', name: 'Recettes', templateId: TEMPLATE, templateRevision: 1, templateSealed, check: { state: 'ready', hasCode: true, branch: 'main', name: 'recettes' } });
 
     expect(calls.map((call) => call.body['vaultKeyVersion'])).toEqual([1, 2]);
+  });
+
+  it('after a rotation, seals again under the new key the Commandes it opened under the former, with a real vault (E2E-4)', async () => {
+    const TEMPLATE = '019a6f00-0000-7000-8000-0000000000a1';
+    const COMMANDS = JSON.stringify({ e2e: 'pnpm exec playwright test' });
+    const real = await rotatingVault();
+    const templateSealed = await real.seal(COMMANDS, templateSealAad(TEMPLATE));
+    const bodies: Record<string, unknown>[] = [];
+    const client = {
+      command: (async (_method: string, _path: string, body: Record<string, unknown>, schema?: z.ZodType) => {
+        bodies.push(body);
+        if (bodies.length === 1) {
+          real.rotate();
+          throw versionChanged();
+        }
+        return schema?.parse({
+          id: body['id'],
+          repositoryId: null,
+          owner: null,
+          name: null,
+          fullName: null,
+          displayName: null,
+          nameSealed: body['nameSealed'],
+          folder: 'pending',
+          releaseBranch: 'main',
+          integrationBranch: 'develop',
+          hasCode: true,
+          inventoryState: 'pending',
+          accessLost: false,
+          followedAt: AT,
+        });
+      }) as Client['command'],
+    };
+
+    await createLocalProject({ client, vault: real.vault, newId: () => ID }, { path: '~/projets/recettes', name: 'Recettes', templateId: TEMPLATE, templateRevision: 1, templateSealed, check: { state: 'ready', hasCode: true, branch: 'main', name: 'recettes' } });
+
+    expect(bodies.map((body) => body['vaultKeyVersion'])).toEqual([1, 2]);
+    expect(await real.open(bodies[1]!['templateSealed'] as { key: string; ciphertext: string }, processSealAad(ID))).toBe(COMMANDS);
   });
 
   it('a folder without git has no branch', async () => {

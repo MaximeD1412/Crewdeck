@@ -14,7 +14,7 @@ import { uuidv7 } from '../ids.js';
 import { utf8 } from '../keys/bytes.js';
 import { sealedWrite } from '../keys/sealed-write.js';
 import type { Vault } from '../keys/vault.js';
-import { resealProcess } from '../process/seal.js';
+import { withOpenedProcess } from '../process/seal.js';
 import { toWire } from './folder-check.js';
 
 /**
@@ -57,24 +57,27 @@ export const createLocalProject = async (
   { path, name, templateId, templateRevision, templateSealed = null, check }: NewLocalProject,
 ): Promise<Project> => {
   const id = newId();
-  return sealedWrite(vault, async () => {
-    const [nameSealed, folderSealed, processSealed] = await Promise.all([
-      vault.sealItem(utf8(name), utf8(projectNameAad(id))),
-      sealFolder(vault, id, path),
-      resealProcess(vault, templateSealed, templateSealAad(templateId), processSealAad(id)),
-    ]);
-    return postLocalProject(client, {
-      id,
-      nameSealed: toWire(nameSealed),
-      folderSealed: toWire(folderSealed),
-      vaultKeyVersion: Math.min(nameSealed.vaultKeyVersion, folderSealed.vaultKeyVersion, processSealed?.vaultKeyVersion ?? Infinity),
-      hasCode: check.hasCode,
-      releaseBranch: check.branch,
-      templateId,
-      ...(templateRevision === undefined ? {} : { templateRevision }),
-      templateSealed: processSealed?.sealed ?? null,
-    });
-  });
+  // The Modèle's part opened once under the key held now; each attempt seals it again, under the new key after a rotation.
+  return withOpenedProcess(vault, templateSealed, templateSealAad(templateId), (sealUnder) =>
+    sealedWrite(vault, async () => {
+      const [nameSealed, folderSealed, processSealed] = await Promise.all([
+        vault.sealItem(utf8(name), utf8(projectNameAad(id))),
+        sealFolder(vault, id, path),
+        sealUnder(processSealAad(id)),
+      ]);
+      return postLocalProject(client, {
+        id,
+        nameSealed: toWire(nameSealed),
+        folderSealed: toWire(folderSealed),
+        vaultKeyVersion: Math.min(nameSealed.vaultKeyVersion, folderSealed.vaultKeyVersion, processSealed?.vaultKeyVersion ?? Infinity),
+        hasCode: check.hasCode,
+        releaseBranch: check.branch,
+        templateId,
+        ...(templateRevision === undefined ? {} : { templateRevision }),
+        templateSealed: processSealed?.sealed ?? null,
+      });
+    }),
+  );
 };
 
 /** Chooses a Local Projet's folder again (`/projets/ajouter?projet=<id>`); `seq` the store's unless given. */

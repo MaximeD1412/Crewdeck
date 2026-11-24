@@ -16,7 +16,7 @@ import { uuidv7 } from './ids.js';
 import { fromBase64Url, utf8 } from './keys/bytes.js';
 import type { Vault, VaultState } from './keys/vault.js';
 import { sealedWrite } from './keys/sealed-write.js';
-import { resealProcess } from './process/seal.js';
+import { withOpenedProcess } from './process/seal.js';
 import type { Store } from './store/store.js';
 import { pickerView, type PickerView } from './views/projets.js';
 
@@ -99,17 +99,18 @@ export const createProjects = ({ store, client, vault, newId = () => uuidv7() }:
         const own = store.getState().slices['process-template']?.get(template);
         if (!own) throw new Error(`projects: no Modèle de process ${template}`);
         const ids = repositoryIds.map((repositoryId) => ({ repositoryId, id: newId() }));
-        await sealedWrite(vault, async () => {
-          const projects = await Promise.all(
-            ids.map(async ({ repositoryId, id }) => ({ repositoryId, id, resealed: await resealProcess(vault, own.sealed, templateSealAad(template), processSealAad(id)) })),
-          );
-          const versions = projects.flatMap(({ resealed }) => (resealed ? [resealed.vaultKeyVersion] : []));
-          await followProjects(client, repositoryIds, template, {
-            templateRevision: own.revision,
-            projects: projects.map(({ repositoryId, id, resealed }) => ({ repositoryId, id, templateSealed: resealed?.sealed ?? null })),
-            ...(versions.length > 0 ? { vaultKeyVersion: Math.min(...versions) } : {}),
-          });
-        });
+        // Opened once under the key held now; each attempt seals it again, under the new key after a rotation.
+        await withOpenedProcess(vault, own.sealed, templateSealAad(template), (sealUnder) =>
+          sealedWrite(vault, async () => {
+            const projects = await Promise.all(ids.map(async ({ repositoryId, id }) => ({ repositoryId, id, resealed: await sealUnder(processSealAad(id)) })));
+            const versions = projects.flatMap(({ resealed }) => (resealed ? [resealed.vaultKeyVersion] : []));
+            await followProjects(client, repositoryIds, template, {
+              templateRevision: own.revision,
+              projects: projects.map(({ repositoryId, id, resealed }) => ({ repositoryId, id, templateSealed: resealed?.sealed ?? null })),
+              ...(versions.length > 0 ? { vaultKeyVersion: Math.min(...versions) } : {}),
+            });
+          }),
+        );
       } finally {
         following = false;
         notify();

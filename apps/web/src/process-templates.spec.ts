@@ -3,7 +3,7 @@ import type { Client } from './api/client.js';
 import { ApiError } from './api/request.js';
 import { createEditorUi } from './process/editor-ui.js';
 import { createSaveTemplate, createTemplateList, NO_TEMPLATE_LIST_LOCAL, type TemplatesStore } from './process-templates.js';
-import { fakeSealed, fakeVault } from './projects/testing.js';
+import { fakeSealed, fakeVault, rotatingVault } from './projects/testing.js';
 
 const PROJECT = '019a6f00-0000-7000-8000-000000000011';
 const WEB = '019a6f00-0000-7000-8000-0000000000a1';
@@ -134,6 +134,29 @@ describe('createSaveTemplate', () => {
     expect(bodies.map((body) => body.vaultKeyVersion)).toEqual([1, 2]);
     expect(bodies[1]?.id).toBe(bodies[0]?.id);
     expect(shown().saveTemplate).toBeNull();
+  });
+
+  it('after a rotation, seals again under the new key the Commandes it opened under the former, with a real vault (E2E-4)', async () => {
+    const real = await rotatingVault();
+    const store = { process: new Map([[PROJECT, processWith(await real.seal(COMMANDS, processSealAad(PROJECT)))]]) };
+    const bodies: { id: string; sealed: { key: string; ciphertext: string }; vaultKeyVersion: number }[] = [];
+    const command = vi.fn(async (_method: unknown, _path: unknown, body: unknown) => {
+      bodies.push(body as (typeof bodies)[number]);
+      if (bodies.length === 1) {
+        // Another holder rotates: the part the store holds was sealed under the former key.
+        real.rotate();
+        throw refused(409, 'vault.version-changed', 'La clé du coffre a déjà changé : relis le coffre avant de recommencer.');
+      }
+      return { ...template(WEB, ''), ...(body as object) };
+    });
+    const ui = createEditorUi();
+    const save = createSaveTemplate({ ui, client: { command: command as unknown as Client['command'] }, vault: real.vault, slices: () => store, projectId: () => PROJECT });
+    save.open();
+    await save.save({ name: 'Process Site mairie' });
+
+    expect(bodies.map((body) => body.vaultKeyVersion)).toEqual([1, 2]);
+    expect(await real.open(bodies[1]!.sealed, templateSealAad(bodies[1]!.id))).toBe(COMMANDS);
+    expect(ui.view(PROJECT, {}).saveTemplate).toBeNull();
   });
 
   it('says the server’s refusal under the name: a version activated meanwhile, « Process Crewdeck »', async () => {

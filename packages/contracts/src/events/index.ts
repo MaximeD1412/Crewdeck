@@ -20,6 +20,7 @@ export const RESOURCES = [
   'vault',
   'project',
   'process',
+  'process-template',
   'repository',
   'ticket',
   'milestone',

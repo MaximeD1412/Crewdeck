@@ -7,6 +7,7 @@ import { zMcpServer } from './mcp-servers.js';
 import { zMe } from './me.js';
 import { zPhaseRun, zStepRun } from './phase-runs.js';
 import { zProjectProcess } from './process.js';
+import { PROCESS_TEMPLATES_MAX, zProcessTemplate } from './process-templates.js';
 import { REPOSITORIES_MAX, zProject, zRepository } from './projects.js';
 import { PUSH_SUBSCRIPTIONS_MAX, zPushSubscription } from './push-subscriptions.js';
 import { zRunner } from './runner.js';
@@ -44,6 +45,8 @@ export const STATE_SLICES = {
   projects: z.array(zProject),
   /** The Process of each Projet (PROCESS-3): its active version and its draft, keyed by the Projet's id. */
   processes: z.array(zProjectProcess),
+  /** The Pilote's Modèles de process (PROCESS-14), newest `updatedAt` first, at most `PROCESS_TEMPLATES_MAX`; « Process Crewdeck » is not one of them. */
+  processTemplates: z.array(zProcessTemplate).max(PROCESS_TEMPLATES_MAX),
   /** Every unfinished PhaseRun (`running` or `waiting`) of every Projet (PROCESS-4); finished ones are read by their pages' lists. */
   phaseRuns: z.array(zPhaseRun),
   /** Every StepRun of those PhaseRuns, `superseded` ones included. */

@@ -90,7 +90,7 @@ export class LocalProjects {
         await tx.project.update({ where: { id: input.id }, data: { lastSeq: seq } });
         // Its Sources first, so that its first process.upserted holds them: a folder, every group Local.
         await this.sources.createDefaults(tx, input.id, 'local');
-        await this.process.createInitialVersion(tx, input.id, { template: input.templateId });
+        await this.process.createInitialVersion(tx, input.id, { template: input.templateId, sealed: input.templateSealed });
         return view;
       });
     } catch (error) {

@@ -698,7 +698,8 @@ POST /api/vault/rotations (the Runner: /api/runner/vault/rotations)
   from `VaultItemsRegistry`, where each kind of stored item registers how it
   lists its keys and replaces one: `idea.text`, `idea.analysis`,
   `idea.reason` (`"<ideaId>:<field>"`), `process-version.sealed` and
-  `process-draft.sealed` (`"process:<projectId>"`), `project-settings.worktree-commands`
+  `process-draft.sealed` (`"process:<projectId>"`), `process-template.sealed`
+  (`"template:<templateId>"`, a Modèle de process), `project-settings.worktree-commands`
   (`"settings:<projectId>"`), `project.name` (`"project:<projectId>:name"`,
   a Local Projet's name), `agent-session.title` (a Session's title when its
   artifact is Local, under the additional data of that artifact, which the

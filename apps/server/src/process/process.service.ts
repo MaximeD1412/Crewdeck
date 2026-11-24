@@ -25,17 +25,28 @@ import { SensitiveActionsService } from '../sensitive-actions/sensitive-actions.
 import { PROCESS_DRAFT_VIEW, PROCESS_VERSION_VIEW, type ProcessVersionRow, RUNNING_WORK_VIEW, toProjectProcess, toRunningWork } from './process.view.js';
 import { readProjectProcessSources, readSourceRows } from './sources/sources.service.js';
 import { toProcessSources } from './sources/sources.view.js';
+import { readTemplateCopy, type TemplateCopy } from './templates/process-templates.service.js';
 
-/** The Modèle a new Projet copies: the built-in « Process Crewdeck » until PROCESS-14's Modèles of the Pilote. */
-export interface InitialProcess {
-  readonly template: keyof typeof BUILTIN_TEMPLATES;
-}
+/**
+ * The Modèle a new Projet copies: a Modèle of the release (« Process
+ * Crewdeck »), or one of the Pilote's own by its id with its sealed part
+ * re-sealed by the page under `process:<projectId>` (PROCESS-14).
+ */
+export type InitialProcess = { readonly template: keyof typeof BUILTIN_TEMPLATES } | { readonly template: string; readonly sealed: SealedItem | null };
 
 /** The names of the built-in Modèles, as the version keeps them. */
 const TEMPLATE_NAMES: Readonly<Record<keyof typeof BUILTIN_TEMPLATES, string>> = { 'process-crewdeck': PROCESS_CREWDECK_NAME };
 
 /** The part of a transaction the Process reads and writes; its view holds the Projet's Sources and its work running. */
 export type ProcessTx = Pick<Tx, 'project' | 'processVersion' | 'processDraft' | 'artifactSource' | 'phaseRun' | 'ticket'>;
+
+const isBuiltin = (template: string): template is keyof typeof BUILTIN_TEMPLATES => Object.hasOwn(BUILTIN_TEMPLATES, template);
+
+/** What a new Projet copies of the Modèle `from` names, read in the Pilote's scope (`tx`). */
+const copyOf = (tx: Tx, from: InitialProcess): Promise<TemplateCopy> | TemplateCopy =>
+  isBuiltin(from.template)
+    ? { name: TEMPLATE_NAMES[from.template], definition: BUILTIN_TEMPLATES[from.template], sealed: null }
+    : readTemplateCopy(tx, from.template, 'sealed' in from ? from.sealed : null);
 
 const json = (value: SealedItem | null): typeof Prisma.DbNull | Prisma.InputJsonValue => (value === null ? Prisma.DbNull : (value as unknown as Prisma.InputJsonValue));
 
@@ -118,25 +129,27 @@ export class ProcessService {
   /**
    * The Process of a Projet just created, in its transaction, after its
    * Sources (`SourcesService.createDefaults`): version 1, a copy of the
-   * Modèle, when it has no Manque on those Sources;
+   * Modèle (its sealed part the page re-sealed for the Projet), when it has
+   * no Manque on those Sources;
    * otherwise no version and a draft of that copy (`baseVersion: 0`), which
    * the Pilote fixes and activates (PROCESS-10). The Manques never forbid
-   * creating a Projet.
+   * creating a Projet. 404 `process-template.not-found` for an own Modèle
+   * gone, 422 `process-template.sealed-mismatch` for its sealed part.
    */
   async createInitialVersion(tx: Tx, projectId: string, from: InitialProcess): Promise<ProjectProcess> {
     const pilotId = currentPilotId();
-    const definition = BUILTIN_TEMPLATES[from.template];
+    const { name, definition, sealed } = await copyOf(tx, from);
     const value = definition as unknown as Prisma.InputJsonValue;
     const now = new Date();
     const sources = toProcessSources(await readSourceRows(tx, projectId));
     if (findGaps(definition, sources).length === 0) {
       await tx.processVersion.create({
-        data: { id: newId(), pilotId, projectId, number: 1, definition: value, sealed: Prisma.DbNull, activatedAt: now, activatedBy: 'creation', templateName: TEMPLATE_NAMES[from.template] },
+        data: { id: newId(), pilotId, projectId, number: 1, definition: value, sealed: json(sealed), activatedAt: now, activatedBy: 'creation', templateName: name },
         select: { id: true },
       });
     } else {
       await tx.processDraft.create({
-        data: { id: newId(), pilotId, projectId, definition: value, sealed: Prisma.DbNull, revision: 1, baseVersion: 0, updatedAt: now },
+        data: { id: newId(), pilotId, projectId, definition: value, sealed: json(sealed), revision: 1, baseVersion: 0, updatedAt: now },
         select: { id: true },
       });
     }

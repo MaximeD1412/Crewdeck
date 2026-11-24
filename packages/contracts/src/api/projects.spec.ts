@@ -77,14 +77,24 @@ describe('zFollowProjects', () => {
     expect(zFollowProjects.safeParse({ repositoryIds: ['personal-os'], seq: 1 }).success).toBe(false);
   });
 
-  it('starts from a Modèle de process: « Process Crewdeck » only, until PROCESS-14', () => {
-    expect(zProcessTemplateId.options).toEqual(['process-crewdeck']);
+  it('starts from « Process Crewdeck » or one of the Pilote’s Modèles, by its id (PROCESS-14)', () => {
+    const TEMPLATE = '019a6f00-0000-7000-8000-0000000000a1';
+    const OWN = { repositoryId: REPOSITORY.id, id: PROJECT.id, templateSealed: SEALED };
+
+    expect(zProcessTemplateId.parse('process-crewdeck')).toBe('process-crewdeck');
+    expect(zProcessTemplateId.parse(TEMPLATE)).toBe(TEMPLATE);
     expect(zFollowProjects.safeParse({ repositoryIds: [REPOSITORY.id], templateId: 'mon-process', seq: 1 }).success).toBe(false);
+    // An own Modèle: each repository with the id the page drew and its part re-sealed for it.
+    expect(zFollowProjects.parse({ repositoryIds: [REPOSITORY.id], templateId: TEMPLATE, projects: [OWN], seq: 1 }).projects).toEqual([OWN]);
+    expect(zFollowProjects.safeParse({ repositoryIds: [REPOSITORY.id], templateId: TEMPLATE, seq: 1 }).success).toBe(false);
+    expect(zFollowProjects.safeParse({ repositoryIds: [REPOSITORY.id], templateId: TEMPLATE, projects: [], seq: 1 }).success).toBe(false);
+    expect(zFollowProjects.safeParse({ repositoryIds: [REPOSITORY.id], templateId: TEMPLATE, projects: [OWN, OWN], seq: 1 }).success).toBe(false);
+    expect(zFollowProjects.parse({ repositoryIds: [REPOSITORY.id], templateId: 'process-crewdeck', projects: [{ ...OWN, templateSealed: null }], seq: 1 }).projects).toHaveLength(1);
   });
 });
 
 describe('zCreateLocalProject and zAttachProjectFolder', () => {
-  const CREATE = { id: LOCAL_PROJECT.id, nameSealed: SEALED, folderSealed: SEALED, vaultKeyVersion: 2, hasCode: true, releaseBranch: 'main', templateId: 'process-crewdeck' };
+  const CREATE = { id: LOCAL_PROJECT.id, nameSealed: SEALED, folderSealed: SEALED, vaultKeyVersion: 2, hasCode: true, releaseBranch: 'main', templateId: 'process-crewdeck', templateSealed: null };
 
   it('creates a Local Projet of an id the page drew, its name and its folder sealed', () => {
     expect(zCreateLocalProject.parse(CREATE)).toEqual(CREATE);

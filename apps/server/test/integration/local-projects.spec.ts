@@ -137,6 +137,7 @@ describe('the Local Projets against PostgreSQL', () => {
     hasCode: true,
     releaseBranch: 'trunk',
     templateId: 'process-crewdeck',
+    templateSealed: null,
     ...fields,
   });
 

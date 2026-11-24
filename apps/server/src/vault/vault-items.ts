@@ -1,4 +1,4 @@
-import { ideaItemAad, localSealedOfParam, localSealedParam, localTextAad, processSealAad, projectNameAad, type VaultItem, worktreeCommandsAad, zSealedItem } from '@crewdeck/contracts';
+import { ideaItemAad, localSealedOfParam, localSealedParam, localTextAad, processSealAad, projectNameAad, templateSealAad, type VaultItem, worktreeCommandsAad, zSealedItem } from '@crewdeck/contracts';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import type { Tx } from '../realtime/transactions.js';
@@ -102,6 +102,22 @@ const processDrafts: VaultItemKind = {
   async replace(tx, id, previousKey, wrappedKey) {
     const row = await tx.processDraft.findUnique({ where: { id }, select: { sealed: true } });
     return swap(row?.sealed, previousKey, wrappedKey, async (stored, value) => (await tx.processDraft.updateMany({ where: { id, sealed: { equals: stored } }, data: { sealed: value } })).count);
+  },
+};
+
+/** A Modèle de process's Commandes (PROCESS-14), sealed by the page under `template:<id>`. */
+const processTemplates: VaultItemKind = {
+  itemType: 'process-template.sealed',
+  async list(tx, from, take) {
+    const rows = await tx.processTemplate.findMany({ where: { ...after(from), sealed: { not: Prisma.DbNull } }, orderBy: { id: 'asc' }, take, select: { id: true, sealed: true } });
+    return rows.flatMap(({ id, sealed }) => {
+      const wrappedKey = keyOf(sealed);
+      return wrappedKey ? [{ itemType: 'process-template.sealed', itemId: id, aad: templateSealAad(id), wrappedKey }] : [];
+    });
+  },
+  async replace(tx, id, previousKey, wrappedKey) {
+    const row = await tx.processTemplate.findUnique({ where: { id }, select: { sealed: true } });
+    return swap(row?.sealed, previousKey, wrappedKey, async (stored, value) => (await tx.processTemplate.updateMany({ where: { id, sealed: { equals: stored } }, data: { sealed: value } })).count);
   },
 };
 
@@ -270,6 +286,7 @@ export const VAULT_ITEM_KINDS: readonly VaultItemKind[] = [
   ideaKind('reason'),
   processVersions,
   processDrafts,
+  processTemplates,
   worktreeCommands,
   projectNames,
   sessionTitles,

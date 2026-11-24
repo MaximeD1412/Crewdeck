@@ -132,6 +132,30 @@ func TestInventoryEachFailingFolderFailsItsRule(t *testing.T) {
 	}
 }
 
+// An origin unreachable at the end of the Session (a network down, a Local
+// folder moved) is a verdict, incomplete on the branch only: its Décision
+// « Contrat incomplet » is rerunnable, and the rerun passes once it is back.
+func TestInventoryUnreachableOriginIsIncompleteOnTheBranchThenPasses(t *testing.T) {
+	c := inventory(t)
+	for name, origin := range inventoryOrigins(t) {
+		dir := inventoryWorktree(t, origin, "pass", true)
+		moved := origin + ".away"
+		if err := os.Rename(origin, moved); err != nil {
+			t.Fatal(err)
+		}
+		verdict := check(t, c, Target{Dir: dir})
+		if verdict.Status != contracts.ContratVerdictStatusIncomplete || !slices.Equal(verdict.FailedRuleIds, []string{"inventory.branch.pushed"}) {
+			t.Errorf("%s, origin unreachable: verdict %+v, want incomplete on the branch only", name, verdict)
+		}
+		if err := os.Rename(moved, origin); err != nil {
+			t.Fatal(err)
+		}
+		if verdict := check(t, c, Target{Dir: dir}); verdict.Status != contracts.ContratVerdictStatusPassed {
+			t.Errorf("%s, origin back: verdict %+v, want passed", name, verdict)
+		}
+	}
+}
+
 // A folder that is not a repository of its own (a fixture inside this one)
 // has no head: never the HEAD of the repository around it.
 func TestInventoryVerdictHasNoHeadOutsideARepository(t *testing.T) {

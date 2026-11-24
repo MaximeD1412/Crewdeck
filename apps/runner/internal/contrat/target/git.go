@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // The worktree's git, for what only git says (its HEAD, what its origin
@@ -49,6 +50,8 @@ func (t Target) Git(ctx context.Context, args ...string) (string, error) {
 	cmd.Dir = t.Dir
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "LC_ALL=C")
 	cmd.Env = append(cmd.Env, t.GitEnv...)
+	// A transport git started (ssh) may hold its output once git is killed.
+	cmd.WaitDelay = time.Second
 	out, err := cmd.Output()
 	return string(out), err
 }

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contrat/target"
 )
@@ -89,6 +90,55 @@ func TestBranchPushedReadsTheOriginNotAStaleRef(t *testing.T) {
 		if got, err := fn(context.Background(), target.Target{Dir: dir}, params); got || err != nil {
 			t.Errorf("%s, deleted from the origin: %v, %v; want false", name, got, err)
 		}
+	}
+}
+
+// An origin that cannot be reached, or does not answer in time, fails the
+// rule rather than erring: the verdict is then incomplete, its Décision
+// « Contrat incomplet » rerunnable, and the rerun passes once the origin is back.
+func TestBranchPushedFailsWhileTheOriginIsUnreachableAndPassesOnceItIsBack(t *testing.T) {
+	fn, _ := Lookup("branch-pushed")
+	params := map[string]any{"branch": "crewdeck/inventaire"}
+	for name, origin := range origins(t) {
+		dir := worktree(t, origin)
+		git(t, dir, "push", "--quiet", "origin", "crewdeck/inventaire")
+		moved := origin + ".away"
+		if err := os.Rename(origin, moved); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := fn(context.Background(), target.Target{Dir: dir}, params); got || err != nil {
+			t.Errorf("%s, origin unreachable: %v, %v; want false, no error", name, got, err)
+		}
+		if err := os.Rename(moved, origin); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := fn(context.Background(), target.Target{Dir: dir}, params); !got || err != nil {
+			t.Errorf("%s, origin back: %v, %v; want true", name, got, err)
+		}
+	}
+}
+
+func TestBranchPushedFailsAnOriginThatDoesNotAnswerInTime(t *testing.T) {
+	fn, _ := Lookup("branch-pushed")
+	bound := lsRemoteBound
+	lsRemoteBound = 200 * time.Millisecond
+	t.Cleanup(func() { lsRemoteBound = bound })
+	dir := worktree(t, origins(t)["bare"])
+	git(t, dir, "remote", "set-url", "origin", "ssh://origin.invalid/repo.git")
+	// The ssh transport hangs: no network is reached.
+	hanging := []string{"GIT_SSH_COMMAND=sh -c 'sleep 5' --", "GIT_SSH_VARIANT=simple"}
+	start := time.Now()
+	got, err := fn(context.Background(), target.Target{Dir: dir, GitEnv: hanging}, map[string]any{"branch": "crewdeck/inventaire"})
+	if got || err != nil {
+		t.Errorf("origin silent: %v, %v; want false, no error", got, err)
+	}
+	if elapsed := time.Since(start); elapsed > 3*time.Second {
+		t.Errorf("origin silent: answered after %v, want within its bound", elapsed)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := fn(ctx, target.Target{Dir: dir, GitEnv: hanging}, map[string]any{"branch": "crewdeck/inventaire"}); err == nil {
+		t.Error("the check's context ended: no error")
 	}
 }
 

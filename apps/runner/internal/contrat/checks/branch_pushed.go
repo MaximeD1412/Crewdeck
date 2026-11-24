@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/maximed1412/crewdeck/apps/runner/internal/contrat/target"
 )
@@ -16,10 +17,17 @@ import (
 // repository or a Local folder. The origin is asked (`git ls-remote`), never
 // the worktree's remote-tracking ref, which may be stale, and nothing of the
 // Runner's clone is written. A folder that is not a repository, or without a
-// commit, fails it; an origin that cannot be reached is an error.
+// commit, fails it; so does an origin that cannot be reached or does not
+// answer within lsRemoteBound, so that the verdict is incomplete and its
+// Étape rerunnable once the origin is back. Only the end of the check's own
+// context is an error.
 func init() {
 	Register("branch-pushed", branchPushed)
 }
+
+// lsRemoteBound is how long the origin has to answer: a silent one fails the
+// rule well before the verdict's own bound ends the check in an error.
+var lsRemoteBound = 30 * time.Second
 
 var branchName = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._/-]*$`)
 
@@ -32,11 +40,17 @@ func branchPushed(ctx context.Context, t target.Target, params map[string]any) (
 	if err != nil || !ok {
 		return false, err
 	}
-	out, err := t.Git(ctx, "ls-remote", "--heads", "origin", "refs/heads/"+branch)
+	asked, cancel := context.WithTimeout(ctx, lsRemoteBound)
+	defer cancel()
+	out, err := t.Git(asked, "ls-remote", "--heads", "origin", "refs/heads/"+branch)
 	if err != nil {
+		if ctx.Err() != nil {
+			return false, fmt.Errorf("branch-pushed: %w", ctx.Err())
+		}
 		var exit *exec.ExitError
-		if errors.As(err, &exit) {
-			return false, fmt.Errorf("branch-pushed: git ls-remote: exit %d", exit.ExitCode())
+		if errors.As(err, &exit) || asked.Err() != nil {
+			// The origin did not answer: the branch is not shown pushed.
+			return false, nil
 		}
 		return false, fmt.Errorf("branch-pushed: git ls-remote: %w", err)
 	}

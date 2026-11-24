@@ -258,6 +258,29 @@ describe('the Inventaire of an existing code against PostgreSQL', () => {
     expect(open.map((decision) => decision.kind)).toEqual(['contract-incomplete']);
   });
 
+  it('reruns an Inventaire whose origin could not be reached: « Contrat incomplet » on the branch, « Relancer l’Étape », then to-approve', async () => {
+    const { socket, project, start, run, step } = await drafting();
+
+    // The Runner's verdict when ls-remote finds no origin (branch-pushed fails).
+    socket.send({ type: 'step.verdict', stepRunId: step.id, verdict: verdict('incomplete', ['inventory.branch.pushed']) });
+    end(socket, start.sessionId);
+    await vi.waitFor(async () => expect((await decisions()).map((decision) => decision.kind)).toEqual(['contract-incomplete']));
+    expect((await decisions())[0]?.params).toMatchObject({ stepRunId: step.id, failedRuleIds: 'inventory.branch.pushed' });
+
+    const res = await call('POST', `/api/step-runs/${step.id}/rerun`, { seq: String((await state()).seq) });
+    expect(res.status).toBe(200);
+    const again = await socket.expect('session.start');
+    expect(again).toMatchObject({ projectId: project.id, branch: 'crewdeck/inventaire', base: 'trunk' });
+    const [rerun] = await sql<{ id: string }>('SELECT id FROM step_runs WHERE phase_run_id = $1 AND id <> $2', [run.id, step.id]);
+    if (!rerun) throw new Error('No rerun');
+
+    socket.send({ type: 'step.report', stepRunId: rerun.id, figures: FIGURES });
+    socket.send({ type: 'step.verdict', stepRunId: rerun.id, verdict: verdict('passed') });
+    end(socket, again.sessionId);
+    await vi.waitFor(async () => expect((await inventory(project.id))?.inventory_state).toBe('to-approve'));
+    expect((await decisions()).map((decision) => decision.kind)).toEqual(['inventory-review']);
+  });
+
   it('leaves a Projet pending while the Rôle Conception has no Moteur, and starts it once the Runner reports one', async () => {
     const socket = await online();
     const project = await follow();

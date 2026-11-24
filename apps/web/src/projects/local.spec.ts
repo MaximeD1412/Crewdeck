@@ -3,7 +3,7 @@ import type { z } from 'zod';
 import type { Client } from '../api/client.js';
 import { ApiError } from '../api/request.js';
 import { fromBase64Url } from '../keys/bytes.js';
-import { attachFolder, createLocalProject } from './local.js';
+import { attachFolder, createLocalProject, pickSourceFolder } from './local.js';
 import { fakeVault } from './testing.js';
 
 const ID = '019a6f00-0000-7000-8000-000000000021';
@@ -107,5 +107,21 @@ describe('attachFolder', () => {
 
     expect(vault.unlocks).toBe(1);
     expect(calls.map((call) => call.body['vaultKeyVersion'])).toEqual([1, 2]);
+  });
+});
+
+describe('pickSourceFolder (SOURCE-9)', () => {
+  it('posts the folder a migration to Local will use, sealed as the Projet’s, to its group’s route, sealed again once after a rotation', async () => {
+    const { calls, vault, deps } = setup(1);
+
+    await pickSourceFolder(deps, ID, 'code', '~/projets/mairie');
+
+    expect(calls.map(({ method, path }) => [method, path])).toEqual([
+      ['POST', `/api/projects/${ID}/sources/code/folder`],
+      ['POST', `/api/projects/${ID}/sources/code/folder`],
+    ]);
+    expect(vault.unlocks).toBe(1);
+    expect(calls[1]?.body).toEqual({ folderSealed: expect.anything(), vaultKeyVersion: 2 });
+    expect(opened(calls[1]?.body['folderSealed'] as { ciphertext: string })).toBe(`${projectFolderAad(ID)}{"path":"~/projets/mairie"}`);
   });
 });

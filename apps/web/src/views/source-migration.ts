@@ -1,6 +1,7 @@
 import {
   groupsOfPhase,
   RUNNING_SOURCE_MIGRATION_STATES,
+  type CodeChange,
   type PhaseRun,
   type ProcessDefinition,
   type Project,
@@ -9,7 +10,7 @@ import {
   type SourceMigration,
   type SourceMigrationWaitingItem,
 } from '@crewdeck/contracts';
-import { formatDate, formatNumber, t, type IconName } from '@crewdeck/sdk';
+import { formatDate, formatNumber, t, type IconName, type MessageKey } from '@crewdeck/sdk';
 import type { ConfirmDialogOptions } from '../dialogs/confirm.js';
 import { typeLabel } from '../process/canvas.js';
 
@@ -21,7 +22,7 @@ export interface SourceMigrationReads {
   readonly migrations: Iterable<SourceMigration>;
   readonly phaseRuns: Iterable<Pick<PhaseRun, 'projectId' | 'phaseId' | 'state' | 'waitingOn'>>;
   readonly tickets: Iterable<{ readonly projectId: string }>;
-  readonly codeChanges: Iterable<{ readonly projectId: string }>;
+  readonly codeChanges: Iterable<Pick<CodeChange, 'projectId' | 'source' | 'state'>>;
   /** The Runner's machine, where a Local Source lives. */
   readonly machine: string;
 }
@@ -154,15 +155,48 @@ export const doneMeta = (detail: string, migration: SourceMigration): string =>
 
 const ICON: Readonly<Record<SourceKind, IconName>> = { github: 'github', local: 'folder' };
 
+/** What the dialog of a migration names beyond the store (SOURCE-9). */
+export interface MigrationContext {
+  /**
+   * The repository the group goes to or leaves: the one picked, `null` while
+   * none is; absent, the Projet's.
+   */
+  readonly repository?: string | null;
+  /** The folder typed for the code going Local, `null` while none is; absent, the Projet's own. */
+  readonly folder?: string | null;
+  /** Where the Tickets are: leaving GitHub, the repository stays followed while they are there. */
+  readonly ticketSource?: SourceKind;
+}
+
+const zeroOnePlural = (n: number) => (n === 0 ? 'zero' : plural(n));
+
+/** The open changes of code the migration turns into the other Source's: draft or open, on `from`. */
+const openChangesOf = (reads: SourceMigrationReads, from: SourceKind): number =>
+  count(reads.codeChanges, (change) => change.projectId === reads.project.id && change.source === from && (change.state === 'draft' || change.state === 'open'));
+
+/** « Puis les branches du dossier sont poussées sur … », « Puis … est cloné dans … »: the code's copy (SOURCE-9). */
+const codeCopyText = (reads: SourceMigrationReads, from: SourceKind, to: SourceKind, repository: string, folder: string | null | undefined): string => {
+  const open = openChangesOf(reads, from);
+  const into =
+    folder === undefined ? t('process.sources.migration.confirm.folder.project') : folder === null || folder.trim() === '' ? t('process.sources.migration.confirm.folder.picked') : folder;
+  return t(`process.sources.migration.confirm.copy.code.${to}.${zeroOnePlural(open)}`, { repository, folder: into, count: formatNumber(open) });
+};
+
 /**
  * The core's confirmation of `source.migrate` (US-102, US-26): « Passer les
  * Tickets de Site mairie sur GitHub ? », what holds during the migration,
  * what is copied (or that nothing is), what is archived, and that a Type
  * d’artefact never has two Sources.
  */
-export const migrationConfirmation = (reads: SourceMigrationReads, group: SourceGroup, from: SourceKind, to: SourceKind): ConfirmDialogOptions => {
+export const migrationConfirmation = (
+  reads: SourceMigrationReads,
+  group: SourceGroup,
+  from: SourceKind,
+  to: SourceKind,
+  context: MigrationContext = {},
+): ConfirmDialogOptions => {
   const { project, machine } = reads;
-  const repository = project.fullName ?? '';
+  const repository = (context.repository === undefined ? project.fullName : context.repository) ?? t('process.sources.migration.confirm.repository.picked');
   const noun = t(`process.sources.migration.${group}.noun`);
   const running = inProgressOf(reads, group);
   const fromLabel = sourceLabel(from);
@@ -171,7 +205,7 @@ export const migrationConfirmation = (reads: SourceMigrationReads, group: Source
     ? t('process.sources.migration.confirm.copy.nothing')
     : group === 'ticket'
       ? t(`process.sources.migration.confirm.copy.ticket.${to}.${plural(tickets)}`, { count: formatNumber(tickets) })
-      : t(`process.sources.migration.confirm.copy.code.${to}`, { repository });
+      : codeCopyText(reads, from, to, repository, context.folder);
   const drain =
     running === 0
       ? t('process.sources.migration.confirm.drain.none', { noun })
@@ -180,17 +214,21 @@ export const migrationConfirmation = (reads: SourceMigrationReads, group: Source
           running: t(`process.sources.migration.confirm.running.${group}.${plural(running)}`, { count: formatNumber(running) }),
           from: fromLabel,
         });
+  // Leaving GitHub, the code's repository stays followed while the Tickets are there (SOURCE-9).
+  const followed = group === 'code' && from === 'github' && context.ticketSource === 'github' ? '.followed' : '';
+  const archived = t(`process.sources.migration.confirm.archived.${group}.${from}${followed}` as MessageKey, { repository });
   return {
     title: t(`process.sources.migration.confirm.${group}.title`, { project: project.displayName ?? '', to: sourceLabel(to) }),
     confirmLabel: t(`process.sources.migration.confirm.${group}.label`),
     icon: ICON[to],
     tone: 'primary',
     consequences: {
-      lead: t('process.sources.migration.confirm.lead', { from: fromLabel, to: sourceLabel(to), place: placeOf(group, to, project, machine) }),
+      lead: t('process.sources.migration.confirm.lead', { from: fromLabel, to: sourceLabel(to), place: to === 'github' ? repository : placeOf(group, to, project, machine) }),
       items: [
         { strong: '', text: drain },
         { strong: '', text: copy },
-        { strong: '', text: t(`process.sources.migration.confirm.archived.${group}.${from}`, { repository }) },
+        ...(group === 'code' ? [{ strong: '', text: t('process.sources.migration.confirm.documents') }] : []),
+        { strong: '', text: archived },
       ],
       note: t('process.sources.migration.confirm.note'),
     },

@@ -223,16 +223,35 @@ func (h *Handler) Pending(projectID string) (state.PendingFolder, bool) {
 // ErrTaken is a folder another Projet holds, as its folder or its pending one.
 var ErrTaken = errors.New("folders: the folder is another Projet's")
 
-// Taken is whether folder is another Projet's than projectID, as its folder
-// or its pending one (the pick dropped, another Projet may have taken it since).
-func (h *Handler) Taken(projectID, folder string) bool {
+// Hold holds folder again as the Projet's pending one for a migration of
+// group, before it writes there again (its pick dropped at a failure): at
+// once, under the lock attach and pick take, so that no other Projet gets it
+// meanwhile; until the promotion, or the drop of the next failure. False,
+// nothing held, when another Projet holds it already, as its folder or its
+// pending one.
+func (h *Handler) Hold(ctx context.Context, projectID, group, folder string) (bool, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	linked, err := h.cfg.Store.Load()
 	if err != nil {
-		return true
+		return false, err
 	}
-	return taken(linked, projectID, folder)
+	if taken(linked, projectID, folder) {
+		return false, nil
+	}
+	if pending, ok := linked.Pending[projectID]; ok && filepath.Clean(pending.Path) == filepath.Clean(folder) {
+		return true, nil
+	}
+	if linked.Pending == nil {
+		linked.Pending = map[string]state.PendingFolder{}
+	}
+	linked.Pending[projectID] = state.PendingFolder{Path: folder, Group: group}
+	if err := h.cfg.Store.Save(linked); err != nil {
+		return false, err
+	}
+	h.cfg.Logger.Info("project.folder.held", "projectId", projectID, "group", group)
+	h.say(ctx, h.found(linked))
+	return true, nil
 }
 
 func taken(linked state.State, projectID, folder string) bool {

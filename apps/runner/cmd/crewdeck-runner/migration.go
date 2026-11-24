@@ -52,7 +52,7 @@ func migrations(home, server, runnerToken string, locals *localSources, picked *
 			return pending.Path, ok && pending.Path != ""
 		},
 		Promote: picked.Promote,
-		Taken:   picked.Taken,
+		Hold:    picked.Hold,
 		Open: func(projectID, folder string) *local.Project {
 			if p, ok := locals.Project(projectID); ok && p.Folder() == folder {
 				return p

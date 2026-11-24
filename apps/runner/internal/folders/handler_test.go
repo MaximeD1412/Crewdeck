@@ -588,9 +588,6 @@ func TestAFolderAnotherProjetTookOnceThePickWasDroppedIsTakenAndNeverPromoted(t 
 	if err := f.handler.HandlePick(context.Background(), f.pick(t, thisProject, "code", folder)); err != nil {
 		t.Fatal(err)
 	}
-	if f.handler.Taken(thisProject, folder) {
-		t.Fatal("the Projet's own pending folder is taken")
-	}
 	if err := f.handler.HandleDrop(context.Background(), contracts.RunnerProjectFolderDrop{Type: "project.folder.drop", ProjectId: thisProject}); err != nil {
 		t.Fatal(err)
 	}
@@ -598,13 +595,59 @@ func TestAFolderAnotherProjetTookOnceThePickWasDroppedIsTakenAndNeverPromoted(t 
 	if err := f.handler.HandleAttach(context.Background(), f.attach(t, otherProject, folder)); err != nil {
 		t.Fatal(err)
 	}
-	if !f.handler.Taken(thisProject, folder) || f.handler.Taken(otherProject, folder) {
-		t.Fatal("the folder is the other Projet's, taken for this one only")
+	if ok, err := f.handler.Hold(context.Background(), thisProject, "code", folder); err != nil || ok {
+		t.Fatalf("hold: %v, %v; want refused, the folder the other Projet's", ok, err)
+	}
+	if saved, _ := f.store.Load(); len(saved.Pending) != 0 {
+		t.Fatalf("pending %+v, want nothing held", saved.Pending)
 	}
 	if err := f.handler.Promote(context.Background(), thisProject, folder); !errors.Is(err, ErrTaken) {
 		t.Fatalf("promote: %v, want ErrTaken", err)
 	}
 	if saved, _ := f.store.Load(); saved.Projects[thisProject] != "" || saved.Projects[otherProject] != folder {
 		t.Fatalf("saved %+v, want the folder the other Projet's alone", saved.Projects)
+	}
+}
+
+func TestAHoldAfterTheDropTakesTheFolderBackAtOnceAgainstAnAttachOrAPickOfAnotherProjet(t *testing.T) {
+	f := newFixture(t)
+	folder := filepath.Join(f.home, "recettes")
+	mkdir(t, folder)
+	if err := f.handler.HandlePick(context.Background(), f.pick(t, thisProject, "code", folder)); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.handler.HandleDrop(context.Background(), contracts.RunnerProjectFolderDrop{Type: "project.folder.drop", ProjectId: thisProject}); err != nil {
+		t.Fatal(err)
+	}
+	f.sender.take()
+	// « Réessayer »: the migration holds the folder again before writing there.
+	if ok, err := f.handler.Hold(context.Background(), thisProject, "code", folder); err != nil || !ok {
+		t.Fatalf("hold: %v, %v", ok, err)
+	}
+	if saved, _ := f.store.Load(); saved.Pending[thisProject] != (state.PendingFolder{Path: folder, Group: "code"}) {
+		t.Fatalf("pending %+v, want the folder held again", saved.Pending)
+	}
+	if ok, err := f.handler.Hold(context.Background(), thisProject, "code", folder); err != nil || !ok {
+		t.Fatalf("hold again: %v, %v", ok, err)
+	}
+	// Meanwhile, another Projet tries to take it.
+	if err := f.handler.HandleAttach(context.Background(), f.attach(t, otherProject, folder)); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.handler.HandlePick(context.Background(), f.pick(t, otherProject, "code", folder)); err != nil {
+		t.Fatal(err)
+	}
+	saved, _ := f.store.Load()
+	if _, ok := saved.Projects[otherProject]; ok {
+		t.Fatalf("projects %+v, want the folder refused to the other Projet", saved.Projects)
+	}
+	if _, ok := saved.Pending[otherProject]; ok {
+		t.Fatalf("pending %+v, want the folder refused to the other Projet", saved.Pending)
+	}
+	if err := f.handler.Promote(context.Background(), thisProject, folder); err != nil {
+		t.Fatal(err)
+	}
+	if saved, _ := f.store.Load(); saved.Projects[thisProject] != folder || len(saved.Pending) != 0 {
+		t.Fatalf("saved %+v, want the folder this Projet's", saved)
 	}
 }

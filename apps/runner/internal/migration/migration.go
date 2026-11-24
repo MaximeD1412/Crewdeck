@@ -58,9 +58,10 @@ type Config struct {
 	// until the migration finishes; Promote makes it the Projet's folder.
 	Pending func(projectID string) (string, bool)
 	Promote func(ctx context.Context, projectID, folder string) error
-	// Taken is whether folder is another Projet's, as its folder or its
-	// pending one: the one a copy began in is checked again before each write.
-	Taken func(projectID, folder string) bool
+	// Hold holds folder as the Projet's pending one again, at once (false
+	// when another Projet holds it): the one a copy began in, before each
+	// pass writes there, its pick dropped at a failure meanwhile.
+	Hold func(ctx context.Context, projectID, group, folder string) (bool, error)
 	// Open is the Local Projet in folder (its Tickets, its changes in local.db).
 	Open func(projectID, folder string) *local.Project
 	// GitHub is the repository's side, written with the migration's token;
@@ -162,11 +163,11 @@ func (h *Handler) copy(ctx context.Context, m contracts.RunnerMigrationCopy) err
 	if err := p.save(h.cfg.Home); err != nil {
 		return err
 	}
-	from, err := h.side(p, p.From)
+	from, err := h.side(ctx, p, p.From)
 	if err != nil {
 		return err
 	}
-	to, err := h.side(p, p.To)
+	to, err := h.side(ctx, p, p.To)
 	if err != nil {
 		return err
 	}
@@ -252,7 +253,7 @@ func (h *Handler) finish(ctx context.Context, m contracts.RunnerMigrationFinish)
 	if p.Group == string(contracts.RunnerMigrationCopyGroupCode) {
 		return h.finishCode(ctx, p, m)
 	}
-	from, err := h.side(p, p.From)
+	from, err := h.side(ctx, p, p.From)
 	if err != nil {
 		return err
 	}
@@ -268,7 +269,7 @@ func (h *Handler) finish(ctx context.Context, m contracts.RunnerMigrationFinish)
 			return err
 		}
 	}
-	to, err := h.side(p, p.To)
+	to, err := h.side(ctx, p, p.To)
 	if err != nil {
 		return err
 	}
@@ -345,16 +346,25 @@ func (h *Handler) promote(ctx context.Context, p *progress) error {
 	if folder == "" {
 		return nil
 	}
-	if err := h.free(p.ProjectID, folder); err != nil {
-		return err
-	}
 	return h.cfg.Promote(ctx, p.ProjectID, folder)
 }
 
-// free is ErrFolderTaken when folder, picked for the Projet that has none
-// yet, is another Projet's now.
-func (h *Handler) free(projectID, folder string) error {
-	if h.cfg.Taken != nil && h.cfg.Taken(projectID, folder) {
+// hold holds folder, picked for the Projet that has none yet, as its pending
+// one again before anything is written there: ErrFolderTaken when another
+// Projet holds it now. Promote refuses it too, under the same lock.
+func (h *Handler) hold(ctx context.Context, p *progress, folder string) error {
+	if h.cfg.Hold == nil {
+		return nil
+	}
+	group := p.Group
+	if group == "" {
+		group = string(contracts.RunnerMigrationCopyGroupTicket)
+	}
+	ok, err := h.cfg.Hold(ctx, p.ProjectID, group, folder)
+	if err != nil {
+		return err
+	}
+	if !ok {
 		return ErrFolderTaken
 	}
 	return nil
@@ -406,7 +416,7 @@ func (h *Handler) freeze(ctx context.Context, p *progress, from source.Copier) e
 }
 
 // side is the Copier of one side of the migration.
-func (h *Handler) side(p *progress, kind string) (source.Copier, error) {
+func (h *Handler) side(ctx context.Context, p *progress, kind string) (source.Copier, error) {
 	if kind == string(contracts.RunnerMigrationCopyFromGithub) {
 		return h.cfg.GitHub(p.MigrationID, p.Owner, p.Name), nil
 	}
@@ -427,7 +437,7 @@ func (h *Handler) side(p *progress, kind string) (source.Copier, error) {
 				return nil, err
 			}
 		}
-		if err := h.free(p.ProjectID, folder); err != nil {
+		if err := h.hold(ctx, p, folder); err != nil {
 			return nil, err
 		}
 	}

@@ -75,6 +75,18 @@ func newEnv(t *testing.T, files map[string]string) *env {
 	return e
 }
 
+// attachOther makes folder another Projet's, as the folders handler does:
+// refused when this Projet holds it, as its folder or its pending one.
+func (e *env) attachOther(folder string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if folder == e.pending || folder == e.folder {
+		return false
+	}
+	e.others = append(e.others, folder)
+	return true
+}
+
 func (e *env) handler() *migration.Handler {
 	return migration.New(migration.Config{
 		Home: e.home,
@@ -101,10 +113,14 @@ func (e *env) handler() *migration.Handler {
 			e.promoted = append(e.promoted, id)
 			return nil
 		},
-		Taken: func(id, folder string) bool {
+		Hold: func(_ context.Context, id, _, folder string) (bool, error) {
 			e.mu.Lock()
 			defer e.mu.Unlock()
-			return id != projectID || slices.Contains(e.others, folder)
+			if id != projectID || slices.Contains(e.others, folder) {
+				return false, nil
+			}
+			e.pending = folder
+			return true, nil
 		},
 		Open: e.open,
 		Remote: func(_, owner, name string) migration.Remote {

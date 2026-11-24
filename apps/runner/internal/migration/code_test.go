@@ -510,6 +510,39 @@ func TestCodeToLocalRetriedOnceAnotherProjetTookTheFolderWritesNothingThereNorAd
 	}
 }
 
+func TestCodeToLocalRetriedHoldsTheFolderAgainSoNoOtherProjetTakesItDuringThePass(t *testing.T) {
+	e, _, _, _ := githubCode(t)
+	picked := e.pending
+	refused := 0
+	e.gh.fail = func(call string) int {
+		if call == "GET /pulls" && refused == 0 {
+			refused++
+			return 403
+		}
+		return 0
+	}
+	h := e.handler()
+	h.Copy(context.Background(), codeMessage(contracts.RunnerMigrationCopyFromGithub, contracts.RunnerMigrationCopyFromLocal))
+	e.mu.Lock()
+	e.pending = "" // the pick dropped at the failure
+	e.mu.Unlock()
+	// During the retry's pass, its branches fetched into the folder, another Projet is made from it.
+	attached := []bool{}
+	e.gh.before = func(call, _ string) {
+		if call == "GET /pulls" {
+			attached = append(attached, e.attachOther(picked))
+		}
+	}
+	h.Copy(context.Background(), codeMessage(contracts.RunnerMigrationCopyFromGithub, contracts.RunnerMigrationCopyFromLocal))
+	if len(attached) == 0 || slices.Contains(attached, true) {
+		t.Fatalf("attached %v, want the folder held by the migration through the pass", attached)
+	}
+	h.Finish(context.Background(), finishMessage(switchOf(t, e)))
+	if len(sentOf[contracts.RunnerMigrationFinished](e)) != 1 || e.folder != picked {
+		t.Fatalf("finished %d, the Projet's folder %q: want the folder adopted\n%s", len(sentOf[contracts.RunnerMigrationFinished](e)), e.folder, e.logs.String())
+	}
+}
+
 func TestCodeToLocalFinishCarriesALateCommitPromotesTheFolderAndReportsTheChanges(t *testing.T) {
 	e, work, _, _ := githubCode(t)
 	picked := e.pending

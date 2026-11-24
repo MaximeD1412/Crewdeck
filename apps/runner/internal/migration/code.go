@@ -614,7 +614,7 @@ func (h *Handler) codeFolder(ctx context.Context, p *progress) (string, error) {
 		}
 	}
 	if _, own := h.folder(p.ProjectID); !own {
-		if err := h.free(p.ProjectID, p.Folder); err != nil {
+		if err := h.hold(ctx, p, p.Folder); err != nil {
 			return "", err
 		}
 	}

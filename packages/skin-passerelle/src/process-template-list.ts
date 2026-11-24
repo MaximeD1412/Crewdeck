@@ -10,7 +10,8 @@ type Control = HTMLElement & { value: string };
  * `cd-process-template-list`, the card « Modèles de process » of the
  * Paramètres (no mockup: the Card, ListRow, Button and Empty of the page's
  * other cards): its count, a ListRow per Modèle (`layers`, its name, its
- * meta) with « Renommer » and « Supprimer » trailing; none, its Empty. The
+ * meta) with « Renommer » and « Supprimer » trailing, stacked below 1280 px;
+ * none, its Empty. The
  * Dialog « Renommer le Modèle de process » holds the name (new at each
  * opening, Enter submits) and the server's error under it; the Dialog
  * « Supprimer… ? » asks before `confirmRemove`. The actions of the
@@ -20,9 +21,18 @@ export class PasserelleProcessTemplateList extends PasserelleElement<typeof Proc
   static override styles = [
     sharedStyles,
     css`
+      /* Below 1280 px the two buttons stack, so the name and its meta keep the row's width. */
       .trailing {
         display: flex;
+        flex-direction: column;
+        align-items: stretch;
         gap: var(--cd-space-1);
+      }
+      @media (min-width: 1280px) {
+        .trailing {
+          flex-direction: row;
+          align-items: center;
+        }
       }
       .text {
         margin: 0;

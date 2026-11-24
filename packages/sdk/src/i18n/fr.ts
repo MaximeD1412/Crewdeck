@@ -1143,6 +1143,7 @@ export const fr = {
   'process.sources.migration.pick.folder': 'Dossier',
   'process.sources.migration.pick.folder.empty': 'Dossier vide : le dépôt y sera cloné.',
   'process.sources.migration.pick.folder.notEmpty': 'Ce dossier n’est pas vide : le dépôt y sera cloné.',
+  'process.sources.migration.pick.folder.notGit': 'Pas un dépôt git : lance git init dans ce dossier, puis saisis-le à nouveau.',
   'process.sources.migration.pick.folder.ready': 'Dépôt git : les Tickets y seront écrits, dans tickets/.',
   'process.sources.migration.pick.folder.vaultLocked': 'Ouvre Crewdeck sur un Appareil de confiance pour choisir un dossier.',
   'process.sources.migration.pick.github.link': 'Relier GitHub',

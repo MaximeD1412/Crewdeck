@@ -439,15 +439,21 @@ describe('createMigrateAction, picking the new place (SOURCE-9)', () => {
     ]);
   });
 
-  it('to Local, for the Tickets, takes a git repository’s root or offers git init', async () => {
-    const { form } = ask(setupPlaces({ project: GITHUB, process: processOn('github', 'github') }), 'ticket', 'local');
+  it('to Local, for the Tickets, takes only a git repository’s root, as the Runner does: a folder not one yet is refused until git init', async () => {
+    const setup = setupPlaces({ project: GITHUB, process: processOn('github', 'github') });
+    const { form } = ask(setup, 'ticket', 'local');
 
-    form.change('folder', '~/plein');
-    await settled(form);
-    expect(form.view()).toMatchObject({ ready: true, fields: [{ message: 'Pas encore un dépôt git : Crewdeck proposera git init.', invalid: false }] });
+    for (const path of ['~/plein', '~/vide']) {
+      form.change('folder', path);
+      await settled(form);
+      expect(form.view()).toMatchObject({ ready: false, fields: [{ message: 'Pas un dépôt git : lance git init dans ce dossier, puis saisis-le à nouveau.', invalid: true }] });
+    }
+    await expect(setup.action.run({ group: 'ticket', to: 'local' }, { seq: 7n })).rejects.toThrow();
+    expect(setup.calls).toEqual([]);
+
     form.change('folder', '~/depot');
     await settled(form);
-    expect(form.view()).toMatchObject({ ready: true, fields: [{ message: 'Dépôt git : les Tickets y seront écrits, dans tickets/.' }] });
+    expect(form.view()).toMatchObject({ ready: true, fields: [{ message: 'Dépôt git : les Tickets y seront écrits, dans tickets/.', invalid: false }] });
   });
 
   it('sends the folder picked sealed to the group’s route, then migrates to it', async () => {

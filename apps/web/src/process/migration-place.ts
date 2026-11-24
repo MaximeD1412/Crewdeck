@@ -51,15 +51,19 @@ const collator = new Intl.Collator('fr');
 const freeRepositories = (repositories: Iterable<Repository>): Repository[] =>
   [...repositories].filter((repository) => !repository.followed).sort((a, b) => collator.compare(a.fullName, b.fullName));
 
-/** The checks a folder for `group` passes: for the code, an empty folder; for the Tickets, a git repository's root, or a folder git init will make one. */
+/**
+ * The checks a folder for `group` passes, the Runner's own (`Result.Pickable`):
+ * for the code, an empty folder; for the Tickets, a git repository's root only,
+ * a folder not one yet waiting for the Pilote's git init.
+ */
 const fits = (group: SourceGroup, result: FolderCheckResult): boolean =>
-  group === 'code' ? result.state === 'not-git' && result.empty === true : result.state === 'ready' || result.state === 'not-git';
+  group === 'code' ? result.state === 'not-git' && result.empty === true : result.state === 'ready';
 
 /** What the field says of the path: PROJET-6's messages, and the migration's own for a folder that fits or not. */
 const folderMessage = (group: SourceGroup, state: string, result: FolderCheckResult | null, machine: string): string => {
   if (result && (result.state === 'not-git' || result.state === 'ready')) {
     if (group === 'code') return t(fits(group, result) ? 'process.sources.migration.pick.folder.empty' : 'process.sources.migration.pick.folder.notEmpty');
-    if (result.state === 'ready') return t('process.sources.migration.pick.folder.ready');
+    return t(result.state === 'ready' ? 'process.sources.migration.pick.folder.ready' : 'process.sources.migration.pick.folder.notGit');
   }
   return t(`projets.local.check.${state}` as MessageKey, { machine });
 };

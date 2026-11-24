@@ -1,6 +1,8 @@
+import { PROCESS_CREWDECK, processTemplateNameKey } from '@crewdeck/contracts';
+import type { Prisma } from '../../generated/prisma/client.js';
 import { newId } from '../../ids.js';
 import { defineScenario } from './define.js';
-import { seedParametresAccount } from './parametres-projet.js';
+import { SITE_MAIRIE_ID, seedParametresAccount } from './parametres-projet.js';
 
 /**
  * The Paramètres of the account (`design/screens.json`: `parametres`), the
@@ -13,8 +15,11 @@ import { seedParametresAccount } from './parametres-projet.js';
  * « Notifications » with the push on and the Pilote's iPhone authorized on
  * 3 nov. (a push service that does not exist: no Décision is pushed here);
  * « Compte » with the time zone; « Par Projet », Crewdeck and Personal OS
- * inheriting the account, Site mairie with two Paramètres changed; « Pour les
- * Moddeurs ». The other sections are their tickets'.
+ * inheriting the account, Site mairie with two Paramètres changed;
+ * « Modèles de process » (PROCESS-14), « Process Site mairie » saved from
+ * Site mairie on 12 nov. and « Process atelier » from a Projet deleted
+ * since, on 3 nov.; « Pour les Moddeurs ». The other sections are their
+ * tickets'.
  */
 export const parametres = defineScenario({
   name: 'parametres',
@@ -32,12 +37,33 @@ export const parametres = defineScenario({
         createdAt: new Date('2026-11-03T09:00:00.000Z'),
       },
     });
+    const definition = PROCESS_CREWDECK as unknown as Prisma.InputJsonValue;
+    const templates = [
+      { name: 'Process Site mairie', fromProjectId: SITE_MAIRIE_ID, at: new Date('2026-11-12T09:00:00.000Z') },
+      { name: 'Process atelier', fromProjectId: null, at: new Date('2026-11-03T09:00:00.000Z') },
+    ];
+    await ctx.prisma.unscoped.processTemplate.createMany({
+      data: templates.map(({ name, fromProjectId, at }) => ({
+        id: newId(),
+        pilotId: seed.pilotId,
+        name,
+        nameKey: processTemplateNameKey(name),
+        fromProjectId,
+        fromVersionNumber: 3,
+        definition,
+        createdAt: at,
+        updatedAt: at,
+      })),
+    });
     return seed;
   },
 });
 
 /** The same Paramètres, the capture showing « Notifications » (its section opened at 390 px): this browser may subscribe. */
 export const parametresNotifications = defineScenario({ ...parametres, name: 'parametres-notifications' });
+
+/** The same Paramètres, the capture showing « Modèles de process » (its section opened at 390 px, PROCESS-14). */
+export const parametresModeles = defineScenario({ ...parametres, name: 'parametres-modeles' });
 
 /** The same, the capture's browser without `PushManager` (an iPhone outside the home-screen app): the help instead of the button. */
 export const parametresNotificationsIphone = defineScenario({ ...parametres, name: 'parametres-notifications-iphone' });

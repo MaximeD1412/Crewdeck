@@ -641,6 +641,19 @@
       ],
       "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261214000000_tickets_former'\"",
       "ajouteLe": "2026-11-20"
+    },
+    {
+      "id": "migration-process-templates",
+      "phase": "db",
+      "source": "#204",
+      "titre": "Appliquer la migration 20261215000000_process_templates en staging puis en production",
+      "pourquoi": "La table process_templates garde les Modèles de process du Pilote (PROCESS-14) : le nom, la définition copiée de la version active, sa partie scellée et le Projet d'origine. Sans elle, « Enregistrer comme Modèle de process », la carte « Modèles de process » des Paramètres et la création d'un Projet depuis un Modèle échouent. La migration ne fait qu'ajouter une table : la version précédente du serveur tourne sur la base migrée.",
+      "etapes": [
+        "Rien à lancer à la main : deploy.sh répète la migration sur la dernière sauvegarde (rehearse.sh), puis l'applique au déploiement du staging, puis à celui de la production.",
+        "Vérifier sur chaque base (crewdeck-prod, puis crewdeck-staging) que la commande imprime une date : la migration est appliquée."
+      ],
+      "commande": "docker compose -p crewdeck-prod exec -T db psql -U crewdeck -d crewdeck -tAc \"SELECT finished_at FROM _prisma_migrations WHERE migration_name = '20261215000000_process_templates'\"",
+      "ajouteLe": "2026-11-24"
     }
   ]
 }

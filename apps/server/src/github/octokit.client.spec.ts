@@ -551,6 +551,24 @@ describe('OctokitGitHubClient', () => {
       expect(await new OctokitGitHubClient(env, logger()).countCommits(repo, 'main', 2)).toBe(0);
     });
 
+    it('tells whether a repository has a branch, whatever its name, reading one at most', async () => {
+      let query: URLSearchParams | undefined;
+      let branches: unknown[] = [{ name: 'trunk', commit: { sha: SHA }, protected: false }];
+      server.use(
+        ...installation(),
+        http.get(`${API}/repos/o/r/branches`, ({ request }) => {
+          query = new URL(request.url).searchParams;
+          return HttpResponse.json(branches);
+        }),
+      );
+      const client = new OctokitGitHubClient(env, logger());
+
+      expect(await client.hasBranches(repo)).toBe(true);
+      expect(query?.get('per_page')).toBe('1');
+      branches = [];
+      expect(await client.hasBranches(repo)).toBe(false);
+    });
+
     it('gives null for a branch that does not exist', async () => {
       server.use(...installation(), http.get(`${API}/repos/o/r/branches/:name`, () => HttpResponse.json({ message: 'Branch not found' }, { status: 404 })));
 

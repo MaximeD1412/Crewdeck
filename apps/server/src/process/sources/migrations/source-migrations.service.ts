@@ -256,8 +256,8 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
     if (!project || (project.repositoryId !== null && !project.accessLost)) return;
     // Unknown or followed first: no GitHub read for a repository refused anyway.
     const repository = await this.transactions.run((tx) => this.targetRepository(tx, repositoryId));
-    const branch = await this.github.getBranch({ owner: repository.owner, name: repository.name, id: Number(repository.githubId) }, repository.defaultBranch);
-    if (branch !== null) throw unprocessable('source.repository-not-empty', MESSAGES['source.repository-not-empty']);
+    // Any branch, not the default one indexed: renamed on GitHub since, it would read as none.
+    if (await this.github.hasBranches({ owner: repository.owner, name: repository.name, id: Number(repository.githubId) })) throw unprocessable('source.repository-not-empty', MESSAGES['source.repository-not-empty']);
   }
 
   /** The repository picked, the Pilote's: 422 `source.target-missing` for an unknown one, `source.repository-followed` for one a Projet follows or a migration targets. */

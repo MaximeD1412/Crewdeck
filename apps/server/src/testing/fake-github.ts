@@ -406,6 +406,11 @@ export class FakeGitHub implements GitHubClient, Fake {
     });
   }
 
+  hasBranches(repo: RepoRef): Promise<boolean> {
+    this.record('hasBranches', repo);
+    return this.run(() => this.repo(repo).branches.size > 0);
+  }
+
   getDefaultBranch(repo: RepoRef): Promise<string> {
     this.record('getDefaultBranch', repo);
     return this.run(() => this.repo(repo).defaultBranch);

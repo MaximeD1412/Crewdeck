@@ -302,6 +302,9 @@ describe('the migration of the code and its documents between Local and GitHub (
     // Unfollowed, it still has a branch.
     await sql('DELETE FROM projects WHERE id = $1', [followed]);
     await expectError(await migrate(projectId, 'code', 'github', { repositoryId: full }), 422, 'source.repository-not-empty');
+    // Its default branch renamed on GitHub since it was indexed: still a branch, still refused.
+    await sql("UPDATE repositories SET default_branch = 'renommee' WHERE id = $1", [full]);
+    await expectError(await migrate(projectId, 'code', 'github', { repositoryId: full }), 422, 'source.repository-not-empty');
 
     await expectError(await migrate(projectId, 'code', 'github'), 422, 'source.target-missing');
     await expectError(await migrate(projectId, 'code', 'github', { repositoryId: newId() }), 422, 'source.target-missing');

@@ -56,6 +56,8 @@ export interface GitHubClient {
   // --- Metadata, never a body
   listLabels(repo: RepoRef): Promise<Label[]>;
   getBranch(repo: RepoRef, name: string): Promise<Branch | null>;
+  /** Whether the repository has any branch, whatever its name (SOURCE-9: the code is pushed only onto an empty one). */
+  hasBranches(repo: RepoRef): Promise<boolean>;
   /** The name of the repository's default branch. */
   getDefaultBranch(repo: RepoRef): Promise<string>;
   /** How many commits `branch` has, counted up to `max`; 0 for an empty repository. Reads no file nor diff. */

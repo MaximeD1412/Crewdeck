@@ -518,7 +518,12 @@ func TestDocsAFailedIndexMakesTheGitHubKeyLateUntilOneSucceeds(t *testing.T) {
 	if err := os.Rename(remote.bare, moved); err != nil {
 		t.Fatal(err)
 	}
+	// The envelope waiting makes the key late too: the remote comes back only
+	// once the index it asks has failed, not while it is still queued.
+	const failed = `"msg":"mirror docs failed","repository":"acme/atelier"`
+	before := strings.Count(logs.String(), failed)
 	server.send(pushed(1, followedAtelier, "refs/heads/develop", "0000000000000000000000000000000000000000"))
+	eventually(t, "the index failed", func() bool { return strings.Count(logs.String(), failed) > before })
 	eventually(t, "late", func() bool { s, _ := f.State("acme/atelier"); return s.State == FreshnessLate })
 	if n := count(t, path, "SELECT count(*) FROM docs"); n != 3 {
 		t.Errorf("%d docs kept, want 3", n)

@@ -470,8 +470,9 @@ func (m *Manager) answerAsk(s *live, requestID string, answer engine.Answer) boo
 // sendVerdict checks the Contrat of the Session's Étape on its worktree and
 // its change of code, and sends step.verdict; a Contrat this Runner does not
 // embed, a change not read or a check that failed send none, only its code
-// logged.
-func (m *Manager) sendVerdict(w Worktree, rec record) {
+// logged. gitEnv lets a check reach the worktree's origin (the Session's
+// token for a GitHub clone).
+func (m *Manager) sendVerdict(w Worktree, rec record, gitEnv []string) {
 	if rec.Step == nil {
 		return
 	}
@@ -496,7 +497,7 @@ func (m *Manager) sendVerdict(w Worktree, rec record) {
 			return
 		}
 	}
-	verdict, err := contrat.Check(ctx, c, contrat.Target{Dir: w.Dir, IntegrationBranch: rec.Base, PR: pr})
+	verdict, err := contrat.Check(ctx, c, contrat.Target{Dir: w.Dir, IntegrationBranch: rec.Base, PR: pr, GitEnv: gitEnv})
 	if err != nil {
 		warn("check-failed")
 		return

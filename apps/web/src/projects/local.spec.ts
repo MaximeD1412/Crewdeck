@@ -1,10 +1,10 @@
-import { projectFolderAad, projectNameAad, type Project } from '@crewdeck/contracts';
+import { processSealAad, projectFolderAad, projectNameAad, templateSealAad, type Project } from '@crewdeck/contracts';
 import type { z } from 'zod';
 import type { Client } from '../api/client.js';
 import { ApiError } from '../api/request.js';
 import { fromBase64Url } from '../keys/bytes.js';
 import { attachFolder, createLocalProject } from './local.js';
-import { fakeVault } from './testing.js';
+import { fakeSealed, fakeVault } from './testing.js';
 
 const ID = '019a6f00-0000-7000-8000-000000000021';
 const AT = '2026-11-12T09:00:00.000Z';
@@ -79,6 +79,19 @@ describe('createLocalProject', () => {
     const twice = setup(2);
     await expect(createLocalProject(twice.deps, input)).rejects.toMatchObject({ code: 'vault.version-changed' });
     expect(twice.calls).toHaveLength(2);
+  });
+
+  it('from one of the Pilote’s Modèles, seals its Commandes again for the Projet, under process:<id> (PROCESS-14)', async () => {
+    const { calls, deps } = setup();
+    const TEMPLATE = '019a6f00-0000-7000-8000-0000000000a1';
+    const COMMANDS = JSON.stringify({ e2e: 'pnpm exec playwright test' });
+    const check = { state: 'ready', hasCode: true, branch: 'main', name: 'recettes' } as const;
+
+    await createLocalProject(deps, { path: '~/projets/recettes', name: 'Recettes', templateId: TEMPLATE, templateSealed: await fakeSealed(COMMANDS, templateSealAad(TEMPLATE)), check });
+    expect(calls[0]?.body).toMatchObject({ templateId: TEMPLATE, templateSealed: await fakeSealed(COMMANDS, processSealAad(ID)) });
+
+    await createLocalProject(deps, { path: '~/projets/recettes', name: 'Recettes', templateId: 'process-crewdeck', check });
+    expect(calls[1]?.body).toMatchObject({ templateSealed: null });
   });
 
   it('a folder without git has no branch', async () => {

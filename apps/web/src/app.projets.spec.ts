@@ -128,7 +128,7 @@ describe('« Projets » in the page', () => {
   });
 
   it('follows the store: a Projet appears in real time, a Local one by its name opened, on the Runner’s machine', async () => {
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: RUNNER, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, sourceMigrations: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [REPOSITORY], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: RUNNER, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, sourceMigrations: [], projects: [], processes: [], processTemplates: [], phaseRuns: [], stepRuns: [], repositories: [REPOSITORY], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings: { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] }, usage: [] });
     store.applyEvent({ seq: 2, type: 'project.upserted', payload: PROJECT, at: AT });
     store.applyEvent({ seq: 3, type: 'project.upserted', payload: await localProject(LOCAL_ID, 'Atelier'), at: AT });
 

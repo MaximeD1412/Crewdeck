@@ -8,6 +8,7 @@ import {
   type Device,
   type EngineId,
   type Me,
+  type ProcessTemplate,
   type Project,
   type PushSubscription,
   type RoleChoice,
@@ -15,6 +16,7 @@ import {
 } from '@crewdeck/contracts';
 import {
   formatDate,
+  formatDateOfAnyYear,
   t,
   zLinkError,
   type AccountIdentities,
@@ -22,12 +24,14 @@ import {
   type ComposantData,
   type Icon,
   type ListRow,
+  type ProcessTemplateList,
   type PushSettings,
   type RoleSettings,
   type Select,
   type SettingRow,
 } from '@crewdeck/sdk';
 import type { PlacedNode } from '../placed.js';
+import { NO_TEMPLATE_LIST_LOCAL, type TemplateListLocal } from '../process-templates.js';
 import { devicesCard } from './devices.js';
 
 /** The time zones the Pilote may pick: the IANA zones the browser knows. */
@@ -70,6 +74,33 @@ const byProject = (settings: SettingsState, projects: readonly Project[], name: 
       }),
     ),
   ];
+};
+
+/**
+ * « Modèles de process » (PROCESS-14, US-111), once the snapshot gave them:
+ * the Pilote's Modèles, newest first, each with the Projet it was saved from
+ * (« un Projet supprimé » once it is gone) and its date; none, its Empty.
+ */
+const templatesCard = (
+  templates: ReadonlyMap<string, ProcessTemplate> | undefined,
+  local: TemplateListLocal,
+  projects: readonly Project[],
+  name: (project: Project) => string,
+): PlacedNode | null => {
+  if (!templates) return null;
+  const meta = (template: ProcessTemplate): string => {
+    const date = formatDateOfAnyYear(template.updatedAt);
+    const from = projects.find((project) => project.id === template.fromProjectId);
+    return from ? t('settings.processTemplates.from', { name: name(from), date }) : t('settings.processTemplates.fromDeleted', { date });
+  };
+  const data: ComposantData<typeof ProcessTemplateList> = {
+    templates: [...templates.values()]
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id))
+      .map((template) => ({ id: template.id, name: template.name, meta: meta(template) })),
+    renaming: local.renaming && templates.has(local.renaming.id) ? local.renaming : null,
+    removing: local.removing && templates.has(local.removing.id) ? local.removing : null,
+  };
+  return { tag: 'cd-process-template-list', slot: 'process-templates', data };
 };
 
 const account = (settings: AccountSettings, zones: readonly string[]): PlacedNode => {
@@ -215,6 +246,9 @@ export interface ParametresInput extends RolesInput, IdentitiesInput {
   readonly push?: PushInput;
   readonly devices?: ReadonlyMap<string, Device>;
   readonly currentDeviceId?: string | null;
+  /** The Pilote's Modèles de process, once the snapshot gave them, and the page's Dialog over them (PROCESS-14). */
+  readonly templates?: ReadonlyMap<string, ProcessTemplate> | undefined;
+  readonly templateList?: TemplateListLocal;
   /** A Projet's name: its `displayName`, a Local Projet's opened by the page (PROJET-6, `projects.ts`); `displayName` by default. */
   readonly projectName?: (project: Project) => string;
 }
@@ -225,17 +259,19 @@ export interface ParametresInput extends RolesInput, IdentitiesInput {
  * known, « Connexion » with their Identités (CORE-11); once the snapshot gave
  * the settings, « Rôles et modèles » (PARAM-2), « Notifications » (ATOI-4)
  * and « Compte » with the time zone (a zone the list lacks, an alias, kept
- * among the options), « Par Projet » (PARAM-3), then « Pour les Moddeurs ».
+ * among the options), « Par Projet » (PARAM-3); « Modèles de process »
+ * once the snapshot gave them (PROCESS-14), then « Pour les Moddeurs ».
  * The other sections are their tickets'.
  */
 export const parametresView = (
   settings: SettingsState | null | undefined,
   zones: readonly string[],
-  { accounts = [], local = NO_ROLES_LOCAL, push = {}, projects = [], pilot, erreur, devices, currentDeviceId, projectName = defaultProjectName }: ParametresInput = {},
+  { accounts = [], local = NO_ROLES_LOCAL, push = {}, projects = [], pilot, erreur, devices, currentDeviceId, projectName = defaultProjectName, templates, templateList = NO_TEMPLATE_LIST_LOCAL }: ParametresInput = {},
 ): readonly PlacedNode[] => [
   ...[devicesCard(devices, currentDeviceId)].filter((node) => node !== null),
   ...(settings ? [roles(settings, accounts, local), notifications(settings, push)] : []),
   ...(pilot ? [identities(pilot, erreur)] : []),
   ...(settings ? [account(settings, zones), ...byProject(settings, projects, projectName)] : []),
+  ...[templatesCard(templates, templateList, projects, projectName)].filter((node) => node !== null),
   modders(),
 ];

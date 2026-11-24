@@ -1,4 +1,4 @@
-import { BREAKPOINT_PX, PageProcessEditor, t, type CdActionDetail, type ComposantData, type ComposantPayload } from '@crewdeck/sdk';
+import { BREAKPOINT_PX, PageProcessEditor, PROCESS_TEMPLATE_NAME_MAX, t, type CdActionDetail, type ComposantData, type ComposantPayload } from '@crewdeck/sdk';
 import { css, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { keyed } from 'lit/directives/keyed.js';
 import { PasserelleElement, sharedStyles } from './base.js';
@@ -39,7 +39,7 @@ const isTab = (id: unknown): id is Tab => TABS.includes(id as Tab);
  * a Dialog when it holds Étapes.
  */
 export class PasserellePageProcessEditor extends PasserelleElement<typeof PageProcessEditor> {
-  static override properties = { wide: { state: true } };
+  static override properties = { wide: { state: true }, typedName: { state: true } };
   static override styles = [
     sharedStyles,
     css`
@@ -247,12 +247,23 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
 
   protected readonly composant = PageProcessEditor;
   declare wide: boolean;
+  /** The name typed in « Enregistrer comme Modèle de process » since its data last changed; `null`: the data's. */
+  declare typedName: string | null;
   private readonly media = matchMedia(`(min-width: ${BREAKPOINT_PX}px)`);
   private readonly onMedia = () => (this.wide = this.media.matches);
 
   constructor() {
     super();
     this.wide = this.media.matches;
+    this.typedName = null;
+  }
+
+  protected override willUpdate(changed: PropertyValues<this>): void {
+    super.willUpdate(changed);
+    if (!changed.has('data')) return;
+    const previous = (changed.get('data') as Data | undefined)?.saveTemplate;
+    const next = this.data.saveTemplate;
+    if (previous?.name !== next?.name || (previous === null) !== (next === null)) this.typedName = null;
   }
 
   override connectedCallback(): void {
@@ -377,6 +388,25 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     if (composant !== 'Dialog') return;
     event.stopPropagation();
     if (action === 'close') this.emit('cancelRemovePhase', {});
+  }
+
+  private onSaveTemplateDialog(event: Event) {
+    const { composant, action } = (event as CustomEvent<CdActionDetail>).detail;
+    if (composant !== 'Dialog') return;
+    event.stopPropagation();
+    if (action === 'close') this.emit('closeSaveTemplate', {});
+  }
+
+  private submitTemplate() {
+    const saving = this.data.saveTemplate;
+    if (!saving || saving.locked) return;
+    this.emit('saveTemplate', { name: this.typedName ?? saving.name });
+  }
+
+  private onTemplateNameKey(event: KeyboardEvent) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    this.submitTemplate();
   }
 
   private onTabs(event: Event) {
@@ -653,9 +683,24 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     ></cd-button>`;
   }
 
+  /** The header's ghost « Enregistrer comme Modèle de process », at 1280 px; disabled with its reason without an active version. */
+  private saveTemplateButton(slotted: boolean): TemplateResult {
+    const button = { label: t('process.template.open'), variant: 'ghost', size: 'sm', icon: 'copy' } as const;
+    const { hasVersion } = this.data;
+    return html`<cd-button
+      class="save-template"
+      slot=${slotted ? 'actions' : nothing}
+      .data=${hasVersion ? button : { ...button, state: 'disabled' as const, disabledReason: t('process.template.noVersion') }}
+      @click=${() => {
+        if (hasVersion) this.emit('openSaveTemplate', {});
+      }}
+    ></cd-button>`;
+  }
+
   private headerActions(): TemplateResult {
     const { catalogue } = this.data;
     return html`<div slot="actions" class="header-actions">
+      ${this.saveTemplateButton(false)}
       <cd-button class="add-phase" .data=${{ label: t('process.header.phase'), variant: 'secondary', size: 'sm', icon: 'plus' }} @click=${() => this.emit('addPhase', {})}></cd-button>
       <span class="menu-anchor">
         <cd-button
@@ -692,6 +737,58 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     </cd-dialog>`;
   }
 
+  /**
+   * The Dialog « Enregistrer comme Modèle de process »: its name (Enter
+   * submits), the refusal under it, what it copies, the draft left out;
+   * « Remplacer « {name} » » while the name is still the one refused, the
+   * button disabled with its reason while the Commandes wait for this Appareil.
+   */
+  private saveTemplateDialog(): TemplateResult {
+    const saving = this.data.saveTemplate;
+    const typed = saving ? (this.typedName ?? saving.name) : '';
+    const replacing = saving !== null && saving.replaceId !== null && typed === saving.name;
+    const submit = {
+      label: replacing ? t('process.template.replace', { name: saving.name }) : t('process.template.submit'),
+      variant: 'primary',
+      size: 'md',
+      icon: 'check',
+    } as const;
+    return html`<cd-dialog class="save-template-dialog" .data=${{ open: saving !== null, title: t('process.template.title') }} @cd-action=${this.onSaveTemplateDialog}>
+      ${saving
+        ? html`<cd-text-field
+              class="template-name"
+              .data=${{
+                name: 'templateName',
+                label: t('process.template.name'),
+                value: saving.name,
+                placeholder: null,
+                help: null,
+                error: typed === saving.name ? saving.error : null,
+                state: null,
+                multiline: false,
+                maxLength: PROCESS_TEMPLATE_NAME_MAX,
+              }}
+              @input=${(event: Event) => (this.typedName = (event.currentTarget as Control).value)}
+              @keydown=${this.onTemplateNameKey}
+            ></cd-text-field>
+            <p class="text copy">${t('process.template.copy', { number: saving.versionNumber, project: this.data.title.projectName })}</p>
+            ${saving.draft ? html`<p class="text draft">${t('process.template.draft')}</p>` : nothing}`
+        : nothing}
+      <cd-button
+        slot="actions"
+        class="cancel"
+        .data=${{ label: t('process.template.cancel'), variant: 'ghost', size: 'md' }}
+        @click=${() => this.emit('closeSaveTemplate', {})}
+      ></cd-button>
+      <cd-button
+        slot="actions"
+        class="submit-template"
+        .data=${saving?.locked ? { ...submit, state: 'disabled' as const, disabledReason: t('process.template.locked') } : submit}
+        @click=${this.submitTemplate}
+      ></cd-button>
+    </cd-dialog>`;
+  }
+
   protected override render() {
     const { found, title, hasVersion, canvas, toast } = this.data;
     if (!found) {
@@ -702,7 +799,11 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
     const editing = this.wide && canvas.editable;
     return html`<cd-page-header
         .data=${{ title: t('process.title'), count: title.count, back: { label: t('process.back', { projectName: title.projectName }), href: title.backHref } }}
-        >${editing ? this.headerActions() : this.activateButton(true)}</cd-page-header
+        >${editing
+          ? this.headerActions()
+          : this.wide
+            ? html`${this.saveTemplateButton(true)} ${this.activateButton(true)}`
+            : this.activateButton(true)}</cd-page-header
       >
       ${hasVersion ? nothing : html`<cd-banner .data=${{ tone: 'caution', icon: 'alert', title: t('process.noVersion') }}></cd-banner>`}
       ${this.wide
@@ -713,6 +814,6 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
             ${this.panel()}
           </div>`
         : this.phoneSources()}
-      ${canvas.editable ? this.removePhaseDialog() : nothing}`;
+      ${canvas.editable ? this.removePhaseDialog() : nothing} ${this.saveTemplateDialog()}`;
   }
 }

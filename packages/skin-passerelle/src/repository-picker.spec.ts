@@ -81,6 +81,18 @@ describe('RepositoryPicker', () => {
     expect(child(el, 'cd-button.follow').data).toMatchObject({ label: 'Suivre 1 Projet' });
   });
 
+  it('disables a Modèle whose Commandes this Appareil cannot copy, and says why (PROCESS-14)', async () => {
+    const el = await picker({ ...PICKER, templates: [TEMPLATES[0]!, { ...TEMPLATES[1]!, disabled: true }] });
+    expect(child(el, 'cd-select.template').data).toMatchObject({
+      options: [
+        { value: 'process-crewdeck', label: 'Process Crewdeck', disabled: false },
+        { value: 'process-court', label: 'Process court', disabled: true },
+      ],
+      help: 'Approuve cet Appareil pour copier ses Commandes.',
+    });
+    expect(child(await picker(PICKER), 'cd-select.template').data).toMatchObject({ help: null });
+  });
+
   it('the Select « Modèle de process » lists the templates; follow carries the one chosen', async () => {
     const el = await picker(PICKER);
     expect(child(el, 'cd-select.template').data).toMatchObject({

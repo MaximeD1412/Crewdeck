@@ -17,15 +17,23 @@ export type FolderFormCheckState = z.infer<typeof zFolderFormCheckState>;
 /** Where the form shows: on `/projets/ajouter`, in « Premiers pas », or to choose a Projet's folder again (`repick`). */
 export const FOLDER_FORM_CONTEXTS = ['demarrage', 'projets', 'repick'] as const;
 
-/** The Modèles de process of the examples: « Process Crewdeck » only, until PROCESS-14. */
+/** The Modèles de process of the examples: « Process Crewdeck », the Modèle of the release. */
 export const EXAMPLE_TEMPLATES = [{ id: 'process-crewdeck', label: 'Process Crewdeck' }] as const;
+
+/**
+ * A Modèle de process a new Projet may start from (US-97): « Process
+ * Crewdeck », then the Pilote's own by name (PROCESS-14). `disabled`, one
+ * whose Commandes this Appareil cannot copy, its vault locked: the Select
+ * then says « Approuve cet Appareil pour copier ses Commandes. ».
+ */
+export const zTemplateOption = z.object({ id: z.string().min(1), label: z.string().min(1), disabled: z.boolean().optional() });
 
 const folderProjectFormData = z.object({
   context: z.enum(FOLDER_FORM_CONTEXTS),
   path: z.string().max(FOLDER_PATH_MAX),
   check: z.object({ state: zFolderFormCheckState, hasCode: z.boolean() }),
   name: z.string().max(PROJECT_NAME_MAX),
-  templates: z.array(z.object({ id: z.string().min(1), label: z.string().min(1) })),
+  templates: z.array(zTemplateOption),
   templateId: z.string(),
   busy: z.boolean(),
   vaultLocked: z.boolean(),

@@ -9,6 +9,7 @@ const ANCHORS: Readonly<Record<SettingsSection, string>> = {
   devices: 'appareils',
   schedules: 'planifications',
   projects: 'projets',
+  'process-templates': 'modeles',
   account: 'compte',
   modders: 'moddeurs',
 };

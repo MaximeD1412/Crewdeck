@@ -94,6 +94,23 @@ const zData = z.object({
    * `null` without a Projet.
    */
   activate: z.object({ label: z.string().min(1), revision: z.int().min(1).nullable(), disabledReason: z.string().min(1).nullable() }).nullable(),
+  /**
+   * The Dialog « Enregistrer comme Modèle de process » (PROCESS-14), `null`
+   * while closed: the name typed, why it was refused (`null`: it was not),
+   * the Modèle of that name it replaces once the Pilote chose to (`null`: a
+   * new one), the active version it copies, whether a draft stays out of it,
+   * and whether its Commandes wait for this Appareil to be approved.
+   */
+  saveTemplate: z
+    .object({
+      name: z.string(),
+      error: z.string().nullable(),
+      replaceId: zId.nullable(),
+      versionNumber: z.int().min(1),
+      draft: z.boolean(),
+      locked: z.boolean(),
+    })
+    .nullable(),
 });
 
 // The examples: « Process Crewdeck » as the canvas's first example draws it, read only.
@@ -161,6 +178,7 @@ const active: Data = {
   sources: SOURCES,
   footer: { changes: 'Aucun changement depuis la v3.', versions: 'v3 active depuis le 4 nov.' },
   activate: { label: 'Activer la v4', revision: null, disabledReason: 'Aucun changement' },
+  saveTemplate: null,
 };
 
 const REVIEW: NonNullable<Data['step']> = {
@@ -235,6 +253,13 @@ const withPhase = (data: Data): Data => ({
  * « Retirer la Phase », the Dialog removing a Phase with its Étapes, and the
  * refusals in a Toast (the canvas's `toast` Emplacement). A disabled button
  * says why beside it.
+ *
+ * At 1280 px, the header's ghost « Enregistrer comme Modèle de process »
+ * (`copy`, PROCESS-14, US-97), disabled without an active version, opens its
+ * Dialog (`openSaveTemplate`): the TextField « Nom du Modèle de process »,
+ * what it copies, « Annuler » (`closeSaveTemplate`) and « Enregistrer le
+ * Modèle de process » (`saveTemplate`), « Remplacer « {name} » » once the
+ * name is one of the Pilote's Modèles.
  */
 export const PageProcessEditor = defineComposant({
   name: 'PageProcessEditor',
@@ -261,6 +286,9 @@ export const PageProcessEditor = defineComposant({
     removePhase: z.object({ phaseId: zId }),
     cancelRemovePhase: z.object({}),
     confirmRemovePhase: z.object({ phaseId: zId }),
+    openSaveTemplate: z.object({}),
+    closeSaveTemplate: z.object({}),
+    saveTemplate: z.object({ name: z.string() }),
   },
   slots: [],
   examples: [
@@ -364,5 +392,27 @@ export const PageProcessEditor = defineComposant({
       },
     },
     { name: 'la v4 activée', data: { ...active, title: { ...active.title, count: 'v4 active' }, toast: { tone: 'go', icon: 'check', text: 'Version 4 active.' } } },
+    {
+      name: 'enregistrer comme Modèle de process',
+      data: { ...editable, saveTemplate: { name: 'Process Site mairie', error: null, replaceId: null, versionNumber: 3, draft: false, locked: false } },
+    },
+    {
+      name: 'un Modèle de process du même nom, à remplacer',
+      data: {
+        ...editable,
+        saveTemplate: {
+          name: 'Process web',
+          error: 'Un Modèle de process porte déjà ce nom.',
+          replaceId: '019a6f00-0000-7000-8000-0000000000a1',
+          versionNumber: 3,
+          draft: true,
+          locked: false,
+        },
+      },
+    },
+    {
+      name: 'des Commandes à copier, l’Appareil à approuver',
+      data: { ...editable, saveTemplate: { name: 'Process Site mairie', error: null, replaceId: null, versionNumber: 3, draft: false, locked: true } },
+    },
   ],
 });

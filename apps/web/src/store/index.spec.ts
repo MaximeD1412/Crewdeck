@@ -9,6 +9,7 @@ import {
   PROCESS_CREWDECK,
   PROCESS_CREWDECK_NAME,
   type ProjectProcess,
+  type ProcessTemplate,
   type SourceMigration,
   type State,
   type StepRun,
@@ -104,6 +105,17 @@ const CHANGE: CodeChange = {
   updatedAt: AT,
 };
 
+const TEMPLATE: ProcessTemplate = {
+  id: '019a6f00-0000-7000-8000-0000000000a1',
+  name: 'Process web',
+  fromProjectId: PROJECT,
+  fromVersionNumber: 1,
+  sealed: null,
+  commandCount: 0,
+  createdAt: AT,
+  updatedAt: AT,
+};
+
 const PROCESS: ProjectProcess = {
   id: PROJECT,
   active: { number: 1, definition: PROCESS_CREWDECK, sealed: null, activatedAt: AT, activatedBy: 'creation', templateName: PROCESS_CREWDECK_NAME },
@@ -178,6 +190,7 @@ const SNAPSHOT: State = {
   sourceMigrations: [MIGRATION],
   projects: [],
   processes: [PROCESS],
+  processTemplates: [TEMPLATE],
   phaseRuns: [PHASE_RUN],
   stepRuns: [STEP_RUN],
   repositories: [],
@@ -203,6 +216,16 @@ describe('the page’s store', () => {
 
     expect(store.getState().slices['code-change']?.get(CHANGE.id)).toMatchObject({ checks: 'passed' });
     expect(store.getState().slices.ticket?.size).toBe(0);
+  });
+
+  it('holds the Modèles de process by id, from the snapshot then their events (PROCESS-14)', () => {
+    store.applySnapshot(SNAPSHOT);
+    expect([...(store.getState().slices['process-template']?.values() ?? [])]).toEqual([TEMPLATE]);
+
+    store.applyEvent({ seq: 2, type: 'process-template.upserted', payload: { ...TEMPLATE, name: 'Process site' }, at: AT });
+    expect(store.getState().slices['process-template']?.get(TEMPLATE.id)).toMatchObject({ name: 'Process site' });
+    store.applyEvent({ seq: 3, type: 'process-template.removed', payload: { id: TEMPLATE.id }, at: AT });
+    expect(store.getState().slices['process-template']?.size).toBe(0);
   });
 
   it('holds the account’s Paramètres and each Projet’s: an account event keeps the Projets’, a Projet’s replaces only its own or joins them', () => {

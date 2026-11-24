@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { FOLLOW_PROJECTS_MAX, zInstallReturn } from '../api/projects.js';
 import { zId } from '../values.js';
 import { defineComposant } from './define.js';
-import { EXAMPLE_TEMPLATES } from './folder-project-form.js';
+import { EXAMPLE_TEMPLATES, zTemplateOption } from './folder-project-form.js';
 
 /** How many the picker follows at once, for a Skin to say it (it imports no `api/`). */
 export { FOLLOW_PROJECTS_MAX };
@@ -45,7 +45,7 @@ export const RepositoryPicker = defineComposant({
     repositories: z.array(z.object({ id: zId, fullName: z.string().min(1), hasCode: z.boolean() })),
     installUrl: z.url().nullable(),
     busy: z.boolean(),
-    templates: z.array(z.object({ id: z.string().min(1), label: z.string().min(1) })),
+    templates: z.array(zTemplateOption),
     templateId: z.string(),
   }),
   actions: { follow: z.object({ repositoryIds: z.array(zId).min(1).max(FOLLOW_PROJECTS_MAX), templateId: z.string().min(1) }), later: z.object({}) },

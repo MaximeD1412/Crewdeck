@@ -302,13 +302,13 @@ describe('PageProcessEditor', () => {
 
     it('« Activer » with the draft’s revision', async () => {
       const el = await show(toActivate);
-      const details = await actionsOf(() => inside(el, 'cd-page-header > cd-button', 'button').click());
+      const details = await actionsOf(() => inside(el, 'cd-page-header > cd-button.activate', 'button').click());
       expect(only(details)).toEqual([{ action: 'activate', payload: { revision: 4 } }]);
     });
 
     it('nothing from a disabled « Activer »', async () => {
       const el = await show(active);
-      const details = await actionsOf(() => inside(el, 'cd-page-header > cd-button', 'button').click());
+      const details = await actionsOf(() => inside(el, 'cd-page-header > cd-button.activate', 'button').click());
       expect(details).toEqual([]);
     });
 
@@ -328,8 +328,8 @@ describe('PageProcessEditor', () => {
 
     it('puts « Phase » and « Étape » in the header, the catalogue’s Menu under « Étape » while open', async () => {
       const el = await show(phase);
-      // « Activer la v… » closes the header's actions (PROCESS-10): tested apart.
-      const buttons = [...inside(el, 'cd-page-header').querySelectorAll('.header-actions cd-button:not(.activate)')] as (HTMLElement & { data: unknown })[];
+      // « Enregistrer comme Modèle de process » opens them (PROCESS-14), « Activer la v… » closes them (PROCESS-10): tested apart.
+      const buttons = [...inside(el, 'cd-page-header').querySelectorAll('.header-actions cd-button:not(.activate, .save-template)')] as (HTMLElement & { data: unknown })[];
       expect(buttons.map((button) => button.data)).toEqual([
         { label: 'Phase', variant: 'secondary', size: 'sm', icon: 'plus' },
         { label: 'Étape', variant: 'secondary', size: 'sm', icon: 'plus' },
@@ -530,6 +530,83 @@ describe('PageProcessEditor', () => {
         { action: 'cancelRemovePhase', payload: {} },
       ]);
       expect((inside(await show(phase), 'cd-dialog') as HTMLElement & { data: { open: boolean } }).data.open).toBe(false);
+    });
+  });
+
+  describe('« Enregistrer comme Modèle de process » (PROCESS-14)', () => {
+    type WithData = HTMLElement & { data: Record<string, unknown> };
+    const saving = example('enregistrer comme Modèle de process');
+    const toReplace = example('un Modèle de process du même nom, à remplacer');
+    const locked = example('des Commandes à copier, l’Appareil à approuver');
+    const saveButton = (el: Element) => inside<WithData>(el, 'cd-page-header cd-button.save-template');
+    const dialog = (el: Element) => inside<WithData>(el, 'cd-dialog.save-template-dialog');
+    const field = (el: Element) => inside<WithData>(el, 'cd-text-field.template-name');
+    const submit = (el: Element) => inside<WithData>(el, 'cd-button.submit-template');
+    const type = (el: Element, value: string) => {
+      const input = inside<HTMLInputElement>(el, 'cd-text-field.template-name', 'input');
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+      return input;
+    };
+
+    it('puts the ghost « Enregistrer comme Modèle de process » first in the header, editing or reading, and opens its Dialog', async () => {
+      const el = await show(editable(phase));
+      expect(saveButton(el).data).toEqual({ label: 'Enregistrer comme Modèle de process', variant: 'ghost', size: 'sm', icon: 'copy' });
+      expect(inside(el, 'cd-page-header .header-actions').firstElementChild?.classList.contains('save-template')).toBe(true);
+      expect(dialog(el).data['open']).toBe(false);
+      expect(only(await actionsOf(() => inside(saveButton(el), 'button').click()))).toEqual([{ action: 'openSaveTemplate', payload: {} }]);
+      document.body.replaceChildren();
+      const reading = await show(active);
+      expect(saveButton(reading).slot).toBe('actions');
+      expect(saveButton(reading).data).not.toHaveProperty('state');
+    });
+
+    it('disables the button without an active version, with its reason', async () => {
+      const el = await show(noVersion);
+      expect(saveButton(el).data).toMatchObject({ state: 'disabled', disabledReason: 'Active d’abord une première version.' });
+      expect(await actionsOf(() => inside(saveButton(el), 'button').click())).toEqual([]);
+    });
+
+    it('asks a name, says what it copies, then saves it; Enter too; « Annuler » and the close button close it', async () => {
+      const el = await show(saving);
+      expect(dialog(el).data).toEqual({ open: true, title: 'Enregistrer comme Modèle de process' });
+      expect(field(el).data).toMatchObject({ label: 'Nom du Modèle de process', value: 'Process Site mairie', error: null, maxLength: 80 });
+      expect(textOf(inside(el, 'cd-dialog.save-template-dialog p.copy'))).toBe(
+        'Il copie la v3 active : ses Phases, leurs Étapes, leurs Outils et leurs Retours. Tes prochains Projets pourront partir de lui ; Site mairie garde son Process.',
+      );
+      expect(root(el).querySelector('cd-dialog.save-template-dialog p.draft')).toBeNull();
+      expect(submit(el).data).toEqual({ label: 'Enregistrer le Modèle de process', variant: 'primary', size: 'md', icon: 'check' });
+      expect(only(await actionsOf(() => inside(submit(el), 'button').click()))).toEqual([{ action: 'saveTemplate', payload: { name: 'Process Site mairie' } }]);
+      const input = type(el, 'Process mairie');
+      expect(only(await actionsOf(() => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }))))).toEqual([
+        { action: 'saveTemplate', payload: { name: 'Process mairie' } },
+      ]);
+      expect(only(await actionsOf(() => inside(el, 'cd-dialog.save-template-dialog cd-button.cancel', 'button').click()))).toEqual([
+        { action: 'closeSaveTemplate', payload: {} },
+      ]);
+      expect(only(await actionsOf(() => inside(el, 'cd-dialog.save-template-dialog', 'cd-icon-button', 'button').click()))).toEqual([
+        { action: 'closeSaveTemplate', payload: {} },
+      ]);
+    });
+
+    it('offers « Remplacer « {name} » » for a name taken, with the error and the draft left out, until the name changes', async () => {
+      const el = await show(toReplace);
+      expect(field(el).data).toMatchObject({ value: 'Process web', error: 'Un Modèle de process porte déjà ce nom.' });
+      expect(textOf(inside(el, 'cd-dialog.save-template-dialog p.draft'))).toBe('Ton brouillon n’y est pas : active-le pour l’y mettre.');
+      expect(submit(el).data).toMatchObject({ label: 'Remplacer « Process web »' });
+      type(el, 'Process web 2');
+      await settle(el);
+      expect(submit(el).data).toMatchObject({ label: 'Enregistrer le Modèle de process' });
+      expect(field(el).data).toMatchObject({ error: null });
+      type(el, 'Process web');
+      await settle(el);
+      expect(submit(el).data).toMatchObject({ label: 'Remplacer « Process web »' });
+    });
+
+    it('disables the save while the Commandes wait for this Appareil, with its reason', async () => {
+      const el = await show(locked);
+      expect(submit(el).data).toMatchObject({ state: 'disabled', disabledReason: 'Approuve cet Appareil pour copier ses Commandes.' });
+      expect(await actionsOf(() => inside(submit(el), 'button').click())).toEqual([]);
     });
   });
 

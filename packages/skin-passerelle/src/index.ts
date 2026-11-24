@@ -58,6 +58,7 @@ import { PasserelleQuestion } from './question.js';
 import { PasserelleSession } from './session.js';
 import { PasserelleRadio } from './radio.js';
 import { PasserelleRepositoryPicker } from './repository-picker.js';
+import { PasserelleProcessTemplateList } from './process-template-list.js';
 import { PasserelleRoleSettings } from './role-settings.js';
 import { PasserelleSelect } from './select.js';
 import { PasserelleSettingRow } from './setting-row.js';
@@ -105,6 +106,7 @@ export default defineSkin({
     RepositoryPicker: PasserelleRepositoryPicker,
     FolderProjectForm: PasserelleFolderProjectForm,
     RoleSettings: PasserelleRoleSettings,
+    ProcessTemplateList: PasserelleProcessTemplateList,
     PushSettings: PasserellePushSettings,
     AccountIdentities: PasserelleAccountIdentities,
     Card: PasserelleCard,

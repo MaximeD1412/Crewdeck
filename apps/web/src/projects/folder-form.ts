@@ -1,4 +1,4 @@
-import type { FolderCheckResult, Project } from '@crewdeck/contracts';
+import type { FolderCheckResult, ProcessTemplate, Project } from '@crewdeck/contracts';
 import { folderFormView, type FolderFormView } from '../views/projets.js';
 import type { FolderChecker } from './folder-check.js';
 
@@ -27,6 +27,8 @@ export interface FolderFormContext {
   readonly machine: string | null;
   /** The name proposed before any check (the Projet's, when choosing its folder again). */
   readonly name?: string;
+  /** The Pilote's own Modèles de process, for the Select (PROCESS-14). */
+  readonly templates?: Iterable<ProcessTemplate>;
 }
 
 export interface FolderForm {
@@ -72,9 +74,18 @@ export const createFolderForm = ({ checker, createProject, attachFolder }: Folde
   };
 
   return {
-    view({ context, vaultLocked, machine, name = '' }) {
+    view({ context, vaultLocked, machine, name = '', templates }) {
       const { path, check, result } = checker.state();
-      return folderFormView({ context, path, check, name: context === 'repick' ? name : (result?.name ?? name), busy, vaultLocked, machine });
+      return folderFormView({
+        context,
+        path,
+        check,
+        name: context === 'repick' ? name : (result?.name ?? name),
+        busy,
+        vaultLocked,
+        machine,
+        ...(templates === undefined ? {} : { templates }),
+      });
     },
     checkPath: (path, projectId) => checker.type(path, projectId),
     runner: (online) => checker.runner(online),

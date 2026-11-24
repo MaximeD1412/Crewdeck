@@ -202,6 +202,48 @@ describe('processEditorView', () => {
     expect(resync.activate).toEqual({ label: 'Activer la v4', revision: 2, disabledReason: t('resync.sensitiveUnavailable') });
   });
 
+  describe('« Enregistrer comme Modèle de process » (PROCESS-14)', () => {
+    const SEALED = { key: 'a2V5', ciphertext: 'Y2lwaGVy' };
+    const opened = (state: ProcessEditorState, open: { name: string | null; error: string | null; replaceId: string | null }) => {
+      const ui = createEditorUi();
+      ui.saveTemplate(ID, open);
+      return processEditorView(state, ID, ui.view(ID, {})).saveTemplate;
+    };
+    const FRESH = { name: null, error: null, replaceId: null };
+
+    it('stays closed until the page opens it', () => {
+      expect(view(stateOf()).saveTemplate).toBeNull();
+    });
+
+    it('opens on « Process {Projet} », the active version, no draft, nothing to approve', () => {
+      expect(opened(stateOf(), FRESH)).toEqual({
+        name: `Process ${PROJECT.displayName}`,
+        error: null,
+        replaceId: null,
+        versionNumber: 3,
+        draft: false,
+        locked: false,
+      });
+    });
+
+    it('keeps the name submitted, its refusal and the Modèle to replace; says a draft stays out', () => {
+      const withDraft: ProjectProcess = { ...PROCESS, draft: draftOf(THREE_CHANGES) };
+      const refused = { name: 'Process web', error: 'Un Modèle de process porte déjà ce nom.', replaceId: '019a6f00-0000-7000-8000-0000000000a1' };
+      expect(opened(stateOf(withDraft), refused)).toEqual({ ...refused, versionNumber: 3, draft: true, locked: false });
+    });
+
+    it('waits for this Appareil when the version holds Commandes and the vault is not open', () => {
+      const withCommands: ProjectProcess = { ...PROCESS, active: { ...VERSION_3, sealed: SEALED } };
+      expect(opened({ ...stateOf(withCommands), vaultState: 'locked' }, FRESH)?.locked).toBe(true);
+      expect(opened({ ...stateOf(withCommands), vaultState: 'unlocked' }, FRESH)?.locked).toBe(false);
+      expect(opened({ ...stateOf(), vaultState: 'locked' }, FRESH)?.locked).toBe(false);
+    });
+
+    it('has nothing to save without an active version', () => {
+      expect(opened(stateOf({ ...PROCESS, active: null, draft: draftOf(THREE_CHANGES, 0) }), FRESH)).toBeNull();
+    });
+  });
+
   it('shows the Toast of the page’s own state', () => {
     const ui = createEditorUi();
     ui.toast(ID, { tone: 'go', icon: 'check', text: 'Version 4 active.' });

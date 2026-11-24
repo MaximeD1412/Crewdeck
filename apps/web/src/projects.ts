@@ -1,15 +1,31 @@
-import { projectNameAad, zProcessTemplateId, zPublicConfig, type InstallReturn, type Project, type PublicConfig } from '@crewdeck/contracts';
+import {
+  isOwnProcessTemplate,
+  processSealAad,
+  projectNameAad,
+  templateSealAad,
+  zProcessTemplateId,
+  zPublicConfig,
+  type InstallReturn,
+  type Project,
+  type PublicConfig,
+} from '@crewdeck/contracts';
 import { t } from '@crewdeck/sdk';
 import type { Client } from './api/client.js';
 import { followProjects, installUrl } from './api/projects.js';
+import { uuidv7 } from './ids.js';
 import { fromBase64Url, utf8 } from './keys/bytes.js';
 import type { Vault, VaultState } from './keys/vault.js';
+import { resealProcess } from './process/seal.js';
 import type { Store } from './store/store.js';
 import { pickerView, type PickerView } from './views/projets.js';
 
 export interface ProjectsOptions {
   readonly store: Store;
   readonly client: Pick<Client, 'command' | 'query'>;
+  /** Seals a Modèle's Commandes again for each Projet (PROCESS-14). */
+  readonly vault: Pick<Vault, 'sealItem' | 'openItem'>;
+  /** A new Projet's id: a UUIDv7 drawn here by default. */
+  readonly newId?: () => string;
 }
 
 export interface Projects {
@@ -24,9 +40,11 @@ export interface Projects {
 /**
  * The page's side of the Dépôts GitHub (PROJET-2): the store's `repository`
  * slice for the picker, GitHub's installation page from the config, and the
- * follow command, one at a time.
+ * follow command, one at a time. From one of the Pilote's Modèles
+ * (PROCESS-14), each Projet's id is drawn here, and the Modèle's Commandes
+ * sealed again for it, from `template:<id>` to `process:<projectId>`.
  */
-export const createProjects = ({ store, client }: ProjectsOptions): Projects => {
+export const createProjects = ({ store, client, vault, newId = () => uuidv7() }: ProjectsOptions): Projects => {
   const listeners = new Set<() => void>();
   let config: PublicConfig | null = null;
   let reading = false;
@@ -55,9 +73,12 @@ export const createProjects = ({ store, client }: ProjectsOptions): Projects => 
   return {
     picker(context) {
       readConfig();
+      const { slices, vaultState } = store.getState();
       return pickerView({
         context,
-        repositories: store.getState().slices.repository?.values() ?? [],
+        repositories: slices.repository?.values() ?? [],
+        templates: slices['process-template']?.values() ?? [],
+        vaultLocked: vaultState !== 'unlocked',
         installUrl: config ? installUrl(config, context) : null,
         busy: following,
       });
@@ -68,7 +89,18 @@ export const createProjects = ({ store, client }: ProjectsOptions): Projects => 
       following = true;
       notify();
       try {
-        await followProjects(client, repositoryIds, template);
+        if (!isOwnProcessTemplate(template)) {
+          await followProjects(client, repositoryIds, template);
+          return;
+        }
+        const sealed = store.getState().slices['process-template']?.get(template)?.sealed ?? null;
+        const projects = await Promise.all(
+          repositoryIds.map(async (repositoryId) => {
+            const id = newId();
+            return { repositoryId, id, templateSealed: await resealProcess(vault, sealed, templateSealAad(template), processSealAad(id)) };
+          }),
+        );
+        await followProjects(client, repositoryIds, template, projects);
       } finally {
         following = false;
         notify();

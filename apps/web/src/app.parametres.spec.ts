@@ -1,5 +1,5 @@
 import { type AiAccount, DEFAULT_ACCOUNT_SETTINGS, type Me } from '@crewdeck/contracts';
-import { AccountIdentities, emitAction, PageParametres, PushSettings, RoleSettings } from '@crewdeck/sdk';
+import { AccountIdentities, emitAction, PageParametres, ProcessTemplateList, PushSettings, RoleSettings } from '@crewdeck/sdk';
 import { createDispatcher } from './actions/dispatcher.js';
 import { boot } from './app.js';
 import { createStore } from './store/store.js';
@@ -30,6 +30,7 @@ describe('the page’s Paramètres', () => {
     store.registerSlice('settings', { shape: 'single' });
     store.registerSlice('ai-account', { shape: 'collection' });
     store.registerSlice('push-subscription', { shape: 'collection', snapshotKey: 'push-subscriptions' });
+    store.registerSlice('process-template', { shape: 'collection', snapshotKey: 'processTemplates' });
     const settings = { ...DEFAULT_ACCOUNT_SETTINGS, timeZone: 'Europe/Paris', projects: [] };
     const command = vi.fn<(...args: unknown[]) => Promise<never>>(async () => settings as never);
     const leave = vi.fn<(url: string) => void>();
@@ -60,8 +61,8 @@ describe('the page’s Paramètres', () => {
       models: [{ id: 'gpt-5.5', label: 'GPT-5.5', usable: true }],
       reportedAt: '2026-11-11T08:30:00.000Z',
     };
-    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [codex], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, sourceMigrations: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings, usage: [] });
-    expect(slotsOf()).toEqual(['roles', 'notifications', 'account', 'account', 'modders']);
+    store.applySnapshot({ seq: 1, pilot: PILOT, runner: null, 'runner-link': null, 'ai-account': [codex], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, sourceMigrations: [], projects: [], processes: [], processTemplates: [], phaseRuns: [], stepRuns: [], repositories: [], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], sessions: [], settings, usage: [] });
+    expect(slotsOf()).toEqual(['roles', 'notifications', 'account', 'account', 'process-templates', 'modders']);
     const identities = page.querySelector('cd-account-identities[slot=account]') as HTMLElement & { data: unknown };
     expect(identities.nextElementSibling?.matches('cd-card[slot=account]')).toBe(true);
     expect(identities.data).toEqual({ identities: PILOT.identities, error: 'github-already-linked' });
@@ -109,6 +110,38 @@ describe('the page’s Paramètres', () => {
     emitAction(notifications, PushSettings, 'remove', { id: row.id });
     await vi.waitFor(() => expect(command).toHaveBeenCalledWith('DELETE', `/api/push-subscriptions/${row.id}`, {}));
     await vi.waitFor(() => expect(push.unsubscribe).toHaveBeenCalled());
+
+    // « Modèles de process » (PROCESS-14): its Empty, then a Modèle saved in another tab, renamed and removed.
+    const templates = page.querySelector('cd-process-template-list[slot=process-templates]') as HTMLElement & {
+      data: { templates: { id: string; name: string; meta: string }[]; renaming: unknown; removing: unknown };
+    };
+    expect(templates.data).toEqual({ templates: [], renaming: null, removing: null });
+    const template = {
+      id: '019a6f00-0000-7000-8000-0000000000a1',
+      name: 'Process Site mairie',
+      fromProjectId: '019a6f00-0000-7000-8000-000000000011',
+      fromVersionNumber: 3,
+      sealed: null,
+      commandCount: 0,
+      createdAt: '2026-11-12T09:00:00.000Z',
+      updatedAt: '2026-11-12T09:00:00.000Z',
+    };
+    store.applyEvent({ seq: 4, type: 'process-template.upserted', payload: template, at: template.updatedAt });
+    await vi.waitFor(() => expect(templates.data.templates).toEqual([{ id: template.id, name: 'Process Site mairie', meta: 'depuis un Projet supprimé · 12 nov.' }]));
+    emitAction(templates, ProcessTemplateList, 'rename', { id: template.id });
+    await vi.waitFor(() => expect(templates.data.renaming).toEqual({ id: template.id, name: 'Process Site mairie', error: null }));
+    emitAction(templates, ProcessTemplateList, 'submitRename', { id: template.id, name: 'Process mairie' });
+    await vi.waitFor(() => expect(command).toHaveBeenCalledWith('PATCH', `/api/process-templates/${template.id}`, { name: 'Process mairie' }, expect.anything()));
+    await vi.waitFor(() => expect(templates.data.renaming).toBeNull());
+    emitAction(templates, ProcessTemplateList, 'remove', { id: template.id });
+    await vi.waitFor(() => expect(templates.data.removing).toEqual({ id: template.id, name: 'Process Site mairie' }));
+    emitAction(templates, ProcessTemplateList, 'cancel', {});
+    await vi.waitFor(() => expect(templates.data.removing).toBeNull());
+    emitAction(templates, ProcessTemplateList, 'remove', { id: template.id });
+    emitAction(templates, ProcessTemplateList, 'confirmRemove', { id: template.id });
+    await vi.waitFor(() => expect(command).toHaveBeenCalledWith('DELETE', `/api/process-templates/${template.id}`, {}));
+    store.applyEvent({ seq: 5, type: 'process-template.removed', payload: { id: template.id }, at: template.updatedAt });
+    await vi.waitFor(() => expect(templates.data.templates).toEqual([]));
     app.stop();
   });
 });

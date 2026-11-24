@@ -24,6 +24,7 @@ store.registerSlice('push-subscription', { shape: 'collection', snapshotKey: 'pu
 store.registerSlice('vault', { shape: 'single' });
 store.registerSlice('project', { shape: 'collection', snapshotKey: 'projects' });
 store.registerSlice('process', { shape: 'collection', snapshotKey: 'processes' });
+store.registerSlice('process-template', { shape: 'collection', snapshotKey: 'processTemplates' });
 // As `GET /api/state`: the unfinished PhaseRuns and their StepRuns, a finished one dropped with its StepRuns (PROCESS-4).
 store.registerSlice('phase-run', { shape: 'collection', snapshotKey: 'phaseRuns', holds: (run) => (UNFINISHED_PHASE_RUN_STATES as readonly string[]).includes((run as PhaseRun).state) });
 store.registerSlice('step-run', { shape: 'collection', snapshotKey: 'stepRuns', holds: (run, slices) => slices['phase-run']?.has((run as StepRun).phaseRunId) ?? false });

@@ -42,6 +42,7 @@ import { PermissionRequest } from './permission-request.js';
 import { Phase } from './phase.js';
 import { Port } from './port.js';
 import { ProcessCanvas } from './process-canvas.js';
+import { ProcessTemplateList } from './process-template-list.js';
 import { PhaseGroup } from './phase-group.js';
 import { ProcessTrack } from './process-track.js';
 import { ProjectFilter } from './project-filter.js';
@@ -121,6 +122,7 @@ export * from './permission-request.js';
 export * from './phase.js';
 export * from './port.js';
 export * from './process-canvas.js';
+export * from './process-template-list.js';
 export * from './phase-group.js';
 export * from './process-track.js';
 export * from './project-filter.js';
@@ -184,6 +186,7 @@ export const COMPOSANTS = {
   RepositoryPicker,
   FolderProjectForm,
   RoleSettings,
+  ProcessTemplateList,
   PushSettings,
   AccountIdentities,
   Session,

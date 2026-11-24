@@ -30,16 +30,30 @@ export const folderMissingDecision = (projectId: string, machine: string | null)
   params: {},
 });
 
+/** How long the pick of a folder waits for the Runner to say it holds it (SOURCE-9). */
+export const PICK_WAIT_MS = 10_000;
+
+interface PickWaiter {
+  readonly projectId: string;
+  readonly done: (held: boolean) => void;
+}
+
 /**
  * What the Runner says of the Local Projets' folders (`projects.folders`):
  * each Projet with a folder becomes `present` when listed, `missing` when
  * not. A change is written in one transaction per Projet with its
  * `project.upserted`, and raises (`missing`) or resolves (`present`) its
- * Décision. One report after the other per Pilote.
+ * Décision. One report after the other per Pilote. The Projets whose
+ * folder picked for a migration the Runner holds (`pending`, SOURCE-9) are
+ * kept in memory, as the Runner last said, and count as `present`: a
+ * migration to Local switched before the Runner's finish made it the
+ * Projet's folder.
  */
 @Injectable()
 export class ProjectFolders implements OnModuleInit {
   private readonly queues = new Map<string, Promise<void>>();
+  private readonly pending = new Map<string, ReadonlySet<string>>();
+  private readonly waiters = new Map<string, Set<PickWaiter>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -51,12 +65,43 @@ export class ProjectFolders implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.dispatcher.registerRunnerHandler('projects.folders', (message, context) => this.reported(context.pilotId, message.present));
+    this.dispatcher.registerRunnerHandler('projects.folders', (message, context) => this.reported(context.pilotId, message.present, message.pending ?? []));
   }
 
-  private reported(pilotId: string, present: readonly string[]): Promise<void> {
+  /** Whether the Pilote's Runner last said it holds a folder picked for `projectId`. */
+  holdsPending(pilotId: string, projectId: string): boolean {
+    return this.pending.get(pilotId)?.has(projectId) ?? false;
+  }
+
+  /**
+   * Once `project.folder.pick` is sent: true as soon as the Runner says it
+   * holds the folder, false when it has not said so within `ms` (it found
+   * the folder unfit, or went offline).
+   */
+  waitPending(pilotId: string, projectId: string, ms = PICK_WAIT_MS): Promise<boolean> {
+    return new Promise((resolve) => {
+      const waiters = this.waiters.get(pilotId) ?? new Set<PickWaiter>();
+      this.waiters.set(pilotId, waiters);
+      const waiter: PickWaiter = {
+        projectId,
+        done: (held) => {
+          clearTimeout(timer);
+          waiters.delete(waiter);
+          if (waiters.size === 0 && this.waiters.get(pilotId) === waiters) this.waiters.delete(pilotId);
+          resolve(held);
+        },
+      };
+      const timer = setTimeout(() => waiter.done(false), ms);
+      waiters.add(waiter);
+    });
+  }
+
+  private reported(pilotId: string, present: readonly string[], pending: readonly string[]): Promise<void> {
+    const held = new Set(pending);
+    this.pending.set(pilotId, held);
+    for (const waiter of [...(this.waiters.get(pilotId) ?? [])]) if (held.has(waiter.projectId)) waiter.done(true);
     const previous = this.queues.get(pilotId) ?? Promise.resolve();
-    const run = previous.then(() => runInPilotScope(pilotId, () => this.sync(pilotId, new Set(present))));
+    const run = previous.then(() => runInPilotScope(pilotId, () => this.sync(pilotId, new Set([...present, ...pending]))));
     const settled = run.catch((error: unknown) => this.logger.error({ err: error }, 'projects folders sync failed'));
     this.queues.set(pilotId, settled);
     void settled.then(() => {

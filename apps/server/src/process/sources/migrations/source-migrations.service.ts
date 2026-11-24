@@ -3,6 +3,7 @@ import {
   type MigrateSourceInput,
   type MigrationFingerprint,
   type MigrationSwitch,
+  type PickSourceFolderInput,
   RUNNING_SOURCE_MIGRATION_STATES,
   SOURCE_MIGRATION_WAITING_ITEMS_MAX,
   type SourceGroup,
@@ -12,12 +13,13 @@ import {
   type SourceMigrationQuery,
   type SourceMigrationWaitingItem,
 } from '@crewdeck/contracts';
-import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { DecisionsService } from '../../../decisions/decisions.service.js';
 import { AppError, notFound, unprocessable } from '../../../errors/app-error.js';
 import { MESSAGES } from '../../../errors/messages.js';
 import type { Prisma } from '../../../generated/prisma/client.js';
+import { GITHUB_CLIENT, type GitHubClient } from '../../../github/github.client.js';
 import { newId } from '../../../ids.js';
 import { EventsWriter } from '../../../realtime/events.writer.js';
 import { assertFresh } from '../../../realtime/freshness.js';
@@ -31,7 +33,9 @@ import { currentPilotId, runInPilotScope } from '../../../scope/scope.context.js
 import { SensitiveActionsService } from '../../../sensitive-actions/sensitive-actions.service.js';
 import { Engine } from '../../engine/engine.js';
 import { publishProcess } from '../../process.service.js';
+import { ProjectFolders } from '../../../projects/local/project-folders.js';
 import { ProjectChanges } from '../../../projects/project-changes.js';
+import { assertVaultVersion } from '../../../vault/sealed-write.js';
 import { toProject, PROJECT_VIEW } from '../../../projects/project.view.js';
 import { decodeMigrationCursor, encodeMigrationCursor } from './migration-cursor.js';
 import { SOURCE_MIGRATION_VIEW, type SourceMigrationRow, toSourceMigration, waitingItemsOf } from './source-migration.view.js';
@@ -68,6 +72,12 @@ const cut = (text: string, max: number): string => (text.length <= max ? text : 
 
 const migrationNotFound = (): AppError => notFound('source-migration.not-found', MESSAGES['source-migration.not-found']);
 const projectNotFound = (): AppError => notFound('project.not-found', MESSAGES['project.not-found']);
+const targetMissing = (): AppError => unprocessable('source.target-missing', MESSAGES['source.target-missing']);
+const repositoryFollowed = (): AppError => unprocessable('source.repository-followed', MESSAGES['source.repository-followed']);
+const folderNotPicked = (): AppError => unprocessable('source.folder-not-picked', MESSAGES['source.folder-not-picked']);
+
+/** What of a repository a migration's target needs. */
+const TARGET_REPOSITORY = { id: true, githubId: true, owner: true, name: true, fullName: true, private: true, defaultBranch: true, hasCode: true } as const;
 
 const sameItems = (a: readonly SourceMigrationWaitingItem[], b: readonly SourceMigrationWaitingItem[]): boolean =>
   a.length === b.length && a.every((item, index) => item.itemType === b[index]?.itemType && item.number === b[index]?.number);
@@ -83,6 +93,9 @@ interface MigratingProject {
   readonly owner: string | null;
   readonly name: string | null;
   readonly hasCode: boolean;
+  readonly folderState: string | null;
+  readonly releaseBranch: string;
+  readonly integrationBranch: string;
 }
 
 /**
@@ -114,6 +127,8 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
     private readonly presence: RunnerPresence,
     private readonly clock: RunnerClock,
     private readonly projectChanges: ProjectChanges,
+    private readonly folders: ProjectFolders,
+    @Inject(GITHUB_CLIENT) private readonly github: GitHubClient,
     @InjectPinoLogger(SourceMigrations.name) private readonly logger: PinoLogger,
   ) {}
 
@@ -163,9 +178,20 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
    * Pilote's Projet, 409 a `seq` older than the Projet's, 422 for a group
    * already there, a migration running, a target without a place, a
    * Runner online that cannot copy what the group holds.
+   *
+   * The new place (SOURCE-9), when the Projet has none on `to` (else
+   * `target` is ignored: both groups on one side share one repository and
+   * one folder): to GitHub, `target.repositoryId`, one of the Pilote's
+   * installation that no Projet follows (422 `source.repository-followed`)
+   * and, for `code`, without a branch (422 `source.repository-not-empty`),
+   * kept on the migration until the switch makes it the Projet's; to
+   * Local, `target.folder`, the folder the Runner holds as picked (422
+   * `source.folder-not-picked`). None given: 422 `source.target-missing`.
    */
-  migrate(projectId: string, group: SourceGroup, { to, seq }: MigrateSourceInput): Promise<SourceMigration> {
+  async migrate(projectId: string, group: SourceGroup, { to, seq, target }: MigrateSourceInput): Promise<SourceMigration> {
     const pilotId = currentPilotId();
+    const picked = to === 'github' && target !== undefined && 'repositoryId' in target ? target.repositoryId : undefined;
+    if (picked !== undefined && group === 'code') await this.assertEmpty(projectId, picked);
     return this.transactions.run(async (tx) => {
       await this.events.lock(tx, pilotId);
       const project = await tx.project.findFirst({ where: { id: projectId }, select: { id: true, lastSeq: true, accessLost: true, hasCode: true, repositoryId: true } });
@@ -175,7 +201,16 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
       if (source.source === to) throw unprocessable('source.same', MESSAGES['source.same']);
       const running = await tx.sourceMigration.count({ where: { projectId, state: { in: [...RUNNING_SOURCE_MIGRATION_STATES] } } });
       if (running > 0) throw unprocessable('source.migration-running', MESSAGES['source.migration-running']);
-      if (!(await this.hasPlace(tx, projectId, to, project.repositoryId === null || project.accessLost))) throw unprocessable('source.target-missing', MESSAGES['source.target-missing']);
+      let targetRepositoryId: string | null = null;
+      if (!(await this.hasPlace(tx, projectId, to, project.repositoryId === null || project.accessLost))) {
+        if (to === 'github') {
+          if (picked === undefined) throw targetMissing();
+          targetRepositoryId = (await this.targetRepository(tx, picked)).id;
+        } else {
+          if (target === undefined || !('folder' in target)) throw targetMissing();
+          if (!this.folders.holdsPending(pilotId, projectId)) throw folderNotPicked();
+        }
+      }
       if ((await this.holdsSomething(tx, projectId, group, project.hasCode)) && this.runnerLacks(pilotId, group)) {
         throw unprocessable('source.runner-cannot-migrate', MESSAGES['source.runner-cannot-migrate']);
       }
@@ -183,13 +218,53 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
         await this.decisions.resolve(tx, 'source-migration.failed', old.id, 'replaced');
       }
       const row = await tx.sourceMigration.create({
-        data: { id: newId(), pilotId, projectId, group, from: source.source, to, state: 'draining', waitingItems: await this.waitingItems(tx, projectId, group), createdAt: this.clock.now() },
+        data: { id: newId(), pilotId, projectId, group, from: source.source, to, state: 'draining', targetRepositoryId, waitingItems: await this.waitingItems(tx, projectId, group), createdAt: this.clock.now() },
         select: SOURCE_MIGRATION_VIEW,
       });
       const migration = await this.publish(tx, row);
       this.later(tx, pilotId, row.id);
       return migration;
     });
+  }
+
+  /**
+   * `POST /api/projects/:id/sources/:group/folder` (SOURCE-9): the folder
+   * the Pilote picked for the group moving Local, sealed as PROJET-6's
+   * (`project:<id>:folder`), to the Runner, which checks it again and holds
+   * it as the Projet's pending folder until the switch. Resolves once the
+   * Runner says it holds it: 404 `project.not-found`, 422 `runner.offline`,
+   * 409 `vault.version-changed` for a folder sealed under another vault
+   * key, 422 `source.folder-not-picked` when the Runner does not hold it.
+   */
+  async pickFolder(projectId: string, group: SourceGroup, { folderSealed, vaultKeyVersion }: PickSourceFolderInput): Promise<void> {
+    const pilotId = currentPilotId();
+    await this.transactions.run(async (tx) => {
+      if ((await tx.project.count({ where: { id: projectId } })) === 0) throw projectNotFound();
+      if (!this.presence.isOnline(pilotId)) throw unprocessable('runner.offline', MESSAGES['runner.offline']);
+      await assertVaultVersion(tx, pilotId, vaultKeyVersion);
+    });
+    const held = this.folders.waitPending(pilotId, projectId);
+    this.commands.send(pilotId, { type: 'project.folder.pick', projectId, group, sealed: folderSealed });
+    if (!(await held)) throw folderNotPicked();
+  }
+
+  /** 422 `source.repository-not-empty` for a repository with a branch, read with the App: the code is pushed only onto an empty one; 422 `source.target-missing` or `source.repository-followed` before any read. */
+  private async assertEmpty(projectId: string, repositoryId: string): Promise<void> {
+    const project = await this.transactions.run((tx) => tx.project.findFirst({ where: { id: projectId }, select: { repositoryId: true, accessLost: true } }));
+    if (!project || (project.repositoryId !== null && !project.accessLost)) return;
+    // Unknown or followed first: no GitHub read for a repository refused anyway.
+    const repository = await this.transactions.run((tx) => this.targetRepository(tx, repositoryId));
+    const branch = await this.github.getBranch({ owner: repository.owner, name: repository.name, id: Number(repository.githubId) }, repository.defaultBranch);
+    if (branch !== null) throw unprocessable('source.repository-not-empty', MESSAGES['source.repository-not-empty']);
+  }
+
+  /** The repository picked, the Pilote's: 422 `source.target-missing` for an unknown one, `source.repository-followed` for one a Projet follows or a migration targets. */
+  private async targetRepository(tx: Tx, repositoryId: string) {
+    const repository = await tx.repository.findFirst({ where: { id: repositoryId }, select: TARGET_REPOSITORY });
+    if (!repository) throw targetMissing();
+    if ((await tx.project.count({ where: { OR: [{ repositoryId }, { githubRepoId: repository.githubId }] } })) > 0) throw repositoryFollowed();
+    if ((await tx.sourceMigration.count({ where: { targetRepositoryId: repositoryId, state: { in: [...RUNNING_SOURCE_MIGRATION_STATES] } } })) > 0) throw repositoryFollowed();
+    return repository;
   }
 
   /**
@@ -264,8 +339,10 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
           }
           return;
         }
-        const project = await tx.project.findFirstOrThrow({ where: { id: row.projectId }, select: { hasCode: true } });
-        if (!(await this.holdsSomething(tx, row.projectId, row.group, project.hasCode))) {
+        const project = await tx.project.findFirstOrThrow({ where: { id: row.projectId }, select: { hasCode: true, folderState: true } });
+        // To Local with the folder picked, the Runner makes it the Projet's at its copy, even with nothing to copy.
+        const adopts = row.to === 'local' && project.folderState === null && this.folders.holdsPending(pilotId, row.projectId);
+        if (!adopts && !(await this.holdsSomething(tx, row.projectId, row.group, project.hasCode))) {
           await this.switchIn(tx, row, { fingerprints: [], renumbering: [] }, 'done');
           return;
         }
@@ -326,6 +403,7 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
       if (!row) return;
       await this.publish(tx, row);
       await this.decisions.resolve(tx, 'source-migration.unfinished', id, 'finished');
+      await this.unfollowLeft(tx, row);
       await this.engine.releaseHeld(tx, row.projectId);
     });
   }
@@ -427,6 +505,7 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
       select: SOURCE_MIGRATION_VIEW,
     });
     const migration = toSourceMigration(updated);
+    await this.takePlace(tx, row);
     for (const hook of this.hooks.get(row.group) ?? []) await hook(tx, migration, message);
     await this.publish(tx, updated);
     // Through `publishProcess`: the draft keeps this event's seq, so an activation confirmed before the switch is stale.
@@ -435,7 +514,64 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
     const projectSeq = await this.events.write(tx, pilotId, 'project.upserted', project);
     await tx.project.update({ where: { id: row.projectId }, data: { lastSeq: projectSeq } });
     // `switched` still holds the group's new work until the old place is frozen (`migration.finished`).
-    if (state === 'done') await this.engine.releaseHeld(tx, row.projectId);
+    if (state === 'done') {
+      await this.unfollowLeft(tx, row);
+      await this.engine.releaseHeld(tx, row.projectId);
+    }
+  }
+
+  /**
+   * The new place becomes the Projet's at the switch, never before
+   * (SOURCE-9): to GitHub, the repository picked (its columns on the
+   * Projet, `repository.upserted` followed); to Local, a Projet without a
+   * folder gets the one the Runner holds as picked, `present` (the Runner
+   * makes it the Projet's folder at the finish).
+   */
+  private async takePlace(tx: Tx, row: SourceMigrationRow): Promise<void> {
+    if (row.to === 'local') {
+      await tx.project.updateMany({ where: { id: row.projectId, folderState: null }, data: { folderState: 'present' } });
+      return;
+    }
+    const { targetRepositoryId } = await tx.sourceMigration.findUniqueOrThrow({ where: { id: row.id }, select: { targetRepositoryId: true } });
+    if (targetRepositoryId === null) return;
+    const project = await tx.project.findUniqueOrThrow({ where: { id: row.projectId }, select: { repositoryId: true, accessLost: true } });
+    if (project.repositoryId !== null && !project.accessLost) return;
+    const repository = await tx.repository.findUniqueOrThrow({ where: { id: targetRepositoryId }, select: TARGET_REPOSITORY });
+    await tx.project.update({
+      where: { id: row.projectId },
+      data: { repositoryId: repository.id, githubRepoId: repository.githubId, owner: repository.owner, name: repository.name, fullName: repository.fullName, accessLost: false },
+    });
+    await this.writeRepository(tx, repository, true);
+  }
+
+  /**
+   * At `done`, a migration from GitHub after which no group of the Projet
+   * is there any more: the Projet no longer follows its repository
+   * (`Project.repositoryId` cleared, `repository.upserted` not followed),
+   * the Miroir copies it no more and its webhooks find no Projet. The App
+   * stays installed: the Pilote uninstalls it on GitHub. With a group
+   * still on GitHub (the Tickets), it stays followed.
+   */
+  private async unfollowLeft(tx: Tx, row: SourceMigrationRow): Promise<void> {
+    if (row.from !== 'github') return;
+    if ((await tx.artifactSource.count({ where: { projectId: row.projectId, source: 'github' } })) > 0) return;
+    const project = await tx.project.findUniqueOrThrow({ where: { id: row.projectId }, select: { repositoryId: true } });
+    if (project.repositoryId === null) return;
+    const repository = await tx.repository.findUnique({ where: { id: project.repositoryId }, select: TARGET_REPOSITORY });
+    const view = toProject(
+      await tx.project.update({ where: { id: row.projectId }, data: { repositoryId: null, githubRepoId: null, owner: null, name: null, fullName: null }, select: PROJECT_VIEW }),
+    );
+    const pilotId = currentPilotId();
+    const projectSeq = await this.events.write(tx, pilotId, 'project.upserted', view);
+    await tx.project.update({ where: { id: row.projectId }, data: { lastSeq: projectSeq } });
+    if (repository) await this.writeRepository(tx, repository, false);
+    afterCommit(tx, () => this.projectChanges.changed(pilotId));
+  }
+
+  private async writeRepository(tx: Tx, repository: Prisma.RepositoryGetPayload<{ select: typeof TARGET_REPOSITORY }>, followed: boolean): Promise<void> {
+    const view = { id: repository.id, owner: repository.owner, name: repository.name, fullName: repository.fullName, private: repository.private, defaultBranch: repository.defaultBranch, hasCode: repository.hasCode };
+    const seq = await this.events.write(tx, currentPilotId(), 'repository.upserted', { ...view, followed });
+    await tx.repository.update({ where: { id: repository.id }, data: { lastSeq: seq } });
   }
 
   /** `failed` with `code`, on the old Source: its Décision raised, the held work released. */
@@ -447,6 +583,11 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
     });
     await this.publish(tx, updated);
     const project = await this.projectOf(tx, row.projectId);
+    // A folder picked for it (a Projet without one): the Runner forgets it; « Réessayer » goes on in the one its copy began.
+    if (row.to === 'local' && project.folderState === null) {
+      const pilotId = currentPilotId();
+      afterCommit(tx, () => this.send(pilotId, { type: 'project.folder.drop', projectId: row.projectId }));
+    }
     await this.decisions.raise(tx, {
       kind: 'source-migration.failed',
       projectId: project.id,
@@ -530,8 +671,12 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
     return hasCode || (await tx.codeChange.count({ where: { projectId } })) > 0;
   }
 
-  private async copyMessage(tx: Pick<Tx, 'project'>, row: SourceMigrationRow): Promise<OutgoingRunnerMessage> {
+  /** `migration.copy`: the repository the Projet's, or the one picked (SOURCE-9); for `code`, its release and integration branches. */
+  private async copyMessage(tx: Pick<Tx, 'project' | 'sourceMigration' | 'repository'>, row: SourceMigrationRow): Promise<OutgoingRunnerMessage> {
     const project = await this.projectOf(tx, row.projectId);
+    const { targetRepositoryId } = await tx.sourceMigration.findUniqueOrThrow({ where: { id: row.id }, select: { targetRepositoryId: true } });
+    const picked = targetRepositoryId === null || (project.owner !== null && project.name !== null) ? null : await tx.repository.findUnique({ where: { id: targetRepositoryId }, select: { owner: true, name: true } });
+    const repository = picked ?? (project.owner !== null && project.name !== null ? { owner: project.owner, name: project.name } : null);
     return {
       type: 'migration.copy',
       migrationId: row.id,
@@ -539,12 +684,16 @@ export class SourceMigrations implements OnModuleInit, OnModuleDestroy {
       group: row.group,
       from: row.from,
       to: row.to,
-      ...((row.from === 'github' || row.to === 'github') && project.owner !== null && project.name !== null ? { repository: { owner: project.owner, name: project.name } } : {}),
+      ...((row.from === 'github' || row.to === 'github') && repository !== null ? { repository } : {}),
+      ...(row.group === 'code' ? { branches: { release: project.releaseBranch, integration: project.integrationBranch } } : {}),
     };
   }
 
   private projectOf(tx: Pick<Tx, 'project'>, projectId: string): Promise<MigratingProject> {
-    return tx.project.findFirstOrThrow({ where: { id: projectId }, select: { id: true, displayName: true, owner: true, name: true, hasCode: true } });
+    return tx.project.findFirstOrThrow({
+      where: { id: projectId },
+      select: { id: true, displayName: true, owner: true, name: true, hasCode: true, folderState: true, releaseBranch: true, integrationBranch: true },
+    });
   }
 
   private async publish(tx: Tx, row: SourceMigrationRow): Promise<SourceMigration> {

@@ -63,6 +63,8 @@ export const CODE_CHANGE_VIEW = {
   mergedBy: true,
   mergeSha: true,
   sourceCreatedAt: true,
+  formerNumber: true,
+  formerSource: true,
   updatedAt: true,
 } as const satisfies Prisma.CodeChangeSelect;
 

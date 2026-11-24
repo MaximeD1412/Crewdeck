@@ -6,6 +6,7 @@ import { ProjectsModule } from '../../../projects/projects.module.js';
 import { RunnersModule } from '../../../runners/runners.module.js';
 import { TicketsModule } from '../../../tickets/tickets.module.js';
 import { EngineModule } from '../../engine/engine.module.js';
+import { CodeSwitch } from './code.switch.js';
 import { FinishSweep } from './finish-sweep.job.js';
 import { RunnerSourceMigrationsController } from './runner-source-migrations.controller.js';
 import { SourceMigrationGithubTokens } from './source-migration-github-token.js';
@@ -24,7 +25,7 @@ import { TicketsSwitch } from './tickets.switch.js';
 @Module({
   imports: [DecisionsModule, EngineModule, RunnersModule, ProjectsModule, TicketsModule],
   controllers: [SourceMigrationsController, RunnerSourceMigrationsController],
-  providers: [SourceMigrations, SourceMigrationsState, FinishSweep, TicketsSwitch, SourceMigrationGithubTokens, RunnerTokens, RunnerTokenGuard],
+  providers: [SourceMigrations, SourceMigrationsState, FinishSweep, TicketsSwitch, CodeSwitch, SourceMigrationGithubTokens, RunnerTokens, RunnerTokenGuard],
   exports: [SourceMigrations],
 })
 export class SourceMigrationsModule {}

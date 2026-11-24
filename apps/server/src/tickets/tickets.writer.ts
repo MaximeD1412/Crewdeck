@@ -239,6 +239,27 @@ export class TicketsWriter {
     }
   }
 
+  /**
+   * A migration of the code's switch (SOURCE-9): each change of code of
+   * `changes` to its new number and Source, its number and Source before
+   * kept, untitled until its new Source writes it again; numbers swapped
+   * through negative ones, so that no two rows hold one at once.
+   */
+  async moveCodeChanges(tx: Tx, projectId: string, move: { readonly from: TicketSource; readonly to: TicketSource; readonly changes: ReadonlyMap<number, number> }, origin: WriteOrigin = {}): Promise<void> {
+    const rows = await tx.codeChange.findMany({ where: { projectId, number: { in: [...move.changes.keys()] } }, select: { id: true, number: true }, orderBy: { number: 'asc' } });
+    for (const [index, row] of rows.entries()) await tx.codeChange.update({ where: { id: row.id }, data: { number: -(index + 1) } });
+    for (const row of rows) {
+      const number = move.changes.get(row.number);
+      if (number === undefined) throw new Error(`no new number for ${row.number}`);
+      const saved = await tx.codeChange.update({
+        where: { id: row.id },
+        data: { number, formerNumber: row.number, formerSource: move.from, source: move.to, title: null, titleSealed: Prisma.DbNull },
+        select: CODE_CHANGE_VIEW,
+      });
+      await this.events.write(tx, currentPilotId(), 'code-change.upserted', toCodeChange(saved), origin);
+    }
+  }
+
   async upsertMilestones(tx: Tx, projectId: string, source: TicketSource, items: readonly MilestoneInput[], origin: WriteOrigin = {}): Promise<Milestone[]> {
     const written: Milestone[] = [];
     for (const item of items) {

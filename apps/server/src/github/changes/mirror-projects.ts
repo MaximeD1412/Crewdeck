@@ -2,11 +2,11 @@ import { type MirrorProject, type SourceKind, zSealedItem } from '@crewdeck/cont
 import type { PrismaService } from '../../prisma/prisma.service.js';
 
 /** A Projet of `mirror.projects` whose repository the « Miroir » token covers. */
-export type MirrorRepositoryProject = MirrorProject & { readonly repository: string; readonly githubRepoId: number; readonly installationId: number; readonly displayName: string };
+export type MirrorRepositoryProject = MirrorProject & { readonly repository: string; readonly githubRepoId: number; readonly installationId: number };
 
 /** Whether `project` has a repository whose access holds: what the token and the follower use. */
 export const hasRepository = (project: MirrorProject): project is MirrorRepositoryProject =>
-  project.repository !== null && project.githubRepoId !== null && project.installationId !== null && project.displayName !== null;
+  project.repository !== null && project.githubRepoId !== null && project.installationId !== null;
 
 /**
  * Every Projet of the Pilote the Runner's Miroir copies (ADR 0010, ADR
@@ -14,7 +14,9 @@ export const hasRepository = (project: MirrorProject): project is MirrorReposito
  * each of its groups lives, its GitHub repository when its access is not
  * lost and an installation reaches it (else the four fields null), its
  * Local name sealed. A Projet whose groups are all on GitHub and whose
- * repository is unreachable is left out: nothing of it can be copied. A
+ * repository is unreachable is left out: nothing of it can be copied. Its
+ * readable name whatever its repository: a Projet created Local keeps its
+ * name sealed once its code moved to GitHub (SOURCE-9). A
  * group without its row (a Projet followed by the previous release during
  * a deploy, which `ProcessBackfill.completeSources` completes at the next
  * start) is on GitHub, as that backfill writes it. `scoped` is the
@@ -43,7 +45,7 @@ export const mirrorProjectsOf = (scoped: PrismaService['scoped']): Promise<Mirro
       const sourceOf = (group: 'ticket' | 'code'): SourceKind => project.artifactSources.find((row) => row.group === group)?.source ?? 'github';
       const sources = { ticket: sourceOf('ticket'), code: sourceOf('code') };
       const installationId = project.repositoryId === null || project.accessLost ? undefined : installations.get(project.repositoryId);
-      const reachable = installationId !== undefined && project.fullName !== null && project.displayName !== null && project.githubRepoId !== null;
+      const reachable = installationId !== undefined && project.fullName !== null && project.githubRepoId !== null;
       if (!reachable && sources.ticket === 'github' && sources.code === 'github') return [];
       return [
         {
@@ -52,7 +54,7 @@ export const mirrorProjectsOf = (scoped: PrismaService['scoped']): Promise<Mirro
           repository: reachable ? project.fullName : null,
           githubRepoId: reachable ? Number(project.githubRepoId) : null,
           installationId: reachable ? installationId : null,
-          displayName: reachable ? project.displayName : null,
+          displayName: project.displayName,
           nameSealed: project.nameSealed === null ? null : zSealedItem.parse(project.nameSealed),
           integrationBranch: project.integrationBranch,
         },

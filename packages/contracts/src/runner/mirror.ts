@@ -68,9 +68,11 @@ export type MirrorLive = z.infer<typeof zMirrorLive>;
  * One Projet of the Pilote, as the Runner's Miroir keys it (ADR 0010, ADR
  * 0012): where each of its groups lives (`sources`), its GitHub repository
  * when it has one whose access is not lost (else `repository`,
- * `githubRepoId`, `installationId` and `displayName` are null), and the
- * Local name sealed under the vault key (PROJET-6, `project:<id>:name`),
- * which only the Runner opens, null for a Projet without one. The « Miroir »
+ * `githubRepoId` and `installationId` are null), its readable name
+ * (`displayName`, null for a Projet created Local, even once its code moved
+ * to a repository, SOURCE-9), and the Local name sealed under the vault key
+ * (PROJET-6, `project:<id>:name`), which only the Runner opens, null for a
+ * Projet without one. The « Miroir »
  * token and the follower use only the items with a repository.
  */
 export const zMirrorProject = z.object({

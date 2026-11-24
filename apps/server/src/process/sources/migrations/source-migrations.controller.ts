@@ -3,6 +3,7 @@ import {
   type SourceMigrationPage,
   zId,
   zMigrateSourceInput,
+  zPickSourceFolderInput,
   zRetrySourceMigrationInput,
   zSourceGroup,
   zSourceMigration,
@@ -18,6 +19,7 @@ import { SensitiveAction } from '../../../sensitive-actions/sensitive-action.dec
 import { SourceMigrations } from './source-migrations.service.js';
 
 export class MigrateSourceInputDto extends createZodDto(zMigrateSourceInput) {}
+export class PickSourceFolderInputDto extends createZodDto(zPickSourceFolderInput) {}
 export class RetrySourceMigrationInputDto extends createZodDto(zRetrySourceMigrationInput) {}
 export class SourceMigrationQueryDto extends createZodDto(zSourceMigrationQuery) {}
 export class SourceMigrationDto extends createZodDto(zSourceMigration) {}
@@ -34,7 +36,8 @@ const idOf = (value: string, notFoundError: () => AppError): string => {
 
 /**
  * `POST /api/projects/:id/sources/:group/migrate` (the Action sensible
- * `source.migrate`), `GET /api/projects/:id/source-migrations` and
+ * `source.migrate`), `POST /api/projects/:id/sources/:group/folder` (the
+ * folder picked for it, SOURCE-9), `GET /api/projects/:id/source-migrations` and
  * `POST /api/source-migrations/:id/retry` (« Réessayer »): moving a Type
  * d'artefact to another Source (SOURCE-7, ADR 0012).
  */
@@ -53,6 +56,15 @@ export class SourceMigrationsController {
     const parsed = zSourceGroup.safeParse(group);
     if (!parsed.success) throw projectNotFound();
     return this.migrations.migrate(project, parsed.data, body);
+  }
+
+  @Post('projects/:id/sources/:group/folder')
+  @HttpCode(204)
+  pickFolder(@Param('id') id: string, @Param('group') group: string, @Body() body: PickSourceFolderInputDto): Promise<void> {
+    const project = idOf(id, projectNotFound);
+    const parsed = zSourceGroup.safeParse(group);
+    if (!parsed.success) throw projectNotFound();
+    return this.migrations.pickFolder(project, parsed.data, body);
   }
 
   @Get('projects/:id/source-migrations')

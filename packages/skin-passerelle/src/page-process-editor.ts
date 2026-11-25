@@ -51,6 +51,10 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
         min-width: 0;
         min-height: 0;
       }
+      /* Rendered at every width and opened in the top layer: out of the flow, it adds no gap that would shrink the panel. */
+      cd-dialog.save-template-dialog {
+        position: absolute;
+      }
       .editor {
         display: grid;
         grid-template-columns: minmax(0, 1fr) var(--cd-aside-width);

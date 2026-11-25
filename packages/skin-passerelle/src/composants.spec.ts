@@ -20,6 +20,9 @@ const atPc = async (el: Element, act: () => unknown): Promise<void> => {
     await act();
   } finally {
     await page.viewport(width, height);
+    // The media queries report the width back on a frame: what the page does then (a removal cancelled) is part of the trigger.
+    await expect.poll(() => matchMedia('(min-width: 1280px)').matches).toBe(width >= 1280);
+    for (let frame = 0; frame < 2; frame += 1) await new Promise(requestAnimationFrame);
   }
 };
 
@@ -222,7 +225,8 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
   },
   'PageProcessEditor.renamePhase': (el) => editing(el, 'une Phase choisie', () => choose(inside(el, 'cd-text-field.phase-name', 'input'), 'Livraison')),
   'PageProcessEditor.setForEach': (el) => editing(el, 'une Phase choisie', () => inside(el, 'cd-radio', 'input').click()),
-  'PageProcessEditor.removePhase': (el) => editing(el, 'retirer une Phase', () => inside(el, 'cd-button.remove-phase', 'button').click()),
+  'PageProcessEditor.removePhase': (el) =>
+    editing(el, 'retirer une Phase', () => closingRemoval(el, () => inside(el, 'cd-button.remove-phase', 'button').click())),
   'PageProcessEditor.cancelRemovePhase': (el) =>
     editing(el, 'retirer une Phase', () => closingRemoval(el, () => inside(el, 'cd-dialog', 'cd-icon-button', 'button').click())),
   'PageProcessEditor.confirmRemovePhase': (el) =>

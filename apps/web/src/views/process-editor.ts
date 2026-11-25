@@ -1,5 +1,6 @@
 import {
   ARTIFACT_TYPES,
+  CATALOGUE,
   diffDefinitions,
   FOR_EACH,
   findGaps,
@@ -41,6 +42,9 @@ export type ProcessEditorData = ComposantData<typeof PageProcessEditor>;
 type GapRow = ProcessEditorData['gaps'][number];
 type ToolRow = NonNullable<ProcessEditorData['step']>['tools'][number];
 type SourceRow = ProcessEditorData['sources']['rows'][number];
+type PhoneData = ProcessEditorData['phone'];
+type PhonePhase = PhoneData['phases'][number];
+type PhoneStep = PhonePhase['steps'][number];
 
 /** What « Gestion du process » reads of the store. */
 export interface ProcessEditorState {
@@ -411,6 +415,120 @@ const activateOf = (
 
 const EMPTY_DEFINITION: ProcessDefinition = { schemaVersion: 1, phases: [], steps: [], arrows: [], loopBacks: [], commands: [] };
 
+/** A port as the phone's flow names it: its type, then its note in parentheses (« Verdict (des checks) »). */
+const flowPort = (port: Port): string => (port.note === undefined ? typeLabel(port.type) : t('process.phone.port', { type: typeLabel(port.type), note: port.note }));
+const flowSide = (ports: readonly Port[]): string => (ports.length > 0 ? ports.map(flowPort).join(', ') : t('process.phone.flow.none'));
+
+/** An Étape's icon on the phone: the Checks and the Merge their own, a gate the Pilote, a Commande the terminal, else an agent. */
+const stepIcon = (step: Step): PhoneStep['icon'] => {
+  if (step.kind === 'checks') return 'check';
+  if (step.kind === 'merge') return 'merge';
+  const { family } = CATALOGUE[step.kind];
+  return family === 'gate' ? 'user' : family === 'command' ? 'terminal' : 'spark';
+};
+
+/** An Outil as the phone names it, as on its card's chip, a Rôle « Rôle {name} ». */
+const toolWord = (tool: Tool, roleNames: Readonly<Record<string, string>>): string => {
+  switch (tool.kind) {
+    case 'role':
+      return t('process.tool.role', { name: roleName(tool.roleId, roleNames) });
+    case 'skill':
+      return tool.skillId;
+    case 'mcp':
+      return tool.name;
+    case 'command':
+      return t('process.tool.command');
+    case 'connector':
+      return t('process.tool.connector.github');
+  }
+};
+
+/** The phone's Banner: no active version yet, a draft held by its Manques, a draft to activate, or the active version. */
+const phoneBanner = (view: ProjectProcess, gaps: number, changes: number): PhoneData['banner'] => {
+  if (!view.active) {
+    return {
+      tone: 'caution',
+      icon: 'alert',
+      title: t('process.phone.banner.noVersion.title'),
+      text: gaps > 0 ? counted('process.phone.banner.noVersion', gaps) : t('process.phone.banner.noVersion.none'),
+    };
+  }
+  const { number } = view.active;
+  if (!view.draft) {
+    // The active version has no Manque, unless its Sources lack one since: counted, it stays active.
+    return gaps > 0
+      ? { tone: 'caution', icon: 'alert', title: counted('process.count.gaps', gaps), text: t('process.phone.banner.active', { number }) }
+      : { tone: 'go', icon: 'check', title: t('process.phone.banner.active.title'), text: t('process.phone.banner.active', { number }) };
+  }
+  if (gaps > 0) return { tone: 'caution', icon: 'alert', title: t('process.phone.banner.blocked.title'), text: counted('process.phone.banner.blocked', gaps, { number }) };
+  return {
+    tone: 'accent',
+    icon: 'pen',
+    title: changes > 0 ? counted('process.phone.banner.draft.title', changes) : t('process.phone.banner.draft.title.none'),
+    text: t('process.phone.banner.draft', { number }),
+  };
+};
+
+/**
+ * The phone's list (pure, US-98, PROCESS-11): the draft when there is one,
+ * else the active version, its Banner from the draft, its Manques and the
+ * count of its changes since the active version; one group per Phase in the
+ * definition's order, with what it repeats over, its count of Étapes and
+ * Retours, its Manques, open when it has one, else unless it is the Phase
+ * with the most Étapes (the first of them, among two Phases or more); its
+ * Étapes in the reading order of their cells (row, then column), each with
+ * its kind as on its card, its icon, its Outils, its flow, its Retour and
+ * its Manque (« {n} Manques : … » for several).
+ */
+export const phoneListOf = (view: ProjectProcess, roleNames: Readonly<Record<string, string>> = {}): PhoneData => {
+  const definition = view.draft?.definition ?? view.active?.definition ?? EMPTY_DEFINITION;
+  const gaps = findGaps(definition, processSourcesOf(view));
+  const changes = view.active && view.draft ? diffDefinitions(view.active.definition, view.draft.definition).length : 0;
+  const gapsOf = new Map<string, string[]>();
+  for (const gap of gaps) {
+    const at = gapStep(gap);
+    const id = at?.stepId ?? (gap.target.startsWith('phases.') ? gap.target : null);
+    if (id !== null) gapsOf.set(id, [...(gapsOf.get(id) ?? []), gap.label]);
+  }
+  const gapText = (labels: readonly string[] | undefined): string | null =>
+    !labels || labels.length === 0 ? null : labels.length === 1 ? labels[0]! : t('process.phone.gaps', { count: labels.length, labels: labels.join(' ; ') });
+
+  const counts = definition.phases.map((phase) => definition.steps.filter((step) => step.phaseId === phase.id).length);
+  const longest = definition.phases.length > 1 ? counts.indexOf(Math.max(...counts)) : -1;
+
+  const phases = definition.phases.map((phase, index): PhonePhase => {
+    const steps = definition.steps
+      .filter((step) => step.phaseId === phase.id)
+      .sort((a, b) => a.row - b.row || a.col - b.col)
+      .map((step): PhoneStep => {
+        const loopBack = definition.loopBacks.find((loop) => loop.from === step.id);
+        return {
+          id: step.id,
+          name: step.name,
+          kindLabel: kindLabelOf(step, phase),
+          icon: stepIcon(step),
+          tools: step.tools.length > 0 ? step.tools.map((tool) => toolWord(tool, roleNames)).join(' · ') : null,
+          flow: t('process.phone.flow', { inputs: flowSide(step.inputs), outputs: flowSide(step.outputs) }),
+          loopBack: loopBack ? t('process.phone.loopBack', { to: stepById(definition, loopBack.to)?.name ?? loopBack.to, max: loopBack.max }) : null,
+          gap: gapText(gapsOf.get(step.id)),
+        };
+      });
+    const ids = new Set(steps.map((step) => step.id));
+    const loopBacks = definition.loopBacks.filter((loop) => ids.has(loop.from)).length;
+    const gapCount = [...ids, `phases.${phase.id}`].reduce((sum, id) => sum + (gapsOf.get(id)?.length ?? 0), 0);
+    return {
+      id: phase.id,
+      name: phase.name,
+      forEach: phase.forEach === null ? null : t(`process.forEach.${phase.forEach}`),
+      count: loopBacks > 0 ? t('process.phase.count', { steps: plural(steps.length, 'process.phase.steps'), loopBacks: plural(loopBacks, 'process.phase.loopBacks') }) : plural(steps.length, 'process.phase.steps'),
+      gaps: gapCount,
+      open: gapCount > 0 || index !== longest,
+      steps,
+    };
+  });
+  return { banner: phoneBanner(view, gaps.length, changes), phases };
+};
+
 /** The page without a Projet: « Ce Projet n'existe pas », or, until the snapshot came, nothing yet. */
 const nothing = (found: boolean, ui: EditorUi): ProcessEditorData => ({
   found,
@@ -426,6 +544,7 @@ const nothing = (found: boolean, ui: EditorUi): ProcessEditorData => ({
   removePhase: null,
   sources: { lead: t('process.sources.lead'), banner: null, rows: [] },
   footer: { changes: '', versions: '' },
+  phone: { banner: { tone: 'neutral', icon: 'info', title: t('process.title'), text: '' }, phases: [] },
   activate: null,
 });
 
@@ -477,6 +596,7 @@ export const processEditorView = (
     removePhase: removePhaseDialog(definition, edits.removingPhase),
     sources: sourcesPanel(view, definition, sourceReadsOf(state, project, view.active?.definition ?? definition), ui.choice ?? null),
     footer: footerOf(view, changes, roleNames),
+    phone: phoneListOf(view, roleNames),
     activate: activateOf(state, view, changes, gaps.length, edits.saving ?? false),
   };
 };

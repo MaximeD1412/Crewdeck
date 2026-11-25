@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineComposant } from './define.js';
 
-/** The head of a page: its one `h1`, its count, a link back and its actions, in a `header`. */
+/** The head of a page: its one `h1`, its count, a link back, its actions and a line under them (`sub`), in a `header`. */
 export const PageHeader = defineComposant({
   name: 'PageHeader',
   version: 1,
@@ -12,6 +12,7 @@ export const PageHeader = defineComposant({
     title: z.string(),
     count: z.string().optional(),
     back: z.object({ label: z.string(), href: z.string() }).optional(),
+    sub: z.string().optional(),
   }),
   actions: {},
   slots: ['actions'],
@@ -22,5 +23,9 @@ export const PageHeader = defineComposant({
       slots: { actions: `<cd-button data='{"label":"Noter une Idée","variant":"primary","size":"md","icon":"plus"}'></cd-button>` },
     },
     { name: 'avec retour', data: { title: 'Bibliothèque de Composants', back: { label: 'Paramètres', href: '/parametres' } } },
+    {
+      name: 'avec une ligne dessous',
+      data: { title: 'Gestion du process', count: 'v3 active', back: { label: 'Site mairie', href: '/projets' }, sub: 'Lecture seule sur le téléphone : la modification se fait sur PC.' },
+    },
   ],
 });

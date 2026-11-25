@@ -10,8 +10,10 @@ const row = (example: (typeof StepRow.examples)[number] | undefined) => placed(S
  * A Phase on the phone's list of a Process (US-98, PROCESS-11): a native
  * `<details>` whose summary holds its name, its Manques and what it repeats
  * over, its Étapes (`cd-step-row`) in its default Emplacement. `open` is its
- * state when it is rendered; the Pilote then folds and unfolds it freely. The
- * view formats `count` (« 10 Étapes · 2 Retours »); no action.
+ * state when it is rendered; the Pilote then folds and unfolds it freely.
+ * Each new value of `reveal` unfolds it, whatever the Pilote left it as: the
+ * page asks so when a Manque chosen leads into it. The view formats `count`
+ * (« 10 Étapes · 2 Retours »); no action.
  */
 export const PhaseGroup = defineComposant({
   name: 'PhaseGroup',
@@ -25,6 +27,7 @@ export const PhaseGroup = defineComposant({
     count: z.string(),
     gaps: z.int().nonnegative(),
     open: z.boolean(),
+    reveal: z.int().nonnegative().optional(),
   }),
   actions: {},
   slots: ['default'],

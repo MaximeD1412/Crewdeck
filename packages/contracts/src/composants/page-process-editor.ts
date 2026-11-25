@@ -5,9 +5,12 @@ import { zForEach } from '../process/definition.js';
 import { zStepKind } from '../process/catalogue.js';
 import { zIconName } from './icons.js';
 import { Menu } from './menu.js';
+import { PhaseGroup } from './phase-group.js';
 import { ProcessCanvas } from './process-canvas.js';
 import { sensitive } from './sensitive.js';
+import { StepRow } from './step-row.js';
 import { Toast } from './toast.js';
+import { zTone } from './tone.js';
 
 /** What the panel points at: an Étape, a Phase, or the Sources (`id` the Type d'artefact a Manque names, else `null`). */
 const zTarget = z.object({ kind: z.enum(['step', 'phase', 'sources']), id: z.string().min(1).nullable() });
@@ -32,6 +35,18 @@ const zSourceRow = zRow.extend({
     })
     .nullable(),
   migration: z.string().nullable(),
+});
+
+/**
+ * The phone's list (US-98, PROCESS-11), read only: the Banner under the
+ * header (the active version, the draft and its Manques, or no version yet),
+ * then one PhaseGroup per Phase in the definition's order, its Étapes as
+ * StepRows in the reading order of their cells, each by its id (a Manque
+ * leads to it).
+ */
+const zPhone = z.object({
+  banner: z.object({ tone: zTone, icon: zIconName, title: z.string().min(1), text: z.string() }),
+  phases: z.array(PhaseGroup.data.extend({ id: zId, steps: z.array(StepRow.data.extend({ id: zId })) })),
 });
 
 type Data = z.input<typeof zData>;
@@ -88,6 +103,8 @@ const zData = z.object({
   /** `banner`: the caution Banner of a migration of Source running, shown above the Sources, and above the phone's card. */
   sources: z.object({ lead: z.string(), banner: z.object({ title: z.string().min(1), text: z.string() }).nullable(), rows: z.array(zSourceRow) }),
   footer: z.object({ changes: z.string(), versions: z.string() }),
+  /** Below 1280 px, what the page lists in place of the editor. */
+  phone: zPhone,
   /**
    * The header's « Activer la v{n+1} »: the draft's `revision` it activates
    * (`null` without a draft), and why it is disabled (`null`: it is not);
@@ -146,6 +163,103 @@ const MIGRATING: Data['sources'] = {
   ),
 };
 
+type PhoneStep = Data['phone']['phases'][number]['steps'][number];
+const stepRow = (id: string, name: string, kindLabel: string, icon: PhoneStep['icon'], tools: string | null, flow: string, loopBack: string | null = null): PhoneStep => ({
+  id,
+  name,
+  kindLabel,
+  icon,
+  tools,
+  flow,
+  loopBack,
+  gap: null,
+});
+const toPrd = 'vers « PRD », 3 fois au plus';
+const toCode = 'vers « Code », 3 fois au plus';
+
+/** The phone's list of the canvas's first example: « Conception », the longest, folded. */
+const PHONE: Data['phone'] = {
+  banner: { tone: 'go', icon: 'check', title: 'Aucun Manque', text: 'La v3 est active.' },
+  phases: [
+    {
+      id: 'ph-idee',
+      name: 'Idée',
+      forEach: null,
+      count: '2 Étapes',
+      gaps: 0,
+      open: true,
+      steps: [
+        stepRow('analyse', 'Analyse de l’Idée', 'Agent', 'spark', 'Rôle Idée · analyse-idee', 'Idée (notée par toi) → Idée'),
+        stepRow('tri', 'Tri de l’Idée', 'Pilote', 'user', null, 'Idée → Idée (retenue)'),
+      ],
+    },
+    {
+      id: 'ph-conception',
+      name: 'Conception',
+      forEach: null,
+      count: '10 Étapes · 2 Retours',
+      gaps: 0,
+      open: false,
+      steps: [
+        stepRow('prd', 'PRD', 'Agent', 'spark', 'Rôle Conception · product-design', 'Idée → PRD'),
+        stepRow('rc-prd', 'Revue croisée du PRD', 'Revue croisée', 'spark', 'Rôle Review · cross-review', 'PRD → Verdict', toPrd),
+        stepRow('ap-prd', 'Approbation du PRD', 'Pilote', 'user', null, 'PRD, Verdict → PRD'),
+        stepRow('maq', 'Maquettes', 'Agent', 'spark', 'Rôle Conception · visual-design', 'PRD → Maquettes'),
+        stepRow('ap-maq', 'Revue des maquettes', 'Pilote', 'user', null, 'Maquettes → Maquettes'),
+        stepRow('ct', 'Conception technique', 'Agent', 'spark', 'Rôle Conception · technical-design', 'PRD, Maquettes → Conception technique'),
+        stepRow(
+          'rc-ct',
+          'Revue croisée de la conception',
+          'Revue croisée',
+          'spark',
+          'Rôle Review · cross-review',
+          'Conception technique → Verdict',
+          'vers « Conception technique », 3 fois au plus',
+        ),
+        stepRow('ap-ct', 'Approbation de la conception', 'Pilote', 'user', null, 'Conception technique, Verdict → Conception technique'),
+        stepRow('tickets', 'Découpage en Tickets', 'Agent', 'spark', 'Rôle Conception · plan-backlog', 'PRD, Maquettes, Conception technique → Ticket'),
+        stepRow('ap-tickets', 'Validation des Tickets', 'Pilote', 'user', null, 'Ticket → Ticket (prêt)'),
+      ],
+    },
+    {
+      id: 'ph-dev',
+      name: 'Développement',
+      forEach: 'chaque Ticket prêt',
+      count: '5 Étapes · 2 Retours',
+      gaps: 0,
+      open: true,
+      steps: [
+        stepRow('code', 'Code', 'Agent', 'spark', 'Rôle Code · red-green', 'Ticket → Changement de code'),
+        stepRow('checks', 'Checks', 'CI du dépôt', 'check', 'GitHub', 'Changement de code → Verdict'),
+        stepRow('review', 'Review', 'Agent', 'spark', 'Rôle Review · review', 'Changement de code, Verdict (des checks) → Verdict', toCode),
+        stepRow('fusion', 'Merge', 'par la Boucle', 'merge', 'GitHub', 'Changement de code, Verdict → Changement de code (mergé)'),
+        stepRow('rv', 'Revue visuelle', 'Pilote', 'user', null, 'Changement de code, Maquettes → Verdict', toCode),
+      ],
+    },
+  ],
+};
+
+/** The phone's list of the canvas's draft with a Manque: « Inventaire » unfed, its Phase open. */
+const PHONE_GAP: Data['phone'] = {
+  banner: { tone: 'caution', icon: 'alert', title: 'Brouillon non activable', text: '1 Manque à régler sur PC. La v3 reste active.' },
+  phases: PHONE.phases.map((phase) =>
+    phase.id === 'ph-idee'
+      ? {
+          ...phase,
+          count: '3 Étapes',
+          gaps: 1,
+          steps: [
+            ...phase.steps,
+            {
+              ...stepRow('inventaire', 'Inventaire', 'Agent', 'spark', 'Rôle Conception · inventory', 'Inventaire → Inventaire'),
+              gap: 'Entrée « Inventaire » de « Inventaire » : rien ne l’alimente',
+            },
+          ],
+        }
+      : phase,
+  ),
+};
+
 const active: Data = {
   found: true,
   title: { projectName: 'Site mairie', backHref: '/projets', count: 'v3 active' },
@@ -160,6 +274,7 @@ const active: Data = {
   removePhase: null,
   sources: SOURCES,
   footer: { changes: 'Aucun changement depuis la v3.', versions: 'v3 active depuis le 4 nov.' },
+  phone: PHONE,
   activate: { label: 'Activer la v4', revision: null, disabledReason: 'Aucun changement' },
 };
 
@@ -219,9 +334,13 @@ const withPhase = (data: Data): Data => ({
  * ProcessCanvas, and its panel with Tabs « Manques » (each Manque leading to
  * its block), « Étape » or « Phase » (the one selected: its Entrées and
  * Sorties, its Retour, its Outils), « Sources » (the two groups of ADR 0012
- * and the Idée), and the versions at its foot. Below 1280 px the editor is
- * not rendered (the phone's list is PROCESS-11's); a migration of Source
- * running shows there its Banner and the Sources' card. `select` comes from
+ * and the Idée), and the versions at its foot. Below 1280 px (US-98,
+ * PROCESS-11) the page reads only, without a button: the header says so in
+ * its sub, `phone.banner` under it, the Card « Manques » (each a link that
+ * opens its PhaseGroup and brings its StepRow, or the Sources, into view),
+ * one PhaseGroup per Phase of `phone.phases`, a migration of Source's Banner,
+ * then the Card « Sources », each row's Source in a StatusBadge; no action
+ * comes from it. `select` comes from
  * the canvas (`centre: false`) or a Manque (`centre: true`); `view` is the
  * canvas's; `activate`, the header's primary, is the Action sensible
  * `process.activate` (PROCESS-10), confirmed by the core; `migrate`, a
@@ -238,7 +357,7 @@ const withPhase = (data: Data): Data => ({
  */
 export const PageProcessEditor = defineComposant({
   name: 'PageProcessEditor',
-  version: 2,
+  version: 3,
   tag: 'cd-page-process-editor',
   category: 'page',
   description: 'La Gestion du process : le canevas du brouillon ou de la version active, qu’on modifie, ses Manques, l’Étape ou la Phase choisie et les Sources.',
@@ -279,6 +398,7 @@ export const PageProcessEditor = defineComposant({
           },
         ],
         footer: { changes: '1 changement depuis la v3 : Étape « Inventaire » ajoutée à « Idée ».', versions: 'v3 active depuis le 4 nov. · aucun travail en cours' },
+        phone: PHONE_GAP,
         activate: { label: 'Activer la v4', revision: 2, disabledReason: 'Règle les Manques pour activer.' },
       },
     },
@@ -346,6 +466,7 @@ export const PageProcessEditor = defineComposant({
         title: { ...active.title, count: 'brouillon · première version' },
         hasVersion: false,
         footer: { changes: 'Ce brouillon deviendra la v1.', versions: 'aucune version active' },
+        phone: { ...PHONE, banner: { tone: 'caution', icon: 'alert', title: 'Pas encore de version active', text: 'Active le brouillon sur PC.' } },
         activate: { label: 'Activer la v1', revision: 1, disabledReason: null },
       },
     },
@@ -359,6 +480,10 @@ export const PageProcessEditor = defineComposant({
           changes:
             '3 changements depuis la v3 : Serveur MCP « Stitch » attaché à « Maquettes » ; Serveur MCP « Figma » attaché à « Maquettes » ; Retour de « Review » vers « Code » : 5 fois au plus, au lieu de 3.',
           versions: 'v3 active depuis le 4 nov. · 2 Tickets en cours finissent sur la v3 · 1 Conception en cours finit sur la v2',
+        },
+        phone: {
+          ...PHONE,
+          banner: { tone: 'accent', icon: 'pen', title: 'Brouillon : 3 changements', text: 'Tu lis le brouillon ; la v3 reste active tant qu’il n’est pas activé sur PC.' },
         },
         activate: { label: 'Activer la v4', revision: 4, disabledReason: null },
       },

@@ -30,6 +30,7 @@ export const ICONS: Readonly<Record<IconName, SVGTemplateResult>> = {
   gate: svg`<path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/>`,
   gauge: svg`<path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4-6"/>`,
   github: svg`<path d="M9 19c-4 1.5-4-2-6-2.5M15 21v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12 12 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/>`,
+  google: svg`<path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 12h-7.5"/>`,
   image: svg`<rect x="3" y="4" width="18" height="16" rx="1"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/>`,
   inbox: svg`<path d="M3 13h5l1 3h6l1-3h5"/><path d="M5 5h14l2 8v6H3v-6z"/>`,
   info: svg`<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>`,

@@ -29,6 +29,7 @@ export const ICON_NAMES = [
   'gate',
   'gauge',
   'github',
+  'google',
   'image',
   'inbox',
   'info',

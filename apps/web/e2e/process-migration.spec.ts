@@ -60,9 +60,11 @@ test('a migration of Source in progress: its Banner, the Tickets’ badge and wh
 
   await expect(banner(page)).toHaveJSProperty('data.title', 'Migration des Tickets vers GitHub');
   await expect(banner(page)).toContainText('Aucun nouveau Ticket ne démarre. #12 et #14 finissent sur Local, puis les 30 Tickets passent sur GitHub d’un coup.');
-  const tickets = editor(page).locator('.item.caution').filter({ visible: true });
+  // At 1280 px the Sources' tab lists its rows; on the phone, the Card « Sources » of its read-only list (PROCESS-11).
+  const wide = (viewport?.width ?? 0) >= 1280;
+  const tickets = wide ? editor(page).locator('.item.caution').filter({ visible: true }) : editor(page).locator('cd-card.phone-sources cd-list-row').filter({ hasText: 'Tickets' });
   await expect(tickets).toContainText('migration en cours · 2 Tickets à finir sur Local');
   await expect(tickets.locator('cd-status-badge')).toHaveJSProperty('data.label', 'Local → GitHub');
-  if ((viewport?.width ?? 0) >= 1280) await expect(codeSelect(page)).toBeDisabled();
+  if (wide) await expect(codeSelect(page)).toBeDisabled();
   await expectAccessible(page);
 });

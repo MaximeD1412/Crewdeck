@@ -13,6 +13,7 @@ type SourceSelect = NonNullable<SourceRow['select']>;
 type ForEach = Phase['repeat'][number]['forEach'];
 type StepKind = ComposantPayload<typeof PageProcessEditor, 'addStep'>['kind'];
 type Control = HTMLElement & { value: string };
+type Target = Data['gaps'][number]['target'];
 
 /** The radio « Une fois »'s value: a Phase that does not repeat. */
 const ONCE = 'once';
@@ -26,8 +27,12 @@ const isTab = (id: unknown): id is Tab => TABS.includes(id as Tab);
  * from 1280 px, the editor taking the height the compact Cadre leaves: the
  * ProcessCanvas, and its panel (`--cd-aside-width`), Tabs « Manques »,
  * « Étape » or « Phase », « Sources », the versions at its foot. Below 1280
- * px the editor is not rendered: the Sources' card only, under the Banner of
- * a migration of Source running (`process-migration-en-cours.html`). The
+ * px (`process-manques.html` at 390) the page reads only: the header's sub
+ * and none of its buttons, the phone's Banner, the Card « Manques » (a
+ * Manque's link opens its PhaseGroup and scrolls to its StepRow, or to the
+ * Sources), one `cd-phase-group` per Phase, the Banner of a migration of
+ * Source running (`process-migration-en-cours.html`), then the Card
+ * « Sources », each row's Source in a StatusBadge. The
  * canvas's `select` and `view` become the page's (`centre: false`), a
  * Manque's row a `select` that centres its block; a group's Select changed,
  * `migrate`, the Select back on its Source until the page says otherwise.
@@ -39,7 +44,7 @@ const isTab = (id: unknown): id is Tab => TABS.includes(id as Tab);
  * a Dialog when it holds Étapes.
  */
 export class PasserellePageProcessEditor extends PasserelleElement<typeof PageProcessEditor> {
-  static override properties = { wide: { state: true } };
+  static override properties = { wide: { state: true }, revealing: { state: true } };
   static override styles = [
     sharedStyles,
     css`
@@ -212,9 +217,11 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
         --cd-field-label-white-space: nowrap;
       }
       .phone-sources {
-        display: flex;
-        flex-direction: column;
-        gap: var(--cd-space-2);
+        scroll-margin-top: var(--cd-space-4);
+      }
+      cd-step-row,
+      cd-phase-group {
+        scroll-margin: var(--cd-space-4) 0;
       }
       .header-actions {
         display: flex;
@@ -247,12 +254,20 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
 
   protected readonly composant = PageProcessEditor;
   declare wide: boolean;
+  /** The PhaseGroup a Manque chosen leads into, and the `reveal` it is given: a new one at each choice. */
+  declare revealing: { phaseId: string; reveal: number } | null;
   private readonly media = matchMedia(`(min-width: ${BREAKPOINT_PX}px)`);
-  private readonly onMedia = () => (this.wide = this.media.matches);
+  /** Below 1280 px nothing is edited: a removal asked on the PC is cancelled, its Dialog closed. */
+  private readonly onMedia = () => {
+    const wide = this.media.matches;
+    if (this.wide && !wide && this.data.removePhase !== null) this.emit('cancelRemovePhase', {});
+    this.wide = wide;
+  };
 
   constructor() {
     super();
     this.wide = this.media.matches;
+    this.revealing = null;
   }
 
   override connectedCallback(): void {
@@ -604,14 +619,63 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
       <div class="list" role="list">${rows.map((row) => this.sourceRow(row))}</div>`;
   }
 
-  /** The phone's Sources: read, a migration's Banner above them (editing stays on the PC). */
-  private phoneSources(): TemplateResult {
-    const { rows } = this.data.sources;
-    return html`${this.migrationBanner()}
-      <section class="phone-sources" aria-labelledby="phone-sources">
-        <h2 id="phone-sources">${t('process.tabs.sources')}</h2>
-        <div class="list" role="list">${rows.map((row) => this.sourceRow(row))}</div>
-      </section>`;
+  /** A Manque's link on the phone: to its Étape, its Phase or the Sources, followed by `reveal`. */
+  private static hrefOf(target: Target): string {
+    if (target.kind === 'sources') return '#sources';
+    return `#${target.kind === 'step' ? 'etape' : 'phase'}-${target.id ?? ''}`;
+  }
+
+  /** A Manque chosen on the phone: its PhaseGroup opened, then its StepRow (or the group, or the Sources) brought into view. */
+  private async reveal(target: Target, event: Event): Promise<void> {
+    event.preventDefault();
+    const { phases } = this.data.phone;
+    const phase = target.kind === 'phase' ? phases.find((candidate) => candidate.id === target.id) : phases.find((candidate) => candidate.steps.some((step) => step.id === target.id));
+    if (target.kind === 'sources' || !phase) {
+      this.renderRoot.querySelector('cd-card.phone-sources')?.scrollIntoView({ block: 'start' });
+      return;
+    }
+    this.revealing = { phaseId: phase.id, reveal: (this.revealing?.reveal ?? 0) + 1 };
+    await this.updateComplete;
+    const group = [...this.renderRoot.querySelectorAll<HTMLElement>('cd-phase-group')].find((candidate) => candidate.dataset['phase'] === phase.id);
+    if (!group) return;
+    await (group as Partial<{ updateComplete: Promise<unknown> }>).updateComplete;
+    const step = target.kind === 'step' ? [...group.querySelectorAll<HTMLElement>('cd-step-row')].find((row) => row.dataset['step'] === target.id) : undefined;
+    (step ?? group).scrollIntoView({ block: step ? 'center' : 'start' });
+  }
+
+  /** The phone's list (US-98), read: its Banner, its Manques, its Phases and their Étapes, the Sources (editing stays on the PC). */
+  private phoneList(): TemplateResult {
+    const { gaps, phone, sources } = this.data;
+    const { banner } = phone;
+    return html`<cd-banner class="phone-banner" .data=${{ tone: banner.tone, icon: banner.icon, title: banner.title }}>${banner.text}</cd-banner>
+      ${gaps.length === 0
+        ? nothing
+        : html`<cd-card class="phone-gaps" .data=${{ title: t('process.tabs.gaps'), count: gaps.length, label: t('process.phone.gaps.label'), flush: true }}>
+            ${gaps.map(
+              (gap) =>
+                html`<cd-list-row
+                  .data=${{ icon: 'alert', tone: 'caution', title: gap.label, meta: gap.meta, href: PasserellePageProcessEditor.hrefOf(gap.target) }}
+                  @click=${(event: Event) => void this.reveal(gap.target, event)}
+                ></cd-list-row>`,
+            )}
+          </cd-card>`}
+      ${phone.phases.map(
+        ({ id, name, forEach, count, gaps: phaseGaps, open, steps }) =>
+          html`<cd-phase-group data-phase=${id} .data=${{ name, forEach, count, gaps: phaseGaps, open, ...(this.revealing?.phaseId === id ? { reveal: this.revealing.reveal } : {}) }}>
+            ${steps.map(
+              ({ id: stepId, ...row }) => html`<cd-step-row data-step=${stepId} .data=${row}></cd-step-row>`,
+            )}
+          </cd-phase-group>`,
+      )}
+      ${this.migrationBanner()}
+      <cd-card class="phone-sources" .data=${{ title: t('process.tabs.sources'), count: sources.rows.length, label: t('process.phone.sources.label'), flush: true }}>
+        ${sources.rows.map(
+          ({ icon, label, detail, value, migration }) =>
+            html`<cd-list-row .data=${{ title: label, icon, ...(detail === null ? {} : { meta: detail }), ...(migration === null ? {} : { tone: 'caution' as const }) }}>
+              <cd-status-badge slot="trailing" .data=${{ tone: migration === null ? 'neutral' : 'caution', label: migration ?? value }}></cd-status-badge>
+            </cd-list-row>`,
+        )}
+      </cd-card>`;
   }
 
   private panel(): TemplateResult {
@@ -675,7 +739,7 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
 
   private removePhaseDialog(): TemplateResult {
     const removing = this.data.removePhase;
-    return html`<cd-dialog class="remove-phase-dialog" .data=${{ open: removing !== null, title: removing?.title ?? '' }} @cd-action=${this.onDialog}>
+    return html`<cd-dialog class="remove-phase-dialog" .data=${{ open: removing !== null && this.wide, title: removing?.title ?? '' }} @cd-action=${this.onDialog}>
       ${removing ? html`<p class="text">${removing.body}</p>` : nothing}
       <cd-button
         slot="actions"
@@ -687,7 +751,7 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
         slot="actions"
         class="confirm"
         .data=${{ label: t('process.phase.remove'), variant: 'danger', size: 'md', icon: 'trash' }}
-        @click=${() => removing && this.emit('confirmRemovePhase', { phaseId: removing.phaseId })}
+        @click=${() => removing && this.wide && this.emit('confirmRemovePhase', { phaseId: removing.phaseId })}
       ></cd-button>
     </cd-dialog>`;
   }
@@ -699,20 +763,20 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
         ><a slot="actions" href="/projets">${t('process.notFound.back')}</a></cd-empty
       >`;
     }
-    const editing = this.wide && canvas.editable;
-    return html`<cd-page-header
-        .data=${{ title: t('process.title'), count: title.count, back: { label: t('process.back', { projectName: title.projectName }), href: title.backHref } }}
-        >${editing ? this.headerActions() : this.activateButton(true)}</cd-page-header
+    const { wide } = this;
+    const header = { title: t('process.title'), count: title.count, back: { label: t('process.back', { projectName: title.projectName }), href: title.backHref } };
+    return html`<cd-page-header .data=${wide ? header : { ...header, sub: t('process.phone.readOnly') }}
+        >${wide ? (canvas.editable ? this.headerActions() : this.activateButton(true)) : nothing}</cd-page-header
       >
-      ${hasVersion ? nothing : html`<cd-banner .data=${{ tone: 'caution', icon: 'alert', title: t('process.noVersion') }}></cd-banner>`}
-      ${this.wide
+      ${hasVersion || !wide ? nothing : html`<cd-banner .data=${{ tone: 'caution', icon: 'alert', title: t('process.noVersion') }}></cd-banner>`}
+      ${wide
         ? html`<div class="editor" aria-label=${t('process.editor.label')} role="region">
             <cd-process-canvas .data=${canvas} @cd-action=${this.onCanvas}>
               ${toast ? html`<cd-toast slot="toast" .data=${toast}></cd-toast>` : nothing}
             </cd-process-canvas>
             ${this.panel()}
           </div>`
-        : this.phoneSources()}
+        : this.phoneList()}
       ${canvas.editable ? this.removePhaseDialog() : nothing}`;
   }
 }

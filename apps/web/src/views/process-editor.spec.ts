@@ -15,7 +15,7 @@ import { PageProcessEditor, t } from '@crewdeck/sdk';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createEditorUi } from '../process/editor-ui.js';
-import { gapRowOf, NO_EDITS, processEditorView, type EditorEdits, type ProcessEditorState } from './process-editor.js';
+import { gapRowOf, NO_EDITS, phoneListOf, processEditorView, type EditorEdits, type ProcessEditorState } from './process-editor.js';
 
 const FIXTURES = join(import.meta.dirname, '../../../../packages/contracts/fixtures/process');
 /** A case of the canvas's rules (PROCESS-2), as the server's tests read it. */
@@ -547,5 +547,128 @@ describe('processEditorView, editing (PROCESS-8)', () => {
     const phase = view(stateOf(), { phase: 'ph-dev' }, { nameError: { phaseId: 'ph-dev', text: 'Une Phase porte déjà ce nom.' }, focusName: { phaseId: 'ph-dev', at: 2 } }).phase;
     expect(phase).toMatchObject({ nameError: 'Une Phase porte déjà ce nom.', focusName: 2 });
     expect(view(stateOf(), { phase: 'ph-idee' }, { nameError: { phaseId: 'ph-dev', text: 'x' } }).phase).toMatchObject({ nameError: null, focusName: null });
+  });
+});
+
+describe('phoneListOf (PROCESS-11)', () => {
+  const MANQUES = fixture('gaps-every-kind').definition;
+  const groups = (process: ProjectProcess) => phoneListOf(process).phases;
+  const group = (process: ProjectProcess, name: string) => groups(process).find((phase) => phase.name === name)!;
+  const row = (process: ProjectProcess, id: string) => groups(process).flatMap((phase) => phase.steps).find((step) => step.id === id)!;
+
+  it('lists the active version without a draft: the go Banner, one group per Phase, the longest folded', () => {
+    const list = phoneListOf(PROCESS);
+
+    expect(list.banner).toEqual({ tone: 'go', icon: 'check', title: 'Aucun Manque', text: 'La v3 est active.' });
+    expect(list.phases.map(({ id, name, forEach, count, gaps, open }) => ({ id, name, forEach, count, gaps, open }))).toEqual([
+      { id: 'ph-idee', name: 'Idée', forEach: 'chaque Idée notée', count: '2 Étapes', gaps: 0, open: true },
+      { id: 'ph-conception', name: 'Conception', forEach: 'chaque Idée retenue', count: '10 Étapes · 6 Retours', gaps: 0, open: false },
+      { id: 'ph-dev', name: 'Développement', forEach: 'chaque Ticket prêt', count: '5 Étapes · 2 Retours', gaps: 0, open: true },
+    ]);
+  });
+
+  it('gives each Étape, in the reading order of its cells, its kind, icon, Outils, flow and Retour', () => {
+    expect(group(PROCESS, 'Développement').steps).toEqual([
+      { id: 'st-code', name: 'Code', kindLabel: 'Agent', icon: 'spark', tools: 'Rôle Code · code', flow: 'Ticket → Changement de code', loopBack: null, gap: null },
+      { id: 'st-checks', name: 'Checks', kindLabel: 'CI du dépôt', icon: 'check', tools: 'GitHub', flow: 'Changement de code → Verdict', loopBack: null, gap: null },
+      {
+        id: 'st-review',
+        name: 'Review',
+        kindLabel: 'Agent',
+        icon: 'spark',
+        tools: 'Rôle Review · review',
+        flow: 'Changement de code, Verdict (des checks) → Verdict',
+        loopBack: 'vers « Code », 3 fois au plus',
+        gap: null,
+      },
+      {
+        id: 'st-merge',
+        name: 'Merge',
+        kindLabel: 'par la Boucle',
+        icon: 'merge',
+        tools: null,
+        flow: 'Changement de code, Verdict (de la Review), Verdict (de la Revue visuelle) → Changement de code (mergé)',
+        loopBack: null,
+        gap: null,
+      },
+      {
+        id: 'st-rv',
+        name: 'Revue visuelle',
+        kindLabel: 'Pilote',
+        icon: 'user',
+        tools: null,
+        flow: 'Changement de code, Maquettes → Verdict',
+        loopBack: 'vers « Code », 3 fois au plus',
+        gap: null,
+      },
+    ]);
+    expect(row(PROCESS, 'st-tri')).toMatchObject({ kindLabel: 'Pilote', icon: 'user', tools: null, flow: 'Idée → Idée (retenue)' });
+    expect(row(PROCESS, 'st-rc-prd')).toMatchObject({ kindLabel: 'Revue croisée', tools: 'Rôle Review · cross-review' });
+  });
+  it('reads a draft of five Manques: the caution Banner, each Phase at fault open with its count, each Étape at fault its Manque', () => {
+    const process = { ...PROCESS, draft: draftOf(MANQUES) };
+    const list = phoneListOf(process);
+
+    expect(list.banner).toEqual({ tone: 'caution', icon: 'alert', title: 'Brouillon non activable', text: '5 Manques à régler sur PC. La v3 reste active.' });
+    expect(list.phases.map(({ name, gaps, open }) => ({ name, gaps, open }))).toEqual([
+      { name: 'Idée', gaps: 1, open: true },
+      { name: 'Conception', gaps: 0, open: false },
+      { name: 'Développement', gaps: 4, open: true },
+    ]);
+    expect(row(process, 'st-analyse').gap).toBe('« Analyse de l’Idée » a besoin d’un Rôle : aucun Outil attaché n’en donne');
+    expect(row(process, 'st-e2e')).toMatchObject({
+      kindLabel: 'Commande',
+      icon: 'terminal',
+      tools: null,
+      gap: '« Tests de bout en bout » a besoin d’une Commande : aucun Outil attaché n’en donne',
+    });
+    expect(row(process, 'st-merge').gap).toBe(
+      '3 Manques : Entrée « Verdict de la Review » de « Merge » : rien ne l’alimente ; « Merge » merge un Changement de code sans Review avant lui ; « Merge » merge un Changement de code sans checks avant lui',
+    );
+    expect(group(process, 'Développement').steps.map((step) => step.id)).toEqual(['st-code', 'st-checks', 'st-review', 'st-merge', 'st-e2e', 'st-rv']);
+  });
+
+  it('opens the longest Phase when it has a Manque, and folds none of a Process of one Phase', () => {
+    const idee = PROCESS_CREWDECK.phases[0]!;
+    const single: ProcessDefinition = { ...PROCESS_CREWDECK, phases: [idee], steps: PROCESS_CREWDECK.steps.filter((step) => step.phaseId === idee.id), arrows: [], loopBacks: [] };
+    expect(phoneListOf({ ...PROCESS, active: { ...VERSION_3, definition: single } }).phases.map((phase) => phase.open)).toEqual([true]);
+    const conceptionGap = structuredClone(PROCESS_CREWDECK);
+    conceptionGap.steps.find((step) => step.id === 'st-prd')!.tools = [];
+    expect(groups({ ...PROCESS, draft: draftOf(conceptionGap) }).map((phase) => phase.open)).toEqual([true, true, true]);
+  });
+
+  it('reads a draft without Manque: the accent Banner with its changes since the active version', () => {
+    const twoChanges = structuredClone(PROCESS_CREWDECK);
+    twoChanges.steps.find((step) => step.id === 'st-maquettes')!.tools.push({ kind: 'mcp', name: 'Stitch' }, { kind: 'mcp', name: 'Figma' });
+    expect(phoneListOf({ ...PROCESS, draft: draftOf(twoChanges) }).banner).toEqual({
+      tone: 'accent',
+      icon: 'pen',
+      title: 'Brouillon : 2 changements',
+      text: 'Tu lis le brouillon ; la v3 reste active tant qu’il n’est pas activé sur PC.',
+    });
+    expect(row({ ...PROCESS, draft: draftOf(twoChanges) }, 'st-maquettes').tools).toBe('Rôle Conception · visual-design · Stitch · Figma');
+    expect(phoneListOf({ ...PROCESS, draft: draftOf(PROCESS_CREWDECK) }).banner.title).toBe('Brouillon : aucun changement');
+  });
+
+  it('reads a Projet without an active version: the caution Banner, its Manques to settle or the draft to activate', () => {
+    const first = { ...PROCESS, active: null, draft: draftOf(MANQUES, 0) };
+    expect(phoneListOf(first).banner).toEqual({
+      tone: 'caution',
+      icon: 'alert',
+      title: 'Pas encore de version active',
+      text: '5 Manques à régler sur PC, puis active le brouillon.',
+    });
+    expect(phoneListOf({ ...first, draft: draftOf(PROCESS_CREWDECK, 0) }).banner).toMatchObject({ title: 'Pas encore de version active', text: 'Active le brouillon sur PC.' });
+  });
+
+  it('is the page’s list, the Pilote’s own Rôles by their name', () => {
+    const custom = structuredClone(PROCESS_CREWDECK);
+    custom.steps.find((step) => step.id === 'st-code')!.tools = [{ kind: 'role', roleId: 'r-0000front' }];
+    const state = withSlices(stateOf({ ...PROCESS, draft: draftOf(custom) }), {
+      settings: { ...SETTINGS, customRoles: [{ id: 'r-0000front', name: 'Front', createdAt: SINCE }] },
+    });
+    const data = view(state);
+    expect(data.phone.phases.flatMap((phase) => phase.steps).find((step) => step.id === 'st-code')?.tools).toBe('Rôle Front');
+    expect(() => PageProcessEditor.data.parse(data)).not.toThrow();
   });
 });

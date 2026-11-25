@@ -533,29 +533,112 @@ describe('PageProcessEditor', () => {
     });
   });
 
-  it('does not render the editor below 1280 px: the Sources only, read', async () => {
-    await page.viewport(390, 844);
-    const el = await show(active);
-    expect(textOf(inside(el, 'cd-page-header', 'h1'))).toBe('Gestion du process');
-    expect(root(el).querySelector('.editor')).toBeNull();
-    expect(textOf(inside(el, '.phone-sources h2'))).toBe('Sources');
-    expect([...root(el).querySelectorAll('.phone-sources .item')].map((item) => parts(item).slice(0, 2))).toEqual([
-      ['Tickets', 'Local'],
-      ['Code et documents', 'GitHub'],
-      ['Idée', 'Crewdeck'],
-    ]);
-    expect(root(el).querySelector('cd-select')).toBeNull();
-    await page.viewport(1280, 800);
-    await settle(el);
-    await expect.poll(() => root(el).querySelector('.editor')).not.toBeNull();
-  });
+  describe('below 1280 px (PROCESS-11)', () => {
+    beforeEach(async () => {
+      await page.viewport(390, 844);
+    });
+    type Shown = HTMLElement & { data: Record<string, unknown> };
+    const all = (el: Element, selector: string) => [...root(el).querySelectorAll<Shown>(selector)];
+    const group = (el: Element, id: string) => inside<Shown>(el, `cd-phase-group[data-phase="${id}"]`);
 
-  it('shows a migration running on the phone: its Banner above the Sources, the row’s badge and meta', async () => {
-    await page.viewport(390, 844);
-    const el = await show(migrating);
-    expect((inside(el, 'cd-banner.migration') as HTMLElement & { data: { title: string } }).data.title).toBe('Migration des Tickets vers GitHub');
-    const tickets = inside(el, '.phone-sources .item.caution');
-    expect((inside(tickets, 'cd-status-badge') as HTMLElement & { data: unknown }).data).toEqual({ tone: 'caution', label: 'Local → GitHub' });
-    expect(textOf(tickets.querySelector('small'))).toBe('migration en cours · 2 Tickets à finir sur Local');
+    it('reads only: the header’s sub, no button, the Banner under the header, no editor', async () => {
+      const el = await show(active);
+      expect((inside(el, 'cd-page-header') as Shown).data).toMatchObject({ title: 'Gestion du process', count: 'v3 active', sub: 'Lecture seule sur le téléphone : la modification se fait sur PC.' });
+      expect(root(el).querySelector('.editor')).toBeNull();
+      expect(all(el, 'cd-button, cd-select, cd-text-field, cd-radio, cd-menu, cd-dialog')).toEqual([]);
+      const banner = inside<Shown>(el, 'cd-banner.phone-banner');
+      expect(banner.data).toEqual({ tone: 'go', icon: 'check', title: 'Aucun Manque' });
+      expect(textOf(banner)).toBe('La v3 est active.');
+      expect(root(el).querySelector('cd-card.phone-gaps')).toBeNull();
+    });
+
+    it('shows one PhaseGroup per Phase with its StepRows, then the Sources’ Card, each row’s Source in a badge', async () => {
+      const el = await show(active);
+      const groups = all(el, 'cd-phase-group');
+      expect(groups.map((phase) => phase.data)).toEqual(
+        active.phone.phases.map(({ name, forEach, count, gaps, open }) => ({ name, forEach, count, gaps, open })),
+      );
+      const review = group(el, 'ph-dev').querySelector<Shown>('cd-step-row[data-step=review]')!;
+      expect(review.data).toEqual({
+        name: 'Review',
+        kindLabel: 'Agent',
+        icon: 'spark',
+        tools: 'Rôle Review · review',
+        flow: 'Changement de code, Verdict (des checks) → Verdict',
+        loopBack: 'vers « Code », 3 fois au plus',
+        gap: null,
+      });
+      expect(group(el, 'ph-conception').querySelectorAll('cd-step-row')).toHaveLength(10);
+      const card = inside<Shown>(el, 'cd-card.phone-sources');
+      expect(card.data).toEqual({ title: 'Sources', count: 3, label: 'Gestion du process / Sources', flush: true });
+      expect(card.compareDocumentPosition(groups.at(-1)!) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+      const rows = [...card.querySelectorAll<Shown>('cd-list-row')];
+      expect(rows.map((row) => [row.data.title, row.data.meta, (row.querySelector('cd-status-badge') as Shown).data])).toEqual([
+        ['Tickets', 'dossier tickets/ du Projet, sur atelier-pc', { tone: 'neutral', label: 'Local' }],
+        ['Code et documents', 'MaximeD1412/site-mairie · Changement de code, Verdict, PRD, Maquettes, Conception technique ; Inventaire non utilisé', { tone: 'neutral', label: 'GitHub' }],
+        ['Idée', undefined, { tone: 'neutral', label: 'Crewdeck' }],
+      ]);
+    });
+
+    it('puts the Manques’ Card first, each Manque a caution link, its Phase open and its Étape showing its Manque', async () => {
+      const el = await show(withGap);
+      const card = inside<Shown>(el, 'cd-card.phone-gaps');
+      expect(card.data).toEqual({ title: 'Manques', count: 1, label: 'Gestion du process / Manques', flush: true });
+      expect(card.compareDocumentPosition(inside(el, 'cd-phase-group')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect([...card.querySelectorAll<Shown>('cd-list-row')].map((row) => row.data)).toEqual([
+        { icon: 'alert', tone: 'caution', title: 'Entrée « Inventaire » de « Inventaire » : rien ne l’alimente', meta: 'Inventaire · Idée', href: '#etape-inventaire' },
+      ]);
+      expect(group(el, 'ph-idee').data).toMatchObject({ gaps: 1, open: true });
+      expect((group(el, 'ph-idee').querySelector('cd-step-row[data-step=inventaire]') as Shown).data.gap).toBe('Entrée « Inventaire » de « Inventaire » : rien ne l’alimente');
+      expect(inside<Shown>(el, 'cd-banner.phone-banner').data).toEqual({ tone: 'caution', icon: 'alert', title: 'Brouillon non activable' });
+    });
+
+    it('opens the PhaseGroup of a Manque chosen and brings its StepRow into view, without an action', async () => {
+      const inConception = { ...withGap, gaps: [{ label: 'Une Manque de la Conception', meta: 'Validation des Tickets · Conception', target: { kind: 'step' as const, id: 'ap-tickets' } }] };
+      const el = await show(inConception);
+      const conception = group(el, 'ph-conception');
+      const details = conception.shadowRoot!.querySelector('details')!;
+      expect(details.open).toBe(false);
+      const details_ = await actionsOf(() => inside(el, 'cd-card.phone-gaps cd-list-row', 'a').click());
+      expect(details_).toEqual([]);
+      expect(details.open).toBe(true);
+      const step = conception.querySelector('cd-step-row[data-step=ap-tickets]')!;
+      await expect.poll(() => {
+        const { top, bottom } = step.getBoundingClientRect();
+        return top >= 0 && bottom <= window.innerHeight;
+      }).toBe(true);
+      expect(location.hash).toBe('');
+    });
+
+    it('brings the Sources into view for a Manque of the Sources', async () => {
+      const el = await show({ ...withGap, gaps: [{ label: 'Inventaire : aucune Source', meta: 'Sources', target: { kind: 'sources', id: 'inventory' } }] });
+      expect((inside(el, 'cd-card.phone-gaps cd-list-row') as Shown).data.href).toBe('#sources');
+      inside(el, 'cd-card.phone-gaps cd-list-row', 'a').click();
+      const card = inside(el, 'cd-card.phone-sources');
+      await expect.poll(() => card.getBoundingClientRect().top >= 0 && card.getBoundingClientRect().top < window.innerHeight).toBe(true);
+    });
+
+    it('says there is no active version yet in the phone’s Banner, the 1280 one left out', async () => {
+      const el = await show(noVersion);
+      expect(all(el, 'cd-banner').map((banner) => banner.data.title)).toEqual(['Pas encore de version active']);
+      expect(textOf(inside(el, 'cd-banner.phone-banner'))).toBe('Active le brouillon sur PC.');
+    });
+
+    it('shows a migration running: its Banner above the Sources, the row’s badge and meta', async () => {
+      const el = await show(migrating);
+      expect((inside(el, 'cd-banner.migration') as Shown).data.title).toBe('Migration des Tickets vers GitHub');
+      const tickets = inside(el, 'cd-card.phone-sources').querySelector<Shown>('cd-list-row')!;
+      expect(tickets.data).toMatchObject({ title: 'Tickets', meta: 'migration en cours · 2 Tickets à finir sur Local', tone: 'caution' });
+      expect((tickets.querySelector('cd-status-badge') as Shown).data).toEqual({ tone: 'caution', label: 'Local → GitHub' });
+    });
+
+    it('leaves the list out at 1280 px, the editor and its buttons back', async () => {
+      const el = await show(active);
+      await page.viewport(1280, 800);
+      await expect.poll(() => root(el).querySelector('.editor')).not.toBeNull();
+      expect(root(el).querySelector('cd-phase-group, cd-card.phone-gaps, cd-card.phone-sources, cd-banner.phone-banner')).toBeNull();
+      expect(activateButton(el)).not.toBeNull();
+      expect((inside(el, 'cd-page-header') as Shown).data.sub).toBeUndefined();
+    });
   });
 });

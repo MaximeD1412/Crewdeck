@@ -2,7 +2,7 @@ import { PageHeader } from '@crewdeck/sdk';
 import { css, html, nothing } from 'lit';
 import { PasserelleElement, sharedStyles } from './base.js';
 
-/** `cd-page-header`: a page's `header`, its back link, its only `h1`, its count and its actions. */
+/** `cd-page-header`: a page's `header`, its back link, its only `h1`, its count, its actions, then its `sub` line. */
 export class PasserellePageHeader extends PasserelleElement<typeof PageHeader> {
   static override styles = [
     sharedStyles,
@@ -51,6 +51,11 @@ export class PasserellePageHeader extends PasserelleElement<typeof PageHeader> {
           var(--cd-font-meta-family), monospace;
         color: var(--cd-muted);
       }
+      .sub {
+        font: var(--cd-font-body-sm-weight) var(--cd-font-body-sm-size) / var(--cd-font-body-sm-line-height)
+          var(--cd-font-body-sm-family), sans-serif;
+        color: var(--cd-ink-2);
+      }
       .actions {
         display: flex;
         flex-wrap: wrap;
@@ -63,7 +68,7 @@ export class PasserellePageHeader extends PasserelleElement<typeof PageHeader> {
   protected readonly composant = PageHeader;
 
   protected override render() {
-    const { title, count, back } = this.data;
+    const { title, count, back, sub } = this.data;
     return html`<header part="header">
       ${back
         ? html`<a class="back" href=${back.href}><cd-icon .data=${{ name: 'arrow-left', size: 'sm' }}></cd-icon>${back.label}</a>`
@@ -75,6 +80,7 @@ export class PasserellePageHeader extends PasserelleElement<typeof PageHeader> {
         </div>
         <div class="actions"><slot name="actions"></slot></div>
       </div>
+      ${sub === undefined ? nothing : html`<p class="sub">${sub}</p>`}
     </header>`;
   }
 }

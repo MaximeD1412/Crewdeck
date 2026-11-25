@@ -171,7 +171,7 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
   'PageProcessEditor.activate': async (el) => {
     el.data = { ...(el.data as object), activate: { label: 'Activer la v4', revision: 4, disabledReason: null } };
     await settle(el);
-    inside(el, 'cd-button.activate', 'button').click();
+    await atPc(el, () => inside(el, 'cd-button.activate', 'button').click());
   },
   'PageProcessEditor.select': (el) => atPc(el, () => inside(el, 'cd-process-canvas', 'cd-step-card[data-step=analyse]', 'article').click()),
   'PageProcessEditor.tab': (el) => atPc(el, () => inside(el, 'cd-tabs', 'button[role=tab]:nth-of-type(3)').click()),
@@ -516,6 +516,12 @@ describe('PageHeader', () => {
     expect(el.shadowRoot?.querySelectorAll('header h1')).toHaveLength(1);
     expect(textOf(inside(el, '.count'))).toBe('Banner');
     expect(inside(el, 'a').getAttribute('href')).toBe('/parametres');
+    expect(el.shadowRoot?.querySelector('.sub')).toBeNull();
+  });
+
+  it('puts its sub under its title and actions', async () => {
+    const el = await render(COMPOSANTS.PageHeader, { title: 'Gestion du process', sub: 'Lecture seule sur le téléphone : la modification se fait sur PC.' });
+    expect(textOf(inside(el, 'header > .sub'))).toBe('Lecture seule sur le téléphone : la modification se fait sur PC.');
   });
 });
 

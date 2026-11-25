@@ -66,6 +66,13 @@ export class PasserellePhaseGroup extends PasserelleElement<typeof PhaseGroup> {
 
   protected readonly composant = PhaseGroup;
 
+  /** Unfolds it, whatever the Pilote left it as: the page's Manque chosen leads into it. */
+  async reveal(): Promise<void> {
+    await this.updateComplete;
+    const details = this.renderRoot.querySelector('details');
+    if (details) details.open = true;
+  }
+
   protected override render() {
     const { name, forEach, count, gaps, open } = this.data;
     const meta = [forEach === null ? null : t('phaseGroup.forEach', { forEach }), count].filter(Boolean).join(' · ');

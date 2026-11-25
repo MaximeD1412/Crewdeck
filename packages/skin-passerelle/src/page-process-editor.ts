@@ -2,7 +2,6 @@ import { BREAKPOINT_PX, PageProcessEditor, t, type CdActionDetail, type Composan
 import { css, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { keyed } from 'lit/directives/keyed.js';
 import { PasserelleElement, sharedStyles } from './base.js';
-import type { PasserellePhaseGroup } from './phase-group.js';
 
 type Data = ComposantData<typeof PageProcessEditor>;
 type Tab = Data['tab'];
@@ -45,7 +44,7 @@ const isTab = (id: unknown): id is Tab => TABS.includes(id as Tab);
  * a Dialog when it holds Étapes.
  */
 export class PasserellePageProcessEditor extends PasserelleElement<typeof PageProcessEditor> {
-  static override properties = { wide: { state: true } };
+  static override properties = { wide: { state: true }, revealing: { state: true } };
   static override styles = [
     sharedStyles,
     css`
@@ -255,12 +254,20 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
 
   protected readonly composant = PageProcessEditor;
   declare wide: boolean;
+  /** The PhaseGroup a Manque chosen leads into, and the `reveal` it is given: a new one at each choice. */
+  declare revealing: { phaseId: string; reveal: number } | null;
   private readonly media = matchMedia(`(min-width: ${BREAKPOINT_PX}px)`);
-  private readonly onMedia = () => (this.wide = this.media.matches);
+  /** Below 1280 px nothing is edited: a removal asked on the PC is cancelled, its Dialog closed. */
+  private readonly onMedia = () => {
+    const wide = this.media.matches;
+    if (this.wide && !wide && this.data.removePhase !== null) this.emit('cancelRemovePhase', {});
+    this.wide = wide;
+  };
 
   constructor() {
     super();
     this.wide = this.media.matches;
+    this.revealing = null;
   }
 
   override connectedCallback(): void {
@@ -627,9 +634,11 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
       this.renderRoot.querySelector('cd-card.phone-sources')?.scrollIntoView({ block: 'start' });
       return;
     }
-    const group = [...this.renderRoot.querySelectorAll<PasserellePhaseGroup>('cd-phase-group')].find((candidate) => candidate.dataset['phase'] === phase.id);
+    this.revealing = { phaseId: phase.id, reveal: (this.revealing?.reveal ?? 0) + 1 };
+    await this.updateComplete;
+    const group = [...this.renderRoot.querySelectorAll<HTMLElement>('cd-phase-group')].find((candidate) => candidate.dataset['phase'] === phase.id);
     if (!group) return;
-    await group.reveal();
+    await (group as Partial<{ updateComplete: Promise<unknown> }>).updateComplete;
     const step = target.kind === 'step' ? [...group.querySelectorAll<HTMLElement>('cd-step-row')].find((row) => row.dataset['step'] === target.id) : undefined;
     (step ?? group).scrollIntoView({ block: step ? 'center' : 'start' });
   }
@@ -652,7 +661,7 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
           </cd-card>`}
       ${phone.phases.map(
         ({ id, name, forEach, count, gaps: phaseGaps, open, steps }) =>
-          html`<cd-phase-group data-phase=${id} .data=${{ name, forEach, count, gaps: phaseGaps, open }}>
+          html`<cd-phase-group data-phase=${id} .data=${{ name, forEach, count, gaps: phaseGaps, open, ...(this.revealing?.phaseId === id ? { reveal: this.revealing.reveal } : {}) }}>
             ${steps.map(
               ({ id: stepId, ...row }) => html`<cd-step-row data-step=${stepId} .data=${row}></cd-step-row>`,
             )}
@@ -730,7 +739,7 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
 
   private removePhaseDialog(): TemplateResult {
     const removing = this.data.removePhase;
-    return html`<cd-dialog class="remove-phase-dialog" .data=${{ open: removing !== null, title: removing?.title ?? '' }} @cd-action=${this.onDialog}>
+    return html`<cd-dialog class="remove-phase-dialog" .data=${{ open: removing !== null && this.wide, title: removing?.title ?? '' }} @cd-action=${this.onDialog}>
       ${removing ? html`<p class="text">${removing.body}</p>` : nothing}
       <cd-button
         slot="actions"
@@ -742,7 +751,7 @@ export class PasserellePageProcessEditor extends PasserelleElement<typeof PagePr
         slot="actions"
         class="confirm"
         .data=${{ label: t('process.phase.remove'), variant: 'danger', size: 'md', icon: 'trash' }}
-        @click=${() => removing && this.emit('confirmRemovePhase', { phaseId: removing.phaseId })}
+        @click=${() => removing && this.wide && this.emit('confirmRemovePhase', { phaseId: removing.phaseId })}
       ></cd-button>
     </cd-dialog>`;
   }

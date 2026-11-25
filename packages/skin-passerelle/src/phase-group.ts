@@ -1,5 +1,5 @@
 import { PhaseGroup, t } from '@crewdeck/sdk';
-import { css, html, nothing } from 'lit';
+import { css, html, nothing, type PropertyValues } from 'lit';
 import { PasserelleElement, sharedStyles } from './base.js';
 
 /**
@@ -8,7 +8,7 @@ import { PasserelleElement, sharedStyles } from './base.js';
  * section label, its Manques in a `caution` badge, the chevron, then « pour
  * {forEach} · {count} »; its body its `cd-step-row`s. `open` is bound only
  * when it changes: the Pilote's folding stays while the data stays open or
- * folded.
+ * folded, until a new `reveal` unfolds it.
  */
 export class PasserellePhaseGroup extends PasserelleElement<typeof PhaseGroup> {
   static override styles = [
@@ -66,11 +66,17 @@ export class PasserellePhaseGroup extends PasserelleElement<typeof PhaseGroup> {
 
   protected readonly composant = PhaseGroup;
 
-  /** Unfolds it, whatever the Pilote left it as: the page's Manque chosen leads into it. */
-  async reveal(): Promise<void> {
-    await this.updateComplete;
-    const details = this.renderRoot.querySelector('details');
-    if (details) details.open = true;
+  /** The last `reveal` it obeyed: only a new one unfolds it again. */
+  private revealed: number | undefined;
+
+  protected override updated(changed: PropertyValues): void {
+    super.updated(changed);
+    const { reveal } = this.data;
+    if (reveal !== undefined && reveal !== this.revealed) {
+      const details = this.renderRoot.querySelector('details');
+      if (details) details.open = true;
+    }
+    this.revealed = reveal;
   }
 
   protected override render() {

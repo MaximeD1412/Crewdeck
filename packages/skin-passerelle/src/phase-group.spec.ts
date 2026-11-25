@@ -72,4 +72,18 @@ describe('PhaseGroup', () => {
     inside(el, 'summary').click();
     expect(details(el).open).toBe(true);
   });
+
+  it('unfolds at each new reveal, whatever the Pilote left it as, and only then', async () => {
+    const el = await render(COMPOSANTS.PhaseGroup, { ...PHASE, open: false }, { default: ROW });
+    el.data = { ...PHASE, open: false, reveal: 1 };
+    await settle(el);
+    expect(details(el).open).toBe(true);
+    inside(el, 'summary').click();
+    el.data = { ...PHASE, open: false, count: '6 Étapes · 2 Retours', reveal: 1 };
+    await settle(el);
+    expect(details(el).open).toBe(false);
+    el.data = { ...PHASE, open: false, reveal: 2 };
+    await settle(el);
+    expect(details(el).open).toBe(true);
+  });
 });

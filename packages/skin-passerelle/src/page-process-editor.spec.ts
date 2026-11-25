@@ -531,6 +531,20 @@ describe('PageProcessEditor', () => {
       ]);
       expect((inside(await show(phase), 'cd-dialog') as HTMLElement & { data: { open: boolean } }).data.open).toBe(false);
     });
+
+    it('cancels the removal asked when the page goes below 1280 px: the Dialog closed, « Retirer la Phase » inert', async () => {
+      const el = await show(removing);
+      const dialog = inside(el, 'cd-dialog.remove-phase-dialog') as HTMLElement & { data: { open: boolean } };
+      await expect.poll(() => inside<HTMLDialogElement>(dialog, 'dialog').open).toBe(true);
+      const narrowed = await actionsOf(async () => {
+        await page.viewport(390, 844);
+        await expect.poll(() => dialog.data.open).toBe(false);
+      });
+      expect(only(narrowed)).toEqual([{ action: 'cancelRemovePhase', payload: {} }]);
+      expect(inside<HTMLDialogElement>(dialog, 'dialog').open).toBe(false);
+      const confirmed = await actionsOf(() => native<HTMLButtonElement>(dialog.querySelector('cd-button.confirm')!, 'button').click());
+      expect(only(confirmed)).toEqual([]);
+    });
   });
 
   describe('below 1280 px (PROCESS-11)', () => {
@@ -602,12 +616,29 @@ describe('PageProcessEditor', () => {
       const details_ = await actionsOf(() => inside(el, 'cd-card.phone-gaps cd-list-row', 'a').click());
       expect(details_).toEqual([]);
       expect(details.open).toBe(true);
+      expect(COMPOSANTS.PhaseGroup.data.parse(conception.data)).toMatchObject({ name: 'Conception', reveal: 1 });
       const step = conception.querySelector('cd-step-row[data-step=ap-tickets]')!;
       await expect.poll(() => {
         const { top, bottom } = step.getBoundingClientRect();
         return top >= 0 && bottom <= window.innerHeight;
       }).toBe(true);
       expect(location.hash).toBe('');
+    });
+
+    it('asks its PhaseGroup through its data only: each Manque chosen gives it a new « reveal », whatever the Pilote folded since', async () => {
+      const el = await show(withGap);
+      const target = withGap.gaps[0]!.target;
+      const phaseId = withGap.phone.phases.find((phase) => phase.steps.some((step) => step.id === target.id))!.id;
+      const chosen = group(el, phaseId);
+      expect((chosen.data as { reveal?: number }).reveal).toBeUndefined();
+      inside(el, 'cd-card.phone-gaps cd-list-row', 'a').click();
+      await expect.poll(() => (chosen.data as { reveal?: number }).reveal).toBe(1);
+      inside(chosen, 'summary').click();
+      expect(chosen.shadowRoot!.querySelector('details')!.open).toBe(false);
+      inside(el, 'cd-card.phone-gaps cd-list-row', 'a').click();
+      await expect.poll(() => (chosen.data as { reveal?: number }).reveal).toBe(2);
+      await expect.poll(() => chosen.shadowRoot!.querySelector('details')!.open).toBe(true);
+      expect('reveal' in chosen).toBe(false);
     });
 
     it('brings the Sources into view for a Manque of the Sources', async () => {

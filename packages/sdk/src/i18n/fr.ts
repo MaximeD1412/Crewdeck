@@ -414,6 +414,7 @@ export const fr = {
   'composants.PhaseGroup.data.gaps': 'Le nombre de ses Manques, dans un badge quand il y en a',
   'composants.PhaseGroup.data.name': 'Le nom de la Phase',
   'composants.PhaseGroup.data.open': 'Si elle est dépliée à l’affichage ; le Pilote la replie et la déplie ensuite à son gré',
+  'composants.PhaseGroup.data.reveal': 'Une demande de la dépliée : chaque nouvelle valeur la déplie, quoi que le Pilote en ait fait',
   'composants.PhaseGroup.description': 'Une Phase dans la liste d’un Process, au téléphone : son nom, ses Manques, ce sur quoi elle se répète, puis ses Étapes, qu’on replie.',
   'composants.PhaseGroup.slots.default': 'Ses Étapes, des StepRow',
   'composants.Port.data.dir': 'in pour une Entrée, out pour une Sortie',

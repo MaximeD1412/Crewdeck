@@ -32,6 +32,13 @@ const editing = async (el: Element & { data: unknown }, name: string, act: () =>
   await atPc(el, act);
 };
 
+/** Runs `act` on the Dialog « Retirer la Phase », then closes it as the store does: it is not left open below 1280 px, which cancels it. */
+const closingRemoval = async (el: Element & { data: unknown }, act: () => unknown): Promise<void> => {
+  await act();
+  el.data = { ...(el.data as object), removePhase: null };
+  await settle(el);
+};
+
 /** Sets a native control's value as the Pilote would, then fires its `change`. */
 const choose = (control: HTMLInputElement | HTMLSelectElement, value: string): void => {
   control.value = value;
@@ -216,9 +223,10 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
   'PageProcessEditor.renamePhase': (el) => editing(el, 'une Phase choisie', () => choose(inside(el, 'cd-text-field.phase-name', 'input'), 'Livraison')),
   'PageProcessEditor.setForEach': (el) => editing(el, 'une Phase choisie', () => inside(el, 'cd-radio', 'input').click()),
   'PageProcessEditor.removePhase': (el) => editing(el, 'retirer une Phase', () => inside(el, 'cd-button.remove-phase', 'button').click()),
-  'PageProcessEditor.cancelRemovePhase': (el) => editing(el, 'retirer une Phase', () => inside(el, 'cd-dialog', 'cd-icon-button', 'button').click()),
+  'PageProcessEditor.cancelRemovePhase': (el) =>
+    editing(el, 'retirer une Phase', () => closingRemoval(el, () => inside(el, 'cd-dialog', 'cd-icon-button', 'button').click())),
   'PageProcessEditor.confirmRemovePhase': (el) =>
-    editing(el, 'retirer une Phase', () => inside(inside(el, 'cd-dialog').querySelector('cd-button.confirm')!, 'button').click()),
+    editing(el, 'retirer une Phase', () => closingRemoval(el, () => inside(inside(el, 'cd-dialog').querySelector('cd-button.confirm')!, 'button').click())),
   'ProcessCanvas.select': (el) => inside(el, 'cd-step-card[data-step=analyse]', 'article').click(),
   'ProcessCanvas.view': (el) => inside(el, 'cd-icon-button.zoom-in', 'button').click(),
   'ProcessCanvas.moveStep': (el) =>

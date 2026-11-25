@@ -6,10 +6,10 @@ import { placed } from './placed.js';
  * The sections of the Paramètres, in their order: each an Emplacement the
  * core fills with its Card, the ticket of each section its own (PARAM-2
  * `roles`, ATOI-4 `notifications`, E2E-3 `devices`, BOUCLE-8 `schedules`,
- * PARAM-3 `projects`). No Étapes optionnelles any more (PARAM-3): an Étape
+ * PARAM-3 `projects`, PROCESS-14 `process-templates`). No Étapes optionnelles any more (PARAM-3): an Étape
  * runs because it is in the Projet's Process.
  */
-export const SETTINGS_SECTIONS = ['roles', 'notifications', 'devices', 'schedules', 'projects', 'account', 'modders'] as const;
+export const SETTINGS_SECTIONS = ['roles', 'notifications', 'devices', 'schedules', 'projects', 'process-templates', 'account', 'modders'] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 const TIME_ZONE = placed(

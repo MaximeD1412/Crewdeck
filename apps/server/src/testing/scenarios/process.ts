@@ -133,6 +133,9 @@ export const processPhase = defineScenario({ name: 'process-phase', path: `${MAI
 /** « Développement » chosen, for the catalogue its capture opens under « Étape » (`process-catalogue`). */
 export const processCatalogue = defineScenario({ name: 'process-catalogue', path: `${MAIRIE_PATH}?phase=ph-dev`, seed: (ctx) => mairie(ctx) });
 
+/** « Enregistrer comme Modèle de process » (`process`, state `enregistrer-modele`): its capture opens the Dialog on the v3 active, no draft. */
+export const processEnregistrerModele = defineScenario({ name: 'process-enregistrer-modele', path: MAIRIE_PATH, seed: (ctx) => mairie(ctx) });
+
 /** A draft with five Manques of four kinds (`process`, state `manques`). */
 export const processManques = defineScenario({ name: 'process-manques', path: MAIRIE_PATH, seed: (ctx) => mairie(ctx, { draft: MANQUES_DRAFT }) });
 
@@ -271,4 +274,4 @@ export const processActivation = defineScenario({
     }),
 });
 
-export const processScenarios = [processScenario, processManques, processEtape, processPhase, processCatalogue, processSources, processLocal, processSansVersion, processActivation];
+export const processScenarios = [processScenario, processEnregistrerModele, processManques, processEtape, processPhase, processCatalogue, processSources, processLocal, processSansVersion, processActivation];

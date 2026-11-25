@@ -219,6 +219,11 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
   'PageProcessEditor.cancelRemovePhase': (el) => editing(el, 'retirer une Phase', () => inside(el, 'cd-dialog', 'cd-icon-button', 'button').click()),
   'PageProcessEditor.confirmRemovePhase': (el) =>
     editing(el, 'retirer une Phase', () => inside(inside(el, 'cd-dialog').querySelector('cd-button.confirm')!, 'button').click()),
+  'PageProcessEditor.openSaveTemplate': (el) => editing(el, 'une Phase choisie', () => inside(el, 'cd-button.save-template', 'button').click()),
+  'PageProcessEditor.closeSaveTemplate': (el) =>
+    editing(el, 'enregistrer comme Modèle de process', () => inside(el, 'cd-dialog.save-template-dialog cd-button.cancel', 'button').click()),
+  'PageProcessEditor.saveTemplate': (el) =>
+    editing(el, 'enregistrer comme Modèle de process', () => inside(el, 'cd-button.submit-template', 'button').click()),
   'ProcessCanvas.select': (el) => inside(el, 'cd-step-card[data-step=analyse]', 'article').click(),
   'ProcessCanvas.view': (el) => inside(el, 'cd-icon-button.zoom-in', 'button').click(),
   'ProcessCanvas.moveStep': (el) =>
@@ -272,6 +277,23 @@ const TRIGGERS: Readonly<Record<string, (el: Element & { data: unknown }) => unk
     el.data = COMPOSANTS.RoleSettings.examples[2]?.data;
     await settle(el);
     inside(el, 'cd-button.cancel', 'button').click();
+  },
+  'ProcessTemplateList.rename': (el) => inside(el, 'cd-button.rename', 'button').click(),
+  'ProcessTemplateList.remove': (el) => inside(el, 'cd-button.remove', 'button').click(),
+  'ProcessTemplateList.submitRename': async (el) => {
+    el.data = COMPOSANTS.ProcessTemplateList.examples[2]?.data;
+    await settle(el);
+    inside(el, 'cd-button.submit-rename', 'button').click();
+  },
+  'ProcessTemplateList.confirmRemove': async (el) => {
+    el.data = COMPOSANTS.ProcessTemplateList.examples[3]?.data;
+    await settle(el);
+    inside(el, 'cd-button.confirm-remove', 'button').click();
+  },
+  'ProcessTemplateList.cancel': async (el) => {
+    el.data = COMPOSANTS.ProcessTemplateList.examples[3]?.data;
+    await settle(el);
+    inside(el, 'cd-dialog.removing cd-button.cancel', 'button').click();
   },
   'PushSettings.toggle': (el) => inside(el, 'cd-toggle', 'button').click(),
   'PushSettings.subscribe': async (el) => {

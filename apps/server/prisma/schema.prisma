@@ -79,6 +79,7 @@ model Pilot {
   customRoles          CustomRole[]
   pushSubscriptions    PushSubscription[]
   agentSessions        AgentSession[]
+  processTemplates     ProcessTemplate[]
 
   @@map("pilots")
 }
@@ -750,6 +751,7 @@ model Project {
   codeChanges       CodeChange[]
   processVersions   ProcessVersion[]
   processDraft      ProcessDraft?
+  processTemplates  ProcessTemplate[]
   phaseRuns         PhaseRun[]
   stepRuns          StepRun[]
   artifactSources   ArtifactSource[]
@@ -1087,6 +1089,34 @@ model ProcessDraft {
   /// The one-to-one key of its Projet, with their Pilote.
   @@unique([pilotId, projectId])
   @@map("process_drafts")
+}
+
+/// A Modèle de process of the Pilote (PROCESS-14, US-97, US-111): a copy of
+/// a Projet's active version, its `definition` (a `ProcessDefinition`) and its
+/// `sealed` part, sealed by the page under `template:<id>`; `id` is drawn by
+/// the page. `name` is configuration the server reads, unique per Pilote by
+/// `nameKey` (trimmed, lower-cased). `fromProjectId` is set to null when its
+/// Projet is deleted (the migration's `SET NULL ("from_project_id")`, never
+/// the Pilote's id).
+model ProcessTemplate {
+  id                String   @id @db.Uuid
+  pilotId           String   @map("pilot_id") @db.Uuid
+  name              String
+  nameKey           String   @map("name_key")
+  fromProjectId     String?  @map("from_project_id") @db.Uuid
+  fromVersionNumber Int      @map("from_version_number")
+  definition        Json
+  sealed            Json?
+  /// Its contents' revision: 1, then one more at each replacement (never at a rename).
+  revision          Int      @default(1)
+  createdAt         DateTime @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @map("updated_at") @db.Timestamptz
+  pilot             Pilot    @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  fromProject       Project? @relation(fields: [pilotId, fromProjectId], references: [pilotId, id], onDelete: NoAction)
+
+  @@unique([pilotId, nameKey])
+  @@index([pilotId, fromProjectId])
+  @@map("process_templates")
 }
 
 /// Where a PhaseRun stands (`zPhaseRunState`).

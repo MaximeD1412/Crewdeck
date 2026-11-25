@@ -18,7 +18,7 @@ const show = async (page: Page, section: string, viewport: { width: number } | n
 
 /**
  * US-82, US-18: the Paramètres of the account show only the sections that
- * have content, « Rôles et modèles », « Notifications », « Par Projet », « Compte »
+ * have content, « Rôles et modèles », « Notifications », « Par Projet », « Modèles de process », « Compte »
  * with the time zone and « Pour les Moddeurs »; on the phone one at a time, the one its link opens,
  * at 1280 px all. A time zone picked is saved, and another tab of the Pilote
  * shows it at once.
@@ -31,7 +31,7 @@ test('the Paramètres: the sections with content only, the time zone saved and s
 }) => {
   await scenario('parametres');
   await expect(page.getByRole('heading', { level: 1, name: 'Paramètres' })).toBeVisible();
-  await expect(nav(page).getByRole('link')).toHaveText(['Rôles et modèles', 'Notifications', 'Par Projet', 'Compte', 'Pour les Moddeurs']);
+  await expect(nav(page).getByRole('link')).toHaveText(['Rôles et modèles', 'Notifications', 'Par Projet', 'Modèles de process', 'Compte', 'Pour les Moddeurs']);
   await show(page, 'Compte', viewport);
   await expect(zone(page)).toHaveValue('Europe/Paris');
   await expectAccessible(page);

@@ -31,6 +31,7 @@ const BROWSER_SPECS = [
   'src/folder-project-form.spec.ts',
   'src/repository-picker.spec.ts',
   'src/role-settings.spec.ts',
+  'src/process-template-list.spec.ts',
   'src/push-settings.spec.ts',
   'src/page-runner.spec.ts',
   'src/page-parametres.spec.ts',

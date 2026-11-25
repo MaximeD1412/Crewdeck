@@ -24,6 +24,15 @@ export interface EditorUi extends EditorQuery, EditorView {
   readonly toast: EditorToast | null;
   /** The Source chosen in a group's Select while its confirmation is open: the Select shows it, then goes back. */
   readonly choice?: SourceChoice | null;
+  /** The Dialog « Enregistrer comme Modèle de process » while open (PROCESS-14); `null` or absent while closed. */
+  readonly saveTemplate?: SaveTemplateUi | null;
+}
+
+/** The Dialog « Enregistrer comme Modèle de process »: the name last submitted (`null`: « Process {Projet} »), its refusal, the Modèle it would replace. */
+export interface SaveTemplateUi {
+  readonly name: string | null;
+  readonly error: string | null;
+  readonly replaceId: string | null;
 }
 
 /** A group's Select changed, not yet confirmed. */
@@ -66,6 +75,7 @@ export const TOAST_MS = 5000;
 interface Kept {
   view: EditorView;
   choice: SourceChoice | null;
+  saveTemplate: SaveTemplateUi | null;
   /** The centring asked and not yet done: the canvas's next `view` says it is. */
   focus: EditorUi['focus'];
   /** How many centrings were asked, so that each has its own `at`. */
@@ -84,6 +94,8 @@ export interface EditorUiState {
   setView(projectId: string, view: EditorView): void;
   /** Asks the canvas to centre the block `id` (a Manque chosen). */
   centre(projectId: string, id: string): void;
+  /** Opens, changes (`SaveTemplateUi`) or closes (`null`) the Dialog « Enregistrer comme Modèle de process ». */
+  saveTemplate(projectId: string, state: SaveTemplateUi | null): void;
   /** Shows a Toast over the Projet's canvas for `TOAST_MS`, replacing the one shown. */
   toast(projectId: string, toast: EditorToast): void;
   subscribe(listener: () => void): () => void;
@@ -100,7 +112,7 @@ export const createEditorUi = (): EditorUiState => {
     let entry = kept.get(projectId);
     if (!entry) {
       const id = query?.selection?.id ?? null;
-      entry = { view: { zoom: DEFAULT_ZOOM, pan: { x: 0, y: 0 } }, choice: null, focus: id === null || query?.selection?.kind === 'sources' ? null : { id, at: 0 }, asked: 0, toast: null, timer: null };
+      entry = { view: { zoom: DEFAULT_ZOOM, pan: { x: 0, y: 0 } }, choice: null, saveTemplate: null, focus: id === null || query?.selection?.kind === 'sources' ? null : { id, at: 0 }, asked: 0, toast: null, timer: null };
       kept.set(projectId, entry);
     }
     return entry;
@@ -108,11 +120,15 @@ export const createEditorUi = (): EditorUiState => {
   return {
     view: (projectId, query) => {
       const parsed = editorQueryOf(query);
-      const { view, focus, toast, choice } = keptOf(projectId, parsed);
-      return { ...parsed, zoom: view.zoom, pan: { ...view.pan }, focus, toast, choice };
+      const { view, focus, toast, choice, saveTemplate } = keptOf(projectId, parsed);
+      return { ...parsed, zoom: view.zoom, pan: { ...view.pan }, focus, toast, choice, saveTemplate };
     },
     choose: (projectId, choice) => {
       keptOf(projectId, null).choice = choice;
+      notify();
+    },
+    saveTemplate: (projectId, state) => {
+      keptOf(projectId, null).saveTemplate = state;
       notify();
     },
     setView: (projectId, view) => {

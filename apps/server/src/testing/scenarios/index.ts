@@ -21,7 +21,7 @@ import type { Scenario } from './define.js';
 import { idees, ideesDictee, ideesNouvelle, ideesVide } from './idees.js';
 import { menuPlus } from './menu-plus.js';
 import { demarrageProjets, demarrageProjetsDossier, demarrageProjetsSansGithub, projetLocal, projets, projetsVide } from './projets.js';
-import { parametres, parametresNotifications, parametresNotificationsIphone } from './parametres.js';
+import { parametres, parametresModeles, parametresNotifications, parametresNotificationsIphone } from './parametres.js';
 import { parametresProjet } from './parametres-projet.js';
 import { processMigrationScenarios } from './process-migration.js';
 import { processScenarios } from './process.js';
@@ -67,6 +67,7 @@ const SCENARIOS: readonly Scenario[] = [
   menuPlus,
   parametres,
   parametresNotifications,
+  parametresModeles,
   parametresNotificationsIphone,
   parametresProjet,
   projetLocal,

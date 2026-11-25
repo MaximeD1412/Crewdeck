@@ -148,6 +148,7 @@ describe('the envelopes of GitHub’s changes for the Runner’s Miroir, against
       hasCode: false,
       releaseBranch: null,
       templateId: 'process-crewdeck',
+      templateSealed: null,
     });
     expect(res.status).toBe(201);
     return { id, nameSealed };

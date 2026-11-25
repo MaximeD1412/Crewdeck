@@ -126,6 +126,7 @@ describe('the merges of a Local Projet’s changes of code, against PostgreSQL',
       hasCode: true,
       releaseBranch: 'trunk',
       templateId: 'process-crewdeck',
+      templateSealed: null,
     });
     expect(res.status).toBe(201);
     return id;

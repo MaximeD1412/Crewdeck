@@ -1,4 +1,4 @@
-import { DEFAULT_ACCOUNT_SETTINGS, type AiAccount, type Project, type PushSubscription, type SettingsState } from '@crewdeck/contracts';
+import { DEFAULT_ACCOUNT_SETTINGS, type AiAccount, type ProcessTemplate, type Project, type PushSubscription, type SettingsState } from '@crewdeck/contracts';
 import { COMPOSANTS, t, type ComposantData, type PushSettings, type RoleSettings } from '@crewdeck/sdk';
 import type { PlacedNode } from '../placed.js';
 import { devicesCard } from './devices.js';
@@ -293,5 +293,63 @@ describe('parametresView, « Par Projet »', () => {
   it('puts « Par Projet » after « Compte », before « Pour les Moddeurs », and draws none without a Projet', () => {
     expect(parametresView(SETTINGS, ZONES, { projects: [MAIRIE] }).map((node) => node.slot)).toEqual(['roles', 'notifications', 'account', 'projects', 'modders']);
     expect(parametresView(SETTINGS, ZONES).map((node) => node.slot)).toEqual(['roles', 'notifications', 'account', 'modders']);
+  });
+});
+
+describe('parametresView, « Modèles de process » (PROCESS-14)', () => {
+  const MAIRIE = project('019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a01', 'Site mairie');
+  const template = (id: string, name: string, fromProjectId: string | null, updatedAt: string): ProcessTemplate => ({
+    id,
+    name,
+    fromProjectId,
+    fromVersionNumber: 3,
+    sealed: null,
+    commandCount: 0,
+    revision: 1,
+    createdAt: '2026-11-01T08:00:00.000Z',
+    updatedAt,
+  });
+  const OLD = template('019a6f00-0000-7000-8000-0000000000a1', 'Process atelier', '019a6b2c-3d4e-7f00-8a1b-2c3d4e5f6a99', '2026-11-03T09:00:00.000Z');
+  const NEW = template('019a6f00-0000-7000-8000-0000000000a2', 'Process Site mairie', MAIRIE.id, '2026-11-12T09:00:00.000Z');
+  const ORPHAN = template('019a6f00-0000-7000-8000-0000000000a3', 'Process orphelin', null, '2026-11-01T09:00:00.000Z');
+  const templates = new Map([OLD, NEW, ORPHAN].map((one) => [one.id, one]));
+  const list = (input: Parameters<typeof parametresView>[2]) => parametresView(SETTINGS, ZONES, input).find((node) => node.slot === 'process-templates');
+
+  it('lists the Modèles newest first, each from its Projet and its date, « un Projet supprimé » once it is gone', () => {
+    expect(list({ projects: [MAIRIE], templates })).toEqual({
+      tag: 'cd-process-template-list',
+      slot: 'process-templates',
+      data: {
+        templates: [
+          { id: NEW.id, name: 'Process Site mairie', meta: 'depuis Site mairie · 12 nov.' },
+          { id: OLD.id, name: 'Process atelier', meta: 'depuis un Projet supprimé · 3 nov.' },
+          { id: ORPHAN.id, name: 'Process orphelin', meta: 'depuis un Projet supprimé · 1 nov.' },
+        ],
+        renaming: null,
+        removing: null,
+      },
+    });
+    const data = list({ projects: [MAIRIE], templates })?.data as ComposantData<typeof COMPOSANTS.ProcessTemplateList>;
+    expect(() => COMPOSANTS.ProcessTemplateList.data.parse(data)).not.toThrow();
+  });
+
+  it('comes after « Par Projet », its Empty without any Modèle, none until the snapshot gave them', () => {
+    expect(parametresView(SETTINGS, ZONES, { projects: [MAIRIE], templates: new Map() }).map((node) => node.slot)).toEqual([
+      'roles',
+      'notifications',
+      'account',
+      'projects',
+      'process-templates',
+      'modders',
+    ]);
+    expect(list({ templates: new Map() })?.data).toEqual({ templates: [], renaming: null, removing: null });
+    expect(list({})).toBeUndefined();
+  });
+
+  it('gives the page’s Dialog, dropped once its Modèle is gone', () => {
+    const renaming = { id: NEW.id, name: 'Process atelier', error: 'Un Modèle de process porte déjà ce nom.' };
+    expect(list({ templates, templateList: { renaming, removing: null } })?.data).toMatchObject({ renaming, removing: null });
+    const removing = { id: 'gone-id', name: 'Process parti' };
+    expect(list({ templates, templateList: { renaming: null, removing } })?.data).toMatchObject({ renaming: null, removing: null });
   });
 });

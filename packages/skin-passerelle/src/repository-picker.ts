@@ -215,8 +215,8 @@ export class PasserelleRepositoryPicker extends PasserelleElement<typeof Reposit
           name: 'templateId',
           label: t('projets.template'),
           value: this.templateId,
-          options: this.data.templates.map((template) => ({ value: template.id, label: template.label, disabled: false })),
-          help: null,
+          options: this.data.templates.map((template) => ({ value: template.id, label: template.label, disabled: template.disabled ?? false })),
+          help: this.data.templates.some((template) => template.disabled) ? t('projects.template.locked') : null,
           state: null,
         }}
         @input=${(event: Event) => {

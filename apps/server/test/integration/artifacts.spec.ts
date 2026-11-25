@@ -125,6 +125,7 @@ describe('the relay of an artefact read in the page, against PostgreSQL', () => 
         hasCode: true,
         releaseBranch: 'trunk',
         templateId: 'process-crewdeck',
+        templateSealed: null,
       }),
     });
     expect(res.status).toBe(201);

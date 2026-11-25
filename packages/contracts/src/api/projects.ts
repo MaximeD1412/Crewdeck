@@ -3,6 +3,7 @@ import { zVaultKeyVersion } from '../keys/pairing.js';
 import { zSealedItem } from '../keys/sealed.js';
 import { withSeq } from './commands.js';
 import { zBuiltinTemplateId } from './phase-runs.js';
+import { zProcessTemplateRevision } from './process-templates.js';
 import { zId, zInstant } from '../values.js';
 
 /**
@@ -82,12 +83,61 @@ export type Project = z.infer<typeof zProject>;
 export const zProjectList = z.object({ items: z.array(zProject) });
 export type ProjectList = z.infer<typeof zProjectList>;
 
-/** The Modèle de process a new Projet starts from (US-97): « Process Crewdeck » only, until the Pilote's own (PROCESS-14). */
-export const zProcessTemplateId = zBuiltinTemplateId;
+/**
+ * The Modèle de process a new Projet starts from (US-97): « Process Crewdeck »,
+ * data of the release, or one of the Pilote's own Modèles by its id
+ * (PROCESS-14).
+ */
+export const zProcessTemplateId = z.union([zBuiltinTemplateId, zId]);
 export type ProcessTemplateId = z.infer<typeof zProcessTemplateId>;
 
-/** `POST /api/projects` (session): the Dépôts GitHub to follow, each becoming a Projet started from `templateId`. */
-export const zFollowProjects = withSeq(z.object({ repositoryIds: z.array(zId).min(1).max(FOLLOW_PROJECTS_MAX), templateId: zProcessTemplateId }));
+/** Whether `templateId` names one of the Pilote's own Modèles (an id), rather than a Modèle of the release; `false` for anything else. */
+export const isOwnProcessTemplate = (templateId: unknown): boolean => zId.safeParse(templateId).success;
+
+/**
+ * A Dépôt GitHub to follow as the Projet `id`, drawn by the page (a UUIDv7):
+ * the Modèle's sealed part re-sealed under `process:<id>` (`templateSealed`,
+ * `null` for a Modèle without Commande).
+ */
+export const zFollowedProject = z.object({ repositoryId: zId, id: zId, templateSealed: zSealedItem.nullable() });
+export type FollowedProject = z.infer<typeof zFollowedProject>;
+
+/**
+ * `POST /api/projects` (session): the Dépôts GitHub to follow, each becoming a
+ * Projet started from `templateId`. `projects` gives each one's id and
+ * re-sealed part: required, one per repository, with an own Modèle; optional
+ * with « Process Crewdeck », whose Projets the server names otherwise. With an
+ * own Modèle, `templateRevision` is the revision of the Modèle the page sealed
+ * again (409 `process-template.changed` once it is replaced), and
+ * `vaultKeyVersion` the version of the vault key its parts were sealed under
+ * (409 `vault.version-changed`), required with a part.
+ */
+export const zFollowProjects = withSeq(
+  z.object({
+    repositoryIds: z.array(zId).min(1).max(FOLLOW_PROJECTS_MAX),
+    templateId: zProcessTemplateId,
+    templateRevision: zProcessTemplateRevision.optional(),
+    projects: z.array(zFollowedProject).max(FOLLOW_PROJECTS_MAX).optional(),
+    vaultKeyVersion: zVaultKeyVersion.optional(),
+  }),
+).superRefine((input, ctx) => {
+  if (isOwnProcessTemplate(input.templateId) && input.templateRevision === undefined) {
+    ctx.addIssue({ code: 'custom', path: ['templateRevision'], message: 'Un Projet parti de ton Modèle de process dit quelle révision de lui il copie.' });
+  }
+  if (input.projects?.some((project) => project.templateSealed !== null) && input.vaultKeyVersion === undefined) {
+    ctx.addIssue({ code: 'custom', path: ['vaultKeyVersion'], message: 'Une partie chiffrée vient avec la version de la clé sous laquelle elle l’a été.' });
+  }
+  if (input.projects === undefined) {
+    if (isOwnProcessTemplate(input.templateId)) ctx.addIssue({ code: 'custom', path: ['projects'], message: 'Un Projet parti de ton Modèle de process a besoin de son identifiant.' });
+    return;
+  }
+  const given = input.projects.map((project) => project.repositoryId).sort();
+  const wanted = [...new Set(input.repositoryIds)].sort();
+  const ids = new Set(input.projects.map((project) => project.id));
+  if (given.length !== wanted.length || given.some((id, index) => id !== wanted[index]) || ids.size !== input.projects.length) {
+    ctx.addIssue({ code: 'custom', path: ['projects'], message: 'Chaque dépôt suivi a un identifiant de Projet, et un seul.' });
+  }
+});
 export type FollowProjects = z.infer<typeof zFollowProjects>;
 
 /**
@@ -97,7 +147,11 @@ export type FollowProjects = z.infer<typeof zFollowProjects>;
  * (`project:<id>:folder`) before the server sees them; `hasCode` and
  * `releaseBranch` (the folder's branch, `null` without git) are the check's.
  * `vaultKeyVersion` is the version of the vault key both were sealed under:
- * 409 `vault.version-changed` once another holder rotated it.
+ * 409 `vault.version-changed` once another holder rotated it. `templateSealed`
+ * is an own Modèle's sealed part re-sealed under `process:<id>` (PROCESS-14),
+ * `null` for a Modèle without Commande, under the same version; with an own
+ * Modèle, `templateRevision` is the revision the page sealed again (409
+ * `process-template.changed` once it is replaced).
  */
 export const zCreateLocalProject = z.object({
   id: zId,
@@ -107,6 +161,11 @@ export const zCreateLocalProject = z.object({
   hasCode: z.boolean(),
   releaseBranch: z.string().min(1).max(255).nullable(),
   templateId: zProcessTemplateId,
+  templateRevision: zProcessTemplateRevision.optional(),
+  templateSealed: zSealedItem.nullable(),
+}).refine((input) => !isOwnProcessTemplate(input.templateId) || input.templateRevision !== undefined, {
+  path: ['templateRevision'],
+  message: 'Un Projet parti de ton Modèle de process dit quelle révision de lui il copie.',
 });
 export type CreateLocalProject = z.infer<typeof zCreateLocalProject>;
 

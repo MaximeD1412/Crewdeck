@@ -45,6 +45,7 @@ describe('createEditorUi', () => {
       focus: { id: 'st-review', at: 0 },
       toast: null,
       choice: null,
+      saveTemplate: null,
     });
     expect(ui.view('p2', {}).focus).toBeNull();
   });

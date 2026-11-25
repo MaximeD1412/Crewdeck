@@ -57,6 +57,18 @@ describe('FolderProjectForm', () => {
     expect(el.shadowRoot?.querySelector('cd-button.later')).toBeNull();
   });
 
+  it('disables a Modèle whose Commandes this Appareil cannot copy, and says why (PROCESS-14)', async () => {
+    const [crewdeck, court] = READY.templates;
+    const el = await form({ ...READY, templates: [crewdeck!, { ...court!, disabled: true }] });
+    expect(child(el, 'cd-select.template').data).toMatchObject({
+      options: [
+        { value: 'process-crewdeck', label: 'Process Crewdeck', disabled: false },
+        { value: 'process-court', label: 'Process court', disabled: true },
+      ],
+      help: 'Approuve cet Appareil pour copier ses Commandes.',
+    });
+  });
+
   it.each([
     ['idle', false, 'help', 'Le chemin complet d’un dossier sur atelier-pc, depuis / ou ~.'],
     ['checking', false, 'help', 'Vérification sur atelier-pc…'],

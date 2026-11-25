@@ -1,10 +1,11 @@
-import { projectNameAad, type Project, type Repository } from '@crewdeck/contracts';
+import { processSealAad, projectNameAad, templateSealAad, type ProcessTemplate, type Project, type Repository } from '@crewdeck/contracts';
 import type { z } from 'zod';
 import type { Client } from './api/client.js';
+import { ApiError } from './api/request.js';
 import { toBase64Url } from './keys/bytes.js';
 import type { VaultState } from './keys/vault.js';
 import { createProjectNames, createProjects } from './projects.js';
-import { fakeSealed, fakeVault } from './projects/testing.js';
+import { fakeSealed, fakeVault, rotatingVault } from './projects/testing.js';
 import { createStore } from './store/store.js';
 
 const REPOSITORY: Repository = {
@@ -19,17 +20,19 @@ const REPOSITORY: Repository = {
 };
 const CONFIG = { githubApiUrl: 'https://api.github.example', githubWebUrl: 'https://github.example', appSlug: 'crewdeck', runnerServer: null };
 
-const setup = (command: (body: object) => Promise<unknown>, query: () => Promise<unknown> = async () => CONFIG) => {
+const setup = (command: (body: object) => Promise<unknown>, query: () => Promise<unknown> = async () => CONFIG, vault: Parameters<typeof createProjects>[0]['vault'] = fakeVault()) => {
   const store = createStore();
   store.registerSlice('repository', { shape: 'collection', snapshotKey: 'repositories' });
+  store.registerSlice('process-template', { shape: 'collection', snapshotKey: 'processTemplates' });
   const client: Pick<Client, 'command' | 'query'> = {
     query: (async () => query()) as Client['query'],
     command: (async (_method: string, _path: string, body: object, schema?: z.ZodType) => schema?.parse(await command(body))) as Client['command'],
   };
-  const projects = createProjects({ store, client });
+  const ids = ['019a6f00-0000-7000-8000-000000000031', '019a6f00-0000-7000-8000-000000000032'];
+  const projects = createProjects({ store, client, vault, newId: () => ids.shift() ?? '' });
   const changes = vi.fn<() => void>();
   projects.subscribe(changes);
-  return { store, projects, changes };
+  return { store, projects, changes, vault: vault as ReturnType<typeof fakeVault> };
 };
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -67,7 +70,7 @@ describe('createProjects', () => {
 
   it('reads the repositories from the store', () => {
     const { store, projects } = setup(async () => ({ items: [] }));
-    store.applySnapshot({ seq: 1, pilot: null, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, sourceMigrations: [], projects: [], processes: [], phaseRuns: [], stepRuns: [], repositories: [REPOSITORY], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], usage: [], sessions: [] } as never);
+    store.applySnapshot({ seq: 1, pilot: null, runner: null, 'runner-link': null, 'ai-account': [], 'mcp-server': [], devices: [], 'push-subscriptions': [], vault: { version: 1, rotationPending: false }, sourceMigrations: [], projects: [], processes: [], processTemplates: [], phaseRuns: [], stepRuns: [], repositories: [REPOSITORY], decisions: [], ideas: [], tickets: [], milestones: [], codeChanges: [], usage: [], sessions: [] } as never);
 
     expect(projects.picker('projets').repositories).toEqual([{ id: REPOSITORY.id, fullName: 'octocat/site-mairie', hasCode: false }]);
   });
@@ -107,6 +110,131 @@ describe('createProjects', () => {
     await expect(projects.follow([REPOSITORY.id], 'autre')).rejects.toThrow();
     expect(command).toHaveBeenCalledTimes(1);
     expect(projects.picker('projets')).toMatchObject({ busy: false, templates: [{ id: 'process-crewdeck', label: 'Process Crewdeck' }], templateId: 'process-crewdeck' });
+  });
+});
+
+describe('createProjects, from one of the Pilote’s Modèles (PROCESS-14)', () => {
+  const OTHER: Repository = { ...REPOSITORY, id: '018f6b2a-7c3d-7e4f-9a1b-2c3d4e5f6a82', name: 'atelier', fullName: 'octocat/atelier' };
+  const COMMANDS = JSON.stringify({ e2e: 'pnpm exec playwright test' });
+  const template = (id: string, name: string, sealed: ProcessTemplate['sealed'], revision = 1): ProcessTemplate => ({
+    id,
+    name,
+    fromProjectId: null,
+    fromVersionNumber: 3,
+    sealed,
+    commandCount: sealed === null ? 0 : 1,
+    revision,
+    createdAt: '2026-11-12T09:00:00.000Z',
+    updatedAt: '2026-11-12T09:00:00.000Z',
+  });
+  const WEB = '019a6f00-0000-7000-8000-0000000000a1';
+  const COURT = '019a6f00-0000-7000-8000-0000000000a2';
+  const withTemplates = async (store: ReturnType<typeof setup>['store']) => {
+    const templates = [template(WEB, 'Process web', await fakeSealed(COMMANDS, templateSealAad(WEB)), 2), template(COURT, 'Process court', null)];
+    store.applySnapshot({ seq: 1, repositories: [REPOSITORY, OTHER], processTemplates: templates } as never);
+  };
+
+  it('offers « Process Crewdeck », then the Pilote’s Modèles by name; one with Commandes disabled while the vault is locked', async () => {
+    const { store, projects } = setup(async () => ({ items: [] }));
+    await withTemplates(store);
+    expect(projects.picker('projets')).toMatchObject({
+      templates: [
+        { id: 'process-crewdeck', label: 'Process Crewdeck' },
+        { id: COURT, label: 'Process court' },
+        { id: WEB, label: 'Process web', disabled: true },
+      ],
+      templateId: 'process-crewdeck',
+    });
+    store.setVaultState('unlocked');
+    expect(projects.picker('projets').templates).toEqual([
+      { id: 'process-crewdeck', label: 'Process Crewdeck' },
+      { id: COURT, label: 'Process court' },
+      { id: WEB, label: 'Process web' },
+    ]);
+  });
+
+  it('draws each Projet’s id, and seals the Modèle’s Commandes again for each, under process:<id>, with its revision and the key’s version', async () => {
+    const command = vi.fn<(body: object) => Promise<unknown>>(async () => ({ items: [] }));
+    const { store, projects } = setup(command);
+    await withTemplates(store);
+
+    await projects.follow([REPOSITORY.id, OTHER.id], WEB);
+    expect(command.mock.calls[0]?.[0]).toEqual({
+      repositoryIds: [REPOSITORY.id, OTHER.id],
+      templateId: WEB,
+      templateRevision: 2,
+      vaultKeyVersion: 1,
+      projects: [
+        { repositoryId: REPOSITORY.id, id: '019a6f00-0000-7000-8000-000000000031', templateSealed: await fakeSealed(COMMANDS, processSealAad('019a6f00-0000-7000-8000-000000000031')) },
+        { repositoryId: OTHER.id, id: '019a6f00-0000-7000-8000-000000000032', templateSealed: await fakeSealed(COMMANDS, processSealAad('019a6f00-0000-7000-8000-000000000032')) },
+      ],
+    });
+  });
+
+  it('a Modèle without Commandes gives each Projet its id, nothing sealed', async () => {
+    const command = vi.fn<(body: object) => Promise<unknown>>(async () => ({ items: [] }));
+    const { store, projects } = setup(command);
+    await withTemplates(store);
+
+    await projects.follow([REPOSITORY.id], COURT);
+    expect(command.mock.calls[0]?.[0]).toEqual({
+      repositoryIds: [REPOSITORY.id],
+      templateId: COURT,
+      templateRevision: 1,
+      projects: [{ repositoryId: REPOSITORY.id, id: '019a6f00-0000-7000-8000-000000000031', templateSealed: null }],
+    });
+  });
+
+  it('after a rotation, unlocks the vault and seals the Commandes again under its new version, the same ids, once (E2E-4)', async () => {
+    const versionChanged = new ApiError({ status: 409, code: 'vault.version-changed', message: 'La clé du coffre a déjà changé.' });
+    let refused = 1;
+    const command = vi.fn<(body: object) => Promise<unknown>>(async () => {
+      if (refused-- > 0) {
+        // Another holder rotated while the page sealed: the vault opens again under version 2.
+        vault.version = 2;
+        throw versionChanged;
+      }
+      return { items: [] };
+    });
+    const { store, projects, vault } = setup(command);
+    await withTemplates(store);
+
+    await projects.follow([REPOSITORY.id], WEB);
+    expect(vault.unlocks).toBe(1);
+    const bodies = command.mock.calls.map(([body]) => body as { vaultKeyVersion: number; projects: { id: string }[] });
+    expect(bodies.map((body) => body.vaultKeyVersion)).toEqual([1, 2]);
+    expect(bodies.map((body) => body.projects[0]?.id)).toEqual(['019a6f00-0000-7000-8000-000000000031', '019a6f00-0000-7000-8000-000000000031']);
+  });
+});
+
+describe('createProjects, after a rotation, with a real vault (PROCESS-14, E2E-4)', () => {
+  it('seals again under the new key the Modèle’s Commandes it opened under the former', async () => {
+    const WEB = '019a6f00-0000-7000-8000-0000000000a1';
+    const COMMANDS = JSON.stringify({ e2e: 'pnpm exec playwright test' });
+    const real = await rotatingVault();
+    const bodies: { vaultKeyVersion: number; projects: { id: string; templateSealed: { key: string; ciphertext: string } }[] }[] = [];
+    const command = vi.fn<(body: object) => Promise<unknown>>(async (body) => {
+      bodies.push(body as (typeof bodies)[number]);
+      if (bodies.length === 1) {
+        // Another holder rotates: the Modèle's part in the store was sealed under the former key.
+        real.rotate();
+        throw new ApiError({ status: 409, code: 'vault.version-changed', message: 'La clé du coffre a déjà changé.' });
+      }
+      return { items: [] };
+    });
+    const { store, projects } = setup(command, undefined, real.vault);
+    const sealed = await real.seal(COMMANDS, templateSealAad(WEB));
+    store.applySnapshot({
+      seq: 1,
+      repositories: [REPOSITORY],
+      processTemplates: [{ id: WEB, name: 'Process web', fromProjectId: null, fromVersionNumber: 3, sealed, commandCount: 1, revision: 1, createdAt: '2026-11-12T09:00:00.000Z', updatedAt: '2026-11-12T09:00:00.000Z' }],
+    } as never);
+
+    await projects.follow([REPOSITORY.id], WEB);
+
+    expect(bodies.map((body) => body.vaultKeyVersion)).toEqual([1, 2]);
+    const [project] = bodies[1]!.projects;
+    expect(await real.open(project!.templateSealed, processSealAad(project!.id))).toBe(COMMANDS);
   });
 });
 

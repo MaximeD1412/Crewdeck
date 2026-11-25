@@ -120,6 +120,20 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
     await page.locator('cd-page-process-editor cd-page-header').getByRole('button', { name: 'Activer la v4' }).click();
     await expect(page.getByRole('alertdialog', { name: 'Activer la v4 du Process de Site mairie ?' })).toContainText('la Conception « Actualités » sur la v2');
   },
+  // « Enregistrer comme Modèle de process » opened (PROCESS-14; 1280 px: the header's actions are the editor's).
+  'process-enregistrer-modele': async (page, width) => {
+    if (width < 1280) return;
+    const editor = page.locator('cd-page-process-editor');
+    await expect(editor.locator('cd-process-canvas cd-step-card').first()).toBeVisible();
+    await editor.locator('cd-page-header').getByRole('button', { name: 'Enregistrer comme Modèle de process' }).click();
+    await expect(editor.locator('cd-dialog.save-template-dialog').getByRole('textbox', { name: 'Nom du Modèle de process' })).toHaveValue('Process Site mairie');
+  },
+  // « Modèles de process » (PROCESS-14): its section opened, as a link of the nav does (on the phone, the section alone).
+  'parametres-modeles': async (page) => {
+    await page.getByRole('navigation', { name: 'Paramètres / Sections' }).getByRole('link', { name: 'Modèles de process' }).click();
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.locator('cd-process-template-list cd-list-row')).toHaveCount(2);
+  },
   // The catalogue opened under « Étape », « Développement » chosen (1280 px: the header's actions are the editor's).
   'process-catalogue': async (page, width) => {
     if (width < 1280) return;
@@ -249,7 +263,7 @@ const PREPARE: Readonly<Record<string, (page: Page, width: number) => Promise<vo
 };
 
 /** The scenarios whose capture is the screen, not the whole page: a modal over it. */
-const SCREEN_ONLY: ReadonlySet<string> = new Set(['confirm-dialog', 'appareil-a-approuver-code', 'appareils-ajouter', 'idees-nouvelle', 'idees-dictee', 'process-activation']);
+const SCREEN_ONLY: ReadonlySet<string> = new Set(['confirm-dialog', 'appareil-a-approuver-code', 'appareils-ajouter', 'idees-nouvelle', 'idees-dictee', 'process-activation', 'process-enregistrer-modele']);
 
 const names = (process.env['CAPTURES_SCENARIOS'] ?? '')
   .split(',')

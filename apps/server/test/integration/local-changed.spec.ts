@@ -132,6 +132,7 @@ describe('a Local Projet’s folder followed, against PostgreSQL', () => {
       hasCode: true,
       releaseBranch: 'trunk',
       templateId: 'process-crewdeck',
+      templateSealed: null,
     });
     expect(res.status).toBe(201);
     return id;

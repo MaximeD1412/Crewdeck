@@ -17,6 +17,7 @@ import {
   PageProjet,
   PageProjets,
   PageRunner,
+  ProcessTemplateList,
   RepositoryPicker,
   PushSettings,
   RoleSettings,
@@ -57,6 +58,7 @@ import { createDeviceStore } from './keys/device-store.js';
 import { createBrowserPush, type PushDevice } from './push.js';
 import { createPushSettings } from './push-settings.js';
 import { createRoleSettings } from './role-settings.js';
+import { createSaveTemplate, createTemplateList } from './process-templates.js';
 import { createSessionPanel } from './session-panel.js';
 import { createSessionPeek } from './sessions/peek.js';
 import { createSessionRelay, type SessionRelay } from './sessions/relay.js';
@@ -246,7 +248,7 @@ export const boot = async ({
     leave: (url) => leave(url),
     navigate: (url) => router.navigate(url),
   });
-  const projects = createProjects({ store, client });
+  const projects = createProjects({ store, client, vault: keys.vault });
   const closedIdeas = createClosedIdeas({ client });
   // The boot's opening of the vault: until it settles, an Idée's text is « Déchiffrement… », not unreadable.
   let vaultTried: () => void = () => undefined;
@@ -268,7 +270,13 @@ export const boot = async ({
   const localTexts = createLocalTexts({ vault: keys.vault, vaultState: () => store.getState().vaultState });
   const folderForm = createFolderForm({
     checker: createFolderChecker({ check: createFolderCheck({ socket: folders, vault: keys.vault }) }),
-    createProject: ({ templateId, ...input }) => createLocalProject({ client, vault: keys.vault }, { ...input, templateId: zProcessTemplateId.parse(templateId) }),
+    createProject: ({ templateId, ...input }) => {
+      const template = store.getState().slices['process-template']?.get(templateId);
+      return createLocalProject(
+        { client, vault: keys.vault },
+        { ...input, templateId: zProcessTemplateId.parse(templateId), ...(template ? { templateRevision: template.revision } : {}), templateSealed: template?.sealed ?? null },
+      );
+    },
     attachFolder: (projectId, path) => attachFolder({ client, vault: keys.vault }, projectId, path),
   });
   // The Projet just created, shown on its page until its `project.upserted` arrives.
@@ -289,13 +297,21 @@ export const boot = async ({
     if (formKey !== null && formKey !== key) queueMicrotask(() => folderForm.reset());
     formKey = key;
     const { slices, vaultState } = store.getState();
-    return folderForm.view({ context, vaultLocked: vaultState !== 'unlocked', machine: slices.runner?.machine ?? null, ...(name === undefined ? {} : { name }) });
+    return folderForm.view({
+      context,
+      vaultLocked: vaultState !== 'unlocked',
+      machine: slices.runner?.machine ?? null,
+      templates: slices['process-template']?.values() ?? [],
+      ...(name === undefined ? {} : { name }),
+    });
   };
   const noteIdea = createNoteIdea({ client, vault: keys.vault, store, projectName });
   const noteDialog = document.createElement(NoteIdeaDialog.tag) as HTMLElement & { data: unknown };
   noteDialog.data = noteIdea.view();
   shell.append(noteDialog);
   const roleSettings = createRoleSettings({ client });
+  // « Modèles de process » of the Paramètres (PROCESS-14).
+  const templateList = createTemplateList({ client, templates: () => store.getState().slices['process-template'] });
   const pushSettings = createPushSettings({
     client,
     device: push,
@@ -376,6 +392,8 @@ export const boot = async ({
         projectName,
         devices: slices.device,
         currentDeviceId: currentDeviceId(),
+        templates: slices['process-template'],
+        templateList: templateList.view(),
       });
     },
     data: (match) => {
@@ -481,6 +499,7 @@ export const boot = async ({
     projects.subscribe(() => router.refresh()),
     closedIdeas.subscribe(() => router.refresh()),
     roleSettings.subscribe(() => router.refresh()),
+    templateList.subscribe(() => router.refresh()),
     pushSettings.subscribe(() => router.refresh()),
     projectSettings.subscribe(() => router.refresh()),
     editorUi.subscribe(() => router.refresh()),
@@ -525,6 +544,11 @@ export const boot = async ({
   dispatcher.registerAction(RoleSettings, 'add', { run: () => roleSettings.open() });
   dispatcher.registerAction(RoleSettings, 'create', { run: (body) => roleSettings.create(body) });
   dispatcher.registerAction(RoleSettings, 'cancel', { run: () => roleSettings.cancel() });
+  dispatcher.registerAction(ProcessTemplateList, 'rename', { run: ({ id }) => templateList.rename(id) });
+  dispatcher.registerAction(ProcessTemplateList, 'submitRename', { run: ({ id, name }) => templateList.submitRename(id, name) });
+  dispatcher.registerAction(ProcessTemplateList, 'remove', { run: ({ id }) => templateList.remove(id) });
+  dispatcher.registerAction(ProcessTemplateList, 'confirmRemove', { run: ({ id }) => templateList.confirmRemove(id) });
+  dispatcher.registerAction(ProcessTemplateList, 'cancel', { run: () => templateList.cancel() });
   dispatcher.registerAction(PushSettings, 'toggle', { run: ({ push }) => pushSettings.toggle(push) });
   dispatcher.registerAction(PushSettings, 'subscribe', { run: () => pushSettings.activate() });
   dispatcher.registerAction(PushSettings, 'remove', { run: ({ id }) => pushSettings.remove(id) });
@@ -596,6 +620,16 @@ export const boot = async ({
   dispatcher.registerAction(PageProcessEditor, 'tab', { run: (payload) => editor.tab(payload) });
   dispatcher.registerAction(PageProcessEditor, 'view', { run: (payload) => editor.view(payload) });
   dispatcher.registerAction(PageProcessEditor, 'activate', editor.activate);
+  const saveTemplate = createSaveTemplate({
+    ui: editorUi,
+    client,
+    vault: keys.vault,
+    slices: () => store.getState().slices,
+    projectId: () => router.current.params['id'] ?? '',
+  });
+  dispatcher.registerAction(PageProcessEditor, 'openSaveTemplate', { run: () => saveTemplate.open() });
+  dispatcher.registerAction(PageProcessEditor, 'closeSaveTemplate', { run: () => saveTemplate.close() });
+  dispatcher.registerAction(PageProcessEditor, 'saveTemplate', { run: (payload) => saveTemplate.save(payload) });
   dispatcher.registerAction(PageProcessEditor, 'migrate', createMigrateAction({ ui: editorUi, client, current: () => router.current }));
   dispatcher.registerAction(PageProcessEditor, 'addPhase', { run: () => editor.addPhase() });
   dispatcher.registerAction(PageProcessEditor, 'openCatalogue', { run: () => editor.openCatalogue() });

@@ -1,4 +1,4 @@
-import { type FollowProjects, type ProcessTemplateId, type Project, type ProjectList, zId, zFollowProjects, zProject, zProjectList } from '@crewdeck/contracts';
+import { type FollowedProject, type FollowProjects, type ProcessTemplateId, type Project, type ProjectList, zId, zFollowProjects, zProject, zProjectList } from '@crewdeck/contracts';
 import { Body, Controller, Get, Inject, Injectable, type OnModuleInit, Param, Post } from '@nestjs/common';
 import { createZodDto, ZodResponse } from 'nestjs-zod';
 import { AppError, notFound, unprocessable } from '../errors/app-error.js';
@@ -14,6 +14,7 @@ import { assertFresh } from '../realtime/freshness.js';
 import { STATE_CONTRIBUTORS, type StateContributor, type StateContributors } from '../realtime/state-contributors.js';
 import { Transactions, type Tx } from '../realtime/transactions.js';
 import { currentPilotId } from '../scope/scope.context.js';
+import { assertVaultVersion } from '../vault/sealed-write.js';
 import { projectNamesOf } from './project-names.js';
 import { ProjectChanges } from './project-changes.js';
 import { inventoryStateRow, PROJECT_VIEW, toProject } from './project.view.js';
@@ -28,6 +29,7 @@ export const listProjects = async (tx: Pick<Tx, 'project'>): Promise<Project[]> 
 
 const repositoryNotFound = (): AppError => notFound('project.repository-not-found', MESSAGES['project.repository-not-found']);
 const alreadyFollowed = (): AppError => unprocessable('project.already-followed', MESSAGES['project.already-followed']);
+const idTaken = (): AppError => unprocessable('project.id-taken', MESSAGES['project.id-taken']);
 
 /** A unique index of `projects` refused the row: another command followed the repository first. */
 const isUniqueViolation = (error: unknown): boolean => error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
@@ -55,29 +57,41 @@ export class Projects {
 
   /**
    * 404 `project.repository-not-found` for a repository unknown or another
-   * Pilote's, 422 `project.already-followed` for one already a Projet, 409
+   * Pilote's, 422 `project.already-followed` for one already a Projet, 422
+   * `project.id-taken` for an id the page drew already a Projet's, 404
+   * `process-template.not-found`, 409 `process-template.changed`, 422
+   * `process-template.sealed-mismatch` and 409 `vault.version-changed` for
+   * an own Modèle (PROCESS-14), 409
    * `realtime.stale` for one changed since `seq`. Nothing is read from GitHub;
    * the transaction checks again; two commands at once on the same
    * repository: the unique index lets one through, the other is 422.
    */
-  async follow(pilotId: string, { repositoryIds, templateId, seq }: FollowProjects): Promise<Project[]> {
+  async follow(pilotId: string, { repositoryIds, templateId, templateRevision, projects: given, vaultKeyVersion, seq }: FollowProjects): Promise<Project[]> {
     const ids = [...new Set(repositoryIds)];
     if ((await this.prisma.scoped.repository.count({ where: { id: { in: ids } } })) !== ids.length) throw repositoryNotFound();
     if ((await this.prisma.scoped.project.count({ where: { repositoryId: { in: ids } } })) > 0) {
       throw alreadyFollowed();
     }
     try {
-      const projects = await this.write(pilotId, ids, templateId, BigInt(seq));
+      const from = { templateId, templateRevision, vaultKeyVersion };
+      const projects = await this.write(pilotId, ids, from, new Map((given ?? []).map((project) => [project.repositoryId, project])), BigInt(seq));
       this.changes.changed(pilotId);
       return projects;
     } catch (error) {
-      if (isUniqueViolation(error)) throw alreadyFollowed();
-      throw error;
+      if (!isUniqueViolation(error)) throw error;
+      // Another command followed a repository first, or an id the page drew is another Pilote's Projet (the key is global).
+      if (given === undefined || (await this.prisma.scoped.project.count({ where: { repositoryId: { in: ids } } })) > 0) throw alreadyFollowed();
+      throw idTaken();
     }
   }
 
-  private write(pilotId: string, ids: readonly string[], templateId: ProcessTemplateId, seq: bigint): Promise<Project[]> {
+  private write(pilotId: string, ids: readonly string[], from: FollowedTemplate, given: ReadonlyMap<string, FollowedProject>, seq: bigint): Promise<Project[]> {
     return this.transactions.run(async (tx) => {
+      if ([...given.values()].some((project) => project.templateSealed !== null)) {
+        // The Pilote's row held: no rotation moves the vault before the commit of the parts sealed under it.
+        await this.events.lock(tx, pilotId);
+        await assertVaultVersion(tx, pilotId, from.vaultKeyVersion ?? 0);
+      }
       const projects: Project[] = [];
       for (const id of ids) {
         const repository = await tx.repository.findUnique({ where: { id }, select: { ...REPOSITORY_VIEW, githubId: true, lastSeq: true } });
@@ -86,7 +100,10 @@ export class Projects {
         if ((await tx.project.count({ where: { OR: [{ repositoryId: id }, { githubRepoId: repository.githubId }] } })) > 0) {
           throw alreadyFollowed();
         }
-        const projectId = newId();
+        // The id the page drew when it re-sealed the Modèle's Commandes for it (PROCESS-14).
+        const followed = given.get(id);
+        const projectId = followed?.id ?? newId();
+        if (followed && (await tx.project.count({ where: { id: projectId } })) > 0) throw idTaken();
         const row = await tx.project.create({
           data: {
             id: projectId,
@@ -107,7 +124,7 @@ export class Projects {
         await tx.project.update({ where: { id: projectId }, data: { lastSeq: projectSeq } });
         // Its Sources first, so that its first process.upserted holds them: a Dépôt GitHub, both groups on GitHub.
         await this.sources.createDefaults(tx, projectId, 'github');
-        await this.process.createInitialVersion(tx, projectId, { template: templateId });
+        await this.process.createInitialVersion(tx, projectId, { template: from.templateId, revision: from.templateRevision, sealed: followed?.templateSealed ?? null });
         const view = { id, owner: repository.owner, name: repository.name, fullName: repository.fullName, private: repository.private, defaultBranch: repository.defaultBranch, hasCode: repository.hasCode };
         const repositorySeq = await this.events.write(tx, pilotId, 'repository.upserted', { ...view, followed: true });
         await tx.repository.update({ where: { id }, data: { lastSeq: repositorySeq } });
@@ -116,6 +133,13 @@ export class Projects {
       return projects;
     });
   }
+}
+
+/** The Modèle a follow starts its Projets from: its id, the revision the page sealed again, the vault key's version of those parts. */
+interface FollowedTemplate {
+  readonly templateId: ProcessTemplateId;
+  readonly templateRevision: number | undefined;
+  readonly vaultKeyVersion: number | undefined;
 }
 
 const projectId = (value: string): string => {

@@ -11,6 +11,7 @@ import type {
   Milestone,
   PhaseRun,
   Project,
+  ProcessTemplate,
   ProjectProcess,
   PushSubscription,
   Repository,
@@ -59,6 +60,8 @@ export interface Slices {
   readonly project: ReadonlyMap<string, Project>;
   /** The Process of each Projet (PROCESS-3), by the Projet's id, from the snapshot's `processes`: its active version and its draft. */
   readonly process: ReadonlyMap<string, ProjectProcess>;
+  /** The Pilote's Modèles de process (PROCESS-14), by id, from the snapshot's `processTemplates`: « Process Crewdeck » is none of them. */
+  readonly 'process-template': ReadonlyMap<string, ProcessTemplate>;
   /** The unfinished PhaseRuns of every Projet (PROCESS-4), by id, from the snapshot's `phaseRuns`: one item through one Phase. */
   readonly 'phase-run': ReadonlyMap<string, PhaseRun>;
   /** The StepRuns of those PhaseRuns, by id, from the snapshot's `stepRuns`: one pass of an Étape each. */

@@ -46,6 +46,8 @@ type SourceRow = ProcessEditorData['sources']['rows'][number];
 export interface ProcessEditorState {
   /** The store's connection: « Activer » waits for the end of the Resynchronisation; without it (no store), it does not. */
   readonly connection?: StoreState['connection'];
+  /** Whether this Appareil opens the vault: a version with Commandes is copied as a Modèle only then (PROCESS-14); `locked` without it. */
+  readonly vaultState?: StoreState['vaultState'];
   readonly slices: {
     readonly project?: ReadonlyMap<string, Project>;
     readonly process?: ReadonlyMap<string, ProjectProcess>;
@@ -427,7 +429,28 @@ const nothing = (found: boolean, ui: EditorUi): ProcessEditorData => ({
   sources: { lead: t('process.sources.lead'), banner: null, rows: [] },
   footer: { changes: '', versions: '' },
   activate: null,
+  saveTemplate: null,
 });
+
+/**
+ * The Dialog « Enregistrer comme Modèle de process » while the page has it
+ * open (PROCESS-14): the name submitted, else « Process {Projet} », the
+ * store's active version (never the edits'), whether a draft stays out, and
+ * whether its Commandes wait for this Appareil.
+ */
+const saveTemplateOf = (state: ProcessEditorState, stored: ProjectProcess | undefined, draft: boolean, ui: EditorUi, name: string): ProcessEditorData['saveTemplate'] => {
+  const open = ui.saveTemplate ?? null;
+  const active = stored?.active ?? null;
+  if (open === null || active === null) return null;
+  return {
+    name: open.name ?? t('process.template.defaultName', { project: name }),
+    error: open.error,
+    replaceId: open.replaceId,
+    versionNumber: active.number,
+    draft,
+    locked: active.sealed !== null && state.vaultState !== 'unlocked',
+  };
+};
 
 /**
  * « Gestion du process »' data (pure, US-92, US-94, US-88): the draft when
@@ -461,10 +484,11 @@ export const processEditorView = (
   // The page's own diff (ADR 0011): the server only refuses an empty one.
   const changes = view.active && view.draft ? diffDefinitions(view.active.definition, view.draft.definition) : [];
   const target = targetPhaseOf(definition, selection);
+  const name = projectName(project);
 
   return {
     found: true,
-    title: { projectName: projectName(project), backHref: '/projets', count: countOf(view, changes, gaps.length) },
+    title: { projectName: name, backHref: '/projets', count: countOf(view, changes, gaps.length) },
     hasVersion: view.active !== null,
     canvas: canvasOf(definition, gaps, selection, { zoom: ui.zoom, pan: ui.pan, roleNames, focus: ui.focus, editable: true, target: target?.id ?? null }),
     tab: ui.tab,
@@ -478,5 +502,6 @@ export const processEditorView = (
     sources: sourcesPanel(view, definition, sourceReadsOf(state, project, view.active?.definition ?? definition), ui.choice ?? null),
     footer: footerOf(view, changes, roleNames),
     activate: activateOf(state, view, changes, gaps.length, edits.saving ?? false),
+    saveTemplate: saveTemplateOf(state, slices.process.get(projectId), view.draft !== null, ui, name),
   };
 };
